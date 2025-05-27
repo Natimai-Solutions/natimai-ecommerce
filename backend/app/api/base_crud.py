@@ -5,7 +5,6 @@ import uuid
 from hashlib import md5
 from typing import Any, Generic, TypeVar
 
-from fastapi import HTTPException, status
 from sqlalchemy.dialects import postgresql
 from sqlmodel import SQLModel, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -112,10 +111,8 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     ) -> ModelType | Any:
         record = await session.get(self.model, id)
         if not record:
-            raise HTTPException(
-                status_code=404,
-                detail="L'enregistrement n'existe pas dans la base de données.",
-            )
+            logger.error(f"The record with id {id} does not exist.")
+            raise Exception("The record doesn't exists.")
         return record
 
     async def get_multi_statement(
@@ -174,9 +171,17 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         if limit:
             statement_limited = statement_limited.limit(limit)
         logger.debug(f"Requête SQL : {statement_limited}")
-        count = await self.count(session, statement)
-        result = await session.exec(statement_limited)
-        data = result.all()
+        try:
+            count = await self.count(session, statement)
+        except Exception as e:
+            logger.error(f"Error while counting records: {e}")
+            raise Exception("An error occurred while counting the records.")
+        try:
+            result = await session.exec(statement_limited)
+            data = result.all()
+        except Exception as e:
+            logger.error(f"Error while executing the query: {e}")
+            raise Exception("An error occurred while executing the query.")
         return {"data": data, "count": count}
 
     async def create_draft(
@@ -230,11 +235,31 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         if not user or not user.is_superuser:
             # Remove fields from data that the user is not allowed to create
             data = self.remove_protected_fields(data)
-        record = await self.create_draft(session, data=data, user=user)
-        await self.after_create(session, record=record, data=data, user=user)
-        await session.commit()
-        await session.refresh(record)
-        await self.after_create_commit(session, record=record, data=data, user=user)
+        try:
+            record = await self.create_draft(session, data=data, user=user)
+        except Exception as e:
+            logger.error(f"Error while creating the record: {e}")
+            raise Exception("An error occurred while creating the record.")
+        try:
+            await self.after_create(session, record=record, data=data, user=user)
+        except Exception as e:
+            logger.error(f"Error after creating the record: {e}")
+            raise Exception("An error occurred after creating the record.")
+        try:
+            await session.commit()
+        except Exception as e:
+            logger.error(f"Error while committing the record: {e}")
+            raise Exception("An error occurred while committing the record to the database.")
+        try:
+            await session.refresh(record)
+        except Exception as e:
+            logger.error(f"Error while refreshing the record: {e}")
+            raise Exception("An error occurred while refreshing the record.")
+        try:
+            await self.after_create_commit(session, record=record, data=data, user=user)
+        except Exception as e:
+            logger.error(f"Error after committing the record: {e}")
+            raise Exception("An error occurred after committing the record to the database.")
         return record
 
     async def update_draft(
@@ -305,21 +330,21 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 session, data=data, record=record, id=id, user=user
             )
         except Exception as e:
-            logger.error(f"Erreur avant la mise à jour : {e}")
-            raise HTTPException(status_code=400, detail=str(e))
+            logger.error(f"Error befor updating the record: {e}")
+            raise Exception("An error occurred before updating the record.")
         if not user or not user.is_superuser:
             # Remove fields from data that the user is not allowed to update
             data = self.remove_protected_fields(data)
         try:
             record = await self.update_draft(session, id=id, data=data, user=user)
         except Exception as e:
-            logger.error(f"Erreur lors de la mise à jour : {e}")
-            raise HTTPException(status_code=400, detail=str(e))
+            logger.error(f"Error while updating the record: {e}")
+            raise Exception("An error occurred while updating the record.")
         try:
             await self.after_update(session, data=data, record=record, id=id, user=user)
         except Exception as e:
-            logger.error(f"Erreur après la mise à jour : {e}")
-            raise HTTPException(status_code=400, detail=str(e))
+            logger.error(f"Error after updating the record: {e}")
+            raise Exception("An error occurred after updating the record.")
         await session.commit()
         await session.refresh(record)
         try:
@@ -327,7 +352,8 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 session, data=data, record=record, id=id, user=user
             )
         except Exception as e:
-            logger.error(f"Erreur après l'enregistrement en base de données: {e}")
+            logger.error(f"Error after committing the record: {e}")
+            raise Exception("An error occurred after committing the record to the database.")
         return record
 
     async def delete_draft(
@@ -355,10 +381,26 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         record: ModelType | None = None,
         user: UserType | None = None,
     ) -> None:
-        await self.before_delete(session, id=id, record=record)
-        await self.delete_draft(session, id=id, record=record)
-        await session.commit()
-        await self.after_delete(session, id=id, record=record)
+        try:
+            await self.before_delete(session, id=id, record=record)
+        except Exception as e:
+            logger.error(f"Error before deleting the record: {e}")
+            raise Exception("An error occurred before deleting the record.")
+        try:
+            await self.delete_draft(session, id=id, record=record)
+        except Exception as e:
+            logger.error(f"Error while deleting the record: {e}")
+            raise Exception("An error occurred while deleting the record.")
+        try:
+            await session.commit()
+        except Exception as e:
+            logger.error(f"Error while committing the deletion: {e}")
+            raise Exception("An error occurred while committing the deletion.")
+        try:
+            await self.after_delete(session, id=id, record=record)
+        except Exception as e:
+            logger.error(f"Error after deleting the record: {e}")
+            raise Exception("An error occurred after deleting the record.")
 
     async def delete_multi(
         self,
@@ -370,9 +412,15 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         for id in ids:
             record = await self.get(session, id=id)
             if not record:
-                raise HTTPException(
-                    status_code=404,
-                    detail="L'un des enregistrement à supprimer n'existe pas dans la base de données.",
-                )
-            await self.delete_draft(session, id=id, record=record)
-        await session.commit()
+                logger.error(f"The record with id {id} does not exist.")
+                raise Exception("The record doesn't exists.")
+            try:
+                await self.delete_draft(session, id=id, record=record)
+            except Exception as e:
+                logger.error(f"Error while deleting the record with id {id}: {e}")
+                raise Exception("An error occurred while deleting the record.")
+        try:
+            await session.commit()
+        except Exception as e:
+            logger.error(f"Error while committing the deletion: {e}")
+            raise Exception("An error occurred while committing the deletion.")
