@@ -1,4 +1,5 @@
 import datetime
+import functools
 import importlib
 import logging
 import uuid
@@ -28,6 +29,28 @@ class PermissionDeniedError(Exception):
     """Levée quand un utilisateur n'a pas les permissions."""
     pass
 
+class CrudOperationError(Exception):
+    """Exception spécifique pour les opérations CRUD avec contexte de l'erreur."""
+    pass
+
+def track_crud_operation(func=None, *, step_name=None):
+    """
+    Décorateur qui trace les opérations CRUD et gère leurs exceptions.
+    Peut être utilisé avec ou sans arguments.
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            operation_name = step_name or func.__name__
+            try:
+                return await func(*args, **kwargs)
+            except Exception as e:
+                logger.error(f"Error in {operation_name}: {e}", exc_info=True)
+                new_exception = CrudOperationError(f"Error during {operation_name}: {str(e)}")
+                raise new_exception from e  # Préserve la stack trace d'origine
+        return wrapper
+    return decorator
+
 
 class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     def __init__(
@@ -38,8 +61,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         schema_update: type[UpdateSchemaType],
         default_filter: Any | None = None,
         order_by: Any | None = None,
-        allow_all_user_to_create: bool = False,
-        protected_fields: list[str] | None = [],
+        allow_all_user_to_create: bool = False
     ):
         self.model = model
         self.schema_create = schema_create
@@ -47,32 +69,116 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         self.default_filter = default_filter
         self.order_by = order_by
         self.allow_all_user_to_create = allow_all_user_to_create
-        self.protected_fields = protected_fields
-        self.event_handlers = {}
+        self.event_handlers = {
+            "create": {"before": [], "after": [], "after_commit": []},
+            "read": {"after": []},
+            "update": {"before": [], "after": [], "after_commit": []},
+            "delete": {"before": [], "after": []},
+            "delete_multi": {"before": [], "after": []},
+            # Pour conserver la compatibilité avec les événements spécifiques
+            "custom": {},
+        }
 
-    def register_event_handler(self, event_name: str, handler_func: callable):
-        """Register a handler for a specific event"""
-        if event_name not in self.event_handlers:
-            self.event_handlers[event_name] = []
-        self.event_handlers[event_name].append(handler_func)
-        return self  # Pour permettre le chaînage
-
-    async def trigger_event(self, event_name: str, **context):
-        """Trigger all handlers registered for a specific event"""
-        if event_name not in self.event_handlers:
-            logger.debug(f"The event {event_name} has no handlers registered.")
-            return
+    def register_event_handler(
+        self, 
+        operation: str, 
+        phase: str = None, 
+        handler_func: callable = None,
+        # Pour support de l'ancien format
+        event_name: str = None
+    ):
+        """
+        Enregistre un handler pour un événement spécifique
         
-        logger.debug(f"Triggering event {event_name} with {len(self.event_handlers[event_name])} handlers")
-        for handler in self.event_handlers[event_name]:
+        Args:
+            operation: Type d'opération ('create', 'read', 'update', 'delete') ou nom d'événement personnalisé
+            phase: Phase de l'opération ('before', 'after', 'after_commit')
+            handler_func: Fonction à exécuter
+            event_name: Pour rétrocompatibilité avec l'ancien format
+        """
+        # Support pour l'ancien format: register_event_handler("event_name", handler_func)
+        if phase is not None and handler_func is None and callable(phase):
+            handler_func = phase
+            if operation in self.event_handlers:
+                # Considère qu'il s'agit d'un événement standard, par défaut "after"
+                phase = "after"
+            else:
+                # C'est un événement personnalisé
+                event_name = operation
+                operation = "custom"
+                phase = event_name
+        
+        # Si c'est un événement personnalisé
+        if event_name is not None:
+            operation = "custom"
+            phase = event_name
+        
+        # Vérifie si c'est un événement CRUD standard
+        if operation in ["create", "read", "update", "delete"]:
+            if phase not in ["before", "after", "after_commit"]:
+                logger.warning(f"Phase non reconnue: {phase}. Utilisation de 'after'.")
+                phase = "after"
+            
+            self.event_handlers[operation][phase].append(handler_func)
+        else:
+            # Événement personnalisé
+            if operation not in self.event_handlers["custom"]:
+                self.event_handlers["custom"][operation] = []
+            self.event_handlers["custom"][operation].append(handler_func)
+        
+        return self  # Pour le chaînage
+
+    async def trigger_event(self, operation: str, phase: str = None, event_name: str = None, **context):
+        """
+        Déclenche tous les handlers associés à un événement
+
+        Args:
+            operation: Type d'opération ('create', 'read', 'update', 'delete') ou nom d'événement
+            phase: Phase de l'opération ('before', 'after', 'after_commit')
+            event_name: Pour rétrocompatibilité
+            **context: Contexte à passer aux handlers
+        """
+        handlers = []
+
+        # Déterminer les handlers à exécuter
+        if event_name is not None:
+            # Format ancien: événement personnalisé
+            if event_name in self.event_handlers["custom"]:
+                handlers = self.event_handlers["custom"][event_name]
+            else:
+                logger.debug(f"Aucun handler pour l'événement personnalisé: {event_name}")
+                return
+        elif operation in self.event_handlers and phase in self.event_handlers[operation]:
+            # Format nouveau: opération CRUD standard
+            handlers = self.event_handlers[operation][phase]
+        elif operation in self.event_handlers["custom"]:
+            # Rétrocompatibilité: c'est peut-être un événement personnalisé
+            handlers = self.event_handlers["custom"][operation]
+        else:
+            logger.debug(f"Aucun handler pour l'opération {operation}, phase {phase}")
+            return
+
+        # Exécuter les handlers
+        if not handlers:
+            return
+            
+        logger.debug(f"Exécution de {len(handlers)} handlers pour {operation}/{phase}")
+        for handler in handlers:
             try:
                 result = handler(**context)
-                # Gère à la fois les fonctions synchrones et asynchrones
                 if hasattr(result, '__await__'):
                     await result
             except Exception as e:
-                logger.error(f"Error in event handler for {event_name}: {e}")
+                logger.error(f"Erreur dans le handler pour {operation}/{phase}: {e}")
                 # Ne pas propager l'erreur pour ne pas bloquer le flux principal
+
+    async def _safe_commit_and_refresh(self, session: AsyncSession, record: ModelType, operation: str = "operation") -> None:
+        try:
+            await session.commit()
+            await session.refresh(record)
+        except Exception as e:
+            logger.error(f"Error while committing {operation}: {e}")
+            raise CrudOperationError(f"Database error during {operation}: {str(e)}")
 
     def get_query_identifier(self, statement: SelectOfScalar[ModelType]) -> str:
         statement = str(
@@ -114,17 +220,32 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             return True
         return False
 
+    async def read_after(
+        self,
+        session: AsyncSession,
+        *,
+        record: ModelType | None = None,
+        user: UserType | None = None,
+    ) -> None:
+        self.register_event_handler(
+            "read", "after", session=session, record=record, user=user
+        )
+
     async def get(
         self,
         session: AsyncSession,
         *,
         id: uuid.UUID,
         user: UserType | None = None,
+        read_event: bool = False,
     ) -> ModelType | Any:
         record = await session.get(self.model, id)
         if not record:
             logger.error(f"The record with id {id} does not exist.")
             raise RecordNotFoundError("The record doesn't exists.")
+        # To follow get_multi logic
+        if read_event:
+            await self.read_after(session, record=record, user=user)
         return record
 
     async def get_multi_statement(
@@ -166,6 +287,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         filter: Any = None,
         order_by: Any | None = None,
         user: UserType | None = None,
+        read_event: bool = False,
     ) -> dict[str, Any]:
         if statement is None:
             statement = await self.get_multi_statement(
@@ -187,35 +309,37 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             count = await self.count(session, statement)
         except Exception as e:
             logger.error(f"Error while counting records: {e}")
-            raise Exception("An error occurred while counting the records.")
+            raise CrudOperationError("An error occurred while counting the records.")
         try:
             result = await session.exec(statement_limited)
             data = result.all()
         except Exception as e:
             logger.error(f"Error while executing the query: {e}")
-            raise Exception("An error occurred while executing the query.")
+            raise CrudOperationError("An error occurred while executing the query.")
+        # Seems heavy, so we should use it only when needed
+        if read_event:
+            for record in data:
+                self.read_after(session, record=record, user=user)
         return {"data": data, "count": count}
 
+    @track_crud_operation
     async def create_draft(
         self, session: AsyncSession, *, data: CreateSchemaType, user: UserType | None
     ) -> ModelType:
         data_dict = data.model_dump(exclude_unset=True)
-        current_time = datetime.datetime.now()
-        if user and user.id:
-            data_dict["created_by_id"] = user.id
-        data_dict["created_at"] = current_time
-        data_dict["modify_at"] = current_time
         record = self.model(**data_dict)
         session.add(record)
         await session.flush()
         await session.refresh(record)
         return record
 
+    @track_crud_operation
     async def before_create(
         self, session: AsyncSession, *, data: CreateSchemaType, user: UserType | None
     ) -> None:
-        pass
-
+        await self.trigger_event("create", "before", session=session, data=data, user=user)
+    
+    @track_crud_operation
     async def after_create(
         self,
         session: AsyncSession,
@@ -224,8 +348,9 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         data: CreateSchemaType,
         user: UserType | None,
     ) -> None:
-        pass
-
+        await self.trigger_event("create", "after", session=session, data=data, user=user)
+    
+    @track_crud_operation
     async def after_create_commit(
         self,
         session: AsyncSession,
@@ -234,8 +359,8 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         data: CreateSchemaType,
         user: UserType | None,
     ) -> None:
-        pass
-
+        await self.trigger_event("create", "after_commit", session=session, data=data, user=user)
+    
     async def create(
         self,
         session: AsyncSession,
@@ -244,33 +369,13 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         user: UserType | None,
     ) -> ModelType:
         await self.before_create(session, data=data, user=user)
-        try:
-            record = await self.create_draft(session, data=data, user=user)
-        except Exception as e:
-            logger.error(f"Error while creating the record: {e}")
-            raise Exception("An error occurred while creating the record.")
-        try:
-            await self.after_create(session, record=record, data=data, user=user)
-        except Exception as e:
-            logger.error(f"Error after creating the record: {e}")
-            raise Exception("An error occurred after creating the record.")
-        try:
-            await session.commit()
-        except Exception as e:
-            logger.error(f"Error while committing the record: {e}")
-            raise Exception("An error occurred while committing the record to the database.")
-        try:
-            await session.refresh(record)
-        except Exception as e:
-            logger.error(f"Error while refreshing the record: {e}")
-            raise Exception("An error occurred while refreshing the record.")
-        try:
-            await self.after_create_commit(session, record=record, data=data, user=user)
-        except Exception as e:
-            logger.error(f"Error after committing the record: {e}")
-            raise Exception("An error occurred after committing the record to the database.")
+        record = await self.create_draft(session, data=data, user=user)
+        await self.after_create(session, record=record, data=data, user=user)
+        await self._safe_commit_and_refresh(session, record, operation="create")
+        await self.after_create_commit(session, record=record, data=data, user=user)
         return record
 
+    @track_crud_operation
     async def update_draft(
         self,
         session: AsyncSession,
@@ -285,12 +390,12 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         data_dict = data.model_dump(exclude_unset=True)
         if user and user.id:
             data_dict["modify_by_id"] = user.id
-        data_dict["modify_at"] = datetime.datetime.now()
         for key in data_dict.keys():
             if hasattr(record, key):
                 setattr(record, key, data_dict[key])
         return record
 
+    @track_crud_operation
     async def before_update(
         self,
         session: AsyncSession,
@@ -300,8 +405,9 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         id: uuid.UUID | None = None,
         user: UserType | None = None,
     ) -> None:
-        pass
+        await self.trigger_event("update", "before", session=session, data=data, user=user)
 
+    @track_crud_operation
     async def after_update(
         self,
         session: AsyncSession,
@@ -311,8 +417,9 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         id: uuid.UUID | None = None,
         user: UserType | None,
     ) -> None:
-        pass
-
+        await self.trigger_event("update", "after", session=session, data=data, user=user)
+    
+    @track_crud_operation
     async def after_update_commit(
         self,
         session: AsyncSession,
@@ -322,7 +429,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         id: uuid.UUID | None = None,
         user: UserType | None = None,
     ) -> None:
-        pass
+        await self.trigger_event("create", "after_commit", session=session, data=data, user=user)
 
 
     async def update(
@@ -334,46 +441,37 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         user: UserType | None = None,
         record: ModelType | None = None,
     ) -> ModelType:
-        try:
-            await self.before_update(
+        await self.before_update(
+            session, data=data, record=record, id=id, user=user
+        )
+        record = await self.update_draft(session, id=id, data=data, user=user)
+        await self.after_update(session, data=data, record=record, id=id, user=user)
+        
+        await self._safe_commit_and_refresh(session, record, operation="update")
+        
+        await self.after_update_commit(
                 session, data=data, record=record, id=id, user=user
             )
-        except Exception as e:
-            logger.error(f"Error befor updating the record: {e}")
-            raise Exception("An error occurred before updating the record.")
-        try:
-            record = await self.update_draft(session, id=id, data=data, user=user)
-        except Exception as e:
-            logger.error(f"Error while updating the record: {e}")
-            raise Exception("An error occurred while updating the record.")
-        try:
-            await self.after_update(session, data=data, record=record, id=id, user=user)
-        except Exception as e:
-            logger.error(f"Error after updating the record: {e}")
-            raise Exception("An error occurred after updating the record.")
-        await session.commit()
-        await session.refresh(record)
-        try:
-            await self.after_update_commit(
-                session, data=data, record=record, id=id, user=user
-            )
-        except Exception as e:
-            logger.error(f"Error after committing the record: {e}")
-            raise Exception("An error occurred after committing the record to the database.")
         return record
 
+    @track_crud_operation
     async def delete_draft(
         self, session: AsyncSession, *, id: uuid.UUID, record: ModelType | None = None
     ) -> None:
         if not record:
             record = await session.get(self.model, id)
+        if not record:
+            logger.error(f"The record with id {id} does not exist.")
+            raise RecordNotFoundError("The record doesn't exists.")
         await session.delete(record)
 
+    @track_crud_operation
     async def before_delete(
         self, session: AsyncSession, *, id: uuid.UUID, record: ModelType | None = None
     ) -> None:
-        pass
+        await self.trigger_event("delete", "before", session=session, data=data, user=user)
 
+    @track_crud_operation
     async def after_delete(
         self, session: AsyncSession, *, id: uuid.UUID, record: ModelType | None = None
     ) -> None:
@@ -387,26 +485,32 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         record: ModelType | None = None,
         user: UserType | None = None,
     ) -> None:
-        try:
-            await self.before_delete(session, id=id, record=record)
-        except Exception as e:
-            logger.error(f"Error before deleting the record: {e}")
-            raise Exception("An error occurred before deleting the record.")
-        try:
-            await self.delete_draft(session, id=id, record=record)
-        except Exception as e:
-            logger.error(f"Error while deleting the record: {e}")
-            raise Exception("An error occurred while deleting the record.")
+        await self.before_delete(session, id=id, record=record, user=user)
+        await self.delete_draft(session, id=id, record=record, user=user)
         try:
             await session.commit()
         except Exception as e:
             logger.error(f"Error while committing the deletion: {e}")
-            raise Exception("An error occurred while committing the deletion.")
-        try:
-            await self.after_delete(session, id=id, record=record)
-        except Exception as e:
-            logger.error(f"Error after deleting the record: {e}")
-            raise Exception("An error occurred after deleting the record.")
+            raise CrudOperationError(f"An error occurred while committing the deletion: {str(e)}")
+        await self.after_delete(session, id=id, record=record, user=user)
+        
+    async def before_delete_multi(
+        self,
+        session: AsyncSession,
+        *,
+        ids: list[uuid.UUID],
+        user: UserType | None = None,
+    ) -> None:
+        await self.trigger_event("delete_multi", "before", session=session, ids=ids, user=user)   
+
+    async def after_delete_multi(
+        self,
+        session: AsyncSession,
+        *,
+        ids: list[uuid.UUID],
+        user: UserType | None = None,
+    ) -> None:
+        await self.trigger_event("delete_multi", "after", session=session, ids=ids, user=user)
 
     async def delete_multi(
         self,
@@ -415,18 +519,19 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         ids: list[uuid.UUID],
         user: UserType | None = None,
     ) -> None:
-        for id in ids:
-            record = await self.get(session, id=id)
-            if not record:
-                logger.error(f"The record with id {id} does not exist.")
-                raise Exception("The record doesn't exists.")
-            try:
+        await self.before_delete_multi(session, ids=ids, user=user)
+        async with session.begin_nested():
+            for id in ids:
+                record = await self.get(session, id=id)
+                if not record:
+                    logger.error(f"The record with id {id} does not exist.")
+                    raise RecordNotFoundError("The record doesn't exists.")
+                await self.before_delete(session, id=id, record=record, user=user)
                 await self.delete_draft(session, id=id, record=record)
-            except Exception as e:
-                logger.error(f"Error while deleting the record with id {id}: {e}")
-                raise Exception("An error occurred while deleting the record.")
+                await self.after_delete(session, ids=ids, user=user)
         try:
             await session.commit()
         except Exception as e:
             logger.error(f"Error while committing the deletion: {e}")
-            raise Exception("An error occurred while committing the deletion.")
+            raise CrudOperationError(f"An error occurred while committing the deletion: {str(e)}")
+        await self.after_delete_multi(session, ids=ids, user=user)

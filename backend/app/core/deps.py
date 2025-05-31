@@ -6,7 +6,6 @@ from aioredis import Redis
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
-from openai import AsyncOpenAI
 from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
