@@ -20,6 +20,14 @@ UserType = TypeVar("UserType", bound=User)
 CreateSchemaType = TypeVar("CreateSchemaType", bound=SQLModel)
 UpdateSchemaType = TypeVar("UpdateSchemaType", bound=SQLModel)
 
+class RecordNotFoundError(Exception):
+    """Levée quand un enregistrement n'est pas trouvé."""
+    pass
+
+class PermissionDeniedError(Exception):
+    """Levée quand un utilisateur n'a pas les permissions."""
+    pass
+
 
 class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     def __init__(
@@ -40,6 +48,31 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         self.order_by = order_by
         self.allow_all_user_to_create = allow_all_user_to_create
         self.protected_fields = protected_fields
+        self.event_handlers = {}
+
+    def register_event_handler(self, event_name: str, handler_func: callable):
+        """Register a handler for a specific event"""
+        if event_name not in self.event_handlers:
+            self.event_handlers[event_name] = []
+        self.event_handlers[event_name].append(handler_func)
+        return self  # Pour permettre le chaînage
+
+    async def trigger_event(self, event_name: str, **context):
+        """Trigger all handlers registered for a specific event"""
+        if event_name not in self.event_handlers:
+            logger.debug(f"The event {event_name} has no handlers registered.")
+            return
+        
+        logger.debug(f"Triggering event {event_name} with {len(self.event_handlers[event_name])} handlers")
+        for handler in self.event_handlers[event_name]:
+            try:
+                result = handler(**context)
+                # Gère à la fois les fonctions synchrones et asynchrones
+                if hasattr(result, '__await__'):
+                    await result
+            except Exception as e:
+                logger.error(f"Error in event handler for {event_name}: {e}")
+                # Ne pas propager l'erreur pour ne pas bloquer le flux principal
 
     def get_query_identifier(self, statement: SelectOfScalar[ModelType]) -> str:
         statement = str(
@@ -80,27 +113,6 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         elif permission == "create" and self.allow_all_user_to_create:
             return True
         return False
-    
-    def remove_protected_fields(
-        self,
-        data: CreateSchemaType | UpdateSchemaType,
-    ) -> CreateSchemaType | UpdateSchemaType:
-        protected_fields = self.protected_fields + [
-            "created_by_id",
-            "created_at",
-            "modify_by_id",
-            "modify_at",
-            "is_admin_active",
-        ]
-        if isinstance(data, self.schema_create) or isinstance(data, self.schema_update):
-            for field in protected_fields:
-                print(f"Protected field: {field}")
-                if hasattr(data, field):
-                    delattr(data, field)
-        elif isinstance(data, dict):
-            for field in protected_fields:
-                data.pop(field, None)
-        return data
 
     async def get(
         self,
@@ -112,7 +124,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         record = await session.get(self.model, id)
         if not record:
             logger.error(f"The record with id {id} does not exist.")
-            raise Exception("The record doesn't exists.")
+            raise RecordNotFoundError("The record doesn't exists.")
         return record
 
     async def get_multi_statement(
@@ -232,9 +244,6 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         user: UserType | None,
     ) -> ModelType:
         await self.before_create(session, data=data, user=user)
-        if not user or not user.is_superuser:
-            # Remove fields from data that the user is not allowed to create
-            data = self.remove_protected_fields(data)
         try:
             record = await self.create_draft(session, data=data, user=user)
         except Exception as e:
@@ -332,9 +341,6 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         except Exception as e:
             logger.error(f"Error befor updating the record: {e}")
             raise Exception("An error occurred before updating the record.")
-        if not user or not user.is_superuser:
-            # Remove fields from data that the user is not allowed to update
-            data = self.remove_protected_fields(data)
         try:
             record = await self.update_draft(session, id=id, data=data, user=user)
         except Exception as e:
