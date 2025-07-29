@@ -74,7 +74,6 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             "read": {"after": []},
             "update": {"before": [], "after": [], "after_commit": []},
             "delete": {"before": [], "after": []},
-            "delete_multi": {"before": [], "after": []},
             # Pour conserver la compatibilité avec les événements spécifiques
             "custom": {},
         }
@@ -82,21 +81,25 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     def register_event_handler(
         self, 
         operation: str, 
-        phase: str = None, 
+        phase: str | callable = None, 
         handler_func: callable = None,
-        # Pour support de l'ancien format
-        event_name: str = None
     ):
         """
-        Enregistre un handler pour un événement spécifique
-        
+        Registers a handler for a specific event.
+
+        The handler will always receive these parameters (some may be None):
+            - session: AsyncSession - The active database session
+            - user: User | None - The user who triggered the operation
+            - record: ModelType | None - The affected record (after creation/update)
+            - data: CreateSchemaType | UpdateSchemaType | None - The provided data
+            - id: uuid.UUID | None - The record ID if applicable
+
         Args:
-            operation: Type d'opération ('create', 'read', 'update', 'delete') ou nom d'événement personnalisé
-            phase: Phase de l'opération ('before', 'after', 'after_commit')
-            handler_func: Fonction à exécuter
-            event_name: Pour rétrocompatibilité avec l'ancien format
+            operation: Type of operation ('create', 'read', 'update', 'delete') or custom event name
+            phase: Phase of the operation ('before', 'after', 'after_commit')
+            handler_func: Function to execute
         """
-        # Support pour l'ancien format: register_event_handler("event_name", handler_func)
+        # Support pour format register_event_handler(operation, handler_func)
         if phase is not None and handler_func is None and callable(phase):
             handler_func = phase
             if operation in self.event_handlers:
@@ -104,19 +107,12 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 phase = "after"
             else:
                 # C'est un événement personnalisé
-                event_name = operation
+                phase = operation
                 operation = "custom"
-                phase = event_name
-        
-        # Si c'est un événement personnalisé
-        if event_name is not None:
-            operation = "custom"
-            phase = event_name
         
         # Vérifie si c'est un événement CRUD standard
         if operation in ["create", "read", "update", "delete"]:
             if phase not in ["before", "after", "after_commit"]:
-                logger.warning(f"Phase non reconnue: {phase}. Utilisation de 'after'.")
                 phase = "after"
             
             self.event_handlers[operation][phase].append(handler_func)
@@ -128,31 +124,34 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         
         return self  # Pour le chaînage
 
-    async def trigger_event(self, operation: str, phase: str = None, event_name: str = None, **context):
+    async def trigger_event(self, operation: str, phase: str = None, **context):
         """
-        Déclenche tous les handlers associés à un événement
+        Triggers all handlers associated with an event.
 
         Args:
-            operation: Type d'opération ('create', 'read', 'update', 'delete') ou nom d'événement
-            phase: Phase de l'opération ('before', 'after', 'after_commit')
-            event_name: Pour rétrocompatibilité
-            **context: Contexte à passer aux handlers
+            operation: Type of operation ('create', 'read', 'update', 'delete') or event name
+            phase: Phase of the operation ('before', 'after', 'after_commit')
+            **context: Context to pass to the handlers
         """
+
+        standard_context = {
+            "session": context.get("session"),
+            "record": context.get("record"),
+            "data": context.get("data"),
+            "user": context.get("user"),
+            "id": context.get("id"),
+        }
+
+        for key, value in context.items():
+            if key not in standard_context:
+                standard_context[key] = value
+
         handlers = []
 
-        # Déterminer les handlers à exécuter
-        if event_name is not None:
-            # Format ancien: événement personnalisé
-            if event_name in self.event_handlers["custom"]:
-                handlers = self.event_handlers["custom"][event_name]
-            else:
-                logger.debug(f"Aucun handler pour l'événement personnalisé: {event_name}")
-                return
-        elif operation in self.event_handlers and phase in self.event_handlers[operation]:
+        if operation in self.event_handlers and phase in self.event_handlers[operation]:
             # Format nouveau: opération CRUD standard
             handlers = self.event_handlers[operation][phase]
         elif operation in self.event_handlers["custom"]:
-            # Rétrocompatibilité: c'est peut-être un événement personnalisé
             handlers = self.event_handlers["custom"][operation]
         else:
             logger.debug(f"Aucun handler pour l'opération {operation}, phase {phase}")
@@ -165,7 +164,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         logger.debug(f"Exécution de {len(handlers)} handlers pour {operation}/{phase}")
         for handler in handlers:
             try:
-                result = handler(**context)
+                result = handler(**standard_context)
                 if hasattr(result, '__await__'):
                     await result
             except Exception as e:
@@ -348,7 +347,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         data: CreateSchemaType,
         user: UserType | None,
     ) -> None:
-        await self.trigger_event("create", "after", session=session, data=data, user=user)
+        await self.trigger_event("create", "after", session=session, record=record, data=data, user=user)
     
     @track_crud_operation
     async def after_create_commit(
@@ -359,7 +358,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         data: CreateSchemaType,
         user: UserType | None,
     ) -> None:
-        await self.trigger_event("create", "after_commit", session=session, data=data, user=user)
+        await self.trigger_event("create", "after_commit", session=session, record=record, data=data, user=user)
     
     async def create(
         self,
@@ -467,13 +466,13 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 
     @track_crud_operation
     async def before_delete(
-        self, session: AsyncSession, *, id: uuid.UUID, record: ModelType | None = None
+        self, session: AsyncSession, *, id: uuid.UUID, record: ModelType | None = None, user: UserType | None = None
     ) -> None:
-        await self.trigger_event("delete", "before", session=session, data=data, user=user)
+        await self.trigger_event("delete", "before", session=session, record=record, user=user)
 
     @track_crud_operation
     async def after_delete(
-        self, session: AsyncSession, *, id: uuid.UUID, record: ModelType | None = None
+        self, session: AsyncSession, *, id: uuid.UUID, record: ModelType | None = None, user: UserType | None = None
     ) -> None:
         pass
 
@@ -493,24 +492,6 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             logger.error(f"Error while committing the deletion: {e}")
             raise CrudOperationError(f"An error occurred while committing the deletion: {str(e)}")
         await self.after_delete(session, id=id, record=record, user=user)
-        
-    async def before_delete_multi(
-        self,
-        session: AsyncSession,
-        *,
-        ids: list[uuid.UUID],
-        user: UserType | None = None,
-    ) -> None:
-        await self.trigger_event("delete_multi", "before", session=session, ids=ids, user=user)   
-
-    async def after_delete_multi(
-        self,
-        session: AsyncSession,
-        *,
-        ids: list[uuid.UUID],
-        user: UserType | None = None,
-    ) -> None:
-        await self.trigger_event("delete_multi", "after", session=session, ids=ids, user=user)
 
     async def delete_multi(
         self,
@@ -519,7 +500,6 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         ids: list[uuid.UUID],
         user: UserType | None = None,
     ) -> None:
-        await self.before_delete_multi(session, ids=ids, user=user)
         async with session.begin_nested():
             for id in ids:
                 record = await self.get(session, id=id)
@@ -534,4 +514,3 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         except Exception as e:
             logger.error(f"Error while committing the deletion: {e}")
             raise CrudOperationError(f"An error occurred while committing the deletion: {str(e)}")
-        await self.after_delete_multi(session, ids=ids, user=user)
