@@ -6,8 +6,8 @@ from sqlmodel import SQLModel
 
 from app.core.deps import CurrentUser, SessionDep, get_current_user_optional
 
-from .base_crud import CrudBase
-from .base_model import Message
+from .crud import CrudBase
+from .models import Message
 
 ModelType = TypeVar("ModelType", bound=SQLModel)
 CreateSchemaType = TypeVar("CreateSchemaType", bound=SQLModel)
