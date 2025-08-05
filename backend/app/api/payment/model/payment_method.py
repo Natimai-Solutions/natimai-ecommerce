@@ -1,7 +1,7 @@
 import uuid
 
 from app.api.base.models import Base, BaseCreate, BaseUpdate, BasePublic
-from app.api.payment.model import Payment
+from app.api.model import Payment
 from sqlmodel import Enum, Field, Relationship, SQLModel
 
 
@@ -12,7 +12,7 @@ class PaymentMethodBase(Base):
         description="Description of the payment method",
         max_length=255,
     )
-    # fee: float = Field(description="Fee associated with the payment method")
+    fee: float = Field(description="Fee associated with the payment method")
 
 
 class PaymentMethodCreate(PaymentMethodBase, BaseCreate):

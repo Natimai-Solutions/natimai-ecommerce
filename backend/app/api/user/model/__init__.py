@@ -1,7 +1,2 @@
-from .address import Address
-from .user import User
-
-__all__ = [
-    "Address",
-    "User"
-]
+# Ce fichier n'est plus nécessaire
+# Tous les imports sont maintenant centralisés dans app.api.model

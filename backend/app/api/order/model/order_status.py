@@ -2,7 +2,7 @@ import uuid
 
 from sqlmodel import Enum, Field, Relationship, SQLModel
 from app.api.base.models import Base, BaseCreate, BaseUpdate, BasePublic
-from app.api.order.model import Order
+from app.api.model import Order
 
 
 class OrderStatusBase(SQLModel):

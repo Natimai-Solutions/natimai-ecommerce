@@ -2,8 +2,8 @@ import uuid
 
 from sqlmodel import Enum, Field, Relationship, SQLModel
 from app.api.base.models import Base, BaseCreate, BaseUpdate, BasePublic
-from app.api.payment.model import PaymentMethod
-from app.api.payment.model import PaymentStatus
+from app.api.model import PaymentMethod
+from app.api.model import PaymentStatus
 
 
 class PaymentBase(Base):
