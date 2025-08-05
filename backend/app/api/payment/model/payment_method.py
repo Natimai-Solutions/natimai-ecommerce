@@ -1,16 +1,18 @@
 import uuid
 
 from app.api.base.models import Base, BaseCreate, BaseUpdate, BasePublic
-from sqlmodel import Field, Relationship, SQLModel
+from app.api.payment.model import Payment
+from sqlmodel import Enum, Field, Relationship, SQLModel
 
 
 class PaymentMethodBase(Base):
-    name: str = Field(..., description="Name of the payment method")
-    description: str = Field(None, description="Description of the payment method")
-    # fee: float = Field(..., description="Fee associated with the payment method")
-    # provider: str = Field(
-    #     None, description="Payment provider associated with this method"
-    # )
+    name: str = Field(description="Name of the payment method")
+    description: str | None = Field(
+        default=None,
+        description="Description of the payment method",
+        max_length=255,
+    )
+    # fee: float = Field(description="Fee associated with the payment method")
 
 
 class PaymentMethodCreate(PaymentMethodBase, BaseCreate):
@@ -18,13 +20,13 @@ class PaymentMethodCreate(PaymentMethodBase, BaseCreate):
 
 
 class PaymentMethodUpdate(PaymentMethodBase, BaseUpdate):
-    pass
+    name: str | None = None
 
 
 class PaymentMethod(PaymentMethodBase, BasePublic, table=True):
     __tablename__ = "payment_methods"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
-    payments: list["Payment"] = Relationship(back_populates="payment_methods")
+    payments: list[Payment] = Relationship(back_populates="payment_methods")
 
 
 class PaymentMethodPublic(PaymentMethodBase, BasePublic):
@@ -35,3 +37,4 @@ class PaymentMethodsPublic(SQLModel):
     data: list[PaymentMethodPublic] = Field(
         default_factory=list, description="List of payment methods"
     )
+    count: int = Field(default=0, description="Total number of payment methods")
