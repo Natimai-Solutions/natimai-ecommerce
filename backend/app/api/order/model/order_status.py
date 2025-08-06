@@ -1,6 +1,6 @@
 import uuid
 
-from sqlmodel import Enum, Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship, SQLModel
 from app.api.base.models import Base, BaseCreate, BaseUpdate, BasePublic
 from app.api.model import Order
 
