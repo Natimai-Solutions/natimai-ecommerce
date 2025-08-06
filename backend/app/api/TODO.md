@@ -1,3 +1,7 @@
-- Finir les models User ( avec leurs lien vers les autres models ex: address, payment_methods etc...)
+- Implémenter tout les modèles
+- Vérifier la logique si tout va bien ensemble.
 
-- Commencer à implémenter les Crud  de chaque modèles
+- Commencer à Implémenter les CRUDs
+- Commencer à Implémenter les Routes
+
+- Commencer à Faire les tests.
