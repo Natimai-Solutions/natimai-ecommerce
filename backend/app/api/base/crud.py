@@ -11,7 +11,7 @@ from sqlmodel import SQLModel, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.expression import SelectOfScalar
 
-from backend.app.api.user.model import user
+from app.api.model import User
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
