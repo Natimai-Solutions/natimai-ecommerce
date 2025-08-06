@@ -14,14 +14,12 @@ from ..model.order import (
     OrderCreate,
     OrderUpdate,
     OrderPublic,
-    OrdersPublic,
 )
 from ..model.order_line import (
     OrderLine,
     OrderLineCreate,
     OrderLineUpdate,
     OrderLinePublic,
-    OrderLinesPublic,
 )
 from ..model.order_status import (
     OrderStatus,
