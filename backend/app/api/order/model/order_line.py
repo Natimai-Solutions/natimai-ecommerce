@@ -1,21 +1,22 @@
 import uuid
 
 from app.api.base.models import Base, BaseCreate, BaseUpdate, BasePublic
-from app.api.model import Order
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, SQLModel
 
 
 class OrderLineBase(Base):
+    order_id: uuid.UUID = Field(
+        foreign_key="orders.id", description="ID of the order this line belongs to"
+    )
     product_id: uuid.UUID = Field(
-        foreign_key="product.id", description="ID of the product in the order line"
+        foreign_key="products.id", description="ID of the product in the order line"
     )
     quantity: int = Field(
         description="Quantity of the product in the order line",
         ge=1,  # Ensure quantity is at least 1
     )
     description: str | None = Field(
-        default=None,
-        description="Description of the product in the order line"
+        default=None, description="Description of the product in the order line"
     )
 
 
@@ -30,16 +31,12 @@ class OrderLineUpdate(OrderLineBase, BaseUpdate):
 
 
 class OrderLine(OrderLineBase, Base, table=True):
-    __tablename__ = "order_line"
+    __tablename__ = "order_lines"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    order_id: uuid.UUID = Field(
-        foreign_key="order.id", description="ID of the order this line belongs to"
-    )
-    order: Order = Relationship(back_populates="order_lines")
 
 
 class OrderLinePublic(OrderLineBase, BasePublic):
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    id: uuid.UUID
     order_id: uuid.UUID
     product_id: uuid.UUID
     quantity: int

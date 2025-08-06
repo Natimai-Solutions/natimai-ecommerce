@@ -2,7 +2,6 @@ import uuid
 
 from sqlmodel import Field, Relationship, SQLModel
 from app.api.base.models import Base, BaseCreate, BaseUpdate, BasePublic
-from app.api.model import Payment
 
 
 class PaymentStatusBase(Base):
@@ -26,7 +25,6 @@ class PaymentStatusUpdate(BaseUpdate):
 class PaymentStatus(PaymentStatusBase, Base, table=True):
     __tablename__ = "payment_status"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
-    payments: list[Payment] = Relationship(back_populates="status")
 
 
 class PaymentStatusPublic(PaymentStatusBase, BasePublic):

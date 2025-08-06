@@ -1,8 +1,7 @@
 import uuid
 
 from app.api.base.models import Base, BaseCreate, BaseUpdate, BasePublic
-from app.api.model import Payment
-from sqlmodel import Enum, Field, Relationship, SQLModel
+from sqlmodel import Field, SQLModel
 
 
 class PaymentMethodBase(Base):
@@ -26,7 +25,6 @@ class PaymentMethodUpdate(PaymentMethodBase, BaseUpdate):
 class PaymentMethod(PaymentMethodBase, BasePublic, table=True):
     __tablename__ = "payment_methods"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
-    payments: list[Payment] = Relationship(back_populates="payment_methods")
 
 
 class PaymentMethodPublic(PaymentMethodBase, BasePublic):

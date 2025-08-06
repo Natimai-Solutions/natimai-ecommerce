@@ -2,14 +2,11 @@ import uuid
 
 from sqlmodel import Enum, Field, Relationship, SQLModel
 from app.api.base.models import Base, BaseCreate, BaseUpdate, BasePublic
-from app.api.model import PaymentMethod
-from app.api.model import PaymentStatus
 
 
 class PaymentBase(Base):
     amount: float = Field(..., gt=0, description="Amount to be paid")
     currency: str = Field(..., description="Currency of the payment")
-    status: PaymentStatus = Field(..., description="Current status of the payment")
 
 
 class PaymentCreate(PaymentBase, BaseCreate):
@@ -19,7 +16,6 @@ class PaymentCreate(PaymentBase, BaseCreate):
 class PaymentUpdate(BaseUpdate, PaymentBase):
     amount: float | None = None
     currency: str | None = None
-    status: PaymentStatus | None = None
 
 
 class Payment(PaymentBase, Base, table=True):
@@ -29,7 +25,14 @@ class Payment(PaymentBase, Base, table=True):
         primary_key=True,
         description="Unique identifier for the payment",
     )
-    payment_method: PaymentMethod = Relationship(back_populates="payments")
+    payment_method_id: uuid.UUID = Field(
+        foreign_key="payment_methods.id",
+        description="ID of the payment method used"
+    )
+    payment_status_id: uuid.UUID = Field(
+        foreign_key="payment_status.id",
+        description="ID of the payment status"
+    )
 
 
 class PaymentPublic(PaymentBase, BasePublic):
@@ -37,6 +40,16 @@ class PaymentPublic(PaymentBase, BasePublic):
         default_factory=uuid.uuid4,
         primary_key=True,
         description="Unique identifier for the payment",
+    )
+    payment_method_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="payment_methods.id",
+        description="ID of the payment method used"
+    )
+    payment_status_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="payment_status.id",
+        description="ID of the payment status"
     )
 
 

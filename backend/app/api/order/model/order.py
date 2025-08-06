@@ -2,7 +2,6 @@ import uuid
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.api.base.models import Base, BaseCreate, BaseUpdate, BasePublic
-from app.api.model import OrderStatus, OrderLine
 
 
 class OrderBase(Base):
@@ -24,17 +23,16 @@ class OrderUpdate(OrderBase, BaseUpdate):
 
 
 class Order(OrderBase, Base, table=True):
-    __tablename__ = "order"
+    __tablename__ = "orders"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    status_id: uuid.UUID = Field(
-        foreign_key="order_status.id", description="ID of the order status"
+    order_status_id: uuid.UUID = Field(
+        foreign_key="order_statuses.id", description="ID of the order status"
     )
-    status: OrderStatus = Relationship(back_populates="orders")
-    order_lines: list[OrderLine] = Relationship(back_populates="order")
 
 
 class OrderPublic(OrderBase, BasePublic):
     id: uuid.UUID
+    order_status_id: uuid.UUID
 
 
 class OrdersPublic(SQLModel):

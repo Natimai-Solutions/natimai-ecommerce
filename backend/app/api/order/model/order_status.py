@@ -1,8 +1,7 @@
 import uuid
 
-from sqlmodel import Enum, Field, Relationship, SQLModel
+from sqlmodel import Field, SQLModel
 from app.api.base.models import Base, BaseCreate, BaseUpdate, BasePublic
-from app.api.model import Order
 
 
 class OrderStatusBase(SQLModel):
@@ -18,9 +17,8 @@ class OrderStatusUpdate(BaseUpdate):
 
 
 class OrderStatus(OrderStatusBase, Base, table=True):
-    __tablename__ = "order_status"
+    __tablename__ = "order_statuses"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    orders: list[Order] = Relationship(back_populates="status")
 
 
 class OrderStatusPublic(OrderStatusBase, BasePublic):
