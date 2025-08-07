@@ -13,9 +13,6 @@ class ShippingStatusBase(Base):
         None, description="Estimated delivery date for the shipment"
     )
     carrier: str = Field(None, description="Carrier handling the shipment")
-    last_updated: datetime | None = Field(
-        default_factory=datetime.now, description="Last updated timestamp"
-    )
 
 
 class ShippingStatusCreate(ShippingStatusBase, BaseCreate):
@@ -33,10 +30,6 @@ class ShippingStatus(ShippingStatusBase, Base, table=True):
         primary_key=True,
         description="Unique identifier for the shipping status",
     )
-    is_active: bool = Field(
-        default=True, description="Indicates if the shipping status is active"
-    )
-
 
 class ShippingStatusPublic(ShippingStatusBase, BasePublic):
     id: uuid.UUID = Field(
