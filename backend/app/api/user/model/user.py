@@ -4,9 +4,9 @@ import uuid
 from pydantic import EmailStr
 from sqlmodel import Enum, Field, Relationship, SQLModel
 from app.api.base.models import Base, BaseCreate, BaseUpdate, BasePublic
-from app.api.order.model import Order
-from app.api.user.model import Address
-from app.api.payment.model import PaymentMethod
+from app.api.order.model.order import Order
+from app.api.user.model.address import Address
+from app.api.payment.model.payment_method import PaymentMethod
 
 
 class UserBase(SQLModel):
