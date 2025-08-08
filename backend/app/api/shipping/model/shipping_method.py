@@ -32,9 +32,6 @@ class ShippingMethod(ShippingMethodBase, Base, table=True):
         primary_key=True,
         description="Unique identifier for the shipping method",
     )
-    is_active: bool = Field(
-        default=True, description="Indicates if the shipping method is active"
-    )
 
 
 class ShippingMethodPublic(ShippingMethodBase, BasePublic):

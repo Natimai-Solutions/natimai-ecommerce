@@ -1,15 +1,12 @@
 import uuid
-import datetime
 
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Enum, Field, Relationship, SQLModel
 from app.api.base.models import Base, BaseCreate, BaseUpdate, BasePublic
 
 
 class PaymentBase(Base):
-    amount: float = Field(..., description="Amount to be paid")
+    amount: float = Field(..., gt=0, description="Amount to be paid")
     currency: str = Field(..., description="Currency of the payment")
-    status: str = Field(..., description="Current status of the payment")
-    transaction_id: str = Field(None, description="Transaction ID for the payment")
 
 
 class PaymentCreate(PaymentBase, BaseCreate):
@@ -17,7 +14,8 @@ class PaymentCreate(PaymentBase, BaseCreate):
 
 
 class PaymentUpdate(BaseUpdate, PaymentBase):
-    pass
+    amount: float | None = None
+    currency: str | None = None
 
 
 class Payment(PaymentBase, Base, table=True):
@@ -27,10 +25,14 @@ class Payment(PaymentBase, Base, table=True):
         primary_key=True,
         description="Unique identifier for the payment",
     )
-    is_active: bool = Field(
-        default=True, description="Indicates if the payment is active"
+    payment_method_id: uuid.UUID = Field(
+        foreign_key="payment_methods.id",
+        description="ID of the payment method used"
     )
-    payment_method: "PaymentMethod" = Relationship(back_populates="payments")
+    payment_status_id: uuid.UUID = Field(
+        foreign_key="payment_status.id",
+        description="ID of the payment status"
+    )
 
 
 class PaymentPublic(PaymentBase, BasePublic):
@@ -39,8 +41,15 @@ class PaymentPublic(PaymentBase, BasePublic):
         primary_key=True,
         description="Unique identifier for the payment",
     )
-    is_active: bool = Field(
-        default=True, description="Indicates if the payment is active"
+    payment_method_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="payment_methods.id",
+        description="ID of the payment method used"
+    )
+    payment_status_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="payment_status.id",
+        description="ID of the payment status"
     )
 
 
