@@ -18,7 +18,7 @@ fileConfig(config.config_file_name)
 # target_metadata = None
 
 from sqlmodel import SQLModel
-from backend.app.api.model import *
+from app.domain.models import *
 
 
 
