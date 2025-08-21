@@ -12,8 +12,8 @@ from app.api.core.user import crud as user_crud
 # make sure all SQLModel models are imported (app.models) before initializing DB
 # otherwise, SQLModel might fail to initialize relationships properly
 # for more details: https://github.com/fastapi/full-stack-fastapi-template/issues/28
-from backend.app.api.models import *  # noqa
-from backend.app.api.models import User, UserCreate  # explicit import for User model
+from backend.app.api.model import *  # noqa
+from backend.app.api.model import User, UserCreate  # explicit import for User model
 from app.core.config import settings
 
 logging.basicConfig(level=logging.INFO)
