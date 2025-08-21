@@ -3,7 +3,7 @@ from typing import Annotated
 
 import jwt
 from aioredis import Redis
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
 from pydantic import ValidationError
@@ -14,7 +14,6 @@ from app.core import security
 from app.core.cache import RedisCache
 from app.core.config import settings
 from app.core.db import engine
-from app.core.registry import CrudRegistry
 
 reusable_oauth2 = OAuth2PasswordBearer(
     tokenUrl=f"{settings.API_V1_STR}/login/access-token"
@@ -38,12 +37,6 @@ async def get_redis_cache() -> AsyncGenerator[Redis, None]:
 SessionDep = Annotated[AsyncSession, Depends(get_db)]
 TokenDep = Annotated[str, Depends(reusable_oauth2)]
 RedisDep = Annotated[Redis, Depends(get_redis_cache)]
-
-
-def get_env(request: Request) -> CrudRegistry:
-    return request.app.state.crud  # type: ignore[attr-defined]
-
-EnvDep = Annotated[CrudRegistry, Depends(get_env)]
 
 
 async def get_current_user(session: SessionDep, token: TokenDep) -> User:
