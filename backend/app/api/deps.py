@@ -13,7 +13,7 @@ from app.features.user.models.user import TokenPayload, User
 from app.core import security
 from app.core.cache import RedisCache
 from app.core.config import settings
-from app.core.db import engine
+from app.core.db import get_db
 
 reusable_oauth2 = OAuth2PasswordBearer(
     tokenUrl=f"{settings.API_V1_STR}/login/access-token"
@@ -22,11 +22,6 @@ reusable_oauth2 = OAuth2PasswordBearer(
 optional_reusable_oauth2 = OAuth2PasswordBearer(
     tokenUrl=f"{settings.API_V1_STR}/login/access-token", auto_error=False
 )
-
-
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    async with AsyncSession(engine) as session:
-        yield session
 
 
 async def get_redis_cache() -> AsyncGenerator[Redis, None]:
