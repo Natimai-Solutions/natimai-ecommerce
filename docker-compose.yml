@@ -1,0 +1,80 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: fastapi_ecommerce
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data  # Ajouter persistance pour Redis
+    command: redis-server --appendonly yes  # Activer la persistance
+
+  # Service API FastAPI
+  api:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/fastapi_ecommerce
+      - REDIS_URL=redis://redis:6379
+    command: ["api"]
+
+  # Service ARQ Worker
+  arq-worker:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["worker"]
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/fastapi_ecommerce
+      - REDIS_URL=redis://redis:6379
+    restart: unless-stopped
+
+  # Service Outbox Poller
+  outbox-poller:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile  # Corrigé: .backend/ → backend/
+    command: ["poller"]
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/fastapi_ecommerce
+      - REDIS_URL=redis://redis:6379
+    restart: unless-stopped
+
+  # Migration (optionnel, pour les déploiements)
+  migrate:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["migrate"]
+    depends_on:
+      - postgres
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/fastapi_ecommerce
+
+volumes:
+  postgres_data:
+  redis_data:  # Ajouter volume pour Redis

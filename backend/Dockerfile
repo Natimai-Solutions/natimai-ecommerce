@@ -2,7 +2,16 @@ FROM python:3.10
 
 ENV PYTHONUNBUFFERED=1
 
-RUN apt update && apt install -y libwebp-dev libwebp7 wkhtmltopdf
+# WeasyPrint nécessite des dépendances système pour les polices et l'affichage
+RUN apt update && apt install -y \
+    libwebp-dev \
+    libwebp7 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf2.0-0 \
+    libffi-dev \
+    shared-mime-info \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/
 
@@ -31,12 +40,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 ENV PYTHONPATH=/app
 
-COPY ./tests-start.sh /app/tests-start.sh
-
-COPY ./scripts /app/scripts
-
 COPY ./pyproject.toml ./uv.lock ./alembic.ini /app/
-
 COPY ./app /app/app
 
 # Sync the project
@@ -44,4 +48,9 @@ COPY ./app /app/app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync
 
-CMD ["fastapi", "run", "--workers", "4", "app/main.py"]
+# Copier et rendre exécutable le script d'entrée
+COPY ./app/scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["api"]  # Par défaut, lance l'API
