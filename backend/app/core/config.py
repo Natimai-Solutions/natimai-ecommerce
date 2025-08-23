@@ -49,11 +49,11 @@ class Settings(BaseSettings):
             self.FRONTEND_HOST
         ]
 
-    PROJECT_NAME: str
+    PROJECT_NAME: str = "FastAPI Ecommerce"
     SENTRY_DSN: HttpUrl | None = None
-    POSTGRES_SERVER: str
+    POSTGRES_SERVER: str = "db"
     POSTGRES_PORT: int = 5432
-    POSTGRES_USER: str
+    POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = ""
     POSTGRES_SSL_MODE: str = "allow"
@@ -70,7 +70,7 @@ class Settings(BaseSettings):
             path=self.POSTGRES_DB,
         )
 
-    REDIS_SERVER: str
+    REDIS_SERVER: str = "redis"
     REDIS_PORT: int = 6379
     REDIS_CELERY_DB_INDEX: int = 1
     REDIS_USER: str = ""
@@ -108,10 +108,10 @@ class Settings(BaseSettings):
     # TODO: update type to EmailStr when sqlmodel supports it
     EMAIL_TEST_USER: str = "test@example.com"
     # TODO: update type to EmailStr when sqlmodel supports it
-    FIRST_SUPERUSER: str
-    FIRST_SUPERUSER_PASSWORD: str
-    EMAIL_SUPPORT: str
-    EMAIL_CONTACT: str
+    FIRST_SUPERUSER: str = "jburckel@natimai.solutions"
+    FIRST_SUPERUSER_PASSWORD: str = "changethis"
+    EMAIL_SUPPORT: str | None = None
+    EMAIL_CONTACT: str | None = None
 
     # AI
     OPENAI_ORG_ID: str | None = None
