@@ -6,17 +6,11 @@ from sqlmodel import Field, SQLModel
 
 
 class BaseCreate(SQLModel):
-    created_at: datetime.datetime | None = Field(default_factory=datetime.datetime.now)
-    created_by_id: uuid.UUID | None = None
     is_active: bool | None = Field(default=True)
-    is_admin_active: bool | None = Field(default=True)
 
 
 class BaseUpdate(SQLModel):
-    modify_at: datetime.datetime | None = Field(default_factory=datetime.datetime.now)
-    modify_by_id: uuid.UUID | None = None
     is_active: bool | None = None
-    is_admin_active: bool | None = None
 
 
 class Base(SQLModel):
@@ -34,9 +28,10 @@ class Base(SQLModel):
 
 class BasePublic(SQLModel):
     is_active: bool
-    is_admin_active: bool
     created_at: datetime.datetime | None
     created_by_id: uuid.UUID | None
+    modify_at: datetime.datetime | None = Field(default_factory=datetime.datetime.now)
+    modify_by_id: uuid.UUID | None = None
 
 
 # Generic message

@@ -3,11 +3,7 @@ import uuid
 
 from pydantic import EmailStr
 from sqlmodel import Enum, Field, Relationship, SQLModel
-from app.api.base.models import Base, BaseCreate, BaseUpdate, BasePublic
-from app.api.order.model.order import Order
-from app.api.user.model.address import Address
-from app.api.payment.model.payment_method import PaymentMethod
-
+from app.features.base.models import Base, BaseCreate, BaseUpdate, BasePublic
 
 class UserBase(SQLModel):
     email: EmailStr = Field(unique=True, index=True, max_length=255)
@@ -73,9 +69,6 @@ class User(UserBase, Base, table=True):
     failed_login_attempts: int = Field(default=0)
     locked_until: datetime.datetime | None = Field(default=None)
     last_login: datetime.datetime | None = Field(default=None)
-    orders: list[Order] = Relationship(back_populates="user")
-    addresses: list[Address] = Relationship(back_populates="user")
-    payment_methods: list[PaymentMethod] = Relationship(back_populates="user")
 
 
 class UserPublic(UserBase, BasePublic):
@@ -105,3 +98,8 @@ class UserAdminView(UserBase, BasePublic):
 class UsersPublic(SQLModel):
     data: list[UserPublic] = Field(default_factory=list, description="List of users")
     count: int = Field(default=0, description="Total number of users")
+
+
+# Contents of JWT token
+class TokenPayload(SQLModel):
+    sub: str | None = None

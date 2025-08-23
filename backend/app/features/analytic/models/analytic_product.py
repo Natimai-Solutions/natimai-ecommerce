@@ -1,7 +1,7 @@
 import uuid
 
 from sqlmodel import Field, SQLModel
-from app.api.base.models import Base, BaseCreate, BaseUpdate, BasePublic
+from app.features.base.models import Base, BaseCreate, BaseUpdate, BasePublic
 
 
 class AnalyticsProductBase(Base):
@@ -35,7 +35,7 @@ class AnalyticsProductUpdate(AnalyticsProductBase, BaseUpdate):
 
 
 class AnalyticsProduct(AnalyticsProductBase, Base, table=True):
-    __tablename__ = "analytics_products"
+    __tablename__ = "analytic_products"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
 
 
