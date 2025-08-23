@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.core.deps import SessionDep
+from backend.app.api.deps import SessionDep
 from app.api.routes.base import BaseController
 from app.api.shipping.crud.shipping_zone_crud import (
     crud_shipping_zone,

@@ -1,18 +1,17 @@
 import datetime
 import functools
-import importlib
 import logging
 import uuid
 from hashlib import md5
-from typing import Any, Generic, TypeVar
+from typing import Any, Dict, Generic, TypeVar
 
 from sqlalchemy.dialects import postgresql
 from sqlmodel import SQLModel, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.expression import SelectOfScalar
-from sqlalchemy.orm import inspect as sa_inspect
 
-from app.api.user.models.user import User
+from app.outbox.registry import outbox_registry
+from app.features.user.models.user import User
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -62,7 +61,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         schema_update: type[UpdateSchemaType],
         default_filter: Any | None = None,
         order_by: Any | None = None,
-        allow_all_user_to_create: bool = False
+        outbox_events: Dict[str, str] | None = None
     ):
         """
         Initialize a CRUD handler for a specific model type.
@@ -73,15 +72,88 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             schema_update: Pydantic schema for validating update operations
             default_filter: Default filter to apply to queries (e.g., is_active=True)
             order_by: Default ordering for queries
-            allow_all_user_to_create: Whether any user can create records
+            outbox_events: Mapping of event names to their corresponding payloads
         """
         self.model = model
         self.schema_create = schema_create
         self.schema_update = schema_update
         self.default_filter = default_filter
         self.order_by = order_by
-        self.allow_all_user_to_create = allow_all_user_to_create
-        self.event_handlers = {}
+        self.outbox_events = outbox_events or {}
+    
+    async def _safe_record_access(self, session: AsyncSession, record: ModelType):
+        try:
+            _ = record.id  # Teste l'accès à record
+            return record
+        except Exception as e:
+            await session.refresh(record)
+            return record
+            
+    async def _safe_commit_and_refresh(
+        self, 
+        session: AsyncSession, 
+        record: ModelType | None = None,
+        records: list[ModelType] | None = None, 
+        operation: str = "operation"
+    ) -> None:
+        """
+        Commit la transaction et rafraîchit les records de manière sécurisée.
+        
+        Args:
+            session: Session de base de données
+            record: Record unique à rafraîchir (optionnel)
+            records: Liste de records à rafraîchir (optionnel)
+            operation: Nom de l'opération pour le logging
+        """
+        try:
+            await session.commit()
+            
+            # Gérer les records individuels ou en liste
+            records_to_refresh = []
+            if record is not None:
+                records_to_refresh.append(record)
+            if records is not None:
+                records_to_refresh.extend(records)
+            
+            # Rafraîchir chaque record de manière sécurisée
+            for rec in records_to_refresh:
+                if rec is not None:
+                    await self._safe_record_refresh(session, rec)
+                    
+        except Exception as e:
+            logger.error(f"Error while committing {operation}: {e}")
+            await session.rollback()
+            raise CrudOperationError(f"Database error during {operation}: {str(e)}")
+
+    async def _safe_record_refresh(self, session: AsyncSession, record: ModelType) -> None:
+        """
+        Rafraîchit un record de manière sécurisée en vérifiant qu'il n'a pas été supprimé.
+        
+        Args:
+            session: Session de base de données  
+            record: Record à rafraîchir
+        """
+        try:
+            # Vérifier si le record est dans un état supprimé
+            from sqlalchemy import inspect
+            state = inspect(record)
+            
+            # Si le record a été supprimé, ne pas essayer de le rafraîchir
+            if getattr(state, 'deleted', False):
+                logger.debug(f"Record {record.__class__.__name__} with id {getattr(record, 'id', 'unknown')} was deleted, skipping refresh")
+                return
+                
+            # Si le record est persistant et pas supprimé, on peut le rafraîchir
+            if getattr(state, 'persistent', False):
+                await session.refresh(record)
+            else:
+                logger.debug(f"Record {record.__class__.__name__} is not persistent, skipping refresh")
+                
+        except Exception as e:
+            # Si le rafraîchissement échoue, c'est probablement que le record a été supprimé
+            logger.warning(f"Failed to refresh record: {e}")
+            # Ne pas lever d'exception car c'est un cas possible après un delete
+       
 
     def get_query_identifier(self, statement: SelectOfScalar[ModelType]) -> str:
         """
@@ -306,7 +378,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        await self.trigger_event("create", "before", session=session, data=data, user=user)
+        pass
     
     @track_crud_operation
     async def after_create(
@@ -329,7 +401,16 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        await self.trigger_event("create", "after", session=session, record=record, data=data, user=user)
+        if "create" in self.outbox_events:
+            await outbox_registry.publish(
+                session,
+                self.outbox_events["create"],
+                {
+                    "id": str(record.id),
+                    "type": record.__class__.__name__,
+                    "user_id": str(user.id) if user else None
+                }
+            )
     
     @track_crud_operation
     async def after_create_commit(
@@ -352,7 +433,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        await self.trigger_event("create", "after_commit", session=session, record=record, data=data, user=user)
+        pass
     
 
     async def create_draft(
@@ -378,6 +459,9 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         """
         await self.before_create(session, data=data, user=user)
         data_dict = data.model_dump(exclude_unset=True)
+        data_dict["created_at"] = datetime.datetime.now()
+        if user and user.id:
+            data_dict["created_by_id"] = user.id
         record = self.model(**data_dict)
         session.add(record)
         await session.flush()
@@ -488,7 +572,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        await self.trigger_event("update", "before", session=session, record=record, data=data, user=user)
+        pass
 
     @track_crud_operation
     async def after_update(
@@ -513,8 +597,17 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        await self.trigger_event("update", "after", session=session, record=record, data=data, user=user)
-    
+        if "update" in self.outbox_events:
+            await outbox_registry.publish(
+                session,
+                self.outbox_events["update"],
+                {
+                    "id": str(record.id),
+                    "type": record.__class__.__name__,
+                    "user_id": str(user.id) if user else None
+                }
+            )
+
     @track_crud_operation
     async def after_update_commit(
         self,
@@ -538,7 +631,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        await self.trigger_event("update", "after_commit", session=session, record=record, data=data, user=user)
+        pass
 
 
     async def update_draft(
@@ -573,6 +666,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         if not record:
             record = await session.get(self.model, id)
         data_dict = data.model_dump(exclude_unset=True)
+        data_dict["modify_at"] = datetime.datetime.now()
         if user and user.id:
             data_dict["modify_by_id"] = user.id
         for key in data_dict.keys():
@@ -691,7 +785,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        await self.trigger_event("delete", "before", session=session, id=id, record=record, user=user)
+        pass
 
     @track_crud_operation
     async def after_delete(
@@ -709,7 +803,16 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        await self.trigger_event("delete", "after", session=session, id=id, record=record, user=user)
+        if "delete" in self.outbox_events:
+            await outbox_registry.publish(
+                session,
+                self.outbox_events["delete"],
+                {
+                    "id": str(record.id),
+                    "type": record.__class__.__name__,
+                    "user_id": str(user.id) if user else None
+                }
+            )
 
     @track_crud_operation
     async def after_delete_commit(
@@ -727,7 +830,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        await self.trigger_event("delete", "after_commit", session=session, id=id, ids=ids, user=user)
+        pass
 
     async def delete_draft(
         self,

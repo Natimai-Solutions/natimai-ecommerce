@@ -1,54 +1,39 @@
-from fastapi import APIRouter
-
-from app.core.deps import SessionDep
-from app.api.routes.base import BaseController
-from app.api.payment.crud.payment_method_crud import (
-    crud_payment_method,
-    PaymentMethodCrud,
-)
-from ..model.payment_method import (
+from app.features.payment.models.payment_method import (
     PaymentMethod,
     PaymentMethodCreate,
     PaymentMethodUpdate,
     PaymentMethodPublic,
+    PaymentMethodsPublic
 )
 
+from app.features.payment.crud.payment_method import PaymentMethodCrud, crud_payment_method
 
-class PaymentMethodController(
-    BaseController[
-        PaymentMethod,
-        PaymentMethodCreate,
-        PaymentMethodUpdate,
-        PaymentMethodCrud,
-    ]
-):
+from app.api.base_router import BaseRouter
+
+class PaymentMethodRouter(BaseRouter[
+    PaymentMethod,
+    PaymentMethodCreate,
+    PaymentMethodUpdate,
+    PaymentMethodPublic,
+    PaymentMethodsPublic,
+    PaymentMethodCrud
+]):
     pass
 
+class Auth:
+    read = True
+    create = False
+    update = False
+    delete = False
 
-router = APIRouter()
-
-
-@router.get(
-    "/payment_methods",
-    response_model=list[PaymentMethodPublic],
-    name="payment_method:public",
-)
-async def get_public_payment_methods(
-    session: SessionDep,
-    limit: int = 100,
-) -> list[PaymentMethodPublic]:
-    return await crud_payment_method.get_random_payment_methods(
-        session=session,
-        limit=limit,
-    )
-
-
-controller = PaymentMethodController(
-    model=PaymentMethod,
+router = PaymentMethodRouter(
+    name="payment_method",
+    tags=["payment"],
+    crud=crud_payment_method,
+    schema_public=PaymentMethodPublic,
+    schema_publics=PaymentMethodsPublic,
     schema_create=PaymentMethodCreate,
     schema_update=PaymentMethodUpdate,
-    crud=crud_payment_method,
-    router=router,
+    auth=Auth(),
+    auto=True
 )
-
-router = controller.get_routes()

@@ -1,7 +1,7 @@
 import uuid
 
 from sqlmodel import Field, SQLModel, Relationship
-from app.api.base.models import Base, BaseCreate, BaseUpdate, BasePublic
+from app.features.base.models import Base, BaseCreate, BaseUpdate, BasePublic
 
 
 class ProductBase(Base):
