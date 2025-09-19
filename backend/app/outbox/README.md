@@ -17,7 +17,41 @@ app/outbox/
 └── README.md             # This documentation
 ```
 
-## 🔧 Core Components
+## � Event Naming Convention
+
+This outbox pattern follows a simple and consistent naming convention for event types:
+
+**Format:** `{action}.{model_name}`
+
+**Examples:**
+- `create.user` - When a new user is created
+- `update.user` - When user data is updated  
+- `delete.user` - When a user is deleted
+- `create.payment` - When a payment is processed
+- `update.order` - When an order status changes
+- `delete.product` - When a product is removed
+
+**Benefits:**
+- **Intuitive**: Easy to understand what the event represents
+- **Consistent**: All events follow the same pattern
+- **Filterable**: Easy to filter events by action (`create.*`) or model (`*.user`)
+- **Debuggable**: Clear event names in logs and monitoring
+
+**CRUD Integration:**
+When using the base CRUD class with outbox integration, configure events like this:
+
+```python
+crud_payment = PaymentCrud(
+    model=Payment,
+    outbox_events={
+        "after_create": "create.payment",
+        "after_update": "update.payment", 
+        "after_delete": "delete.payment"
+    }
+)
+```
+
+## �🔧 Core Components
 
 ### 1. **models.py** - Database Model
 Defines the `OutboxEvent` table that stores all pending events.
@@ -50,13 +84,38 @@ from app.outbox.registry import outbox_registry
 # Publish an event
 await outbox_registry.publish(
     session=db_session,
-    event_type="user.created",
-    payload={"user_id": 123, "email": "user@example.com"}
+    event_type="create.user",
+    payload={
+        "id": "123e4567-e89b-12d3-a456-426614174000",
+        "model": "User",
+        "action": "create",
+        "user_id": "456e4567-e89b-12d3-a456-426614174000",
+        "timestamp": "2025-09-18T14:30:00.123456",
+        "data": {"name": "John Doe", "email": "john@example.com"}
+    }
 )
 
 # Get handlers for an event type
-handlers = outbox_registry.get_handlers("user.created")
+handlers = outbox_registry.get_handlers("create.user")
 ```
+
+**Standardized Payload Structure:**
+All outbox events follow a consistent payload structure:
+
+```python
+{
+    "id": str,           # ID of the affected record
+    "model": str,        # Model class name (e.g., "User", "Payment")
+    "action": str,       # Operation type ("create", "update", "delete")  
+    "user_id": str,      # ID of user performing the operation (nullable)
+    "timestamp": str,    # ISO timestamp of the operation
+    "data": dict         # Operation-specific data
+}
+```
+
+**Data Field Contents:**
+- **Create/Update**: Contains the data being created/modified
+- **Delete**: Contains minimal safe data (just ID) to avoid serialization issues
 
 **Key Features:**
 - Handler registration and discovery
@@ -64,6 +123,8 @@ handlers = outbox_registry.get_handlers("user.created")
 - Multi-handler support per event type
 - Model class association
 - Registry introspection methods
+- Standardized payload structure
+- Safe serialization for all operations
 
 ### 3. **decorators.py** - Handler Registration
 Decorators for automatic handler registration during application startup.
@@ -143,17 +204,28 @@ Create handlers in the `/app/handlers` directory:
 from app.outbox.decorators import outbox_handler
 from app.models.user import User
 
-@outbox_handler("user.created", User)
+@outbox_handler("create.user", User)
 async def send_welcome_email(event_data: dict):
     """Send welcome email to new users."""
     user_email = event_data["email"]
     await email_service.send_welcome_email(user_email)
 
-@outbox_handler("user.created", User)
+@outbox_handler("create.user", User)
 async def create_user_profile(event_data: dict):
     """Create default user profile."""
     user_id = event_data["user_id"]
     await profile_service.create_default_profile(user_id)
+
+@outbox_handler("create.payment", Payment)
+async def process_payment_notification(event_data: dict):
+    """Send payment confirmation."""
+    await payment_service.send_confirmation(event_data["payment_id"])
+
+@outbox_handler("update.order", Order)
+async def track_order_status(event_data: dict):
+    """Update order tracking."""
+    if event_data["status"] == "shipped":
+        await tracking_service.notify_customer(event_data["order_id"])
 ```
 
 ### 2. Publish Events in Your CRUD
@@ -216,6 +288,121 @@ sequenceDiagram
 2. **RUNNING** - Event being processed by poller
 3. **DONE** - All handlers executed successfully
 4. **FAILED** - Processing failed after max retries
+
+## 🔄 Retry Strategy & Error Handling
+
+### **Architecture: Separation of Responsibilities**
+
+The outbox pattern implements a **two-level retry strategy** with clear separation of concerns:
+
+#### **Level 1: Outbox Event Orchestration**
+- **Responsibility**: Ensure events reach ARQ successfully
+- **Retry Scope**: Entire event (all handlers together)
+- **Trigger**: Failed to enqueue handlers to ARQ
+- **Backoff**: Exponential (10s, 30s, 1m, 5m, 15m)
+
+#### **Level 2: ARQ Handler Execution**  
+- **Responsibility**: Execute individual handlers reliably
+- **Retry Scope**: Individual handler only
+- **Trigger**: Handler function fails during execution
+- **Backoff**: ARQ's built-in retry (configurable)
+
+### **Idempotence & Deduplication**
+
+**Key Design Decision**: Each handler job uses a **fixed job ID** for deduplication:
+
+```python
+job_id = f"outbox:{event.id}:{handler.__name__}"
+# Example: "outbox:123e4567-e89b-12d3-a456-426614174000:send_email_notification"
+```
+
+#### **Why Fixed Job IDs?**
+1. **Idempotence**: Successfully executed handlers won't re-run if event is replayed
+2. **Consistency**: Same event always produces same job IDs
+3. **Observability**: Predictable job IDs for debugging
+
+#### **Behavior with Retries**
+- ✅ **Handler succeeds**: Job marked successful, won't re-run on event replay
+- ❌ **Handler fails**: ARQ retries the individual handler (up to `max_tries`)
+- 🔄 **Event retried**: Only failed/pending handlers are re-enqueued
+- 🎯 **Partial failures**: Successful handlers remain completed
+
+### **Example Scenario**
+
+```
+Event: "user.created" with 3 handlers
+├── send_welcome_email     ✅ Succeeds first try
+├── create_user_profile    ❌ Fails (network timeout)
+└── update_analytics       ✅ Succeeds second try
+
+Result after event retry:
+├── send_welcome_email     ⏭️  Skipped (already successful)
+├── create_user_profile    🔄 Re-executed by ARQ retry
+└── update_analytics       ⏭️  Skipped (already successful)
+```
+
+### **ARQ Worker Configuration**
+
+```python
+# app/core/arq_worker.py
+class WorkerSettings:
+    functions = [your_handlers]
+    
+    # Individual handler retry settings
+    max_tries = 3          # 3 attempts per handler
+    retry_delay = 10       # 10s between ARQ retries
+    job_timeout = 300      # 5min timeout per handler
+    keep_result = 3600     # Keep results 1h for debugging
+```
+
+### **When Handlers Fail**
+
+#### **During ARQ Enqueue (Level 1)**
+```python
+# In poller.py - if enqueue fails
+except Exception as e:
+    event.status = "PENDING"  # Event will retry
+    event.attempts += 1
+    event.next_run_at = now + exponential_backoff
+    # All handlers will be re-enqueued
+```
+
+#### **During Handler Execution (Level 2)**
+```python
+# Handled by ARQ automatically
+@outbox_handler("user.created", User)
+async def send_email(event_data: dict):
+    if random.random() < 0.3:  # 30% failure rate
+        raise Exception("SMTP timeout")  # ARQ will retry this handler
+    # Success - job marked complete with fixed job_id
+```
+
+### **Monitoring & Observability**
+
+#### **Event Level** (Database)
+```sql
+-- Events by status
+SELECT status, COUNT(*) FROM outbox_event GROUP BY status;
+
+-- Failed events with errors
+SELECT id, type, attempts, last_error 
+FROM outbox_event 
+WHERE status = 'FAILED';
+
+-- Events with high retry counts
+SELECT id, type, attempts, last_error 
+FROM outbox_event 
+WHERE attempts > 2;
+```
+
+#### **Handler Level** (ARQ/Redis)
+```python
+# Check ARQ job status
+from arq import create_pool
+pool = await create_pool(redis_settings)
+job = await pool.get_job("outbox:123:send_email")
+print(f"Status: {job.status}, Result: {job.result}")
+```
 
 ## 🎯 Benefits
 
