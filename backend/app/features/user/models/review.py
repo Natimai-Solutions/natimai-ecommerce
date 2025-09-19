@@ -2,8 +2,9 @@ import uuid
 
 from sqlmodel import Field, Relationship, SQLModel
 from app.features.base.models import Base, BaseCreate, BaseUpdate, BasePublic
-from app.api.user.model import User
-from app.api.product.model import Product
+
+from app.features.product.models.product import Product
+from .user import User
 
 class ReviewBase(Base):
     rating: int = Field(..., ge=1, le=5, description="Rating between 1 and 5")

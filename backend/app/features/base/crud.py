@@ -255,7 +255,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         skip: int = 0,
         limit: int = 0,
         ids: list[uuid.UUID] | None = None,
-        include_all: bool = False,
+        include_archived: bool = False,
         include_all_admin: bool = False,
         filter: Any = None,
         order_by: Any | None = None,
@@ -285,7 +285,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             statement = statement.order_by(order_by)
         if ids and len(ids):
             statement = statement.where(self.model.id.in_(ids))  # type: ignore
-        if include_all is False and self.default_filter is not None:
+        if include_archived is False and self.default_filter is not None:
             statement = statement.where(self.default_filter)
         if filter is not None:
             statement = statement.where(filter)
@@ -299,7 +299,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         skip: int = 0,
         limit: int = 0,
         ids: list[uuid.UUID] | None = None,
-        include_all: bool = False,
+        include_archived: bool = False,
         filter: Any = None,
         order_by: Any | None = None,
         user: UserType | None = None,
@@ -332,7 +332,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 skip=skip,
                 limit=limit,
                 ids=ids,
-                include_all=include_all,
+                include_archived=include_archived,
                 filter=filter,
                 order_by=order_by,
             )

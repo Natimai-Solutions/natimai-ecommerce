@@ -5,7 +5,7 @@ from typing import Any, Generic, List, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import SQLModel
-from app.features.base.crud import CrudBase
+from app.features.base.crud import CrudBase, RecordNotFoundError
 from app.features.base.models import Message
 from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
 
@@ -111,15 +111,15 @@ class BaseRouter(Generic[
                 session: SessionDep,
                 skip: int = 0,
                 limit: int = 1000,
-                query: str | None = None,
+                filter: str | None = None,
                 order_by: str | None = None,
                 include_archived: bool = False,
                 current_user: CurrentUser | None = Depends(get_current_user_optional),
-        ) -> list[PublicSchemaType]:
+        ) -> PublicsSchemaType:
             await self._check_auth(session, 'read', current_user)
-            result = await self.crud.read_multi(session, skip=skip, limit=limit, query=query, order_by=order_by, include_archived=include_archived, user=current_user)
-            return result["data"]  # Fixed: return the data array from the dict
-        read_multi.__name__ = f"get_multiple_{self.name}(s)"
+            result = await self.crud.read_multi(session, skip=skip, limit=limit, filter=filter, order_by=order_by, include_archived=include_archived, user=current_user)
+            return result  # Return the complete dict with 'data' and 'count'
+        read_multi.__name__ = f"get_multiple_{self.name}s"
         return read_multi
 
     def generate_read_endpoint(self) -> Callable:
@@ -129,7 +129,11 @@ class BaseRouter(Generic[
             current_user: CurrentUser | None = Depends(get_current_user_optional),
         ) -> PublicSchemaType:
             await self._check_auth(session, 'read', current_user)
-            return await self.crud.read(session, id=id, user=current_user)
+            try:
+                record = await self.crud.read(session, id=id, user=current_user)
+            except RecordNotFoundError:
+                raise HTTPException(status_code=404, detail=f"{self.name} not found")
+            return record
         read.__name__ = f"get_one_{self.name}"
         return read
 
