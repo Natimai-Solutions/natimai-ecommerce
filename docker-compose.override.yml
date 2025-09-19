@@ -1,0 +1,93 @@
+# docker-compose.override.yml - Configuration de développement
+# Ce fichier override automatiquement docker-compose.yml en mode dev
+
+services:
+  # Override du service API pour le développement
+  api:
+    command: ["api", "--reload"]  # Active le reload automatique de FastAPI
+    volumes:
+      # Monte le code source pour le développement en temps réel
+      - ./backend/app:/app/app  # Read-write pour permettre la détection de changements
+      # Monte les fichiers de configuration
+      - ./backend/alembic.ini:/app/alembic.ini:ro
+      - ./backend/pyproject.toml:/app/pyproject.toml:ro
+    environment:
+      - LOG_LEVEL=DEBUG  # Plus verbose en dev
+      - RELOAD=true
+    # Override des healthchecks pour être plus tolérant en dev
+    healthcheck:
+      interval: 45s
+      timeout: 15s
+      retries: 5
+      start_period: 60s
+
+  # Override du service ARQ Worker pour le développement
+  arq-worker:
+    volumes:
+      # Monte le code source pour le développement en temps réel
+      - ./backend/app:/app/app  # Read-write pour les changements en temps réel
+      - ./backend/alembic.ini:/app/alembic.ini:ro
+      - ./backend/pyproject.toml:/app/pyproject.toml:ro
+    environment:
+      - LOG_LEVEL=DEBUG
+    restart: "no"  # Pas de restart automatique en dev
+
+  # Override du service Outbox Poller pour le développement
+  outbox-poller:
+    volumes:
+      # Monte le code source pour le développement en temps réel
+      - ./backend/app:/app/app  # Read-write pour les changements en temps réel
+      - ./backend/alembic.ini:/app/alembic.ini:ro
+      - ./backend/pyproject.toml:/app/pyproject.toml:ro
+    environment:
+      - LOG_LEVEL=DEBUG
+    restart: "no"  # Pas de restart automatique en dev
+
+  # Service pour les migrations en développement
+  migrate:
+    volumes:
+      # Monte le code source ET les fichiers de migration en lecture/écriture
+      - ./backend/app:/app/app  # RW pour générer les migrations
+      - ./backend/alembic.ini:/app/alembic.ini:ro
+      - ./backend/pyproject.toml:/app/pyproject.toml:ro
+    environment:
+      - LOG_LEVEL=DEBUG
+    profiles:
+      - migration  # Utilise un profile pour éviter de démarrer automatiquement
+
+  # Service dédié pour le développement et la génération de migrations
+  alembic-dev:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    volumes:
+      # Monte tout en lecture/écriture pour pouvoir créer les fichiers de migration
+      - ./backend/app:/app/app
+      - ./backend/alembic.ini:/app/alembic.ini
+      - ./backend/pyproject.toml:/app/pyproject.toml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/fastapi_ecommerce
+      - POSTGRES_SERVER=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=fastapi_ecommerce
+      - LOG_LEVEL=DEBUG
+    # Container qui reste ouvert avec un shell interactif
+    command: ["shell"]
+    stdin_open: true
+    tty: true
+    
+  # Override des services de base pour être plus tolérants en dev
+  postgres:
+    environment:
+      - POSTGRES_LOG_STATEMENT=all  # Log toutes les requêtes en dev
+    ports:
+      - "5432:5432"  # Expose le port pour les connexions externes
+
+  redis:
+    ports:
+      - "6379:6379"  # Expose le port pour les connexions externes
