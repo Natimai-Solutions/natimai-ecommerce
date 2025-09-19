@@ -1,16 +1,20 @@
-FROM python:3.10
+FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1
 
-# WeasyPrint nécessite des dépendances système pour les polices et l'affichage
-RUN apt update && apt install -y \
+# Install system dependencies for WeasyPrint and other requirements
+RUN apt-get update && apt-get install -y \
+    # WeasyPrint dependencies
     libwebp-dev \
     libwebp7 \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
-    libgdk-pixbuf2.0-0 \
+    libgdk-pixbuf-xlib-2.0-0 \
     libffi-dev \
     shared-mime-info \
+    # Additional common dependencies
+    curl \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/
@@ -48,9 +52,11 @@ COPY ./app /app/app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync
 
-# Copier et rendre exécutable le script d'entrée
-COPY ./app/scripts/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Copy and make executable the entrypoint script
+COPY ./app/scripts/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-ENTRYPOINT ["/entrypoint.sh"]
-CMD ["api"]  # Par défaut, lance l'API
+# Set working directory and entrypoint
+WORKDIR /app
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["api"]

@@ -26,6 +26,9 @@ dependencies = [
     "types-requests",
     "pytest-asyncio>=0.23.8",
     "pytest-mock>=3.14.0",
+    "arq>=0.26.3",
+    "redis>=5.0.0",  # Version plus récente compatible avec Python 3.12
+    "disutils>=1.4.32.post2",
 ]
 
 [tool.uv]
@@ -37,9 +40,6 @@ dev-dependencies = [
     "types-passlib<2.0.0.0,>=1.7.7.20240106",
     "coverage<8.0.0,>=7.4.3",
 ]
-
-[tool.uv.workspace]
-members = ["app"]
 
 [build-system]
 requires = ["hatchling"]
