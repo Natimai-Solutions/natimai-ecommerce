@@ -1,8 +1,18 @@
 import uuid
+from typing import Annotated
 
-from sqlmodel import Enum, Field, Relationship, SQLModel
+from pydantic import Field as PydanticField, field_validator
+from sqlmodel import Field, Relationship, SQLModel
 from app.features.base.models import Base, BaseCreate, BaseUpdate, BasePublic
-from app.api.user.model import User
+from .user import User
+
+
+def validate_address_type(v: str) -> str:
+    """Validate that address type is one of the allowed values."""
+    allowed_types = {"billing", "shipping", "other"}
+    if v not in allowed_types:
+        raise ValueError(f"Type must be one of: {', '.join(allowed_types)}")
+    return v
 
 
 class AddressBase(Base):
@@ -11,6 +21,13 @@ class AddressBase(Base):
     state: str | None = Field(default=None, description="State of the address")
     postal_code: str = Field(description="Postal code of the address")
     country: str = Field(description="Country of the address")
+    type: str = Field(description="Address type: billing, shipping, or other")
+
+    @field_validator('type')
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        """Validate that type is one of the allowed values."""
+        return validate_address_type(v)
 
 
 class AddressCreate(AddressBase, BaseCreate):
@@ -23,6 +40,7 @@ class AddressUpdate(AddressBase, BaseUpdate):
     state: str | None = None
     postal_code: str | None = None
     country: str | None = None
+    type: str | None = None
 
 
 class Address(AddressBase, Base, table=True):
