@@ -1,9 +1,8 @@
 # docker-compose.yml
-version: '3.8'
 
 services:
   postgres:
-    image: postgres:16
+    image: postgres:16-alpine  # Plus léger avec Alpine
     environment:
       POSTGRES_DB: fastapi_ecommerce
       POSTGRES_USER: postgres
@@ -12,29 +11,56 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.2-alpine  # Version plus spécifique
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data  # Ajouter persistance pour Redis
-    command: redis-server --appendonly yes  # Activer la persistance
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
 
   # Service API FastAPI
   api:
     build: 
       context: ./backend
       dockerfile: Dockerfile
+    command: ["api"]
     ports:
       - "8000:8000"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/fastapi_ecommerce
+      - POSTGRES_SERVER=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=fastapi_ecommerce
       - REDIS_URL=redis://redis:6379
-    command: ["api"]
+      - WORKERS=4
+      - LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/utils/health-check"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # Service ARQ Worker
   arq-worker:
@@ -43,25 +69,41 @@ services:
       dockerfile: Dockerfile
     command: ["worker"]
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/fastapi_ecommerce
+      - POSTGRES_SERVER=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=fastapi_ecommerce
       - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=INFO
     restart: unless-stopped
 
   # Service Outbox Poller
   outbox-poller:
     build: 
       context: ./backend
-      dockerfile: Dockerfile  # Corrigé: .backend/ → backend/
-    command: ["poller"]
+      dockerfile: Dockerfile
+    command: ["poller", "--mode", "continuous", "--interval", "5"]
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/fastapi_ecommerce
+      - POSTGRES_SERVER=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=fastapi_ecommerce
       - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=INFO
     restart: unless-stopped
 
   # Migration (optionnel, pour les déploiements)
@@ -71,9 +113,15 @@ services:
       dockerfile: Dockerfile
     command: ["migrate"]
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/fastapi_ecommerce
+      - POSTGRES_SERVER=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=fastapi_ecommerce
 
 volumes:
   postgres_data:
