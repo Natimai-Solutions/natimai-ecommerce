@@ -2,7 +2,7 @@ from collections.abc import AsyncGenerator
 from typing import Annotated
 
 import jwt
-from aioredis import Redis
+from redis.asyncio import Redis
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
@@ -84,17 +84,3 @@ async def get_current_active_superuser(current_user: CurrentUser) -> User:
             status_code=403, detail="The user doesn't have enough privileges"
         )
     return current_user
-
-"""
-async def get_ai_prompt() -> AsyncGenerator[AsyncOpenAI, None]:
-    client = AsyncOpenAI(
-        organization=settings.OPENAI_ORG_ID, api_key=settings.OPENAI_API_KEY
-    )
-    try:
-        yield client
-    finally:
-        await client.close()
-
-
-AIDep = Annotated[AsyncOpenAI, Depends(get_ai_prompt)]
-"""

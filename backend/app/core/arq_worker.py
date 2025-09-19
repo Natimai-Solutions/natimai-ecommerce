@@ -1,24 +1,14 @@
 from arq.connections import RedisSettings
+from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.db import get_db
+from app.core.db import engine
 from app.outbox.poller import poll_outbox_once
+from app.core.config import settings
 
 # Tes handlers ARQ existants
 async def example_handler(ctx, **kwargs):
     # ... logique du handler
     pass
-
-# Tâche de background pour le poller
-async def outbox_poller_task(ctx):
-    """Tâche ARQ qui poll l'outbox périodiquement."""
-    async with get_db() as session:
-        processed = False
-        # Traiter jusqu'à ce qu'il n'y ait plus d'événements
-        while await poll_outbox_once(session):
-            processed = True
-        
-        if processed:
-            ctx['logger'].info("Outbox events processed")
 
 class WorkerSettings:
     functions = [
@@ -26,14 +16,9 @@ class WorkerSettings:
         # ... tes autres handlers
     ]
     
-    # Tâche cron pour le poller outbox
-    cron_jobs = [
-        {
-            'function': outbox_poller_task,
-            'cron': '* * * * *',  # Chaque minute
-        }
-    ]
+    # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)
+    # pas besoin de cron job ici
     
-    redis_settings = RedisSettings.from_dsn('redis://localhost:6379')
+    redis_settings = RedisSettings.from_dsn(str(settings.REDIS_URL))
     job_timeout = 300
     keep_result = 3600

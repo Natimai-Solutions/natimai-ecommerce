@@ -21,10 +21,7 @@ class PaymentMethodRouter(BaseRouter[
     pass
 
 class Auth:
-    read = True
-    create = False
-    update = False
-    delete = False
+    read = False
 
 router = PaymentMethodRouter(
     name="payment_method",

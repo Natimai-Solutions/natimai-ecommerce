@@ -12,15 +12,15 @@ from app.api.routes.payment_method import (
 #from app.api.routes.shipping_status import (
 #    router as shipping_status_router,
 #)
-#from app.api.routes.shipping_zone import (
-#    router as shipping_zone_router,
-#)
-#from app.api.routes.utils import router as utils_router
+from app.api.routes.shipping_zone import (
+    router as shipping_zone_router,
+)
+from app.api.routes.utils import router as utils_router
 
 
 #api_router.include_router(payment_router, prefix="/payment", tags=["payment"])
 api_router.include_router(payment_method_router)
 #api_router.include_router(shipping_method_router, prefix="/shipping", tags=["shipping"])
 #api_router.include_router(shipping_status_router, prefix="/shipping-status", tags=["shipping"])
-#api_router.include_router(shipping_zone_router, prefix="/shipping-zone", tags=["shipping"])
-#api_router.include_router(utils_router, prefix="/utils", tags=["utils"])
+api_router.include_router(shipping_zone_router)
+api_router.include_router(utils_router, prefix="/utils", tags=["utils"])

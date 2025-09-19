@@ -1,9 +1,9 @@
 from sqlmodel import and_, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.base.crud import CrudBase
+from app.features.base.crud import CrudBase
 
-from ..model.shipping_zone import (
+from app.features.shipping.models.shipping_zone import (
     ShippingZone,
     ShippingZoneCreate,
     ShippingZoneUpdate,
