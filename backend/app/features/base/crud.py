@@ -49,8 +49,18 @@ def track_crud_operation(func=None, *, step_name=None):
                 new_exception = CrudOperationError(f"Error during {operation_name}: {str(e)}")
                 raise new_exception from e  # Preserves original stack trace
         return wrapper
+    
+    # If called with a function directly (no arguments)
+    if func is not None:
+        return decorator(func)
+    
+    # If called with arguments
     return decorator
 
+class OutboxEvent:
+    create = True
+    update = True
+    delete = True
 
 class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     def __init__(
@@ -61,7 +71,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         schema_update: type[UpdateSchemaType],
         default_filter: Any | None = None,
         order_by: Any | None = None,
-        outbox_events: Dict[str, str] | None = None
+        outbox_events: OutboxEvent | None = None
     ):
         """
         Initialize a CRUD handler for a specific model type.
@@ -79,7 +89,14 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         self.schema_update = schema_update
         self.default_filter = default_filter
         self.order_by = order_by
-        self.outbox_events = outbox_events or {}
+        self.outbox_events = outbox_events or OutboxEvent()
+
+        if not hasattr(self.outbox_events, 'create'):
+            self.outbox_events.create = True
+        if not hasattr(self.outbox_events, 'update'):
+            self.outbox_events.update = True
+        if not hasattr(self.outbox_events, 'delete'):
+            self.outbox_events.delete = True
     
     async def _safe_record_access(self, session: AsyncSession, record: ModelType):
         try:
@@ -154,6 +171,93 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             logger.warning(f"Failed to refresh record: {e}")
             # Ne pas lever d'exception car c'est un cas possible après un delete
        
+    def _extract_data_dict(self, data) -> dict:
+        """
+        Extract dictionary from data, handling both SQLModel objects and dictionaries.
+        
+        Args:
+            data: Either a SQLModel object with model_dump() or a dictionary
+            
+        Returns:
+            Dictionary representation of the data
+        """
+        if hasattr(data, 'model_dump'):
+            return data.model_dump(exclude_unset=True)
+        elif isinstance(data, dict):
+            return dict(data)
+        else:
+            return {}
+
+    def _serialize_for_json(self, data: dict) -> dict:
+        """
+        Serialize a dictionary to be JSON-compatible by converting datetime objects to ISO strings.
+        
+        Args:
+            data: Dictionary that may contain datetime objects
+            
+        Returns:
+            Dictionary with datetime objects converted to ISO strings
+        """
+        if not isinstance(data, dict):
+            return data
+            
+        serialized = {}
+        for key, value in data.items():
+            if isinstance(value, datetime.datetime):
+                serialized[key] = value.isoformat()
+            elif isinstance(value, dict):
+                serialized[key] = self._serialize_for_json(value)
+            elif isinstance(value, list):
+                serialized[key] = [
+                    item.isoformat() if isinstance(item, datetime.datetime) 
+                    else self._serialize_for_json(item) if isinstance(item, dict)
+                    else item 
+                    for item in value
+                ]
+            else:
+                serialized[key] = value
+        return serialized
+
+    def _build_outbox_payload(
+        self, 
+        action: str, 
+        record: ModelType, 
+        user: UserType | None = None, 
+        data: dict | None = None
+    ) -> dict:
+        """
+        Build standardized outbox payload for events.
+        
+        Args:
+            action: The action being performed ('create', 'update', 'delete')
+            record: The record being operated on
+            user: User performing the operation
+            data: Additional data for create/update operations
+            
+        Returns:
+            Standardized payload dictionary
+        """
+        payload = {
+            "id": str(record.id),
+            "model": self.model.__name__,
+            "action": action,
+            "user_id": str(user.id) if user else None,
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        
+        if action in ["create", "update"] and data:
+            payload["data"] = self._serialize_for_json(data)
+        elif action == "delete":
+            # For delete, keep only essential info to avoid serialization issues
+            payload["data"] = {
+                "id": str(record.id),
+                "name": getattr(record, 'name', None),
+                "description": getattr(record, 'description', None),
+                "created_by_id": getattr(record, 'created_by_id', None)
+                # Add other critical fields if needed for handlers
+            }
+        
+        return payload
 
     def get_query_identifier(self, statement: SelectOfScalar[ModelType]) -> str:
         """
@@ -401,16 +505,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        if "create" in self.outbox_events:
-            await outbox_registry.publish(
-                session,
-                self.outbox_events["create"],
-                {
-                    "id": str(record.id),
-                    "type": record.__class__.__name__,
-                    "user_id": str(user.id) if user else None
-                }
-            )
+        pass
     
     @track_crud_operation
     async def after_create_commit(
@@ -458,14 +553,30 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             CrudOperationError: If the creation fails
         """
         await self.before_create(session, data=data, user=user)
-        data_dict = data.model_dump(exclude_unset=True)
+        
+        # Extract data dictionary
+        data_dict = self._extract_data_dict(data)
         data_dict["created_at"] = datetime.datetime.now()
         if user and user.id:
             data_dict["created_by_id"] = user.id
         record = self.model(**data_dict)
         session.add(record)
         await session.flush()
-        await session.refresh(record)
+        
+        # Publish outbox event after record is created and has an ID
+        if self.outbox_events.create:
+            payload = self._build_outbox_payload(
+                action="create",
+                record=record,
+                user=user,
+                data=data_dict
+            )
+            await outbox_registry.publish(
+                session,
+                f"create.{self.model.__name__.lower()}",
+                payload
+            )
+        
         await self.after_create(session, record=record, data=data, user=user)
         return record
     
@@ -474,7 +585,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             session: AsyncSession,
             *,
             data: CreateSchemaType,
-            user: UserType | None
+            user: UserType | None = None
     ) -> ModelType:
         """
         Create a new record and commit it to the database.
@@ -597,16 +708,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        if "update" in self.outbox_events:
-            await outbox_registry.publish(
-                session,
-                self.outbox_events["update"],
-                {
-                    "id": str(record.id),
-                    "type": record.__class__.__name__,
-                    "user_id": str(user.id) if user else None
-                }
-            )
+        pass
 
     @track_crud_operation
     async def after_update_commit(
@@ -665,7 +767,29 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         )
         if not record:
             record = await session.get(self.model, id)
-        data_dict = data.model_dump(exclude_unset=True)
+        
+        # Ensure record exists before proceeding
+        if not record:
+            logger.error(f"The record with id {id} does not exist.")
+            raise RecordNotFoundError("The record doesn't exist.")
+        
+        # Publish outbox event after record is confirmed to exist
+        if self.outbox_events.update:
+            payload_data = self._extract_data_dict(data)
+            payload = self._build_outbox_payload(
+                action="update",
+                record=record,
+                user=user,
+                data=payload_data
+            )
+            await outbox_registry.publish(
+                session,
+                f"update.{self.model.__name__.lower()}",
+                payload
+            )
+        
+        # Extract and apply updates
+        data_dict = self._extract_data_dict(data)
         data_dict["modify_at"] = datetime.datetime.now()
         if user and user.id:
             data_dict["modify_by_id"] = user.id
@@ -803,16 +927,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        if "delete" in self.outbox_events:
-            await outbox_registry.publish(
-                session,
-                self.outbox_events["delete"],
-                {
-                    "id": str(record.id),
-                    "type": record.__class__.__name__,
-                    "user_id": str(user.id) if user else None
-                }
-            )
+        pass
 
     @track_crud_operation
     async def after_delete_commit(
@@ -862,6 +977,18 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         if not record:
             logger.error(f"The record with id {id} does not exist.")
             raise RecordNotFoundError("The record doesn't exist.")
+        if self.outbox_events.delete:
+            payload = self._build_outbox_payload(
+                action="delete",
+                record=record,
+                user=user
+                # No data parameter - handled by the helper method
+            )
+            await outbox_registry.publish(
+                session,
+                f"delete.{self.model.__name__.lower()}",
+                payload
+            )
         await session.delete(record)
         await self.after_delete(session, id=id, record=record, user=user)
         return True

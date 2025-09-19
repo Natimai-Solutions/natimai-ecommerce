@@ -1,8 +1,8 @@
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.base.crud import CrudBase
-from app.api.payment.model.payment import (
+from app.features.base.crud import CrudBase
+from app.features.payment.models.payment import (
     Payment,
     PaymentCreate,
     PaymentUpdate,
@@ -34,7 +34,7 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
 
 crud_payment = PaymentCrud(
     model=Payment,
-    create_model=PaymentCreate,
-    update_model=PaymentUpdate,
+    schema_create=PaymentCreate,
+    schema_update=PaymentUpdate,
     order_by=Payment.created_at,
 )
