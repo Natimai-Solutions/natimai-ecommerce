@@ -1,4 +1,5 @@
 import logging
+
 from app.outbox.decorators import outbox_handler
 
 logging.basicConfig(level=logging.INFO)

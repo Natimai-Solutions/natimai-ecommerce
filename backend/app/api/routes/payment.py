@@ -1,16 +1,17 @@
-from fastapi import APIRouter
-
 from backend.app.api.deps import SessionDep
 from backend.app.api.router_generator import BaseController
+from fastapi import APIRouter
+
 from app.api.payment.crud.payment_crud import (
-    crud_payment,
     PaymentCrud,
+    crud_payment,
 )
+
 from ..model.payment import (
     Payment,
     PaymentCreate,
-    PaymentUpdate,
     PaymentPublic,
+    PaymentUpdate,
 )
 
 
