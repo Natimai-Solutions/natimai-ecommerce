@@ -43,16 +43,16 @@ class Product(ProductBase, Base, table=True):
         index=True,
         description="Unique identifier for the product",
     )
-    category_id: uuid.UUID | None = Field(
-        default=None,
-        foreign_key="categories.id",
-        description="Category ID of the product",
-    )
-    total_stock_id: uuid.UUID | None = Field(
-        default=None,
-        foreign_key="inventories.id",
-        description="Total stock ID of the product, including all variants",
-    )
+    #category_id: uuid.UUID | None = Field(
+    #    default=None,
+    #    foreign_key="categories.id",
+    #    description="Category ID of the product",
+    #)
+    #total_stock_id: uuid.UUID | None = Field(
+    #    default=None,
+    #    foreign_key="inventories.id",
+    #    description="Total stock ID of the product, including all variants",
+    #)
 
 
 class ProductPublic(ProductBase, BasePublic):

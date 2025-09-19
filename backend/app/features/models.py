@@ -5,6 +5,7 @@ from app.features.user.models.user import User
 from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_status import PaymentStatus
 from app.features.payment.models.payment_method import PaymentMethod
+from app.features.product.models.product import Product
 
 
 __all__ = [
@@ -15,6 +16,6 @@ __all__ = [
     "Payment",
     "PaymentMethod",
     "PaymentStatus",
-    # "Product",
+    "Product",
     # "Shipping",
 ]

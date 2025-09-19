@@ -18,9 +18,8 @@ fileConfig(config.config_file_name)
 # target_metadata = None
 
 from sqlmodel import SQLModel
-from backend.app.api.model import *
-
-
+from app.outbox.models import *
+from app.features.models import *
 
 from app.core.config import settings # noqa
 
