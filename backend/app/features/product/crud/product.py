@@ -1,5 +1,3 @@
-from sqlmodel import func, select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
 from app.features.product.models.product import (
@@ -11,6 +9,7 @@ from app.features.product.models.product import (
 
 class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
     pass
+
 
 crud_product = ProductCrud(
     model=Product,

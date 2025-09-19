@@ -1,16 +1,17 @@
-from fastapi import APIRouter
-
 from backend.app.api.deps import SessionDep
 from backend.app.api.router_generator import BaseController
+from fastapi import APIRouter
+
 from app.api.shipping.crud.shipping_method_crud import (
-    crud_shipping_method,
     ShippingMethodCrud,
+    crud_shipping_method,
 )
+
 from ..model.shipping_method import (
     ShippingMethod,
     ShippingMethodCreate,
-    ShippingMethodUpdate,
     ShippingMethodPublic,
+    ShippingMethodUpdate,
 )
 
 
