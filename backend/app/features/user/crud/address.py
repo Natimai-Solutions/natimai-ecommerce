@@ -1,0 +1,86 @@
+import uuid
+from typing import Optional
+
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.features.base.crud import CrudBase
+from app.features.user.models.address import Address, AddressCreate, AddressUpdate
+
+
+class AddressCrud(CrudBase[Address, AddressCreate, AddressUpdate]):
+    
+    async def get_by_user_id(
+        self, 
+        session: AsyncSession, 
+        *, 
+        user_id: uuid.UUID,
+        skip: int = 0,
+        limit: int = 100
+    ) -> list[Address]:
+        statement = (
+            select(self.model)
+            .where(
+                self.model.user_id == user_id,
+                self.model.is_admin_active.is_(True),
+                self.model.is_active.is_(True),
+            )
+            .offset(skip)
+            .limit(limit)
+        )
+        exec_result = await session.exec(statement)
+        return exec_result.all()
+    
+    async def get_by_user_and_type(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: uuid.UUID,
+        address_type: str
+    ) -> list[Address]:
+        statement = select(self.model).where(
+            self.model.user_id == user_id,
+            self.model.type == address_type,
+            self.model.is_admin_active.is_(True),
+            self.model.is_active.is_(True),
+        )
+        exec_result = await session.exec(statement)
+        return exec_result.all()
+    
+    async def create_for_user(
+        self,
+        session: AsyncSession,
+        *,
+        obj_in: AddressCreate,
+        user_id: uuid.UUID,
+        current_user: Optional[uuid.UUID] = None
+    ) -> Address:
+        obj_data = obj_in.model_dump()
+        obj_data["user_id"] = user_id
+        db_obj = self.model(**obj_data)
+        session.add(db_obj)
+        await session.commit()
+        await session.refresh(db_obj)
+        return db_obj
+    
+    async def count_by_user(
+        self, 
+        session: AsyncSession, 
+        *, 
+        user_id: uuid.UUID
+    ) -> int:
+        statement = select(self.model).where(
+            self.model.user_id == user_id,
+            self.model.is_admin_active.is_(True),
+            self.model.is_active.is_(True),
+        )
+        exec_result = await session.exec(statement)
+        return len(exec_result.all())
+
+
+crud_address = AddressCrud(
+    model=Address,
+    schema_create=AddressCreate,
+    schema_update=AddressUpdate,
+    order_by=Address.created_at,
+)
