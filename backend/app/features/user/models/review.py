@@ -27,7 +27,7 @@ class ReviewCreate(ReviewBase, BaseCreate):
     product_id: uuid.UUID = Field(description="ID of the product being reviewed")
     user_id: uuid.UUID = Field(description="ID of the user who created the review")
 
-
+      
 class ReviewUpdate(ReviewBase, BaseUpdate):
     rating: int | None = Field(default=None, ge=1, le=5, description="Rating between 1 and 5")
     comment: str | None = Field(default=None, max_length=1000, description="Review comment")
@@ -41,7 +41,6 @@ class ReviewUpdate(ReviewBase, BaseUpdate):
             return validate_rating(v)
         return v
 
-
 class Review(ReviewBase, Base, table=True):
     __tablename__ = "reviews"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
@@ -53,10 +52,12 @@ class Review(ReviewBase, Base, table=True):
     )
 
 
+
 class ReviewPublic(ReviewBase, BasePublic):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     product_id: uuid.UUID = Field(description="ID of the product being reviewed")
     user_id: uuid.UUID = Field(description="ID of the user who created the review")
+
 
 
 class ReviewsPublic(SQLModel):
