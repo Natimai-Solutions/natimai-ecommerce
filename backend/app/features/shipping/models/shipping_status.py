@@ -1,9 +1,9 @@
 import uuid
-
-from sqlmodel import Field, SQLModel
 from datetime import datetime
 
-from app.features.base.models import Base, BaseCreate, BaseUpdate, BasePublic
+from sqlmodel import Field, SQLModel
+
+from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class ShippingStatusBase(Base):
@@ -30,6 +30,7 @@ class ShippingStatus(ShippingStatusBase, Base, table=True):
         primary_key=True,
         description="Unique identifier for the shipping status",
     )
+
 
 class ShippingStatusPublic(ShippingStatusBase, BasePublic):
     id: uuid.UUID = Field(

@@ -1,7 +1,8 @@
 import uuid
 
-from sqlmodel import Enum, Field, Relationship, SQLModel
-from app.features.base.models import Base, BaseCreate, BaseUpdate, BasePublic
+from sqlmodel import Field, SQLModel
+
+from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class PaymentBase(Base):
@@ -26,12 +27,10 @@ class Payment(PaymentBase, Base, table=True):
         description="Unique identifier for the payment",
     )
     payment_method_id: uuid.UUID = Field(
-        foreign_key="payment_methods.id",
-        description="ID of the payment method used"
+        foreign_key="payment_methods.id", description="ID of the payment method used"
     )
     payment_status_id: uuid.UUID = Field(
-        foreign_key="payment_status.id",
-        description="ID of the payment status"
+        foreign_key="payment_status.id", description="ID of the payment status"
     )
 
 
@@ -44,12 +43,12 @@ class PaymentPublic(PaymentBase, BasePublic):
     payment_method_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="payment_methods.id",
-        description="ID of the payment method used"
+        description="ID of the payment method used",
     )
     payment_status_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="payment_status.id",
-        description="ID of the payment status"
+        description="ID of the payment status",
     )
 
 

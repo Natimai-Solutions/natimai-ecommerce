@@ -1,52 +1,21 @@
 import uuid
-from typing import Optional
 
-from sqlmodel import and_, func, select
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.features.base.crud import CrudBase, track_crud_operation
+from app.features.base.crud import CrudBase
 from app.features.user.models.notification import (
     Notification,
     NotificationCreate,
-    NotificationCreateWithRecipients,
     NotificationUpdate,
-    NotificationUserLink,
-    NotificationStats,
-    NotificationType,
+    UserNotification,
+    UserNotificationCreate,
+    UserNotificationUpdate,
 )
 
 
-class NotificationCrud(
-    CrudBase[Notification, NotificationCreate, NotificationUpdate]
-):
-    
-    async def create_with_recipients(
-        self,
-        session: AsyncSession,
-        *,
-        obj_in: NotificationCreateWithRecipients,
-        current_user: Optional[uuid.UUID] = None,
-    ) -> Notification:
-        notification_data = obj_in.model_dump(exclude={"user_ids"})
-        notification_data["created_by_id"] = current_user
-        db_notification = Notification(**notification_data)
-        
-        session.add(db_notification)
-        await session.commit()
-        await session.refresh(db_notification)
-        
-        for user_id in obj_in.user_ids:
-            link = NotificationUserLink(
-                notification_id=db_notification.id,
-                user_id=user_id
-            )
-            session.add(link)
-        
-        await session.commit()
-        await session.refresh(db_notification)
-        return db_notification
-
-    async def get_user_notifications(
+class NotificationCrud(CrudBase[Notification, NotificationCreate, NotificationUpdate]):
+    async def get_by_user_id(
         self,
         session: AsyncSession,
         *,
@@ -54,183 +23,148 @@ class NotificationCrud(
         skip: int = 0,
         limit: int = 100,
         unread_only: bool = False,
-        notification_type: Optional[NotificationType] = None,
     ) -> list[Notification]:
+        """Get notifications for a specific user."""
         statement = (
             select(Notification)
-            .join(NotificationUserLink)
-            .where(NotificationUserLink.user_id == user_id)
-            .where(Notification.is_active.is_(True))
+            .join(UserNotification, Notification.id == UserNotification.notification_id)
+            .where(
+                UserNotification.user_id == user_id,
+                Notification.is_admin_active.is_(True),
+                Notification.is_active.is_(True),
+            )
         )
-        
-        if unread_only:
-            statement = statement.where(NotificationUserLink.is_read.is_(False))
-            
-        if notification_type:
-            statement = statement.where(Notification.type == notification_type)
-            
-        statement = (
-            statement
-            .order_by(NotificationUserLink.sent_at.desc())
-            .offset(skip)
-            .limit(limit)
-        )
-        
-        result = await session.exec(statement)
-        return result.all()
 
-    async def mark_as_read(
+        if unread_only:
+            statement = statement.where(UserNotification.is_read.is_(False))
+
+        statement = (
+            statement.offset(skip)
+            .limit(limit)
+            .order_by(UserNotification.sent_at.desc())
+        )
+
+        exec_result = await session.exec(statement)
+        return exec_result.all()
+
+    async def get_user_notification(
+        self, session: AsyncSession, *, notification_id: uuid.UUID, user_id: uuid.UUID
+    ) -> Notification | None:
+        """Get a specific notification for a user."""
+        statement = (
+            select(Notification)
+            .join(UserNotification, Notification.id == UserNotification.notification_id)
+            .where(
+                Notification.id == notification_id,
+                UserNotification.user_id == user_id,
+                Notification.is_admin_active.is_(True),
+                Notification.is_active.is_(True),
+            )
+        )
+        exec_result = await session.exec(statement)
+        return exec_result.first()
+
+    async def create_for_users(
         self,
         session: AsyncSession,
         *,
-        notification_id: uuid.UUID,
-        user_id: uuid.UUID,
-    ) -> bool:
-        statement = select(NotificationUserLink).where(
-            and_(
-                NotificationUserLink.notification_id == notification_id,
-                NotificationUserLink.user_id == user_id,
+        obj_in: NotificationCreate,
+        user_ids: list[uuid.UUID],
+        current_user: uuid.UUID | None = None,
+    ) -> Notification:
+        """Create a notification and assign it to multiple users."""
+        # Create the notification
+        obj_data = obj_in.model_dump()
+        if current_user:
+            obj_data["created_by_id"] = current_user
+        db_obj = self.model(**obj_data)
+        session.add(db_obj)
+        await session.commit()
+        await session.refresh(db_obj)
+
+        # Create user notification links
+        for user_id in user_ids:
+            user_notification = UserNotification(
+                notification_id=db_obj.id, user_id=user_id
+            )
+            session.add(user_notification)
+
+        await session.commit()
+        await session.refresh(db_obj)
+        return db_obj
+
+    async def count_by_user(
+        self, session: AsyncSession, *, user_id: uuid.UUID, unread_only: bool = False
+    ) -> int:
+        """Count notifications for a user."""
+        statement = (
+            select(Notification)
+            .join(UserNotification, Notification.id == UserNotification.notification_id)
+            .where(
+                UserNotification.user_id == user_id,
+                Notification.is_admin_active.is_(True),
+                Notification.is_active.is_(True),
             )
         )
-        
-        result = await session.exec(statement)
-        link = result.first()
-        
-        if not link:
-            return False
-            
-        link.is_read = True
-        link.read_at = func.now()
-        
-        session.add(link)
+
+        if unread_only:
+            statement = statement.where(UserNotification.is_read.is_(False))
+
+        exec_result = await session.exec(statement)
+        return len(exec_result.all())
+
+
+class UserNotificationCrud(
+    CrudBase[UserNotification, UserNotificationCreate, UserNotificationUpdate]
+):
+    async def mark_as_read(
+        self, session: AsyncSession, *, notification_id: uuid.UUID, user_id: uuid.UUID
+    ) -> UserNotification | None:
+        """Mark a notification as read for a specific user."""
+        statement = select(self.model).where(
+            self.model.notification_id == notification_id,
+            self.model.user_id == user_id,
+            self.model.is_admin_active.is_(True),
+            self.model.is_active.is_(True),
+        )
+        exec_result = await session.exec(statement)
+        user_notification = exec_result.first()
+
+        if not user_notification:
+            return None
+
+        user_notification.is_read = True
+        from datetime import datetime
+
+        user_notification.read_at = datetime.now()
+
+        session.add(user_notification)
         await session.commit()
-        return True
+        await session.refresh(user_notification)
+        return user_notification
 
     async def mark_all_as_read(
-        self,
-        session: AsyncSession,
-        *,
-        user_id: uuid.UUID,
+        self, session: AsyncSession, *, user_id: uuid.UUID
     ) -> int:
-        statement = select(NotificationUserLink).where(
-            and_(
-                NotificationUserLink.user_id == user_id,
-                NotificationUserLink.is_read.is_(False),
-            )
+        """Mark all notifications as read for a user."""
+        statement = select(self.model).where(
+            self.model.user_id == user_id,
+            self.model.is_read.is_(False),
+            self.model.is_admin_active.is_(True),
+            self.model.is_active.is_(True),
         )
-        
-        result = await session.exec(statement)
-        links = result.all()
-        
+        exec_result = await session.exec(statement)
+        user_notifications = exec_result.all()
+
         count = 0
-        for link in links:
-            link.is_read = True
-            link.read_at = func.now()
-            session.add(link)
+        from datetime import datetime
+
+        for user_notification in user_notifications:
+            user_notification.is_read = True
+            user_notification.read_at = datetime.now()
+            session.add(user_notification)
             count += 1
-            
-        await session.commit()
-        return count
 
-    async def get_unread_count(
-        self,
-        session: AsyncSession,
-        *,
-        user_id: uuid.UUID,
-    ) -> int:
-        statement = select(func.count(NotificationUserLink.notification_id)).where(
-            and_(
-                NotificationUserLink.user_id == user_id,
-                NotificationUserLink.is_read.is_(False),
-            )
-        )
-        
-        result = await session.exec(statement)
-        return result.one()
-
-    async def get_notification_stats(
-        self,
-        session: AsyncSession,
-        *,
-        notification_id: uuid.UUID,
-    ) -> Optional[NotificationStats]:
-        total_statement = select(func.count(NotificationUserLink.notification_id)).where(
-            NotificationUserLink.notification_id == notification_id
-        )
-        total_result = await session.exec(total_statement)
-        total_recipients = total_result.one()
-        
-        if total_recipients == 0:
-            return None
-        
-        read_statement = select(func.count(NotificationUserLink.notification_id)).where(
-            and_(
-                NotificationUserLink.notification_id == notification_id,
-                NotificationUserLink.is_read.is_(True),
-            )
-        )
-        read_result = await session.exec(read_statement)
-        read_by = read_result.one()
-        
-        read_percentage = (read_by / total_recipients) * 100 if total_recipients > 0 else 0
-        
-        return NotificationStats(
-            total_recipients=total_recipients,
-            read_by=read_by,
-            read_percentage=round(read_percentage, 2),
-        )
-
-    async def get_notifications_by_type(
-        self,
-        session: AsyncSession,
-        *,
-        notification_type: NotificationType,
-        skip: int = 0,
-        limit: int = 100,
-    ) -> list[Notification]:
-        statement = (
-            select(Notification)
-            .where(
-                and_(
-                    Notification.type == notification_type,
-                    Notification.is_active.is_(True),
-                )
-            )
-            .order_by(Notification.created_at.desc())
-            .offset(skip)
-            .limit(limit)
-        )
-        
-        result = await session.exec(statement)
-        return result.all()
-
-    async def delete_old_notifications(
-        self,
-        session: AsyncSession,
-        *,
-        days_old: int = 90,
-    ) -> int:
-        cutoff_date = func.now() - func.interval(f"{days_old} days")
-        
-        statement = (
-            select(Notification)
-            .where(
-                and_(
-                    Notification.created_at < cutoff_date,
-                    Notification.is_active.is_(True),
-                )
-            )
-        )
-        
-        result = await session.exec(statement)
-        notifications = result.all()
-        
-        count = 0
-        for notification in notifications:
-            notification.is_active = False
-            session.add(notification)
-            count += 1
-            
         await session.commit()
         return count
 
@@ -240,4 +174,11 @@ crud_notification = NotificationCrud(
     schema_create=NotificationCreate,
     schema_update=NotificationUpdate,
     order_by=Notification.created_at,
+)
+
+crud_user_notification = UserNotificationCrud(
+    model=UserNotification,
+    schema_create=UserNotificationCreate,
+    schema_update=UserNotificationUpdate,
+    order_by=UserNotification.sent_at,
 )

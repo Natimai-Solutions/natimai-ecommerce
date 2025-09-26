@@ -1,10 +1,9 @@
 import uuid
-from typing import Annotated
 
-from pydantic import Field as PydanticField, field_validator
-from sqlmodel import Field, Relationship, SQLModel
-from app.features.base.models import Base, BaseCreate, BaseUpdate, BasePublic
-from .user import User
+from pydantic import field_validator
+from sqlmodel import Field, SQLModel
+
+from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 def validate_address_type(v: str) -> str:
@@ -23,7 +22,7 @@ class AddressBase(Base):
     country: str = Field(description="Country of the address")
     type: str = Field(description="Address type: billing, shipping, or other")
 
-    @field_validator('type')
+    @field_validator("type")
     @classmethod
     def validate_type(cls, v: str) -> str:
         """Validate that type is one of the allowed values."""
