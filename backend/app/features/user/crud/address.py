@@ -55,8 +55,11 @@ class AddressCrud(CrudBase[Address, AddressCreate, AddressUpdate]):
         user_id: uuid.UUID,
         current_user: Optional[uuid.UUID] = None
     ) -> Address:
+        """Create an address for a specific user."""
         obj_data = obj_in.model_dump()
-        obj_data["user_id"] = user_id
+        obj_data["user_id"] = user_id  # Override user_id to ensure it matches the URL parameter
+        if current_user:
+            obj_data["created_by_id"] = current_user
         db_obj = self.model(**obj_data)
         session.add(db_obj)
         await session.commit()

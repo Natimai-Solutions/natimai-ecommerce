@@ -2,7 +2,16 @@ import uuid
 
 from pydantic import field_validator
 from sqlmodel import Field, SQLModel
+
 from app.features.base.models import Base, BaseCreate, BaseUpdate, BasePublic
+
+
+def validate_address_type(v: str, field_name: str = "Address type") -> str:
+    """Validate address type field."""
+    allowed_types = {"billing", "shipping", "other"}
+    if v not in allowed_types:
+        raise ValueError(f"{field_name} must be one of: {', '.join(allowed_types)}")
+    return v
 
 
 class AddressBase(Base):
@@ -16,31 +25,27 @@ class AddressBase(Base):
     @field_validator('type')
     @classmethod
     def validate_type(cls, v: str) -> str:
-        allowed_types = {"billing", "shipping", "other"}
-        if v not in allowed_types:
-            raise ValueError(f"Type must be one of: {', '.join(allowed_types)}")
-        return v
+        return validate_address_type(v)
 
 
 class AddressCreate(AddressBase, BaseCreate):
-    pass
+    user_id: uuid.UUID = Field(description="ID of the user")
 
 
-class AddressUpdate(BaseUpdate):
+class AddressUpdate(AddressBase, BaseUpdate):
     street: str | None = None
     city: str | None = None
     state: str | None = None
     postal_code: str | None = None
     country: str | None = None
     type: str | None = None
+    user_id: uuid.UUID | None = None
 
     @field_validator('type')
     @classmethod
     def validate_type(cls, v: str | None) -> str | None:
         if v is not None:
-            allowed_types = {"billing", "shipping", "other"}
-            if v not in allowed_types:
-                raise ValueError(f"Type must be one of: {', '.join(allowed_types)}")
+            return validate_address_type(v)
         return v
 
 
@@ -53,8 +58,8 @@ class Address(AddressBase, Base, table=True):
 
 
 class AddressPublic(AddressBase, BasePublic):
-    id: uuid.UUID
-    user_id: uuid.UUID
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
+    user_id: uuid.UUID = Field(description="ID of the user")
 
 
 class AddressesPublic(SQLModel):
