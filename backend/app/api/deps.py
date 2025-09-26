@@ -2,18 +2,18 @@ from collections.abc import AsyncGenerator
 from typing import Annotated
 
 import jwt
-from redis.asyncio import Redis
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
 from pydantic import ValidationError
+from redis.asyncio import Redis
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.features.user.models.user import TokenPayload, User
 from app.core import security
 from app.core.cache import RedisCache
 from app.core.config import settings
 from app.core.db import get_db
+from app.features.user.models.user import TokenPayload, User
 
 reusable_oauth2 = OAuth2PasswordBearer(
     tokenUrl=f"{settings.API_V1_STR}/login/access-token"
@@ -74,7 +74,8 @@ async def get_current_user_optional(
         return await get_current_user(session, token)
     except HTTPException:
         return None
-    
+
+
 CurrentUserOptional = Annotated[User | None, Depends(get_current_user_optional)]
 
 
