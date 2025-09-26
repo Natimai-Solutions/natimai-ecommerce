@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 router = APIRouter()
 
+
 @router.get("/health-check", tags=["utils"])
 async def health_check() -> bool:
     return True
@@ -17,12 +18,12 @@ class TaskStatus(BaseModel):
     state: str
 
 
-#@router.get(
+# @router.get(
 #    "/task-check/{task_id}", tags=["utils"], response_model=TaskStatus
-#)
-#async def check_tasks(
+# )
+# async def check_tasks(
 #    task_id: uuid.UUID,
-#) -> TaskStatus:
+# ) -> TaskStatus:
 #    task = celery_app.AsyncResult(str(task_id))
 #    return TaskStatus(
 #        task_id=task_id,

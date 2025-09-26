@@ -22,7 +22,7 @@ class AddressBase(Base):
     country: str = Field(description="Country of the address")
     type: str = Field(description="Address type: billing, shipping, or other")
 
-    @field_validator('type')
+    @field_validator("type")
     @classmethod
     def validate_type(cls, v: str) -> str:
         return validate_address_type(v)

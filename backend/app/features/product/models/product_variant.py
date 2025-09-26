@@ -1,7 +1,8 @@
 import uuid
 
 from sqlmodel import Field, SQLModel
-from app.features.base.models import Base, BaseCreate, BaseUpdate, BasePublic
+
+from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class ProductVariantBase(Base):
