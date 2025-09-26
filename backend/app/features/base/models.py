@@ -1,6 +1,5 @@
 import datetime
 import uuid
-from enum import IntEnum
 
 from sqlmodel import Field, SQLModel
 

@@ -1,96 +1,108 @@
-import datetime
-import enum
 import uuid
+from datetime import datetime
 
-from sqlmodel import Field, Relationship, SQLModel
+from pydantic import field_validator
+from sqlmodel import Field, SQLModel
 
-from app.features.base.models import Base, BaseCreate, BaseUpdate, BasePublic
-from app.features.user.models.user import User
-
-
-class NotificationType(enum.Enum):
-    ORDER_CONFIRMATION = "order_confirmation"
-    ORDER_STATUS_UPDATE = "order_status_update"
-    PAYMENT_SUCCESS = "payment_success"
-    PAYMENT_FAILED = "payment_failed"
-    SHIPPING_STARTED = "shipping_started"
-    SHIPPING_DELIVERED = "shipping_delivered"
-    PRODUCT_AVAILABLE = "product_available"
-    PRODUCT_LOW_STOCK = "product_low_stock"
-    ACCOUNT_VERIFICATION = "account_verification"
-    PASSWORD_RESET = "password_reset"
-    PROMOTIONAL_OFFER = "promotional_offer"
-    SYSTEM_MAINTENANCE = "system_maintenance"
+from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
-class EmailFrequency(enum.Enum):
-    IMMEDIATE = "immediate"
-    DAILY = "daily"
-    WEEKLY = "weekly"
-    NEVER = "never"
+def validate_notification_type(v: str) -> str:
+    """Validate that notification type is one of the allowed values."""
+    allowed_types = {
+        "order_confirmation",
+        "order_status_update",
+        "payment_success",
+        "payment_failed",
+        "shipping_started",
+        "shipping_delivered",
+        "product_available",
+        "product_low_stock",
+        "account_verification",
+        "password_reset",
+        "promotional_offer",
+        "system_maintenance",
+    }
+    if v not in allowed_types:
+        raise ValueError(f"Type must be one of: {', '.join(allowed_types)}")
+    return v
 
 
-class NotificationUserLink(SQLModel, table=True):
-    __tablename__ = "notification_user_links"
-    notification_id: uuid.UUID = Field(
-        foreign_key="notifications.id", primary_key=True, ondelete="CASCADE"
-    )
-    user_id: uuid.UUID = Field(
-        foreign_key="users.id", primary_key=True, ondelete="CASCADE"
-    )
-
-    is_read: bool = Field(default=False)
-    read_at: datetime.datetime | None = Field(default=None)
-    sent_at: datetime.datetime = Field(default_factory=datetime.datetime.now)
+def validate_priority(v: int) -> int:
+    """Validate that priority is between 1 and 4."""
+    if v < 1 or v > 4:
+        raise ValueError("Priority must be between 1 (low) and 4 (high)")
+    return v
 
 
 class NotificationBase(Base):
-    title: str | None = Field(default=None, max_length=255, description="Title of the notification")
-    content: str | None = Field(default=None, max_length=1000, description="Content of the notification")
-    type: NotificationType = Field(default=NotificationType.SYSTEM_MAINTENANCE, description="Type of notification")
-    priority: int = Field(default=1, ge=1, le=4, description="Priority level from 1 (low) to 4 (high)")
-    order_id: uuid.UUID | None = Field(default=None, foreign_key="orders.id", description="Related order ID")
-    product_id: uuid.UUID | None = Field(default=None, foreign_key="products.id", description="Related product ID")
-    payment_id: uuid.UUID | None = Field(default=None, foreign_key="payments.id", description="Related payment ID")
-    action_url: str | None = Field(default=None, max_length=500, description="Action URL for the notification")
-    action_label: str | None = Field(default=None, max_length=100, description="Action button label")
+    title: str = Field(description="Title of the notification", max_length=255)
+    content: str = Field(description="Content of the notification", max_length=1000)
+    type: str = Field(description="Type of notification")
+    priority: int = Field(
+        default=1, description="Priority level from 1 (low) to 4 (high)"
+    )
+    order_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="orders.id",
+        description="Related order ID",
+        index=True,
+    )
+    product_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="products.id",
+        description="Related product ID",
+        index=True,
+    )
+    payment_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="payments.id",
+        description="Related payment ID",
+        index=True,
+    )
+    action_url: str | None = Field(
+        default=None, description="Action URL for the notification", max_length=500
+    )
+    action_label: str | None = Field(
+        default=None, description="Action button label", max_length=100
+    )
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        """Validate that type is one of the allowed values."""
+        return validate_notification_type(v)
+
+    @field_validator("priority")
+    @classmethod
+    def validate_priority_field(cls, v: int) -> int:
+        """Validate that priority is between 1 and 4."""
+        return validate_priority(v)
 
 
 class NotificationCreate(NotificationBase, BaseCreate):
-    title: str = Field(..., max_length=255, description="Title of the notification")
-    content: str = Field(..., max_length=1000, description="Content of the notification")
-
-
-class NotificationCreateWithRecipients(NotificationCreate):
-    user_ids: list[uuid.UUID] = Field(..., min_items=1, description="List of recipient user IDs")
-
-
-class NotificationUpdate(NotificationBase, BaseUpdate):
     pass
 
 
-class NotificationUpdateWithRecipients(NotificationUpdate):
-    user_ids: list[uuid.UUID] | None = None
+class NotificationUpdate(NotificationBase, BaseUpdate):
+    title: str | None = None
+    content: str | None = None
+    type: str | None = None
+    priority: int | None = None
+    order_id: uuid.UUID | None = None
+    product_id: uuid.UUID | None = None
+    payment_id: uuid.UUID | None = None
+    action_url: str | None = None
+    action_label: str | None = None
 
 
 class Notification(NotificationBase, Base, table=True):
     __tablename__ = "notifications"
-    id: uuid.UUID = Field(
-        default_factory=uuid.uuid4,
-        primary_key=True,
-        index=True,
-        description="Unique identifier for the notification"
-    )
-
-    recipients: list[User] = Relationship(
-        link_model=NotificationUserLink, sa_relationship_kwargs={"lazy": "selectin"}
-    )
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
 
 
 class NotificationPublic(NotificationBase, BasePublic):
-    id: uuid.UUID = Field(..., description="Unique identifier for the notification")
-    is_read: bool | None = Field(default=None, description="Whether the notification has been read")
-    read_at: datetime.datetime | None = Field(default=None, description="When the notification was read")
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
 
 
 class NotificationsPublic(SQLModel):
@@ -100,21 +112,51 @@ class NotificationsPublic(SQLModel):
     count: int = Field(default=0, description="Total number of notifications")
 
 
-class NotificationRestricted(NotificationBase, BasePublic):
-    id: uuid.UUID = Field(..., description="Unique identifier for the notification")
-    recipients: list[User] | None = Field(default=None, description="List of notification recipients")
-
-
-class NotificationsRestricted(SQLModel):
-    data: list[NotificationRestricted] = Field(
-        default_factory=list, description="List of notifications with recipients"
+# User Notification Link models for many-to-many relationship
+class UserNotificationBase(Base):
+    is_read: bool = Field(
+        default=False, description="Whether the notification has been read"
     )
-    count: int = Field(default=0, description="Total number of notifications")
+    read_at: datetime | None = Field(
+        default=None, description="When the notification was read"
+    )
+    sent_at: datetime = Field(
+        default_factory=datetime.now, description="When the notification was sent"
+    )
 
 
-class NotificationStats(SQLModel):
-    total_recipients: int = Field(..., description="Total number of recipients")
-    read_by: int = Field(..., description="Number of recipients who read the notification")
-    read_percentage: float = Field(..., description="Percentage of recipients who read the notification")
-    delivery_rate: float | None = Field(default=None, description="Delivery success rate")
-    click_through_rate: float | None = Field(default=None, description="Click-through rate for action URLs")
+class UserNotificationCreate(UserNotificationBase, BaseCreate):
+    notification_id: uuid.UUID = Field(description="ID of the notification")
+    user_id: uuid.UUID = Field(description="ID of the user")
+
+
+class UserNotificationUpdate(UserNotificationBase, BaseUpdate):
+    is_read: bool | None = None
+    read_at: datetime | None = None
+
+
+class UserNotification(UserNotificationBase, Base, table=True):
+    __tablename__ = "user_notifications"
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
+    notification_id: uuid.UUID = Field(
+        foreign_key="notifications.id",
+        nullable=False,
+        index=True,
+        description="ID of the notification",
+    )
+    user_id: uuid.UUID = Field(
+        foreign_key="users.id", nullable=False, index=True, description="ID of the user"
+    )
+
+
+class UserNotificationPublic(UserNotificationBase, BasePublic):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
+    notification_id: uuid.UUID = Field(description="ID of the notification")
+    user_id: uuid.UUID = Field(description="ID of the user")
+
+
+class UserNotificationsPublic(SQLModel):
+    data: list[UserNotificationPublic] = Field(
+        default_factory=list, description="List of user notifications"
+    )
+    count: int = Field(default=0, description="Total number of user notifications")

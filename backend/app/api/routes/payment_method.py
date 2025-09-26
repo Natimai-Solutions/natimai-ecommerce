@@ -1,27 +1,33 @@
+from app.api.base_router import BaseRouter
+from app.features.payment.crud.payment_method import (
+    PaymentMethodCrud,
+    crud_payment_method,
+)
 from app.features.payment.models.payment_method import (
     PaymentMethod,
     PaymentMethodCreate,
-    PaymentMethodUpdate,
-    PaymentMethodPublic,
-    PaymentMethodsPublic
-)
-
-from app.features.payment.crud.payment_method import PaymentMethodCrud, crud_payment_method
-
-from app.api.base_router import BaseRouter
-
-class PaymentMethodRouter(BaseRouter[
-    PaymentMethod,
-    PaymentMethodCreate,
-    PaymentMethodUpdate,
     PaymentMethodPublic,
     PaymentMethodsPublic,
-    PaymentMethodCrud
-]):
+    PaymentMethodUpdate,
+)
+
+
+class PaymentMethodRouter(
+    BaseRouter[
+        PaymentMethod,
+        PaymentMethodCreate,
+        PaymentMethodUpdate,
+        PaymentMethodPublic,
+        PaymentMethodsPublic,
+        PaymentMethodCrud,
+    ]
+):
     pass
+
 
 class Auth:
     read = False
+
 
 router = PaymentMethodRouter(
     name="payment_method",
@@ -32,5 +38,5 @@ router = PaymentMethodRouter(
     schema_create=PaymentMethodCreate,
     schema_update=PaymentMethodUpdate,
     auth=Auth(),
-    auto=True
+    auto=True,
 )

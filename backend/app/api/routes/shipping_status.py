@@ -1,16 +1,17 @@
+from backend.app.api.deps import SessionDep
 from fastapi import APIRouter
 
-from backend.app.api.deps import SessionDep
 from app.api.routes.base import BaseController
 from app.api.shipping.crud.shipping_status_crud import (
-    crud_shipping_status,
     ShippingStatusCrud,
+    crud_shipping_status,
 )
+
 from ..model.shipping_status import (
     ShippingStatus,
     ShippingStatusCreate,
-    ShippingStatusUpdate,
     ShippingStatusPublic,
+    ShippingStatusUpdate,
 )
 
 
