@@ -1,12 +1,12 @@
 import uuid
 
 from sqlmodel import Field, SQLModel
-from app.features.base.models import Base, BaseCreate, BaseUpdate, BasePublic
+
+from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
+
 
 class AnalyticsUserBase(Base):
-    user_id: uuid.UUID = Field(
-        foreign_key="users.id", description="ID of the user"
-    )
+    user_id: uuid.UUID = Field(foreign_key="users.id", description="ID of the user")
     login_count: int = Field(
         default=0, description="Number of times the user has logged in"
     )
@@ -29,8 +29,10 @@ class AnalyticsUserBase(Base):
         default_factory=list, description="List of favorite product IDs"
     )
 
+
 class AnalyticsUserCreate(AnalyticsUserBase, BaseCreate):
     pass
+
 
 class AnalyticsUserUpdate(AnalyticsUserBase, BaseUpdate):
     login_count: int | None = None
@@ -41,12 +43,15 @@ class AnalyticsUserUpdate(AnalyticsUserBase, BaseUpdate):
     total_orders: int | None = None
     favorite_products: list[uuid.UUID] | None = None
 
+
 class AnalyticsUser(AnalyticsUserBase, Base, table=True):
     __tablename__ = "analytics_users"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
 
+
 class AnalyticsUserPublic(AnalyticsUserBase, BasePublic):
     id: uuid.UUID
+
 
 class AnalyticsUsersPublic(SQLModel):
     data: list[AnalyticsUserPublic] = Field(default_factory=list)
