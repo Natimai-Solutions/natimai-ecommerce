@@ -1,14 +1,14 @@
 from app.api.base_router import BaseRouter
 from app.features.shipping.crud.shipping_zone import (
-    crud_shipping_zone,
     ShippingZoneCrud,
+    crud_shipping_zone,
 )
 from app.features.shipping.models.shipping_zone import (
     ShippingZone,
     ShippingZoneCreate,
-    ShippingZoneUpdate,
     ShippingZonePublic,
-    ShippingZonesPublic
+    ShippingZonesPublic,
+    ShippingZoneUpdate,
 )
 
 
@@ -28,6 +28,7 @@ class ShippingZoneRouter(
 class Auth:
     read = False
 
+
 router = ShippingZoneRouter(
     name="shipping_zone",
     tags=["shipping"],
@@ -37,5 +38,5 @@ router = ShippingZoneRouter(
     schema_create=ShippingZoneCreate,
     schema_update=ShippingZoneUpdate,
     auth=Auth(),
-    auto=True
+    auto=True,
 )

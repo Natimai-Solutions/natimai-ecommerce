@@ -2,8 +2,10 @@ import datetime
 import uuid
 
 from pydantic import EmailStr
-from sqlmodel import Enum, Field, Relationship, SQLModel
-from app.features.base.models import Base, BaseCreate, BaseUpdate, BasePublic
+from sqlmodel import Field, SQLModel
+
+from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
+
 
 class UserBase(SQLModel):
     email: EmailStr = Field(unique=True, index=True, max_length=255)
@@ -30,9 +32,15 @@ class UserUpdate(BaseUpdate):
 
 
 class UserPasswordUpdate(SQLModel):
-    current_password: str = Field(..., min_length=1, description="Current password for verification")
-    new_password: str = Field(..., min_length=8, max_length=128, description="New password")
-    confirm_password: str = Field(..., min_length=8, max_length=128, description="Confirm new password")
+    current_password: str = Field(
+        ..., min_length=1, description="Current password for verification"
+    )
+    new_password: str = Field(
+        ..., min_length=8, max_length=128, description="New password"
+    )
+    confirm_password: str = Field(
+        ..., min_length=8, max_length=128, description="Confirm new password"
+    )
 
 
 class UserPasswordReset(SQLModel):
@@ -41,8 +49,12 @@ class UserPasswordReset(SQLModel):
 
 class UserPasswordResetConfirm(SQLModel):
     token: str = Field(..., description="Password reset token")
-    new_password: str = Field(..., min_length=8, max_length=128, description="New password")
-    confirm_password: str = Field(..., min_length=8, max_length=128, description="Confirm new password")
+    new_password: str = Field(
+        ..., min_length=8, max_length=128, description="New password"
+    )
+    confirm_password: str = Field(
+        ..., min_length=8, max_length=128, description="Confirm new password"
+    )
 
 
 class UserEmailVerification(SQLModel):
