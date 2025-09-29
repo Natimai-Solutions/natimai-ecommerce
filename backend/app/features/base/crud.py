@@ -4,6 +4,7 @@ import logging
 import uuid
 from hashlib import md5
 from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 from sqlalchemy.dialects import postgresql
 from sqlmodel import SQLModel, func, select
@@ -11,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.expression import SelectOfScalar
 
 from app.features.user.models.user import User
+from app.outbox.registry import outbox_registry
 from app.outbox.registry import outbox_registry
 
 logging.basicConfig(level=logging.INFO)
@@ -61,11 +63,6 @@ def track_crud_operation(func=None, *, step_name=None):
 
         return wrapper
 
-    # If called with a function directly (no arguments)
-    if func is not None:
-        return decorator(func)
-
-    # If called with arguments
     return decorator
 
 
@@ -84,7 +81,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         schema_update: type[UpdateSchemaType],
         default_filter: Any | None = None,
         order_by: Any | None = None,
-        outbox_events: OutboxEvent | None = None,
+        outbox_events: dict[str, str] | None = None,
     ):
         """
         Initialize a CRUD handler for a specific model type.
@@ -102,14 +99,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         self.schema_update = schema_update
         self.default_filter = default_filter
         self.order_by = order_by
-        self.outbox_events = outbox_events or OutboxEvent()
-
-        if not hasattr(self.outbox_events, "create"):
-            self.outbox_events.create = True
-        if not hasattr(self.outbox_events, "update"):
-            self.outbox_events.update = True
-        if not hasattr(self.outbox_events, "delete"):
-            self.outbox_events.delete = True
+        self.outbox_events = outbox_events or {}
 
     async def _safe_record_access(self, session: AsyncSession, record: ModelType):
         try:
@@ -540,7 +530,16 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        pass
+        if "create" in self.outbox_events:
+            await outbox_registry.publish(
+                session,
+                self.outbox_events["create"],
+                {
+                    "id": str(record.id),
+                    "type": record.__class__.__name__,
+                    "user_id": str(user.id) if user else None,
+                },
+            )
 
     @track_crud_operation
     async def after_create_commit(
@@ -610,11 +609,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         return record
 
     async def create(
-        self,
-        session: AsyncSession,
-        *,
-        data: CreateSchemaType,
-        user: UserType | None = None,
+        self, session: AsyncSession, *, data: CreateSchemaType, user: UserType | None
     ) -> ModelType:
         """
         Create a new record and commit it to the database.
@@ -739,7 +734,16 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        pass
+        if "update" in self.outbox_events:
+            await outbox_registry.publish(
+                session,
+                self.outbox_events["update"],
+                {
+                    "id": str(record.id),
+                    "type": record.__class__.__name__,
+                    "user_id": str(user.id) if user else None,
+                },
+            )
 
     @track_crud_operation
     async def after_update_commit(
@@ -967,7 +971,16 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        pass
+        if "delete" in self.outbox_events:
+            await outbox_registry.publish(
+                session,
+                self.outbox_events["delete"],
+                {
+                    "id": str(record.id),
+                    "type": record.__class__.__name__,
+                    "user_id": str(user.id) if user else None,
+                },
+            )
 
     @track_crud_operation
     async def after_delete_commit(
