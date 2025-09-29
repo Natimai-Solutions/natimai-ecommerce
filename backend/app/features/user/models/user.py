@@ -1,10 +1,9 @@
 import datetime
 import uuid
 
-from pydantic import EmailStr, model_validator
+from pydantic import EmailStr
 from sqlmodel import Field, SQLModel
 
-from app.core.security import get_password_hash
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
@@ -55,13 +54,19 @@ class UserUpdate(BaseUpdate):
 
 class UserPasswordUpdate(SQLModel):
     current_password: str = Field(
+        
         ..., min_length=1, description="Current password for verification"
+    
     )
     new_password: str = Field(
+        
         ..., min_length=8, max_length=128, description="New password"
+    
     )
     confirm_password: str = Field(
+        
         ..., min_length=8, max_length=128, description="Confirm new password"
+    
     )
     hashed_password: str | None = Field(default=None, exclude=True)  # Auto-généré
 

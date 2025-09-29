@@ -129,12 +129,9 @@ async def enqueue_jobs_for_event(event: OutboxEvent):
 
                 logger.debug("Enqueuing job %s for handler: %s", job_id, handler_path)
 
-                # Enqueue via la fonction générique execute_outbox_handler
+                # Enqueue the handler with the payload
                 await arq_pool.enqueue_job(
-                    "execute_outbox_handler",
-                    handler_path=handler_path,
-                    **event.payload,
-                    _job_id=job_id,
+                    handler_path, **event.payload, _job_id=job_id
                 )
                 jobs_enqueued += 1
 
@@ -202,7 +199,7 @@ async def poll_outbox_once(session: AsyncSession) -> bool:
             event.attempts += 1
             event.touch()
             session.add(event)
-            event = await commit_and_refresh(session, event)
+            await session.commit()
 
             logger.info("Successfully processed event ID %s", event.id)
 
@@ -210,41 +207,24 @@ async def poll_outbox_once(session: AsyncSession) -> bool:
             # Retry with exponential backoff or mark as FAILED
             logger.warning("Event processing failed, scheduling retry: %s", str(e))
 
+            event.status = "PENDING"
             event.attempts += 1
+            idx = min(event.attempts - 1, len(BACKOFF) - 1)
+            delay_seconds = BACKOFF[idx]
+            event.next_run_at = datetime.now(timezone.utc) + timedelta(
+                seconds=delay_seconds
+            )
+            event.last_error = str(e)[:1000]
+            event.touch()
+            session.add(event)
+            await session.commit()
 
-            if event.attempts >= MAX_ATTEMPTS:
-                # Too many attempts, mark as FAILED
-                event.status = "FAILED"
-                event.last_error = str(e)[:1000]
-                event.touch()
-                session.add(event)
-                event = await commit_and_refresh(session, event)
-
-                logger.error(
-                    "Event %s marked as FAILED after %d attempts: %s",
-                    event.id,
-                    event.attempts,
-                    str(e),
-                )
-            else:
-                # Schedule retry with exponential backoff
-                event.status = "PENDING"
-                idx = min(event.attempts - 1, len(BACKOFF) - 1)
-                delay_seconds = BACKOFF[idx]
-                event.next_run_at = datetime.now(timezone.utc) + timedelta(
-                    seconds=delay_seconds
-                )
-                event.last_error = str(e)[:1000]
-                event.touch()
-                session.add(event)
-                event = await commit_and_refresh(session, event)
-
-                logger.info(
-                    "Scheduled event %s for retry in %d seconds (attempt %d)",
-                    event.id,
-                    delay_seconds,
-                    event.attempts,
-                )
+            logger.info(
+                "Scheduled event %s for retry in %d seconds (attempt %d)",
+                event.id,
+                delay_seconds,
+                event.attempts,
+            )
 
         return True
 
