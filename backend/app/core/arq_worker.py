@@ -1,8 +1,9 @@
 import importlib
 import logging
 
-from arq.connections import RedisSettings
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+from arq.connections import RedisSettings
 
 from app.core.config import settings
 from app.core.db import engine
@@ -40,6 +41,7 @@ async def execute_outbox_handler(ctx, handler_path: str, **kwargs):
         raise
 
 
+
 # Tes handlers ARQ existants
 async def example_handler(ctx, **kwargs):
     # ... logique du handler
@@ -53,13 +55,9 @@ class WorkerSettings:
         # ... tes autres handlers
     ]
 
-    # Configuration des retries ARQ pour les handlers individuels
-    max_tries = 3  # 3 tentatives par handler
-    retry_delay = 10  # 10 secondes entre les tentatives ARQ
-    job_timeout = 300  # 5 minutes timeout par job
-    keep_result = 3600  # Garde les résultats 1 heure pour debugging
-
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)
-    # L'outbox gère l'orchestration, ARQ gère les retries des handlers individuels
+    # pas besoin de cron job ici
 
     redis_settings = RedisSettings.from_dsn(str(settings.REDIS_URL))
+    job_timeout = 300
+    keep_result = 3600
