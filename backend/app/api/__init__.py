@@ -24,6 +24,7 @@ from app.api.routes.user_notification import (
     router as user_notification_router,
 )
 from app.api.routes.utils import router as utils_router
+from app.api.routes.wishlist import router as wishlist_router
 
 #api_router.include_router(payment_router, prefix="/payment", tags=["payment"])
 api_router.include_router(address_router, prefix="/users", tags=["addresses"])
@@ -36,3 +37,4 @@ api_router.include_router(
     user_notification_router, prefix="/notifications", tags=["notifications"]
 )
 api_router.include_router(utils_router, prefix="/utils", tags=["utils"])
+api_router.include_router(wishlist_router, prefix="/wishlist", tags=["wishlist"])
