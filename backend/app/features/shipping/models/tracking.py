@@ -1,75 +1,97 @@
-﻿"""
-ModÃ¨les de suivi et Ã©vÃ©nements.
-Journal de tous les changements et suivi par Ã©tapes.
+"""
+Tracking and event models.
+Journal of all changes and step-by-step tracking.
 """
 
 import uuid
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
-from datetime import datetime
+from datetime import datetime, timezone
 
-from sqlmodel import Field, Relationship, SQLModel, Column, JSON
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
-class TrackingEventBase(SQLModel):
-    """Journal inviolable de tous les changements pour audit & timeline"""
-    
-    # Sujet de l'Ã©vÃ©nement (polymorphe)
-    subject_type: str = Field(max_length=50, description="Type d'entitÃ©: route, step, consolidation, order_step")
-    subject_id: uuid.UUID = Field(description="ID de l'entitÃ© concernÃ©e")
-    
-    # Changement de statut
-    status_from: Optional[str] = Field(default=None, max_length=50, description="Statut prÃ©cÃ©dent")
-    status_to: str = Field(max_length=50, description="Nouveau statut")
-    
+class TrackingEventBase(Base):
+    """Immutable journal of all changes for audit & timeline"""
+
+    # Event subject (polymorphic)
+    subject_type: str = Field(
+        max_length=50, description="Entity type: route, step, consolidation, order_step"
+    )
+    subject_id: uuid.UUID = Field(description="ID of the concerned entity")
+
+    # Status change
+    status_from: str | None = Field(
+        default=None, max_length=50, description="Previous status"
+    )
+    status_to: str = Field(max_length=50, description="New status")
+
     # Timing
-    occurred_at: datetime = Field(description="Quand l'Ã©vÃ©nement s'est produit")
-    recorded_at: datetime = Field(default_factory=datetime.utcnow, description="Quand il a Ã©tÃ© enregistrÃ©")
-    
-    # Contexte
-    scan_ref: Optional[str] = Field(default=None, max_length=100, description="RÃ©fÃ©rence de scan/code-barres")
-    location: Optional[str] = Field(default=None, max_length=200, description="Lieu de l'Ã©vÃ©nement")
-    actor: Optional[str] = Field(default=None, max_length=100, description="Qui a dÃ©clenchÃ© l'Ã©vÃ©nement")
-    
+    occurred_at: datetime = Field(description="When the event occurred")
+    recorded_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="When it was recorded",
+    )
+
+    # Context
+    scan_ref: str | None = Field(
+        default=None, max_length=100, description="Scan/barcode reference"
+    )
+    location: str | None = Field(
+        default=None, max_length=200, description="Event location"
+    )
+    actor: str | None = Field(
+        default=None, max_length=100, description="Who triggered the event"
+    )
+
     # Description
-    event_type: str = Field(max_length=50, description="Type d'Ã©vÃ©nement: scan, update, exception")
-    description: Optional[str] = Field(default=None, max_length=500, description="Description libre")
-    
-    # MÃ©tadonnÃ©es flexibles
-    event_metadata: Optional[str] = Field(default=None, sa_column=Column(JSON), description="DonnÃ©es supplÃ©mentaires")
-    
-    # Preuve / Evidence
-    evidence_url: Optional[str] = Field(default=None, max_length=500, description="URL de preuve (photo, signature)")
-    signature_name: Optional[str] = Field(default=None, max_length=100, description="Nom du signataire")
+    event_type: str = Field(
+        max_length=50, description="Event type: scan, update, exception"
+    )
+    description: str | None = Field(
+        default=None, max_length=500, description="Free description"
+    )
 
+    # Flexible metadata
+    event_metadata: str | None = Field(
+        default=None, sa_column=Column(JSON), description="Additional data"
+    )
 
-class TrackingEvent(TrackingEventBase, table=True):
-    """Journal inviolable de tous les changements pour audit & timeline"""
-    __tablename__ = "tracking_events"
-    
-    id: uuid.UUID = Field(
-        default_factory=uuid.uuid4,
-        sa_column=Column(PG_UUID(as_uuid=True), primary_key=True)
+    # Evidence
+    evidence_url: str | None = Field(
+        default=None, max_length=500, description="Evidence URL (photo, signature)"
+    )
+    signature_name: str | None = Field(
+        default=None, max_length=100, description="Signatory name"
     )
 
 
-class TrackingEventCreate(TrackingEventBase):
+class TrackingEventCreate(TrackingEventBase, BaseCreate):
     pass
 
 
-class TrackingEventUpdate(SQLModel):
-    # Les Ã©vÃ©nements de tracking ne doivent normalement pas Ãªtre modifiÃ©s
-    # Seule la description ou les mÃ©tadonnÃ©es peuvent Ãªtre enrichies
-    description: Optional[str] = None
-    event_metadata: Optional[str] = None
-    evidence_url: Optional[str] = None
+class TrackingEventUpdate(BaseUpdate):
+    # Tracking events should normally not be modified
+    # Only description or metadata can be enriched
+    description: str | None = None
+    event_metadata: str | None = None
+    evidence_url: str | None = None
 
 
-class TrackingEventPublic(TrackingEventBase):
-    id: uuid.UUID
+class TrackingEvent(TrackingEventBase, table=True):
+    """Immutable journal of all changes for audit & timeline"""
 
+    __tablename__ = "tracking_events"
+
+    id: uuid.UUID = Field(
+        default_factory=uuid.uuid4,
+        sa_column=Column(PG_UUID(as_uuid=True), primary_key=True),
+    )
+
+
+class TrackingEventPublic(TrackingEventBase, BasePublic):
+    pass
 
 
 class TrackingEventsPublic(SQLModel):
@@ -81,5 +103,3 @@ class TrackingEventsPublic(SQLModel):
         default=0,
         description="Total number of tracking events",
     )
-
-

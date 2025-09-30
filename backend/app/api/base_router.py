@@ -56,7 +56,7 @@ class BaseRouter(
         auth: Auth | None = None,
         tags: list[str] | None = None,
         routes_before: list[Routes] | None = None,
-        routes_after: list[Routes] | None = None,        
+        routes_after: list[Routes] | None = None,
         auto: bool = False,
         *args,
         **kwargs,

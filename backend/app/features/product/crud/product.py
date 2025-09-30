@@ -1,4 +1,3 @@
-
 from app.features.base.crud import CrudBase
 from app.features.product.models.product import (
     Product,

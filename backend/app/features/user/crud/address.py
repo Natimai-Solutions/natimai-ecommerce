@@ -1,5 +1,4 @@
 import uuid
-from typing import Optional
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -9,14 +8,13 @@ from app.features.user.models.address import Address, AddressCreate, AddressUpda
 
 
 class AddressCrud(CrudBase[Address, AddressCreate, AddressUpdate]):
-    
     async def get_by_user_id(
-        self, 
-        session: AsyncSession, 
-        *, 
+        self,
+        session: AsyncSession,
+        *,
         user_id: uuid.UUID,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
     ) -> list[Address]:
         statement = (
             select(self.model)
@@ -30,13 +28,9 @@ class AddressCrud(CrudBase[Address, AddressCreate, AddressUpdate]):
         )
         exec_result = await session.exec(statement)
         return exec_result.all()
-    
+
     async def get_by_user_and_type(
-        self,
-        session: AsyncSession,
-        *,
-        user_id: uuid.UUID,
-        address_type: str
+        self, session: AsyncSession, *, user_id: uuid.UUID, address_type: str
     ) -> list[Address]:
         statement = select(self.model).where(
             self.model.user_id == user_id,
@@ -46,18 +40,20 @@ class AddressCrud(CrudBase[Address, AddressCreate, AddressUpdate]):
         )
         exec_result = await session.exec(statement)
         return exec_result.all()
-    
+
     async def create_for_user(
         self,
         session: AsyncSession,
         *,
         obj_in: AddressCreate,
         user_id: uuid.UUID,
-        current_user: Optional[uuid.UUID] = None
+        current_user: uuid.UUID | None = None,
     ) -> Address:
         """Create an address for a specific user."""
         obj_data = obj_in.model_dump()
-        obj_data["user_id"] = user_id  # Override user_id to ensure it matches the URL parameter
+        obj_data["user_id"] = (
+            user_id  # Override user_id to ensure it matches the URL parameter
+        )
         if current_user:
             obj_data["created_by_id"] = current_user
         db_obj = self.model(**obj_data)
@@ -65,13 +61,8 @@ class AddressCrud(CrudBase[Address, AddressCreate, AddressUpdate]):
         await session.commit()
         await session.refresh(db_obj)
         return db_obj
-    
-    async def count_by_user(
-        self, 
-        session: AsyncSession, 
-        *, 
-        user_id: uuid.UUID
-    ) -> int:
+
+    async def count_by_user(self, session: AsyncSession, *, user_id: uuid.UUID) -> int:
         statement = select(self.model).where(
             self.model.user_id == user_id,
             self.model.is_admin_active.is_(True),

@@ -1,9 +1,7 @@
-"""
-CRUD pour les définitions de statuts et transitions.
+﻿"""
+CRUD for status definitions and transitions.
 """
 
-import uuid
-from typing import Optional
 
 from sqlmodel import and_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -19,34 +17,32 @@ from app.features.shipping.models.status import (
 )
 
 
-class StatusDefinitionCrud(CrudBase[StatusDefinition, StatusDefinitionCreate, StatusDefinitionUpdate]):
-    
+class StatusDefinitionCrud(
+    CrudBase[StatusDefinition, StatusDefinitionCreate, StatusDefinitionUpdate]
+):
     async def get_by_code(
         self,
         session: AsyncSession,
         entity: str,
         code: str,
     ) -> StatusDefinition | None:
-        """Récupère un statut par entité et code"""
-        statement = (
-            select(StatusDefinition)
-            .where(
-                StatusDefinition.entity == entity,
-                StatusDefinition.code == code,
-                StatusDefinition.is_active.is_(True),
-            )
+        """Retrieve a status by entity and code"""
+        statement = select(StatusDefinition).where(
+            StatusDefinition.entity == entity,
+            StatusDefinition.code == code,
+            StatusDefinition.is_active.is_(True),
         )
-        
+
         result = await session.exec(statement)
         return result.first()
-    
+
     async def get_by_entity(
         self,
         session: AsyncSession,
         entity: str,
     ) -> list[StatusDefinition]:
-        """Récupère tous les statuts d'une entité"""
-        
+        """Retrieve all statuses for an entity"""
+
         statement = (
             select(StatusDefinition)
             .where(
@@ -57,17 +53,17 @@ class StatusDefinitionCrud(CrudBase[StatusDefinition, StatusDefinitionCreate, St
             )
             .order_by(StatusDefinition.rank.asc(), StatusDefinition.name.asc())
         )
-        
+
         result = await session.exec(statement)
         return result.all()
-    
+
     async def get_terminal_statuses(
         self,
         session: AsyncSession,
         entity: str,
     ) -> list[StatusDefinition]:
         """Récupère les statuts terminaux d'une entité"""
-        
+
         statement = (
             select(StatusDefinition)
             .where(
@@ -79,35 +75,33 @@ class StatusDefinitionCrud(CrudBase[StatusDefinition, StatusDefinitionCreate, St
             )
             .order_by(StatusDefinition.rank.asc())
         )
-        
+
         result = await session.exec(statement)
         return result.all()
 
 
-class StatusTransitionCrud(CrudBase[StatusTransition, StatusTransitionCreate, StatusTransitionUpdate]):
-    
+class StatusTransitionCrud(
+    CrudBase[StatusTransition, StatusTransitionCreate, StatusTransitionUpdate]
+):
     async def get_transitions_from_status(
         self,
         session: AsyncSession,
         entity: str,
         from_code: str,
     ) -> list[StatusTransition]:
-        """Récupère les transitions possibles depuis un statut"""
-        
-        statement = (
-            select(StatusTransition)
-            .where(
-                and_(
-                    StatusTransition.entity == entity,
-                    StatusTransition.from_code == from_code,
-                    StatusTransition.is_active.is_(True),
-                )
+        """Retrieve possible transitions from a status"""
+
+        statement = select(StatusTransition).where(
+            and_(
+                StatusTransition.entity == entity,
+                StatusTransition.from_code == from_code,
+                StatusTransition.is_active.is_(True),
             )
         )
-        
+
         result = await session.exec(statement)
         return result.all()
-    
+
     async def get_transitions_to_status(
         self,
         session: AsyncSession,
@@ -115,42 +109,36 @@ class StatusTransitionCrud(CrudBase[StatusTransition, StatusTransitionCreate, St
         to_code: str,
     ) -> list[StatusTransition]:
         """Récupère les transitions menant à un statut"""
-        
-        statement = (
-            select(StatusTransition)
-            .where(
-                and_(
-                    StatusTransition.entity == entity,
-                    StatusTransition.to_code == to_code,
-                    StatusTransition.is_active.is_(True),
-                )
+
+        statement = select(StatusTransition).where(
+            and_(
+                StatusTransition.entity == entity,
+                StatusTransition.to_code == to_code,
+                StatusTransition.is_active.is_(True),
             )
         )
-        
+
         result = await session.exec(statement)
         return result.all()
-    
+
     async def get_auto_transitions(
         self,
         session: AsyncSession,
         entity: str,
     ) -> list[StatusTransition]:
         """Récupère les transitions automatiques d'une entité"""
-        
-        statement = (
-            select(StatusTransition)
-            .where(
-                and_(
-                    StatusTransition.entity == entity,
-                    StatusTransition.auto_advance.is_(True),
-                    StatusTransition.is_active.is_(True),
-                )
+
+        statement = select(StatusTransition).where(
+            and_(
+                StatusTransition.entity == entity,
+                StatusTransition.auto_advance.is_(True),
+                StatusTransition.is_active.is_(True),
             )
         )
-        
+
         result = await session.exec(statement)
         return result.all()
-    
+
     async def is_transition_allowed(
         self,
         session: AsyncSession,
@@ -159,19 +147,16 @@ class StatusTransitionCrud(CrudBase[StatusTransition, StatusTransitionCreate, St
         to_code: str,
     ) -> bool:
         """Vérifie si une transition est autorisée"""
-        
-        statement = (
-            select(StatusTransition)
-            .where(
-                and_(
-                    StatusTransition.entity == entity,
-                    StatusTransition.from_code == from_code,
-                    StatusTransition.to_code == to_code,
-                    StatusTransition.is_active.is_(True),
-                )
+
+        statement = select(StatusTransition).where(
+            and_(
+                StatusTransition.entity == entity,
+                StatusTransition.from_code == from_code,
+                StatusTransition.to_code == to_code,
+                StatusTransition.is_active.is_(True),
             )
         )
-        
+
         result = await session.exec(statement)
         return result.first() is not None
 
@@ -194,3 +179,4 @@ crud_status_transition = StatusTransitionCrud(
         StatusTransition.is_active.is_(True),
     ),
 )
+

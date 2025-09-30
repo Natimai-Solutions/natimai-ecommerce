@@ -1,52 +1,46 @@
 """
-Modèles de référentiels pour le système de livraison.
-Acteurs métier et lieux physiques.
+Reference models for the delivery system.
+Business actors and physical places.
 """
 
 import uuid
-from typing import Optional, List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
-from sqlmodel import Field, Relationship, SQLModel
 from sqlalchemy import Column
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlmodel import Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 if TYPE_CHECKING:
-    from app.features.shipping.models.shipping_route import ShippingRoute
+    pass
 
 
 class PartnerBase(Base):
-    """Acteur métier (client ou fournisseur)"""
+    """Business actor (customer or supplier)"""
+
     name: str = Field(max_length=200, description="Nom de l'acteur")
-    phone: Optional[str] = Field(default=None, max_length=50, description="Téléphone")
-    email: Optional[str] = Field(default=None, max_length=100, description="Email")
-    
+    phone: str | None = Field(default=None, max_length=50, description="Phone")
+    Email: str | None = Field(default=None, max_length=100, description="Email")
+
     # Adresse
-    address_line1: Optional[str] = Field(default=None, max_length=200)
-    address_line2: Optional[str] = Field(default=None, max_length=200)
-    city: Optional[str] = Field(default=None, max_length=100)
-    postal_code: Optional[str] = Field(default=None, max_length=20)
-    country: Optional[str] = Field(default=None, max_length=2, description="Code pays ISO")
+    address_line1: str | None = Field(default=None, max_length=200)
+    address_line2: str | None = Field(default=None, max_length=200)
+    city: str | None = Field(default=None, max_length=100)
+    postal_code: str | None = Field(default=None, max_length=20)
+    country: str | None = Field(
+        default=None, max_length=2, description="Code Country ISO"
+    )
 
 
 class Partner(PartnerBase, table=True):
-    """Acteur métier (client ou fournisseur)"""
+    """Acteur métier (fournisseur)"""
+
     __tablename__ = "partners"
-    
+
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
-        sa_column=Column(PG_UUID(as_uuid=True), primary_key=True)
-    )
-    
-    # Relations
-    origin_routes: List["ShippingRoute"] = Relationship(
-        back_populates="from_partner",
-        sa_relationship_kwargs={"foreign_keys": "[ShippingRoute.from_partner_id]"}
-    )
-    destination_routes: List["ShippingRoute"] = Relationship(
-        back_populates="to_partner", 
-        sa_relationship_kwargs={"foreign_keys": "[ShippingRoute.to_partner_id]"}
+        sa_column=Column(PG_UUID(as_uuid=True), primary_key=True),
     )
 
 
@@ -55,16 +49,16 @@ class PartnerCreate(PartnerBase, BaseCreate):
 
 
 class PartnerUpdate(PartnerBase, BaseUpdate):
-    name: Optional[str] = None
-    is_customer: Optional[bool] = None
-    is_supplier: Optional[bool] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    address_line1: Optional[str] = None
-    address_line2: Optional[str] = None
-    city: Optional[str] = None
-    postal_code: Optional[str] = None
-    country: Optional[str] = None
+    name: str | None = None
+    is_customer: bool | None = None
+    is_supplier: bool | None = None
+    phone: str | None = None
+    Email: str | None = None
+    address_line1: str | None = None
+    address_line2: str | None = None
+    city: str | None = None
+    postal_code: str | None = None
+    country: str | None = None
 
 
 class PartnerPublic(PartnerBase, BasePublic):

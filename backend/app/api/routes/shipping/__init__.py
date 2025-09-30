@@ -4,6 +4,16 @@ Regroupement de toutes les routes shipping pour faciliter l'importation.
 
 from fastapi import APIRouter
 
+from .consolidation import (
+    order_consolidation_router,
+    order_step_consolidation_router,
+    route_consolidation_router,
+)
+from .delivery import (
+    delivery_task_router,
+    package_router,
+)
+
 # Import all shipping routers
 from .partner import router as partner_router
 from .place import router as place_router
@@ -11,21 +21,12 @@ from .route import (
     shipping_route_router,
     shipping_route_step_router,
 )
-from .consolidation import (
-    route_consolidation_router,
-    order_consolidation_router,
-    order_step_consolidation_router,
-)
 from .status import (
     status_definition_router,
     status_transition_router,
 )
 from .tracking import (
     tracking_event_router,
-)
-from .delivery import (
-    delivery_task_router,
-    package_router,
 )
 
 # Create a main shipping router

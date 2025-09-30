@@ -43,4 +43,3 @@ tracking_event_router = TrackingEventRouter(
     auth=Auth(),
     auto=True,
 )
-
