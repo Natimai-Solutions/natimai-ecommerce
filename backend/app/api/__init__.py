@@ -2,21 +2,14 @@ from fastapi import APIRouter
 
 api_router = APIRouter()
 
+from app.api.routes.address import router as address_router
 from app.api.routes.login import router as login_router
-
-# from app.api.routes.payment import router as payment_router
-from app.api.routes.payment_method import (
-    router as payment_method_router,
-)
 from app.api.routes.product import (
     router as product_router,
 )
-#from app.api.routes.payment import router as payment_router
-from app.api.routes.address import router as address_router
 from app.api.routes.payment_method import (
     router as payment_method_router,
 )
-
 # from app.api.routes.shipping_method import (
 #    router as shipping_method_router,
 # )
