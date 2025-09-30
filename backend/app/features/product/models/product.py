@@ -1,6 +1,7 @@
 import uuid
 
-from sqlmodel import Field, SQLModel
+from app.features.product.models.category import Category
+from sqlmodel import Field, Relationship, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
@@ -44,16 +45,17 @@ class Product(ProductBase, Base, table=True):
         index=True,
         description="Unique identifier for the product",
     )
-    # category_id: uuid.UUID | None = Field(
-    #    default=None,
-    #    foreign_key="categories.id",
-    #    description="Category ID of the product",
-    # )
-    # total_stock_id: uuid.UUID | None = Field(
-    #    default=None,
-    #    foreign_key="inventories.id",
-    #    description="Total stock ID of the product, including all variants",
-    # )
+    category_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="categories.id",
+        description="Category ID of the product",
+    )
+    category: Category | None = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "[Product.category_id]",
+            "lazy": "selectin"
+        },
+    )
 
 
 class ProductPublic(ProductBase, BasePublic):
@@ -62,11 +64,11 @@ class ProductPublic(ProductBase, BasePublic):
 
 
 class ProductsPublic(SQLModel):
-    products: list[ProductPublic] = Field(
+    data: list[ProductPublic] = Field(
         default_factory=list,
         description="List of products",
     )
-    total_count: int = Field(
+    count: int = Field(
         default=0,
         description="Total number of products",
     )

@@ -5,17 +5,12 @@ from sqlmodel import Field, SQLModel
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
-from app.features.shipping.crud import crud_shipping_route, crud_shipping_route_step
+from app.features.shipping.crud import crud_shipping_route
 from app.features.shipping.models.shipping_route import (
     ShippingRoute,
     ShippingRouteCreate,
     ShippingRoutePublic,
     ShippingRoutesPublic,
-    ShippingRouteStep,
-    ShippingRouteStepCreate,
-    ShippingRouteStepPublic,
-    ShippingRouteStepsPublic,
-    ShippingRouteStepUpdate,
     ShippingRouteUpdate,
 )
 
@@ -188,19 +183,6 @@ class ShippingRouteRouter(
             return RoutingStatisticsResponse(**stats)
 
 
-class ShippingRouteStepRouter(
-    BaseRouter[
-        ShippingRouteStep,
-        ShippingRouteStepCreate,
-        ShippingRouteStepUpdate,
-        ShippingRouteStepPublic,
-        ShippingRouteStepsPublic,
-        type(crud_shipping_route_step),
-    ]
-):
-    pass
-
-
 class Auth:
     read = True
     create = True
@@ -217,19 +199,6 @@ shipping_route_router = ShippingRouteRouter(
     schema_publics=ShippingRoutesPublic,
     schema_create=ShippingRouteCreate,
     schema_update=ShippingRouteUpdate,
-    auth=Auth(),
-    auto=True,
-)
-
-# Router pour les étapes de routes de livraison
-shipping_route_step_router = ShippingRouteStepRouter(
-    name="route_step",
-    tags=["shipping"],
-    crud=crud_shipping_route_step,
-    schema_public=ShippingRouteStepPublic,
-    schema_publics=ShippingRouteStepsPublic,
-    schema_create=ShippingRouteStepCreate,
-    schema_update=ShippingRouteStepUpdate,
     auth=Auth(),
     auto=True,
 )

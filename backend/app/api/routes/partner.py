@@ -1,5 +1,5 @@
 from app.api.base_router import BaseRouter
-from app.features.shipping.crud import crud_partner
+from app.features.partner.crud import crud_partner
 from app.features.partner.models import (
     Partner,
     PartnerCreate,
@@ -31,7 +31,7 @@ class Auth:
 
 router = PartnerRouter(
     name="partner",
-    tags=["shipping", "partner"],
+    tags=["partner"],
     crud=crud_partner,
     schema_public=PartnerPublic,
     schema_publics=PartnersPublic,
