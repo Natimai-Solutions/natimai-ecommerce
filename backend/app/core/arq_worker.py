@@ -1,9 +1,8 @@
 import importlib
 import logging
 
-from sqlmodel.ext.asyncio.session import AsyncSession
-
 from arq.connections import RedisSettings
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.db import engine
@@ -39,7 +38,6 @@ async def execute_outbox_handler(ctx, handler_path: str, **kwargs):
     except Exception as e:
         logger.error("Failed to execute handler %s: %s", handler_path, str(e))
         raise
-
 
 
 # Tes handlers ARQ existants

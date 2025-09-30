@@ -1,4 +1,4 @@
-﻿from app.api.base_router import BaseRouter
+from app.api.base_router import BaseRouter
 from app.features.shipping.crud import (
     crud_status_definition,
     crud_status_transition,

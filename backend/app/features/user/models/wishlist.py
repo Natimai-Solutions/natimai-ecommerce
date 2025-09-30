@@ -1,14 +1,15 @@
 import uuid
-from datetime import datetime
 
-from pydantic import Field as PydanticField, field_validator
-from sqlmodel import Field, Relationship, SQLModel
-from app.features.base.models import Base, BaseCreate, BaseUpdate, BasePublic
+from sqlmodel import Field, SQLModel
+
+from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class WishlistBase(Base):
     name: str = Field(description="Name of the wishlist", max_length=100)
-    description: str | None = Field(default=None, description="Description of the wishlist", max_length=500)
+    description: str | None = Field(
+        default=None, description="Description of the wishlist", max_length=500
+    )
     is_public: bool = Field(default=False, description="Whether the wishlist is public")
 
 
@@ -26,7 +27,10 @@ class Wishlist(WishlistBase, Base, table=True):
     __tablename__ = "wishlists"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     user_id: uuid.UUID = Field(
-        foreign_key="users.id", nullable=False, index=True, description="ID of the user who owns the wishlist"
+        foreign_key="users.id",
+        nullable=False,
+        index=True,
+        description="ID of the user who owns the wishlist",
     )
 
 
@@ -44,8 +48,12 @@ class WishlistsPublic(SQLModel):
 
 # Wishlist Item models for the many-to-many relationship between wishlists and products
 class WishlistItemBase(Base):
-    quantity: int = Field(default=1, ge=1, description="Quantity of the product in wishlist")
-    notes: str | None = Field(default=None, description="Personal notes about the product", max_length=500)
+    quantity: int = Field(
+        default=1, ge=1, description="Quantity of the product in wishlist"
+    )
+    notes: str | None = Field(
+        default=None, description="Personal notes about the product", max_length=500
+    )
 
 
 class WishlistItemCreate(WishlistItemBase, BaseCreate):
@@ -61,10 +69,16 @@ class WishlistItem(WishlistItemBase, Base, table=True):
     __tablename__ = "wishlist_items"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     wishlist_id: uuid.UUID = Field(
-        foreign_key="wishlists.id", nullable=False, index=True, description="ID of the wishlist"
+        foreign_key="wishlists.id",
+        nullable=False,
+        index=True,
+        description="ID of the wishlist",
     )
     product_id: uuid.UUID = Field(
-        foreign_key="products.id", nullable=False, index=True, description="ID of the product"
+        foreign_key="products.id",
+        nullable=False,
+        index=True,
+        description="ID of the product",
     )
 
 

@@ -1,5 +1,4 @@
 from app.api.base_router import BaseRouter
-from app.api.deps import SessionDep
 from app.features.payment.crud.payment import (
     PaymentCrud,
     crud_payment,

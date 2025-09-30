@@ -1,15 +1,10 @@
 from app.api.base_router import BaseRouter
 from app.features.shipping.crud import (
-    crud_shipping_route_consolidation,
     crud_shipping_order_consolidation,
-    crud_shipping_order_step_consolidation
+    crud_shipping_order_step_consolidation,
+    crud_shipping_route_consolidation,
 )
 from app.features.shipping.models.consolidation import (
-    ShippingRouteConsolidation,
-    ShippingRouteConsolidationCreate,
-    ShippingRouteConsolidationPublic,
-    ShippingRouteConsolidationsPublic,
-    ShippingRouteConsolidationUpdate,
     ShippingOrderConsolidation,
     ShippingOrderConsolidationCreate,
     ShippingOrderConsolidationPublic,
@@ -20,6 +15,11 @@ from app.features.shipping.models.consolidation import (
     ShippingOrderStepConsolidationPublic,
     ShippingOrderStepConsolidationsPublic,
     ShippingOrderStepConsolidationUpdate,
+    ShippingRouteConsolidation,
+    ShippingRouteConsolidationCreate,
+    ShippingRouteConsolidationPublic,
+    ShippingRouteConsolidationsPublic,
+    ShippingRouteConsolidationUpdate,
 )
 
 
