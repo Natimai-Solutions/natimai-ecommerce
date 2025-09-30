@@ -41,36 +41,36 @@ function Test-DockerCompose {
     }
 }
 
-function Test-AlembicContainer {
-    $containerId = docker compose ps -q alembic-dev
+function Test-ApiContainer {
+    $containerId = docker compose ps -q api
     if ([string]::IsNullOrEmpty($containerId)) {
-        Write-Warning "Le conteneur Alembic n'est pas en cours d'execution"
-        Write-Info "Demarrage du conteneur Alembic..."
-        docker compose up -d alembic-dev
+        Write-Warning "Le conteneur API n'est pas en cours d'execution"
+        Write-Info "Demarrage du conteneur API..."
+        docker compose up -d api
         
         # Attendre que le container soit vraiment prêt
         $maxAttempts = 30
         $attempt = 0
         do {
             Start-Sleep -Seconds 1
-            $containerId = docker compose ps -q alembic-dev
-            $status = docker compose ps alembic-dev
+            $containerId = docker compose ps -q api
+            $status = docker compose ps api
             $attempt++
             
             if ($status -match "Up") {
-                Write-Info "Conteneur Alembic demarre avec succes"
+                Write-Info "Conteneur API demarre avec succes"
                 return $true
             }
         } while ($attempt -lt $maxAttempts)
     } else {
         # Vérifier que le container est bien en cours d'exécution
-        $status = docker compose ps alembic-dev
+        $status = docker compose ps api
         if ($status -match "Up") {
             return $true
         }
     }
     
-    Write-Error "Impossible de demarrer le conteneur Alembic"
+    Write-Error "Impossible de demarrer le conteneur API"
     return $false
 }
 
@@ -78,13 +78,15 @@ function Invoke-Alembic {
     param([string[]]$AlembicArgs)
     
     if (-not (Test-DockerCompose)) { return }
-    if (-not (Test-AlembicContainer)) { return }
+    if (-not (Test-ApiContainer)) { return }
     
-    $cmd = "docker compose exec alembic-dev alembic " + ($AlembicArgs -join " ")
-    Write-Info "Execution: $cmd"
+    # Construire la commande avec docker compose exec
+    $dockerArgs = @("compose", "exec", "api", "alembic") + $AlembicArgs
+    
+    Write-Info "Execution: docker $($dockerArgs -join ' ')"
     
     try {
-        Invoke-Expression $cmd
+        & docker $dockerArgs
     } catch {
         Write-Error "Erreur lors de l'execution d'Alembic: $_"
         throw
@@ -99,10 +101,27 @@ switch ($Command.ToLower()) {
             exit 1
         }
         
-        $message = $Args[0]
-        $alembicArgs = @("revision", "-m", $message)
+        # Joindre tous les arguments pour le message (sauf --autogenerate)
+        $messageArgs = @()
+        $autogenerate = $false
         
-        if ($Args -contains "--autogenerate" -or $Args -contains "-a") {
+        foreach ($arg in $Args) {
+            if ($arg -eq "--autogenerate" -or $arg -eq "-a") {
+                $autogenerate = $true
+            } else {
+                $messageArgs += $arg
+            }
+        }
+        
+        if ($messageArgs.Count -eq 0) {
+            Write-Error "Usage: revision <message> [--autogenerate]"
+            exit 1
+        }
+        
+        $message = $messageArgs -join " "
+        $alembicArgs = @("revision", "-m", "`"$message`"")
+        
+        if ($autogenerate) {
             $alembicArgs += "--autogenerate"
         }
         

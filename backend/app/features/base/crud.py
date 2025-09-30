@@ -4,6 +4,7 @@ import logging
 import uuid
 from hashlib import md5
 from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 from sqlalchemy.dialects import postgresql
 from sqlmodel import SQLModel, func, select
@@ -11,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.expression import SelectOfScalar
 
 from app.features.user.models.user import User
+from app.outbox.registry import outbox_registry
 from app.outbox.registry import outbox_registry
 
 logging.basicConfig(level=logging.INFO)
@@ -62,6 +64,12 @@ def track_crud_operation(func=None, *, step_name=None):
         return wrapper
 
     return decorator
+
+
+class OutboxEvent:
+    create = True
+    update = True
+    delete = True
 
 
 class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
@@ -173,6 +181,101 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             logger.warning(f"Failed to refresh record: {e}")
             # Ne pas lever d'exception car c'est un cas possible après un delete
 
+    def _extract_data_dict(self, data) -> dict:
+        """
+        Extract dictionary from data, handling both SQLModel objects and dictionaries.
+
+        Args:
+            data: Either a SQLModel object with model_dump() or a dictionary
+
+        Returns:
+            Dictionary representation of the data
+        """
+        if hasattr(data, "model_dump"):
+            return data.model_dump(exclude_unset=True)
+        elif isinstance(data, dict):
+            return dict(data)
+        else:
+            return {}
+
+    def _serialize_for_json(self, data: dict) -> dict:
+        """
+        Serialize a dictionary to be JSON-compatible by converting datetime objects to ISO strings
+        and UUID objects to strings.
+
+        Args:
+            data: Dictionary that may contain datetime or UUID objects
+
+        Returns:
+            Dictionary with datetime and UUID objects converted to strings
+        """
+        if not isinstance(data, dict):
+            return data
+
+        serialized = {}
+        for key, value in data.items():
+            if isinstance(value, datetime.datetime):
+                serialized[key] = value.isoformat()
+            elif isinstance(value, uuid.UUID):
+                serialized[key] = str(value)
+            elif isinstance(value, dict):
+                serialized[key] = self._serialize_for_json(value)
+            elif isinstance(value, list):
+                serialized[key] = [
+                    item.isoformat()
+                    if isinstance(item, datetime.datetime)
+                    else str(item)
+                    if isinstance(item, uuid.UUID)
+                    else self._serialize_for_json(item)
+                    if isinstance(item, dict)
+                    else item
+                    for item in value
+                ]
+            else:
+                serialized[key] = value
+        return serialized
+
+    def _build_outbox_payload(
+        self,
+        action: str,
+        record: ModelType,
+        user: UserType | None = None,
+        data: dict | None = None,
+    ) -> dict:
+        """
+        Build standardized outbox payload for events.
+
+        Args:
+            action: The action being performed ('create', 'update', 'delete')
+            record: The record being operated on
+            user: User performing the operation
+            data: Additional data for create/update operations
+
+        Returns:
+            Standardized payload dictionary
+        """
+        payload = {
+            "id": str(record.id),
+            "model": self.model.__name__,
+            "action": action,
+            "user_id": str(user.id) if user else None,
+            "timestamp": datetime.datetime.now().isoformat(),
+        }
+
+        if action in ["create", "update"] and data:
+            payload["data"] = self._serialize_for_json(data)
+        elif action == "delete":
+            # For delete, keep only essential info to avoid serialization issues
+            payload["data"] = {
+                "id": str(record.id),
+                "name": getattr(record, "name", None),
+                "description": getattr(record, "description", None),
+                "created_by_id": getattr(record, "created_by_id", None),
+                # Add other critical fields if needed for handlers
+            }
+
+        return payload
+
     def get_query_identifier(self, statement: SelectOfScalar[ModelType]) -> str:
         """
         Generate a unique hash for a SQL statement for caching purposes.
@@ -211,7 +314,15 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         return result.one()
 
     # Read Operations
-
+    async def check_user_permission(
+        self,
+        session: AsyncSession,
+        *,
+        permission: str | None = None,
+        user: UserType | None = None,
+    ):
+        return True
+    
     async def read_after(
         self,
         session: AsyncSession,
@@ -475,14 +586,25 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             CrudOperationError: If the creation fails
         """
         await self.before_create(session, data=data, user=user)
-        data_dict = data.model_dump(exclude_unset=True)
+
+        # Extract data dictionary
+        data_dict = self._extract_data_dict(data)
         data_dict["created_at"] = datetime.datetime.now()
         if user and user.id:
             data_dict["created_by_id"] = user.id
         record = self.model(**data_dict)
         session.add(record)
         await session.flush()
-        await session.refresh(record)
+
+        # Publish outbox event after record is created and has an ID
+        if self.outbox_events.create:
+            payload = self._build_outbox_payload(
+                action="create", record=record, user=user, data=data_dict
+            )
+            await outbox_registry.publish(
+                session, f"create.{self.model.__name__.lower()}", payload
+            )
+
         await self.after_create(session, record=record, data=data, user=user)
         return record
 
@@ -677,7 +799,24 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         await self.before_update(session, data=data, record=record, id=id, user=user)
         if not record:
             record = await session.get(self.model, id)
-        data_dict = data.model_dump(exclude_unset=True)
+
+        # Ensure record exists before proceeding
+        if not record:
+            logger.error(f"The record with id {id} does not exist.")
+            raise RecordNotFoundError("The record doesn't exist.")
+
+        # Publish outbox event after record is confirmed to exist
+        if self.outbox_events.update:
+            payload_data = self._extract_data_dict(data)
+            payload = self._build_outbox_payload(
+                action="update", record=record, user=user, data=payload_data
+            )
+            await outbox_registry.publish(
+                session, f"update.{self.model.__name__.lower()}", payload
+            )
+
+        # Extract and apply updates
+        data_dict = self._extract_data_dict(data)
         data_dict["modify_at"] = datetime.datetime.now()
         if user and user.id:
             data_dict["modify_by_id"] = user.id
@@ -896,6 +1035,16 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         if not record:
             logger.error(f"The record with id {id} does not exist.")
             raise RecordNotFoundError("The record doesn't exist.")
+        if self.outbox_events.delete:
+            payload = self._build_outbox_payload(
+                action="delete",
+                record=record,
+                user=user,
+                # No data parameter - handled by the helper method
+            )
+            await outbox_registry.publish(
+                session, f"delete.{self.model.__name__.lower()}", payload
+            )
         await session.delete(record)
         await self.after_delete(session, id=id, record=record, user=user)
         return True

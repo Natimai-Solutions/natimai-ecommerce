@@ -43,44 +43,6 @@ services:
       - LOG_LEVEL=DEBUG
     restart: "no"  # Pas de restart automatique en dev
 
-  # Service pour les migrations en développement
-  migrate:
-    volumes:
-      # Monte le code source ET les fichiers de migration en lecture/écriture
-      - ./backend/app:/app/app  # RW pour générer les migrations
-      - ./backend/alembic.ini:/app/alembic.ini:ro
-      - ./backend/pyproject.toml:/app/pyproject.toml:ro
-    environment:
-      - LOG_LEVEL=DEBUG
-    profiles:
-      - migration  # Utilise un profile pour éviter de démarrer automatiquement
-
-  # Service dédié pour le développement et la génération de migrations
-  alembic-dev:
-    build: 
-      context: ./backend
-      dockerfile: Dockerfile
-    volumes:
-      # Monte tout en lecture/écriture pour pouvoir créer les fichiers de migration
-      - ./backend/app:/app/app
-      - ./backend/alembic.ini:/app/alembic.ini
-      - ./backend/pyproject.toml:/app/pyproject.toml:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/fastapi_ecommerce
-      - POSTGRES_SERVER=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=fastapi_ecommerce
-      - LOG_LEVEL=DEBUG
-    # Container qui reste ouvert avec un shell interactif
-    command: ["shell"]
-    stdin_open: true
-    tty: true
-    
   # Override des services de base pour être plus tolérants en dev
   postgres:
     environment:
