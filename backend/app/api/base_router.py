@@ -55,6 +55,8 @@ class BaseRouter(
         schema_update: UpdateSchemaType | None = None,
         auth: Auth | None = None,
         tags: list[str] | None = None,
+        routes_before: list[Routes] | None = None,
+        routes_after: list[Routes] | None = None,        
         auto: bool = False,
         *args,
         **kwargs,
@@ -93,6 +95,10 @@ class BaseRouter(
         kwargs["tags"] = self.tags
 
         super().__init__(*args, **kwargs)
+
+        # Stocker les routes personnalisées
+        self.routes_before = routes_before or []
+        self.routes_after = routes_after or []
 
         if auto:
             self.generate_endpoints()
@@ -196,8 +202,6 @@ class BaseRouter(
     def generate_endpoints(
         self,
         routes: list[Routes] | None = None,
-        routes_before: list[Routes] | None = None,
-        routes_after: list[Routes] | None = None,
     ) -> APIRouter:
         default_routes = [
             Routes(
@@ -240,11 +244,11 @@ class BaseRouter(
         if routes is None or len(routes) == 0:
             routes = default_routes
 
-        if routes_before is not None and len(routes_before) > 0:
-            routes = routes_before + routes
+        if self.routes_before is not None and len(self.routes_before) > 0:
+            routes = self.routes_before + routes
 
-        if routes_after is not None and len(routes_after) > 0:
-            routes.extend(routes_after)
+        if self.routes_after is not None and len(self.routes_after) > 0:
+            routes.extend(self.routes_after)
 
         for route in routes:
             self.add_api_route(**asdict(route))

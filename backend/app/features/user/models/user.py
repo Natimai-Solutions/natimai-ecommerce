@@ -1,7 +1,8 @@
 import datetime
 import uuid
 
-from pydantic import EmailStr
+from app.core.security import get_password_hash
+from pydantic import EmailStr, model_validator
 from sqlmodel import Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
