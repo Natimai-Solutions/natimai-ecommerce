@@ -6,7 +6,7 @@ from app.features.place.models import (
     PlacesPublic,
     PlaceUpdate,
 )
-from app.features.shipping.crud import crud_place
+from app.features.place.crud import crud_place
 
 
 class PlaceRouter(
@@ -31,7 +31,7 @@ class Auth:
 
 router = PlaceRouter(
     name="place",
-    tags=["shipping"],
+    tags=["place"],
     crud=crud_place,
     schema_public=PlacePublic,
     schema_publics=PlacesPublic,

@@ -1,7 +1,6 @@
 from app.api.base_router import BaseRouter
 from app.features.shipping.crud import (
     crud_delivery_task,
-    crud_package,
 )
 from app.features.shipping.models.delivery_task import (
     DeliveryTask,
@@ -9,11 +8,6 @@ from app.features.shipping.models.delivery_task import (
     DeliveryTaskPublic,
     DeliveryTasksPublic,
     DeliveryTaskUpdate,
-    Package,
-    PackageCreate,
-    PackagePublic,
-    PackagesPublic,
-    PackageUpdate,
 )
 
 
@@ -25,19 +19,6 @@ class DeliveryTaskRouter(
         DeliveryTaskPublic,
         DeliveryTasksPublic,
         type(crud_delivery_task),
-    ]
-):
-    pass
-
-
-class PackageRouter(
-    BaseRouter[
-        Package,
-        PackageCreate,
-        PackageUpdate,
-        PackagePublic,
-        PackagesPublic,
-        type(crud_package),
     ]
 ):
     pass
@@ -59,19 +40,6 @@ delivery_task_router = DeliveryTaskRouter(
     schema_publics=DeliveryTasksPublic,
     schema_create=DeliveryTaskCreate,
     schema_update=DeliveryTaskUpdate,
-    auth=Auth(),
-    auto=True,
-)
-
-# Router pour les packages
-package_router = PackageRouter(
-    name="shipping_package",
-    tags=["shipping", "package"],
-    crud=crud_package,
-    schema_public=PackagePublic,
-    schema_publics=PackagesPublic,
-    schema_create=PackageCreate,
-    schema_update=PackageUpdate,
     auth=Auth(),
     auto=True,
 )

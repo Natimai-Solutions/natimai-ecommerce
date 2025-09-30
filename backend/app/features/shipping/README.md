@@ -4,7 +4,7 @@ A comprehensive shipping and tracking system for e-commerce orders with support 
 
 ## Overview
 
-The shipping system tracks customer orders from supplier to final delivery address through multiple transportation routes. It supports consolidation of orders for efficient shipping and provides real-time status tracking.
+The shipping system tracks customer orders from supplier to final delivery address through multiple transportation routes. It supports consolidation of orders for efficient shipping and provides real-time status tracking with complete audit trails.
 
 ## Architecture Overview
 
@@ -13,17 +13,20 @@ The shipping system tracks customer orders from supplier to final delivery addre
 The shipping system integrates with other features in the application:
 - **Place** (`app.features.place`): Physical locations (airports, ports, warehouses, customer addresses)  
 - **Partner** (`app.features.partner`): Business actors (suppliers like Ingram Micro, shipping carriers)
+- **Status** (`app.features.shipping.status`): Configurable status definitions and transitions
 - **Shipping** (`app.features.shipping`): Route management and order tracking
 
 ### Core Models
 
 1. **Place** (from `app.features.place`): Physical locations and addresses
 2. **Partner** (from `app.features.partner`): Suppliers and carriers  
-3. **ShippingRoute**: Defines available transportation routes between places
-4. **ShippingRouteTracking**: Tracks customer choices and status for specific orders
-5. **ShippingRouteTrackingConsolidation**: Groups multiple orders for batch processing
-6. **DeliveryTask**: Manages individual delivery operations
-7. **StatusDefinition**: Defines available status codes and their properties
+3. **StatusDefinition**: Configurable status catalog with workflow rules
+4. **StatusTransition**: Allowed transitions with guards and automation
+5. **ShippingRoute**: Defines available transportation routes between places
+6. **ShippingRouteTracking**: Tracks customer choices and status for specific orders
+7. **ShippingRouteTrackingConsolidation**: Groups multiple orders for batch processing
+8. **ShippingRouteTrackingLogs**: Complete audit trail of all status changes
+9. **DeliveryTask**: Manages individual delivery operations
 
 ## Core Concept: Bora Bora Customer Example
 
@@ -37,7 +40,7 @@ Let's follow a typical order from a customer on Bora Bora island:
 1. **Air freight**: Ingram partner → Our warehouse (consolidated with other orders) - `sequence_order=1`
 2. **Inter-island freight**: Our warehouse → Bora Bora address (Air Tahiti) - `sequence_order=2`
 
-### 3. Multi-Hop Route Sequencing
+### 2. Multi-Hop Route Sequencing
 
 Each `ShippingRouteTracking` has a `sequence_order` field to manage multi-step journeys:
 
@@ -47,7 +50,7 @@ Each `ShippingRouteTracking` has a `sequence_order` field to manage multi-step j
 
 This allows the system to know which route comes next and automatically progress the shipment.
 
-### 2. System Models & Relationships
+### 3. System Models & Relationships
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -65,198 +68,273 @@ This allows the system to know which route comes next and automatically progress
                        │                 │
                        ▼                 ▼
               ┌─────────────────┐ ┌─────────────────┐
-              │  DeliveryTask   │ │ StatusDefinition│
-              │(Final delivery) │ │(Status rules)   │
+              │StatusDefinition │ │ShippingRoute    │
+              │(Configurable)   │ │TrackingLogs     │
+              │                 │ │(Audit trail)   │
               └─────────────────┘ └─────────────────┘
 ```
 
 ## Model Details
 
+### Place
+```python
+# Bora Bora customer address
+{
+    "id": "bora-bora-address-uuid",
+    "name": "Client Bora Bora",
+    "type": "address",
+    "city": "Bora Bora",
+    "country": "PF"
+}
+
+# Our warehouse in Papeete
+{
+    "id": "papeete-warehouse-uuid", 
+    "name": "Entrepôt Papeete",
+    "type": "warehouse",
+    "city": "Papeete",
+    "country": "PF"
+}
+```
+
 ### Partner
 ```python
 # Ingram supplier partner
 {
-    "id": "uuid",
+    "id": "ingram-uuid",
     "name": "Ingram Micro",
-    "partner_type": "supplier",
-    "email": "orders@ingram.com",
-    "city": "Los Angeles"
+    "city": "Paris", 
+    "country": "FR"
+}
+
+# Air Tahiti carrier
+{
+    "id": "air-tahiti-uuid",
+    "name": "Air Tahiti",
+    "city": "Papeete",
+    "country": "PF"
 }
 ```
 
-### Place
+### StatusDefinition
 ```python
-# Warehouse location
+# Configurable status catalog
 {
-    "id": "uuid", 
-    "name": "Papeete Warehouse",
-    "type": "warehouse",
-    "address": "Zone Industrielle Papeete",
-    "country": "French Polynesia",
-    "latitude": -17.5516,
-    "longitude": -149.5585
+    "id": "status-pending-uuid",
+    "entity": "route_tracking",
+    "code": "pending",
+    "name": "En attente",
+    "sequence_order": 1,
+    "ui_color": "orange",
+    "ui_icon": "clock"
 }
 
-# Customer address
 {
-    "id": "uuid",
-    "name": "Bora Bora Residential",
-    "type": "residential", 
-    "address": "Vaitape, Bora Bora",
-    "country": "French Polynesia"
+    "id": "status-dispatched-uuid", 
+    "entity": "route_tracking",
+    "code": "dispatched",
+    "name": "Expédié",
+    "sequence_order": 2,
+    "ui_color": "blue",
+    "ui_icon": "truck"
+}
+```
+
+### StatusTransition
+```python
+# Workflow rules with guards and automation
+{
+    "entity": "route_tracking",
+    "from_code": "pending",
+    "to_code": "dispatched", 
+    "guard_name": "has_consolidation",
+    "auto_advance": False,
+    "requires_confirmation": False
+}
+
+{
+    "entity": "route_tracking",
+    "from_code": "dispatched",
+    "to_code": "in_transit",
+    "guard_name": null,
+    "auto_advance": True,  # Automatic when flight departs
+    "requires_confirmation": False
 }
 ```
 
 ### ShippingRoute
 ```python
-# Route 1: Ingram to Warehouse
+# Route 1: Ingram → Warehouse
 {
     "id": "route-1-uuid",
-    "name": "Ingram Air Freight",
+    "name": "Ingram to Warehouse",
     "from_place_id": "ingram-warehouse-uuid",
     "to_place_id": "papeete-warehouse-uuid", 
     "from_partner_id": "ingram-uuid",
     "mode": "air",
     "operator": "Air France Cargo",
-    "allow_consolidation": true,
-    "eta_days": 3
+    "allow_consolidation": True
 }
 
-# Route 2: Warehouse to Bora Bora  
+# Route 2: Warehouse → Bora Bora
 {
-    "id": "route-2-uuid",
-    "name": "Air Tahiti Inter-island",
+    "id": "route-2-uuid", 
+    "name": "Warehouse to Bora Bora",
     "from_place_id": "papeete-warehouse-uuid",
     "to_place_id": "bora-bora-address-uuid",
+    "to_partner_id": "air-tahiti-uuid", 
     "mode": "air",
     "operator": "Air Tahiti",
-    "is_to_customer": true,
-    "eta_days": 1
+    "is_to_customer": True
 }
 ```
 
-### ShippingRouteTracking (Core Tracking)
+### ShippingRouteTracking
 ```python
-# Tracks customer's route selection per order
+# Route 1 tracking with StatusDefinition relation
 {
     "id": "tracking-1-uuid",
-    "order_id": "order-123-uuid",
-    "route_id": "route-1-uuid",  # Ingram → Warehouse
-    "status_code": "in_transit",
-    "consolidation_id": "consol-456-uuid",  # Grouped with other orders
+    "order_id": "order-123",
+    "route_id": "route-1-uuid",
+    "status_id": "status-pending-uuid",    # FK to StatusDefinition
+    "sequence_order": 1,
     "selected_at": "2025-09-30T10:00:00Z",
-    "tracking_ref": "AF1234567",
-    "estimated_delivery": "2025-10-03T12:00:00Z"
+    "consolidation_id": "consol-1-uuid"
 }
 
-# Second route for same order
+# Route 2 tracking (waiting for route 1 completion)
 {
     "id": "tracking-2-uuid", 
-    "order_id": "order-123-uuid",
-    "route_id": "route-2-uuid",  # Warehouse → Bora Bora
-    "status_code": "pending",    # Waiting for first route
+    "order_id": "order-123",
+    "route_id": "route-2-uuid",
+    "status_id": "status-waiting-uuid",    # FK to StatusDefinition
+    "sequence_order": 2,
     "selected_at": "2025-09-30T10:00:00Z"
 }
 ```
 
 ### ShippingRouteTrackingConsolidation
 ```python
-# Groups multiple orders on same route
+# Group multiple orders for Air France flight
 {
-    "id": "consol-456-uuid",
+    "id": "consol-1-uuid",
     "route_id": "route-1-uuid",
-    "name": "AF Cargo Flight 2025-10-01",
+    "name": "AF Cargo Oct 1st",
     "consolidation_code": "AF-20250930-001",
-    "status_code": "in_transit",  # Overrides individual tracking status
+    "status_id": "status-dispatched-uuid",  # FK to StatusDefinition
     "tracking_ref": "AF1234567",
-    "total_orders": 25           # 25 orders in this consolidation
+    "total_orders": 15
+}
+```
+
+### ShippingRouteTrackingLogs
+```python
+# Complete audit trail with StatusDefinition relations
+{
+    "id": "log-1-uuid",
+    "tracking_id": "tracking-1-uuid",
+    "from_status_id": null,                    # Initial status
+    "to_status_id": "status-pending-uuid",     # FK to StatusDefinition
+    "change_type": "manual",
+    "changed_by": "customer",
+    "reason": "Route selected by customer"
+}
+
+{
+    "id": "log-2-uuid", 
+    "tracking_id": "tracking-1-uuid",
+    "from_status_id": "status-pending-uuid",   # FK to StatusDefinition
+    "to_status_id": "status-dispatched-uuid", # FK to StatusDefinition
+    "change_type": "consolidation_override",
+    "consolidation_id": "consol-1-uuid",
+    "changed_by": "system",
+    "reason": "Status updated from consolidation: AF-20250930-001"
 }
 ```
 
 ### DeliveryTask
 ```python
-# Final delivery to customer
+# Final delivery task to Bora Bora
 {
-    "id": "delivery-uuid",
-    "order_id": "order-123-uuid", 
+    "id": "delivery-1-uuid",
+    "order_id": "order-123",
     "address_place_id": "bora-bora-address-uuid",
     "delivery_type": "home_delivery",
-    "assignee": "Air Tahiti Delivery Service",
-    "status_code": "pending"
+    "assignee": "Air Tahiti Delivery",
+    "status_code": "pending",
+    "scheduled_at": "2025-10-02T14:00:00Z"
 }
 ```
 
-## Status Flow Example
-
-### Step-by-step Status Updates
+## Step-by-step Status Updates
 
 #### 1. Order Placed & Route Selected
 ```python
-# Customer selects routes with sequence
+# Customer selects routes with sequence and StatusDefinition
 POST /api/shipping/tracking
 [
     {
         "order_id": "order-123",
         "route_id": "route-1-uuid",      # Ingram → Warehouse
+        "status_id": "status-pending-uuid",
         "sequence_order": 1,
         "selected_at": "2025-09-30T10:00:00Z"
     },
     {
         "order_id": "order-123", 
         "route_id": "route-2-uuid",      # Warehouse → Bora Bora
+        "status_id": "status-waiting-uuid",
         "sequence_order": 2,
         "selected_at": "2025-09-30T10:00:00Z"
     }
 ]
 
-# Result: 2 ShippingRouteTracking entries created
-# Status: "pending" for route 1, "waiting" for route 2
+# Result: 2 ShippingRouteTracking entries created + audit logs
 ```
 
 #### 2. Consolidation Created
 ```python
-# Orders grouped for efficiency
+# Orders grouped for efficiency with StatusDefinition
 POST /api/shipping/consolidations
 {
     "route_id": "route-1-uuid",
     "name": "AF Cargo Oct 1st",
-    "consolidation_code": "AF-20250930-001"
+    "consolidation_code": "AF-20250930-001",
+    "status_id": "status-pending-uuid"
 }
 
 # Add our order to consolidation
 POST /api/shipping/consolidations/{consol_id}/add-tracking/{tracking_id}
-
-# Status override: tracking-1 now shows consolidation status
 ```
 
-#### 3. Package Pickup from Ingram
+#### 3. Consolidation Dispatched 
 ```python
-# Update consolidation status
+# Update consolidation status → affects all orders
 PUT /api/shipping/consolidations/{consol_id}/status
 {
-    "status_code": "dispatched",
-    "update_trackings": true  # Updates all 25 orders in consolidation
+    "status_id": "status-dispatched-uuid",
+    "tracking_ref": "AF1234567"
 }
 
-# Result: All orders in consolidation → "dispatched"
+# Result: All orders → "dispatched" + audit logs with consolidation_override
 ```
 
 #### 4. In Transit to Warehouse
 ```python
 PUT /api/shipping/consolidations/{consol_id}/status
 {
-    "status_code": "in_transit",
+    "status_id": "status-in-transit-uuid",
     "tracking_ref": "AF1234567"
 }
 
-# Result: All orders → "in_transit" with tracking reference
+# Result: All orders → "in_transit" + automatic logs
 ```
 
 #### 5. Arrival at Warehouse
 ```python
 PUT /api/shipping/consolidations/{consol_id}/status
 {
-    "status_code": "arrived"
+    "status_id": "status-arrived-uuid"
 }
 
 # Auto-Route Progression: Route 1 completed → Activate Route 2
@@ -266,7 +344,7 @@ POST /api/shipping/tracking/{tracking-1-uuid}/activate-next
 # 1. Marks route 1 (Ingram → Warehouse) as "completed" 
 # 2. Finds next route (sequence_order = 2)
 # 3. Activates route 2 (Warehouse → Bora Bora) with "in_progress"
-}
+# 4. Creates detailed audit logs for both changes
 ```
 
 #### 6. Create Final Delivery Task
@@ -282,21 +360,7 @@ POST /api/shipping/delivery-tasks
 
 #### 7. Final Delivery
 ```python
-# Dispatch from warehouse
-PUT /api/shipping/tracking/{tracking-2-uuid}/status
-{
-    "status_code": "dispatched"
-}
-
-# Deliver to customer
 PUT /api/shipping/delivery-tasks/{task_id}/status
-{
-    "status_code": "delivered",
-    "delivered_at": "2025-10-04T15:30:00Z"
-}
-
-# Complete the route tracking
-PUT /api/shipping/tracking/{tracking-2-uuid}/status
 {
     "status_code": "delivered"
 }
@@ -310,23 +374,27 @@ PUT /api/shipping/tracking/{tracking-2-uuid}/status
 # For API development
 from app.features.place.models import Place
 from app.features.partner.models import Partner  
+from app.features.shipping.models.status import StatusDefinition, StatusTransition
 from app.features.shipping.models.shipping_route import ShippingRoute
 from app.features.shipping.models.shipping_route_tracking import (
     ShippingRouteTracking,
-    ShippingRouteTrackingConsolidation
+    ShippingRouteTrackingConsolidation,
+    ShippingRouteTrackingLogs
 )
 from app.features.shipping.models.delivery_task import DeliveryTask
-from app.features.shipping.models.status import StatusDefinition
 ```
 
 ### Setup Order
 
 1. Create Places (supplier warehouse, customer address)
 2. Create Partners (Ingram, Air Tahiti)  
-3. Create ShippingRoutes between places
-4. Customer selects route → ShippingRouteTracking
-5. Optional consolidation → ShippingRouteTrackingConsolidation
-6. Final delivery → DeliveryTask
+3. Create StatusDefinitions for workflow states
+4. Create StatusTransitions for allowed workflows
+5. Create ShippingRoutes between places
+6. Customer selects route → ShippingRouteTracking with status_id
+7. Optional consolidation → ShippingRouteTrackingConsolidation
+8. All status changes → ShippingRouteTrackingLogs (audit trail)
+9. Final delivery → DeliveryTask
 
 ## API Endpoints
 
@@ -335,7 +403,7 @@ from app.features.shipping.models.status import StatusDefinition
 # Get available routes from supplier to customer
 GET /api/shipping/routes/paths?from_place_id={supplier}&to_place_id={customer}
 
-# Create tracking for selected routes
+# Create tracking for selected routes with status relations
 POST /api/shipping/tracking
 ```
 
@@ -354,16 +422,39 @@ POST /api/shipping/tracking/{id}/activate-next
 PUT /api/shipping/tracking/{id}/complete
 ```
 
-### Status Management
+### Status Management with StatusDefinition
 ```bash
-# Update individual tracking
+# Update individual tracking with status_id
 PUT /api/shipping/tracking/{id}/status
+{
+    "status_id": "status-uuid",
+    "notes": "Status change reason"
+}
 
 # Update consolidation (affects all orders)
 PUT /api/shipping/consolidations/{id}/status
+{
+    "status_id": "status-uuid"
+}
 
-# Get order status
+# Get order status with full StatusDefinition data
 GET /api/shipping/tracking/order/{order_id}
+
+# Get complete status history (audit trail)
+GET /api/shipping/tracking/{id}/logs
+```
+
+### Status Configuration
+```bash
+# Manage status definitions
+GET /api/shipping/status-definitions?entity=route_tracking
+POST /api/shipping/status-definitions
+PUT /api/shipping/status-definitions/{id}
+
+# Manage workflow transitions
+GET /api/shipping/status-transitions?entity=route_tracking
+POST /api/shipping/status-transitions
+PUT /api/shipping/status-transitions/{id}
 ```
 
 ### Consolidation Management
@@ -374,75 +465,6 @@ POST /api/shipping/consolidations
 # Add/remove orders
 POST /api/shipping/consolidations/{id}/add-tracking/{tracking_id}
 DELETE /api/shipping/consolidations/{id}/remove-tracking/{tracking_id}
-```
-
-### Delivery Management
-```bash
-# Create delivery task
-POST /api/shipping/delivery-tasks
-
-# Update delivery status  
-PUT /api/shipping/delivery-tasks/{id}/status
-```
-
-## Status Definitions
-
-### Route Tracking Statuses
-- `pending`: Route selected, waiting to start
-- `ready`: Ready for dispatch 
-- `dispatched`: Package picked up/sent
-- `in_transit`: Currently moving
-- `arrived`: Reached destination
-- `delivered`: Final delivery completed
-
-### Consolidation Statuses
-- `pending`: Consolidation created, collecting orders
-- `ready`: Ready to ship
-- `dispatched`: Shipped from origin
-- `in_transit`: Moving to destination
-- `arrived`: Reached destination
-- `closed`: Consolidation completed
-
-### Delivery Task Statuses
-- `pending`: Task created, not assigned
-- `assigned`: Assigned to delivery person
-- `in_progress`: Out for delivery
-- `delivered`: Successfully delivered
-- `failed`: Delivery failed (retry needed)
-
-## Business Logic
-
-### Consolidation Rules
-1. **Automatic Grouping**: Orders on same route can be automatically grouped
-2. **Status Override**: When order is in consolidation, consolidation status takes precedence
-3. **Status Propagation**: Consolidation status updates propagate to all contained orders
-4. **Capacity Management**: Consolidations have limits (weight, volume, count)
-
-### Route Dependencies
-1. **Sequential Routes**: Route 2 waits for Route 1 completion
-2. **Status Triggers**: Route completion can trigger next route or delivery task
-3. **Exception Handling**: Failed routes can trigger alternative routes
-
-### Delivery Coordination
-1. **Final Mile**: DeliveryTask created when package reaches final distribution point
-2. **Service Selection**: Different delivery services (home, pickup point, Air Moana)
-3. **Proof of Delivery**: Photo, signature, GPS location capture
-
-## Model Relationships Summary
-
-```mermaid
-graph TD
-    A[Order] --> B[ShippingRouteTracking]
-    B --> C[ShippingRoute] 
-    B --> D[ShippingRouteTrackingConsolidation]
-    C --> E[Place - From]
-    C --> F[Place - To]
-    C --> G[Partner - From] 
-    C --> H[Partner - To]
-    D --> I[Multiple ShippingRouteTracking]
-    B --> J[DeliveryTask]
-    J --> K[Place - Delivery Address]
-    L[StatusDefinition] --> M[All Status Fields]
 ```
 
 ## Multi-Route Sequencing Solution
@@ -461,13 +483,13 @@ Each `ShippingRouteTracking` entry has a `sequence_order` field:
         "order_id": "order-123",
         "route_id": "ingram-to-warehouse-route",
         "sequence_order": 1,           # First step
-        "status_code": "pending"
+        "status_id": "status-pending-uuid"
     },
     {
         "order_id": "order-123", 
         "route_id": "warehouse-to-borabora-route",
         "sequence_order": 2,           # Second step
-        "status_code": "waiting"       # Waits for step 1
+        "status_id": "status-waiting-uuid"       # Waits for step 1
     }
 ]
 ```
@@ -486,7 +508,69 @@ await crud_shipping_route_tracking.activate_next_route(
 # Result:
 # 1. Route 1 → status "completed"  
 # 2. Route 2 → status "in_progress"
-# 3. Customer gets seamless progression
+# 3. Complete audit trail in ShippingRouteTrackingLogs
+# 4. Customer gets seamless progression
+```
+
+## Status System Integration
+
+### StatusDefinition Relations
+
+Instead of simple strings, the system now uses proper FK relations:
+
+```python
+# Old approach (string-based)
+status_code: str = "pending"
+
+# New approach (relation-based)  
+status_id: uuid.UUID = Field(foreign_key="status_definitions.id")
+status: StatusDefinition = Relationship(...)
+
+# Access rich metadata
+tracking.status.name           # "En attente"
+tracking.status.ui_color       # "orange"  
+tracking.status.sequence_order # 1
+```
+
+### Complete Audit Trail
+
+Every status change creates a log entry:
+
+```python
+# Automatic logging on every status update
+{
+    "tracking_id": "tracking-uuid",
+    "from_status_id": "status-pending-uuid",     # FK relation
+    "to_status_id": "status-dispatched-uuid",   # FK relation
+    "change_type": "consolidation_override",    # Context
+    "consolidation_id": "consol-uuid",          # Related consolidation
+    "changed_by": "system",                     # Who/what made change
+    "was_auto_advance": False,                  # Transition metadata
+    "required_confirmation": False              # Workflow metadata
+}
+```
+
+### Workflow Configuration
+
+StatusTransition defines allowed workflows:
+
+```python
+# Guard-protected transition
+{
+    "from_code": "pending",
+    "to_code": "dispatched", 
+    "guard_name": "has_consolidation",      # Business rule
+    "auto_advance": False,                  # Manual trigger
+    "requires_confirmation": False          # No confirmation needed
+}
+
+# Automatic transition
+{
+    "from_code": "dispatched",
+    "to_code": "in_transit",
+    "auto_advance": True,                   # Triggers automatically
+    "requires_confirmation": False          # No confirmation
+}
 ```
 
 ## Key Features
@@ -494,10 +578,13 @@ await crud_shipping_route_tracking.activate_next_route(
 - ✅ **Order-Centric Tracking**: Each order has dedicated tracking entries
 - ✅ **Multi-Hop Routes**: Support complex route chains with `sequence_order`
 - ✅ **Auto-Route Progression**: Automatic advancement from route to route
+- ✅ **StatusDefinition Integration**: Type-safe status management with rich metadata
+- ✅ **Complete Audit Trail**: ShippingRouteTrackingLogs tracks every change
+- ✅ **Workflow Configuration**: StatusTransition with guards and automation
 - ✅ **Consolidation Support**: Efficient grouping with status override
 - ✅ **Real-time Updates**: Status propagation across related entities
 - ✅ **Flexible Delivery**: Multiple final delivery options
 - ✅ **Partner Integration**: Support for various suppliers and carriers
 - ✅ **Geographic Flexibility**: Works with any location/address setup
 
-This system efficiently handles the complexity of multi-island shipping while providing clear tracking and status management for customers and operations teams.
+This system efficiently handles the complexity of multi-island shipping while providing clear tracking, configurable workflows, and complete audit trails for customers and operations teams.

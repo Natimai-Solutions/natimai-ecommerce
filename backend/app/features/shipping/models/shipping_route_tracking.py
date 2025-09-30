@@ -87,16 +87,22 @@ class ShippingRouteTracking(ShippingRouteTrackingBase, table=True):
 
     # Relations
     route: "ShippingRoute" = Relationship(
-        foreign_keys="[ShippingRouteTracking.route_id]",
-        sa_relationship_kwargs={"lazy": "selectin"}
+        sa_relationship_kwargs={
+            "foreign_keys": "[ShippingRouteTracking.route_id]",
+            "lazy": "selectin"
+        }
     )
     status: "StatusDefinition" = Relationship(
-        foreign_keys="[ShippingRouteTracking.status_id]",
-        sa_relationship_kwargs={"lazy": "selectin"}
+        sa_relationship_kwargs={
+            "foreign_keys": "[ShippingRouteTracking.status_id]",
+            "lazy": "selectin"
+        }
     )
     consolidation: Optional["ShippingRouteTrackingConsolidation"] = Relationship(
-        foreign_keys="[ShippingRouteTracking.consolidation_id]",
-        sa_relationship_kwargs={"lazy": "selectin"}
+        sa_relationship_kwargs={
+            "foreign_keys": "[ShippingRouteTracking.consolidation_id]",
+            "lazy": "selectin"
+        }
     )
 
     @computed_field
@@ -179,12 +185,16 @@ class ShippingRouteTrackingConsolidation(ShippingRouteTrackingConsolidationBase,
 
     # Relations
     route: "ShippingRoute" = Relationship(
-        foreign_keys="[ShippingRouteTrackingConsolidation.route_id]",
-        sa_relationship_kwargs={"lazy": "selectin"}
+        sa_relationship_kwargs={
+            "foreign_keys": "[ShippingRouteTrackingConsolidation.route_id]",
+            "lazy": "selectin"
+        }
     )
     status: "StatusDefinition" = Relationship(
-        foreign_keys="[ShippingRouteTrackingConsolidation.status_id]",
-        sa_relationship_kwargs={"lazy": "selectin"}
+        sa_relationship_kwargs={
+            "foreign_keys": "[ShippingRouteTrackingConsolidation.status_id]",
+            "lazy": "selectin"
+        }
     )
 
 

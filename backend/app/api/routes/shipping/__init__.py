@@ -4,60 +4,34 @@ Regroupement de toutes les routes shipping pour faciliter l'importation.
 
 from fastapi import APIRouter
 
-from .consolidation import (
-    order_consolidation_router,
-    order_step_consolidation_router,
-    route_consolidation_router,
-)
-from .delivery import (
+from .delivery_task import (
     delivery_task_router,
-    package_router,
 )
-
-# Import all shipping routers
-from .partner import router as partner_router
-from .place import router as place_router
-from .route import (
+from .shipping_route import (
     shipping_route_router,
-    shipping_route_step_router,
 )
 from .status import (
     status_definition_router,
     status_transition_router,
 )
 from .tracking import (
-    tracking_event_router,
+    shipping_route_tracking_router,
+    consolidation_router,
+    logs_router,
 )
 
 # Create a main shipping router
 shipping_router = APIRouter(prefix="/shipping", tags=["shipping"])
 
 # Include all sub-routers
-shipping_router.include_router(partner_router)
-shipping_router.include_router(place_router)
 shipping_router.include_router(shipping_route_router)
-shipping_router.include_router(shipping_route_step_router)
-shipping_router.include_router(route_consolidation_router)
-shipping_router.include_router(order_consolidation_router)
 shipping_router.include_router(status_definition_router)
 shipping_router.include_router(status_transition_router)
-shipping_router.include_router(tracking_event_router)
-shipping_router.include_router(order_step_consolidation_router)
 shipping_router.include_router(delivery_task_router)
-shipping_router.include_router(package_router)
+shipping_router.include_router(shipping_route_tracking_router)
+shipping_router.include_router(consolidation_router)
+shipping_router.include_router(logs_router)
 
 __all__ = [
     "shipping_router",
-    "partner_router",
-    "place_router",
-    "shipping_route_router",
-    "shipping_route_step_router",
-    "route_consolidation_router",
-    "order_consolidation_router",
-    "status_definition_router",
-    "status_transition_router",
-    "tracking_event_router",
-    "order_step_consolidation_router",
-    "delivery_task_router",
-    "package_router",
 ]
