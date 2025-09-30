@@ -11,9 +11,6 @@ from app.features.base.crud import CrudBase
 from app.features.shipping.models.shipping_route import (
     ShippingRoute,
     ShippingRouteCreate,
-    ShippingRouteStep,
-    ShippingRouteStepCreate,
-    ShippingRouteStepUpdate,
     ShippingRouteUpdate,
 )
 
@@ -316,7 +313,7 @@ class ShippingRouteCrud(
     ) -> list[ShippingRoute]:
         """Recherche de routes par nom, opérateur ou notes"""
 
-        from app.features.shipping.models.place import Place
+        from app.features.place.models import Place
 
         conditions = [ShippingRoute.is_active.is_(True)]
 
@@ -380,91 +377,6 @@ class ShippingRouteCrud(
         return result.all()
 
 
-class ShippingRouteStepCrud(
-    CrudBase[ShippingRouteStep, ShippingRouteStepCreate, ShippingRouteStepUpdate]
-):
-    async def get_steps_for_route(
-        self,
-        session: AsyncSession,
-        route_id: uuid.UUID,
-    ) -> list[ShippingRouteStep]:
-        """Récupère toutes les étapes d'une route"""
-
-        statement = (
-            select(ShippingRouteStep)
-            .where(
-                and_(
-                    ShippingRouteStep.route_id == route_id,
-                    ShippingRouteStep.is_active.is_(True),
-                )
-            )
-            .order_by(ShippingRouteStep.sequence.asc())
-        )
-
-        result = await session.exec(statement)
-        return result.all()
-
-    async def get_step_by_sequence(
-        self,
-        session: AsyncSession,
-        route_id: uuid.UUID,
-        sequence: int,
-    ) -> ShippingRouteStep | None:
-        """Récupère une étape par son numéro de séquence"""
-
-        statement = select(ShippingRouteStep).where(
-            and_(
-                ShippingRouteStep.route_id == route_id,
-                ShippingRouteStep.sequence == sequence,
-                ShippingRouteStep.is_active.is_(True),
-            )
-        )
-
-        result = await session.exec(statement)
-        return result.first()
-
-    async def get_steps_between_places(
-        self,
-        session: AsyncSession,
-        from_place_id: uuid.UUID,
-        to_place_id: uuid.UUID,
-    ) -> list[ShippingRouteStep]:
-        """Récupère les étapes entre deux lieux"""
-
-        statement = (
-            select(ShippingRouteStep)
-            .where(
-                and_(
-                    ShippingRouteStep.from_place_id == from_place_id,
-                    ShippingRouteStep.to_place_id == to_place_id,
-                    ShippingRouteStep.is_active.is_(True),
-                )
-            )
-            .order_by(ShippingRouteStep.sequence.asc())
-        )
-
-        result = await session.exec(statement)
-        return result.all()
-
-    async def get_next_sequence_number(
-        self,
-        session: AsyncSession,
-        route_id: uuid.UUID,
-    ) -> int:
-        """Récupère le prochain numéro de séquence pour une route"""
-
-        from sqlmodel import func
-
-        statement = select(func.max(ShippingRouteStep.sequence)).where(
-            ShippingRouteStep.route_id == route_id
-        )
-
-        result = await session.exec(statement)
-        max_sequence = result.first()
-
-        return (max_sequence or 0) + 1
-
-
 crud_shipping_route = ShippingRouteCrud(
     model=ShippingRoute,
     schema_create=ShippingRouteCreate,
@@ -473,15 +385,5 @@ crud_shipping_route = ShippingRouteCrud(
         ShippingRoute.is_active.is_(True),
     ),
     order_by=ShippingRoute.priority.asc(),
-)
-
-crud_shipping_route_step = ShippingRouteStepCrud(
-    model=ShippingRouteStep,
-    schema_create=ShippingRouteStepCreate,
-    schema_update=ShippingRouteStepUpdate,
-    default_filter=and_(
-        ShippingRouteStep.is_active.is_(True),
-    ),
-    order_by=ShippingRouteStep.sequence.asc(),
 )
 

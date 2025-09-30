@@ -1,491 +1,503 @@
-# Système de Livraison Multi-Segments
+# Shipping System
 
-Ce module gère un système de livraison e-commerce flexible supportant les livraisons directes, le dropshipping hybride et les routes multi-segments avec consolidation intelligente.
+A comprehensive shipping and tracking system for e-commerce orders with support for multi-hop routes, consolidation, and final delivery.
 
-## 🏗️ Architecture
+## Overview
 
-Le système est conçu pour gérer des workflows complexes comme :
-- **Livraison directe** : Entrepôt → Client (Tahiti)
-- **Dropshipping hybride** : Fournisseur → Entrepôt → Client (France → Tahiti → Rangiroa)
-- **Consolidation** : Regroupement de colis sur routes communes
-- **Multi-modal** : Air, mer, route selon destination et contraintes
+The shipping system tracks customer orders from supplier to final delivery address through multiple transportation routes. It supports consolidation of orders for efficient shipping and provides real-time status tracking.
 
-### Entités principales
+## Architecture Overview
 
-#### 🏢 **Référentiels**
-- **Partner** : Clients et fournisseurs (Ingram, clients Rangiroa...)
-- **Place** : Lieux physiques (aéroports, ports, entrepôts, adresses)
-- **StatusDefinition** : Statuts configurables par type d'entité
-- **StatusTransition** : Règles de transitions entre statuts
+### Features Structure
 
-#### 🛣️ **Routes et Étapes**
-- **ShippingRoute** : Route logistique réutilisable (France → Tahiti)
-- **ShippingRouteStep** : Étapes séquencées (CDG → PPT → Rangiroa)
+The shipping system integrates with other features in the application:
+- **Place** (`app.features.place`): Physical locations (airports, ports, warehouses, customer addresses)  
+- **Partner** (`app.features.partner`): Business actors (suppliers like Ingram Micro, shipping carriers)
+- **Shipping** (`app.features.shipping`): Route management and order tracking
 
-#### 📦 **Consolidation**
-- **ShippingRouteConsolidation** : Regroupement opérationnel (vol AF076 du jour)
-- **ShippingOrderConsolidation** : Liaison commande ↔ regroupement
+### Core Models
 
-#### 🔍 **Suivi**
-- **TrackingEvent** : Journal inviolable des changements
-- **ShippingOrderStepConsolidation** : Suivi par étape et commande
+1. **Place** (from `app.features.place`): Physical locations and addresses
+2. **Partner** (from `app.features.partner`): Suppliers and carriers  
+3. **ShippingRoute**: Defines available transportation routes between places
+4. **ShippingRouteTracking**: Tracks customer choices and status for specific orders
+5. **ShippingRouteTrackingConsolidation**: Groups multiple orders for batch processing
+6. **DeliveryTask**: Manages individual delivery operations
+7. **StatusDefinition**: Defines available status codes and their properties
 
-#### 🚚 **Livraison finale**
-- **DeliveryTask** : Tâche de livraison dernier kilomètre
-- **Package** : Gestion des colis multiples
+## Core Concept: Bora Bora Customer Example
 
-## 🎯 Cas d'Usage : Client Rangiroa
+Let's follow a typical order from a customer on Bora Bora island:
 
-### Scénario : Commande produit Ingram France
+### 1. Customer Order Flow
 
-Un client de Rangiroa achète un produit du fournisseur Ingram en France.
+**Customer**: Lives on Bora Bora island  
+**Order**: Places an order for electronics  
+**Route Selection**: Customer chooses a shipping path:
+1. **Air freight**: Ingram partner → Our warehouse (consolidated with other orders) - `sequence_order=1`
+2. **Inter-island freight**: Our warehouse → Bora Bora address (Air Tahiti) - `sequence_order=2`
 
-**Choix de livraison proposés :**
-1. **Express** : France →[avion]→ Tahiti →[avion]→ Rangiroa (3 jours, +empreinte carbone, ++)
-2. **Économique** : France →[bateau]→ Tahiti →[bateau]→ Rangiroa (21 jours, empreinte carbone, €)
+### 3. Multi-Hop Route Sequencing
 
-### Configuration des Entités
+Each `ShippingRouteTracking` has a `sequence_order` field to manage multi-step journeys:
 
-#### 1. **Partenaires**
+- **sequence_order=1**: First route (Ingram → Warehouse)
+- **sequence_order=2**: Second route (Warehouse → Bora Bora)
+- **Auto-progression**: When route 1 completes → automatically activate route 2
 
-```python
-from app.features.shipping.crud import crud_partner
+This allows the system to know which route comes next and automatically progress the shipment.
 
-# Fournisseur Ingram Micro France
-ingram_data = {
-    "name": "Ingram Micro France",
-    "is_supplier": True,
-    "email": "logistics@ingrammicro.fr",
-    "country": "FR",
-    "city": "Paris",
-}
-ingram = await crud_partner.create(session, obj_in=ingram_data)
+### 2. System Models & Relationships
 
-# Client final à Rangiroa
-client_data = {
-    "name": "Jean Dupont",
-    "is_customer": True,
-    "email": "jean@rangiroa.pf",
-    "country": "PF", 
-    "city": "Rangiroa",
-    "address_line1": "Avatoru, Rangiroa",
-}
-client = await crud_partner.create(session, obj_in=client_data)
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│     Partner     │    │      Place      │    │ ShippingRoute   │
+│   (Ingram)      │◄──►│   (Warehouse)   │◄──►│ (Air Route)     │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         └─────────────┬─────────────────┬───────────────┘
+                       ▼                 ▼
+              ┌─────────────────┐ ┌─────────────────┐
+              │ShippingRoute    │ │ShippingRoute    │
+              │Tracking         │ │TrackingConsol.  │
+              │(Order-centric)  │ │(Group status)   │
+              └─────────────────┘ └─────────────────┘
+                       │                 │
+                       ▼                 ▼
+              ┌─────────────────┐ ┌─────────────────┐
+              │  DeliveryTask   │ │ StatusDefinition│
+              │(Final delivery) │ │(Status rules)   │
+              └─────────────────┘ └─────────────────┘
 ```
 
-#### 2. **Lieux Physiques**
+## Model Details
 
+### Partner
 ```python
-from app.features.shipping.crud import crud_place
-
-# Entrepôt Ingram France
-ingram_warehouse_data = {
-    "name": "Entrepôt Ingram Paris",
-    "type": "warehouse",
-    "code": "INGRAM-CDG",
-    "country": "FR",
-    "city": "Roissy-en-France",
-    "is_warehouse": True,
-    "customs_clearance": False,
-    "consolidation_service": True,
-}
-ingram_warehouse = await crud_place.create(session, obj_in=ingram_warehouse_data)
-
-# Aéroport Charles de Gaulle
-cdg_data = {
-    "name": "Aéroport Charles de Gaulle",
-    "type": "airport", 
-    "code": "CDG",
-    "country": "FR",
-    "city": "Paris",
-    "latitude": 49.0097,
-    "longitude": 2.5479,
-}
-cdg = await crud_place.create(session, obj_in=cdg_data)
-
-# Entrepôt Tahiti (hub)
-tahiti_hub_data = {
-    "name": "Hub Distribution Tahiti",
-    "type": "warehouse",
-    "code": "HUB-PPT",
-    "country": "PF",
-    "city": "Faaa",
-    "is_warehouse": True,
-    "customs_clearance": True,
-    "consolidation_service": True,
-    "repackaging_service": True,
-}
-tahiti_hub = await crud_place.create(session, obj_in=tahiti_hub_data)
-
-# Aéroport de Tahiti
-ppt_data = {
-    "name": "Aéroport de Tahiti-Faa'a",
-    "type": "airport",
-    "code": "PPT", 
-    "country": "PF",
-    "city": "Faaa",
-}
-ppt = await crud_place.create(session, obj_in=ppt_data)
-
-# Aéroport de Rangiroa
-rrr_data = {
-    "name": "Aéroport de Rangiroa",
-    "type": "airport",
-    "code": "RRR",
-    "country": "PF", 
-    "city": "Rangiroa",
-}
-rrr = await crud_place.create(session, obj_in=rrr_data)
-
-# Adresse client Rangiroa
-client_address_data = {
-    "name": "Domicile Jean Dupont",
-    "type": "address",
-    "country": "PF",
-    "city": "Rangiroa",
-    "address_line1": "Avatoru, Rangiroa",
-}
-client_address = await crud_place.create(session, obj_in=client_address_data)
-```
-
-#### 3. **Routes avec Étapes**
-
-```python
-from app.features.shipping.crud import crud_shipping_route, crud_shipping_route_step
-
-# Route Express : France → Tahiti
-route_express_fr_tahiti_data = {
-    "name": "Express France → Tahiti", 
-    "from_place_id": ingram_warehouse.id,
-    "to_place_id": tahiti_hub.id,
-    "from_partner_id": ingram.id,
-    "is_to_customer": False,  # Route intermédiaire (non client final)
-    "allow_consolidation": True,
-    "mode": "air",
-    "operator": "Air France",
-    "base_price": 45.00,
-    "price_per_kg": 12.00,
-    "carbon_footprint_kg_co2e": 2.8,
-    "eta_days": 2,
-}
-route_express_fr_tahiti = await crud_shipping_route.create(session, obj_in=route_express_fr_tahiti_data)
-
-# Étapes de la route express
-# Étape 1 : Entrepôt → CDG
-step1_data = {
-    "route_id": route_express_fr_tahiti.id,
-    "sequence": 1,
-    "from_place_id": ingram_warehouse.id,
-    "to_place_id": cdg.id,
-    "mode": "road",
-    "operator": "Chronopost",
-    "eta_days": 1,
-}
-await crud_shipping_route_step.create(session, obj_in=step1_data)
-
-# Étape 2 : CDG → PPT
-step2_data = {
-    "route_id": route_express_fr_tahiti.id,
-    "sequence": 2,
-    "from_place_id": cdg.id,
-    "to_place_id": ppt.id,
-    "mode": "air",
-    "operator": "Air France",
-    "operator_ref": "AF072",
-    "eta_days": 1,
-}
-await crud_shipping_route_step.create(session, obj_in=step2_data)
-
-# Route finale : Tahiti → Rangiroa (Express)
-route_tahiti_rangiroa_express_data = {
-    "name": "Tahiti → Rangiroa Express",
-    "from_place_id": tahiti_hub.id,
-    "to_place_id": client_address.id,
-    "to_partner_id": client.id,
-    "is_to_customer": True,  # Route vers client final
-    "allow_consolidation": True,
-    "mode": "air",
-    "operator": "Air Tahiti",
-    "base_price": 25.00,
-    "carbon_footprint_kg_co2e": 0.8,
-    "eta_days": 1,
-}
-route_tahiti_rangiroa_express = await crud_shipping_route.create(session, obj_in=route_tahiti_rangiroa_express_data)
-
-# Étapes Tahiti → Rangiroa
-# Étape 1 : Hub → PPT
-step_hub_ppt_data = {
-    "route_id": route_tahiti_rangiroa_express.id,
-    "sequence": 1,
-    "from_place_id": tahiti_hub.id,
-    "to_place_id": ppt.id,
-    "mode": "road",
-    "operator": "Transport Local",
-    "eta_days": 0,  # Même jour
-}
-await crud_shipping_route_step.create(session, obj_in=step_hub_ppt_data)
-
-# Étape 2 : PPT → RRR
-step_ppt_rrr_data = {
-    "route_id": route_tahiti_rangiroa_express.id,
-    "sequence": 2, 
-    "from_place_id": ppt.id,
-    "to_place_id": rrr.id,
-    "mode": "air",
-    "operator": "Air Tahiti",
-    "operator_ref": "VT234",
-    "eta_days": 1,
-}
-await crud_shipping_route_step.create(session, obj_in=step_ppt_rrr_data)
-
-# Étape 3 : Aéroport → Domicile
-step_delivery_data = {
-    "route_id": route_tahiti_rangiroa_express.id,
-    "sequence": 3,
-    "from_place_id": rrr.id,
-    "to_place_id": client_address.id,
-    "mode": "road",
-    "operator": "Livraison Locale",
-    "eta_days": 0,  # Même jour
-}
-await crud_shipping_route_step.create(session, obj_in=step_delivery_data)
-```
-
-### 4. **Consolidations et Regroupements**
-
-```python
-from app.features.shipping.crud import crud_shipping_route_consolidation
-
-# Créer une consolidation pour la route France → Tahiti
-consolidation_data = {
-    "route_id": route_express_fr_tahiti.id,
-    "consolidation_code": "AF072-20251001",
-    "name": "Vol AF072 - 1er Octobre 2025",
-    "departure_planned_at": datetime(2025, 10, 1, 14, 30),  # 14h30
-    "arrival_planned_at": datetime(2025, 10, 2, 6, 45),     # 06h45 (+1 jour)
-    "cutoff_datetime": datetime(2025, 10, 1, 8, 0),        # Limite 08h00
-    "max_weight_kg": 2000.0,
-    "max_volume_m3": 15.0,
-    "status_code": "open",
-}
-consolidation = await crud_shipping_route_consolidation.create(session, obj_in=consolidation_data)
-```
-
-### 5. **Liaison Commande ↔ Consolidation**
-
-```python
-from app.features.shipping.crud import crud_shipping_order_consolidation
-
-# Lier une commande à la consolidation
-order_link_data = {
-    "consolidation_id": consolidation.id,
-    "order_id": "12345678-1234-1234-1234-123456789abc",  # ID de votre commande
-    "package_qty": 1,
-    "weight_kg": 2.5,
-    "volume_m3": 0.008,  # 20x20x20cm
-    "agreed_shipping_price": 57.00,  # 45 + 12*2.5 = 75€
-    "agreed_currency": "EUR",
-    "idempotency_key": "order-123-route-456",
-}
-order_link = await crud_shipping_order_consolidation.create(session, obj_in=order_link_data)
-```
-
-## 📊 Suivi Client : "Où est mon colis ?"
-
-### Interface Client - Résumé de Commande
-
-```python
-async def get_order_tracking_summary(order_id: str):
-    # 1. Récupérer les liaisons consolidation
-    order_links = await crud_shipping_order_consolidation.get_by_order(session, order_id)
-    
-    # 2. Pour chaque segment, récupérer le statut actuel
-    tracking_summary = {
-        "order_id": order_id,
-        "segments": []
-    }
-    
-    for link in order_links:
-        # Récupérer la consolidation et sa route
-        consolidation = await crud_shipping_route_consolidation.read(session, link.consolidation_id)
-        route = await crud_shipping_route.read(session, consolidation.route_id)
-        
-        # Statut actuel du segment
-        segment_info = {
-            "route_name": route.name,
-            "status": consolidation.status_code,
-            "is_to_customer": route.is_to_customer,
-            "current_location": None,
-            "progress_percentage": 0,
-        }
-        
-        # Récupérer les étapes et leur progression
-        steps = await crud_shipping_route_step.get_steps_for_route(session, route.id)
-        step_tracking = await crud_shipping_order_step_consolidation.get_by_order_and_consolidation(
-            session, order_id, consolidation.id
-        )
-        
-        completed_steps = len([s for s in step_tracking if s.is_done])
-        segment_info["progress_percentage"] = (completed_steps / len(steps)) * 100
-        
-        # Dernière position connue
-        if step_tracking:
-            last_step = max(step_tracking, key=lambda s: s.last_event_at or s.created_at)
-            step = await crud_shipping_route_step.read(session, last_step.route_step_id)
-            place = await crud_place.read(session, step.to_place_id)
-            segment_info["current_location"] = place.name
-        
-        tracking_summary["segments"].append(segment_info)
-    
-    return tracking_summary
-
-# Exemple de réponse
+# Ingram supplier partner
 {
-    "order_id": "12345678-1234-1234-1234-123456789abc",
-    "segments": [
-        {
-            "route_name": "Express France → Tahiti",
-            "status": "in_transit", 
-            "is_to_customer": False,
-            "current_location": "Aéroport Charles de Gaulle",
-            "progress_percentage": 50
-        },
-        {
-            "route_name": "Tahiti → Rangiroa Express",
-            "status": "pending",
-            "is_to_customer": True, 
-            "current_location": null,
-            "progress_percentage": 0
-        }
-    ]
+    "id": "uuid",
+    "name": "Ingram Micro",
+    "partner_type": "supplier",
+    "email": "orders@ingram.com",
+    "city": "Los Angeles"
 }
 ```
 
-## 🔧 Administration des Ventes
-
-### Regroupement de Colis
-
+### Place
 ```python
-# Voir tous les colis d'une consolidation
-async def get_consolidation_manifest(consolidation_id: str):
-    consolidation = await crud_shipping_route_consolidation.read(session, consolidation_id)
-    order_links = await crud_shipping_order_consolidation.get_by_consolidation(session, consolidation_id)
-    
-    manifest = {
-        "consolidation": {
-            "code": consolidation.consolidation_code,
-            "name": consolidation.name,
-            "status": consolidation.status_code,
-            "departure_planned": consolidation.departure_planned_at,
-            "total_packages": consolidation.total_packages,
-            "total_weight_kg": consolidation.total_weight_kg,
-        },
-        "orders": []
+# Warehouse location
+{
+    "id": "uuid", 
+    "name": "Papeete Warehouse",
+    "type": "warehouse",
+    "address": "Zone Industrielle Papeete",
+    "country": "French Polynesia",
+    "latitude": -17.5516,
+    "longitude": -149.5585
+}
+
+# Customer address
+{
+    "id": "uuid",
+    "name": "Bora Bora Residential",
+    "type": "residential", 
+    "address": "Vaitape, Bora Bora",
+    "country": "French Polynesia"
+}
+```
+
+### ShippingRoute
+```python
+# Route 1: Ingram to Warehouse
+{
+    "id": "route-1-uuid",
+    "name": "Ingram Air Freight",
+    "from_place_id": "ingram-warehouse-uuid",
+    "to_place_id": "papeete-warehouse-uuid", 
+    "from_partner_id": "ingram-uuid",
+    "mode": "air",
+    "operator": "Air France Cargo",
+    "allow_consolidation": true,
+    "eta_days": 3
+}
+
+# Route 2: Warehouse to Bora Bora  
+{
+    "id": "route-2-uuid",
+    "name": "Air Tahiti Inter-island",
+    "from_place_id": "papeete-warehouse-uuid",
+    "to_place_id": "bora-bora-address-uuid",
+    "mode": "air",
+    "operator": "Air Tahiti",
+    "is_to_customer": true,
+    "eta_days": 1
+}
+```
+
+### ShippingRouteTracking (Core Tracking)
+```python
+# Tracks customer's route selection per order
+{
+    "id": "tracking-1-uuid",
+    "order_id": "order-123-uuid",
+    "route_id": "route-1-uuid",  # Ingram → Warehouse
+    "status_code": "in_transit",
+    "consolidation_id": "consol-456-uuid",  # Grouped with other orders
+    "selected_at": "2025-09-30T10:00:00Z",
+    "tracking_ref": "AF1234567",
+    "estimated_delivery": "2025-10-03T12:00:00Z"
+}
+
+# Second route for same order
+{
+    "id": "tracking-2-uuid", 
+    "order_id": "order-123-uuid",
+    "route_id": "route-2-uuid",  # Warehouse → Bora Bora
+    "status_code": "pending",    # Waiting for first route
+    "selected_at": "2025-09-30T10:00:00Z"
+}
+```
+
+### ShippingRouteTrackingConsolidation
+```python
+# Groups multiple orders on same route
+{
+    "id": "consol-456-uuid",
+    "route_id": "route-1-uuid",
+    "name": "AF Cargo Flight 2025-10-01",
+    "consolidation_code": "AF-20250930-001",
+    "status_code": "in_transit",  # Overrides individual tracking status
+    "tracking_ref": "AF1234567",
+    "total_orders": 25           # 25 orders in this consolidation
+}
+```
+
+### DeliveryTask
+```python
+# Final delivery to customer
+{
+    "id": "delivery-uuid",
+    "order_id": "order-123-uuid", 
+    "address_place_id": "bora-bora-address-uuid",
+    "delivery_type": "home_delivery",
+    "assignee": "Air Tahiti Delivery Service",
+    "status_code": "pending"
+}
+```
+
+## Status Flow Example
+
+### Step-by-step Status Updates
+
+#### 1. Order Placed & Route Selected
+```python
+# Customer selects routes with sequence
+POST /api/shipping/tracking
+[
+    {
+        "order_id": "order-123",
+        "route_id": "route-1-uuid",      # Ingram → Warehouse
+        "sequence_order": 1,
+        "selected_at": "2025-09-30T10:00:00Z"
+    },
+    {
+        "order_id": "order-123", 
+        "route_id": "route-2-uuid",      # Warehouse → Bora Bora
+        "sequence_order": 2,
+        "selected_at": "2025-09-30T10:00:00Z"
     }
-    
-    for link in order_links:
-        # TODO: Récupérer les détails de la commande depuis votre système
-        manifest["orders"].append({
-            "order_id": link.order_id,
-            "package_qty": link.package_qty,
-            "weight_kg": link.weight_kg,
-            "agreed_price": link.agreed_shipping_price,
-            "status": link.status_code,
-        })
-    
-    return manifest
+]
+
+# Result: 2 ShippingRouteTracking entries created
+# Status: "pending" for route 1, "waiting" for route 2
 ```
 
-### Mise à Jour de Statuts
+#### 2. Consolidation Created
+```python
+# Orders grouped for efficiency
+POST /api/shipping/consolidations
+{
+    "route_id": "route-1-uuid",
+    "name": "AF Cargo Oct 1st",
+    "consolidation_code": "AF-20250930-001"
+}
+
+# Add our order to consolidation
+POST /api/shipping/consolidations/{consol_id}/add-tracking/{tracking_id}
+
+# Status override: tracking-1 now shows consolidation status
+```
+
+#### 3. Package Pickup from Ingram
+```python
+# Update consolidation status
+PUT /api/shipping/consolidations/{consol_id}/status
+{
+    "status_code": "dispatched",
+    "update_trackings": true  # Updates all 25 orders in consolidation
+}
+
+# Result: All orders in consolidation → "dispatched"
+```
+
+#### 4. In Transit to Warehouse
+```python
+PUT /api/shipping/consolidations/{consol_id}/status
+{
+    "status_code": "in_transit",
+    "tracking_ref": "AF1234567"
+}
+
+# Result: All orders → "in_transit" with tracking reference
+```
+
+#### 5. Arrival at Warehouse
+```python
+PUT /api/shipping/consolidations/{consol_id}/status
+{
+    "status_code": "arrived"
+}
+
+# Auto-Route Progression: Route 1 completed → Activate Route 2
+POST /api/shipping/tracking/{tracking-1-uuid}/activate-next
+
+# System automatically:
+# 1. Marks route 1 (Ingram → Warehouse) as "completed" 
+# 2. Finds next route (sequence_order = 2)
+# 3. Activates route 2 (Warehouse → Bora Bora) with "in_progress"
+}
+```
+
+#### 6. Create Final Delivery Task
+```python
+POST /api/shipping/delivery-tasks
+{
+    "order_id": "order-123",
+    "address_place_id": "bora-bora-address-uuid",
+    "delivery_type": "home_delivery",
+    "assignee": "Air Tahiti Delivery"
+}
+```
+
+#### 7. Final Delivery
+```python
+# Dispatch from warehouse
+PUT /api/shipping/tracking/{tracking-2-uuid}/status
+{
+    "status_code": "dispatched"
+}
+
+# Deliver to customer
+PUT /api/shipping/delivery-tasks/{task_id}/status
+{
+    "status_code": "delivered",
+    "delivered_at": "2025-10-04T15:30:00Z"
+}
+
+# Complete the route tracking
+PUT /api/shipping/tracking/{tracking-2-uuid}/status
+{
+    "status_code": "delivered"
+}
+```
+
+## Quick Start
+
+### Required Imports
 
 ```python
-from app.features.shipping.crud import crud_tracking_event
-
-# Mettre à jour le statut d'une consolidation
-async def update_consolidation_status(consolidation_id: str, new_status: str, actor: str):
-    consolidation = await crud_shipping_route_consolidation.read(session, consolidation_id)
-    
-    # Créer un événement de tracking
-    await crud_tracking_event.create_tracking_event(
-        session,
-        subject_type="consolidation",
-        subject_id=consolidation_id,
-        status_from=consolidation.status_code,
-        status_to=new_status,
-        actor=actor,
-        description=f"Statut mis à jour par {actor}"
-    )
-    
-    # Mettre à jour la consolidation
-    await crud_shipping_route_consolidation.update(
-        session,
-        db_obj=consolidation,
-        obj_in={"status_code": new_status}
-    )
+# For API development
+from app.features.place.models import Place
+from app.features.partner.models import Partner  
+from app.features.shipping.models.shipping_route import ShippingRoute
+from app.features.shipping.models.shipping_route_tracking import (
+    ShippingRouteTracking,
+    ShippingRouteTrackingConsolidation
+)
+from app.features.shipping.models.delivery_task import DeliveryTask
+from app.features.shipping.models.status import StatusDefinition
 ```
 
-### Livraisons à Effectuer
+### Setup Order
+
+1. Create Places (supplier warehouse, customer address)
+2. Create Partners (Ingram, Air Tahiti)  
+3. Create ShippingRoutes between places
+4. Customer selects route → ShippingRouteTracking
+5. Optional consolidation → ShippingRouteTrackingConsolidation
+6. Final delivery → DeliveryTask
+
+## API Endpoints
+
+### Route Selection
+```bash
+# Get available routes from supplier to customer
+GET /api/shipping/routes/paths?from_place_id={supplier}&to_place_id={customer}
+
+# Create tracking for selected routes
+POST /api/shipping/tracking
+```
+
+### Multi-Route Sequencing
+```bash
+# Get all routes for an order in sequence  
+GET /api/shipping/tracking/order/{order_id}/sequence
+
+# Get current active route for order
+GET /api/shipping/tracking/order/{order_id}/current
+
+# Auto-activate next route in sequence
+POST /api/shipping/tracking/{id}/activate-next
+
+# Manual route progression
+PUT /api/shipping/tracking/{id}/complete
+```
+
+### Status Management
+```bash
+# Update individual tracking
+PUT /api/shipping/tracking/{id}/status
+
+# Update consolidation (affects all orders)
+PUT /api/shipping/consolidations/{id}/status
+
+# Get order status
+GET /api/shipping/tracking/order/{order_id}
+```
+
+### Consolidation Management
+```bash
+# Create consolidation
+POST /api/shipping/consolidations
+
+# Add/remove orders
+POST /api/shipping/consolidations/{id}/add-tracking/{tracking_id}
+DELETE /api/shipping/consolidations/{id}/remove-tracking/{tracking_id}
+```
+
+### Delivery Management
+```bash
+# Create delivery task
+POST /api/shipping/delivery-tasks
+
+# Update delivery status  
+PUT /api/shipping/delivery-tasks/{id}/status
+```
+
+## Status Definitions
+
+### Route Tracking Statuses
+- `pending`: Route selected, waiting to start
+- `ready`: Ready for dispatch 
+- `dispatched`: Package picked up/sent
+- `in_transit`: Currently moving
+- `arrived`: Reached destination
+- `delivered`: Final delivery completed
+
+### Consolidation Statuses
+- `pending`: Consolidation created, collecting orders
+- `ready`: Ready to ship
+- `dispatched`: Shipped from origin
+- `in_transit`: Moving to destination
+- `arrived`: Reached destination
+- `closed`: Consolidation completed
+
+### Delivery Task Statuses
+- `pending`: Task created, not assigned
+- `assigned`: Assigned to delivery person
+- `in_progress`: Out for delivery
+- `delivered`: Successfully delivered
+- `failed`: Delivery failed (retry needed)
+
+## Business Logic
+
+### Consolidation Rules
+1. **Automatic Grouping**: Orders on same route can be automatically grouped
+2. **Status Override**: When order is in consolidation, consolidation status takes precedence
+3. **Status Propagation**: Consolidation status updates propagate to all contained orders
+4. **Capacity Management**: Consolidations have limits (weight, volume, count)
+
+### Route Dependencies
+1. **Sequential Routes**: Route 2 waits for Route 1 completion
+2. **Status Triggers**: Route completion can trigger next route or delivery task
+3. **Exception Handling**: Failed routes can trigger alternative routes
+
+### Delivery Coordination
+1. **Final Mile**: DeliveryTask created when package reaches final distribution point
+2. **Service Selection**: Different delivery services (home, pickup point, Air Moana)
+3. **Proof of Delivery**: Photo, signature, GPS location capture
+
+## Model Relationships Summary
+
+```mermaid
+graph TD
+    A[Order] --> B[ShippingRouteTracking]
+    B --> C[ShippingRoute] 
+    B --> D[ShippingRouteTrackingConsolidation]
+    C --> E[Place - From]
+    C --> F[Place - To]
+    C --> G[Partner - From] 
+    C --> H[Partner - To]
+    D --> I[Multiple ShippingRouteTracking]
+    B --> J[DeliveryTask]
+    J --> K[Place - Delivery Address]
+    L[StatusDefinition] --> M[All Status Fields]
+```
+
+## Multi-Route Sequencing Solution
+
+### The Challenge
+How does the system know to progress from **Ingram → Warehouse** to **Warehouse → Bora Bora**?
+
+### The Solution: `sequence_order` Field
+
+Each `ShippingRouteTracking` entry has a `sequence_order` field:
 
 ```python
-# Obtenir toutes les tâches de livraison à domicile
-async def get_home_deliveries_for_today():
-    today_start = datetime.now().replace(hour=0, minute=0, second=0)
-    today_end = datetime.now().replace(hour=23, minute=59, second=59)
-    
-    tasks = await crud_delivery_task.get_tasks_by_window(
-        session,
-        start_datetime=today_start,
-        end_datetime=today_end
-    )
-    
-    delivery_list = []
-    for task in tasks:
-        if task.delivery_type == "home_delivery":
-            # Récupérer l'adresse
-            address_place = await crud_place.read(session, task.address_place_id)
-            
-            delivery_list.append({
-                "task_id": task.id,
-                "order_id": task.order_id,
-                "customer_name": address_place.name,
-                "address": f"{address_place.address_line1}, {address_place.city}",
-                "time_window": f"{task.window_start} - {task.window_end}",
-                "status": task.status_code,
-                "assignee": task.assignee,
-                "instructions": task.delivery_instructions,
-            })
-    
-    return delivery_list
+# Order creation with route sequence
+[
+    {
+        "order_id": "order-123",
+        "route_id": "ingram-to-warehouse-route",
+        "sequence_order": 1,           # First step
+        "status_code": "pending"
+    },
+    {
+        "order_id": "order-123", 
+        "route_id": "warehouse-to-borabora-route",
+        "sequence_order": 2,           # Second step
+        "status_code": "waiting"       # Waits for step 1
+    }
+]
 ```
 
-## 🚀 Avantages du Système
+### Auto-Progression Logic
 
-### ✅ **Flexibilité Maximum**
-- Routes intermédiaires configurables
-- Étapes séquencées pour routing complexe
-- Support multi-modal (air/mer/route)
+When route 1 completes:
+```python
+# System automatically calls:
+await crud_shipping_route_tracking.activate_next_route(
+    session=session,
+    order_id=order_id,
+    current_tracking_id=route_1_tracking_id
+)
 
-### ✅ **Consolidation Intelligente** 
-- Regroupement automatique par route
-- Optimisation des coûts de transport
-- Gestion des dates limites
+# Result:
+# 1. Route 1 → status "completed"  
+# 2. Route 2 → status "in_progress"
+# 3. Customer gets seamless progression
+```
 
-### ✅ **Traçabilité Complète**
-- Journal inviolable des événements
-- Suivi par étape et par commande
-- Preuves de livraison
+## Key Features
 
-### ✅ **Gestion Opérationnelle**
-- Tableaux de bord consolidation
-- Planification des livraisons
-- Métriques carbone et coûts
+- ✅ **Order-Centric Tracking**: Each order has dedicated tracking entries
+- ✅ **Multi-Hop Routes**: Support complex route chains with `sequence_order`
+- ✅ **Auto-Route Progression**: Automatic advancement from route to route
+- ✅ **Consolidation Support**: Efficient grouping with status override
+- ✅ **Real-time Updates**: Status propagation across related entities
+- ✅ **Flexible Delivery**: Multiple final delivery options
+- ✅ **Partner Integration**: Support for various suppliers and carriers
+- ✅ **Geographic Flexibility**: Works with any location/address setup
 
-## 📈 Extensibilité
-
-Le système peut facilement s'adapter à :
-- **Nouveaux modes de transport** (drone, véhicule autonome)
-- **Nouvelles destinations** (Marquises, Australes)
-- **Intégrations API** transporteurs (DHL, Air Tahiti...)
-- **Règles métier complexes** (douanes, restrictions)
-
-Cette architecture modulaire garantit une évolutivité maximale pour votre écosystème e-commerce polynésien ! 🏝️
+This system efficiently handles the complexity of multi-island shipping while providing clear tracking and status management for customers and operations teams.

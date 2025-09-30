@@ -51,7 +51,7 @@ class StatusDefinitionCrud(
                     StatusDefinition.is_active.is_(True),
                 )
             )
-            .order_by(StatusDefinition.rank.asc(), StatusDefinition.name.asc())
+            .order_by(StatusDefinition.sequence_order.asc(), StatusDefinition.name.asc())
         )
 
         result = await session.exec(statement)
@@ -73,7 +73,7 @@ class StatusDefinitionCrud(
                     StatusDefinition.is_active.is_(True),
                 )
             )
-            .order_by(StatusDefinition.rank.asc())
+            .order_by(StatusDefinition.sequence_order.asc())
         )
 
         result = await session.exec(statement)
@@ -168,7 +168,7 @@ crud_status_definition = StatusDefinitionCrud(
     default_filter=and_(
         StatusDefinition.is_active.is_(True),
     ),
-    order_by=StatusDefinition.rank.asc(),
+    order_by=StatusDefinition.sequence_order.asc(),
 )
 
 crud_status_transition = StatusTransitionCrud(

@@ -7,7 +7,7 @@ from sqlmodel import and_, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
-from app.features.shipping.models.partner import (
+from app.features.partner.models import (
     Partner,
     PartnerCreate,
     PartnerUpdate,
