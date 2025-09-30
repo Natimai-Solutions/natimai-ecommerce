@@ -20,6 +20,16 @@ class UserBase(SQLModel):
 
 class UserCreate(UserBase, BaseCreate):
     password: str = Field(..., min_length=8, max_length=128)
+    hashed_password: str | None = Field(default=None, exclude=True)  # Auto-généré
+
+    @model_validator(mode="after")
+    def hash_password(self):
+        """
+        Automatically hash password when creating a user.
+        """
+        if self.password and not self.hashed_password:
+            self.hashed_password = get_password_hash(self.password)
+        return self
 
 
 class UserUpdate(BaseUpdate):
@@ -29,18 +39,45 @@ class UserUpdate(BaseUpdate):
     is_active: bool | None = None
     is_superuser: bool | None = None
     is_verified: bool | None = None
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+    hashed_password: str | None = Field(default=None, exclude=True)  # Auto-généré
+
+    @model_validator(mode="after")
+    def hash_password(self):
+        """
+        Automatically hash password when updating a user.
+        """
+        if self.password and not self.hashed_password:
+            self.hashed_password = get_password_hash(self.password)
+        return self
 
 
 class UserPasswordUpdate(SQLModel):
     current_password: str = Field(
+        
         ..., min_length=1, description="Current password for verification"
+    
     )
     new_password: str = Field(
+        
         ..., min_length=8, max_length=128, description="New password"
+    
     )
     confirm_password: str = Field(
+        
         ..., min_length=8, max_length=128, description="Confirm new password"
+    
     )
+    hashed_password: str | None = Field(default=None, exclude=True)  # Auto-généré
+
+    @model_validator(mode="after")
+    def hash_password(self):
+        """
+        Automatically hash password when updating a user.
+        """
+        if self.new_password and not self.hashed_password:
+            self.hashed_password = get_password_hash(self.new_password)
+        return self
 
 
 class UserPasswordReset(SQLModel):
@@ -115,3 +152,24 @@ class UsersPublic(SQLModel):
 # Contents of JWT token
 class TokenPayload(SQLModel):
     sub: str | None = None
+
+
+# JSON payload containing access token
+class Token(SQLModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int  # Seconds until access token expires
+
+
+class RefreshTokenRequest(SQLModel):
+    refresh_token: str
+
+
+class NewPassword(SQLModel):
+    token: str
+    new_password: str = Field(min_length=8, max_length=40)
+
+
+class EmailValidation(SQLModel):
+    token: str

@@ -23,6 +23,27 @@ logger = logging.getLogger(__name__)
 
 # Exponential backoff intervals in seconds
 BACKOFF = [10, 30, 60, 300, 900]  # 10s, 30s, 1m, 5m, 15m
+MAX_ATTEMPTS = 5  # After 5 attempts, mark as FAILED
+
+
+async def commit_and_refresh(session: AsyncSession, event: OutboxEvent) -> OutboxEvent:
+    """
+    Commit the session and refresh the event object to avoid detached instance errors.
+
+    After a session.commit(), SQLAlchemy objects become detached from the session.
+    This utility function commits and then refreshes the object to reattach it,
+    preventing MissingGreenlet and other SQLAlchemy errors when accessing attributes.
+
+    Args:
+        session (AsyncSession): Database session
+        event (OutboxEvent): Event object to refresh after commit
+
+    Returns:
+        OutboxEvent: The refreshed event object
+    """
+    await session.commit()
+    await session.refresh(event)
+    return event
 
 
 def resolve(path: str) -> Callable[..., Any]:
@@ -168,7 +189,7 @@ async def poll_outbox_once(session: AsyncSession) -> bool:
         event.status = "RUNNING"
         event.touch()
         session.add(event)
-        await session.commit()
+        event = await commit_and_refresh(session, event)
 
         try:
             await enqueue_jobs_for_event(event)
@@ -178,12 +199,12 @@ async def poll_outbox_once(session: AsyncSession) -> bool:
             event.attempts += 1
             event.touch()
             session.add(event)
-            await session.commit()
+            event = await commit_and_refresh(session, event)
 
             logger.info("Successfully processed event ID %s", event.id)
 
         except Exception as e:
-            # Retry with exponential backoff
+            # Retry with exponential backoff or mark as FAILED
             logger.warning("Event processing failed, scheduling retry: %s", str(e))
 
             event.status = "PENDING"
@@ -196,7 +217,7 @@ async def poll_outbox_once(session: AsyncSession) -> bool:
             event.last_error = str(e)[:1000]
             event.touch()
             session.add(event)
-            await session.commit()
+            event = await commit_and_refresh(session, event)
 
             logger.info(
                 "Scheduled event %s for retry in %d seconds (attempt %d)",
@@ -279,7 +300,7 @@ class OutboxPoller:
                     event.status = "RUNNING"
                     event.touch()
                     session.add(event)
-                    await session.commit()
+                    event = await commit_and_refresh(session, event)
 
                     # Get handlers for this event
                     handlers = outbox_registry.get_handlers(event.type)
@@ -303,7 +324,7 @@ class OutboxPoller:
                     event.attempts += 1
                     event.touch()
                     session.add(event)
-                    await session.commit()
+                    event = await commit_and_refresh(session, event)
 
                     processed_count += 1
                     logger.debug("Successfully processed event ID %s", event.id)
@@ -324,7 +345,7 @@ class OutboxPoller:
                     event.last_error = str(e)[:1000]
                     event.touch()
                     session.add(event)
-                    await session.commit()
+                    event = await commit_and_refresh(session, event)
 
                     failed_count += 1
 
@@ -376,7 +397,7 @@ class OutboxPoller:
                 event.status = "RUNNING"
                 event.touch()
                 session.add(event)
-                await session.commit()
+                event = await commit_and_refresh(session, event)
 
                 await enqueue_jobs_for_event(event)
 
@@ -384,7 +405,7 @@ class OutboxPoller:
                 event.attempts += 1
                 event.touch()
                 session.add(event)
-                await session.commit()
+                event = await commit_and_refresh(session, event)
 
                 logger.info("Successfully processed single event: %s", event_id)
                 return True
@@ -404,7 +425,7 @@ class OutboxPoller:
                 event.last_error = str(e)[:1000]
                 event.touch()
                 session.add(event)
-                await session.commit()
+                event = await commit_and_refresh(session, event)
 
                 logger.info(
                     "Scheduled event %s for retry in %d seconds",
