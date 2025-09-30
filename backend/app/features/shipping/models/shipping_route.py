@@ -14,8 +14,8 @@ from sqlmodel import JSON, Column, Field, Relationship, SQLModel
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 if TYPE_CHECKING:
-    from app.features.shipping.models.partner import Partner
-    from app.features.shipping.models.place import Place
+    from app.features.place.models import Place
+    from app.features.partner.models import Partner
 
 
 class ShippingRouteBase(Base):
@@ -178,111 +178,6 @@ class ShippingRoutePublic(ShippingRouteBase, BasePublic):
     id: uuid.UUID
 
 
-class ShippingRouteStepBase(Base):
-    """Étape séquencée à l'intérieur d'une route (ex: CDG→PPT)"""
-
-    route_id: uuid.UUID = Field(
-        foreign_key="shipping_routes.id", description="Route parente"
-    )
-    sequence: int = Field(description="Ordre de l'étape dans la route")
-
-    # Lieux de départ et d'arrivée
-    from_place_id: uuid.UUID = Field(
-        foreign_key="places.id", description="Lieu de départ"
-    )
-    to_place_id: uuid.UUID = Field(
-        foreign_key="places.id", description="Lieu d'arrivée"
-    )
-
-    # Transport pour cette étape
-    mode: str = Field(max_length=50, description="Mode de transport: air, sea, road")
-    operator: str | None = Field(
-        default=None, max_length=100, description="Opérateur"
-    )
-    operator_ref: str | None = Field(
-        default=None, max_length=100, description="Référence vol/BL/etc"
-    )
-
-    # Coûts et délais pour cette étape
-    step_price: Decimal | None = Field(
-        default=None,
-        sa_column=Column(NUMERIC(12, 2)),
-        description="Prix de cette étape",
-    )
-    carbon_footprint_kg_co2e: float | None = Field(
-        default=None, description="Empreinte carbone de l'étape"
-    )
-    eta_days: int | None = Field(default=None, description="Délai de cette étape")
-
-    # Horaires
-    departure_time: str | None = Field(
-        default=None, max_length=10, description="Heure de départ"
-    )
-    arrival_time: str | None = Field(
-        default=None, max_length=10, description="Heure d'arrivée"
-    )
-
-    # Statut de l'étape
-    status_code: str | None = Field(
-        default="draft", max_length=50, description="Statut de l'étape"
-    )
-
-    # Notes
-    notes: str | None = Field(
-        default=None, max_length=500, description="Notes pour cette étape"
-    )
-
-
-class ShippingRouteStep(ShippingRouteStepBase, table=True):
-    """Étape séquencée à l'intérieur d'une route"""
-
-    __tablename__ = "shipping_route_steps"
-
-    id: uuid.UUID = Field(
-        default_factory=uuid.uuid4,
-        sa_column=Column(PG_UUID(as_uuid=True), primary_key=True),
-    )
-
-    # Relations
-    route: ShippingRoute = Relationship(sa_relationship_kwargs={"lazy": "selectin"})
-    from_place: "Place" = Relationship(
-        sa_relationship_kwargs={
-            "foreign_keys": "[ShippingRouteStep.from_place_id]",
-            "lazy": "selectin",
-        }
-    )
-    to_place: "Place" = Relationship(
-        sa_relationship_kwargs={
-            "foreign_keys": "[ShippingRouteStep.to_place_id]",
-            "lazy": "selectin",
-        }
-    )
-
-
-class ShippingRouteStepCreate(ShippingRouteStepBase, BaseCreate):
-    pass
-
-
-class ShippingRouteStepUpdate(ShippingRouteStepBase, BaseUpdate):
-    sequence: int | None = None
-    from_place_id: uuid.UUID | None = None
-    to_place_id: uuid.UUID | None = None
-    mode: str | None = None
-    operator: str | None = None
-    operator_ref: str | None = None
-    step_price: Decimal | None = None
-    carbon_footprint_kg_co2e: float | None = None
-    eta_days: int | None = None
-    departure_time: str | None = None
-    arrival_time: str | None = None
-    status_code: str | None = None
-    notes: str | None = None
-
-
-class ShippingRouteStepPublic(ShippingRouteStepBase, BasePublic):
-    id: uuid.UUID
-
-
 class ShippingRoutesPublic(SQLModel):
     data: list[ShippingRoutePublic] = Field(
         default_factory=list,
@@ -294,12 +189,4 @@ class ShippingRoutesPublic(SQLModel):
     )
 
 
-class ShippingRouteStepsPublic(SQLModel):
-    data: list[ShippingRouteStepPublic] = Field(
-        default_factory=list,
-        description="List of shipping route steps",
-    )
-    count: int = Field(
-        default=0,
-        description="Total number of shipping route steps",
-    )
+

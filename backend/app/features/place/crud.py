@@ -1,4 +1,4 @@
-﻿"""
+"""
 CRUD for physical places (airports, ports, warehouses, addresses...).
 """
 
@@ -8,7 +8,7 @@ from sqlmodel import and_, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
-from app.features.shipping.models.place import (
+from app.features.place.models import (
     Place,
     PlaceCreate,
     PlaceUpdate,

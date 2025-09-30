@@ -13,9 +13,6 @@ from app.features.shipping.models.delivery_task import (
     DeliveryTask,
     DeliveryTaskCreate,
     DeliveryTaskUpdate,
-    Package,
-    PackageCreate,
-    PackageUpdate,
 )
 
 
@@ -224,136 +221,6 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
 
         return updated_task
 
-
-class PackageCrud(CrudBase[Package, PackageCreate, PackageUpdate]):
-    async def get_packages_for_order(
-        self,
-        session: AsyncSession,
-        order_id: uuid.UUID,
-    ) -> list[Package]:
-        """Récupère tous les colis d'une commande"""
-
-        statement = (
-            select(Package)
-            .where(
-                and_(
-                    Package.order_id == order_id,
-                    Package.is_active.is_(True),
-                )
-            )
-            .order_by(Package.created_at.asc())
-        )
-
-        result = await session.exec(statement)
-        return result.all()
-
-    async def get_by_tracking_number(
-        self,
-        session: AsyncSession,
-        tracking_number: str,
-    ) -> Package | None:
-        """Récupère un colis par son numéro de suivi"""
-
-        statement = select(Package).where(
-            and_(
-                Package.tracking_number == tracking_number,
-                Package.is_active.is_(True),
-            )
-        )
-
-        result = await session.exec(statement)
-        return result.first()
-
-    async def get_by_package_code(
-        self,
-        session: AsyncSession,
-        package_code: str,
-    ) -> Package | None:
-        """Récupère un colis par son code"""
-
-        statement = select(Package).where(
-            and_(
-                Package.package_code == package_code,
-                Package.is_active.is_(True),
-            )
-        )
-
-        result = await session.exec(statement)
-        return result.first()
-
-    async def get_hazmat_packages(
-        self,
-        session: AsyncSession,
-        order_id: uuid.UUID | None = None,
-    ) -> list[Package]:
-        """Récupère les colis avec matières dangereuses"""
-
-        conditions = [
-            Package.is_hazmat.is_(True),
-            Package.is_active.is_(True),
-        ]
-
-        if order_id:
-            conditions.append(Package.order_id == order_id)
-
-        statement = (
-            select(Package).where(and_(*conditions)).order_by(Package.created_at.asc())
-        )
-
-        result = await session.exec(statement)
-        return result.all()
-
-    async def get_temperature_controlled_packages(
-        self,
-        session: AsyncSession,
-        order_id: uuid.UUID | None = None,
-    ) -> list[Package]:
-        """Récupère les colis nécessitant un contrôle de température"""
-
-        conditions = [
-            Package.requires_temperature_control.is_(True),
-            Package.is_active.is_(True),
-        ]
-
-        if order_id:
-            conditions.append(Package.order_id == order_id)
-
-        statement = (
-            select(Package).where(and_(*conditions)).order_by(Package.created_at.asc())
-        )
-
-        result = await session.exec(statement)
-        return result.all()
-
-    async def calculate_order_metrics(
-        self,
-        session: AsyncSession,
-        order_id: uuid.UUID,
-    ) -> dict:
-        """Calcule les métriques totales d'une commande"""
-
-        packages = await self.get_packages_for_order(session, order_id)
-
-        total_weight = sum(p.weight_kg or 0 for p in packages)
-        total_volume = sum(p.volume_m3 or 0 for p in packages)
-        total_value = sum(p.declared_value or 0 for p in packages)
-
-        has_hazmat = any(p.is_hazmat for p in packages)
-        has_fragile = any(p.is_fragile for p in packages)
-        requires_temp_control = any(p.requires_temperature_control for p in packages)
-
-        return {
-            "order_id": order_id,
-            "package_count": len(packages),
-            "total_weight_kg": total_weight,
-            "total_volume_m3": total_volume,
-            "total_declared_value": total_value,
-            "has_hazmat": has_hazmat,
-            "has_fragile": has_fragile,
-            "requires_temperature_control": requires_temp_control,
-        }
-
-
 crud_delivery_task = DeliveryTaskCrud(
     model=DeliveryTask,
     schema_create=DeliveryTaskCreate,
@@ -363,14 +230,3 @@ crud_delivery_task = DeliveryTaskCrud(
     ),
     order_by=DeliveryTask.scheduled_at.asc(),
 )
-
-crud_package = PackageCrud(
-    model=Package,
-    schema_create=PackageCreate,
-    schema_update=PackageUpdate,
-    default_filter=and_(
-        Package.is_active.is_(True),
-    ),
-    order_by=Package.created_at.asc(),
-)
-

@@ -1,6 +1,6 @@
-"""
-Modèles de statuts configurables.
-Système flexible de statuts et transitions.
+﻿"""
+Configurable status models.
+Flexible status and transition system.
 """
 
 import uuid
@@ -13,36 +13,39 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class StatusDefinitionBase(Base):
-    """Catalogue de statuts par type d'entité (souple, extensible)"""
+    """Status catalog by entity type (flexible, extensible)"""
 
     entity: str = Field(
         max_length=50,
-        description="Type d'entité: route, step, consolidation, delivery_task, order_step",
+        description="Entity type: route, consolidation, delivery_task",
     )
     code: str = Field(
         max_length=50,
-        description="Code du statut: draft, ready, dispatched, in_transit, arrived, closed",
+        description="Status code: draft, ready, dispatched, in_transit, arrived, closed",
     )
-    name: str = Field(max_length=100, description="Nom affichable du statut")
+    name: str = Field(max_length=100, description="Display name of status")
     description: str | None = Field(
         default=None, max_length=500, description="Status description"
     )
-    rank: int = Field(default=0, description="Display order")
+    sequence_order: int = Field(default=0, description="Display order")
     is_terminal: bool = Field(
-        default=False, description="Statut terminal (fin de processus)"
+        default=False, description="Terminal status (end of process)"
+    )
+    is_error: bool = Field(
+        default=False, description="Indicates an error or exception state"
     )
 
-    # Personnalisation UI
+    # UI customization
     ui_color: str | None = Field(
-        default=None, max_length=20, description="Couleur pour l'interface"
+        default=None, max_length=20, description="Color for interface"
     )
     ui_icon: str | None = Field(
-        default=None, max_length=50, description="Icône pour l'interface"
+        default=None, max_length=50, description="Icon for interface"
     )
 
 
 class StatusDefinition(StatusDefinitionBase, table=True):
-    """Catalogue de statuts par type d'entité (souple, extensible)"""
+    """Status catalog by entity type (flexible, extensible)"""
 
     __tablename__ = "status_definitions"
 
@@ -63,6 +66,7 @@ class StatusDefinitionUpdate(StatusDefinitionBase, BaseUpdate):
     description: str | None = None
     rank: int | None = None
     is_terminal: bool | None = None
+    is_error: bool | None = None
     ui_color: str | None = None
     ui_icon: str | None = None
 
@@ -72,25 +76,25 @@ class StatusDefinitionPublic(StatusDefinitionBase, BasePublic):
 
 
 class StatusTransitionBase(Base):
-    """Transitions autorisées entre statuts (les gardes sont codées côté service)"""
+    """Allowed transitions between statuses (guards are coded in service)"""
 
-    entity: str = Field(max_length=50, description="Type d'entité")
+    entity: str = Field(max_length=50, description="Entity type")
     from_code: str = Field(max_length=50, description="Source status")
     to_code: str = Field(max_length=50, description="Target status")
     guard_name: str | None = Field(
-        default=None, max_length=100, description="Nom de la garde métier"
+        default=None, max_length=100, description="Business guard name"
     )
     auto_advance: bool = Field(default=False, description="Automatic transition")
 
     # Conditions
     requires_confirmation: bool = Field(
-        default=False, description="Nécessite une confirmation"
+        default=False, description="Requires confirmation"
     )
-    requires_scan: bool = Field(default=False, description="Nécessite un scan")
+    requires_scan: bool = Field(default=False, description="Requires scan")
 
 
 class StatusTransition(StatusTransitionBase, table=True):
-    """Transitions autorisées entre statuts"""
+    """Allowed transitions between statuses"""
 
     __tablename__ = "status_transitions"
 
@@ -138,3 +142,4 @@ class StatusTransitionsPublic(SQLModel):
         default=0,
         description="Total number of status transitions",
     )
+

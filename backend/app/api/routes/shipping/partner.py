@@ -1,6 +1,6 @@
 from app.api.base_router import BaseRouter
 from app.features.shipping.crud import crud_partner
-from app.features.shipping.models.partner import (
+from app.features.partner.models import (
     Partner,
     PartnerCreate,
     PartnerPublic,
