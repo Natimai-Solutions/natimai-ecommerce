@@ -4,20 +4,12 @@ Tout lieu physique (aéroport, port, entrepôt, adresse client, île...).
 """
 
 import uuid
-from typing import TYPE_CHECKING
 
 from sqlalchemy import Column
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
-
-if TYPE_CHECKING:
-    from app.features.shipping.models.delivery_task import DeliveryTask
-    from app.features.shipping.models.route import (
-        ShippingRoute,
-        ShippingRouteStep,
-    )
 
 
 class PlaceBase(Base):
@@ -69,7 +61,11 @@ class PlaceBase(Base):
     operating_hours: str | None = Field(
         default=None, max_length=50, description="Operating hours"
     )
-
+    partner_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="partners.id",
+        description="ID of the partner associated with this place",
+    )
     is_owned: bool = Field(
         default=False, description="Indicates if the place is owned by the company"
     )
@@ -83,39 +79,6 @@ class Place(PlaceBase, table=True):
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
         sa_column=Column(PG_UUID(as_uuid=True), primary_key=True),
-    )
-
-    # Relations
-    origin_routes: list["ShippingRoute"] = Relationship(
-        back_populates="from_place",
-        sa_relationship_kwargs={
-            "foreign_keys": "[ShippingRoute.from_place_id]",
-            "lazy": "selectin",
-        },
-    )
-    destination_routes: list["ShippingRoute"] = Relationship(
-        back_populates="to_place",
-        sa_relationship_kwargs={
-            "foreign_keys": "[ShippingRoute.to_place_id]",
-            "lazy": "selectin",
-        },
-    )
-    departure_steps: list["ShippingRouteStep"] = Relationship(
-        back_populates="from_place",
-        sa_relationship_kwargs={
-            "foreign_keys": "[ShippingRouteStep.from_place_id]",
-            "lazy": "selectin",
-        },
-    )
-    arrival_steps: list["ShippingRouteStep"] = Relationship(
-        back_populates="to_place",
-        sa_relationship_kwargs={
-            "foreign_keys": "[ShippingRouteStep.to_place_id]",
-            "lazy": "selectin",
-        },
-    )
-    delivery_tasks: list["DeliveryTask"] = Relationship(
-        back_populates="address_place", sa_relationship_kwargs={"lazy": "selectin"}
     )
 
 

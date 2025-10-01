@@ -36,6 +36,10 @@ class ShippingRouteTrackingBase(Base):
         description="Current status (references StatusDefinition)",
     )
 
+    address_id: uuid.UUID = Field(
+        foreign_key="addresses.id", description="Delivery address for this tracking"
+    )
+
     # Consolidation link (optional)
     consolidation_id: uuid.UUID | None = Field(
         default=None,
