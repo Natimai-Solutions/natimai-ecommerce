@@ -4,7 +4,6 @@ import logging
 import uuid
 from hashlib import md5
 from typing import Any, Generic, TypeVar
-from typing import Any, Generic, TypeVar
 
 from sqlalchemy.dialects import postgresql
 from sqlmodel import SQLModel, func, select
@@ -12,7 +11,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.expression import SelectOfScalar
 
 from app.features.user.models.user import User
-from app.outbox.registry import outbox_registry
 from app.outbox.registry import outbox_registry
 
 logging.basicConfig(level=logging.INFO)
@@ -322,7 +320,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         user: UserType | None = None,
     ):
         return True
-    
+
     async def read_after(
         self,
         session: AsyncSession,

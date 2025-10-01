@@ -118,13 +118,26 @@ class Settings(BaseSettings):
     OPENAI_ORG_ID: str | None = None
     OPENAI_API_KEY: str | None = None
 
+    # Ingram Micro API Configuration
+    INGRAM_CLIENT_ID: str | None = None
+    INGRAM_CLIENT_SECRET: str | None = None
+    INGRAM_CUSTOMER_NUMBER: str | None = None
+    INGRAM_COUNTRY_CODE: str = "FR"  # Default to FR, can be changed via env var
+    INGRAM_ENVIRONMENT: Literal["sandbox", "production"] = "sandbox"
+    INGRAM_SYNC_ENABLED: bool = True
+    INGRAM_SYNC_CATEGORIES: list[str] = [
+        "notebooks",
+        "desktop",
+        "tablets",
+        "accessories",
+    ]
+    INGRAM_SYNC_INTERVAL_HOURS: int = 6  # Synchronisation toutes les 6 heures
+
     # S3
     S3_ENDPOINT_URL: str | None = None
     S3_ACCESS_KEY_ID: str | None = None
     S3_SECRET_KEY_ID: str | None = None
     S3_BUCKET_NAME: str | None = None
-
-    FENUA_TOKENS_COUNT: int = 1000
 
     PAYZEN_SITE_ID: str | None = None
     PAYZEN_CERT_TEST: str | None = None

@@ -16,7 +16,9 @@ from app.features.user.models.wishlist import (
 )
 
 
-def _check_permission(current_user_id: uuid.UUID, user_id: uuid.UUID, is_admin: bool = False) -> bool:
+def _check_permission(
+    current_user_id: uuid.UUID, user_id: uuid.UUID, is_admin: bool = False
+) -> bool:
     """Check if current user can access resource for given user_id."""
     return current_user_id == user_id or is_admin
 
@@ -66,7 +68,7 @@ async def get_user_wishlists(
     """Get all wishlists for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise HTTPException(status_code=403, detail="Not authorized")
-    
+
     wishlists = await crud_wishlist.get_by_user_id(
         session=session, user_id=user_id, skip=skip, limit=limit
     )
@@ -74,7 +76,11 @@ async def get_user_wishlists(
     return WishlistsPublic(data=wishlists, count=count)
 
 
-@router.post("/users/{user_id}/wishlists", response_model=WishlistPublic, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/users/{user_id}/wishlists",
+    response_model=WishlistPublic,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_user_wishlist(
     session: SessionDep,
     current_user: CurrentUser,
@@ -84,9 +90,12 @@ async def create_user_wishlist(
     """Create a new wishlist for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise HTTPException(status_code=403, detail="Not authorized")
-    
+
     wishlist = await crud_wishlist.create_for_user(
-        session=session, obj_in=wishlist_in, user_id=user_id, current_user=current_user.id
+        session=session,
+        obj_in=wishlist_in,
+        user_id=user_id,
+        current_user=current_user.id,
     )
     return WishlistPublic.model_validate(wishlist)
 
@@ -101,13 +110,13 @@ async def get_user_wishlist(
     """Get a specific wishlist for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise HTTPException(status_code=403, detail="Not authorized")
-    
+
     wishlist = await crud_wishlist.get_user_wishlist_by_id(
         session=session, wishlist_id=wishlist_id, user_id=user_id
     )
     if not wishlist:
         raise HTTPException(status_code=404, detail="Wishlist not found")
-    
+
     return WishlistPublic.model_validate(wishlist)
 
 
