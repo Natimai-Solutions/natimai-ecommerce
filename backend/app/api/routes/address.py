@@ -1,10 +1,11 @@
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query, status
-
+from fastapi import HTTPException, Query, status
+from app.api.base_router import BaseRouter
 from app.api.deps import SessionDep, CurrentUser
-from app.features.user.crud.address import crud_address
+from app.features.user.crud.address import AddressCrud, crud_address
 from app.features.user.models.address import (
+    Address,
     AddressCreate, 
     AddressPublic,
     AddressesPublic,
@@ -12,14 +13,45 @@ from app.features.user.models.address import (
 )
 
 
-router = APIRouter()
-
-
 def _check_permission(current_user_id: uuid.UUID, user_id: uuid.UUID, is_admin: bool = False) -> bool:
     """Check if current user can access resource for given user_id."""
     return current_user_id == user_id or is_admin
 
 
+class AddressRouter(
+    BaseRouter[
+        Address,
+        AddressCreate,
+        AddressUpdate,
+        AddressPublic,
+        AddressesPublic,
+        AddressCrud,
+    ]
+):
+    pass
+
+
+class Auth:
+    read = True
+    create = True
+    update = True
+    delete = True
+
+
+router = AddressRouter(
+    name="address",
+    tags=["address"],
+    crud=crud_address,
+    schema_public=AddressPublic,
+    schema_publics=AddressesPublic,
+    schema_create=AddressCreate,
+    schema_update=AddressUpdate,
+    auth=Auth(),
+    auto=True,
+)
+
+
+# User-specific address routes
 @router.get("/users/{user_id}/addresses", response_model=AddressesPublic)
 async def get_user_addresses(
     session: SessionDep,
