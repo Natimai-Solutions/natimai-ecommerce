@@ -1,20 +1,19 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import HTTPException, Query, status
+from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
-from app.features.user.crud.wishlist import crud_wishlist, crud_wishlist_item
+from app.features.user.crud.wishlist import (
+    WishlistCrud,
+    crud_wishlist,
+)
 from app.features.user.models.wishlist import (
-    WishlistPublic,
-    WishlistsPublic,
+    Wishlist,
     WishlistCreate,
     WishlistUpdate,
-    WishlistItemPublic,
-    WishlistItemsPublic,
-    WishlistItemCreate,
-    WishlistItemUpdate,
+    WishlistPublic,
+    WishlistsPublic,
 )
-
-router = APIRouter()
 
 
 def _check_permission(current_user_id: uuid.UUID, user_id: uuid.UUID, is_admin: bool = False) -> bool:
@@ -22,13 +21,47 @@ def _check_permission(current_user_id: uuid.UUID, user_id: uuid.UUID, is_admin: 
     return current_user_id == user_id or is_admin
 
 
+class WishlistRouter(
+    BaseRouter[
+        Wishlist,
+        WishlistCreate,
+        WishlistUpdate,
+        WishlistPublic,
+        WishlistsPublic,
+        WishlistCrud,
+    ]
+):
+    pass
+
+
+class Auth:
+    read = False  # No auth required for public endpoints
+    create = True
+    update = True
+    delete = True
+
+
+router = WishlistRouter(
+    name="wishlist",
+    tags=["wishlist"],
+    crud=crud_wishlist,
+    schema_public=WishlistPublic,
+    schema_publics=WishlistsPublic,
+    schema_create=WishlistCreate,
+    schema_update=WishlistUpdate,
+    auth=Auth(),
+    auto=True,
+)
+
+
+# User-specific wishlist routes (méthode simple)
 @router.get("/users/{user_id}/wishlists", response_model=WishlistsPublic)
 async def get_user_wishlists(
     session: SessionDep,
     current_user: CurrentUser,
     user_id: uuid.UUID,
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(default=0, ge=0, description="Number of wishlists to skip"),
+    limit: int = Query(default=100, le=100, ge=1, description="Number of wishlists to return"),
 ) -> WishlistsPublic:
     """Get all wishlists for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
@@ -78,203 +111,15 @@ async def get_user_wishlist(
     return WishlistPublic.model_validate(wishlist)
 
 
-@router.patch("/users/{user_id}/wishlists/{wishlist_id}", response_model=WishlistPublic)
-async def update_user_wishlist(
-    session: SessionDep,
-    current_user: CurrentUser,
-    user_id: uuid.UUID,
-    wishlist_id: uuid.UUID,
-    wishlist_update: WishlistUpdate,
-) -> WishlistPublic:
-    """Update a specific wishlist."""
-    if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    wishlist = await crud_wishlist.get_user_wishlist_by_id(
-        session=session, wishlist_id=wishlist_id, user_id=user_id
-    )
-    if not wishlist:
-        raise HTTPException(status_code=404, detail="Wishlist not found")
-    
-    updated_wishlist = await crud_wishlist.update(
-        session=session, db_obj=wishlist, obj_in=wishlist_update
-    )
-    return WishlistPublic.model_validate(updated_wishlist)
-
-
-@router.delete("/users/{user_id}/wishlists/{wishlist_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user_wishlist(
-    session: SessionDep,
-    current_user: CurrentUser,
-    user_id: uuid.UUID,
-    wishlist_id: uuid.UUID,
-) -> None:
-    """Delete a specific wishlist."""
-    if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    wishlist = await crud_wishlist.get_user_wishlist_by_id(
-        session=session, wishlist_id=wishlist_id, user_id=user_id
-    )
-    if not wishlist:
-        raise HTTPException(status_code=404, detail="Wishlist not found")
-    
-    await crud_wishlist.remove(session=session, id=wishlist_id)
-
-
-# Wishlist Items endpoints
-@router.get("/users/{user_id}/wishlists/{wishlist_id}/items", response_model=WishlistItemsPublic)
-async def get_wishlist_items(
-    session: SessionDep,
-    current_user: CurrentUser,
-    user_id: uuid.UUID,
-    wishlist_id: uuid.UUID,
-    skip: int = 0,
-    limit: int = 100,
-) -> WishlistItemsPublic:
-    """Get all items in a specific wishlist."""
-    if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    # Verify wishlist belongs to user
-    wishlist = await crud_wishlist.get_user_wishlist_by_id(
-        session=session, wishlist_id=wishlist_id, user_id=user_id
-    )
-    if not wishlist:
-        raise HTTPException(status_code=404, detail="Wishlist not found")
-    
-    items = await crud_wishlist_item.get_by_wishlist_id(
-        session=session, wishlist_id=wishlist_id, skip=skip, limit=limit
-    )
-    count = await crud_wishlist_item.count_by_wishlist(
-        session=session, wishlist_id=wishlist_id
-    )
-    return WishlistItemsPublic(data=items, count=count)
-
-
-@router.post("/users/{user_id}/wishlists/{wishlist_id}/items", response_model=WishlistItemPublic, status_code=status.HTTP_201_CREATED)
-async def add_item_to_wishlist(
-    session: SessionDep,
-    current_user: CurrentUser,
-    user_id: uuid.UUID,
-    wishlist_id: uuid.UUID,
-    item_in: WishlistItemCreate,
-) -> WishlistItemPublic:
-    """Add an item to a wishlist."""
-    if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    # Verify wishlist belongs to user
-    wishlist = await crud_wishlist.get_user_wishlist_by_id(
-        session=session, wishlist_id=wishlist_id, user_id=user_id
-    )
-    if not wishlist:
-        raise HTTPException(status_code=404, detail="Wishlist not found")
-    
-    # Check if item already exists in wishlist
-    existing_item = await crud_wishlist_item.get_by_wishlist_and_product(
-        session=session, wishlist_id=wishlist_id, product_id=item_in.product_id
-    )
-    if existing_item:
-        raise HTTPException(status_code=400, detail="Product already exists in wishlist")
-    
-    item = await crud_wishlist_item.create_for_wishlist(
-        session=session, obj_in=item_in, wishlist_id=wishlist_id, current_user=current_user.id
-    )
-    return WishlistItemPublic.model_validate(item)
-
-
-@router.get("/users/{user_id}/wishlists/{wishlist_id}/items/{item_id}", response_model=WishlistItemPublic)
-async def get_wishlist_item(
-    session: SessionDep,
-    current_user: CurrentUser,
-    user_id: uuid.UUID,
-    wishlist_id: uuid.UUID,
-    item_id: uuid.UUID,
-) -> WishlistItemPublic:
-    """Get a specific item from a wishlist."""
-    if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    # Verify wishlist belongs to user
-    wishlist = await crud_wishlist.get_user_wishlist_by_id(
-        session=session, wishlist_id=wishlist_id, user_id=user_id
-    )
-    if not wishlist:
-        raise HTTPException(status_code=404, detail="Wishlist not found")
-    
-    item = await crud_wishlist_item.get(session=session, id=item_id)
-    if not item or item.wishlist_id != wishlist_id:
-        raise HTTPException(status_code=404, detail="Wishlist item not found")
-    
-    return WishlistItemPublic.model_validate(item)
-
-
-@router.patch("/users/{user_id}/wishlists/{wishlist_id}/items/{item_id}", response_model=WishlistItemPublic)
-async def update_wishlist_item(
-    session: SessionDep,
-    current_user: CurrentUser,
-    user_id: uuid.UUID,
-    wishlist_id: uuid.UUID,
-    item_id: uuid.UUID,
-    item_update: WishlistItemUpdate,
-) -> WishlistItemPublic:
-    """Update a specific item in a wishlist."""
-    if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    # Verify wishlist belongs to user
-    wishlist = await crud_wishlist.get_user_wishlist_by_id(
-        session=session, wishlist_id=wishlist_id, user_id=user_id
-    )
-    if not wishlist:
-        raise HTTPException(status_code=404, detail="Wishlist not found")
-    
-    item = await crud_wishlist_item.get(session=session, id=item_id)
-    if not item or item.wishlist_id != wishlist_id:
-        raise HTTPException(status_code=404, detail="Wishlist item not found")
-    
-    updated_item = await crud_wishlist_item.update(
-        session=session, db_obj=item, obj_in=item_update
-    )
-    return WishlistItemPublic.model_validate(updated_item)
-
-
-@router.delete("/users/{user_id}/wishlists/{wishlist_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_item_from_wishlist(
-    session: SessionDep,
-    current_user: CurrentUser,
-    user_id: uuid.UUID,
-    wishlist_id: uuid.UUID,
-    item_id: uuid.UUID,
-) -> None:
-    """Remove an item from a wishlist."""
-    if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    # Verify wishlist belongs to user
-    wishlist = await crud_wishlist.get_user_wishlist_by_id(
-        session=session, wishlist_id=wishlist_id, user_id=user_id
-    )
-    if not wishlist:
-        raise HTTPException(status_code=404, detail="Wishlist not found")
-    
-    item = await crud_wishlist_item.get(session=session, id=item_id)
-    if not item or item.wishlist_id != wishlist_id:
-        raise HTTPException(status_code=404, detail="Wishlist item not found")
-    
-    await crud_wishlist_item.remove(session=session, id=item_id)
-
-
-# Public endpoints for browsing public wishlists
-@router.get("/wishlists/public", response_model=WishlistsPublic)
+@router.get("/public", response_model=WishlistsPublic)
 async def get_public_wishlists(
     session: SessionDep,
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(default=0, ge=0, description="Number of wishlists to skip"),
+    limit: int = Query(default=100, le=100, ge=1, description="Number of wishlists to return"),
 ) -> WishlistsPublic:
     """Get all public wishlists."""
     wishlists = await crud_wishlist.get_public_wishlists(
         session=session, skip=skip, limit=limit
     )
-    return WishlistsPublic(data=wishlists, count=len(wishlists))
+    count = await crud_wishlist.count_public_wishlists(session=session)
+    return WishlistsPublic(data=wishlists, count=count)
