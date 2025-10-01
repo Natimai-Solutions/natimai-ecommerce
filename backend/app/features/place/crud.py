@@ -252,4 +252,3 @@ crud_place = PlaceCrud(
     ),
     order_by=Place.name.asc(),
 )
-

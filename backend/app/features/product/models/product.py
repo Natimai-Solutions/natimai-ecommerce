@@ -1,9 +1,9 @@
 import uuid
 
-from app.features.product.models.category import Category
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
+from app.features.product.models.category import Category
 
 
 class ProductBase(Base):
@@ -53,7 +53,7 @@ class Product(ProductBase, Base, table=True):
     category: Category | None = Relationship(
         sa_relationship_kwargs={
             "foreign_keys": "[Product.category_id]",
-            "lazy": "selectin"
+            "lazy": "selectin",
         },
     )
 

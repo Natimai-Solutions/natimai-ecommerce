@@ -15,9 +15,9 @@ from .status import (
     status_transition_router,
 )
 from .tracking import (
-    shipping_route_tracking_router,
     consolidation_router,
     logs_router,
+    shipping_route_tracking_router,
 )
 
 # Create a main shipping router

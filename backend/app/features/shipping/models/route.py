@@ -14,8 +14,8 @@ from sqlmodel import JSON, Column, Field, Relationship, SQLModel
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 if TYPE_CHECKING:
-    from app.features.place.models import Place
     from app.features.partner.models import Partner
+    from app.features.place.models import Place
 
 
 class ShippingRouteBase(Base):
@@ -98,9 +98,7 @@ class ShippingRouteBase(Base):
     )
 
     # Notes and metadata
-    notes: str | None = Field(
-        default=None, max_length=1000, description="Free notes"
-    )
+    notes: str | None = Field(default=None, max_length=1000, description="Free notes")
     route_metadata: str | None = Field(
         default=None, sa_column=Column(JSON), description="Flexible metadata"
     )
@@ -187,6 +185,3 @@ class ShippingRoutesPublic(SQLModel):
         default=0,
         description="Total number of shipping routes",
     )
-
-
-

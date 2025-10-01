@@ -31,6 +31,7 @@ class PartnerBase(Base):
     country: str | None = Field(
         default=None, max_length=2, description="Code Country ISO"
     )
+    is_supplier: bool = Field(default=False, description="Is a supplier")
 
 
 class Partner(PartnerBase, table=True):

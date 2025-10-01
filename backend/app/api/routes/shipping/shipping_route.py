@@ -6,7 +6,7 @@ from sqlmodel import Field, SQLModel
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
 from app.features.shipping.crud import crud_shipping_route
-from app.features.shipping.models.shipping_route import (
+from app.features.shipping.models.route import (
     ShippingRoute,
     ShippingRouteCreate,
     ShippingRoutePublic,

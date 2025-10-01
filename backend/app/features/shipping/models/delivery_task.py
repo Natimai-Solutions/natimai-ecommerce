@@ -1,4 +1,4 @@
-﻿"""
+"""
 Simple delivery task models.
 Final delivery management.
 """
@@ -53,9 +53,7 @@ class DeliveryTaskBase(Base):
     )
 
     # Notes
-    notes: str | None = Field(
-        default=None, max_length=500, description="Notes"
-    )
+    notes: str | None = Field(default=None, max_length=500, description="Notes")
 
 
 class DeliveryTask(DeliveryTaskBase, table=True):
@@ -69,9 +67,7 @@ class DeliveryTask(DeliveryTaskBase, table=True):
     )
 
     # Relations
-    address_place: "Place" = Relationship(
-        sa_relationship_kwargs={"lazy": "selectin"}
-    )
+    address_place: "Place" = Relationship(sa_relationship_kwargs={"lazy": "selectin"})
 
 
 class DeliveryTaskCreate(DeliveryTaskBase, BaseCreate):

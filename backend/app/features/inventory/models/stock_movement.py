@@ -2,14 +2,15 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
-from sqlmodel import Field, SQLModel, Column
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlmodel import Column, Field, SQLModel
 
-from app.features.base.models import Base, BaseCreate, BaseUpdate, BasePublic
+from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class MovementType(str, Enum):
     """Enumeration for stock movement types."""
+
     INCOMING = "incoming"
     OUTGOING = "outgoing"
     TRANSFER = "transfer"
@@ -18,6 +19,7 @@ class MovementType(str, Enum):
 
 class ReferenceType(str, Enum):
     """Enumeration for movement reference types."""
+
     ORDER = "order"
     MANUAL = "manual"
     SYSTEM = "system"
@@ -26,6 +28,7 @@ class ReferenceType(str, Enum):
 
 class MovementStatus(str, Enum):
     """Enumeration for movement status."""
+
     PENDING = "pending"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
@@ -73,7 +76,8 @@ class InventoryStockMovementBase(Base):
 
     # Status and tracking
     status: str = Field(
-        default="pending", description="Movement status (pending, completed, cancelled, failed)"
+        default="pending",
+        description="Movement status (pending, completed, cancelled, failed)",
     )
     processed_at: datetime | None = Field(
         default=None, description="When the movement was processed"
@@ -95,8 +99,12 @@ class InventoryStockMovementCreate(InventoryStockMovementBase, BaseCreate):
     """Schema for creating a new inventory stock movement."""
 
     # Override required fields for creation
-    movement_type: str = Field(description="Movement type (incoming, outgoing, transfer, adjustment)")
-    reference_type: str = Field(description="Reference type (order, manual, system, correction)")
+    movement_type: str = Field(
+        description="Movement type (incoming, outgoing, transfer, adjustment)"
+    )
+    reference_type: str = Field(
+        description="Reference type (order, manual, system, correction)"
+    )
     product_id: uuid.UUID
     quantity: int = Field(gt=0, description="Quantity moved")
 

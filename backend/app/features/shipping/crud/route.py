@@ -1,4 +1,4 @@
-﻿"""
+"""
 CRUD for delivery routes and their steps.
 """
 
@@ -8,7 +8,7 @@ from sqlmodel import and_, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
-from app.features.shipping.models.shipping_route import (
+from app.features.shipping.models.route import (
     ShippingRoute,
     ShippingRouteCreate,
     ShippingRouteUpdate,
@@ -386,4 +386,3 @@ crud_shipping_route = ShippingRouteCrud(
     ),
     order_by=ShippingRoute.priority.asc(),
 )
-

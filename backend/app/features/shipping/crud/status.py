@@ -1,7 +1,6 @@
-﻿"""
+"""
 CRUD for status definitions and transitions.
 """
-
 
 from sqlmodel import and_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -51,7 +50,9 @@ class StatusDefinitionCrud(
                     StatusDefinition.is_active.is_(True),
                 )
             )
-            .order_by(StatusDefinition.sequence_order.asc(), StatusDefinition.name.asc())
+            .order_by(
+                StatusDefinition.sequence_order.asc(), StatusDefinition.name.asc()
+            )
         )
 
         result = await session.exec(statement)
@@ -179,4 +180,3 @@ crud_status_transition = StatusTransitionCrud(
         StatusTransition.is_active.is_(True),
     ),
 )
-

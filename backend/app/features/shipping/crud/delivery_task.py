@@ -1,4 +1,4 @@
-﻿"""
+"""
 CRUD for delivery tasks and packages.
 """
 
@@ -220,6 +220,7 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         updated_task = await self.update(session, db_obj=task, obj_in=update_data)
 
         return updated_task
+
 
 crud_delivery_task = DeliveryTaskCrud(
     model=DeliveryTask,

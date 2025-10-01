@@ -1,4 +1,4 @@
-﻿"""
+"""
 Configurable status models.
 Flexible status and transition system.
 """
@@ -142,4 +142,3 @@ class StatusTransitionsPublic(SQLModel):
         default=0,
         description="Total number of status transitions",
     )
-

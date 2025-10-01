@@ -4,12 +4,12 @@ from .stock_movement import (
     InventoryStockMovement,
     InventoryStockMovementBase,
     InventoryStockMovementCreate,
-    InventoryStockMovementUpdate,
     InventoryStockMovementPublic,
     InventoryStockMovementsPublic,
+    InventoryStockMovementUpdate,
+    MovementStatus,
     MovementType,
     ReferenceType,
-    MovementStatus,
 )
 
 __all__ = [
@@ -17,12 +17,11 @@ __all__ = [
     "InventoryStockMovement",
     "InventoryStockMovementBase",
     "InventoryStockMovementCreate",
-    "InventoryStockMovementUpdate", 
+    "InventoryStockMovementUpdate",
     "InventoryStockMovementPublic",
     "InventoryStockMovementsPublic",
-    
     # Enumerations
     "MovementType",
-    "ReferenceType", 
+    "ReferenceType",
     "MovementStatus",
 ]

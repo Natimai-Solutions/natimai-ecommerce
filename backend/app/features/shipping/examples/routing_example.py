@@ -9,7 +9,7 @@ import uuid
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.features.shipping.crud.shipping_route import crud_shipping_route
+from app.features.shipping.crud.route import crud_shipping_route
 
 
 async def example_routing_usage(session: AsyncSession):
