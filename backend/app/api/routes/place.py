@@ -1,4 +1,5 @@
 from app.api.base_router import BaseRouter
+from app.features.place.crud import crud_place
 from app.features.place.models import (
     Place,
     PlaceCreate,
@@ -6,7 +7,6 @@ from app.features.place.models import (
     PlacesPublic,
     PlaceUpdate,
 )
-from app.features.place.crud import crud_place
 
 
 class PlaceRouter(

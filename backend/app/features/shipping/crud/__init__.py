@@ -1,9 +1,10 @@
 from .delivery_task import crud_delivery_task
-from .shipping_route import crud_shipping_route
-from .shipping_route_tracking import (
+from .route import crud_shipping_route
+from .route_tracking import (
     crud_shipping_route_tracking,
     crud_shipping_route_tracking_consolidation,
 )
+from .route_tracking_logs import crud_shipping_route_tracking_logs
 from .status import crud_status_definition, crud_status_transition
 
 __all__ = [
@@ -12,5 +13,6 @@ __all__ = [
     "crud_shipping_route",
     "crud_shipping_route_tracking",
     "crud_shipping_route_tracking_consolidation",
+    "crud_shipping_route_tracking_logs",
     "crud_delivery_task",
 ]

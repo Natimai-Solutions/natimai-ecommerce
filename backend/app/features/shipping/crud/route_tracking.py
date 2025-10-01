@@ -9,13 +9,13 @@ from sqlmodel import and_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
-from app.features.shipping.models.shipping_route_tracking import (
+from app.features.shipping.models.route_tracking import (
     ShippingRouteTracking,
-    ShippingRouteTrackingCreate,
-    ShippingRouteTrackingUpdate,
     ShippingRouteTrackingConsolidation,
     ShippingRouteTrackingConsolidationCreate,
     ShippingRouteTrackingConsolidationUpdate,
+    ShippingRouteTrackingCreate,
+    ShippingRouteTrackingUpdate,
 )
 
 
@@ -65,20 +65,17 @@ class ShippingRouteTrackingCrud(
         return result.all()
 
     async def get_status_by_code(
-        self,
-        session: AsyncSession,
-        status_code: str,
-        entity: str = "route_tracking"
+        self, session: AsyncSession, status_code: str, entity: str = "route_tracking"
     ):
         """Get StatusDefinition by code and entity"""
         from app.features.shipping.models.status import StatusDefinition
-        
+
         statement = select(StatusDefinition).where(
             StatusDefinition.entity == entity,
             StatusDefinition.code == status_code,
             StatusDefinition.is_active.is_(True),
         )
-        
+
         result = await session.exec(statement)
         return result.first()
 
@@ -99,14 +96,18 @@ class ShippingRouteTrackingCrud(
             return None
 
         # Get current status info
-        old_status_obj = tracking.status  
+        old_status_obj = tracking.status
         old_status_code = old_status_obj.code if old_status_obj else None
-        
+
         # Get new status definition
-        new_status_obj = await self.get_status_by_code(session, new_status, "route_tracking")
+        new_status_obj = await self.get_status_by_code(
+            session, new_status, "route_tracking"
+        )
         if not new_status_obj:
-            raise ValueError(f"Status '{new_status}' not found for entity 'route_tracking'")
-        
+            raise ValueError(
+                f"Status '{new_status}' not found for entity 'route_tracking'"
+            )
+
         # Skip if status is the same
         if old_status_code == new_status:
             return tracking
@@ -118,20 +119,20 @@ class ShippingRouteTrackingCrud(
                 session=session,
                 current_status=old_status_code,
                 new_status=new_status,
-                entity="route_tracking"
+                entity="route_tracking",
             )
             if not is_valid:
                 raise ValueError(
                     f"Invalid status transition from '{old_status_code}' to '{new_status}' "
                     f"for entity 'route_tracking'"
                 )
-            
+
             # Get the transition for logging
             transition = await self.get_status_transition(
                 session=session,
                 current_status=old_status_code,
                 new_status=new_status,
-                entity="route_tracking"
+                entity="route_tracking",
             )
 
         # Update the tracking
@@ -142,8 +143,10 @@ class ShippingRouteTrackingCrud(
         if notes:
             update_data["notes"] = notes
 
-        updated_tracking = await self.update(session=session, db_obj=tracking, obj_in=update_data)
-        
+        updated_tracking = await self.update(
+            session=session, db_obj=tracking, obj_in=update_data
+        )
+
         # Create status change log
         await self.create_status_log(
             session=session,
@@ -154,7 +157,7 @@ class ShippingRouteTrackingCrud(
             consolidation_id=consolidation_id,
             changed_by=changed_by,
             reason=notes,
-            transition=transition
+            transition=transition,
         )
 
         return updated_tracking
@@ -168,7 +171,7 @@ class ShippingRouteTrackingCrud(
     ) -> bool:
         """Validate if a status transition is allowed"""
         from app.features.shipping.models.status import StatusTransition
-        
+
         # Check if transition exists in StatusTransition table
         statement = select(StatusTransition).where(
             StatusTransition.entity == entity,
@@ -176,18 +179,18 @@ class ShippingRouteTrackingCrud(
             StatusTransition.to_code == new_status,
             StatusTransition.is_active.is_(True),
         )
-        
+
         result = await session.exec(statement)
         transition = result.first()
-        
+
         if not transition:
             # No explicit transition found - check if it's the same status (always allowed)
             return current_status == new_status
-        
+
         # TODO: Implement guard validation if guard_name is set
         # if transition.guard_name:
         #     return await self.validate_guard(session, transition.guard_name, tracking)
-        
+
         return True
 
     async def get_available_transitions(
@@ -198,13 +201,13 @@ class ShippingRouteTrackingCrud(
     ) -> list:
         """Get available status transitions from current status"""
         from app.features.shipping.models.status import StatusTransition
-        
+
         statement = select(StatusTransition).where(
             StatusTransition.entity == entity,
             StatusTransition.from_code == current_status,
             StatusTransition.is_active.is_(True),
         )
-        
+
         result = await session.exec(statement)
         return result.all()
 
@@ -259,7 +262,7 @@ class ShippingRouteTrackingCrud(
             )
             .order_by(ShippingRouteTracking.sequence_order.asc())
         )
-        
+
         result = await session.exec(statement)
         return result.all()
 
@@ -278,7 +281,7 @@ class ShippingRouteTrackingCrud(
             )
             .order_by(ShippingRouteTracking.sequence_order.asc())
         )
-        
+
         result = await session.exec(statement)
         return result.first()
 
@@ -289,15 +292,12 @@ class ShippingRouteTrackingCrud(
         current_sequence: int,
     ) -> ShippingRouteTracking | None:
         """Get the next route in sequence for an order"""
-        statement = (
-            select(ShippingRouteTracking)
-            .where(
-                ShippingRouteTracking.order_id == order_id,
-                ShippingRouteTracking.is_active.is_(True),
-                ShippingRouteTracking.sequence_order == current_sequence + 1,
-            )
+        statement = select(ShippingRouteTracking).where(
+            ShippingRouteTracking.order_id == order_id,
+            ShippingRouteTracking.is_active.is_(True),
+            ShippingRouteTracking.sequence_order == current_sequence + 1,
         )
-        
+
         result = await session.exec(statement)
         return result.first()
 
@@ -323,14 +323,14 @@ class ShippingRouteTrackingCrud(
             new_status="completed",
             notes="Route completed, progressing to next step",
             changed_by="system",
-            change_type="auto_advance"
+            change_type="auto_advance",
         )
 
         # Find next route in sequence
         next_tracking = await self.get_next_route_for_order(
             session=session,
             order_id=order_id,
-            current_sequence=current_tracking.sequence_order
+            current_sequence=current_tracking.sequence_order,
         )
 
         if next_tracking:
@@ -341,7 +341,7 @@ class ShippingRouteTrackingCrud(
                 new_status="in_progress",
                 notes="Route activated in sequence progression",
                 changed_by="system",
-                change_type="auto_advance"
+                change_type="auto_advance",
             )
 
         return next_tracking
@@ -355,14 +355,14 @@ class ShippingRouteTrackingCrud(
     ):
         """Get the specific status transition if it exists"""
         from app.features.shipping.models.status import StatusTransition
-        
+
         statement = select(StatusTransition).where(
             StatusTransition.entity == entity,
             StatusTransition.from_code == current_status,
             StatusTransition.to_code == new_status,
             StatusTransition.is_active.is_(True),
         )
-        
+
         result = await session.exec(statement)
         return result.first()
 
@@ -376,14 +376,14 @@ class ShippingRouteTrackingCrud(
         consolidation_id: uuid.UUID | None = None,
         changed_by: str | None = None,
         reason: str | None = None,
-        transition = None,
+        transition=None,
     ) -> None:
         """Create a status change log entry"""
-        from app.features.shipping.models.shipping_route_tracking import (
+        from app.features.shipping.models.route_tracking import (
             ShippingRouteTrackingLogs,
-            ShippingRouteTrackingLogsCreate
+            ShippingRouteTrackingLogsCreate,
         )
-        
+
         log_data = {
             "tracking_id": tracking_id,
             "from_status_id": from_status_id,
@@ -393,17 +393,19 @@ class ShippingRouteTrackingCrud(
             "changed_by": changed_by or "system",
             "reason": reason,
         }
-        
+
         if transition:
-            log_data.update({
-                "transition_id": transition.id,
-                "was_auto_advance": transition.auto_advance,
-                "required_confirmation": transition.requires_confirmation,
-            })
-        
+            log_data.update(
+                {
+                    "transition_id": transition.id,
+                    "was_auto_advance": transition.auto_advance,
+                    "required_confirmation": transition.requires_confirmation,
+                }
+            )
+
         log_create = ShippingRouteTrackingLogsCreate(**log_data)
         log_entry = ShippingRouteTrackingLogs.model_validate(log_create)
-        
+
         session.add(log_entry)
         await session.commit()
         await session.refresh(log_entry)
@@ -414,14 +416,16 @@ class ShippingRouteTrackingCrud(
         tracking_id: uuid.UUID,
     ) -> list:
         """Get complete status history for a tracking"""
-        from app.features.shipping.models.shipping_route_tracking import ShippingRouteTrackingLogs
-        
+        from app.features.shipping.models.route_tracking import (
+            ShippingRouteTrackingLogs,
+        )
+
         statement = (
             select(ShippingRouteTrackingLogs)
             .where(ShippingRouteTrackingLogs.tracking_id == tracking_id)
             .order_by(ShippingRouteTrackingLogs.created_at.asc())
         )
-        
+
         result = await session.exec(statement)
         return result.all()
 
@@ -460,7 +464,9 @@ class ShippingRouteTrackingConsolidationCrud(
         ]
 
         if status_filter:
-            conditions.append(ShippingRouteTrackingConsolidation.status_code.in_(status_filter))
+            conditions.append(
+                ShippingRouteTrackingConsolidation.status_code.in_(status_filter)
+            )
 
         statement = (
             select(ShippingRouteTrackingConsolidation)
@@ -488,7 +494,7 @@ class ShippingRouteTrackingConsolidationCrud(
         await tracking_crud.update(
             session=session,
             db_obj=tracking,
-            obj_in={"consolidation_id": consolidation_id}
+            obj_in={"consolidation_id": consolidation_id},
         )
 
         # Update consolidation total orders
@@ -497,7 +503,7 @@ class ShippingRouteTrackingConsolidationCrud(
             await self.update(
                 session=session,
                 db_obj=consolidation,
-                obj_in={"total_orders": consolidation.total_orders + 1}
+                obj_in={"total_orders": consolidation.total_orders + 1},
             )
 
         return True
@@ -519,9 +525,7 @@ class ShippingRouteTrackingConsolidationCrud(
 
         # Remove from consolidation
         await tracking_crud.update(
-            session=session,
-            db_obj=tracking,
-            obj_in={"consolidation_id": None}
+            session=session, db_obj=tracking, obj_in={"consolidation_id": None}
         )
 
         # Update consolidation total orders
@@ -529,7 +533,7 @@ class ShippingRouteTrackingConsolidationCrud(
             await self.update(
                 session=session,
                 db_obj=consolidation,
-                obj_in={"total_orders": consolidation.total_orders - 1}
+                obj_in={"total_orders": consolidation.total_orders - 1},
             )
 
         return True
@@ -548,9 +552,7 @@ class ShippingRouteTrackingConsolidationCrud(
 
         # Update consolidation status
         consolidation = await self.update(
-            session=session,
-            db_obj=consolidation,
-            obj_in={"status_code": new_status}
+            session=session, db_obj=consolidation, obj_in={"status_code": new_status}
         )
 
         # Update all linked trackings if requested
@@ -563,7 +565,7 @@ class ShippingRouteTrackingConsolidationCrud(
             trackings = await tracking_crud.get_trackings_for_consolidation(
                 session=session, consolidation_id=consolidation_id
             )
-            
+
             for tracking in trackings:
                 await tracking_crud.update_status(
                     session=session,
@@ -572,7 +574,7 @@ class ShippingRouteTrackingConsolidationCrud(
                     notes=f"Status updated from consolidation: {consolidation.consolidation_code}",
                     changed_by="system",
                     change_type="consolidation_override",
-                    consolidation_id=consolidation_id
+                    consolidation_id=consolidation_id,
                 )
 
         return consolidation

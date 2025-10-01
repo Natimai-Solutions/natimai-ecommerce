@@ -1,4 +1,3 @@
-
 """
 Shipping route tracking models.
 Tracks customer's route choices and status for orders.
@@ -16,9 +15,8 @@ from sqlmodel import Field, Relationship, SQLModel
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 if TYPE_CHECKING:
-    from app.features.shipping.models.shipping_route import ShippingRoute
+    from app.features.shipping.models.route import ShippingRoute
     from app.features.shipping.models.status import StatusDefinition
-    from app.features.place.models import Place
 
 
 class ShippingRouteTrackingBase(Base):
@@ -34,8 +32,8 @@ class ShippingRouteTrackingBase(Base):
 
     # Current status (relation to StatusDefinition)
     status_id: uuid.UUID = Field(
-        foreign_key="status_definitions.id", 
-        description="Current status (references StatusDefinition)"
+        foreign_key="status_definitions.id",
+        description="Current status (references StatusDefinition)",
     )
 
     # Consolidation link (optional)
@@ -47,13 +45,13 @@ class ShippingRouteTrackingBase(Base):
 
     # Route selection details
     selected_at: datetime = Field(description="When route was selected by customer")
-    
+
     # Multi-route sequencing
     sequence_order: int = Field(
         default=1,
-        description="Order of this route in multi-hop journey (1=first, 2=second, etc.)"
+        description="Order of this route in multi-hop journey (1=first, 2=second, etc.)",
     )
-    
+
     # Status tracking
     last_status_update: datetime | None = Field(
         default=None, description="Last status update timestamp"
@@ -89,19 +87,19 @@ class ShippingRouteTracking(ShippingRouteTrackingBase, table=True):
     route: "ShippingRoute" = Relationship(
         sa_relationship_kwargs={
             "foreign_keys": "[ShippingRouteTracking.route_id]",
-            "lazy": "selectin"
+            "lazy": "selectin",
         }
     )
     status: "StatusDefinition" = Relationship(
         sa_relationship_kwargs={
             "foreign_keys": "[ShippingRouteTracking.status_id]",
-            "lazy": "selectin"
+            "lazy": "selectin",
         }
     )
     consolidation: Optional["ShippingRouteTrackingConsolidation"] = Relationship(
         sa_relationship_kwargs={
             "foreign_keys": "[ShippingRouteTracking.consolidation_id]",
-            "lazy": "selectin"
+            "lazy": "selectin",
         }
     )
 
@@ -114,8 +112,6 @@ class ShippingRouteTracking(ShippingRouteTrackingBase, table=True):
                 return consolidation_is_terminal
         if self.status:
             return self.status.is_terminal
-
-
 
 
 class ShippingRouteTrackingCreate(ShippingRouteTrackingBase, BaseCreate):
@@ -147,9 +143,7 @@ class ShippingRouteTrackingConsolidationBase(Base):
     )
 
     # Identification
-    name: str = Field(
-        max_length=200, description="Consolidation name"
-    )
+    name: str = Field(max_length=200, description="Consolidation name")
     consolidation_code: str = Field(
         max_length=100, unique=True, index=True, description="Unique consolidation code"
     )
@@ -173,7 +167,9 @@ class ShippingRouteTrackingConsolidationBase(Base):
     )
 
 
-class ShippingRouteTrackingConsolidation(ShippingRouteTrackingConsolidationBase, table=True):
+class ShippingRouteTrackingConsolidation(
+    ShippingRouteTrackingConsolidationBase, table=True
+):
     """Consolidation for route trackings"""
 
     __tablename__ = "shipping_route_tracking_consolidations"
@@ -187,18 +183,20 @@ class ShippingRouteTrackingConsolidation(ShippingRouteTrackingConsolidationBase,
     route: "ShippingRoute" = Relationship(
         sa_relationship_kwargs={
             "foreign_keys": "[ShippingRouteTrackingConsolidation.route_id]",
-            "lazy": "selectin"
+            "lazy": "selectin",
         }
     )
     status: "StatusDefinition" = Relationship(
         sa_relationship_kwargs={
             "foreign_keys": "[ShippingRouteTrackingConsolidation.status_id]",
-            "lazy": "selectin"
+            "lazy": "selectin",
         }
     )
 
 
-class ShippingRouteTrackingConsolidationCreate(ShippingRouteTrackingConsolidationBase, BaseCreate):
+class ShippingRouteTrackingConsolidationCreate(
+    ShippingRouteTrackingConsolidationBase, BaseCreate
+):
     pass
 
 
@@ -210,7 +208,9 @@ class ShippingRouteTrackingConsolidationUpdate(BaseUpdate):
     notes: str | None = None
 
 
-class ShippingRouteTrackingConsolidationPublic(ShippingRouteTrackingConsolidationBase, BasePublic):
+class ShippingRouteTrackingConsolidationPublic(
+    ShippingRouteTrackingConsolidationBase, BasePublic
+):
     id: uuid.UUID
 
 
@@ -245,34 +245,32 @@ class ShippingRouteTrackingLogsBase(Base):
     """
 
     tracking_id: uuid.UUID = Field(
-        foreign_key="shipping_route_trackings.id", 
-        description="Route tracking entry"
+        foreign_key="shipping_route_trackings.id", description="Route tracking entry"
     )
-    
+
     # Status change details
     from_status_id: uuid.UUID | None = Field(
-        default=None, 
+        default=None,
         foreign_key="status_definitions.id",
-        description="Previous status (null for initial)"
+        description="Previous status (null for initial)",
     )
     to_status_id: uuid.UUID = Field(
-        foreign_key="status_definitions.id", 
-        description="New status"
+        foreign_key="status_definitions.id", description="New status"
     )
-    
+
     # Change context
     change_type: str = Field(
-        max_length=50, 
-        description="Type: direct, consolidation_override, auto_advance, manual"
+        max_length=50,
+        description="Type: direct, consolidation_override, auto_advance, manual",
     )
-    
+
     # Consolidation context (if applicable)
     consolidation_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="shipping_route_tracking_consolidations.id",
-        description="Consolidation that triggered change (if applicable)"
+        description="Consolidation that triggered change (if applicable)",
     )
-    
+
     # Change metadata
     changed_by: str | None = Field(
         default=None, max_length=100, description="User or system that made change"
@@ -280,7 +278,7 @@ class ShippingRouteTrackingLogsBase(Base):
     reason: str | None = Field(
         default=None, max_length=500, description="Reason for status change"
     )
-    
+
     # Automatic transition info
     transition_id: uuid.UUID | None = Field(
         default=None, description="StatusTransition used (if applicable)"
@@ -310,16 +308,16 @@ class ShippingRouteTrackingLogs(ShippingRouteTrackingLogsBase, table=True):
     from_status: Optional["StatusDefinition"] = Relationship(
         sa_relationship_kwargs={
             "foreign_keys": "[ShippingRouteTrackingLogs.from_status_id]",
-            "lazy": "selectin"
+            "lazy": "selectin",
         }
     )
     to_status: "StatusDefinition" = Relationship(
         sa_relationship_kwargs={
             "foreign_keys": "[ShippingRouteTrackingLogs.to_status_id]",
-            "lazy": "selectin"
+            "lazy": "selectin",
         }
     )
-    consolidation: Optional[ShippingRouteTrackingConsolidation] = Relationship(
+    consolidation: ShippingRouteTrackingConsolidation | None = Relationship(
         sa_relationship_kwargs={"lazy": "selectin"}
     )
 

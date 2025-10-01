@@ -1,5 +1,4 @@
 import uuid
-from typing import Any
 
 from fastapi import Depends, HTTPException, Query, status
 from sqlmodel import Field, SQLModel
@@ -10,26 +9,24 @@ from app.features.shipping.crud import (
     crud_shipping_route_tracking,
     crud_shipping_route_tracking_consolidation,
 )
-from app.features.shipping.models.shipping_route_tracking import (
+from app.features.shipping.models.route_tracking import (
     ShippingRouteTracking,
-    ShippingRouteTrackingCreate,
-    ShippingRouteTrackingPublic,
-    ShippingRouteTrackingsPublic,
-    ShippingRouteTrackingUpdate,
-    ShippingRouteTrackingConsolidation,
     ShippingRouteTrackingConsolidationCreate,
     ShippingRouteTrackingConsolidationPublic,
     ShippingRouteTrackingConsolidationsPublic,
     ShippingRouteTrackingConsolidationUpdate,
-    ShippingRouteTrackingLogs,
+    ShippingRouteTrackingCreate,
     ShippingRouteTrackingLogsPublic,
+    ShippingRouteTrackingPublic,
+    ShippingRouteTrackingsPublic,
+    ShippingRouteTrackingUpdate,
 )
 
 
 # Modèles de requête pour les endpoints POST
 class UpdateStatusRequest(SQLModel):
     """Requête pour mettre à jour le statut d'un tracking"""
-    
+
     new_status_id: uuid.UUID = Field(description="Nouveau statut")
     reason: str | None = Field(default=None, description="Raison du changement")
 
@@ -37,7 +34,7 @@ class UpdateStatusRequest(SQLModel):
 # Modèles de réponse pour les endpoints spécialisés
 class TrackingStatusResponse(SQLModel):
     """Réponse pour le statut d'un tracking"""
-    
+
     tracking_id: uuid.UUID = Field(description="ID du tracking")
     order_id: uuid.UUID = Field(description="ID de la commande")
     current_status: str = Field(description="Statut actuel")
@@ -49,7 +46,7 @@ class TrackingStatusResponse(SQLModel):
 
 class TrackingHistoryResponse(SQLModel):
     """Réponse pour l'historique d'un tracking"""
-    
+
     tracking_id: uuid.UUID = Field(description="ID du tracking")
     history: list[ShippingRouteTrackingLogsPublic] = Field(
         description="Historique des changements de statut"
@@ -59,7 +56,7 @@ class TrackingHistoryResponse(SQLModel):
 
 class OrderTrackingResponse(SQLModel):
     """Réponse complète pour le suivi d'une commande"""
-    
+
     order_id: uuid.UUID = Field(description="ID de la commande")
     trackings: list[ShippingRouteTrackingPublic] = Field(
         description="Liste des trackings pour cette commande"
@@ -106,11 +103,11 @@ class ShippingRouteTrackingRouter(
             tracking = await self.crud.get_by_order_id(
                 session=session, order_id=order_id
             )
-            
+
             if not tracking:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No tracking found for this order"
+                    detail="No tracking found for this order",
                 )
 
             # Récupérer tous les trackings par séquence
@@ -128,20 +125,27 @@ class ShippingRouteTrackingRouter(
 
             # Déterminer la séquence actuelle
             current_sequence = max((t.sequence_order for t in trackings), default=0)
-            
+
             # Déterminer le statut global (basé sur le tracking avec la séquence la plus élevée)
             current_tracking = max(trackings, key=lambda x: x.sequence_order)
             status_details = await self.crud.get_status_by_code(
-                session=session, entity="shipping_route_tracking", status_code=current_tracking.status_id
+                session=session,
+                entity="shipping_route_tracking",
+                status_code=current_tracking.status_id,
             )
             overall_status = status_details.code if status_details else "unknown"
 
             return OrderTrackingResponse(
                 order_id=order_id,
-                trackings=[ShippingRouteTrackingPublic.model_validate(t) for t in trackings],
+                trackings=[
+                    ShippingRouteTrackingPublic.model_validate(t) for t in trackings
+                ],
                 current_route_sequence=current_sequence,
                 overall_status=overall_status,
-                consolidations=[ShippingRouteTrackingConsolidationPublic.model_validate(c) for c in consolidations],
+                consolidations=[
+                    ShippingRouteTrackingConsolidationPublic.model_validate(c)
+                    for c in consolidations
+                ],
             )
 
         @self.get(
@@ -156,16 +160,17 @@ class ShippingRouteTrackingRouter(
             current_user: CurrentUser | None = Depends(get_current_user_optional),
         ):
             tracking = await self.crud.get(session=session, id=tracking_id)
-            
+
             if not tracking:
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Tracking not found"
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Tracking not found"
                 )
 
             # Récupérer les détails du statut
             status_details = await self.crud.get_status_by_code(
-                session=session, entity="shipping_route_tracking", status_code=tracking.status_id
+                session=session,
+                entity="shipping_route_tracking",
+                status_code=tracking.status_id,
             )
 
             return TrackingStatusResponse(
@@ -199,11 +204,10 @@ class ShippingRouteTrackingRouter(
                     reason=request.reason,
                 )
                 return ShippingRouteTrackingPublic.model_validate(updated_tracking)
-                
+
             except ValueError as e:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=str(e)
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
                 )
 
         @self.get(
@@ -215,15 +219,16 @@ class ShippingRouteTrackingRouter(
         async def get_tracking_history(
             tracking_id: uuid.UUID,
             session: SessionDep,
-            limit: int = Query(default=100, le=500, description="Nombre maximum d'entrées"),
+            limit: int = Query(
+                default=100, le=500, description="Nombre maximum d'entrées"
+            ),
             current_user: CurrentUser | None = Depends(get_current_user_optional),
         ):
             tracking = await self.crud.get(session=session, id=tracking_id)
-            
+
             if not tracking:
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Tracking not found"
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Tracking not found"
                 )
 
             history = await self.crud.get_status_history(
@@ -232,7 +237,10 @@ class ShippingRouteTrackingRouter(
 
             return TrackingHistoryResponse(
                 tracking_id=tracking_id,
-                history=[ShippingRouteTrackingLogsPublic.model_validate(log) for log in history],
+                history=[
+                    ShippingRouteTrackingLogsPublic.model_validate(log)
+                    for log in history
+                ],
                 total_changes=len(history),
             )
 
@@ -253,22 +261,21 @@ class ShippingRouteTrackingRouter(
                     tracking_id=tracking_id,
                     user_id=current_user.id,
                 )
-                
+
                 if next_tracking:
                     return ShippingRouteTrackingPublic.model_validate(next_tracking)
                 else:
                     return None  # Pas de route suivante
-                    
+
             except ValueError as e:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=str(e)
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
                 )
 
 
 class Auth:
     read = True
-    create = True  
+    create = True
     update = True
     delete = True
 
@@ -297,7 +304,7 @@ class ConsolidationAuth:
 
 # Router pour les consolidations
 consolidation_router = BaseRouter(
-    name="consolidation", 
+    name="consolidation",
     tags=["shipping"],
     crud=crud_shipping_route_tracking_consolidation,
     schema_public=ShippingRouteTrackingConsolidationPublic,
@@ -317,6 +324,7 @@ logs_router = APIRouter(
     tags=["shipping"],
 )
 
+
 @logs_router.get(
     "/tracking/{tracking_id}",
     response_model=list[ShippingRouteTrackingLogsPublic],
@@ -334,5 +342,5 @@ async def get_tracking_logs(
     history = await crud_shipping_route_tracking.get_status_history(
         session=session, tracking_id=tracking_id, limit=limit
     )
-    
+
     return [ShippingRouteTrackingLogsPublic.model_validate(log) for log in history]

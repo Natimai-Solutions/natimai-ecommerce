@@ -14,7 +14,7 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 if TYPE_CHECKING:
     from app.features.shipping.models.delivery_task import DeliveryTask
-    from app.features.shipping.models.shipping_route import (
+    from app.features.shipping.models.route import (
         ShippingRoute,
         ShippingRouteStep,
     )
@@ -45,9 +45,7 @@ class PlaceBase(Base):
     country: str | None = Field(
         default=None, max_length=2, description="Code Country ISO"
     )
-    region: str | None = Field(
-        default=None, max_length=100, description="Region/État"
-    )
+    region: str | None = Field(default=None, max_length=100, description="Region/État")
 
     # Capacités pour entrepôts
     is_warehouse: bool = Field(default=False, description="Is a warehouse")
@@ -70,6 +68,10 @@ class PlaceBase(Base):
     # Horaires d'opération
     operating_hours: str | None = Field(
         default=None, max_length=50, description="Operating hours"
+    )
+
+    is_owned: bool = Field(
+        default=False, description="Indicates if the place is owned by the company"
     )
 
 

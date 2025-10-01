@@ -1,7 +1,6 @@
-﻿"""
+"""
 CRUD for partners (clients and suppliers).
 """
-
 
 from sqlmodel import and_, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -83,7 +82,7 @@ class PartnerCrud(CrudBase[Partner, PartnerCreate, PartnerUpdate]):
     ) -> list[Partner]:
         """Récupère les partenaires ayant des routes (comme origine ou destination)"""
 
-        from app.features.shipping.models.shipping_route import ShippingRoute
+        from app.features.shipping.models.route import ShippingRoute
 
         if is_origin:
             join_condition = ShippingRoute.from_partner_id == Partner.id
@@ -111,4 +110,3 @@ crud_partner = PartnerCrud(
     ),
     order_by=Partner.name.asc(),
 )
-

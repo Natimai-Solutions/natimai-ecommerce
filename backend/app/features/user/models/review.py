@@ -13,9 +13,6 @@ def validate_rating(v: int, field_name: str = "Rating") -> int:
     return v
 
 
-
-
-
 class ReviewBase(Base):
     rating: int = Field(ge=1, le=5, description="Rating between 1 and 5")
     comment: str | None = Field(
