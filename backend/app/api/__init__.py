@@ -3,6 +3,7 @@ from fastapi import APIRouter
 api_router = APIRouter()
 
 from app.api.routes.address import router as address_router
+from app.api.routes.ingram_micro import router as ingram_micro_router
 from app.api.routes.login import router as login_router
 from app.api.routes.partner import router as partner_router
 from app.api.routes.payment_method import (
@@ -40,3 +41,6 @@ api_router.include_router(utils_router, prefix="/utils", tags=["utils"])
 
 # Shipping routes
 api_router.include_router(shipping_router)
+
+# Ingram Micro integration routes
+api_router.include_router(ingram_micro_router, prefix="/ingram", tags=["ingram-micro"])

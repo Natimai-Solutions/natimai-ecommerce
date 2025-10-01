@@ -9,12 +9,12 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import Column
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 if TYPE_CHECKING:
-    from app.features.place.models import Place
+    pass
 
 
 class DeliveryTaskBase(Base):
@@ -23,9 +23,15 @@ class DeliveryTaskBase(Base):
     """
 
     order_id: uuid.UUID = Field(description="Order ID to deliver")
-    address_place_id: uuid.UUID = Field(
+    place_id: uuid.UUID | None = Field(
+        default=None,
         foreign_key="places.id",
         description="Delivery place",
+    )
+    address_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="addresses.id",
+        description="Delivery address for this task",
     )
 
     # Delivery type
@@ -65,9 +71,6 @@ class DeliveryTask(DeliveryTaskBase, table=True):
         default_factory=uuid.uuid4,
         sa_column=Column(PG_UUID(as_uuid=True), primary_key=True),
     )
-
-    # Relations
-    address_place: "Place" = Relationship(sa_relationship_kwargs={"lazy": "selectin"})
 
 
 class DeliveryTaskCreate(DeliveryTaskBase, BaseCreate):

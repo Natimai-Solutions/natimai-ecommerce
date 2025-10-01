@@ -45,6 +45,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/fastapi_ecommerce
       - POSTGRES_SERVER=postgres
@@ -73,6 +75,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/fastapi_ecommerce
       - POSTGRES_SERVER=postgres
@@ -95,6 +99,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/fastapi_ecommerce
       - POSTGRES_SERVER=postgres
@@ -115,6 +121,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/fastapi_ecommerce
       - POSTGRES_SERVER=postgres

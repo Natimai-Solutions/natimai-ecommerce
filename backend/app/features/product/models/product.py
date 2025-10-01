@@ -1,9 +1,21 @@
 import uuid
+from enum import Enum
 
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 from app.features.product.models.category import Category
+
+
+class SupplierType(str, Enum):
+    """Supported product suppliers/vendors"""
+
+    INGRAM_MICRO = "ingram_micro"
+    TECH_DATA = "tech_data"
+    SYNNEX = "synnex"
+    ARROW = "arrow"
+    AVNET = "avnet"
+    LOCAL = "local"  # For locally managed products
 
 
 class ProductBase(Base):
@@ -25,6 +37,77 @@ class ProductBase(Base):
         description="Indicates if the product has variants",
     )
 
+    # Generic supplier/vendor integration fields
+    supplier_sku: str | None = Field(
+        default=None,
+        max_length=50,
+        index=True,
+        description="Supplier/vendor SKU identifier",
+    )
+    vendor_part_number: str | None = Field(
+        default=None,
+        max_length=100,
+        description="Manufacturer part number",
+    )
+    manufacturer: str | None = Field(
+        default=None,
+        max_length=100,
+        description="Product manufacturer",
+    )
+    supplier_name: str | None = Field(
+        default=None,
+        max_length=100,
+        description="Name of the supplier/vendor (Ingram Micro, Tech Data, etc.)",
+    )
+    supplier_category: str | None = Field(
+        default=None,
+        max_length=50,
+        description="Supplier's product category",
+    )
+    supplier_subcategory: str | None = Field(
+        default=None,
+        max_length=50,
+        description="Supplier's product subcategory",
+    )
+    weight: float | None = Field(
+        default=None,
+        ge=0,
+        description="Product weight in kg",
+    )
+    dimensions_length: float | None = Field(
+        default=None,
+        ge=0,
+        description="Product length in cm",
+    )
+    dimensions_width: float | None = Field(
+        default=None,
+        ge=0,
+        description="Product width in cm",
+    )
+    dimensions_height: float | None = Field(
+        default=None,
+        ge=0,
+        description="Product height in cm",
+    )
+    supplier_image_url: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Product image URL from supplier",
+    )
+    supplier_spec_url: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Product specification URL from supplier",
+    )
+    last_supplier_sync: str | None = Field(
+        default=None,
+        description="Last synchronization timestamp with supplier (ISO format)",
+    )
+    is_supplier_managed: bool = Field(
+        default=False,
+        description="Indicates if this product is managed by a supplier",
+    )
+
 
 class ProductCreate(ProductBase, BaseCreate):
     pass
@@ -35,6 +118,22 @@ class ProductUpdate(ProductBase, BaseUpdate):
     description: str | None = None
     base_price: float | None = None
     has_variants: bool | None = None
+
+    # Generic supplier fields (optional for updates)
+    supplier_sku: str | None = None
+    vendor_part_number: str | None = None
+    manufacturer: str | None = None
+    supplier_name: str | None = None
+    supplier_category: str | None = None
+    supplier_subcategory: str | None = None
+    weight: float | None = None
+    dimensions_length: float | None = None
+    dimensions_width: float | None = None
+    dimensions_height: float | None = None
+    supplier_image_url: str | None = None
+    supplier_spec_url: str | None = None
+    last_supplier_sync: str | None = None
+    is_supplier_managed: bool | None = None
 
 
 class Product(ProductBase, Base, table=True):
@@ -61,6 +160,22 @@ class Product(ProductBase, Base, table=True):
 class ProductPublic(ProductBase, BasePublic):
     id: uuid.UUID
     category_id: uuid.UUID | None = None
+
+    # Generic supplier fields (exposed in public API)
+    supplier_sku: str | None = None
+    vendor_part_number: str | None = None
+    manufacturer: str | None = None
+    supplier_name: str | None = None
+    supplier_category: str | None = None
+    supplier_subcategory: str | None = None
+    weight: float | None = None
+    dimensions_length: float | None = None
+    dimensions_width: float | None = None
+    dimensions_height: float | None = None
+    supplier_image_url: str | None = None
+    supplier_spec_url: str | None = None
+    last_supplier_sync: str | None = None
+    is_supplier_managed: bool = False
 
 
 class ProductsPublic(SQLModel):
