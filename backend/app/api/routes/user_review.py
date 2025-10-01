@@ -1,17 +1,16 @@
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query, status
-
+from fastapi import HTTPException, Query, status
+from app.api.base_router import BaseRouter
 from app.api.deps import SessionDep, CurrentUser
-from app.features.user.crud.review import crud_review
+from app.features.user.crud.review import ReviewCrud, crud_review
 from app.features.user.models.review import (
+    Review,
     ReviewCreate,
     ReviewPublic,
     ReviewsPublic,
     ReviewUpdate,
 )
-
-router = APIRouter()
 
 
 def _check_permission(current_user_id: uuid.UUID, user_id: uuid.UUID, is_admin: bool = False) -> bool:
@@ -19,6 +18,40 @@ def _check_permission(current_user_id: uuid.UUID, user_id: uuid.UUID, is_admin: 
     return current_user_id == user_id or is_admin
 
 
+class ReviewRouter(
+    BaseRouter[
+        Review,
+        ReviewCreate,
+        ReviewUpdate,
+        ReviewPublic,
+        ReviewsPublic,
+        ReviewCrud,
+    ]
+):
+    pass
+
+
+class Auth:
+    read = True
+    create = True
+    update = True
+    delete = True
+
+
+router = ReviewRouter(
+    name="review",
+    tags=["review"],
+    crud=crud_review,
+    schema_public=ReviewPublic,
+    schema_publics=ReviewsPublic,
+    schema_create=ReviewCreate,
+    schema_update=ReviewUpdate,
+    auth=Auth(),
+    auto=True,
+)
+
+
+# User-specific review routes
 @router.get("/users/{user_id}/reviews", response_model=ReviewsPublic)
 async def get_user_reviews(
     session: SessionDep,
@@ -82,7 +115,7 @@ async def create_user_review(
         )
     
     review = await crud_review.create_for_user(
-        session=session, obj_in=review_in, user_id=user_id, current_user=current_user.id
+        session=session, obj_in=review_in, user_id=user_id
     )
     return ReviewPublic.model_validate(review)
 
@@ -133,7 +166,7 @@ async def delete_user_review(
     await crud_review.remove(session=session, id=review_id)
 
 
-# Product-specific endpoints (publicly accessible)
+# Product-specific review routes
 @router.get("/products/{product_id}/reviews", response_model=ReviewsPublic)
 async def get_product_reviews(
     session: SessionDep,
@@ -141,7 +174,7 @@ async def get_product_reviews(
     skip: int = Query(default=0, ge=0, description="Number of reviews to skip"),
     limit: int = Query(default=100, le=100, ge=1, description="Number of reviews to return")
 ) -> ReviewsPublic:
-    """Get all reviews for a specific product (public endpoint)."""
+    """Get all reviews for a specific product."""
     reviews = await crud_review.get_by_product_id(
         session=session, product_id=product_id, skip=skip, limit=limit
     )
@@ -151,20 +184,22 @@ async def get_product_reviews(
 
 
 @router.get("/products/{product_id}/reviews/average")
-async def get_product_average_rating(
+async def get_product_review_average(
     session: SessionDep,
     product_id: uuid.UUID,
 ) -> dict:
-    """Get average rating for a product (public endpoint)."""
+    """Get average rating for a specific product."""
     average_rating = await crud_review.get_average_rating_by_product(
         session=session, product_id=product_id
     )
-    count = await crud_review.count_by_product(session=session, product_id=product_id)
+    review_count = await crud_review.count_by_product(
+        session=session, product_id=product_id
+    )
     
     return {
         "product_id": product_id,
-        "average_rating": round(average_rating, 2) if average_rating else None,
-        "review_count": count
+        "average_rating": average_rating,
+        "review_count": review_count
     }
 
 
