@@ -29,6 +29,8 @@ dependencies = [
     "arq>=0.26.3",
     "redis>=5.0.0",  # Version plus récente compatible avec Python 3.12
     "disutils>=1.4.32.post2",
+    "aiohttp>=3.8.0",  # Pour les appels API REST Ingram Micro
+    "openai>=1.0.0",
 ]
 
 [tool.uv]

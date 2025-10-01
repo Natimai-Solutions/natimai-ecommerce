@@ -1,14 +1,19 @@
 import importlib
 import logging
 
+from arq.connections import RedisSettings, create_pool
 from sqlmodel.ext.asyncio.session import AsyncSession
-
-from arq.connections import RedisSettings
 
 from app.core.config import settings
 from app.core.db import engine
 
 logger = logging.getLogger(__name__)
+
+
+# Redis pool pour ARQ
+async def get_redis_pool():
+    """Get Redis pool for ARQ job enqueuing"""
+    return await create_pool(RedisSettings.from_dsn(str(settings.REDIS_URL)))
 
 
 # Fonction générique pour résoudre et exécuter les handlers outbox
@@ -41,6 +46,14 @@ async def execute_outbox_handler(ctx, handler_path: str, **kwargs):
         raise
 
 
+# Import des tâches Ingram Micro
+from app.tasks.ingram_micro_tasks import (
+    check_ingram_api_health_task,
+    get_ingram_sync_cron_jobs,
+    sync_ingram_inventory_task,
+    sync_ingram_products_task,
+)
+
 
 # Tes handlers ARQ existants
 async def example_handler(ctx, **kwargs):
@@ -52,12 +65,19 @@ class WorkerSettings:
     functions = [
         execute_outbox_handler,  # Fonction générique pour les handlers outbox
         example_handler,
+        # Tâches Ingram Micro
+        sync_ingram_products_task,
+        sync_ingram_inventory_task,
+        check_ingram_api_health_task,
         # ... tes autres handlers
     ]
+
+    # Cron jobs pour la synchronisation planifiée
+    cron_jobs = get_ingram_sync_cron_jobs()
 
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)
     # pas besoin de cron job ici
 
     redis_settings = RedisSettings.from_dsn(str(settings.REDIS_URL))
-    job_timeout = 300
+    job_timeout = 600  # Augmenté pour les tâches de sync qui peuvent prendre du temps
     keep_result = 3600

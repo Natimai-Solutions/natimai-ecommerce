@@ -3,7 +3,7 @@ import uuid
 from pydantic import field_validator
 from sqlmodel import Field, SQLModel
 
-from app.features.base.models import Base, BaseCreate, BaseUpdate, BasePublic
+from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 def validate_address_type(v: str, field_name: str = "Address type") -> str:
@@ -16,7 +16,7 @@ def validate_address_type(v: str, field_name: str = "Address type") -> str:
 
 class AddressBase(Base):
     street: str = Field(description="Street address")
-    city: str = Field(description="City of the address")  
+    city: str = Field(description="City of the address")
     state: str | None = Field(default=None, description="State of the address")
     postal_code: str = Field(description="Postal code of the address")
     country: str = Field(description="Country of the address")
@@ -41,7 +41,7 @@ class AddressUpdate(AddressBase, BaseUpdate):
     type: str | None = None
     user_id: uuid.UUID | None = None
 
-    @field_validator('type')
+    @field_validator("type")
     @classmethod
     def validate_type(cls, v: str | None) -> str | None:
         if v is not None:

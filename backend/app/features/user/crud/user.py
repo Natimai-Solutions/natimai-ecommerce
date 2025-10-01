@@ -50,9 +50,7 @@ class CrudUser(CrudBase[User, UserCreate, UserUpdate]):
             return None
         return user
 
-    async def get_by_email(
-        self, session: AsyncSession, *, email: str
-    ) -> User | None:
+    async def get_by_email(self, session: AsyncSession, *, email: str) -> User | None:
         """
         Get user by email address.
         """

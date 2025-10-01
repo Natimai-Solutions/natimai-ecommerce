@@ -1,55 +1,77 @@
-from backend.app.api.deps import SessionDep
-from fastapi import APIRouter
-
-from app.api.routes.base import BaseController
-from app.api.shipping.crud.shipping_status_crud import (
-    ShippingStatusCrud,
-    crud_shipping_status,
+from app.api.base_router import BaseRouter
+from app.features.shipping.crud import (
+    crud_status_definition,
+    crud_status_transition,
+)
+from app.features.shipping.models.status import (
+    StatusDefinition,
+    StatusDefinitionCreate,
+    StatusDefinitionPublic,
+    StatusDefinitionsPublic,
+    StatusDefinitionUpdate,
+    StatusTransition,
+    StatusTransitionCreate,
+    StatusTransitionPublic,
+    StatusTransitionsPublic,
+    StatusTransitionUpdate,
 )
 
-from ..model.shipping_status import (
-    ShippingStatus,
-    ShippingStatusCreate,
-    ShippingStatusPublic,
-    ShippingStatusUpdate,
-)
 
-
-class ShippingStatusController(
-    BaseController[
-        ShippingStatus,
-        ShippingStatusCreate,
-        ShippingStatusUpdate,
-        ShippingStatusCrud,
+class StatusDefinitionRouter(
+    BaseRouter[
+        StatusDefinition,
+        StatusDefinitionCreate,
+        StatusDefinitionUpdate,
+        StatusDefinitionPublic,
+        StatusDefinitionsPublic,
+        type(crud_status_definition),
     ]
 ):
     pass
 
 
-router = APIRouter()
+class StatusTransitionRouter(
+    BaseRouter[
+        StatusTransition,
+        StatusTransitionCreate,
+        StatusTransitionUpdate,
+        StatusTransitionPublic,
+        StatusTransitionsPublic,
+        type(crud_status_transition),
+    ]
+):
+    pass
 
 
-@router.get(
-    "/shipping_statuses",
-    response_model=list[ShippingStatusPublic],
-    name="shipping_status:public",
+class Auth:
+    read = True
+    create = True
+    update = True
+    delete = True
+
+
+# Router pour les définitions de statuts
+status_definition_router = StatusDefinitionRouter(
+    name="shipping status definition",
+    tags=["shipping", "status", "definition"],
+    crud=crud_status_definition,
+    schema_public=StatusDefinitionPublic,
+    schema_publics=StatusDefinitionsPublic,
+    schema_create=StatusDefinitionCreate,
+    schema_update=StatusDefinitionUpdate,
+    auth=Auth(),
+    auto=True,
 )
-async def get_public_shipping_statuses(
-    session: SessionDep,
-    limit: int = 100,
-) -> list[ShippingStatusPublic]:
-    return await crud_shipping_status.get_random_shipping_statuses(
-        session=session,
-        limit=limit,
-    )
 
-
-controller = ShippingStatusController(
-    model=ShippingStatus,
-    schema_create=ShippingStatusCreate,
-    schema_update=ShippingStatusUpdate,
-    crud=crud_shipping_status,
-    router=router,
+# Router pour les transitions de statuts
+status_transition_router = StatusTransitionRouter(
+    name="shipping status transition",
+    tags=["shipping", "status", "transition"],
+    crud=crud_status_transition,
+    schema_public=StatusTransitionPublic,
+    schema_publics=StatusTransitionsPublic,
+    schema_create=StatusTransitionCreate,
+    schema_update=StatusTransitionUpdate,
+    auth=Auth(),
+    auto=True,
 )
-
-router = controller.get_routes()
