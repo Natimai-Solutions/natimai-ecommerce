@@ -140,7 +140,9 @@ class IcecatService:
             # Extract specifications
             specifications = []
             for group in specs_data:
-                group_name = group.get("FeatureGroup", {}).get("Name", {}).get("Value", "")
+                group_name = (
+                    group.get("FeatureGroup", {}).get("Name", {}).get("Value", "")
+                )
                 for feature in group.get("Features", []):
                     feature_info = feature.get("Feature", {})
                     specifications.append(
@@ -163,8 +165,12 @@ class IcecatService:
                 brand=product_data.get("Brand", ""),
                 product_name=product_data.get("Title", ""),
                 description=product_data.get("Description", {}).get("ShortDesc", ""),
-                long_description=product_data.get("Description", {}).get("LongDesc", ""),
-                category=product_data.get("Category", {}).get("Name", {}).get("Value", ""),
+                long_description=product_data.get("Description", {}).get(
+                    "LongDesc", ""
+                ),
+                category=product_data.get("Category", {})
+                .get("Name", {})
+                .get("Value", ""),
                 images=images,
                 specifications=specifications,
                 features=features,
@@ -181,7 +187,7 @@ class IcecatService:
     async def get_product_by_upc(self, upc: str) -> IcecatProductData | None:
         """
         Get product data by UPC code
-        
+
         UPC-A codes (12 digits) are automatically converted to EAN-13 by adding a leading zero.
         UPC codes are compatible with Icecat's EAN search.
 
@@ -197,7 +203,7 @@ class IcecatService:
             logger.info(f"Converting UPC-A {upc} to EAN-13 {ean}")
         else:
             ean = upc
-        
+
         # Use the EAN search method
         return await self.get_product_by_ean(ean)
 
@@ -257,7 +263,9 @@ class IcecatService:
             specifications = []
             specs_data = data.get("FeaturesGroups", [])
             for group in specs_data:
-                group_name = group.get("FeatureGroup", {}).get("Name", {}).get("Value", "")
+                group_name = (
+                    group.get("FeatureGroup", {}).get("Name", {}).get("Value", "")
+                )
                 for feature in group.get("Features", []):
                     feature_info = feature.get("Feature", {})
                     specifications.append(
@@ -280,8 +288,12 @@ class IcecatService:
                 brand=brand,
                 product_name=product_data.get("Title", ""),
                 description=product_data.get("Description", {}).get("ShortDesc", ""),
-                long_description=product_data.get("Description", {}).get("LongDesc", ""),
-                category=product_data.get("Category", {}).get("Name", {}).get("Value", ""),
+                long_description=product_data.get("Description", {}).get(
+                    "LongDesc", ""
+                ),
+                category=product_data.get("Category", {})
+                .get("Name", {})
+                .get("Value", ""),
                 images=images,
                 specifications=specifications,
                 features=features,
@@ -298,7 +310,11 @@ class IcecatService:
             return None
 
     async def enrich_product_with_icecat(
-        self, vendor_part_number: str | None = None, manufacturer: str | None = None, ean: str | None = None, upc: str | None = None
+        self,
+        vendor_part_number: str | None = None,
+        manufacturer: str | None = None,
+        ean: str | None = None,
+        upc: str | None = None,
     ) -> dict[str, Any] | None:
         """
         Enrich product data with Icecat information
@@ -326,7 +342,9 @@ class IcecatService:
                 return self._convert_to_enrichment_data(icecat_data)
         else:
             # Fallback to brand + MPN
-            icecat_data = await self.get_product_by_brand_mpn(manufacturer, vendor_part_number)
+            icecat_data = await self.get_product_by_brand_mpn(
+                manufacturer, vendor_part_number
+            )
             if icecat_data:
                 return self._convert_to_enrichment_data(icecat_data)
 

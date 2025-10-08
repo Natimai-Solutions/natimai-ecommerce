@@ -75,9 +75,7 @@ class ProductSearchQuery(BaseModel):
     """Model for product search queries."""
 
     query: str = Field(description="Natural language search query")
-    category: str | None = Field(
-        default=None, description="Optional category filter"
-    )
+    category: str | None = Field(default=None, description="Optional category filter")
     min_price: float | None = Field(default=None, description="Minimum price filter")
     max_price: float | None = Field(default=None, description="Maximum price filter")
     limit: int = Field(default=10, description="Maximum number of results")
@@ -164,9 +162,7 @@ class ProductSearchQuery(BaseModel):
     """Model for product search queries."""
 
     query: str = Field(description="Natural language search query")
-    category: str | None = Field(
-        default=None, description="Optional category filter"
-    )
+    category: str | None = Field(default=None, description="Optional category filter")
     min_price: float | None = Field(default=None, description="Minimum price filter")
     max_price: float | None = Field(default=None, description="Maximum price filter")
     limit: int = Field(default=10, description="Maximum number of results")

@@ -46,7 +46,9 @@ async def sync_ingram_products_task(
     # Use provided categories or fall back to settings
     sync_categories = categories or settings.INGRAM_SYNC_CATEGORIES
 
-    logger.debug(f"Starting Ingram Micro product sync for categories: {sync_categories}")
+    logger.debug(
+        f"Starting Ingram Micro product sync for categories: {sync_categories}"
+    )
 
     try:
         async with AsyncSession(engine) as session:

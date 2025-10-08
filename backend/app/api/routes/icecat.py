@@ -43,8 +43,12 @@ class EnrichmentResponse(BaseModel):
 class TestEnrichmentRequest(BaseModel):
     """Request model for testing enrichment"""
 
-    vendor_part_number: str | None = Field(default=None, description="Manufacturer part number")
-    manufacturer: str | None = Field(default=None, description="Product manufacturer/brand")
+    vendor_part_number: str | None = Field(
+        default=None, description="Manufacturer part number"
+    )
+    manufacturer: str | None = Field(
+        default=None, description="Product manufacturer/brand"
+    )
     ean: str | None = Field(default=None, description="Optional EAN/UPC code")
     upc: str | None = Field(default=None, description="Optional UPC code")
 
@@ -122,7 +126,7 @@ async def batch_enrich_products(
 @router.post("/test", response_model=dict[str, Any])
 async def test_icecat_enrichment(
     request: TestEnrichmentRequest,
-#    current_user=Depends(get_current_active_superuser),
+    #    current_user=Depends(get_current_active_superuser),
 ) -> dict[str, Any]:
     """
     Test Icecat API connection and data retrieval.
@@ -189,7 +193,7 @@ async def get_enrichment_status(
 @router.get("/search/upc/{upc}", response_model=dict[str, Any])
 async def search_by_upc(
     upc: str,
-#    current_user=Depends(get_current_active_superuser),
+    #    current_user=Depends(get_current_active_superuser),
 ) -> dict[str, Any]:
     """
     Search Icecat product by UPC code.
@@ -206,7 +210,7 @@ async def search_by_upc(
 
     try:
         product_data = await icecat_service.get_product_by_upc(upc)
-        
+
         if not product_data:
             return {
                 "status": "not_found",
@@ -241,7 +245,7 @@ async def search_by_upc(
 @router.get("/search/ean/{ean}", response_model=dict[str, Any])
 async def search_by_ean(
     ean: str,
-#    current_user=Depends(get_current_active_superuser),
+    #    current_user=Depends(get_current_active_superuser),
 ) -> dict[str, Any]:
     """
     Search Icecat product by EAN code.
@@ -257,7 +261,7 @@ async def search_by_ean(
 
     try:
         product_data = await icecat_service.get_product_by_ean(ean)
-        
+
         if not product_data:
             return {
                 "status": "not_found",
@@ -287,4 +291,3 @@ async def search_by_ean(
             status_code=500,
             detail=f"EAN search failed: {str(e)}",
         )
-

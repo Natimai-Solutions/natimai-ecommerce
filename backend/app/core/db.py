@@ -30,7 +30,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def test_connection() -> bool:
     """
     Test database connection.
-    
+
     Returns:
         True if connection is successful, raises exception otherwise
     """

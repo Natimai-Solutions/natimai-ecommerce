@@ -42,7 +42,9 @@ class IngramProductData(BaseModel):
     last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     upc_code: str | None = Field(default=None, description="Product UPC code")
 
+
 INGRAM_URL = "https://api.ingrammicro.com:443"
+
 
 class IngramMicroService:
     """Service for interacting with Ingram Micro API"""
@@ -105,7 +107,7 @@ class IngramMicroService:
 
         # Generate correlation ID limited to 32 characters (UUID without hyphens, truncated)
         correlation_id = str(uuid4()).replace("-", "")[:32]
-        
+
         headers = {
             "Authorization": f"Bearer {access_token}",
             "IM-CustomerNumber": self.customer_number,
@@ -118,7 +120,7 @@ class IngramMicroService:
         }
 
         url = f"{self.base_url}{endpoint}"
-        
+
         # Log request details for debugging
         logger.debug(f"Making API request to: {url}")
         logger.debug(f"Parameters: {params}")
@@ -147,7 +149,7 @@ class IngramMicroService:
 
         # Generate correlation ID limited to 32 characters
         correlation_id = str(uuid4()).replace("-", "")[:32]
-        
+
         headers = {
             "Authorization": f"Bearer {access_token}",
             "IM-CustomerNumber": self.customer_number,
@@ -160,14 +162,16 @@ class IngramMicroService:
         }
 
         url = f"{self.base_url}{endpoint}"
-        
+
         logger.debug(f"Making POST API request to: {url}")
         if params:
             logger.debug(f"Query params: {params}")
         logger.debug(f"Request body: {body}")
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, headers=headers, json=body, params=params) as response:
+            async with session.post(
+                url, headers=headers, json=body, params=params
+            ) as response:
                 logger.debug(f"Final URL with params: {response.url}")
                 if response.status == 200:
                     return await response.json()
@@ -179,7 +183,11 @@ class IngramMicroService:
                     raise Exception(f"API request failed: {response.status}")
 
     async def get_product_catalog(
-        self, category: str | None = None, vendors: list | None = None, page_number: int = 1, page_size: int = 25
+        self,
+        category: str | None = None,
+        vendors: list | None = None,
+        page_number: int = 1,
+        page_size: int = 25,
     ) -> list[IngramProductData]:
         """
         Retrieve product catalog from Ingram Micro
@@ -197,10 +205,7 @@ class IngramMicroService:
         )
 
         # Use parameters that are more likely to return results
-        params = {
-            "pageNumber": page_number,
-            "pageSize": min(page_size, 100)
-        }
+        params = {"pageNumber": page_number, "pageSize": min(page_size, 100)}
 
         # Add category if provided
         if category:
@@ -211,44 +216,48 @@ class IngramMicroService:
 
         try:
             # Using catalog endpoint for sandbox
-            response = await self._make_api_request(
-                "/resellers/v6/catalog", params
-            )
+            response = await self._make_api_request("/resellers/v6/catalog", params)
 
             # Log the response structure for debugging
             logger.debug(f"API Response type: {type(response)}")
-            logger.debug(f"API Response keys: {list(response.keys()) if isinstance(response, dict) else 'Not a dict'}")
-            
+            logger.debug(
+                f"API Response keys: {list(response.keys()) if isinstance(response, dict) else 'Not a dict'}"
+            )
+
             products = []
-            
+
             # Handle different response structures
             if isinstance(response, list):
                 # Response is directly a list of products
                 catalog_data = response
             elif isinstance(response, dict):
                 # Response is a dict, try to find the products array
-                catalog_data = response.get("catalog", response.get("products", response.get("data", [])))
+                catalog_data = response.get(
+                    "catalog", response.get("products", response.get("data", []))
+                )
             else:
                 logger.error(f"Unexpected response type: {type(response)}")
                 catalog_data = []
 
             logger.debug(f"Catalog data type: {type(catalog_data)}")
-            logger.debug(f"Number of items in catalog: {len(catalog_data) if catalog_data else 0}")
-            
+            logger.debug(
+                f"Number of items in catalog: {len(catalog_data) if catalog_data else 0}"
+            )
+
             for i, item in enumerate(catalog_data):
                 try:
                     logger.info(f"Item {i} type: {type(item)}")
                     logger.info(f"Item {i} content: {item}")
-                    
+
                     # Handle if item is a list instead of dict
                     if isinstance(item, list) and len(item) > 0:
                         # Use the first element if it's a list
                         item = item[0]
-                    
+
                     if not isinstance(item, dict):
                         logger.error(f"Item {i} is not a dict: {type(item)}")
                         continue
-                    
+
                     product = IngramProductData(
                         sku=item.get("ingramPartNumber", ""),
                         vendor_part_number=item.get("vendorPartNumber", ""),
@@ -256,7 +265,9 @@ class IngramMicroService:
                         product_name=item.get("description", ""),
                         description=item.get("extraDescription"),
                         category=item.get("category", ""),
-                        subcategory=item.get("subCategory"),  # Note: subCategory with capital C
+                        subcategory=item.get(
+                            "subCategory"
+                        ),  # Note: subCategory with capital C
                         price=0.0,  # Price not available in catalog endpoint
                         availability=0,  # Availability not available in catalog endpoint
                         weight=None,  # Weight not available in catalog endpoint
@@ -278,7 +289,10 @@ class IngramMicroService:
             raise
 
     async def get_price_and_availability(
-        self, skus: list[str], include_pricing: bool = True, include_availability: bool = True
+        self,
+        skus: list[str],
+        include_pricing: bool = True,
+        include_availability: bool = True,
     ) -> dict[str, dict[str, Any]]:
         """
         Get price and availability information for specific SKUs using POST endpoint
@@ -305,7 +319,7 @@ class IngramMicroService:
         params = {
             "includePricing": "true" if include_pricing else "false",
             "includeAvailability": "true" if include_availability else "false",
-            "includeProductAttributes": "false"
+            "includeProductAttributes": "false",
         }
 
         try:
@@ -317,22 +331,24 @@ class IngramMicroService:
             logger.debug(f"Price/Availability Response type: {type(response)}")
             if isinstance(response, dict):
                 logger.debug(f"Response keys: {list(response.keys())}")
-            
+
             results = {}
-            
+
             # Handle different response structures
             if isinstance(response, list):
                 # Response is directly a list of products
                 products_data = response
             elif isinstance(response, dict):
                 # Response is a dict, try to find the products array
-                products_data = response.get("data", response.get("products", response.get("catalog", [])))
+                products_data = response.get(
+                    "data", response.get("products", response.get("catalog", []))
+                )
             else:
                 logger.error(f"Unexpected response type: {type(response)}")
                 products_data = []
-            
+
             logger.debug(f"Number of products in response: {len(products_data)}")
-            
+
             # Parse response
             for item in products_data:
                 sku = item.get("ingramPartNumber")
@@ -354,13 +370,13 @@ class IngramMicroService:
                 if include_availability and "availability" in item:
                     availability = item["availability"]
                     total_qty = 0
-                    
+
                     # Sum quantities from all warehouses
                     for warehouse in availability.get("availabilityByWarehouse", []):
                         qty = warehouse.get("quantityAvailable", 0)
                         if isinstance(qty, (int, float)):
                             total_qty += int(qty)
-                    
+
                     availability_info = {
                         "total_quantity": total_qty,
                         "warehouses": availability.get("availabilityByWarehouse", []),

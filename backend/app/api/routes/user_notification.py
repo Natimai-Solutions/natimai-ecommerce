@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import HTTPException, Query, status
+
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
 from app.features.user.crud.notification import (
@@ -64,7 +65,9 @@ async def get_user_notifications(
     current_user: CurrentUser,
     user_id: uuid.UUID,
     skip: int = Query(default=0, ge=0, description="Number of notifications to skip"),
-    limit: int = Query(default=100, le=100, ge=1, description="Number of notifications to return"),
+    limit: int = Query(
+        default=100, le=100, ge=1, description="Number of notifications to return"
+    ),
     unread_only: bool = False,
 ) -> NotificationsPublic:
     """Get all notifications for a specific user."""
@@ -100,7 +103,10 @@ async def get_user_unread_notifications_count(
     return {"user_id": user_id, "unread_count": count}
 
 
-@router.get("/users/{user_id}/notifications/{notification_id}", response_model=NotificationPublic)
+@router.get(
+    "/users/{user_id}/notifications/{notification_id}",
+    response_model=NotificationPublic,
+)
 async def get_user_notification(
     session: SessionDep,
     current_user: CurrentUser,
@@ -166,7 +172,10 @@ async def mark_all_notifications_as_read(
     return {"message": f"Marked {count} notifications as read"}
 
 
-@router.delete("/users/{user_id}/notifications/{notification_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/users/{user_id}/notifications/{notification_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 async def delete_user_notification(
     session: SessionDep,
     current_user: CurrentUser,
@@ -186,7 +195,11 @@ async def delete_user_notification(
     await crud_user_notification.remove(session=session, id=user_notification.id)
 
 
-@router.post("/users/{user_id}/notifications", response_model=NotificationPublic, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/users/{user_id}/notifications",
+    response_model=NotificationPublic,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_user_notification(
     session: SessionDep,
     current_user: CurrentUser,
