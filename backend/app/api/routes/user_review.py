@@ -1,9 +1,10 @@
 import uuid
 
 from fastapi import HTTPException, Query, status
+
 from app.api.base_router import BaseRouter
-from app.api.deps import SessionDep, CurrentUser
-from app.features.user.crud.review import crud_review, ReviewCrud
+from app.api.deps import CurrentUser, SessionDep
+from app.features.user.crud.review import ReviewCrud, crud_review
 from app.features.user.models.review import (
     Review,
     ReviewCreate,
@@ -11,6 +12,7 @@ from app.features.user.models.review import (
     ReviewsPublic,
     ReviewUpdate,
 )
+
 
 def _check_permission(
     current_user_id: uuid.UUID, user_id: uuid.UUID, is_admin: bool = False
@@ -203,11 +205,11 @@ async def get_product_review_average(
     review_count = await crud_review.count_by_product(
         session=session, product_id=product_id
     )
-    
+
     return {
         "product_id": product_id,
         "average_rating": average_rating,
-        "review_count": review_count
+        "review_count": review_count,
     }
 
 

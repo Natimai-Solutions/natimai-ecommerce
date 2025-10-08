@@ -40,8 +40,11 @@ class IngramProductData(BaseModel):
         default=None, description="Product specification URL"
     )
     last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    upc_code: str | None = Field(default=None, description="Product UPC code")
+
 
 INGRAM_URL = "https://api.ingrammicro.com:443"
+
 
 class IngramMicroService:
     """Service for interacting with Ingram Micro API"""
@@ -67,7 +70,7 @@ class IngramMicroService:
         ):
             return self.access_token
 
-        logger.info("Obtaining new Ingram Micro access token")
+        logger.debug("Obtaining new Ingram Micro access token")
 
         auth_url = f"{INGRAM_URL}/oauth/oauth20/token"
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
@@ -87,7 +90,7 @@ class IngramMicroService:
                         second=0, microsecond=0
                     ) + timedelta(seconds=expires_in - 300)  # 5 min buffer
 
-                    logger.info("Successfully obtained Ingram Micro access token")
+                    logger.debug("Successfully obtained Ingram Micro access token")
                     return self.access_token
                 else:
                     error_text = await response.text()
@@ -104,7 +107,7 @@ class IngramMicroService:
 
         # Generate correlation ID limited to 32 characters (UUID without hyphens, truncated)
         correlation_id = str(uuid4()).replace("-", "")[:32]
-        
+
         headers = {
             "Authorization": f"Bearer {access_token}",
             "IM-CustomerNumber": self.customer_number,
@@ -117,18 +120,18 @@ class IngramMicroService:
         }
 
         url = f"{self.base_url}{endpoint}"
-        
+
         # Log request details for debugging
-        logger.info(f"Making API request to: {url}")
-        logger.info(f"Parameters: {params}")
-        logger.info(f"Customer Number: {self.customer_number}")
-        logger.info(f"Country Code: {settings.INGRAM_COUNTRY_CODE}")
-        logger.info(f"Environment: {settings.INGRAM_ENVIRONMENT}")
+        logger.debug(f"Making API request to: {url}")
+        logger.debug(f"Parameters: {params}")
+        logger.debug(f"Customer Number: {self.customer_number}")
+        logger.debug(f"Country Code: {settings.INGRAM_COUNTRY_CODE}")
+        logger.debug(f"Environment: {settings.INGRAM_ENVIRONMENT}")
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=headers, params=params) as response:
                 # Log the actual URL with query parameters
-                logger.info(f"Final URL with params: {response.url}")
+                logger.debug(f"Final URL with params: {response.url}")
                 if response.status == 200:
                     return await response.json()
                 else:
@@ -138,8 +141,53 @@ class IngramMicroService:
                     )
                     raise Exception(f"API request failed: {response.status}")
 
+    async def _make_api_post_request(
+        self, endpoint: str, body: dict[str, Any], params: dict[str, str] | None = None
+    ) -> dict[str, Any]:
+        """Make authenticated POST request to Ingram Micro API with optional query parameters"""
+        access_token = await self._get_access_token()
+
+        # Generate correlation ID limited to 32 characters
+        correlation_id = str(uuid4()).replace("-", "")[:32]
+
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "IM-CustomerNumber": self.customer_number,
+            "IM-CountryCode": settings.INGRAM_COUNTRY_CODE,
+            "IM-CorrelationID": correlation_id,
+            "IM-SenderID": "FastAPI-Ecommerce",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Accept-Language": "en",
+        }
+
+        url = f"{self.base_url}{endpoint}"
+
+        logger.debug(f"Making POST API request to: {url}")
+        if params:
+            logger.debug(f"Query params: {params}")
+        logger.debug(f"Request body: {body}")
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url, headers=headers, json=body, params=params
+            ) as response:
+                logger.debug(f"Final URL with params: {response.url}")
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    error_text = await response.text()
+                    logger.error(
+                        f"API POST request failed: {response.status} - {error_text}"
+                    )
+                    raise Exception(f"API request failed: {response.status}")
+
     async def get_product_catalog(
-        self, category: str | None = None, page_number: int = 1, page_size: int = 25
+        self,
+        category: str | None = None,
+        vendors: list | None = None,
+        page_number: int = 1,
+        page_size: int = 25,
     ) -> list[IngramProductData]:
         """
         Retrieve product catalog from Ingram Micro
@@ -152,61 +200,64 @@ class IngramMicroService:
         Returns:
             List of product data
         """
-        logger.info(
+        logger.debug(
             f"Fetching product catalog - category: {category}, page: {page_number}"
         )
 
         # Use parameters that are more likely to return results
-        params = {
-            "pageNumber": page_number,
-            "pageSize": min(page_size, 100),
-            "vendor": ["asus", "lenovo", "hp"]  # Try with a specific vendor that should have products
-        }
+        params = {"pageNumber": page_number, "pageSize": min(page_size, 100)}
 
         # Add category if provided
         if category:
             params["category"] = category
 
+        if vendors:
+            params["vendor"] = vendors
+
         try:
             # Using catalog endpoint for sandbox
-            response = await self._make_api_request(
-                "/resellers/v6/catalog", params
-            )
+            response = await self._make_api_request("/resellers/v6/catalog", params)
 
             # Log the response structure for debugging
-            logger.info(f"API Response type: {type(response)}")
-            logger.info(f"API Response keys: {list(response.keys()) if isinstance(response, dict) else 'Not a dict'}")
-            
+            logger.debug(f"API Response type: {type(response)}")
+            logger.debug(
+                f"API Response keys: {list(response.keys()) if isinstance(response, dict) else 'Not a dict'}"
+            )
+
             products = []
-            
+
             # Handle different response structures
             if isinstance(response, list):
                 # Response is directly a list of products
                 catalog_data = response
             elif isinstance(response, dict):
                 # Response is a dict, try to find the products array
-                catalog_data = response.get("catalog", response.get("products", response.get("data", [])))
+                catalog_data = response.get(
+                    "catalog", response.get("products", response.get("data", []))
+                )
             else:
                 logger.error(f"Unexpected response type: {type(response)}")
                 catalog_data = []
 
-            logger.info(f"Catalog data type: {type(catalog_data)}")
-            logger.info(f"Number of items in catalog: {len(catalog_data) if catalog_data else 0}")
-            
+            logger.debug(f"Catalog data type: {type(catalog_data)}")
+            logger.debug(
+                f"Number of items in catalog: {len(catalog_data) if catalog_data else 0}"
+            )
+
             for i, item in enumerate(catalog_data):
                 try:
                     logger.info(f"Item {i} type: {type(item)}")
                     logger.info(f"Item {i} content: {item}")
-                    
+
                     # Handle if item is a list instead of dict
                     if isinstance(item, list) and len(item) > 0:
                         # Use the first element if it's a list
                         item = item[0]
-                    
+
                     if not isinstance(item, dict):
                         logger.error(f"Item {i} is not a dict: {type(item)}")
                         continue
-                    
+
                     product = IngramProductData(
                         sku=item.get("ingramPartNumber", ""),
                         vendor_part_number=item.get("vendorPartNumber", ""),
@@ -214,24 +265,135 @@ class IngramMicroService:
                         product_name=item.get("description", ""),
                         description=item.get("extraDescription"),
                         category=item.get("category", ""),
-                        subcategory=item.get("subCategory"),  # Note: subCategory with capital C
+                        subcategory=item.get(
+                            "subCategory"
+                        ),  # Note: subCategory with capital C
                         price=0.0,  # Price not available in catalog endpoint
                         availability=0,  # Availability not available in catalog endpoint
                         weight=None,  # Weight not available in catalog endpoint
                         dimensions=None,  # Dimensions not available in catalog endpoint
                         image_url=None,  # Image URL not available in catalog endpoint
                         specification_url=None,  # Spec URL not available in catalog endpoint
+                        upc_code=item.get("upcCode"),  # Note: upcCode with capital C
                     )
                     products.append(product)
                 except Exception as e:
                     logger.error(f"Error parsing product data: {e}")
                     continue
 
-            logger.info(f"Successfully fetched {len(products)} products")
+            logger.debug(f"Successfully fetched {len(products)} products")
             return products
 
         except Exception as e:
             logger.error(f"Failed to fetch product catalog: {e}")
+            raise
+
+    async def get_price_and_availability(
+        self,
+        skus: list[str],
+        include_pricing: bool = True,
+        include_availability: bool = True,
+    ) -> dict[str, dict[str, Any]]:
+        """
+        Get price and availability information for specific SKUs using POST endpoint
+
+        Args:
+            skus: List of Ingram Micro part numbers (max 50 per request)
+            include_pricing: Include pricing information
+            include_availability: Include availability information
+
+        Returns:
+            Dictionary mapping SKU to price and availability data
+        """
+        logger.info(f"Fetching price and availability for {len(skus)} SKUs")
+
+        # Limit to 50 SKUs per request as per API documentation
+        skus_to_check = skus[:50]
+
+        # Build request body - only products list
+        request_body = {
+            "products": [{"ingramPartNumber": sku} for sku in skus_to_check]
+        }
+
+        # Build query parameters - includePricing and includeAvailability go here
+        params = {
+            "includePricing": "true" if include_pricing else "false",
+            "includeAvailability": "true" if include_availability else "false",
+            "includeProductAttributes": "false",
+        }
+
+        try:
+            response = await self._make_api_post_request(
+                "/resellers/v6/catalog/priceandavailability", request_body, params
+            )
+
+            # Log response structure for debugging
+            logger.debug(f"Price/Availability Response type: {type(response)}")
+            if isinstance(response, dict):
+                logger.debug(f"Response keys: {list(response.keys())}")
+
+            results = {}
+
+            # Handle different response structures
+            if isinstance(response, list):
+                # Response is directly a list of products
+                products_data = response
+            elif isinstance(response, dict):
+                # Response is a dict, try to find the products array
+                products_data = response.get(
+                    "data", response.get("products", response.get("catalog", []))
+                )
+            else:
+                logger.error(f"Unexpected response type: {type(response)}")
+                products_data = []
+
+            logger.debug(f"Number of products in response: {len(products_data)}")
+
+            # Parse response
+            for item in products_data:
+                sku = item.get("ingramPartNumber")
+                if not sku:
+                    continue
+
+                # Extract pricing information
+                pricing_info = {}
+                if include_pricing and "pricing" in item:
+                    pricing = item["pricing"]
+                    pricing_info = {
+                        "customer_price": pricing.get("customerPrice", 0),
+                        "retail_price": pricing.get("retailPrice", 0),
+                        "currency": pricing.get("currencyCode", "USD"),
+                    }
+
+                # Extract availability information
+                availability_info = {}
+                if include_availability and "availability" in item:
+                    availability = item["availability"]
+                    total_qty = 0
+
+                    # Sum quantities from all warehouses
+                    for warehouse in availability.get("availabilityByWarehouse", []):
+                        qty = warehouse.get("quantityAvailable", 0)
+                        if isinstance(qty, (int, float)):
+                            total_qty += int(qty)
+
+                    availability_info = {
+                        "total_quantity": total_qty,
+                        "warehouses": availability.get("availabilityByWarehouse", []),
+                    }
+
+                results[sku] = {
+                    **pricing_info,
+                    **availability_info,
+                    "vendor_part_number": item.get("vendorPartNumber"),
+                    "vendor_name": item.get("vendorName"),
+                }
+
+            logger.info(f"Successfully fetched data for {len(results)} SKUs")
+            return results
+
+        except Exception as e:
+            logger.error(f"Failed to fetch price and availability: {e}")
             raise
 
     async def get_inventory_availability(self, skus: list[str]) -> dict[str, int]:
@@ -244,7 +406,7 @@ class IngramMicroService:
         Returns:
             Dictionary mapping SKU to available quantity
         """
-        logger.info(f"Checking inventory for {len(skus)} SKUs")
+        logger.debug(f"Checking inventory for {len(skus)} SKUs")
 
         params = {
             "includeAvailability": "true",
@@ -351,7 +513,7 @@ class IngramMicroService:
             "errors": 0,
         }
 
-        logger.info(f"Starting product sync for categories: {categories}")
+        logger.debug(f"Starting product sync for categories: {categories}")
 
         for category in categories:
             try:
@@ -395,7 +557,7 @@ class IngramMicroService:
 
         await session.commit()
 
-        logger.info(f"Product sync completed. Stats: {stats}")
+        logger.debug(f"Product sync completed. Stats: {stats}")
         return stats
 
 

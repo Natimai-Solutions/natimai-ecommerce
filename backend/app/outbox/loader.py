@@ -41,18 +41,18 @@ def load_handlers():
 
     if not handlers_dir.exists():
         logger.warning("Handlers directory not found at: %s", handlers_dir)
-        logger.info("Creating handlers directory for future use")
+        logger.debug("Creating handlers directory for future use")
         try:
             handlers_dir.mkdir(parents=True, exist_ok=True)
             # Create __init__.py file
             init_file = handlers_dir / "__init__.py"
             init_file.write_text("# Event handlers module\n")
-            logger.info("Created handlers directory and __init__.py")
+            logger.debug("Created handlers directory and __init__.py")
         except Exception as e:
             logger.error("Failed to create handlers directory: %s", str(e))
         return
 
-    logger.info("Starting handler auto-discovery in: %s", handlers_dir)
+    logger.debug("Starting handler auto-discovery in: %s", handlers_dir)
 
     # Load all .py files in the handlers directory
     loaded_count = 0
@@ -68,7 +68,7 @@ def load_handlers():
         try:
             logger.debug("Attempting to load module: %s", module_name)
             importlib.import_module(module_name)
-            logger.info("Successfully loaded handlers from: %s", module_name)
+            logger.debug("Successfully loaded handlers from: %s", module_name)
             loaded_count += 1
         except ImportError as e:
             logger.error("Import error loading %s: %s", module_name, str(e))
@@ -79,7 +79,7 @@ def load_handlers():
             )
             failed_count += 1
 
-    logger.info(
+    logger.debug(
         "Handler loading completed: %d loaded, %d failed", loaded_count, failed_count
     )
 
@@ -100,7 +100,7 @@ def reload_handlers():
         logger.warning("Cannot reload: handlers directory not found")
         return
 
-    logger.info("Reloading all handler modules")
+    logger.debug("Reloading all handler modules")
 
     for file_path in handlers_dir.glob("*.py"):
         if file_path.name == "__init__.py":
@@ -115,8 +115,8 @@ def reload_handlers():
             else:
                 logger.debug("Loading new module: %s", module_name)
                 importlib.import_module(module_name)
-            logger.info("Successfully reloaded: %s", module_name)
+            logger.debug("Successfully reloaded: %s", module_name)
         except Exception as e:
             logger.error("Failed to reload %s: %s", module_name, str(e), exc_info=True)
 
-    logger.info("Handler reload completed")
+    logger.debug("Handler reload completed")
