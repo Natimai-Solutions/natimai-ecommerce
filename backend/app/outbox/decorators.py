@@ -30,7 +30,7 @@ def outbox_handler(event_type: str, model_class: type[Any] = None):
     Example:
         @outbox_handler("user.created", User)
         async def handle_user_created(event_data: dict, context: dict = None):
-            logger.info(f"Processing user creation: {event_data}")
+            logger.debug(f"Processing user creation: {event_data}")
             # Send welcome email, create user profile, etc.
 
     Returns:
@@ -54,7 +54,7 @@ def outbox_handler(event_type: str, model_class: type[Any] = None):
         # Register the handler with the OutboxRegistry
         try:
             outbox_registry.register_handler(event_type, wrapper, model_class)
-            logger.info(f"Registered outbox handler for event type: {event_type}")
+            logger.debug(f"Registered outbox handler for event type: {event_type}")
         except Exception as e:
             logger.error(f"Failed to register handler for {event_type}: {str(e)}")
             raise
@@ -78,7 +78,7 @@ def bulk_outbox_handler(event_types: list[str], model_class: type[Any] = None):
     Example:
         @bulk_outbox_handler(["user.created", "user.updated"], User)
         async def handle_user_changes(event_data: dict, context: dict = None):
-            logger.info(f"Processing user change: {event_data}")
+            logger.debug(f"Processing user change: {event_data}")
             # Update search index, sync with external services, etc.
 
     Returns:
@@ -101,7 +101,7 @@ def bulk_outbox_handler(event_types: list[str], model_class: type[Any] = None):
         for event_type in event_types:
             try:
                 outbox_registry.register_handler(event_type, wrapper, model_class)
-                logger.info(f"Registered bulk handler for event type: {event_type}")
+                logger.debug(f"Registered bulk handler for event type: {event_type}")
             except Exception as e:
                 logger.error(
                     f"Failed to register bulk handler for {event_type}: {str(e)}"

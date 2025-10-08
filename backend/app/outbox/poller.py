@@ -113,7 +113,7 @@ async def enqueue_jobs_for_event(event: OutboxEvent):
             logger.error(error_msg)
             raise Exception(error_msg)
 
-        logger.info(
+        logger.debug(
             "Found %d handlers for event type %s (ID: %s)",
             len(handlers),
             event.type,
@@ -144,7 +144,7 @@ async def enqueue_jobs_for_event(event: OutboxEvent):
                 )
                 raise
 
-        logger.info(
+        logger.debug(
             "Successfully enqueued %d jobs for event %s", jobs_enqueued, event.id
         )
 
@@ -183,7 +183,7 @@ async def poll_outbox_once(session: AsyncSession) -> bool:
             logger.debug("No pending events found")
             return False
 
-        logger.info("Processing outbox event ID %s of type: %s", event.id, event.type)
+        logger.debug("Processing outbox event ID %s of type: %s", event.id, event.type)
 
         # Mark as RUNNING
         event.status = "RUNNING"
@@ -201,7 +201,7 @@ async def poll_outbox_once(session: AsyncSession) -> bool:
             session.add(event)
             event = await commit_and_refresh(session, event)
 
-            logger.info("Successfully processed event ID %s", event.id)
+            logger.debug("Successfully processed event ID %s", event.id)
 
         except Exception as e:
             # Retry with exponential backoff or mark as FAILED
@@ -219,7 +219,7 @@ async def poll_outbox_once(session: AsyncSession) -> bool:
             session.add(event)
             event = await commit_and_refresh(session, event)
 
-            logger.info(
+            logger.debug(
                 "Scheduled event %s for retry in %d seconds (attempt %d)",
                 event.id,
                 delay_seconds,
@@ -262,7 +262,7 @@ class OutboxPoller:
             int: Number of events processed
         """
         try:
-            logger.info(
+            logger.debug(
                 "Starting batch processing of pending events (limit: %s)", limit
             )
 
@@ -283,10 +283,10 @@ class OutboxPoller:
             pending_events = result.all()
 
             if not pending_events:
-                logger.info("No pending events found for processing")
+                logger.debug("No pending events found for processing")
                 return 0
 
-            logger.info("Found %d pending events to process", len(pending_events))
+            logger.debug("Found %d pending events to process", len(pending_events))
             processed_count = 0
             failed_count = 0
 
@@ -349,7 +349,7 @@ class OutboxPoller:
 
                     failed_count += 1
 
-            logger.info(
+            logger.debug(
                 "Batch processing completed: %d processed, %d failed",
                 processed_count,
                 failed_count,
@@ -374,7 +374,7 @@ class OutboxPoller:
             bool: True if event was processed successfully, False otherwise
         """
         try:
-            logger.info("Processing single event ID: %s", event_id)
+            logger.debug("Processing single event ID: %s", event_id)
 
             result = await session.exec(
                 select(OutboxEvent).where(OutboxEvent.id == event_id)
@@ -407,7 +407,7 @@ class OutboxPoller:
                 session.add(event)
                 event = await commit_and_refresh(session, event)
 
-                logger.info("Successfully processed single event: %s", event_id)
+                logger.debug("Successfully processed single event: %s", event_id)
                 return True
 
             except Exception as e:
@@ -427,7 +427,7 @@ class OutboxPoller:
                 session.add(event)
                 event = await commit_and_refresh(session, event)
 
-                logger.info(
+                logger.debug(
                     "Scheduled event %s for retry in %d seconds",
                     event_id,
                     delay_seconds,
@@ -460,7 +460,7 @@ class OutboxPoller:
             int: Number of events reset for retry
         """
         try:
-            logger.info("Retrying failed events with max_attempts: %d", max_attempts)
+            logger.debug("Retrying failed events with max_attempts: %d", max_attempts)
 
             result = await session.exec(
                 select(OutboxEvent)
@@ -470,10 +470,10 @@ class OutboxPoller:
             failed_events = result.all()
 
             if not failed_events:
-                logger.info("No failed events found for retry")
+                logger.debug("No failed events found for retry")
                 return 0
 
-            logger.info("Found %d failed events to retry", len(failed_events))
+            logger.debug("Found %d failed events to retry", len(failed_events))
 
             for event in failed_events:
                 event.status = "PENDING"
@@ -484,7 +484,7 @@ class OutboxPoller:
 
             await session.commit()
 
-            logger.info(
+            logger.debug(
                 "Successfully reset %d failed events for retry", len(failed_events)
             )
             return len(failed_events)
@@ -507,7 +507,7 @@ class OutboxPoller:
             int: Number of events cleaned up
         """
         try:
-            logger.info("Cleaning up events older than %d days", days_old)
+            logger.debug("Cleaning up events older than %d days", days_old)
 
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
 
@@ -519,17 +519,17 @@ class OutboxPoller:
             old_events = result.all()
 
             if not old_events:
-                logger.info("No old events found for cleanup")
+                logger.debug("No old events found for cleanup")
                 return 0
 
-            logger.info("Found %d old events to clean up", len(old_events))
+            logger.debug("Found %d old events to clean up", len(old_events))
 
             for event in old_events:
                 await session.delete(event)
 
             await session.commit()
 
-            logger.info("Successfully cleaned up %d old events", len(old_events))
+            logger.debug("Successfully cleaned up %d old events", len(old_events))
             return len(old_events)
 
         except Exception as e:

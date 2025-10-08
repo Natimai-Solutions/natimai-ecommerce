@@ -135,7 +135,7 @@ from app.outbox.decorators import outbox_handler
 @outbox_handler("user.created", User)
 async def handle_user_created(event_data: dict, context: dict = None):
     """Send welcome email when user is created."""
-    logger.info(f"Processing user creation: {event_data}")
+    logger.debug(f"Processing user creation: {event_data}")
     await send_welcome_email(event_data["email"])
 ```
 
@@ -510,7 +510,7 @@ Handlers receive the event payload as keyword arguments:
 @outbox_handler("user.created")
 async def handle_user_created(user_id: str, email: str, **kwargs):
     """Handler receives payload fields as arguments."""
-    logger.info(f"Processing user {user_id} with email {email}")
+    logger.debug(f"Processing user {user_id} with email {email}")
 ```
 
 ### Conditional Processing
@@ -524,10 +524,10 @@ async def handle_user_created(event_data: dict):
     # Check if user is premium
     if event_data.get("subscription_tier") == "premium":
         await assign_account_manager(event_data["user_id"])
-        logger.info(f"Assigned account manager to premium user {event_data['user_id']}")
+        logger.debug(f"Assigned account manager to premium user {event_data['user_id']}")
     else:
         await send_standard_welcome(event_data["user_id"])
-        logger.info(f"Sent standard welcome to user {event_data['user_id']}")
+        logger.debug(f"Sent standard welcome to user {event_data['user_id']}")
 ```
 
 ### Bulk Operations

@@ -133,6 +133,12 @@ class Settings(BaseSettings):
     ]
     INGRAM_SYNC_INTERVAL_HOURS: int = 6  # Synchronisation toutes les 6 heures
 
+    # Icecat API Configuration
+    ICECAT_USERNAME: str | None = None
+    ICECAT_API_KEY: str | None = None
+    ICECAT_LANGUAGE: str = "fr"  # Default language
+    ICECAT_ENABLED: bool = True  # Enable/disable Icecat enrichment
+
     # S3
     S3_ENDPOINT_URL: str | None = None
     S3_ACCESS_KEY_ID: str | None = None

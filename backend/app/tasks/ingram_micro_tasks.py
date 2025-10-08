@@ -30,7 +30,7 @@ async def sync_ingram_products_task(
         Dictionary with sync results and statistics
     """
     if not settings.INGRAM_SYNC_ENABLED:
-        logger.info("Ingram Micro sync is disabled in settings")
+        logger.debug("Ingram Micro sync is disabled in settings")
         return {"status": "disabled", "message": "Sync disabled in settings"}
 
     if not all(
@@ -46,7 +46,7 @@ async def sync_ingram_products_task(
     # Use provided categories or fall back to settings
     sync_categories = categories or settings.INGRAM_SYNC_CATEGORIES
 
-    logger.info(f"Starting Ingram Micro product sync for categories: {sync_categories}")
+    logger.debug(f"Starting Ingram Micro product sync for categories: {sync_categories}")
 
     try:
         async with AsyncSession(engine) as session:
@@ -73,7 +73,7 @@ async def sync_ingram_products_task(
                 "statistics": stats,
             }
 
-            logger.info(
+            logger.debug(
                 f"Ingram sync completed successfully in {duration:.2f}s. Stats: {stats}"
             )
             return result
@@ -104,7 +104,7 @@ async def sync_ingram_inventory_task(
     if not settings.INGRAM_SYNC_ENABLED:
         return {"status": "disabled", "message": "Sync disabled in settings"}
 
-    logger.info(
+    logger.debug(
         f"Starting Ingram inventory sync for {len(skus) if skus else 'all'} products"
     )
 
@@ -151,7 +151,7 @@ async def sync_ingram_inventory_task(
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
-            logger.info(f"Inventory sync completed. Updated {total_updated} products")
+            logger.debug(f"Inventory sync completed. Updated {total_updated} products")
             return result
 
     except Exception as e:
@@ -173,7 +173,7 @@ async def check_ingram_api_health_task(ctx) -> dict[str, any]:
     Returns:
         Dictionary with health check results
     """
-    logger.info("Checking Ingram Micro API health")
+    logger.debug("Checking Ingram Micro API health")
 
     try:
         # Test API connectivity with a simple catalog request
@@ -189,7 +189,7 @@ async def check_ingram_api_health_task(ctx) -> dict[str, any]:
             "test_result": f"Successfully fetched {len(products)} test products",
         }
 
-        logger.info("Ingram Micro API health check passed")
+        logger.debug("Ingram Micro API health check passed")
         return result
 
     except Exception as e:
@@ -268,7 +268,7 @@ async def trigger_manual_sync(categories: list[str] | None = None) -> str:
         _job_id=f"manual_sync_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
     )
 
-    logger.info(f"Manual Ingram sync triggered with job ID: {job.job_id}")
+    logger.debug(f"Manual Ingram sync triggered with job ID: {job.job_id}")
     return job.job_id
 
 
@@ -291,5 +291,5 @@ async def trigger_inventory_refresh(skus: list[str] | None = None) -> str:
         _job_id=f"manual_inventory_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
     )
 
-    logger.info(f"Manual inventory refresh triggered with job ID: {job.job_id}")
+    logger.debug(f"Manual inventory refresh triggered with job ID: {job.job_id}")
     return job.job_id

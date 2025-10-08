@@ -32,9 +32,9 @@ async def init(db_engine: AsyncEngine) -> None:
 
 
 async def main() -> None:
-    logger.info("Initializing service")
+    logger.debug("Initializing service")
     await init(engine)
-    logger.info("Service finished initializing")
+    logger.debug("Service finished initializing")
 
 
 if __name__ == "__main__":

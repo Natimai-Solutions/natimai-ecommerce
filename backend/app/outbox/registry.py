@@ -95,7 +95,7 @@ class OutboxRegistry:
             session.add(event)
             await session.flush()  # To get the ID
 
-            logger.info(
+            logger.debug(
                 "Successfully published event: %s (ID: %s)", event_type, event.id
             )
             return event
@@ -142,7 +142,7 @@ class OutboxRegistry:
                     event_type,
                 )
 
-            logger.info(
+            logger.debug(
                 "Registered handler %s for event type: %s", handler.__name__, event_type
             )
 
@@ -216,13 +216,13 @@ class OutboxRegistry:
                 del self.handlers[event_type]
                 if event_type in self.model_classes:
                     del self.model_classes[event_type]
-                logger.info("Cleared handlers for event type: %s", event_type)
+                logger.debug("Cleared handlers for event type: %s", event_type)
         else:
             self.handlers.clear()
             self.model_classes.clear()
-            logger.info("Cleared all handlers")
+            logger.debug("Cleared all handlers")
 
 
 # Global instance
 outbox_registry = OutboxRegistry()
-logger.info("Initialized global outbox registry instance")
+logger.debug("Initialized global outbox registry instance")
