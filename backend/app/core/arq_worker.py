@@ -32,14 +32,14 @@ async def execute_outbox_handler(ctx, handler_path: str, **kwargs):
         module = importlib.import_module(mod)
         handler = getattr(module, func)
 
-        logger.info("Executing handler %s with kwargs: %s", handler_path, kwargs)
+        logger.debug("Executing handler %s with kwargs: %s", handler_path, kwargs)
 
         # Créer une session de base de données
         async with AsyncSession(engine) as session:
             # Exécuter le handler avec la session et les kwargs
             await handler(session, kwargs)
 
-        logger.info("Successfully executed handler %s", handler_path)
+        logger.debug("Successfully executed handler %s", handler_path)
 
     except Exception as e:
         logger.error("Failed to execute handler %s: %s", handler_path, str(e))
@@ -52,6 +52,12 @@ from app.tasks.ingram_micro_tasks import (
     get_ingram_sync_cron_jobs,
     sync_ingram_inventory_task,
     sync_ingram_products_task,
+)
+
+# Import des tâches Icecat
+from app.tasks.icecat_tasks import (
+    batch_enrich_products_task,
+    enrich_product_with_icecat_task,
 )
 
 
@@ -69,6 +75,9 @@ class WorkerSettings:
         sync_ingram_products_task,
         sync_ingram_inventory_task,
         check_ingram_api_health_task,
+        # Tâches Icecat
+        enrich_product_with_icecat_task,
+        batch_enrich_products_task,
         # ... tes autres handlers
     ]
 

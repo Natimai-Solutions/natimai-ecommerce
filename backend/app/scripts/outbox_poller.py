@@ -75,7 +75,7 @@ class OutboxPollerService:
         """Setup signal handlers for graceful shutdown."""
 
         def signal_handler(signum, frame):
-            logger.info("Received signal %d, shutting down gracefully...", signum)
+            logger.debug("Received signal %d, shutting down gracefully...", signum)
             self.running = False
 
         signal.signal(signal.SIGINT, signal_handler)
@@ -89,7 +89,7 @@ class OutboxPollerService:
             interval (int): Polling interval in seconds
             max_events (int): Maximum events to process per batch
         """
-        logger.info(
+        logger.debug(
             "Starting continuous outbox poller (interval: %ds, max_events: %s)",
             interval,
             max_events,
@@ -112,7 +112,7 @@ class OutboxPollerService:
                         processed = 1 if await poll_outbox_once(session) else 0
 
                 if processed > 0:
-                    logger.info("Processed %d events", processed)
+                    logger.debug("Processed %d events", processed)
 
                 # Calculate sleep time to maintain interval
                 elapsed = time.time() - start_time
@@ -127,7 +127,7 @@ class OutboxPollerService:
                     interval
                 )  # Sleep on error to prevent tight error loop
 
-        logger.info("Outbox poller service stopped")
+        logger.debug("Outbox poller service stopped")
 
     async def run_once(self, max_events: int = None):
         """
@@ -136,14 +136,14 @@ class OutboxPollerService:
         Args:
             max_events (int): Maximum events to process
         """
-        logger.info("Running outbox poller once (max_events: %s)", max_events)
+        logger.debug("Running outbox poller once (max_events: %s)", max_events)
 
         try:
             async with get_db() as session:
                 processed = await self.poller.process_pending_events(
                     session, max_events
                 )
-                logger.info(
+                logger.debug(
                     "One-time processing completed: %d events processed", processed
                 )
                 return processed
@@ -158,14 +158,14 @@ class OutboxPollerService:
         Args:
             event_id (str): Specific event ID to process, or None for any pending event
         """
-        logger.info("Processing single event (ID: %s)", event_id or "any")
+        logger.debug("Processing single event (ID: %s)", event_id or "any")
 
         try:
             async with get_db() as session:
                 if event_id:
                     success = await self.poller.process_single_event(session, event_id)
                     if success:
-                        logger.info("Successfully processed event: %s", event_id)
+                        logger.debug("Successfully processed event: %s", event_id)
                         return 1
                     else:
                         logger.warning("Failed to process event: %s", event_id)
@@ -173,10 +173,10 @@ class OutboxPollerService:
                 else:
                     success = await poll_outbox_once(session)
                     if success:
-                        logger.info("Successfully processed one pending event")
+                        logger.debug("Successfully processed one pending event")
                         return 1
                     else:
-                        logger.info("No pending events to process")
+                        logger.debug("No pending events to process")
                         return 0
         except Exception as e:
             logger.error("Error processing single event: %s", str(e), exc_info=True)
@@ -189,12 +189,12 @@ class OutboxPollerService:
         Args:
             max_attempts (int): Maximum attempts before giving up on an event
         """
-        logger.info("Retrying failed events (max_attempts: %d)", max_attempts)
+        logger.debug("Retrying failed events (max_attempts: %d)", max_attempts)
 
         try:
             async with get_db() as session:
                 retried = await self.poller.retry_failed_events(session, max_attempts)
-                logger.info(
+                logger.debug(
                     "Retry operation completed: %d events reset for retry", retried
                 )
                 return retried
@@ -209,12 +209,12 @@ class OutboxPollerService:
         Args:
             days_old (int): Age in days for events to be cleaned up
         """
-        logger.info("Cleaning up events older than %d days", days_old)
+        logger.debug("Cleaning up events older than %d days", days_old)
 
         try:
             async with get_db() as session:
                 cleaned = await self.poller.cleanup_old_events(session, days_old)
-                logger.info("Cleanup operation completed: %d events removed", cleaned)
+                logger.debug("Cleanup operation completed: %d events removed", cleaned)
                 return cleaned
         except Exception as e:
             logger.error("Error cleaning up old events: %s", str(e), exc_info=True)
@@ -274,14 +274,14 @@ async def main():
     # Configure logging level
     logging.getLogger().setLevel(getattr(logging, args.log_level))
 
-    logger.info("Starting Outbox Poller Service")
-    logger.info("Mode: %s", args.mode)
+    logger.debug("Starting Outbox Poller Service")
+    logger.debug("Mode: %s", args.mode)
 
     try:
         # Load event handlers
-        logger.info("Loading event handlers...")
+        logger.debug("Loading event handlers...")
         load_handlers()
-        logger.info("Event handlers loaded successfully")
+        logger.debug("Event handlers loaded successfully")
 
         # Initialize and run the service
         service = OutboxPollerService()
@@ -298,11 +298,11 @@ async def main():
         elif args.mode == "cleanup":
             result = await service.run_cleanup(args.days)
 
-        logger.info("Outbox poller service completed successfully")
+        logger.debug("Outbox poller service completed successfully")
         return result
 
     except KeyboardInterrupt:
-        logger.info("Service interrupted by user")
+        logger.debug("Service interrupted by user")
         return 0
     except Exception as e:
         logger.error("Fatal error in outbox poller service: %s", str(e), exc_info=True)

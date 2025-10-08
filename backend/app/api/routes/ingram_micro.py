@@ -4,6 +4,7 @@ Provides endpoints for manual synchronization and monitoring.
 """
 
 from datetime import datetime
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,6 +14,8 @@ from app.api.deps import SessionDep, get_current_active_superuser
 from app.core.config import settings
 from app.services.ingram_micro_service import ingram_service
 from app.tasks.ingram_micro_tasks import trigger_inventory_refresh, trigger_manual_sync
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -278,8 +281,16 @@ async def test_api_connection(
     try:
         # Test with minimal parameters - no category
         products = await ingram_service.get_product_catalog(
-            category=None, page_number=1, page_size=3
+            category="Ordinateur/Serveur", vendors=["asus", "lenovo", "hp"], page_number=1, page_size=10
         )
+
+        price_and_availability = await ingram_service.get_price_and_availability(skus=[p.sku for p in products])
+
+        for p in products:
+            if p.sku in price_and_availability:
+                data = price_and_availability[p.sku]
+                p.price = data.get("customer_price", 0)
+                p.availability = data.get("total_quantity", 0)
 
         return {
             "status": "success",
@@ -290,8 +301,11 @@ async def test_api_connection(
                     "name": p.product_name,
                     "manufacturer": p.manufacturer,
                     "price": p.price,
+                    "qty": p.availability,
+                    "category": p.category,
+                    "upc": p.upc_code,
                 }
-                for p in products[:3]
+                for p in products
             ],
             "total_found": len(products),
         }

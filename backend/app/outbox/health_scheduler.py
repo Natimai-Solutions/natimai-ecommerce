@@ -52,9 +52,9 @@ class HealthCheckScheduler:
 
     async def start(self):
         """Démarre le scheduler."""
-        logger.info("Starting Outbox Health Check Scheduler")
-        logger.info("Check interval: %d seconds", HEALTH_CHECK_INTERVAL)
-        logger.info("Recovery enabled: %s", RECOVERY_ENABLED)
+        logger.debug("Starting Outbox Health Check Scheduler")
+        logger.debug("Check interval: %d seconds", HEALTH_CHECK_INTERVAL)
+        logger.debug("Recovery enabled: %s", RECOVERY_ENABLED)
 
         self.running = True
         self.task = asyncio.create_task(self._run_scheduler())
@@ -67,7 +67,7 @@ class HealthCheckScheduler:
 
     def _signal_handler(self, signum, frame):
         """Gestionnaire de signaux pour un arrêt propre."""
-        logger.info("Received signal %d, shutting down gracefully", signum)
+        logger.debug("Received signal %d, shutting down gracefully", signum)
         self.running = False
         if self.task:
             self.task.cancel()
@@ -87,13 +87,13 @@ class HealthCheckScheduler:
 
                 # Log des statistiques périodiques
                 if stats["total_checks"] % 12 == 0:  # Toutes les heures si check = 5min
-                    logger.info("Health Check Stats: %s", stats)
+                    logger.debug("Health Check Stats: %s", stats)
 
                 # Attendre avant le prochain check
                 await asyncio.sleep(HEALTH_CHECK_INTERVAL)
 
             except asyncio.CancelledError:
-                logger.info("Scheduler cancelled")
+                logger.debug("Scheduler cancelled")
                 break
             except Exception as e:
                 logger.error("Unexpected error in scheduler: %s", str(e), exc_info=True)
@@ -113,7 +113,7 @@ class HealthCheckScheduler:
             status = health_status.get("status", "unknown")
             stats_data = health_status.get("stats", {})
 
-            logger.info(
+            logger.debug(
                 "Health Check - Status: %s, Redis Jobs: %d, Recent Events: %d, Issues: %d+%d",
                 status,
                 stats_data.get("redis_jobs", 0),
@@ -136,7 +136,7 @@ class HealthCheckScheduler:
                     if recovered > 0:
                         stats["total_recoveries"] += recovered
                         stats["last_recovery"] = datetime.now(timezone.utc).isoformat()
-                        logger.info("Successfully recovered %d jobs", recovered)
+                        logger.debug("Successfully recovered %d jobs", recovered)
                     else:
                         logger.warning("Recovery attempted but no jobs recovered")
 
@@ -158,19 +158,19 @@ class HealthCheckScheduler:
 
 async def main():
     """Point d'entrée principal du service de health check."""
-    logger.info("Outbox Health Check Service starting...")
+    logger.debug("Outbox Health Check Service starting...")
 
     scheduler = HealthCheckScheduler()
 
     try:
         await scheduler.start()
     except KeyboardInterrupt:
-        logger.info("Service stopped by user")
+        logger.debug("Service stopped by user")
     except Exception as e:
         logger.error("Service crashed: %s", str(e), exc_info=True)
         raise
     finally:
-        logger.info("Outbox Health Check Service stopped")
+        logger.debug("Outbox Health Check Service stopped")
 
 
 if __name__ == "__main__":
