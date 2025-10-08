@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import HTTPException, Query, status
+
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
 from app.features.user.crud.wishlist import (
@@ -10,9 +11,9 @@ from app.features.user.crud.wishlist import (
 from app.features.user.models.wishlist import (
     Wishlist,
     WishlistCreate,
-    WishlistUpdate,
     WishlistPublic,
     WishlistsPublic,
+    WishlistUpdate,
 )
 
 
@@ -63,7 +64,9 @@ async def get_user_wishlists(
     current_user: CurrentUser,
     user_id: uuid.UUID,
     skip: int = Query(default=0, ge=0, description="Number of wishlists to skip"),
-    limit: int = Query(default=100, le=100, ge=1, description="Number of wishlists to return"),
+    limit: int = Query(
+        default=100, le=100, ge=1, description="Number of wishlists to return"
+    ),
 ) -> WishlistsPublic:
     """Get all wishlists for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
@@ -124,7 +127,9 @@ async def get_user_wishlist(
 async def get_public_wishlists(
     session: SessionDep,
     skip: int = Query(default=0, ge=0, description="Number of wishlists to skip"),
-    limit: int = Query(default=100, le=100, ge=1, description="Number of wishlists to return"),
+    limit: int = Query(
+        default=100, le=100, ge=1, description="Number of wishlists to return"
+    ),
 ) -> WishlistsPublic:
     """Get all public wishlists."""
     wishlists = await crud_wishlist.get_public_wishlists(

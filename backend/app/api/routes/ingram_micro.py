@@ -3,8 +3,8 @@ API routes for Ingram Micro integration management.
 Provides endpoints for manual synchronization and monitoring.
 """
 
-from datetime import datetime
 import logging
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -281,10 +281,15 @@ async def test_api_connection(
     try:
         # Test with minimal parameters - no category
         products = await ingram_service.get_product_catalog(
-            category="Ordinateur/Serveur", vendors=["asus", "lenovo", "hp"], page_number=1, page_size=10
+            category="Ordinateur/Serveur",
+            vendors=["asus", "lenovo", "hp"],
+            page_number=1,
+            page_size=10,
         )
 
-        price_and_availability = await ingram_service.get_price_and_availability(skus=[p.sku for p in products])
+        price_and_availability = await ingram_service.get_price_and_availability(
+            skus=[p.sku for p in products]
+        )
 
         for p in products:
             if p.sku in price_and_availability:

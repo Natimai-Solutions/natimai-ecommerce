@@ -6,10 +6,11 @@ Handles background jobs for enriching products with Icecat data (images, specifi
 import logging
 from typing import Any
 
-from app.core.db import engine
-from app.services.icecat_service import icecat_service
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.core.db import engine
+from app.services.icecat_service import icecat_service
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,6 @@ async def enrich_product_with_icecat_task(
         Dictionary with enrichment result
     """
     from app.features.product.crud.product import crud_product
-    from app.features.product.models.product import Product
 
     logger.info(f"Starting Icecat enrichment for product ID: {product_id}")
 
@@ -97,7 +97,9 @@ async def enrich_product_with_icecat_task(
                 )
                 await session.commit()
 
-                logger.info(f"Successfully enriched product {product_id} with Icecat data")
+                logger.info(
+                    f"Successfully enriched product {product_id} with Icecat data"
+                )
                 return {
                     "status": "success",
                     "product_id": product_id,
