@@ -180,7 +180,7 @@ class OutboxHealthChecker:
 
                 await session.commit()
 
-            logger.info("Recovered %d missing jobs", len(recovered))
+            logger.debug("Recovered %d missing jobs", len(recovered))
             return {"recovered": len(recovered), "events": recovered}
 
         except Exception as e:
@@ -199,7 +199,7 @@ async def run_health_check():
     Usage:
         python -c "import asyncio; from app.outbox.health import run_health_check; asyncio.run(run_health_check())"
     """
-    logger.info("Starting outbox health check...")
+    logger.debug("Starting outbox health check...")
 
     # Check for issues
     health_status = await health_checker.check_orphaned_jobs()

@@ -1,13 +1,13 @@
 import uuid
 
 from fastapi import HTTPException, Query, status
+
 from app.api.base_router import BaseRouter
-from app.api.deps import SessionDep, CurrentUser
+from app.api.deps import CurrentUser, SessionDep
 from app.features.user.crud.address import AddressCrud, crud_address
 from app.features.user.models.address import (
     Address,
-    AddressCreate, 
-    AddressPublic,
+    AddressCreate,
     AddressesPublic,
     AddressPublic,
     AddressUpdate,

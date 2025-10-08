@@ -25,7 +25,7 @@ async def init_db(session: AsyncSession) -> None:
     """
     User
     """
-    logger.info("User initial data: Begin")
+    logger.debug("User initial data: Begin")
     users = (await session.exec(select(func.count()).select_from(User))).one()
 
     if users == 0:
@@ -36,9 +36,9 @@ async def init_db(session: AsyncSession) -> None:
             is_verified=True,
         )
         session.add(User.model_validate(user_in))
-        logger.info("User initial data: Superuser created")
+        logger.debug("User initial data: Superuser created")
     else:
-        logger.info("User initial data: Nothing to do")
+        logger.debug("User initial data: Nothing to do")
 
 
 async def init() -> None:
@@ -49,9 +49,9 @@ async def init() -> None:
 
 
 async def main() -> None:
-    logger.info("Creating initial data")
+    logger.debug("Creating initial data")
     await init()
-    logger.info("Initial data created")
+    logger.debug("Initial data created")
 
 
 if __name__ == "__main__":

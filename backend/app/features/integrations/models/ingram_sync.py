@@ -122,9 +122,7 @@ class IngramProductSyncStatus(BaseModel):
     product_id: UUID | None = Field(default=None, description="Local product ID")
     status: str = Field(description="Sync status for this product")
     action: str = Field(description="Action taken (created, updated, skipped, failed)")
-    error: str | None = Field(
-        default=None, description="Error message if sync failed"
-    )
+    error: str | None = Field(default=None, description="Error message if sync failed")
     last_synced: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="Last sync timestamp",
