@@ -95,7 +95,22 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         commit: bool = True,
     ) -> Payment:
         """Create a payment and initialize it with pending status."""
-        payment = await self.create(session, data=payment_data, commit=commit)
+        from app.features.payment.crud.payment_status import crud_payment_status
+        
+        # Get pending status
+        pending_status = await crud_payment_status.get_by_name(session, name="Pending")
+        
+        payment = await self.create(session, data=payment_data, commit=False)
+        
+        # Set pending status if found
+        if pending_status:
+            payment.payment_status_id = pending_status.id
+            session.add(payment)
+        
+        if commit:
+            await session.commit()
+            await session.refresh(payment)
+        
         return payment
 
     async def update_payment_from_payzen(
@@ -118,6 +133,8 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         Returns:
             Updated payment
         """
+        from app.features.payment.crud.payment_status import crud_payment_status
+        
         # Extract Payzen data
         payment.payzen_trans_id = payzen_fields.get("trans_uuid") or payzen_fields.get("trans_id")
         payment.payzen_order_id = payzen_fields.get("order_id")
@@ -129,11 +146,15 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         trans_status = payzen_fields.get("trans_status")
         if trans_status == "PAID":
             # Payment successful - update to validated status
-            # Note: payment_status_id should be set to the "validated" status ID
-            pass
+            validated_status = await crud_payment_status.get_by_name(session, name="Completed")
+            if validated_status:
+                payment.payment_status_id = validated_status.id
         elif trans_status in ["REFUSED", "ABANDONED", "CANCELLED"]:
             # Payment failed - update to error status
             payment.payzen_error_code = payzen_fields.get("error_code")
+            failed_status = await crud_payment_status.get_by_name(session, name="Failed")
+            if failed_status:
+                payment.payment_status_id = failed_status.id
         
         session.add(payment)
         
