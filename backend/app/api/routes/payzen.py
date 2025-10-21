@@ -78,7 +78,9 @@ async def generate_form_token(
         user_id=current_user.id,
     )
 
-    payment = await crud_payment.create(session, data=payment_data, commit=False)
+    payment = await crud_payment.create_payment_with_log(
+        session, payment_data=payment_data, commit=False
+    )
 
     # Generate PayZen form token
     try:
