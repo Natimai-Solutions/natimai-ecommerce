@@ -145,15 +145,27 @@ class Settings(BaseSettings):
     S3_SECRET_KEY_ID: str | None = None
     S3_BUCKET_NAME: str | None = None
 
+    # PayZen Configuration
     PAYZEN_SITE_ID: str | None = None
-    PAYZEN_CERT_TEST: str | None = None
-    PAYZEN_CERT_PROD: str | None = None
+    PAYZEN_API_PASSWORD_TEST: str | None = None
+    PAYZEN_API_PASSWORD_PROD: str | None = None
+    PAYZEN_PUBLIC_KEY_TEST: str | None = None
+    PAYZEN_PUBLIC_KEY_PROD: str | None = None
     PAYZEN_MODE: Literal["TEST", "PRODUCTION"] = "TEST"
-    PAYZEN_PLATFORM: str | None = "https://secure.osb.pf/vads-payment/"
-    PAYZEN_IPN_URL: str | None = (
-        "https://api.fenuapro.app/api/v1/fenuapay/payment/payzen/ipn"
-    )
-    PAYZEN_RETURN_URL: str | None = "https://fenuapro.app/return"
+    PAYZEN_API_ENDPOINT: str = "https://api.osb.pf"
+    PAYZEN_CURRENCY: str = "XPF"  # Default currency for French Polynesia
+    PAYZEN_IPN_URL: str | None = None  # Will be computed based on backend URL
+    PAYZEN_RETURN_URL: str | None = None  # Frontend URL to return after payment
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def payzen_ipn_url_computed(self) -> str:
+        """Compute the PayZen IPN URL based on backend configuration."""
+        if self.PAYZEN_IPN_URL:
+            return self.PAYZEN_IPN_URL
+        # Default to API endpoint + payment/payzen/ipn
+        backend_url = str(self.BACKEND_CORS_ORIGINS[0]) if self.BACKEND_CORS_ORIGINS else "http://localhost:8000"
+        return f"{backend_url}{self.API_V1_STR}/payment/payzen/ipn"
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
         if value == "changethis":
