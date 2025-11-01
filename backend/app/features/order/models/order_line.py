@@ -1,23 +1,36 @@
 import uuid
 
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, Relationship, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class OrderLineBase(Base):
     order_id: uuid.UUID = Field(
-        foreign_key="orders.id", description="ID of the order this line belongs to"
+        foreign_key="orders.id",
+        description="ID de la commande",
     )
     product_id: uuid.UUID = Field(
-        foreign_key="products.id", description="ID of the product in the order line"
+        foreign_key="products.id",
+        description="ID du produit",
     )
     quantity: int = Field(
-        description="Quantity of the product in the order line",
-        ge=1,  # Ensure quantity is at least 1
+        ge=1,
+        description="Quantité du produit",
     )
-    description: str | None = Field(
-        default=None, description="Description of the product in the order line"
+    unit_price: float = Field(
+        ge=0,
+        description="Prix unitaire au moment de la commande",
+    )
+    discount_amount: float = Field(
+        default=0.0,
+        ge=0,
+        description="Montant de la réduction appliquée",
+    )
+    notes: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Notes sur cette ligne de commande",
     )
 
 
@@ -25,24 +38,35 @@ class OrderLineCreate(OrderLineBase, BaseCreate):
     pass
 
 
-class OrderLineUpdate(OrderLineBase, BaseUpdate):
+class OrderLineUpdate(BaseUpdate):
+    order_id: uuid.UUID | None = None
     product_id: uuid.UUID | None = None
     quantity: int | None = None
-    description: str | None = None
+    unit_price: float | None = None
+    discount_amount: float | None = None
+    notes: str | None = None
 
 
 class OrderLine(OrderLineBase, Base, table=True):
     __tablename__ = "order_lines"
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    id: uuid.UUID = Field(
+        default_factory=uuid.uuid4,
+        primary_key=True,
+        index=True,
+        description="Identifiant unique de la ligne de commande",
+    )
 
 
 class OrderLinePublic(OrderLineBase, BasePublic):
     id: uuid.UUID
-    order_id: uuid.UUID
-    product_id: uuid.UUID
-    quantity: int
 
 
 class OrderLinesPublic(SQLModel):
-    data: list[OrderLinePublic] = Field(default_factory=list)
-    count: int = Field(default=0, description="Total number of order lines")
+    data: list[OrderLinePublic] = Field(
+        default_factory=list,
+        description="Liste des lignes de commande",
+    )
+    count: int = Field(
+        default=0,
+        description="Nombre total de lignes de commande",
+    )
