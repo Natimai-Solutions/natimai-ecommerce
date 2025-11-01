@@ -52,11 +52,10 @@ COPY ./app /app/app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync
 
-# Copy and make executable the entrypoint script
-COPY ./app/scripts/entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+# Make entrypoint script executable
+RUN chmod +x /app/app/scripts/entrypoint.sh
 
 # Set working directory and entrypoint
 WORKDIR /app
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["/app/app/scripts/entrypoint.sh"]
 CMD ["api"]
