@@ -32,12 +32,24 @@ class Settings(BaseSettings):
     )
     API_V1_STR: str = "/api/v1"
     FILES_FOLDER: str = "/files"
-    SECRET_KEY: str = secrets.token_urlsafe(32)
+    SECRET_KEY: str = ""
     # 60 minutes * 24 hours * 8 days = 8 days
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     FRONTEND_HOST: str = "http://localhost:5173"
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
+
+    @model_validator(mode="after")
+    def _check_secret_key(self) -> Self:
+        if not self.SECRET_KEY:
+            # Generate a random key only if not provided (for development)
+            self.SECRET_KEY = secrets.token_urlsafe(32)
+            warnings.warn(
+                "SECRET_KEY not set in environment. Using a random key. "
+                "This will invalidate tokens on restart!",
+                stacklevel=1
+            )
+        return self
 
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)

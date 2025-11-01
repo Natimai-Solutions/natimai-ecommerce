@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 from enum import Enum
 
 from sqlmodel import Field, Relationship, SQLModel
@@ -28,9 +29,11 @@ class ProductBase(Base):
         max_length=500,
         description="Description of the product",
     )
-    base_price: float = Field(
-        gt=0,
-        description="Base price of the product",
+    base_price: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        decimal_places=2,
+        description="Base price of the product (can be 0 for products without pricing)",
     )
     has_variants: bool = Field(
         default=False,
@@ -106,6 +109,17 @@ class ProductBase(Base):
     is_supplier_managed: bool = Field(
         default=False,
         description="Indicates if this product is managed by a supplier",
+    )
+
+    upc: str | None = Field(
+        default=None,
+        max_length=50,
+        description="Universal Product Code (UPC) of the product",
+    )
+    ean: str | None = Field(
+        default=None,
+        max_length=50,
+        description="European Article Number (EAN) of the product",
     )
 
 
