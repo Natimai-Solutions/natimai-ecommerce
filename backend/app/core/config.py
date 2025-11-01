@@ -126,10 +126,7 @@ class Settings(BaseSettings):
     INGRAM_ENVIRONMENT: Literal["sandbox", "production"] = "sandbox"
     INGRAM_SYNC_ENABLED: bool = True
     INGRAM_SYNC_CATEGORIES: list[str] = [
-        "notebooks",
-        "desktop",
-        "tablets",
-        "accessories",
+        "Ordinateur/Serveur",
     ]
     INGRAM_SYNC_INTERVAL_HOURS: int = 6  # Synchronisation toutes les 6 heures
 

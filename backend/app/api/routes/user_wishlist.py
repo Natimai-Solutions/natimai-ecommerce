@@ -96,7 +96,7 @@ async def create_user_wishlist(
 
     wishlist = await crud_wishlist.create_for_user(
         session=session,
-        obj_in=wishlist_in,
+        data=wishlist_in,
         user_id=user_id,
         current_user=current_user.id,
     )

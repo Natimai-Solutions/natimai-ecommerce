@@ -212,7 +212,7 @@ async def create_user_notification(
 
     # Create the notification
     notification = await crud_notification.create(
-        session=session, obj_in=notification_in
+        session=session, data=notification_in
     )
 
     # Create the user-notification relationship

@@ -23,7 +23,7 @@ class CrudUser(CrudBase[User, UserCreate, UserUpdate]):
         self,
         session: AsyncSession,
         *,
-        db_obj: User,
+        record: User,
         data: UserUpdate | dict[str, Any],
         **kwargs,
     ) -> User:
@@ -32,7 +32,7 @@ class CrudUser(CrudBase[User, UserCreate, UserUpdate]):
 
         The UserUpdate model automatically converts 'password' to 'hashed_password'.
         """
-        return await super().update(session, db_obj=db_obj, data=data, **kwargs)
+        return await super().update(session, record=record, data=data, **kwargs)
 
     async def authenticate(
         self, session: AsyncSession, *, email: str, password: str

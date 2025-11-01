@@ -60,7 +60,7 @@ class IngramSyncLogCrud(
             created_by=created_by,
         )
 
-        return await self.create(session=session, obj_in=sync_data)
+        return await self.create(session=session, data=sync_data)
 
     async def start_sync(
         self, session: AsyncSession, sync_log_id: UUID
@@ -80,7 +80,7 @@ class IngramSyncLogCrud(
         )
 
         return await self.update(
-            session=session, db_obj_id=sync_log_id, obj_in=update_data
+            session=session, record_id=sync_log_id, data=update_data
         )
 
     async def complete_sync(
@@ -121,7 +121,7 @@ class IngramSyncLogCrud(
         )
 
         return await self.update(
-            session=session, db_obj_id=sync_log_id, obj_in=update_data
+            session=session, record_id=sync_log_id, data=update_data
         )
 
     async def get_recent_syncs(
@@ -369,7 +369,7 @@ class IngramProductMappingCrud(
         update_data = IngramProductMappingUpdate(last_synced=sync_time)
 
         return await self.update(
-            session=session, db_obj_id=mapping_id, obj_in=update_data
+            session=session, record_id=mapping_id, data=update_data
         )
 
     async def get_stale_mappings(

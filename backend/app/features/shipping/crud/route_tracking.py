@@ -147,7 +147,7 @@ class ShippingRouteTrackingCrud(
             update_data["notes"] = notes
 
         updated_tracking = await self.update(
-            session=session, db_obj=tracking, obj_in=update_data
+            session=session, record=tracking, data=update_data
         )
 
         # Create status change log
@@ -496,8 +496,8 @@ class ShippingRouteTrackingConsolidationCrud(
         # Update tracking with consolidation ID
         await tracking_crud.update(
             session=session,
-            db_obj=tracking,
-            obj_in={"consolidation_id": consolidation_id},
+            record=tracking,
+            data={"consolidation_id": consolidation_id},
         )
 
         # Update consolidation total orders
@@ -505,8 +505,8 @@ class ShippingRouteTrackingConsolidationCrud(
         if consolidation:
             await self.update(
                 session=session,
-                db_obj=consolidation,
-                obj_in={"total_orders": consolidation.total_orders + 1},
+                record=consolidation,
+                data={"total_orders": consolidation.total_orders + 1},
             )
 
         return True
@@ -528,15 +528,15 @@ class ShippingRouteTrackingConsolidationCrud(
 
         # Remove from consolidation
         await tracking_crud.update(
-            session=session, db_obj=tracking, obj_in={"consolidation_id": None}
+            session=session, record=tracking, data={"consolidation_id": None}
         )
 
         # Update consolidation total orders
         if consolidation and consolidation.total_orders > 0:
             await self.update(
                 session=session,
-                db_obj=consolidation,
-                obj_in={"total_orders": consolidation.total_orders - 1},
+                record=consolidation,
+                data={"total_orders": consolidation.total_orders - 1},
             )
 
         return True
@@ -555,7 +555,7 @@ class ShippingRouteTrackingConsolidationCrud(
 
         # Update consolidation status
         consolidation = await self.update(
-            session=session, db_obj=consolidation, obj_in={"status_code": new_status}
+            session=session, record=consolidation, data={"status_code": new_status}
         )
 
         # Update all linked trackings if requested
@@ -776,7 +776,7 @@ class ShippingRouteTrackingLogsCrud(
             required_confirmation=required_confirmation,
         )
 
-        return await self.create(session=session, obj_in=log_data)
+        return await self.create(session=session, data=log_data)
 
     async def get_latest_status_for_tracking(
         self,

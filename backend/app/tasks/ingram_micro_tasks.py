@@ -262,15 +262,18 @@ async def trigger_manual_sync(categories: list[str] | None = None) -> str:
         ARQ job ID
     """
     from app.core.arq_worker import get_redis_pool
+    from uuid import uuid4
 
     redis = await get_redis_pool()
+    # Use UUID to ensure unique job IDs and avoid collisions
+    job_id = f"manual_sync_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:8]}"
     job = await redis.enqueue_job(
         "sync_ingram_products_task",
         categories=categories,
-        _job_id=f"manual_sync_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+        _job_id=job_id,
     )
 
-    logger.debug(f"Manual Ingram sync triggered with job ID: {job.job_id}")
+    logger.info(f"Manual Ingram sync triggered with job ID: {job.job_id}")
     return job.job_id
 
 

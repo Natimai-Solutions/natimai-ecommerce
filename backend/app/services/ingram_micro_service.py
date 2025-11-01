@@ -482,13 +482,13 @@ class IngramMicroService:
         if existing_product:
             # Update existing product
             updated_product = await crud_product.update(
-                session=session, db_obj=existing_product, obj_in=product_data
+                session=session, record=existing_product, data=product_data
             )
             return {"action": "updated", "product_id": str(updated_product.id)}
         else:
             # Create new product
             new_product = await crud_product.create(
-                session=session, obj_in=product_data
+                session=session, data=product_data
             )
             return {"action": "created", "product_id": str(new_product.id)}
 
@@ -518,9 +518,10 @@ class IngramMicroService:
         for category in categories:
             try:
                 page = 1
+                page_size = 10 if settings.ENVIRONMENT == "local" else 100
                 while True:
                     products = await self.get_product_catalog(
-                        category=category, page_number=page, page_size=100
+                        category=category, page_number=page, page_size=page_size
                     )
 
                     if not products:
@@ -529,24 +530,34 @@ class IngramMicroService:
                     stats["total_fetched"] += len(products)
 
                     for product in products:
-                        try:
-                            # Skip products with no SKU or invalid data
-                            if not product.sku or not product.product_name:
-                                stats["skipped_products"] += 1
-                                continue
+                        # Skip products with no SKU or invalid data
+                        if not product.sku or not product.product_name:
+                            stats["skipped_products"] += 1
+                            continue
 
+                        try:
                             result = await self._upsert_product(session, product)
 
                             if result["action"] == "created":
                                 stats["new_products"] += 1
                             elif result["action"] == "updated":
                                 stats["updated_products"] += 1
+                            
+                            # Commit after each successful product to avoid transaction issues
+                            await session.commit()
 
                         except Exception as e:
                             logger.error(f"Error syncing product {product.sku}: {e}")
                             stats["errors"] += 1
+                            # Critical: Rollback to clear the failed transaction state
+                            await session.rollback()
+                            continue
 
                     page += 1
+
+                    # For local development, limit pages to avoid long syncs
+                    if settings.ENVIRONMENT == "local" and page > 2:
+                        break
 
                     # Add delay to respect rate limits
                     await asyncio.sleep(0.5)
@@ -555,8 +566,7 @@ class IngramMicroService:
                 logger.error(f"Error syncing category {category}: {e}")
                 stats["errors"] += 1
 
-        await session.commit()
-
+        # No final commit needed as we commit after each product
         logger.debug(f"Product sync completed. Stats: {stats}")
         return stats
 

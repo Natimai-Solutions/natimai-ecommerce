@@ -237,7 +237,7 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
             new_capacity = 0
 
         updated_place = await self.update(
-            session, db_obj=place, obj_in={"current_capacity_m3": new_capacity}
+            session, record=place, data={"current_capacity_m3": new_capacity}
         )
 
         return updated_place

@@ -70,17 +70,17 @@ class WishlistCrud(CrudBase[Wishlist, WishlistCreate, WishlistUpdate]):
         self,
         session: AsyncSession,
         *,
-        obj_in: WishlistCreate,
+        data: WishlistCreate,
         user_id: uuid.UUID,
         current_user: uuid.UUID | None = None,
     ) -> Wishlist:
-        obj_data = obj_in.model_dump()
+        obj_data = data.model_dump()
         obj_data["user_id"] = user_id
-        db_obj = self.model(**obj_data)
-        session.add(db_obj)
+        record = self.model(**obj_data)
+        session.add(record)
         await session.commit()
-        await session.refresh(db_obj)
-        return db_obj
+        await session.refresh(record)
+        return record
 
     async def count_by_user(self, session: AsyncSession, *, user_id: uuid.UUID) -> int:
         statement = select(self.model).where(
@@ -131,17 +131,17 @@ class WishlistItemCrud(CrudBase[WishlistItem, WishlistItemCreate, WishlistItemUp
         self,
         session: AsyncSession,
         *,
-        obj_in: WishlistItemCreate,
+        data: WishlistItemCreate,
         wishlist_id: uuid.UUID,
         current_user: uuid.UUID | None = None,
     ) -> WishlistItem:
-        obj_data = obj_in.model_dump()
+        obj_data = data.model_dump()
         obj_data["wishlist_id"] = wishlist_id
-        db_obj = self.model(**obj_data)
-        session.add(db_obj)
+        record = self.model(**obj_data)
+        session.add(record)
         await session.commit()
-        await session.refresh(db_obj)
-        return db_obj
+        await session.refresh(record)
+        return record
 
     async def count_by_wishlist(
         self, session: AsyncSession, *, wishlist_id: uuid.UUID

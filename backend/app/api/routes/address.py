@@ -114,7 +114,7 @@ async def create_user_address(
         raise HTTPException(status_code=403, detail="Not authorized")
 
     address = await crud_address.create_for_user(
-        session=session, obj_in=address_in, user_id=user_id
+        session=session, data=address_in, user_id=user_id
     )
     return AddressPublic.model_validate(address)
 
@@ -139,7 +139,7 @@ async def update_user_address(
         raise HTTPException(status_code=404, detail="Address not found")
 
     address = await crud_address.update(
-        session=session, db_obj=address, obj_in=address_in
+        session=session, record=address, data=address_in
     )
     return AddressPublic.model_validate(address)
 

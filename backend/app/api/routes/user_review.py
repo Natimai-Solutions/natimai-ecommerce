@@ -123,7 +123,7 @@ async def create_user_review(
         )
 
     review = await crud_review.create_for_user(
-        session=session, obj_in=review_in, user_id=user_id
+        session=session, data=review_in, user_id=user_id
     )
     return ReviewPublic.model_validate(review)
 
@@ -147,7 +147,7 @@ async def update_user_review(
     if review.user_id != user_id:
         raise HTTPException(status_code=404, detail="Review not found")
 
-    review = await crud_review.update(session=session, db_obj=review, obj_in=review_in)
+    review = await crud_review.update(session=session, record=review, data=review_in)
     return ReviewPublic.model_validate(review)
 
 

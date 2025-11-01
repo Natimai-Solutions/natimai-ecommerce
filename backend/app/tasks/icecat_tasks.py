@@ -93,7 +93,7 @@ async def enrich_product_with_icecat_task(
             # Update product in database
             if update_data:
                 await crud_product.update(
-                    session=session, db_obj=product, obj_in=update_data
+                    session=session, record=product, data=update_data
                 )
                 await session.commit()
 
@@ -213,7 +213,7 @@ async def batch_enrich_products_task(
                     from app.features.product.crud.product import crud_product
 
                     await crud_product.update(
-                        session=session, db_obj=product, obj_in=update_data
+                        session=session, record=product, data=update_data
                     )
 
                     stats["enriched"] += 1

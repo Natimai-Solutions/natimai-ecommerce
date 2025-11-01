@@ -68,30 +68,30 @@ class NotificationCrud(CrudBase[Notification, NotificationCreate, NotificationUp
         self,
         session: AsyncSession,
         *,
-        obj_in: NotificationCreate,
+        data: NotificationCreate,
         user_ids: list[uuid.UUID],
         current_user: uuid.UUID | None = None,
     ) -> Notification:
         """Create a notification and assign it to multiple users."""
         # Create the notification
-        obj_data = obj_in.model_dump()
+        obj_data = data.model_dump()
         if current_user:
             obj_data["created_by_id"] = current_user
-        db_obj = self.model(**obj_data)
-        session.add(db_obj)
+        record = self.model(**obj_data)
+        session.add(record)
         await session.commit()
-        await session.refresh(db_obj)
+        await session.refresh(record)
 
         # Create user notification links
         for user_id in user_ids:
             user_notification = UserNotification(
-                notification_id=db_obj.id, user_id=user_id
+                notification_id=record.id, user_id=user_id
             )
             session.add(user_notification)
 
         await session.commit()
-        await session.refresh(db_obj)
-        return db_obj
+        await session.refresh(record)
+        return record
 
     async def count_by_user(
         self, session: AsyncSession, *, user_id: uuid.UUID, unread_only: bool = False
