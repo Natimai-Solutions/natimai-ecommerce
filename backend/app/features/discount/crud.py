@@ -5,7 +5,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
-from app.features.coupon.models.coupon import (
+from app.features.discount.models import (
     Discount,
     DiscountCreate,
     DiscountType,

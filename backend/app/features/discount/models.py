@@ -98,7 +98,7 @@ class DiscountUpdate(BaseUpdate):
     current_uses: int | None = None
 
 
-class Discount(DiscountBase, Base, table=True):
+class Discount(DiscountBase, table=True):
     __tablename__ = "discounts"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,

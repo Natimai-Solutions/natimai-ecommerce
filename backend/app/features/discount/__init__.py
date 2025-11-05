@@ -1,4 +1,5 @@
-from app.features.coupon.models.coupon import (
+from app.features.discount.crud import DiscountCrud, crud_discount
+from app.features.discount.models import (
     Discount,
     DiscountCreate,
     DiscountPublic,
@@ -16,4 +17,6 @@ __all__ = [
     "DiscountsPublic",
     "DiscountType",
     "DiscountTarget",
+    "DiscountCrud",
+    "crud_discount",
 ]
