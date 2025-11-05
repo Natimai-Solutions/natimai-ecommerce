@@ -5,8 +5,11 @@ from sqlmodel import Field, SQLModel
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
-class OrderStatusBase(SQLModel):
-    name: str = Field(description="Nom du statut (ex: 'En attente', 'Expédiée')")
+class OrderStatusBase(Base):
+    name: str = Field(
+        description="Nom du statut (ex: 'En attente', 'Expédiée')",
+        max_length=100,
+    )
 
 
 class OrderStatusCreate(OrderStatusBase, BaseCreate):
