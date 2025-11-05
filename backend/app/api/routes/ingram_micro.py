@@ -4,13 +4,13 @@ Provides endpoints for manual synchronization and monitoring.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app.api.deps import SessionDep, get_current_active_superuser
+from app.api.deps import CurrentSuperUser, SessionDep, get_current_active_superuser
 from app.core.config import settings
 from app.services.ingram_micro_service import ingram_service
 from app.tasks.ingram_micro_tasks import trigger_inventory_refresh, trigger_manual_sync
@@ -61,7 +61,7 @@ class HealthResponse(BaseModel):
 
 @router.post("/sync/products", response_model=SyncResponse)
 async def trigger_product_sync(
-    request: SyncRequest, current_user=Depends(get_current_active_superuser)
+    request: SyncRequest, current_user: CurrentSuperUser
 ) -> SyncResponse:
     """
     Manually trigger product catalog synchronization from Ingram Micro.
@@ -89,13 +89,14 @@ async def trigger_product_sync(
         )
 
     try:
-        job_id = await trigger_manual_sync(categories=request.categories)
+        categories = request.categories or settings.INGRAM_SYNC_CATEGORIES
+        job_id = await trigger_manual_sync(categories=categories)
 
         return SyncResponse(
             job_id=job_id,
             status="queued",
-            message=f"Product sync queued successfully for categories: {request.categories or settings.INGRAM_SYNC_CATEGORIES}",
-            timestamp=datetime.utcnow(),
+            message=f"Product sync queued successfully for categories: {categories}",
+            timestamp=datetime.now(timezone.utc),
         )
 
     except Exception as e:
@@ -106,7 +107,7 @@ async def trigger_product_sync(
 
 @router.post("/sync/inventory", response_model=SyncResponse)
 async def trigger_inventory_sync(
-    request: InventoryRefreshRequest, current_user=Depends(get_current_active_superuser)
+    request: InventoryRefreshRequest, current_user: CurrentSuperUser
 ) -> SyncResponse:
     """
     Manually trigger inventory level refresh from Ingram Micro.
@@ -129,7 +130,7 @@ async def trigger_inventory_sync(
             job_id=job_id,
             status="queued",
             message=f"Inventory refresh queued for {len(request.skus) if request.skus else 'all'} products",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
     except Exception as e:
@@ -140,7 +141,7 @@ async def trigger_inventory_sync(
 
 @router.get("/health", response_model=HealthResponse)
 async def check_ingram_health(
-    session: SessionDep, current_user=Depends(get_current_active_superuser)
+    session: SessionDep, current_user: CurrentSuperUser
 ) -> HealthResponse:
     """
     Check Ingram Micro API health and configuration status.
@@ -181,7 +182,7 @@ async def check_ingram_health(
     try:
         # Attempt a simple API call
         products = await ingram_service.get_product_catalog(
-            category="notebooks", page_number=1, page_size=1
+            category="Ordinateur/Serveur", page_number=1, page_size=1
         )
 
         # TODO: Get last sync time from database
@@ -206,7 +207,7 @@ async def check_ingram_health(
 
 @router.get("/config")
 async def get_sync_config(
-    current_user=Depends(get_current_active_superuser),
+    current_user: CurrentSuperUser,
 ) -> dict[str, Any]:
     """
     Get current Ingram Micro synchronization configuration.
@@ -230,7 +231,7 @@ async def get_sync_config(
 
 @router.get("/categories")
 async def get_available_categories(
-    current_user=Depends(get_current_active_superuser),
+    current_user: CurrentSuperUser,
 ) -> list[str]:
     """
     Get list of available product categories from Ingram Micro.
@@ -247,23 +248,12 @@ async def get_available_categories(
 
     # Common Ingram Micro categories
     # In a real implementation, you might fetch this from the API
-    return [
-        "notebooks",
-        "desktop",
-        "tablets",
-        "accessories",
-        "monitors",
-        "printers",
-        "networking",
-        "storage",
-        "software",
-        "servers",
-    ]
+    return settings.INGRAM_SYNC_CATEGORIES
 
 
 @router.get("/test-api")
 async def test_api_connection(
-    #    current_user = Depends(get_current_active_superuser)
+    current_user: CurrentSuperUser
 ) -> dict[str, Any]:
     """
     Test API connection and return sample data.

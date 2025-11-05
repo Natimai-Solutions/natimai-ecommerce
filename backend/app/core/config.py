@@ -32,12 +32,24 @@ class Settings(BaseSettings):
     )
     API_V1_STR: str = "/api/v1"
     FILES_FOLDER: str = "/files"
-    SECRET_KEY: str = secrets.token_urlsafe(32)
+    SECRET_KEY: str = ""
     # 60 minutes * 24 hours * 8 days = 8 days
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     FRONTEND_HOST: str = "http://localhost:5173"
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
+
+    @model_validator(mode="after")
+    def _check_secret_key(self) -> Self:
+        if not self.SECRET_KEY:
+            # Generate a random key only if not provided (for development)
+            self.SECRET_KEY = secrets.token_urlsafe(32)
+            warnings.warn(
+                "SECRET_KEY not set in environment. Using a random key. "
+                "This will invalidate tokens on restart!",
+                stacklevel=1
+            )
+        return self
 
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
@@ -126,10 +138,7 @@ class Settings(BaseSettings):
     INGRAM_ENVIRONMENT: Literal["sandbox", "production"] = "sandbox"
     INGRAM_SYNC_ENABLED: bool = True
     INGRAM_SYNC_CATEGORIES: list[str] = [
-        "notebooks",
-        "desktop",
-        "tablets",
-        "accessories",
+        "Ordinateur/Serveur",
     ]
     INGRAM_SYNC_INTERVAL_HOURS: int = 6  # Synchronisation toutes les 6 heures
 
@@ -138,6 +147,7 @@ class Settings(BaseSettings):
     ICECAT_API_KEY: str | None = None
     ICECAT_LANGUAGE: str = "fr"  # Default language
     ICECAT_ENABLED: bool = True  # Enable/disable Icecat enrichment
+    ICECAT_USE_OPEN: bool = True  # Use Open Icecat (free) instead of Full Icecat (paid)
 
     # S3
     S3_ENDPOINT_URL: str | None = None

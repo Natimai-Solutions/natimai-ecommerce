@@ -7,6 +7,7 @@ No SDK dependency - uses aiohttp for OAuth and API requests.
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
@@ -41,6 +42,7 @@ class IngramProductData(BaseModel):
     )
     last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     upc_code: str | None = Field(default=None, description="Product UPC code")
+    ean: str | None = Field(default=None, description="Product EAN code")
 
 
 INGRAM_URL = "https://api.ingrammicro.com:443"
@@ -246,8 +248,7 @@ class IngramMicroService:
 
             for i, item in enumerate(catalog_data):
                 try:
-                    logger.info(f"Item {i} type: {type(item)}")
-                    logger.info(f"Item {i} content: {item}")
+                    logger.debug(f"Item {i} content: {item}")
 
                     # Handle if item is a list instead of dict
                     if isinstance(item, list) and len(item) > 0:
@@ -396,49 +397,6 @@ class IngramMicroService:
             logger.error(f"Failed to fetch price and availability: {e}")
             raise
 
-    async def get_inventory_availability(self, skus: list[str]) -> dict[str, int]:
-        """
-        Get real-time inventory availability for specific SKUs
-
-        Args:
-            skus: List of Ingram SKUs to check
-
-        Returns:
-            Dictionary mapping SKU to available quantity
-        """
-        logger.debug(f"Checking inventory for {len(skus)} SKUs")
-
-        params = {
-            "includeAvailability": "true",
-            "includePricing": "false",
-            "includeProductAttributes": "false",
-        }
-
-        # Add SKUs to query - Ingram API accepts comma-separated list
-        params["ingramPartNumber"] = ",".join(skus[:50])  # Limit to 50 SKUs per request
-
-        try:
-            response = await self._make_api_request("/resellers/v6/catalog", params)
-
-            availability = {}
-            for item in response.get("catalog", []):
-                sku = item.get("ingramPartNumber")
-                if sku:
-                    # Get total availability across all warehouses
-                    total_qty = 0
-                    availability_data = item.get("availability", {}).get(
-                        "availabilityByWarehouse", []
-                    )
-                    for warehouse in availability_data:
-                        total_qty += int(warehouse.get("quantityAvailable", 0))
-                    availability[sku] = total_qty
-
-            return availability
-
-        except Exception as e:
-            logger.error(f"Failed to check inventory: {e}")
-            return {}
-
     def _convert_ingram_to_product_create(
         self, ingram_product: IngramProductData
     ) -> dict[str, any]:
@@ -447,7 +405,8 @@ class IngramMicroService:
             "name": ingram_product.product_name,
             "description": ingram_product.description
             or f"{ingram_product.manufacturer} {ingram_product.product_name}",
-            "base_price": ingram_product.price,
+            #"supplier_price": Decimal(str(ingram_product.price or 0.0)),
+            #"base_price": Decimal(str(ingram_product.price or 0.0)), # TODO: Review pricing strategy
             "has_variants": False,
             # Generic supplier fields
             "supplier_sku": ingram_product.sku,
@@ -459,9 +418,10 @@ class IngramMicroService:
             "weight": ingram_product.weight,
             "supplier_image_url": ingram_product.image_url,
             "supplier_spec_url": ingram_product.specification_url,
-            "last_supplier_sync": ingram_product.last_updated.isoformat(),
+            # "last_supplier_sync": ingram_product.last_updated.isoformat(), #Sync is for inventory and pricing only
             "is_supplier_managed": True,
             "is_active": True,
+            "upc": ingram_product.upc_code,
         }
 
     async def _upsert_product(
@@ -469,6 +429,7 @@ class IngramMicroService:
     ) -> dict[str, any]:
         """Insert or update a product from Ingram data"""
         from app.features.product.crud.product import crud_product
+        from app.features.product.models.product import ProductCreate, ProductUpdate
 
         # Check if product already exists by supplier SKU and Ingram Micro supplier name
         existing_product = await crud_product.get_by_supplier_sku(
@@ -477,18 +438,20 @@ class IngramMicroService:
             supplier_name="Ingram Micro",
         )
 
-        product_data = self._convert_ingram_to_product_create(ingram_product)
+        product_data_dict = self._convert_ingram_to_product_create(ingram_product)
 
         if existing_product:
-            # Update existing product
+            # Update existing product - convert dict to ProductUpdate
+            product_update = ProductUpdate(**product_data_dict)
             updated_product = await crud_product.update(
-                session=session, db_obj=existing_product, obj_in=product_data
+                session=session, id=existing_product.id, data=product_update, user=None
             )
             return {"action": "updated", "product_id": str(updated_product.id)}
         else:
-            # Create new product
+            # Create new product - convert dict to ProductCreate
+            product_create = ProductCreate(**product_data_dict)
             new_product = await crud_product.create(
-                session=session, obj_in=product_data
+                session=session, data=product_create, user=None
             )
             return {"action": "created", "product_id": str(new_product.id)}
 
@@ -518,9 +481,10 @@ class IngramMicroService:
         for category in categories:
             try:
                 page = 1
+                page_size = 100
                 while True:
                     products = await self.get_product_catalog(
-                        category=category, page_number=page, page_size=100
+                        category=category, page_number=page, page_size=page_size
                     )
 
                     if not products:
@@ -529,24 +493,34 @@ class IngramMicroService:
                     stats["total_fetched"] += len(products)
 
                     for product in products:
-                        try:
-                            # Skip products with no SKU or invalid data
-                            if not product.sku or not product.product_name:
-                                stats["skipped_products"] += 1
-                                continue
+                        # Skip products with no SKU or invalid data
+                        if not product.sku or not product.product_name:
+                            stats["skipped_products"] += 1
+                            continue
 
+                        try:
                             result = await self._upsert_product(session, product)
 
                             if result["action"] == "created":
                                 stats["new_products"] += 1
                             elif result["action"] == "updated":
                                 stats["updated_products"] += 1
+                            
+                            # Commit after each successful product to avoid transaction issues
+                            await session.commit()
 
                         except Exception as e:
                             logger.error(f"Error syncing product {product.sku}: {e}")
                             stats["errors"] += 1
+                            # Critical: Rollback to clear the failed transaction state
+                            await session.rollback()
+                            continue
 
                     page += 1
+
+                    # For local development, limit pages to avoid long syncs
+                    #if settings.ENVIRONMENT == "local" and page > 10:
+                    #   break
 
                     # Add delay to respect rate limits
                     await asyncio.sleep(0.5)
@@ -555,8 +529,7 @@ class IngramMicroService:
                 logger.error(f"Error syncing category {category}: {e}")
                 stats["errors"] += 1
 
-        await session.commit()
-
+        # No final commit needed as we commit after each product
         logger.debug(f"Product sync completed. Stats: {stats}")
         return stats
 

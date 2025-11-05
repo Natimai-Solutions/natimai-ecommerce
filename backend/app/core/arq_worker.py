@@ -1,11 +1,32 @@
 import importlib
 import logging
+import sys
 
 from arq.connections import RedisSettings, create_pool
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.db import engine
+
+
+# Custom logging filter to suppress "already running elsewhere" messages
+class SuppressAlreadyRunningFilter(logging.Filter):
+    def filter(self, record):
+        return "already running elsewhere" not in record.getMessage()
+
+
+# Configure logging for the worker
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s:%(name)s:%(message)s",
+    stream=sys.stdout,
+    force=True  # Override any existing configuration
+)
+
+# Add filter to suppress noisy "already running elsewhere" messages
+# These are normal when using custom job IDs and indicate deduplication is working
+arq_logger = logging.getLogger("arq.worker")
+arq_logger.addFilter(SuppressAlreadyRunningFilter())
 
 logger = logging.getLogger(__name__)
 

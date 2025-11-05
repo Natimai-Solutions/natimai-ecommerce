@@ -16,6 +16,11 @@ class CategoryBase(Base):
         max_length=500,
         description="Description of the category",
     )
+    image_url: str | None = Field(
+        default=None,
+        max_length=500,
+        description="URL of the category image",
+    )
 
 
 class CategoryCreate(CategoryBase, BaseCreate):

@@ -45,22 +45,22 @@ class AddressCrud(CrudBase[Address, AddressCreate, AddressUpdate]):
         self,
         session: AsyncSession,
         *,
-        obj_in: AddressCreate,
+        data: AddressCreate,
         user_id: uuid.UUID,
         current_user: uuid.UUID | None = None,
     ) -> Address:
         """Create an address for a specific user."""
-        obj_data = obj_in.model_dump()
+        obj_data = data.model_dump()
         obj_data["user_id"] = (
             user_id  # Override user_id to ensure it matches the URL parameter
         )
         if current_user:
             obj_data["created_by_id"] = current_user
-        db_obj = self.model(**obj_data)
-        session.add(db_obj)
+        record = self.model(**obj_data)
+        session.add(record)
         await session.commit()
-        await session.refresh(db_obj)
-        return db_obj
+        await session.refresh(record)
+        return record
 
     async def count_by_user(self, session: AsyncSession, *, user_id: uuid.UUID) -> int:
         statement = select(self.model).where(

@@ -4,9 +4,11 @@ Handles scheduled and on-demand product catalog sync.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from arq import cron
+from app.features.product.crud.product import crud_product, Product
+from sqlmodel import or_
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
@@ -17,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 async def sync_ingram_products_task(
-    ctx, categories: list[str] | None = None
+    ctx, categories: list[str] | None = None, **kwargs
 ) -> dict[str, any]:
     """
     ARQ task to synchronize products from Ingram Micro API
@@ -91,7 +93,7 @@ async def sync_ingram_products_task(
 
 
 async def sync_ingram_inventory_task(
-    ctx, skus: list[str] | None = None
+    ctx, skus: list[str] | None = None, **kwargs
 ) -> dict[str, any]:
     """
     ARQ task to update inventory levels from Ingram Micro API
@@ -113,12 +115,18 @@ async def sync_ingram_inventory_task(
     try:
         async with AsyncSession(engine) as session:
             if not skus:
-                # TODO: Get all active Ingram SKUs from database
-                # skus = await get_active_ingram_skus(session)
-                skus = []  # Placeholder
-
-            if not skus:
-                return {"status": "success", "message": "No SKUs to update"}
+                # Get products that haven't been synced in the last hour OR never synced
+                one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+                result = await crud_product.read_multi(
+                    session, 
+                    filter=or_(
+                        Product.last_supplier_sync <= one_hour_ago,
+                        Product.last_supplier_sync.is_(None)
+                    )
+                )
+                products = result.get("data", [])
+                skus = [product.supplier_sku for product in products if product.supplier_sku]
+                logger.info(f"Fetched {len(skus)} SKUs for inventory update")
 
             # Split SKUs into batches (Ingram API limit)
             batch_size = 50
@@ -129,21 +137,67 @@ async def sync_ingram_inventory_task(
                 batch_skus = skus[i : i + batch_size]
 
                 try:
-                    availability = await ingram_service.get_inventory_availability(
-                        batch_skus
+                    # Use the correct endpoint for price and availability
+                    results = await ingram_service.get_price_and_availability(
+                        skus=batch_skus,
+                        include_pricing=True,
+                        include_availability=True
                     )
 
-                    # TODO: Update database with new inventory levels
-                    # for sku, quantity in availability.items():
-                    #     await update_product_inventory(session, sku, quantity)
+                    # Update database with inventory levels AND prices
+                    from app.features.product.models.product import ProductUpdate
+                    from decimal import Decimal
 
-                    total_updated += len(availability)
+                    for sku, data in results.items():
+                        try:
+                            # Find product by supplier SKU
+                            product = await crud_product.get_by_supplier_sku(
+                                session=session,
+                                supplier_sku=sku,
+                                supplier_name="Ingram Micro"
+                            )
+
+                            logger.debug(f"Processing SKU {sku} with data: {data}")
+                            
+                            if product:
+                                # Prepare update data
+                                update_data = ProductUpdate(
+                                    supplier_price=Decimal(str(data.get("customer_price", 0))),
+                                    supplier_price_currency=data.get("currency", "USD"),
+                                    base_price=Decimal(str(data.get("customer_price", 0))),
+                                    supplier_quantity=data.get("total_quantity", 0),
+                                    last_supplier_sync=datetime.now(timezone.utc)
+                                )
+                                
+                                # Update product
+                                await crud_product.update(
+                                    session=session,
+                                    id=product.id,
+                                    data=update_data,
+                                    record=product,
+                                    user=None
+                                )
+                                
+                                total_updated += 1
+                                logger.debug(
+                                    f"Updated product {sku}: "
+                                    f"price={data.get('customer_price', 0)}, "
+                                    f"qty={data.get('total_quantity', 0)}"
+                                )
+                            else:
+                                logger.warning(f"Product with SKU {sku} not found in database")
+                                
+                        except Exception as e:
+                            logger.error(f"Error updating product {sku}: {e}")
+                            errors += 1
+
+                    # Commit after each batch
+                    await session.commit()
 
                 except Exception as e:
                     logger.error(f"Error updating inventory batch: {e}")
                     errors += 1
-
-            await session.commit()
+                    await session.rollback()
 
             result = {
                 "status": "success",
@@ -165,7 +219,7 @@ async def sync_ingram_inventory_task(
         }
 
 
-async def check_ingram_api_health_task(ctx) -> dict[str, any]:
+async def check_ingram_api_health_task(ctx, **kwargs) -> dict[str, any]:
     """
     ARQ task to check Ingram Micro API health and connectivity
 
@@ -262,15 +316,38 @@ async def trigger_manual_sync(categories: list[str] | None = None) -> str:
         ARQ job ID
     """
     from app.core.arq_worker import get_redis_pool
+    from uuid import uuid4
+    import hashlib
+    import json
 
     redis = await get_redis_pool()
+    
+    # Create a deduplication key based on categories
+    cat_key = hashlib.md5(json.dumps(sorted(categories) if categories else []).encode()).hexdigest()
+    dedup_key = f"manual_sync_dedup:{cat_key}"
+    
+    # Use UUID to ensure unique job IDs
+    job_id = f"manual_sync_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:8]}"
+    
+    # Atomically check and set the deduplication key (prevents race conditions)
+    # SET NX EX 10 = set if not exists with 10 second expiry
+    was_set = await redis.set(dedup_key, job_id.encode(), ex=10, nx=True)
+    
+    if not was_set:
+        # Another request already created this job
+        existing = await redis.get(dedup_key)
+        logger.debug(f"Product sync already queued/running: {existing.decode() if existing else 'unknown'}")
+        return existing.decode() if existing else job_id
+    
+    # Enqueue new job
     job = await redis.enqueue_job(
         "sync_ingram_products_task",
         categories=categories,
-        _job_id=f"manual_sync_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+        _job_id=job_id,
+        _max_tries=1,  # No automatic retries for manual jobs - user should retry manually if needed
     )
 
-    logger.debug(f"Manual Ingram sync triggered with job ID: {job.job_id}")
+    logger.info(f"Manual Ingram sync triggered with job ID: {job.job_id}")
     return job.job_id
 
 
@@ -285,13 +362,36 @@ async def trigger_inventory_refresh(skus: list[str] | None = None) -> str:
         ARQ job ID
     """
     from app.core.arq_worker import get_redis_pool
+    from uuid import uuid4
+    import hashlib
+    import json
 
     redis = await get_redis_pool()
+    
+    # Create a deduplication key based on the SKUs to prevent duplicate jobs
+    # This prevents multiple clicks from creating multiple identical jobs
+    skus_key = hashlib.md5(json.dumps(sorted(skus) if skus else []).encode()).hexdigest()
+    dedup_key = f"manual_inventory_dedup:{skus_key}"
+    
+    # Use UUID to ensure unique job IDs
+    job_id = f"manual_inventory_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:8]}"
+    
+    # Atomically check and set the deduplication key (prevents race conditions)
+    # SET NX EX 10 = set if not exists with 10 second expiry
+    was_set = await redis.set(dedup_key, job_id.encode(), ex=10, nx=True)
+    
+    if not was_set:
+        # Another request already created this job
+        existing = await redis.get(dedup_key)
+        logger.debug(f"Inventory refresh already queued/running: {existing.decode() if existing else 'unknown'}")
+        return existing.decode() if existing else job_id
+    
     job = await redis.enqueue_job(
         "sync_ingram_inventory_task",
         skus=skus,
-        _job_id=f"manual_inventory_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+        _job_id=job_id,
+        _max_tries=1,  # No automatic retries for manual jobs - user should retry manually if needed
     )
 
-    logger.debug(f"Manual inventory refresh triggered with job ID: {job.job_id}")
+    logger.info(f"Manual inventory refresh triggered with job ID: {job.job_id}")
     return job.job_id

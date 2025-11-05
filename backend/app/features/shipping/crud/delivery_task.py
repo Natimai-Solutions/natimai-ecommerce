@@ -185,7 +185,7 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         if delivery_service:
             update_data["delivery_service"] = delivery_service
 
-        updated_task = await self.update(session, db_obj=task, obj_in=update_data)
+        updated_task = await self.update(session, record=task, data=update_data)
 
         return updated_task
 
@@ -217,7 +217,7 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         if photo_url:
             update_data["photo_url"] = photo_url
 
-        updated_task = await self.update(session, db_obj=task, obj_in=update_data)
+        updated_task = await self.update(session, record=task, data=update_data)
 
         return updated_task
 

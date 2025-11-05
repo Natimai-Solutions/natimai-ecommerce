@@ -192,7 +192,10 @@ print('Event handlers loaded successfully')
         fi
         
         log "Upgrading database to latest migration"
-        exec uv run alembic upgrade head
+        uv run alembic upgrade head
+
+        log "Importing initial data into database..."
+        exec uv run python app/initial_data.py
         ;;
         
     "shell")

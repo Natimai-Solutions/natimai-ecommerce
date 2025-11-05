@@ -44,14 +44,21 @@ def track_crud_operation(func=None, *, step_name=None):
     """
     Decorator that tracks CRUD operations and handles their exceptions.
     Can be used with or without arguments.
+    
+    Usage:
+        @track_crud_operation
+        async def my_func(): ...
+        
+        @track_crud_operation(step_name="custom_name")
+        async def my_func(): ...
     """
 
-    def decorator(func):
-        @functools.wraps(func)
+    def decorator(fn):
+        @functools.wraps(fn)
         async def wrapper(*args, **kwargs):
-            operation_name = step_name or func.__name__
+            operation_name = step_name or fn.__name__
             try:
-                return await func(*args, **kwargs)
+                return await fn(*args, **kwargs)
             except Exception as e:
                 logger.error(f"Error in {operation_name}: {e}", exc_info=True)
                 new_exception = CrudOperationError(
@@ -61,7 +68,13 @@ def track_crud_operation(func=None, *, step_name=None):
 
         return wrapper
 
-    return decorator
+    # Handle both @track_crud_operation and @track_crud_operation()
+    if func is None:
+        # Called with arguments: @track_crud_operation(step_name="...")
+        return decorator
+    else:
+        # Called without arguments: @track_crud_operation
+        return decorator(func)
 
 
 class OutboxEvent:
@@ -595,7 +608,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         await session.flush()
 
         # Publish outbox event after record is created and has an ID
-        if self.outbox_events.create:
+        if self.outbox_events and "create" in self.outbox_events:
             payload = self._build_outbox_payload(
                 action="create", record=record, user=user, data=data_dict
             )
@@ -804,7 +817,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             raise RecordNotFoundError("The record doesn't exist.")
 
         # Publish outbox event after record is confirmed to exist
-        if self.outbox_events.update:
+        if self.outbox_events and "update" in self.outbox_events:
             payload_data = self._extract_data_dict(data)
             payload = self._build_outbox_payload(
                 action="update", record=record, user=user, data=payload_data
@@ -1033,7 +1046,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         if not record:
             logger.error(f"The record with id {id} does not exist.")
             raise RecordNotFoundError("The record doesn't exist.")
-        if self.outbox_events.delete:
+        if self.outbox_events and "delete" in self.outbox_events:
             payload = self._build_outbox_payload(
                 action="delete",
                 record=record,

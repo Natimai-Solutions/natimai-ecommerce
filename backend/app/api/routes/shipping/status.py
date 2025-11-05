@@ -53,7 +53,7 @@ class Auth:
 # Router pour les définitions de statuts
 status_definition_router = StatusDefinitionRouter(
     name="status_definition",
-    tags=["shipping", "status", "definition"],
+    tags=["shipping"],
     crud=crud_status_definition,
     schema_public=StatusDefinitionPublic,
     schema_publics=StatusDefinitionsPublic,
@@ -66,7 +66,7 @@ status_definition_router = StatusDefinitionRouter(
 # Router pour les transitions de statuts
 status_transition_router = StatusTransitionRouter(
     name="status_transition",
-    tags=["shipping", "status", "transition"],
+    tags=["shipping"],
     crud=crud_status_transition,
     schema_public=StatusTransitionPublic,
     schema_publics=StatusTransitionsPublic,
