@@ -1,4 +1,4 @@
-from app.features.coupon.models.coupon import Discount
+from app.features.discount.models import Discount
 from app.features.order.models.order import Order
 from app.features.order.models.order_line import OrderLine
 from app.features.order.models.order_status import OrderStatus

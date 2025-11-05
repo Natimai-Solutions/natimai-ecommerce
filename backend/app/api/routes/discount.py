@@ -4,8 +4,8 @@ from fastapi import HTTPException, status
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
-from app.features.coupon.crud.coupon_crud import DiscountCrud, crud_discount
-from app.features.coupon.models.coupon import (
+from app.features.discount.crud import DiscountCrud, crud_discount
+from app.features.discount.models import (
     Discount,
     DiscountCreate,
     DiscountPublic,
