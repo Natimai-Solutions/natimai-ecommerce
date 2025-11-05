@@ -6,7 +6,7 @@ from sqlmodel import Field, SQLModel
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
-class PaymentLogBase(SQLModel):
+class PaymentLogBase(Base):
     payment_id: uuid.UUID = Field(
         foreign_key="payments.id", 
         nullable=False, 
@@ -51,7 +51,7 @@ class PaymentLogUpdate(PaymentLogBase, BaseUpdate):
     raw_data: dict | None = None
 
 
-class PaymentLog(PaymentLogBase, Base, table=True):
+class PaymentLog(PaymentLogBase, table=True):
     __tablename__ = "payment_logs"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,

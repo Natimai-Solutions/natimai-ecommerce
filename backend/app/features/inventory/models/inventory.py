@@ -34,7 +34,7 @@ class InventoryUpdate(BaseUpdate):
     compute_from_movements: bool | None = None
 
 
-class Inventory(InventoryBase, Base, table=True):
+class Inventory(InventoryBase, table=True):
     __tablename__ = "inventories"
     __table_args__ = {UniqueConstraint("product_id", "place_id")}
     id: uuid.UUID = Field(

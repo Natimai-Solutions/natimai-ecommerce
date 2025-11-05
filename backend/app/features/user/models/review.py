@@ -61,7 +61,7 @@ class ReviewUpdate(BaseUpdate):
     )
 
 
-class Review(ReviewBase, Base, table=True):
+class Review(ReviewBase, table=True):
     __tablename__ = "reviews"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     product_id: uuid.UUID = Field(

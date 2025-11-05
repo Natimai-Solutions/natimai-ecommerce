@@ -23,7 +23,7 @@ class PaymentMethodUpdate(PaymentMethodBase, BaseUpdate):
     name: str | None = None
 
 
-class PaymentMethod(PaymentMethodBase, BasePublic, table=True):
+class PaymentMethod(PaymentMethodBase, table=True):
     __tablename__ = "payment_methods"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
 

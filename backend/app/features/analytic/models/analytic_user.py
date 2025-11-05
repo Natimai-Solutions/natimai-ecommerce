@@ -44,7 +44,7 @@ class AnalyticsUserUpdate(AnalyticsUserBase, BaseUpdate):
     favorite_products: list[uuid.UUID] | None = None
 
 
-class AnalyticsUser(AnalyticsUserBase, Base, table=True):
+class AnalyticsUser(AnalyticsUserBase, table=True):
     __tablename__ = "analytics_users"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
 

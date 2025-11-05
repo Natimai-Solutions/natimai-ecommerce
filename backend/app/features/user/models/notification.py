@@ -96,7 +96,7 @@ class NotificationUpdate(NotificationBase, BaseUpdate):
     action_label: str | None = None
 
 
-class Notification(NotificationBase, Base, table=True):
+class Notification(NotificationBase, table=True):
     __tablename__ = "notifications"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
 

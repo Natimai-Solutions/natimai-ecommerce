@@ -43,7 +43,7 @@ class OrderUpdate(BaseUpdate):
     notes: str | None = None
 
 
-class Order(OrderBase, Base, table=True):
+class Order(OrderBase, table=True):
     __tablename__ = "orders"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,

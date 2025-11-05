@@ -47,7 +47,7 @@ class OrderLineUpdate(BaseUpdate):
     notes: str | None = None
 
 
-class OrderLine(OrderLineBase, Base, table=True):
+class OrderLine(OrderLineBase, table=True):
     __tablename__ = "order_lines"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,

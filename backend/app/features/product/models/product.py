@@ -196,7 +196,7 @@ class ProductUpdate(ProductBase, BaseUpdate):
     is_supplier_managed: bool | None = None
 
 
-class Product(ProductBase, Base, table=True):
+class Product(ProductBase, table=True):
     __tablename__ = "products"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,

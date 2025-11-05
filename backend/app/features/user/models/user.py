@@ -8,7 +8,7 @@ from app.core.security import get_password_hash
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
-class UserBase(SQLModel):
+class UserBase(Base):
     email: EmailStr = Field(unique=True, index=True, max_length=255)
     phone: str | None = Field(default=None, max_length=255)
     is_active: bool = Field(default=True)
@@ -102,7 +102,7 @@ class UserLogin(SQLModel):
     password: str = Field(..., description="User password")
 
 
-class User(UserBase, Base, table=True):
+class User(UserBase, table=True):
     __tablename__ = "users"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     hashed_password: str = Field(..., max_length=128)

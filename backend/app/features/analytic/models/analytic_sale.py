@@ -29,7 +29,7 @@ class AnalyticsSaleUpdate(AnalyticsSaleBase, BaseUpdate):
     top_selling_product_id: uuid.UUID | None = None
 
 
-class AnalyticsSale(AnalyticsSaleBase, Base, table=True):
+class AnalyticsSale(AnalyticsSaleBase, table=True):
     __tablename__ = "analytics_sales"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
 

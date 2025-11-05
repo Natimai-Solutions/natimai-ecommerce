@@ -34,17 +34,6 @@ class PartnerBase(Base):
     is_supplier: bool = Field(default=False, description="Is a supplier")
 
 
-class Partner(PartnerBase, table=True):
-    """Acteur métier (fournisseur)"""
-
-    __tablename__ = "partners"
-
-    id: uuid.UUID = Field(
-        default_factory=uuid.uuid4,
-        sa_column=Column(PG_UUID(as_uuid=True), primary_key=True),
-    )
-
-
 class PartnerCreate(PartnerBase, BaseCreate):
     pass
 
@@ -61,10 +50,18 @@ class PartnerUpdate(PartnerBase, BaseUpdate):
     postal_code: str | None = None
     country: str | None = None
 
+class Partner(PartnerBase, table=True):
+    """Acteur métier (fournisseur)"""
+
+    __tablename__ = "partners"
+
+    id: uuid.UUID = Field(
+        default_factory=uuid.uuid4,
+        sa_column=Column(PG_UUID(as_uuid=True), primary_key=True),
+    )
 
 class PartnerPublic(PartnerBase, BasePublic):
     id: uuid.UUID
-
 
 class PartnersPublic(SQLModel):
     data: list[PartnerPublic] = Field(

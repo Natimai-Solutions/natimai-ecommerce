@@ -23,7 +23,7 @@ class PaymentUpdate(PaymentBase, BaseUpdate):
     user_id: uuid.UUID | None = None
 
 
-class Payment(PaymentBase, Base, table=True):
+class Payment(PaymentBase, table=True):
     __tablename__ = "payments"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
