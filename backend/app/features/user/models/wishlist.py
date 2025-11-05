@@ -23,7 +23,7 @@ class WishlistUpdate(WishlistBase, BaseUpdate):
     is_public: bool | None = None
 
 
-class Wishlist(WishlistBase, Base, table=True):
+class Wishlist(WishlistBase, table=True):
     __tablename__ = "wishlists"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     user_id: uuid.UUID = Field(

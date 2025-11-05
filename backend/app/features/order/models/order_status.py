@@ -20,7 +20,7 @@ class OrderStatusUpdate(BaseUpdate):
     name: str | None = None
 
 
-class OrderStatus(OrderStatusBase, Base, table=True):
+class OrderStatus(OrderStatusBase, table=True):
     __tablename__ = "order_statuses"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
 

@@ -32,7 +32,7 @@ class CategoryUpdate(CategoryBase, BaseUpdate):
     description: str | None = None
 
 
-class Category(CategoryBase, Base, table=True):
+class Category(CategoryBase, table=True):
     __tablename__ = "categories"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,

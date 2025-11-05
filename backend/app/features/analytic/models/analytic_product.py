@@ -35,7 +35,7 @@ class AnalyticsProductUpdate(AnalyticsProductBase, BaseUpdate):
     pass
 
 
-class AnalyticsProduct(AnalyticsProductBase, Base, table=True):
+class AnalyticsProduct(AnalyticsProductBase, table=True):
     __tablename__ = "analytic_products"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
 

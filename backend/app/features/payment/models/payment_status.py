@@ -23,7 +23,7 @@ class PaymentStatusUpdate(BaseUpdate):
     description: str | None = None
 
 
-class PaymentStatus(PaymentStatusBase, Base, table=True):
+class PaymentStatus(PaymentStatusBase, table=True):
     __tablename__ = "payment_status"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
 

@@ -49,7 +49,7 @@ class AddressUpdate(AddressBase, BaseUpdate):
         return v
 
 
-class Address(AddressBase, Base, table=True):
+class Address(AddressBase, table=True):
     __tablename__ = "addresses"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     user_id: uuid.UUID = Field(
