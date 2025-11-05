@@ -33,13 +33,11 @@ api_router.include_router(payment_method_router)
 api_router.include_router(product_router)
 
 # api_router.include_router(payment_router, prefix="/payment", tags=["payment"])
-api_router.include_router(address_router, prefix="/users", tags=["addresses"])
-api_router.include_router(user_review_router, prefix="/reviews", tags=["reviews"])
-api_router.include_router(
-    user_notification_router, prefix="/notifications", tags=["notifications"]
-)
-api_router.include_router(user_wishlist_router, prefix="/wishlist", tags=["wishlist"])
-api_router.include_router(utils_router, prefix="/utils", tags=["utils"])
+api_router.include_router(address_router)
+api_router.include_router(user_review_router)
+api_router.include_router(user_notification_router)
+api_router.include_router(user_wishlist_router)
+api_router.include_router(utils_router, prefix="/utils")
 
 # Payzen payment integration
 api_router.include_router(payzen_router)

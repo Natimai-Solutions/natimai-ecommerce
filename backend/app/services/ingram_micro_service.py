@@ -248,8 +248,7 @@ class IngramMicroService:
 
             for i, item in enumerate(catalog_data):
                 try:
-                    logger.info(f"Item {i} type: {type(item)}")
-                    logger.info(f"Item {i} content: {item}")
+                    logger.debug(f"Item {i} content: {item}")
 
                     # Handle if item is a list instead of dict
                     if isinstance(item, list) and len(item) > 0:
@@ -406,7 +405,8 @@ class IngramMicroService:
             "name": ingram_product.product_name,
             "description": ingram_product.description
             or f"{ingram_product.manufacturer} {ingram_product.product_name}",
-            "base_price": Decimal(str(ingram_product.price or 0.0)),
+            #"supplier_price": Decimal(str(ingram_product.price or 0.0)),
+            #"base_price": Decimal(str(ingram_product.price or 0.0)), # TODO: Review pricing strategy
             "has_variants": False,
             # Generic supplier fields
             "supplier_sku": ingram_product.sku,
@@ -418,7 +418,7 @@ class IngramMicroService:
             "weight": ingram_product.weight,
             "supplier_image_url": ingram_product.image_url,
             "supplier_spec_url": ingram_product.specification_url,
-            "last_supplier_sync": ingram_product.last_updated.isoformat(),
+            # "last_supplier_sync": ingram_product.last_updated.isoformat(), #Sync is for inventory and pricing only
             "is_supplier_managed": True,
             "is_active": True,
             "upc": ingram_product.upc_code,
@@ -481,7 +481,7 @@ class IngramMicroService:
         for category in categories:
             try:
                 page = 1
-                page_size = 10 if settings.ENVIRONMENT == "local" else 100
+                page_size = 100
                 while True:
                     products = await self.get_product_catalog(
                         category=category, page_number=page, page_size=page_size
@@ -519,8 +519,8 @@ class IngramMicroService:
                     page += 1
 
                     # For local development, limit pages to avoid long syncs
-                    if settings.ENVIRONMENT == "local" and page > 2:
-                        break
+                    #if settings.ENVIRONMENT == "local" and page > 10:
+                    #   break
 
                     # Add delay to respect rate limits
                     await asyncio.sleep(0.5)

@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 
@@ -28,6 +29,10 @@ class ProductBase(Base):
         default=None,
         max_length=500,
         description="Description of the product",
+    )
+    long_description: str | None = Field(
+        default=None,
+        description="Long description of the product",
     )
     base_price: Decimal = Field(
         default=Decimal("0.00"),
@@ -102,15 +107,43 @@ class ProductBase(Base):
         max_length=500,
         description="Product specification URL from supplier",
     )
-    last_supplier_sync: str | None = Field(
+    supplier_quantity: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        decimal_places=2,
+        description="Available quantity from supplier",
+    )
+    supplier_price: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        decimal_places=2,
+        description="Price from supplier",
+    )
+    supplier_price_currency: str | None = Field(
         default=None,
-        description="Last synchronization timestamp with supplier (ISO format)",
+        max_length=10,
+        description="Currency of the supplier price (e.g., USD, EUR)",
+    )
+    last_supplier_sync: datetime | None = Field(
+        default=None,
+        description="Last synchronization timestamp with supplier",
     )
     is_supplier_managed: bool = Field(
         default=False,
         description="Indicates if this product is managed by a supplier",
     )
-
+    last_enrichment_sync: datetime | None = Field(
+        default=None,
+        description="Last synchronization timestamp for enrichment data",
+    )
+    is_enriched: bool = Field(
+        default=False,
+        description="Indicates if the product has been enriched with external data",
+    )
+    enrichment_supplier_id: str | None = Field(
+        default=None,
+        description="Identifier of the enrichment data supplier",
+    )
     upc: str | None = Field(
         default=None,
         max_length=50,
@@ -120,6 +153,19 @@ class ProductBase(Base):
         default=None,
         max_length=50,
         description="European Article Number (EAN) of the product",
+    )
+    image_url: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Main image URL of the product",
+    )
+    release_date: str | None = Field(
+        default=None,
+        description="Release date of the product"
+    )
+    end_of_life_date: str | None = Field(
+        default=None,
+        description="End of life date of the product"
     )
 
 
@@ -146,7 +192,7 @@ class ProductUpdate(ProductBase, BaseUpdate):
     dimensions_height: float | None = None
     supplier_image_url: str | None = None
     supplier_spec_url: str | None = None
-    last_supplier_sync: str | None = None
+    last_supplier_sync: datetime | None = None
     is_supplier_managed: bool | None = None
 
 
@@ -188,7 +234,7 @@ class ProductPublic(ProductBase, BasePublic):
     dimensions_height: float | None = None
     supplier_image_url: str | None = None
     supplier_spec_url: str | None = None
-    last_supplier_sync: str | None = None
+    last_supplier_sync: datetime | None = None
     is_supplier_managed: bool = False
 
 

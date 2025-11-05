@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 from arq import cron
 from app.features.product.crud.product import crud_product, Product
+from sqlmodel import or_
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
@@ -114,9 +115,18 @@ async def sync_ingram_inventory_task(
     try:
         async with AsyncSession(engine) as session:
             if not skus:
-                result = await crud_product.read_multi(session, filter=(Product.last_supplier_sync >= datetime.now(timezone.utc) - timedelta(hours=1)))
+                # Get products that haven't been synced in the last hour OR never synced
+                one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+                result = await crud_product.read_multi(
+                    session, 
+                    filter=or_(
+                        Product.last_supplier_sync <= one_hour_ago,
+                        Product.last_supplier_sync.is_(None)
+                    )
+                )
                 products = result.get("data", [])
-                skus = [product.supplier_sku for product in products]
+                skus = [product.supplier_sku for product in products if product.supplier_sku]
+                logger.info(f"Fetched {len(skus)} SKUs for inventory update")
 
             # Split SKUs into batches (Ingram API limit)
             batch_size = 50
@@ -152,8 +162,11 @@ async def sync_ingram_inventory_task(
                             if product:
                                 # Prepare update data
                                 update_data = ProductUpdate(
+                                    supplier_price=Decimal(str(data.get("customer_price", 0))),
+                                    supplier_price_currency=data.get("currency", "USD"),
                                     base_price=Decimal(str(data.get("customer_price", 0))),
-                                    last_supplier_sync=datetime.now(timezone.utc).isoformat()
+                                    supplier_quantity=data.get("total_quantity", 0),
+                                    last_supplier_sync=datetime.now(timezone.utc)
                                 )
                                 
                                 # Update product
@@ -166,7 +179,7 @@ async def sync_ingram_inventory_task(
                                 )
                                 
                                 total_updated += 1
-                                logger.info(
+                                logger.debug(
                                     f"Updated product {sku}: "
                                     f"price={data.get('customer_price', 0)}, "
                                     f"qty={data.get('total_quantity', 0)}"
@@ -323,7 +336,7 @@ async def trigger_manual_sync(categories: list[str] | None = None) -> str:
     if not was_set:
         # Another request already created this job
         existing = await redis.get(dedup_key)
-        logger.info(f"Product sync already queued/running: {existing.decode() if existing else 'unknown'}")
+        logger.debug(f"Product sync already queued/running: {existing.decode() if existing else 'unknown'}")
         return existing.decode() if existing else job_id
     
     # Enqueue new job
@@ -370,7 +383,7 @@ async def trigger_inventory_refresh(skus: list[str] | None = None) -> str:
     if not was_set:
         # Another request already created this job
         existing = await redis.get(dedup_key)
-        logger.info(f"Inventory refresh already queued/running: {existing.decode() if existing else 'unknown'}")
+        logger.debug(f"Inventory refresh already queued/running: {existing.decode() if existing else 'unknown'}")
         return existing.decode() if existing else job_id
     
     job = await redis.enqueue_job(

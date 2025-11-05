@@ -3,6 +3,7 @@ ARQ tasks for Icecat product enrichment.
 Handles background jobs for enriching products with Icecat data (images, specifications, etc.)
 """
 
+import datetime
 import logging
 from typing import Any
 
@@ -10,10 +11,55 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import engine
+from app.features.integrations.models.icecat_sync import IcecatProductData
+from app.features.product.crud.product import crud_product
+from app.features.product.models.product import ProductUpdate
 from app.services.icecat_service import icecat_service
 
 logger = logging.getLogger(__name__)
 
+def update_product_with_icecat_data(icecat_product_data: IcecatProductData) -> ProductUpdate:
+    """
+    Create a ProductUpdate object from IcecatProductData
+
+    Args:
+        icecat_product_data: Icecat product data
+    Returns:
+        ProductUpdate object with fields to update
+    """
+    update_data = ProductUpdate()
+
+    if icecat_product_data.description:
+        update_data.description = icecat_product_data.description
+
+    if icecat_product_data.long_description:
+        update_data.long_description = icecat_product_data.long_description
+
+    #if icecat_product_data.specifications:
+    #    update_data.technical_specifications = icecat_product_data.specifications
+
+    # if icecat_product_data.features:
+    #    update_data.features = icecat_product_data.features
+
+    # if icecat_product_data.images:
+    #    update_data.icecat_images = icecat_product_data.images
+
+    if icecat_product_data.release_date:
+        update_data.release_date = icecat_product_data.release_date
+    
+    if icecat_product_data.end_of_life_date:
+        update_data.end_of_life_date = icecat_product_data.end_of_life_date
+
+    if icecat_product_data.image_url:
+        update_data.image_url = icecat_product_data.image_url
+
+    if icecat_product_data.icecat_id:
+        update_data.enrichment_supplier_id = icecat_product_data.icecat_id
+    
+    update_data.is_enriched = True
+    update_data.last_enrichment_sync = datetime.datetime.now(tz=datetime.timezone.utc)
+
+    return update_data
 
 async def enrich_product_with_icecat_task(
     ctx: dict[str, Any], product_id: str
@@ -28,14 +74,13 @@ async def enrich_product_with_icecat_task(
     Returns:
         Dictionary with enrichment result
     """
-    from app.features.product.crud.product import crud_product
 
     logger.info(f"Starting Icecat enrichment for product ID: {product_id}")
 
     async with AsyncSession(engine) as session:
         try:
             # Get product from database
-            product = await crud_product.get(session=session, id=product_id)
+            product = await crud_product.read(session, id=product_id)
 
             if not product:
                 logger.error(f"Product not found: {product_id}")
@@ -52,48 +97,24 @@ async def enrich_product_with_icecat_task(
                 }
 
             # Get Icecat enrichment data
-            enrichment_data = await icecat_service.enrich_product_with_icecat(
+            enrichment_data: IcecatProductData | None = await icecat_service.enrich_product_with_icecat(
                 vendor_part_number=product.vendor_part_number,
                 manufacturer=product.manufacturer,
                 ean=product.ean if hasattr(product, "ean") else None,
+                upc=product.upc if hasattr(product, "upc") else None,
             )
 
             if not enrichment_data:
-                logger.info(f"No Icecat data found for product {product_id}")
+                logger.warning(f"No Icecat data found for product {product_id}")
                 return {"status": "not_found", "message": "No Icecat data available"}
 
-            # Update product with enrichment data
-            update_data = {}
-
-            # Update long description if available and product doesn't have one
-            if enrichment_data.get("long_description") and not product.long_description:
-                update_data["long_description"] = enrichment_data["long_description"]
-
-            # Update specifications (store as JSON)
-            if enrichment_data.get("specifications"):
-                update_data["technical_specifications"] = enrichment_data[
-                    "specifications"
-                ]
-
-            # Update features
-            if enrichment_data.get("features"):
-                update_data["features"] = enrichment_data["features"]
-
-            # Update images URLs (store as list)
-            if enrichment_data.get("images"):
-                update_data["icecat_images"] = enrichment_data["images"]
-                # Set main image if not set
-                if enrichment_data.get("main_image_url") and not product.image_url:
-                    update_data["image_url"] = enrichment_data["main_image_url"]
-
-            # Mark as enriched with Icecat
-            update_data["icecat_enriched"] = True
-            update_data["icecat_last_update"] = "now"
+            # Prepare update data
+            update_data = update_product_with_icecat_data(enrichment_data)
 
             # Update product in database
             if update_data:
                 await crud_product.update(
-                    session=session, record=product, data=update_data
+                    session, id=product_id, data=update_data, record=product
                 )
                 await session.commit()
 
@@ -103,7 +124,7 @@ async def enrich_product_with_icecat_task(
                 return {
                     "status": "success",
                     "product_id": product_id,
-                    "enriched_fields": list(update_data.keys()),
+                    "enriched_fields": list(update_data.dict(exclude_unset=True).keys()),
                 }
             else:
                 return {
@@ -152,21 +173,23 @@ async def batch_enrich_products_task(
                 select(Product)
                 .where(Product.is_supplier_managed == True)
                 .where(
-                    (Product.icecat_enriched == False)
-                    | (Product.icecat_enriched == None)
+                    (Product.is_enriched == False)
+                    | (Product.is_enriched == None)
                 )
                 .where(Product.vendor_part_number != None)
                 .where(Product.manufacturer != None)
                 .limit(limit)
             )
 
-            result = await session.execute(query)
-            products = result.scalars().all()
+            result = await session.exec(query)
+            products = result.all()
 
             logger.info(f"Found {len(products)} products to enrich")
 
             for product in products:
                 stats["total_processed"] += 1
+                await session.refresh(product)
+                product_id = str(product.id)
 
                 try:
                     # Get Icecat enrichment data
@@ -180,40 +203,11 @@ async def batch_enrich_products_task(
                         stats["not_found"] += 1
                         continue
 
-                    # Update product with enrichment data
-                    update_data = {}
-
-                    if (
-                        enrichment_data.get("long_description")
-                        and not product.long_description
-                    ):
-                        update_data["long_description"] = enrichment_data[
-                            "long_description"
-                        ]
-
-                    if enrichment_data.get("specifications"):
-                        update_data["technical_specifications"] = enrichment_data[
-                            "specifications"
-                        ]
-
-                    if enrichment_data.get("features"):
-                        update_data["features"] = enrichment_data["features"]
-
-                    if enrichment_data.get("images"):
-                        update_data["icecat_images"] = enrichment_data["images"]
-                        if (
-                            enrichment_data.get("main_image_url")
-                            and not product.image_url
-                        ):
-                            update_data["image_url"] = enrichment_data["main_image_url"]
-
-                    update_data["icecat_enriched"] = True
-
-                    # Update product
-                    from app.features.product.crud.product import crud_product
+                    # Prepare update data
+                    update_data = update_product_with_icecat_data(enrichment_data)
 
                     await crud_product.update(
-                        session=session, record=product, data=update_data
+                        session, id=product_id, data=update_data, record=product
                     )
 
                     stats["enriched"] += 1
@@ -266,7 +260,9 @@ async def trigger_batch_enrichment(limit: int = 50) -> str:
     Returns:
         Job ID
     """
-    from app.core.tasks import arq_pool
+    from app.core.arq_pool import get_arq_pool
+
+    arq_pool = await get_arq_pool()
 
     job = await arq_pool.enqueue_job("batch_enrich_products_task", limit=limit)
     return job.job_id

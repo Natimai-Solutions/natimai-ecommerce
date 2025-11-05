@@ -147,6 +147,7 @@ class Settings(BaseSettings):
     ICECAT_API_KEY: str | None = None
     ICECAT_LANGUAGE: str = "fr"  # Default language
     ICECAT_ENABLED: bool = True  # Enable/disable Icecat enrichment
+    ICECAT_USE_OPEN: bool = True  # Use Open Icecat (free) instead of Full Icecat (paid)
 
     # S3
     S3_ENDPOINT_URL: str | None = None
