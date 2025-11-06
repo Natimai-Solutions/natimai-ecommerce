@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -62,8 +63,12 @@ class InventoryStockMovementBase(Base):
         foreign_key="products.id", description="Product being moved"
     )
     quantity: int = Field(gt=0, description="Quantity moved")
-    unit_cost: float | None = Field(
-        default=None, ge=0, description="Unit cost at time of movement"
+    unit_cost: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=10,
+        decimal_places=2,
+        description="Unit cost at time of movement",
     )
 
     # Movement details
@@ -126,7 +131,13 @@ class InventoryStockMovementUpdate(BaseUpdate):
     # Product and quantity
     product_id: uuid.UUID | None = None
     quantity: int | None = Field(default=None, gt=0, description="Quantity moved")
-    unit_cost: float | None = Field(default=None, ge=0, description="Unit cost")
+    unit_cost: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=10,
+        decimal_places=2,
+        description="Unit cost",
+    )
 
     # Movement details
     reason: str | None = Field(default=None, max_length=500, description="Reason")

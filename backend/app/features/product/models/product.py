@@ -176,7 +176,7 @@ class ProductCreate(ProductBase, BaseCreate):
 class ProductUpdate(ProductBase, BaseUpdate):
     name: str | None = None
     description: str | None = None
-    base_price: float | None = None
+    base_price: Decimal | None = None
     has_variants: bool | None = None
 
     # Generic supplier fields (optional for updates)

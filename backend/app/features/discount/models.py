@@ -1,5 +1,6 @@
 import datetime
 import uuid
+from decimal import Decimal
 from enum import Enum
 
 from sqlmodel import Field, SQLModel
@@ -41,10 +42,12 @@ class DiscountBase(Base):
         index=True,
         description="Code du coupon (uniquement pour les coupons)",
     )
-    percentage: float = Field(
+    percentage: Decimal = Field(
         gt=0,
         le=100,
-        description="Pourcentage de réduction (1-100)",
+        max_digits=5,
+        decimal_places=2,
+        description="Pourcentage de réduction (0.01-100.00)",
     )
     target: DiscountTarget = Field(
         description="Cible de la réduction",
@@ -88,7 +91,7 @@ class DiscountUpdate(BaseUpdate):
     description: str | None = None
     discount_type: DiscountType | None = None
     code: str | None = None
-    percentage: float | None = None
+    percentage: Decimal | None = None
     target: DiscountTarget | None = None
     product_id: uuid.UUID | None = None
     category_id: uuid.UUID | None = None

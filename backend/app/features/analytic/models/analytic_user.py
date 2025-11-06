@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from sqlmodel import Field, SQLModel
 
@@ -13,14 +14,21 @@ class AnalyticsUserBase(Base):
     purchase_count: int = Field(
         default=0, description="Number of purchases made by the user"
     )
-    average_order_value: float | None = Field(
-        default=None, description="Average order value for the user"
+    average_order_value: Decimal | None = Field(
+        default=None,
+        max_digits=10,
+        decimal_places=2,
+        description="Average order value for the user",
     )
     last_login: str | None = Field(
         default=None, description="Timestamp of the last login by the user"
     )
-    total_spent: float = Field(
-        default=0.0, description="Total amount spent by the user"
+    total_spent: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=10,
+        decimal_places=2,
+        description="Total amount spent by the user",
     )
     total_orders: int = Field(
         default=0, description="Total number of orders made by the user"
@@ -37,9 +45,9 @@ class AnalyticsUserCreate(AnalyticsUserBase, BaseCreate):
 class AnalyticsUserUpdate(AnalyticsUserBase, BaseUpdate):
     login_count: int | None = None
     purchase_count: int | None = None
-    average_order_value: float | None = None
+    average_order_value: Decimal | None = None
     last_login: str | None = None
-    total_spent: float | None = None
+    total_spent: Decimal | None = None
     total_orders: int | None = None
     favorite_products: list[uuid.UUID] | None = None
 
