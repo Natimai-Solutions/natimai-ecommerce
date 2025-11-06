@@ -1,24 +1,64 @@
 import uuid
-from decimal import Decimal
-from enum import Enum
 
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
-from app.features.product.models.category import Category
 
-class BrandProductBase(Base):
+
+class BrandBase(Base):
     name: str = Field(
         description="Name of the brand",
         max_length=100,
+        index=True,
     )
     description: str | None = Field(
         default=None,
         max_length=500,
         description="Description of the brand",
     )
-    image_url: str | None = Field(
+    logo_url: str | None = Field(
         default=None,
         max_length=500,
-        description="URL of the brand image",
+        description="URL of the brand logo",
+    )
+    website: str | None = Field(
+        default=None,
+        max_length=255,
+        description="Brand website URL",
+    )
+
+
+class BrandCreate(BrandBase, BaseCreate):
+    pass
+
+
+class BrandUpdate(BaseUpdate):
+    name: str | None = None
+    description: str | None = None
+    logo_url: str | None = None
+    website: str | None = None
+
+
+class Brand(BrandBase, table=True):
+    __tablename__ = "brands"
+    id: uuid.UUID = Field(
+        default_factory=uuid.uuid4,
+        primary_key=True,
+        index=True,
+        description="Unique identifier for the brand",
+    )
+
+
+class BrandPublic(BrandBase, BasePublic):
+    id: uuid.UUID
+
+
+class BrandsPublic(SQLModel):
+    data: list[BrandPublic] = Field(
+        default_factory=list,
+        description="List of brands",
+    )
+    count: int = Field(
+        default=0,
+        description="Total number of brands",
     )

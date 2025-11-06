@@ -3,6 +3,8 @@ from fastapi import APIRouter
 api_router = APIRouter()
 
 from app.api.routes.address import router as address_router
+from app.api.routes.brand import router as brand_router
+from app.api.routes.category import router as category_router
 from app.api.routes.discount import router as discount_router
 from app.api.routes.icecat import router as icecat_router
 from app.api.routes.ingram_micro import router as ingram_micro_router
@@ -36,6 +38,10 @@ api_router.include_router(place_router)
 api_router.include_router(payment_method_router)
 api_router.include_router(product_router)
 api_router.include_router(discount_router)
+
+# Product related routes
+api_router.include_router(category_router)
+api_router.include_router(brand_router)
 
 # Order management routes
 api_router.include_router(order_status_router)
