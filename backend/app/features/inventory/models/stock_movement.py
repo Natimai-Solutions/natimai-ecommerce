@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -61,9 +62,18 @@ class InventoryStockMovementBase(Base):
     product_id: uuid.UUID = Field(
         foreign_key="products.id", description="Product being moved"
     )
-    quantity: int = Field(gt=0, description="Quantity moved")
-    unit_cost: float | None = Field(
-        default=None, ge=0, description="Unit cost at time of movement"
+    quantity: Decimal = Field(
+        gt=0,
+        max_digits=10,
+        decimal_places=2,
+        description="Quantity moved",
+    )
+    unit_cost: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=10,
+        decimal_places=2,
+        description="Unit cost at time of movement",
     )
 
     # Movement details
@@ -106,7 +116,12 @@ class InventoryStockMovementCreate(InventoryStockMovementBase, BaseCreate):
         description="Reference type (order, manual, system, correction)"
     )
     product_id: uuid.UUID
-    quantity: int = Field(gt=0, description="Quantity moved")
+    quantity: Decimal = Field(
+        gt=0,
+        max_digits=10,
+        decimal_places=2,
+        description="Quantity moved",
+    )
 
     # Optional fields can remain as inherited
 
@@ -125,8 +140,20 @@ class InventoryStockMovementUpdate(BaseUpdate):
 
     # Product and quantity
     product_id: uuid.UUID | None = None
-    quantity: int | None = Field(default=None, gt=0, description="Quantity moved")
-    unit_cost: float | None = Field(default=None, ge=0, description="Unit cost")
+    quantity: Decimal | None = Field(
+        default=None,
+        gt=0,
+        max_digits=10,
+        decimal_places=2,
+        description="Quantity moved",
+    )
+    unit_cost: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=10,
+        decimal_places=2,
+        description="Unit cost",
+    )
 
     # Movement details
     reason: str | None = Field(default=None, max_length=500, description="Reason")
@@ -144,7 +171,7 @@ class InventoryStockMovementPublic(InventoryStockMovementBase, BasePublic):
     movement_type: str
     reference_type: str
     product_id: uuid.UUID
-    quantity: int
+    quantity: Decimal
     status: str
 
 
