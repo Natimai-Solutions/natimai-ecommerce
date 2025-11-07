@@ -1,3 +1,6 @@
+from app.features.analytic.models.analytic_product import AnalyticsProduct
+from app.features.analytic.models.analytic_sale import AnalyticsSale
+from app.features.analytic.models.analytic_user import AnalyticsUser
 from app.features.discount.models import Discount
 from app.features.order.models.order import Order
 from app.features.order.models.order_line import OrderLine
@@ -18,5 +21,8 @@ __all__ = [
     "PaymentStatus",
     "Product",
     "Discount",
+    "AnalyticsUser",
+    "AnalyticsSale",
+    "AnalyticsProduct",
     # "Shipping",
 ]

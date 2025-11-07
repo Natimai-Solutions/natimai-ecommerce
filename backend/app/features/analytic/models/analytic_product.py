@@ -32,7 +32,12 @@ class AnalyticsProductCreate(AnalyticsProductBase, BaseCreate):
 
 
 class AnalyticsProductUpdate(AnalyticsProductBase, BaseUpdate):
-    pass
+    product_id: uuid.UUID | None = None
+    add_to_carts: int | None = None
+    purchases: int | None = None
+    conversion_rate: float | None = None
+    average_rating: float | None = None
+    review_count: int | None = None
 
 
 class AnalyticsProduct(AnalyticsProductBase, table=True):

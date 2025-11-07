@@ -1,0 +1,51 @@
+from app.features.analytic.crud import (
+    AnalyticsProductCrud,
+    AnalyticsSaleCrud,
+    AnalyticsUserCrud,
+    crud_analytics_product,
+    crud_analytics_sale,
+    crud_analytics_user,
+)
+from app.features.analytic.models import (
+    AnalyticsProduct,
+    AnalyticsProductCreate,
+    AnalyticsProductPublic,
+    AnalyticsProductsPublic,
+    AnalyticsProductUpdate,
+    AnalyticsSale,
+    AnalyticsSaleCreate,
+    AnalyticsSalePublic,
+    AnalyticsSalesPublic,
+    AnalyticsSaleUpdate,
+    AnalyticsUser,
+    AnalyticsUserCreate,
+    AnalyticsUserPublic,
+    AnalyticsUsersPublic,
+    AnalyticsUserUpdate,
+)
+
+__all__ = [
+    # Models
+    "AnalyticsUser",
+    "AnalyticsUserCreate",
+    "AnalyticsUserUpdate",
+    "AnalyticsUserPublic",
+    "AnalyticsUsersPublic",
+    "AnalyticsSale",
+    "AnalyticsSaleCreate",
+    "AnalyticsSaleUpdate",
+    "AnalyticsSalePublic",
+    "AnalyticsSalesPublic",
+    "AnalyticsProduct",
+    "AnalyticsProductCreate",
+    "AnalyticsProductUpdate",
+    "AnalyticsProductPublic",
+    "AnalyticsProductsPublic",
+    # CRUD
+    "AnalyticsUserCrud",
+    "crud_analytics_user",
+    "AnalyticsSaleCrud",
+    "crud_analytics_sale",
+    "AnalyticsProductCrud",
+    "crud_analytics_product",
+]
