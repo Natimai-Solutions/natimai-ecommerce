@@ -1,5 +1,13 @@
 """Inventory models module exports."""
 
+from .inventory import (
+    Inventory,
+    InventoryBase,
+    InventoryCreate,
+    InventoriesPublic,
+    InventoryPublic,
+    InventoryUpdate,
+)
 from .stock_movement import (
     InventoryStockMovement,
     InventoryStockMovementBase,
@@ -13,6 +21,13 @@ from .stock_movement import (
 )
 
 __all__ = [
+    # Inventory Models
+    "Inventory",
+    "InventoryBase",
+    "InventoryCreate",
+    "InventoryUpdate",
+    "InventoryPublic",
+    "InventoriesPublic",
     # Stock Movement Models
     "InventoryStockMovement",
     "InventoryStockMovementBase",
@@ -25,3 +40,4 @@ __all__ = [
     "ReferenceType",
     "MovementStatus",
 ]
+
