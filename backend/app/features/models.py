@@ -10,6 +10,8 @@ from app.features.order.models.order_status import OrderStatus
 from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.models.payment_status import PaymentStatus
+from app.features.product.models.brand import Brand
+from app.features.product.models.category import Category
 from app.features.product.models.product import Product
 from app.features.user.models.group import Group
 from app.features.user.models.group_security import GroupSecurity
@@ -25,6 +27,8 @@ __all__ = [
     "PaymentMethod",
     "PaymentStatus",
     "Product",
+    "Category",
+    "Brand",
     "Discount",
     "AnalyticsUser",
     "AnalyticsSale",
