@@ -4,6 +4,8 @@ api_router = APIRouter()
 
 from app.api.routes.address import router as address_router
 from app.api.routes.discount import router as discount_router
+from app.api.routes.group import router as group_router
+from app.api.routes.group_security import router as group_security_router
 from app.api.routes.icecat import router as icecat_router
 from app.api.routes.ingram_micro import router as ingram_micro_router
 from app.api.routes.inventory import router as inventory_router
@@ -38,6 +40,10 @@ api_router.include_router(place_router)
 api_router.include_router(payment_method_router)
 api_router.include_router(product_router)
 api_router.include_router(discount_router)
+
+# User groups and security management
+api_router.include_router(group_router)
+api_router.include_router(group_security_router)
 
 # Order management routes
 api_router.include_router(order_status_router)

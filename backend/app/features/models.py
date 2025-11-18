@@ -8,7 +8,10 @@ from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.models.payment_status import PaymentStatus
 from app.features.product.models.product import Product
+from app.features.user.models.group import Group
+from app.features.user.models.group_security import GroupSecurity
 from app.features.user.models.user import User
+from app.features.user.models.user_group import UserGroup
 
 __all__ = [
     "Order",
@@ -22,5 +25,8 @@ __all__ = [
     "Discount",
     "Inventory",
     "InventoryStockMovement",
+    "Group",
+    "GroupSecurity",
+    "UserGroup",
     # "Shipping",
 ]
