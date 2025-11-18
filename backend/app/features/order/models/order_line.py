@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from sqlmodel import Field, SQLModel
 
@@ -18,13 +19,17 @@ class OrderLineBase(Base):
         ge=1,
         description="Quantité du produit",
     )
-    unit_price: float = Field(
+    unit_price: Decimal = Field(
         ge=0,
+        max_digits=10,
+        decimal_places=2,
         description="Prix unitaire au moment de la commande",
     )
-    discount_amount: float = Field(
-        default=0.0,
+    discount_amount: Decimal = Field(
+        default=Decimal("0.00"),
         ge=0,
+        max_digits=10,
+        decimal_places=2,
         description="Montant de la réduction appliquée",
     )
     notes: str | None = Field(
@@ -42,8 +47,8 @@ class OrderLineUpdate(BaseUpdate):
     order_id: uuid.UUID | None = None
     product_id: uuid.UUID | None = None
     quantity: int | None = None
-    unit_price: float | None = None
-    discount_amount: float | None = None
+    unit_price: Decimal | None = None
+    discount_amount: Decimal | None = None
     notes: str | None = None
 
 

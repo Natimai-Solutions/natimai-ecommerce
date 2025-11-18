@@ -1,6 +1,7 @@
 import uuid
+from decimal import Decimal
 
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
@@ -14,9 +15,11 @@ class OrderBase(Base):
         foreign_key="order_statuses.id",
         description="ID du statut de la commande",
     )
-    total_amount: float = Field(
-        default=0.0,
+    total_amount: Decimal = Field(
+        default=Decimal("0.00"),
         ge=0,
+        max_digits=10,
+        decimal_places=2,
         description="Montant total de la commande",
     )
     shipping_address: str | None = Field(
@@ -38,7 +41,7 @@ class OrderCreate(OrderBase, BaseCreate):
 class OrderUpdate(BaseUpdate):
     user_id: uuid.UUID | None = None
     order_status_id: uuid.UUID | None = None
-    total_amount: float | None = None
+    total_amount: Decimal | None = None
     shipping_address: str | None = None
     notes: str | None = None
 

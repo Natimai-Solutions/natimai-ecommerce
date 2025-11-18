@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from sqlmodel import Field, SQLModel
 
@@ -15,12 +16,21 @@ class AnalyticsProductBase(Base):
     purchases: int = Field(
         default=0, description="Number of times the product has been purchased"
     )
-    conversion_rate: float = Field(
-        default=0.0,
-        description="Conversion rate of the product (purchases / add_to_carts)",
+    conversion_rate: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        le=100,
+        max_digits=5,
+        decimal_places=2,
+        description="Conversion rate of the product (purchases / add_to_carts) in percentage",
     )
-    average_rating: float | None = Field(
-        default=None, description="Average rating of the product"
+    average_rating: Decimal | None = Field(
+        default=None,
+        ge=0,
+        le=5,
+        max_digits=3,
+        decimal_places=2,
+        description="Average rating of the product (0-5)",
     )
     review_count: int = Field(
         default=0, description="Number of reviews for the product"

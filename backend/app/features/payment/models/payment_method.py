@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from sqlmodel import Field, SQLModel
 
@@ -12,7 +13,13 @@ class PaymentMethodBase(Base):
         description="Description of the payment method",
         max_length=255,
     )
-    fee: float = Field(description="Fee associated with the payment method")
+    fee: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=10,
+        decimal_places=2,
+        description="Fee associated with the payment method",
+    )
 
 
 class PaymentMethodCreate(PaymentMethodBase, BaseCreate):

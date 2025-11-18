@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from sqlmodel import Field, SQLModel
 
@@ -6,10 +7,20 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class AnalyticsSaleBase(Base):
-    total_sales: int = Field(default=0, description="Total sales amount")
+    total_sales: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Total sales amount",
+    )
     order_count: int = Field(default=0, description="Number of orders made")
-    average_order_value: float = Field(
-        default=0.0, description="Average value of orders"
+    average_order_value: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=10,
+        decimal_places=2,
+        description="Average value of orders",
     )
     unique_customers: int = Field(default=0, description="Number of unique customers")
     top_selling_product_id: uuid.UUID | None = Field(
@@ -22,9 +33,9 @@ class AnalyticsSaleCreate(AnalyticsSaleBase, BaseCreate):
 
 
 class AnalyticsSaleUpdate(AnalyticsSaleBase, BaseUpdate):
-    total_sales: int | None = None
+    total_sales: Decimal | None = None
     order_count: int | None = None
-    average_order_value: float | None = None
+    average_order_value: Decimal | None = None
     unique_customers: int | None = None
     top_selling_product_id: uuid.UUID | None = None
 
