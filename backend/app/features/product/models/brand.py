@@ -32,11 +32,8 @@ class BrandCreate(BrandBase, BaseCreate):
     pass
 
 
-class BrandUpdate(BaseUpdate):
-    name: str | None = None
-    description: str | None = None
-    logo_url: str | None = None
-    website: str | None = None
+class BrandUpdate(BrandBase, BaseUpdate):
+    pass
 
 
 class Brand(BrandBase, table=True):
