@@ -3,6 +3,9 @@ from fastapi import APIRouter
 api_router = APIRouter()
 
 from app.api.routes.address import router as address_router
+from app.api.routes.analytics_product import router as analytics_product_router
+from app.api.routes.analytics_sale import router as analytics_sale_router
+from app.api.routes.analytics_user import router as analytics_user_router
 from app.api.routes.discount import router as discount_router
 from app.api.routes.group import router as group_router
 from app.api.routes.group_security import router as group_security_router
@@ -69,6 +72,10 @@ api_router.include_router(ingram_micro_router, prefix="/ingram", tags=["ingram-m
 # Icecat product enrichment routes
 api_router.include_router(icecat_router, prefix="/icecat", tags=["icecat"])
 
+# Analytics routes
+api_router.include_router(analytics_user_router)
+api_router.include_router(analytics_sale_router)
+api_router.include_router(analytics_product_router)
 # Inventory routes
 api_router.include_router(inventory_router)
 api_router.include_router(stock_movement_router)

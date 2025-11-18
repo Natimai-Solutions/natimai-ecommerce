@@ -1,3 +1,6 @@
+from app.features.analytic.models.analytic_product import AnalyticsProduct
+from app.features.analytic.models.analytic_sale import AnalyticsSale
+from app.features.analytic.models.analytic_user import AnalyticsUser
 from app.features.discount.models import Discount
 from app.features.inventory.models.inventory import Inventory
 from app.features.inventory.models.stock_movement import InventoryStockMovement
@@ -23,6 +26,9 @@ __all__ = [
     "PaymentStatus",
     "Product",
     "Discount",
+    "AnalyticsUser",
+    "AnalyticsSale",
+    "AnalyticsProduct",
     "Inventory",
     "InventoryStockMovement",
     "Group",
