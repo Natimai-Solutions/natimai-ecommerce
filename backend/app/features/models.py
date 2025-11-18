@@ -1,4 +1,6 @@
 from app.features.discount.models import Discount
+from app.features.inventory.models.inventory import Inventory
+from app.features.inventory.models.stock_movement import InventoryStockMovement
 from app.features.order.models.order import Order
 from app.features.order.models.order_line import OrderLine
 from app.features.order.models.order_status import OrderStatus
@@ -21,6 +23,8 @@ __all__ = [
     "PaymentStatus",
     "Product",
     "Discount",
+    "Inventory",
+    "InventoryStockMovement",
     "Group",
     "GroupSecurity",
     "UserGroup",
