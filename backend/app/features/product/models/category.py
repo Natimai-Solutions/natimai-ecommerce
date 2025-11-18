@@ -27,10 +27,8 @@ class CategoryCreate(CategoryBase, BaseCreate):
     pass
 
 
-class CategoryUpdate(BaseUpdate):
-    name: str | None = None
-    description: str | None = None
-    image_url: str | None = None
+class CategoryUpdate(CategoryBase, BaseUpdate):
+    pass
 
 
 class Category(CategoryBase, table=True):
