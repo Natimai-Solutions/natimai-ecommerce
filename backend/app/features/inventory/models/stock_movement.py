@@ -62,7 +62,12 @@ class InventoryStockMovementBase(Base):
     product_id: uuid.UUID = Field(
         foreign_key="products.id", description="Product being moved"
     )
-    quantity: int = Field(gt=0, description="Quantity moved")
+    quantity: Decimal = Field(
+        gt=0,
+        max_digits=10,
+        decimal_places=2,
+        description="Quantity moved",
+    )
     unit_cost: Decimal | None = Field(
         default=None,
         ge=0,
@@ -111,7 +116,12 @@ class InventoryStockMovementCreate(InventoryStockMovementBase, BaseCreate):
         description="Reference type (order, manual, system, correction)"
     )
     product_id: uuid.UUID
-    quantity: int = Field(gt=0, description="Quantity moved")
+    quantity: Decimal = Field(
+        gt=0,
+        max_digits=10,
+        decimal_places=2,
+        description="Quantity moved",
+    )
 
     # Optional fields can remain as inherited
 
@@ -130,7 +140,13 @@ class InventoryStockMovementUpdate(BaseUpdate):
 
     # Product and quantity
     product_id: uuid.UUID | None = None
-    quantity: int | None = Field(default=None, gt=0, description="Quantity moved")
+    quantity: Decimal | None = Field(
+        default=None,
+        gt=0,
+        max_digits=10,
+        decimal_places=2,
+        description="Quantity moved",
+    )
     unit_cost: Decimal | None = Field(
         default=None,
         ge=0,
@@ -155,7 +171,7 @@ class InventoryStockMovementPublic(InventoryStockMovementBase, BasePublic):
     movement_type: str
     reference_type: str
     product_id: uuid.UUID
-    quantity: int
+    quantity: Decimal
     status: str
 
 

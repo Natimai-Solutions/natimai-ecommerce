@@ -28,8 +28,7 @@ class CategoryCreate(CategoryBase, BaseCreate):
 
 
 class CategoryUpdate(CategoryBase, BaseUpdate):
-    name: str | None = None
-    description: str | None = None
+    pass
 
 
 class Category(CategoryBase, table=True):
@@ -47,7 +46,11 @@ class CategoryPublic(CategoryBase, BasePublic):
 
 
 class CategoriesPublic(SQLModel):
-    categories: list[CategoryPublic] = Field(
+    data: list[CategoryPublic] = Field(
         default_factory=list,
         description="List of categories",
+    )
+    count: int = Field(
+        default=0,
+        description="Total number of categories",
     )

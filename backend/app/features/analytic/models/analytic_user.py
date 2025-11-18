@@ -43,6 +43,7 @@ class AnalyticsUserCreate(AnalyticsUserBase, BaseCreate):
 
 
 class AnalyticsUserUpdate(AnalyticsUserBase, BaseUpdate):
+    user_id: uuid.UUID | None = None
     login_count: int | None = None
     purchase_count: int | None = None
     average_order_value: Decimal | None = None

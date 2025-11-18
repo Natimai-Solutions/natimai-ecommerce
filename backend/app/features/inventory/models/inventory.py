@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from sqlmodel import Field, SQLModel, UniqueConstraint
 
@@ -6,8 +7,11 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class InventoryBase(Base):
-    quantity: int = Field(
+    quantity: Decimal = Field(
+        default=Decimal("0.00"),
         ge=0,
+        max_digits=10,
+        decimal_places=2,
         description="Quantity available in the inventory",
     )
     product_id: uuid.UUID = Field(
@@ -30,7 +34,9 @@ class InventoryCreate(InventoryBase, BaseCreate):
 
 
 class InventoryUpdate(BaseUpdate):
-    quantity: int | None = None
+    quantity: Decimal | None = None
+    product_id: uuid.UUID | None = None
+    place_id: uuid.UUID | None = None
     compute_from_movements: bool | None = None
 
 
@@ -50,7 +56,11 @@ class InventoryPublic(InventoryBase, BasePublic):
 
 
 class InventoriesPublic(SQLModel):
-    inventories: list[InventoryPublic] = Field(
+    data: list[InventoryPublic] = Field(
         default_factory=list,
         description="List of inventories",
+    )
+    count: int = Field(
+        default=0,
+        description="Total number of inventories",
     )

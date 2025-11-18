@@ -3,9 +3,17 @@ from fastapi import APIRouter
 api_router = APIRouter()
 
 from app.api.routes.address import router as address_router
+from app.api.routes.brand import router as brand_router
+from app.api.routes.category import router as category_router
+from app.api.routes.analytics_product import router as analytics_product_router
+from app.api.routes.analytics_sale import router as analytics_sale_router
+from app.api.routes.analytics_user import router as analytics_user_router
 from app.api.routes.discount import router as discount_router
+from app.api.routes.group import router as group_router
+from app.api.routes.group_security import router as group_security_router
 from app.api.routes.icecat import router as icecat_router
 from app.api.routes.ingram_micro import router as ingram_micro_router
+from app.api.routes.inventory import router as inventory_router
 from app.api.routes.login import router as login_router
 from app.api.routes.order import router as order_router
 from app.api.routes.order_line import router as order_line_router
@@ -20,6 +28,7 @@ from app.api.routes.product import (
     router as product_router,
 )
 from app.api.routes.shipping import shipping_router
+from app.api.routes.stock_movement import router as stock_movement_router
 from app.api.routes.user_notification import (
     router as user_notification_router,
 )
@@ -36,6 +45,13 @@ api_router.include_router(place_router)
 api_router.include_router(payment_method_router)
 api_router.include_router(product_router)
 api_router.include_router(discount_router)
+
+# Product related routes
+api_router.include_router(category_router)
+api_router.include_router(brand_router)
+# User groups and security management
+api_router.include_router(group_router)
+api_router.include_router(group_security_router)
 
 # Order management routes
 api_router.include_router(order_status_router)
@@ -60,3 +76,11 @@ api_router.include_router(ingram_micro_router, prefix="/ingram", tags=["ingram-m
 
 # Icecat product enrichment routes
 api_router.include_router(icecat_router, prefix="/icecat", tags=["icecat"])
+
+# Analytics routes
+api_router.include_router(analytics_user_router)
+api_router.include_router(analytics_sale_router)
+api_router.include_router(analytics_product_router)
+# Inventory routes
+api_router.include_router(inventory_router)
+api_router.include_router(stock_movement_router)
