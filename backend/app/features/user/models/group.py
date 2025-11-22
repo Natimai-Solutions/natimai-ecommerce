@@ -56,7 +56,7 @@ class GroupUpdate(BaseUpdate):
     name: str | None = Field(default=None, max_length=100)
     description: str | None = None
     group_type: str | None = Field(default=None, max_length=50)
-    discount_percentage: Decimal | None = None
+    discount_percentage: Decimal | None = Field(default=None, ge=0, le=100)
     priority: int | None = Field(default=None, ge=0)
 
 
