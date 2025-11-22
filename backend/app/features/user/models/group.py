@@ -1,6 +1,9 @@
 import uuid
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from sqlalchemy import Column
+from sqlalchemy.dialects.postgresql import NUMERIC
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
@@ -29,11 +32,10 @@ class GroupBase(Base):
         index=True,
         description="Type of group: 'security', 'pricing', 'discount', 'general'",
     )
-    discount_percentage: float | None = Field(
+    discount_percentage: Decimal | None = Field(
         default=None,
-        ge=0,
-        le=100,
-        description="Default discount percentage for pricing groups (0-100)",
+        sa_column=Column(NUMERIC(5, 2)),
+        description="Default discount percentage for pricing groups (0.00-100.00)",
     )
     priority: int = Field(
         default=0,
@@ -54,7 +56,7 @@ class GroupUpdate(BaseUpdate):
     name: str | None = Field(default=None, max_length=100)
     description: str | None = None
     group_type: str | None = Field(default=None, max_length=50)
-    discount_percentage: float | None = Field(default=None, ge=0, le=100)
+    discount_percentage: Decimal | None = Field(default=None, ge=0, le=100)
     priority: int | None = Field(default=None, ge=0)
 
 
