@@ -23,6 +23,29 @@ class OrderStatusCrud(CrudBase[OrderStatus, OrderStatusCreate, OrderStatusUpdate
         result = await session.exec(statement)
         return result.first()
 
+    async def get_by_code(
+        self, session: AsyncSession, code: str
+    ) -> OrderStatus | None:
+        """Récupère un statut par son code"""
+        statement = select(OrderStatus).where(
+            OrderStatus.code == code,
+            OrderStatus.is_active.is_(True),
+        )
+        result = await session.exec(statement)
+        return result.first()
+
+    async def get_ordered(
+        self, session: AsyncSession
+    ) -> list[OrderStatus]:
+        """Récupère tous les statuts ordonnés par sequence"""
+        statement = (
+            select(OrderStatus)
+            .where(OrderStatus.is_active.is_(True))
+            .order_by(OrderStatus.sequence)
+        )
+        result = await session.exec(statement)
+        return list(result.all())
+
 
 crud_order_status = OrderStatusCrud(
     model=OrderStatus,
