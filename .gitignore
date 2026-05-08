@@ -45,6 +45,7 @@ htmlcov/
 *.swo
 *~
 .DS_Store
+.claude
 
 # Jupyter Notebook
 .ipynb_checkpoints
