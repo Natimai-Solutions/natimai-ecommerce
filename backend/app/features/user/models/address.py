@@ -20,7 +20,10 @@ class AddressBase(Base):
     state: str | None = Field(default=None, description="State of the address")
     postal_code: str = Field(description="Postal code of the address")
     country: str = Field(description="Country of the address")
-    type: str = Field(description="Address type: billing, shipping, or other")
+    type: str = Field(
+        index=True,
+        description="Address type: billing, shipping, or other",
+    )
 
     @field_validator("type")
     @classmethod

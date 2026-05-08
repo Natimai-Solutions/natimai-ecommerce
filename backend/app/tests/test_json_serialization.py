@@ -1,209 +1,91 @@
-"""
-Test to validate JSON serialization of datetime objects in outbox payloads.
-"""
+"""Unit tests for JSON serialization and outbox payload compatibility."""
 
 import datetime
 import json
-import os
-import sys
+import uuid
 
-# Add the backend directory to Python path for relative imports
-backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-sys.path.insert(0, backend_dir)
-
-
-from sqlmodel import Field, SQLModel
+from sqlmodel import SQLModel
 
 from app.features.base.crud import CrudBase
 
 
-# Mock models for testing
-class TestModel(SQLModel, table=True):
-    __tablename__ = "test_table"
-    id: int | None = Field(default=None, primary_key=True)
-    name: str
-    created_at: datetime.datetime | None = None
+class SerializationModel(SQLModel):
+    pass
 
 
-class TestCreateSchema(SQLModel):
-    name: str
+class SerializationSchema(SQLModel):
+    pass
 
 
-def test_datetime_serialization():
-    """Test that datetime objects are properly serialized to JSON-compatible strings"""
-
-    print("🧪 Testing datetime serialization...")
-    print("=" * 50)
-
-    # Create a test CRUD instance
-    crud = CrudBase(
-        model=TestModel, schema_create=TestCreateSchema, schema_update=TestCreateSchema
+def _build_crud() -> CrudBase[
+    SerializationModel, SerializationSchema, SerializationSchema
+]:
+    return CrudBase(
+        model=SerializationModel,
+        schema_create=SerializationSchema,
+        schema_update=SerializationSchema,
     )
 
-    try:
-        # Test 1: Simple datetime serialization
-        print("\n📝 Testing simple datetime serialization...")
 
-        test_data = {
-            "name": "test",
-            "created_at": datetime.datetime.now(),
-            "updated_at": datetime.datetime(2025, 9, 18, 14, 30, 0),
-        }
+def test_datetime_serialization() -> None:
+    """Datetime and UUID values must be converted to JSON-safe strings."""
+    crud = _build_crud()
 
-        serialized = crud._serialize_for_json(test_data)
-        print(f"✅ Original data: {test_data}")
-        print(f"✅ Serialized data: {serialized}")
+    test_data = {
+        "name": "test",
+        "created_at": datetime.datetime.now(datetime.timezone.utc),
+        "updated_at": datetime.datetime(2025, 9, 18, 14, 30, 0),
+        "id": uuid.uuid4(),
+        "nested": {
+            "user_id": uuid.uuid4(),
+            "timestamps": [
+                datetime.datetime.now(datetime.timezone.utc),
+                datetime.datetime(2025, 1, 1),
+            ],
+        },
+    }
 
-        # Verify datetime objects are converted to strings
-        assert isinstance(serialized["created_at"], str), (
-            "created_at should be a string"
-        )
-        assert isinstance(serialized["updated_at"], str), (
-            "updated_at should be a string"
-        )
-        assert serialized["name"] == "test", "name should be preserved"
+    serialized = crud._serialize_for_json(test_data)
 
-        # Test JSON serialization
-        json_str = json.dumps(serialized)
-        print(f"✅ JSON serialization successful: {len(json_str)} characters")
+    assert isinstance(serialized["created_at"], str)
+    assert isinstance(serialized["updated_at"], str)
+    assert isinstance(serialized["id"], str)
+    assert isinstance(serialized["nested"]["user_id"], str)
+    assert isinstance(serialized["nested"]["timestamps"][0], str)
+    assert serialized["name"] == "test"
 
-        # Test 2: Nested structure with datetime
-        print("\n📝 Testing nested structure with datetime...")
-
-        nested_data = {
-            "user": {"name": "John", "created_at": datetime.datetime.now()},
-            "metadata": {
-                "timestamps": [datetime.datetime.now(), datetime.datetime(2025, 1, 1)]
-            },
-            "simple_field": "value",
-        }
-
-        serialized_nested = crud._serialize_for_json(nested_data)
-        print(f"✅ Nested serialized: {serialized_nested}")
-
-        # Verify nested datetime conversion
-        assert isinstance(serialized_nested["user"]["created_at"], str), (
-            "Nested datetime should be string"
-        )
-        assert isinstance(serialized_nested["metadata"]["timestamps"][0], str), (
-            "List datetime should be string"
-        )
-
-        # Test JSON serialization of nested structure
-        json_str_nested = json.dumps(serialized_nested)
-        print(
-            f"✅ Nested JSON serialization successful: {len(json_str_nested)} characters"
-        )
-
-        print("\n✅ All datetime serialization tests passed!")
-        return True
-
-    except Exception as e:
-        print(f"❌ Datetime serialization test failed: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return False
+    # Ensure no non-JSON values remain.
+    json.dumps(serialized)
 
 
-def test_payload_json_compatibility():
-    """Test that outbox payloads are JSON-compatible"""
+def test_payload_json_compatibility() -> None:
+    """Outbox payload returned by CrudBase must be fully JSON serializable."""
+    crud = _build_crud()
 
-    print("\n🧪 Testing outbox payload JSON compatibility...")
-    print("=" * 50)
+    class MockRecord:
+        id = uuid.uuid4()
+        name = "test"
+        description = "description"
+        created_by_id = uuid.uuid4()
 
-    # Create a test CRUD instance
-    crud = CrudBase(
-        model=TestModel, schema_create=TestCreateSchema, schema_update=TestCreateSchema
-    )
-
-    try:
-        # Mock record with datetime field
-        class MockRecord:
-            id = 123
-            name = "test"
-            created_at = datetime.datetime.now()
-
-        record = MockRecord()
-
-        # Test data with datetime
-        data_with_datetime = {
+    payload = crud._build_outbox_payload(
+        action="create",
+        record=MockRecord(),
+        user=None,
+        data={
             "name": "updated",
-            "created_at": datetime.datetime.now(),
+            "created_at": datetime.datetime.now(datetime.timezone.utc),
             "modified_at": datetime.datetime(2025, 9, 18),
-        }
+            "owner_id": uuid.uuid4(),
+        },
+    )
 
-        # Build payload
-        payload = crud._build_outbox_payload(
-            action="create", record=record, user=None, data=data_with_datetime
-        )
+    assert payload["action"] == "create"
+    assert "timestamp" in payload
+    assert "data" in payload
+    assert isinstance(payload["data"]["created_at"], str)
+    assert isinstance(payload["data"]["owner_id"], str)
 
-        print(f"✅ Payload structure: {payload}")
-
-        # Test JSON serialization of complete payload
-        try:
-            json_str = json.dumps(payload)
-            print("✅ Complete payload JSON serialization successful!")
-            print(f"   JSON length: {len(json_str)} characters")
-
-            # Parse back to verify
-            parsed = json.loads(json_str)
-            assert parsed["action"] == "create", "Action should be preserved"
-            assert "timestamp" in parsed, "Timestamp should be present"
-            assert "data" in parsed, "Data should be present"
-
-            print("✅ JSON round-trip successful!")
-
-        except TypeError as e:
-            print(f"❌ JSON serialization failed: {e}")
-            return False
-
-        print("\n✅ Payload JSON compatibility test passed!")
-        return True
-
-    except Exception as e:
-        print(f"❌ Payload JSON compatibility test failed: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return False
-
-
-if __name__ == "__main__":
-    """
-    Run JSON serialization tests:
-    cd backend
-    python app/tests/test_json_serialization.py
-    """
-
-    print("🚀 JSON Serialization Tests")
-    print("=" * 50)
-
-    # Test 1: Datetime serialization
-    datetime_ok = test_datetime_serialization()
-
-    # Test 2: Payload JSON compatibility
-    payload_ok = test_payload_json_compatibility()
-
-    # Summary
-    print("\n📋 Test Results Summary:")
-    print("=" * 50)
-
-    if datetime_ok and payload_ok:
-        print("✅ Datetime serialization: WORKING")
-        print("✅ Payload JSON compatibility: WORKING")
-        print("✅ PostgreSQL JSON column support: READY")
-        print("\n🎯 The 'datetime is not JSON serializable' error should be resolved!")
-        print("\n💡 Benefits:")
-        print("   • Datetime objects automatically converted to ISO strings")
-        print("   • Nested structures properly handled")
-        print("   • Complete payload JSON compatibility")
-        print("   • Safe database storage in JSON columns")
-    else:
-        print("❌ Some tests failed")
-        print("🔧 Check the _serialize_for_json implementation")
-
-    print("\n🔄 Next Steps:")
-    print("   1. Test outbox creation with actual models")
-    print("   2. Verify events are stored correctly in database")
-    print("   3. Check that handlers receive properly formatted data")
+    json_str = json.dumps(payload)
+    parsed = json.loads(json_str)
+    assert parsed["action"] == "create"

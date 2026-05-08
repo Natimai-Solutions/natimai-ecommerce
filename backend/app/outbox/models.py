@@ -11,6 +11,7 @@ class OutboxEvent(SQLModel, table=True):
     __tablename__ = "outbox_event"
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     type: str = Field(index=True)  # ex: "CREATE_PAYMENT"
+    correlation_id: UUID | None = Field(default=None, index=True)
     payload: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
     status: OutboxStatus = Field(
         default="PENDING", sa_column=Column(String, nullable=False, index=True)

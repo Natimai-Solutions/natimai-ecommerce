@@ -4,6 +4,7 @@ from fastapi import HTTPException, Query, status
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
+from app.features.base.crud import RecordNotFoundError
 from app.features.user.crud.notification import (
     NotificationCrud,
     crud_notification,
@@ -123,8 +124,12 @@ async def get_user_notification(
     if not user_notification:
         raise HTTPException(status_code=404, detail="Notification not found")
 
-    notification = await crud_notification.get(session=session, id=notification_id)
-    if not notification:
+    try:
+        notification = await crud_notification.read(
+            session=session,
+            id=notification_id,
+        )
+    except RecordNotFoundError:
         raise HTTPException(status_code=404, detail="Notification not found")
 
     return NotificationPublic.model_validate(notification)
@@ -192,7 +197,11 @@ async def delete_user_notification(
     if not user_notification:
         raise HTTPException(status_code=404, detail="Notification not found")
 
-    await crud_user_notification.remove(session=session, id=user_notification.id)
+    await crud_user_notification.delete(
+        session=session,
+        id=user_notification.id,
+        record=user_notification,
+    )
 
 
 @router.post(
@@ -211,9 +220,7 @@ async def create_user_notification(
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Create the notification
-    notification = await crud_notification.create(
-        session=session, data=notification_in
-    )
+    notification = await crud_notification.create(session=session, data=notification_in)
 
     # Create the user-notification relationship
     await crud_user_notification.create_for_user(

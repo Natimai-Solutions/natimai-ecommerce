@@ -4,6 +4,7 @@ from fastapi import HTTPException, Query, status
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
+from app.features.base.crud import RecordNotFoundError
 from app.features.user.crud.review import ReviewCrud, crud_review
 from app.features.user.models.review import (
     Review,
@@ -88,8 +89,9 @@ async def get_user_review(
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    review = await crud_review.get(session=session, id=review_id)
-    if not review:
+    try:
+        review = await crud_review.read(session=session, id=review_id)
+    except RecordNotFoundError:
         raise HTTPException(status_code=404, detail="Review not found")
 
     if review.user_id != user_id:
@@ -140,14 +142,20 @@ async def update_user_review(
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    review = await crud_review.get(session=session, id=review_id)
-    if not review:
+    try:
+        review = await crud_review.read(session=session, id=review_id)
+    except RecordNotFoundError:
         raise HTTPException(status_code=404, detail="Review not found")
 
     if review.user_id != user_id:
         raise HTTPException(status_code=404, detail="Review not found")
 
-    review = await crud_review.update(session=session, record=review, data=review_in)
+    review = await crud_review.update(
+        session=session,
+        id=review_id,
+        record=review,
+        data=review_in,
+    )
     return ReviewPublic.model_validate(review)
 
 
@@ -164,14 +172,15 @@ async def delete_user_review(
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    review = await crud_review.get(session=session, id=review_id)
-    if not review:
+    try:
+        review = await crud_review.read(session=session, id=review_id)
+    except RecordNotFoundError:
         raise HTTPException(status_code=404, detail="Review not found")
 
     if review.user_id != user_id:
         raise HTTPException(status_code=404, detail="Review not found")
 
-    await crud_review.remove(session=session, id=review_id)
+    await crud_review.delete(session=session, id=review_id, record=review)
 
 
 # Product-specific review routes

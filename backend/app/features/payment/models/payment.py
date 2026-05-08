@@ -7,12 +7,18 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class PaymentBase(Base):
-    amount: int = Field(..., gt=0, description="Amount to be paid in cents/smallest currency unit")
-    currency: str = Field(default="XPF", description="Currency of the payment (XPF, EUR, etc.)")
+    amount: int = Field(
+        ..., gt=0, description="Amount to be paid in cents/smallest currency unit"
+    )
+    currency: str = Field(
+        default="XPF", description="Currency of the payment (XPF, EUR, etc.)"
+    )
 
 
 class PaymentCreate(PaymentBase, BaseCreate):
-    order_id: uuid.UUID | None = Field(default=None, description="ID of the order associated with this payment")
+    order_id: uuid.UUID | None = Field(
+        default=None, description="ID of the order associated with this payment"
+    )
     user_id: uuid.UUID = Field(description="ID of the user making the payment")
 
 
@@ -36,27 +42,27 @@ class Payment(PaymentBase, table=True):
         foreign_key="orders.id",
         nullable=True,
         index=True,
-        description="ID of the order associated with this payment"
+        description="ID of the order associated with this payment",
     )
     user_id: uuid.UUID = Field(
         foreign_key="users.id",
         nullable=False,
         index=True,
-        description="ID of the user making the payment"
+        description="ID of the user making the payment",
     )
     payment_method_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="payment_methods.id",
         nullable=True,
         index=True,
-        description="ID of the payment method used"
+        description="ID of the payment method used",
     )
     payment_status_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="payment_status.id",
         nullable=True,
         index=True,
-        description="ID of the payment status"
+        description="ID of the payment status",
     )
     payzen_trans_id: str | None = Field(
         default=None, index=True, description="Payzen transaction UUID"
@@ -93,9 +99,7 @@ class PaymentPublic(PaymentBase, BasePublic):
         default=None,
         description="ID of the order associated with this payment",
     )
-    user_id: uuid.UUID = Field(
-        description="ID of the user making the payment"
-    )
+    user_id: uuid.UUID = Field(description="ID of the user making the payment")
     payment_method_id: uuid.UUID | None = Field(
         default=None,
         description="ID of the payment method used",

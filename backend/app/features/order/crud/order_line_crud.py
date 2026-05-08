@@ -55,7 +55,10 @@ class OrderLineCrud(CrudBase[OrderLine, OrderLineCreate, OrderLineUpdate]):
         """Calcule le total d'une commande à partir de ses lignes"""
         lines = await self.get_by_order(session, order_id)
         total = sum(
-            ((line.unit_price * line.quantity) - line.discount_amount for line in lines),
+            (
+                (line.unit_price * line.quantity) - line.discount_amount
+                for line in lines
+            ),
             Decimal("0.00"),
         )
         return total

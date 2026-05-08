@@ -16,11 +16,13 @@ class InventoryBase(Base):
     )
     product_id: uuid.UUID = Field(
         foreign_key="products.id",
+        index=True,
         description="ID of the product associated with this inventory",
     )
     place_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="places.id",
+        index=True,
         description="ID of the place where the inventory is located",
     )
     compute_from_movements: bool = Field(
@@ -42,7 +44,7 @@ class InventoryUpdate(BaseUpdate):
 
 class Inventory(InventoryBase, table=True):
     __tablename__ = "inventories"
-    __table_args__ = {UniqueConstraint("product_id", "place_id")}
+    __table_args__ = (UniqueConstraint("product_id", "place_id"),)
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
         primary_key=True,

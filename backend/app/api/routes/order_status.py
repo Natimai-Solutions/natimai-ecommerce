@@ -6,8 +6,8 @@ from app.features.order.crud.order_status_crud import (
 from app.features.order.models.order_status import (
     OrderStatus,
     OrderStatusCreate,
-    OrderStatusPublic,
     OrderStatusesPublic,
+    OrderStatusPublic,
     OrderStatusUpdate,
 )
 

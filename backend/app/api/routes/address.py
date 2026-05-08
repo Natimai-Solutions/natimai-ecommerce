@@ -4,6 +4,7 @@ from fastapi import HTTPException, Query, status
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
+from app.features.base.crud import RecordNotFoundError
 from app.features.user.crud.address import AddressCrud, crud_address
 from app.features.user.models.address import (
     Address,
@@ -88,8 +89,9 @@ async def get_user_address(
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    address = await crud_address.get(session=session, id=address_id)
-    if not address:
+    try:
+        address = await crud_address.read(session=session, id=address_id)
+    except RecordNotFoundError:
         raise HTTPException(status_code=404, detail="Address not found")
 
     if address.user_id != user_id:
@@ -131,15 +133,16 @@ async def update_user_address(
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    address = await crud_address.get(session=session, id=address_id)
-    if not address:
+    try:
+        address = await crud_address.read(session=session, id=address_id)
+    except RecordNotFoundError:
         raise HTTPException(status_code=404, detail="Address not found")
 
     if address.user_id != user_id:
         raise HTTPException(status_code=404, detail="Address not found")
 
     address = await crud_address.update(
-        session=session, record=address, data=address_in
+        session=session, id=address_id, record=address, data=address_in
     )
     return AddressPublic.model_validate(address)
 
@@ -157,14 +160,15 @@ async def delete_user_address(
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    address = await crud_address.get(session=session, id=address_id)
-    if not address:
+    try:
+        address = await crud_address.read(session=session, id=address_id)
+    except RecordNotFoundError:
         raise HTTPException(status_code=404, detail="Address not found")
 
     if address.user_id != user_id:
         raise HTTPException(status_code=404, detail="Address not found")
 
-    await crud_address.remove(session=session, id=address_id)
+    await crud_address.delete(session=session, id=address_id, record=address)
 
 
 @router.get(

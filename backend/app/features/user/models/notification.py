@@ -115,7 +115,9 @@ class NotificationsPublic(SQLModel):
 # User Notification Link models for many-to-many relationship
 class UserNotificationBase(Base):
     is_read: bool = Field(
-        default=False, description="Whether the notification has been read"
+        default=False,
+        index=True,
+        description="Whether the notification has been read",
     )
     read_at: datetime | None = Field(
         default=None, description="When the notification was read"

@@ -79,9 +79,7 @@ class IngramSyncLogCrud(
             status=SyncStatus.RUNNING, started_at=datetime.now(timezone.utc)
         )
 
-        return await self.update(
-            session=session, record_id=sync_log_id, data=update_data
-        )
+        return await self.update(session=session, id=sync_log_id, data=update_data)
 
     async def complete_sync(
         self,
@@ -107,9 +105,9 @@ class IngramSyncLogCrud(
         completed_at = datetime.now(timezone.utc)
 
         # Calculate duration if we have start time
-        sync_log = await self.get(session=session, id=sync_log_id)
+        sync_log = await self.read(session=session, id=sync_log_id)
         duration_seconds = None
-        if sync_log and sync_log.started_at:
+        if sync_log.started_at:
             duration_seconds = (completed_at - sync_log.started_at).total_seconds()
 
         update_data = IngramSyncLogUpdate(
@@ -120,9 +118,7 @@ class IngramSyncLogCrud(
             error_message=error_message,
         )
 
-        return await self.update(
-            session=session, record_id=sync_log_id, data=update_data
-        )
+        return await self.update(session=session, id=sync_log_id, data=update_data)
 
     async def get_recent_syncs(
         self,
@@ -368,9 +364,7 @@ class IngramProductMappingCrud(
 
         update_data = IngramProductMappingUpdate(last_synced=sync_time)
 
-        return await self.update(
-            session=session, record_id=mapping_id, data=update_data
-        )
+        return await self.update(session=session, id=mapping_id, data=update_data)
 
     async def get_stale_mappings(
         self, session: AsyncSession, hours: int = 24

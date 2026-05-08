@@ -20,7 +20,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(levelname)s:%(name)s:%(message)s",
     stream=sys.stdout,
-    force=True  # Override any existing configuration
+    force=True,  # Override any existing configuration
 )
 
 # Add filter to suppress noisy "already running elsewhere" messages

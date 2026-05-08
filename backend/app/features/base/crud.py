@@ -44,11 +44,11 @@ def track_crud_operation(func=None, *, step_name=None):
     """
     Decorator that tracks CRUD operations and handles their exceptions.
     Can be used with or without arguments.
-    
+
     Usage:
         @track_crud_operation
         async def my_func(): ...
-        
+
         @track_crud_operation(step_name="custom_name")
         async def my_func(): ...
     """

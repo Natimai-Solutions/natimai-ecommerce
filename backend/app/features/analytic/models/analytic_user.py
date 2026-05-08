@@ -1,6 +1,7 @@
 import uuid
 from decimal import Decimal
 
+from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
@@ -33,8 +34,10 @@ class AnalyticsUserBase(Base):
     total_orders: int = Field(
         default=0, description="Total number of orders made by the user"
     )
-    favorite_products: list[uuid.UUID] = Field(
-        default_factory=list, description="List of favorite product IDs"
+    favorite_products: list[str] = Field(
+        default_factory=list,
+        sa_column=Column(JSON),
+        description="List of favorite product IDs",
     )
 
 
@@ -50,7 +53,7 @@ class AnalyticsUserUpdate(AnalyticsUserBase, BaseUpdate):
     last_login: str | None = None
     total_spent: Decimal | None = None
     total_orders: int | None = None
-    favorite_products: list[uuid.UUID] | None = None
+    favorite_products: list[str] | None = None
 
 
 class AnalyticsUser(AnalyticsUserBase, table=True):

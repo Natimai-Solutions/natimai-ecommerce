@@ -14,9 +14,7 @@ from app.features.discount.models import (
 
 
 class DiscountCrud(CrudBase[Discount, DiscountCreate, DiscountUpdate]):
-    async def get_by_code(
-        self, session: AsyncSession, code: str
-    ) -> Discount | None:
+    async def get_by_code(self, session: AsyncSession, code: str) -> Discount | None:
         """Récupère un coupon par son code"""
         statement = select(Discount).where(
             Discount.code == code,

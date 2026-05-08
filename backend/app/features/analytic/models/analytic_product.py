@@ -8,7 +8,9 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 class AnalyticsProductBase(Base):
     product_id: uuid.UUID = Field(
-        foreign_key="products.id", description="ID of the product"
+        foreign_key="products.id",
+        index=True,
+        description="ID of the product",
     )
     add_to_carts: int = Field(
         default=0, description="Number of times the product has been added to carts"

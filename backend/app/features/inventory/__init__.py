@@ -5,10 +5,10 @@ from app.features.inventory.crud import (
     crud_stock_movement,
 )
 from app.features.inventory.models import (
+    InventoriesPublic,
     Inventory,
     InventoryBase,
     InventoryCreate,
-    InventoriesPublic,
     InventoryPublic,
     InventoryStockMovement,
     InventoryStockMovementBase,

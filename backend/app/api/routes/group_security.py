@@ -6,10 +6,10 @@ from app.api.base_router import BaseRouter, Routes
 from app.api.deps import CurrentUser, SessionDep
 from app.features.user.crud.group_security import crud_group_security
 from app.features.user.models.group_security import (
+    GroupSecuritiesPublic,
     GroupSecurity,
     GroupSecurityCreate,
     GroupSecurityPublic,
-    GroupSecuritiesPublic,
     GroupSecurityUpdate,
 )
 

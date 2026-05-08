@@ -84,7 +84,9 @@ def validate_ipn_signature(fields_dict: dict[str, Any]) -> dict[str, Any]:
     except json.JSONDecodeError as e:
         raise ValueError(f"kr-answer is not valid JSON: {e}")
 
-    logger.info(f"IPN signature validated successfully (algorithm: {kr_hash_algorithm})")
+    logger.info(
+        f"IPN signature validated successfully (algorithm: {kr_hash_algorithm})"
+    )
 
     # Extract first transaction (main payment)
     transactions = answer_data.get("transactions", [])
@@ -239,9 +241,7 @@ async def create_payzen_form_token(
         logger.error(f"Error during PayZen request: {e}")
         raise HTTPException(500, "Communication error with PayZen")
     except httpx.HTTPStatusError as e:
-        logger.error(
-            f"PayZen HTTP error: {e.response.status_code} - {e.response.text}"
-        )
+        logger.error(f"PayZen HTTP error: {e.response.status_code} - {e.response.text}")
         raise HTTPException(500, f"PayZen error: {e.response.status_code}")
     except HTTPException:
         raise

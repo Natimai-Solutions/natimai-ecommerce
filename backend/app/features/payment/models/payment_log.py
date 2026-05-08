@@ -8,10 +8,10 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 class PaymentLogBase(Base):
     payment_id: uuid.UUID = Field(
-        foreign_key="payments.id", 
-        nullable=False, 
-        index=True, 
-        description="ID of the payment associated with this log"
+        foreign_key="payments.id",
+        nullable=False,
+        index=True,
+        description="ID of the payment associated with this log",
     )
     payzen_trans_id: str | None = Field(
         default=None, index=True, description="Payzen transaction UUID"
@@ -26,9 +26,7 @@ class PaymentLogBase(Base):
     status: str | None = Field(
         default=None, description="Payzen transaction status (PAID, REFUSED, etc.)"
     )
-    error_code: str | None = Field(
-        default=None, description="Payzen error code if any"
-    )
+    error_code: str | None = Field(default=None, description="Payzen error code if any")
     raw_data: dict | None = Field(
         default=None,
         sa_column=Column(JSON),

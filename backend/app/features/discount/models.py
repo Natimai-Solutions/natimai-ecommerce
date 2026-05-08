@@ -55,11 +55,13 @@ class DiscountBase(Base):
     product_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="products.id",
+        index=True,
         description="ID du produit ciblé (si target=PRODUCT)",
     )
     category_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="categories.id",
+        index=True,
         description="ID de la catégorie ciblée (si target=CATEGORY)",
     )
     start_date: datetime.datetime | None = Field(

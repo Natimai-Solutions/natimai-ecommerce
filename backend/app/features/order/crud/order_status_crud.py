@@ -1,4 +1,3 @@
-import uuid
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -12,9 +11,7 @@ from app.features.order.models.order_status import (
 
 
 class OrderStatusCrud(CrudBase[OrderStatus, OrderStatusCreate, OrderStatusUpdate]):
-    async def get_by_name(
-        self, session: AsyncSession, name: str
-    ) -> OrderStatus | None:
+    async def get_by_name(self, session: AsyncSession, name: str) -> OrderStatus | None:
         """Récupère un statut par son nom"""
         statement = select(OrderStatus).where(
             OrderStatus.name == name,

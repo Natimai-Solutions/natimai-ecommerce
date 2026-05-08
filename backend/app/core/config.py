@@ -47,7 +47,7 @@ class Settings(BaseSettings):
             warnings.warn(
                 "SECRET_KEY not set in environment. Using a random key. "
                 "This will invalidate tokens on restart!",
-                stacklevel=1
+                stacklevel=1,
             )
         return self
 
@@ -174,7 +174,11 @@ class Settings(BaseSettings):
         if self.PAYZEN_IPN_URL:
             return self.PAYZEN_IPN_URL
         # Default to API endpoint + payment/payzen/ipn
-        backend_url = str(self.BACKEND_CORS_ORIGINS[0]) if self.BACKEND_CORS_ORIGINS else "http://localhost:8000"
+        backend_url = (
+            str(self.BACKEND_CORS_ORIGINS[0])
+            if self.BACKEND_CORS_ORIGINS
+            else "http://localhost:8000"
+        )
         return f"{backend_url}{self.API_V1_STR}/payment/payzen/ipn"
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:

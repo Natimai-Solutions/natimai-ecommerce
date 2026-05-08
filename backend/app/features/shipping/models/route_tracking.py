@@ -25,25 +25,35 @@ class ShippingRouteTrackingBase(Base):
     Replaces TrackingEvent with order-centric tracking.
     """
 
-    order_id: uuid.UUID = Field(description="Order ID being tracked")
+    order_id: uuid.UUID = Field(
+        foreign_key="orders.id",
+        index=True,
+        description="Order ID being tracked",
+    )
     route_id: uuid.UUID = Field(
-        foreign_key="shipping_routes.id", description="Selected shipping route"
+        foreign_key="shipping_routes.id",
+        index=True,
+        description="Selected shipping route",
     )
 
     # Current status (relation to StatusDefinition)
     status_id: uuid.UUID = Field(
         foreign_key="status_definitions.id",
+        index=True,
         description="Current status (references StatusDefinition)",
     )
 
     address_id: uuid.UUID = Field(
-        foreign_key="addresses.id", description="Delivery address for this tracking"
+        foreign_key="addresses.id",
+        index=True,
+        description="Delivery address for this tracking",
     )
 
     # Consolidation link (optional)
     consolidation_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="shipping_route_tracking_consolidations.id",
+        index=True,
         description="Linked consolidation if grouped",
     )
 
@@ -143,18 +153,24 @@ class ShippingRouteTrackingConsolidationBase(Base):
     """
 
     route_id: uuid.UUID = Field(
-        foreign_key="shipping_routes.id", description="Parent route"
+        foreign_key="shipping_routes.id",
+        index=True,
+        description="Parent route",
     )
 
     # Identification
     name: str = Field(max_length=200, description="Consolidation name")
     consolidation_code: str = Field(
-        max_length=100, unique=True, index=True, description="Unique consolidation code"
+        max_length=100,
+        unique=True,
+        description="Unique consolidation code",
     )
 
     # Status (overrides individual tracking status when consolidated)
     status_id: uuid.UUID = Field(
-        foreign_key="status_definitions.id", description="Consolidation status"
+        foreign_key="status_definitions.id",
+        index=True,
+        description="Consolidation status",
     )
 
     # Tracking
@@ -249,17 +265,22 @@ class ShippingRouteTrackingLogsBase(Base):
     """
 
     tracking_id: uuid.UUID = Field(
-        foreign_key="shipping_route_trackings.id", description="Route tracking entry"
+        foreign_key="shipping_route_trackings.id",
+        index=True,
+        description="Route tracking entry",
     )
 
     # Status change details
     from_status_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="status_definitions.id",
+        index=True,
         description="Previous status (null for initial)",
     )
     to_status_id: uuid.UUID = Field(
-        foreign_key="status_definitions.id", description="New status"
+        foreign_key="status_definitions.id",
+        index=True,
+        description="New status",
     )
 
     # Change context
@@ -272,6 +293,7 @@ class ShippingRouteTrackingLogsBase(Base):
     consolidation_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="shipping_route_tracking_consolidations.id",
+        index=True,
         description="Consolidation that triggered change (if applicable)",
     )
 

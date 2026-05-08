@@ -14,10 +14,6 @@ def validate_rating(v: int, field_name: str = "Rating") -> int:
 
 
 class ReviewBase(Base):
-    rating: int = Field(ge=1, le=5, description="Rating between 1 and 5")
-    comment: str | None = Field(
-        default=None, max_length=1000, description="Review comment"
-    )
     rating: int = Field(..., ge=1, le=5, description="Rating between 1 and 5")
     comment: str | None = Field(
         default=None, max_length=1000, description="Review comment"
@@ -50,15 +46,6 @@ class ReviewUpdate(ReviewBase, BaseUpdate):
         if v is not None:
             return validate_rating(v)
         return v
-
-
-class ReviewUpdate(BaseUpdate):
-    rating: int | None = Field(
-        default=None, ge=1, le=5, description="Rating between 1 and 5"
-    )
-    comment: str | None = Field(
-        default=None, max_length=1000, description="Review comment"
-    )
 
 
 class Review(ReviewBase, table=True):

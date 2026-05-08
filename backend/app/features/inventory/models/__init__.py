@@ -1,10 +1,10 @@
 """Inventory models module exports."""
 
 from .inventory import (
+    InventoriesPublic,
     Inventory,
     InventoryBase,
     InventoryCreate,
-    InventoriesPublic,
     InventoryPublic,
     InventoryUpdate,
 )
@@ -40,4 +40,3 @@ __all__ = [
     "ReferenceType",
     "MovementStatus",
 ]
-

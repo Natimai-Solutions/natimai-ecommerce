@@ -7,7 +7,6 @@ No SDK dependency - uses aiohttp for OAuth and API requests.
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
@@ -405,8 +404,8 @@ class IngramMicroService:
             "name": ingram_product.product_name,
             "description": ingram_product.description
             or f"{ingram_product.manufacturer} {ingram_product.product_name}",
-            #"supplier_price": Decimal(str(ingram_product.price or 0.0)),
-            #"base_price": Decimal(str(ingram_product.price or 0.0)), # TODO: Review pricing strategy
+            # "supplier_price": Decimal(str(ingram_product.price or 0.0)),
+            # "base_price": Decimal(str(ingram_product.price or 0.0)), # TODO: Review pricing strategy
             "has_variants": False,
             # Generic supplier fields
             "supplier_sku": ingram_product.sku,
@@ -505,7 +504,7 @@ class IngramMicroService:
                                 stats["new_products"] += 1
                             elif result["action"] == "updated":
                                 stats["updated_products"] += 1
-                            
+
                             # Commit after each successful product to avoid transaction issues
                             await session.commit()
 
@@ -519,7 +518,7 @@ class IngramMicroService:
                     page += 1
 
                     # For local development, limit pages to avoid long syncs
-                    #if settings.ENVIRONMENT == "local" and page > 10:
+                    # if settings.ENVIRONMENT == "local" and page > 10:
                     #   break
 
                     # Add delay to respect rate limits

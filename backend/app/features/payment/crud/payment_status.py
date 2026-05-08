@@ -9,7 +9,9 @@ from app.features.payment.models.payment_status import (
 )
 
 
-class PaymentStatusCrud(CrudBase[PaymentStatus, PaymentStatusCreate, PaymentStatusUpdate]):
+class PaymentStatusCrud(
+    CrudBase[PaymentStatus, PaymentStatusCreate, PaymentStatusUpdate]
+):
     async def get_by_name(
         self,
         session: AsyncSession,

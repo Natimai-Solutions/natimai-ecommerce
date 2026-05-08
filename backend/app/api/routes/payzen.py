@@ -13,7 +13,6 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentUser, SessionDep
-from app.core.config import settings
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.models.payment import PaymentCreate
 from app.features.payment.utils.payzen import (
@@ -79,7 +78,10 @@ async def generate_form_token(
     )
 
     payment = await crud_payment.create_payment_with_log(
-        session, payment_data=payment_data, commit=False
+        session,
+        payment_data=payment_data,
+        user=current_user,
+        commit=False,
     )
 
     # Generate PayZen form token
@@ -208,4 +210,3 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
         )
 
     return JSONResponse(content={"status": "ok"})
-

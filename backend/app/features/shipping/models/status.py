@@ -17,10 +17,12 @@ class StatusDefinitionBase(Base):
 
     entity: str = Field(
         max_length=50,
+        index=True,
         description="Entity type: route, consolidation, delivery_task",
     )
     code: str = Field(
         max_length=50,
+        index=True,
         description="Status code: draft, ready, dispatched, in_transit, arrived, closed",
     )
     name: str = Field(max_length=100, description="Display name of status")
@@ -78,7 +80,7 @@ class StatusDefinitionPublic(StatusDefinitionBase, BasePublic):
 class StatusTransitionBase(Base):
     """Allowed transitions between statuses (guards are coded in service)"""
 
-    entity: str = Field(max_length=50, description="Entity type")
+    entity: str = Field(max_length=50, index=True, description="Entity type")
     from_code: str = Field(max_length=50, description="Source status")
     to_code: str = Field(max_length=50, description="Target status")
     guard_name: str | None = Field(

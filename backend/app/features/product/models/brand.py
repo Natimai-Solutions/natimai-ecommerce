@@ -16,15 +16,10 @@ class BrandBase(Base):
         max_length=500,
         description="Description of the brand",
     )
-    logo_url: str | None = Field(
+    image_url: str | None = Field(
         default=None,
         max_length=500,
-        description="URL of the brand logo",
-    )
-    website: str | None = Field(
-        default=None,
-        max_length=255,
-        description="Brand website URL",
+        description="URL of the brand image",
     )
 
 
@@ -33,7 +28,9 @@ class BrandCreate(BrandBase, BaseCreate):
 
 
 class BrandUpdate(BrandBase, BaseUpdate):
-    pass
+    name: str | None = None
+    description: str | None = None
+    image_url: str | None = None
 
 
 class Brand(BrandBase, table=True):

@@ -7,10 +7,10 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.api.deps import CurrentSuperUser, SessionDep, get_current_active_superuser
+from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.config import settings
 from app.services.ingram_micro_service import ingram_service
 from app.tasks.ingram_micro_tasks import trigger_inventory_refresh, trigger_manual_sync
@@ -252,9 +252,7 @@ async def get_available_categories(
 
 
 @router.get("/test-api")
-async def test_api_connection(
-    current_user: CurrentSuperUser
-) -> dict[str, Any]:
+async def test_api_connection(current_user: CurrentSuperUser) -> dict[str, Any]:
     """
     Test API connection and return sample data.
 

@@ -10,9 +10,7 @@ from app.features.product.models.category import (
 
 
 class CategoryCrud(CrudBase[Category, CategoryCreate, CategoryUpdate]):
-    async def get_by_name(
-        self, session: AsyncSession, name: str
-    ) -> Category | None:
+    async def get_by_name(self, session: AsyncSession, name: str) -> Category | None:
         """Récupère une catégorie par son nom"""
         statement = select(Category).where(
             Category.name == name,

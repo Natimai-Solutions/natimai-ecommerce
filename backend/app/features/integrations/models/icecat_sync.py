@@ -1,8 +1,11 @@
 from typing import Any
+
 from pydantic import BaseModel, Field
+
 
 class IcecatProductData(BaseModel):
     """Model for Icecat product data"""
+
     icecat_id: str | None = Field(default=None, description="Icecat product ID")
     ean: str | None = Field(default=None, description="EAN/UPC barcode")
     brand: str = Field(description="Product brand/manufacturer")
@@ -15,9 +18,7 @@ class IcecatProductData(BaseModel):
     images: list[dict[str, Any]] = Field(
         default_factory=list, description="Product images"
     )
-    image_url: str | None = Field(
-        default=None, description="Main product image URL"
-    )
+    image_url: str | None = Field(default=None, description="Main product image URL")
     specifications: list[dict[str, Any]] = Field(
         default_factory=list, description="Technical specifications"
     )
@@ -27,9 +28,7 @@ class IcecatProductData(BaseModel):
     manufacturer_code: str | None = Field(
         default=None, description="Manufacturer part number"
     )
-    release_date: str | None = Field(
-        default=None, description="Product release date"
-    )
+    release_date: str | None = Field(default=None, description="Product release date")
     end_of_life_date: str | None = Field(
         default=None, description="Product end of life date"
     )

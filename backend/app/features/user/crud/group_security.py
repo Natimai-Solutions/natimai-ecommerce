@@ -1,5 +1,4 @@
 import uuid
-from typing import Any
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -13,7 +12,9 @@ from app.features.user.models.group_security import (
 from app.features.user.models.user import User
 
 
-class GroupSecurityCrud(CrudBase[GroupSecurity, GroupSecurityCreate, GroupSecurityUpdate]):
+class GroupSecurityCrud(
+    CrudBase[GroupSecurity, GroupSecurityCreate, GroupSecurityUpdate]
+):
     """CRUD operations for GroupSecurity model"""
 
     @track_crud_operation

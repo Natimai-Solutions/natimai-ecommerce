@@ -22,15 +22,21 @@ class DeliveryTaskBase(Base):
     Simple final delivery task (home or pickup).
     """
 
-    order_id: uuid.UUID = Field(description="Order ID to deliver")
+    order_id: uuid.UUID = Field(
+        foreign_key="orders.id",
+        index=True,
+        description="Order ID to deliver",
+    )
     place_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="places.id",
+        index=True,
         description="Delivery place",
     )
     address_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="addresses.id",
+        index=True,
         description="Delivery address for this task",
     )
 

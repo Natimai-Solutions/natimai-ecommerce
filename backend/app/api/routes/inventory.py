@@ -1,9 +1,9 @@
 from app.api.base_router import BaseRouter
 from app.features.inventory.crud import InventoryCrud, crud_inventory
 from app.features.inventory.models import (
+    InventoriesPublic,
     Inventory,
     InventoryCreate,
-    InventoriesPublic,
     InventoryPublic,
     InventoryUpdate,
 )

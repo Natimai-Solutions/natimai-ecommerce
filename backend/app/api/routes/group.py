@@ -5,7 +5,6 @@ from fastapi import Depends, HTTPException
 from app.api.base_router import BaseRouter, Routes
 from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
 from app.features.user.crud.group import crud_group
-from app.features.user.crud.group_security import crud_group_security
 from app.features.user.crud.user_group import crud_user_group
 from app.features.user.models.group import (
     Group,
@@ -13,13 +12,6 @@ from app.features.user.models.group import (
     GroupPublic,
     GroupsPublic,
     GroupUpdate,
-)
-from app.features.user.models.group_security import (
-    GroupSecurity,
-    GroupSecurityCreate,
-    GroupSecurityPublic,
-    GroupSecuritiesPublic,
-    GroupSecurityUpdate,
 )
 from app.features.user.models.user_group import (
     UserGroupCreate,

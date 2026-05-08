@@ -6,8 +6,8 @@ from sqlmodel import Field, Relationship, SQLModel
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 if TYPE_CHECKING:
-    from app.features.user.models.user_group import UserGroup
     from app.features.user.models.group_security import GroupSecurity
+    from app.features.user.models.user_group import UserGroup
 
 
 class GroupBase(Base):
@@ -16,7 +16,6 @@ class GroupBase(Base):
     name: str = Field(
         max_length=100,
         unique=True,
-        index=True,
         description="Unique name of the group",
     )
     description: str | None = Field(
@@ -38,6 +37,7 @@ class GroupBase(Base):
     priority: int = Field(
         default=0,
         ge=0,
+        index=True,
         description="Priority level for group evaluation (higher = more priority)",
     )
 

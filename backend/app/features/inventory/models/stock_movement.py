@@ -47,20 +47,30 @@ class InventoryStockMovementBase(Base):
         description="Reference type for the movement (order, manual, system, correction)"
     )
     reference_id: uuid.UUID | None = Field(
-        default=None, description="Reference ID (order, manual entry, etc.)"
+        default=None,
+        index=True,
+        description="Reference ID (order, manual entry, etc.)",
     )
 
     # Location details
     from_place_id: uuid.UUID | None = Field(
-        default=None, foreign_key="places.id", description="Departure place ID"
+        default=None,
+        foreign_key="places.id",
+        index=True,
+        description="Departure place ID",
     )
     to_place_id: uuid.UUID | None = Field(
-        default=None, foreign_key="places.id", description="Arrival place ID"
+        default=None,
+        foreign_key="places.id",
+        index=True,
+        description="Arrival place ID",
     )
 
     # Product and quantity
     product_id: uuid.UUID = Field(
-        foreign_key="products.id", description="Product being moved"
+        foreign_key="products.id",
+        index=True,
+        description="Product being moved",
     )
     quantity: Decimal = Field(
         gt=0,

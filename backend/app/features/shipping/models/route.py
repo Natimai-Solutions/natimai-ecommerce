@@ -23,19 +23,25 @@ class ShippingRouteBase(Base):
 
     # Origin / destination
     from_place_id: uuid.UUID = Field(
-        foreign_key="places.id", description="Origin place"
+        foreign_key="places.id",
+        index=True,
+        description="Origin place",
     )
     to_place_id: uuid.UUID = Field(
-        foreign_key="places.id", description="Destination place"
+        foreign_key="places.id",
+        index=True,
+        description="Destination place",
     )
     from_partner_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="partners.id",
+        index=True,
         description="Origin partner (e.g., supplier)",
     )
     to_partner_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="partners.id",
+        index=True,
         description="Destination partner (e.g., customer)",
     )
 

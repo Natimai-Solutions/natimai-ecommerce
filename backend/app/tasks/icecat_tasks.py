@@ -18,7 +18,10 @@ from app.services.icecat_service import icecat_service
 
 logger = logging.getLogger(__name__)
 
-def update_product_with_icecat_data(icecat_product_data: IcecatProductData) -> ProductUpdate:
+
+def update_product_with_icecat_data(
+    icecat_product_data: IcecatProductData,
+) -> ProductUpdate:
     """
     Create a ProductUpdate object from IcecatProductData
 
@@ -35,7 +38,7 @@ def update_product_with_icecat_data(icecat_product_data: IcecatProductData) -> P
     if icecat_product_data.long_description:
         update_data.long_description = icecat_product_data.long_description
 
-    #if icecat_product_data.specifications:
+    # if icecat_product_data.specifications:
     #    update_data.technical_specifications = icecat_product_data.specifications
 
     # if icecat_product_data.features:
@@ -46,7 +49,7 @@ def update_product_with_icecat_data(icecat_product_data: IcecatProductData) -> P
 
     if icecat_product_data.release_date:
         update_data.release_date = icecat_product_data.release_date
-    
+
     if icecat_product_data.end_of_life_date:
         update_data.end_of_life_date = icecat_product_data.end_of_life_date
 
@@ -55,11 +58,12 @@ def update_product_with_icecat_data(icecat_product_data: IcecatProductData) -> P
 
     if icecat_product_data.icecat_id:
         update_data.enrichment_supplier_id = icecat_product_data.icecat_id
-    
+
     update_data.is_enriched = True
     update_data.last_enrichment_sync = datetime.datetime.now(tz=datetime.timezone.utc)
 
     return update_data
+
 
 async def enrich_product_with_icecat_task(
     ctx: dict[str, Any], product_id: str
@@ -97,7 +101,9 @@ async def enrich_product_with_icecat_task(
                 }
 
             # Get Icecat enrichment data
-            enrichment_data: IcecatProductData | None = await icecat_service.enrich_product_with_icecat(
+            enrichment_data: (
+                IcecatProductData | None
+            ) = await icecat_service.enrich_product_with_icecat(
                 vendor_part_number=product.vendor_part_number,
                 manufacturer=product.manufacturer,
                 ean=product.ean if hasattr(product, "ean") else None,
@@ -124,7 +130,9 @@ async def enrich_product_with_icecat_task(
                 return {
                     "status": "success",
                     "product_id": product_id,
-                    "enriched_fields": list(update_data.dict(exclude_unset=True).keys()),
+                    "enriched_fields": list(
+                        update_data.dict(exclude_unset=True).keys()
+                    ),
                 }
             else:
                 return {
@@ -172,10 +180,7 @@ async def batch_enrich_products_task(
             query = (
                 select(Product)
                 .where(Product.is_supplier_managed == True)
-                .where(
-                    (Product.is_enriched == False)
-                    | (Product.is_enriched == None)
-                )
+                .where((Product.is_enriched == False) | (Product.is_enriched == None))
                 .where(Product.vendor_part_number != None)
                 .where(Product.manufacturer != None)
                 .limit(limit)

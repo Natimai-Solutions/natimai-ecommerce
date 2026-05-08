@@ -9,10 +9,12 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 class OrderLineBase(Base):
     order_id: uuid.UUID = Field(
         foreign_key="orders.id",
+        index=True,
         description="ID de la commande",
     )
     product_id: uuid.UUID = Field(
         foreign_key="products.id",
+        index=True,
         description="ID du produit",
     )
     quantity: int = Field(

@@ -160,12 +160,10 @@ class ProductBase(Base):
         description="Main image URL of the product",
     )
     release_date: str | None = Field(
-        default=None,
-        description="Release date of the product"
+        default=None, description="Release date of the product"
     )
     end_of_life_date: str | None = Field(
-        default=None,
-        description="End of life date of the product"
+        default=None, description="End of life date of the product"
     )
 
 
@@ -207,6 +205,7 @@ class Product(ProductBase, table=True):
     category_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="categories.id",
+        index=True,
         description="Category ID of the product",
     )
     category: Category | None = Relationship(

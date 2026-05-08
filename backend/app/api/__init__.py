@@ -3,11 +3,11 @@ from fastapi import APIRouter
 api_router = APIRouter()
 
 from app.api.routes.address import router as address_router
-from app.api.routes.brand import router as brand_router
-from app.api.routes.category import router as category_router
 from app.api.routes.analytics_product import router as analytics_product_router
 from app.api.routes.analytics_sale import router as analytics_sale_router
 from app.api.routes.analytics_user import router as analytics_user_router
+from app.api.routes.brand import router as brand_router
+from app.api.routes.category import router as category_router
 from app.api.routes.discount import router as discount_router
 from app.api.routes.group import router as group_router
 from app.api.routes.group_security import router as group_security_router

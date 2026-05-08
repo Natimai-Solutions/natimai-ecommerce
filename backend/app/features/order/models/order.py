@@ -9,10 +9,12 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 class OrderBase(Base):
     user_id: uuid.UUID = Field(
         foreign_key="users.id",
+        index=True,
         description="ID de l'utilisateur qui a passé la commande",
     )
     order_status_id: uuid.UUID = Field(
         foreign_key="order_statuses.id",
+        index=True,
         description="ID du statut de la commande",
     )
     total_amount: Decimal = Field(

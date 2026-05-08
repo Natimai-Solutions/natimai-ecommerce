@@ -5,6 +5,7 @@ from sqlmodel import Field, SQLModel
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
+from app.features.base.crud import RecordNotFoundError
 from app.features.shipping.crud import (
     crud_shipping_route_tracking,
     crud_shipping_route_tracking_consolidation,
@@ -159,9 +160,9 @@ class ShippingRouteTrackingRouter(
             session: SessionDep,
             current_user: CurrentUser | None = Depends(get_current_user_optional),
         ):
-            tracking = await self.crud.get(session=session, id=tracking_id)
-
-            if not tracking:
+            try:
+                tracking = await self.crud.read(session=session, id=tracking_id)
+            except RecordNotFoundError:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND, detail="Tracking not found"
                 )
@@ -224,9 +225,9 @@ class ShippingRouteTrackingRouter(
             ),
             current_user: CurrentUser | None = Depends(get_current_user_optional),
         ):
-            tracking = await self.crud.get(session=session, id=tracking_id)
-
-            if not tracking:
+            try:
+                tracking = await self.crud.read(session=session, id=tracking_id)
+            except RecordNotFoundError:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND, detail="Tracking not found"
                 )

@@ -135,7 +135,9 @@ class IngramProductMappingBase(SQLModel):
 
     ingram_sku: str = Field(index=True, description="Ingram Micro SKU")
     local_product_id: UUID = Field(
-        foreign_key="products.id", description="Local product ID"
+        foreign_key="products.id",
+        index=True,
+        description="Local product ID",
     )
     vendor_part_number: str = Field(description="Manufacturer part number")
     manufacturer: str = Field(description="Product manufacturer")
