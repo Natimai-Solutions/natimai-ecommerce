@@ -1,0 +1,2 @@
+- [ ] A1 Vérifier et ajouter le calcul de shipping suivant les tronçons (par exemple Paris->Papeete / Papeete->Arutua) avec prix fixe, calcul selon le prix, le poids ou formule avancé.
+- [ ] A2 Vérifier que payment puisse facilement contenir des paiements tels que chèque/virement/bon de commande (limité par utilisateur)/CB avec fonctions avancées.
