@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.config import settings
+from app.features.integrations.crud.ingram_sync import ingram_sync_log_crud
+from app.features.integrations.models.ingram_sync import SyncType
 from app.services.ingram_micro_service import ingram_service
 from app.tasks.ingram_micro_tasks import trigger_inventory_refresh, trigger_manual_sync
 
@@ -141,7 +143,7 @@ async def trigger_inventory_sync(
 
 @router.get("/health", response_model=HealthResponse)
 async def check_ingram_health(
-    _session: SessionDep, _current_user: CurrentSuperUser
+    session: SessionDep, _current_user: CurrentSuperUser
 ) -> HealthResponse:
     """
     Check Ingram Micro API health and configuration status.
@@ -178,6 +180,16 @@ async def check_ingram_health(
             message="Ingram Micro synchronization is disabled in settings",
         )
 
+    last_successful_sync = await ingram_sync_log_crud.get_last_successful_sync(
+        session=session,
+        sync_type=SyncType.PRODUCT_CATALOG,
+    )
+    last_sync = (
+        last_successful_sync.completed_at or last_successful_sync.started_at
+        if last_successful_sync
+        else None
+    )
+
     # Test API connectivity
     try:
         # Attempt a simple API call
@@ -185,14 +197,11 @@ async def check_ingram_health(
             category="Ordinateur/Serveur", page_number=1, page_size=1
         )
 
-        # TODO: Get last sync time from database
-        # last_sync = await get_last_sync_time(session)
-
         return HealthResponse(
             status="healthy",
             api_responsive=True,
             configuration_valid=True,
-            # last_sync=last_sync,
+            last_sync=last_sync,
             message=f"API is responsive. Test call returned {len(products)} products.",
         )
 
@@ -201,6 +210,7 @@ async def check_ingram_health(
             status="unhealthy",
             api_responsive=False,
             configuration_valid=True,
+            last_sync=last_sync,
             message=f"API connectivity test failed: {str(e)}",
         )
 

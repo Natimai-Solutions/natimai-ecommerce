@@ -259,8 +259,7 @@ Livrable phase B:
 - Import Ingram robuste + enrichissement Icecat + produits manuels coherents.
 
 Checklist:
-- [ ] B1 Finaliser les sync logs Ingram (plus de TODO) et exposer dernier sync dans health.
-  - TODO actuel visible: [backend/app/tasks/ingram_micro_tasks.py#L68](app/tasks/ingram_micro_tasks.py#L68)
+- [x] B1 Finaliser les sync logs Ingram (plus de TODO) et exposer dernier sync dans health.
 - [ ] B2 Sortir la logique d'upsert et de commit par produit du service API vers orchestrateur metier integration.
   - Upsert actuel: [backend/app/services/ingram_micro_service.py#L427](app/services/ingram_micro_service.py#L427)
   - Sync actuel: [backend/app/services/ingram_micro_service.py#L458](app/services/ingram_micro_service.py#L458)

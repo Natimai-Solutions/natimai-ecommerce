@@ -13,6 +13,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.db import engine
+from app.features.integrations.crud.ingram_sync import ingram_sync_log_crud
+from app.features.integrations.models.ingram_sync import SyncStatus, SyncType
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product, ProductUpdate
 from app.services.ingram_micro_service import ingram_service
@@ -58,22 +60,48 @@ async def sync_ingram_products_task(
 
     try:
         async with AsyncSession(engine) as session:
+            raw_job_id = _ctx.get("job_id")
+            sync_log = await ingram_sync_log_crud.create_sync_log(
+                session=session,
+                sync_type=SyncType.PRODUCT_CATALOG,
+                categories=sync_categories,
+                job_id=str(raw_job_id) if raw_job_id else None,
+            )
+            await ingram_sync_log_crud.start_sync(
+                session=session,
+                sync_log_id=sync_log.id,
+            )
+
             # Record sync start time
             sync_start = datetime.now(timezone.utc)
 
-            # Perform the sync
-            stats = await ingram_service.sync_products_to_database(
-                session=session, categories=sync_categories
-            )
+            try:
+                # Perform the sync
+                stats = await ingram_service.sync_products_to_database(
+                    session=session, categories=sync_categories
+                )
+            except Exception as e:
+                await ingram_sync_log_crud.complete_sync(
+                    session=session,
+                    sync_log_id=sync_log.id,
+                    status=SyncStatus.FAILED,
+                    error_message=str(e),
+                )
+                raise
 
             sync_end = datetime.now(timezone.utc)
             duration = (sync_end - sync_start).total_seconds()
 
-            # TODO: Store sync history in database
-            # await create_sync_log(session, stats, sync_start, sync_end)
+            await ingram_sync_log_crud.complete_sync(
+                session=session,
+                sync_log_id=sync_log.id,
+                status=SyncStatus.SUCCESS,
+                statistics=stats,
+            )
 
             result = {
                 "status": "success",
+                "sync_log_id": str(sync_log.id),
                 "categories": sync_categories,
                 "start_time": sync_start.isoformat(),
                 "end_time": sync_end.isoformat(),
