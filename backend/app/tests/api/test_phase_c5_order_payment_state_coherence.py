@@ -132,7 +132,13 @@ async def test_sync_checkout_entities_ignores_unknown_status(
 
     payment = cast(
         Payment,
-        SimpleNamespace(id=uuid4(), order_id=uuid4(), payment_status_id=None),
+        SimpleNamespace(
+            id=uuid4(),
+            order_id=uuid4(),
+            payment_status_id=None,
+            payzen_status=None,
+            payzen_trans_id=None,
+        ),
     )
 
     get_order_mock = AsyncMock(return_value=SimpleNamespace(id=uuid4(), order_status_id=None))
@@ -157,7 +163,13 @@ async def test_payzen_ipn_applies_c5_sync_in_single_transaction(
 
     payment = cast(
         Payment,
-        SimpleNamespace(id=uuid4(), order_id=uuid4(), payment_status_id=None),
+        SimpleNamespace(
+            id=uuid4(),
+            order_id=uuid4(),
+            payment_status_id=None,
+            payzen_status=None,
+            payzen_trans_id=None,
+        ),
     )
 
     monkeypatch.setattr(

@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 _PAID_TRANS_STATUS = "PAID"
 _FAILED_TRANS_STATUSES = {"REFUSED", "ABANDONED", "CANCELLED"}
+_TERMINAL_TRANS_STATUSES = {_PAID_TRANS_STATUS, *_FAILED_TRANS_STATUSES}
 
 _PAYMENT_STATUS_COMPLETED = "Completed"
 _PAYMENT_STATUS_FAILED = "Failed"
@@ -49,6 +50,55 @@ def _normalize_trans_status(value: object | None) -> str | None:
 
     normalized = value.strip().upper()
     return normalized or None
+
+
+def _extract_trans_id(fields: dict[str, object]) -> str | None:
+    trans_id = fields.get("trans_uuid") or fields.get("trans_id")
+    if trans_id is None:
+        return None
+
+    normalized = str(trans_id).strip()
+    return normalized or None
+
+
+def _is_duplicate_retry_for_payment(
+    payment: Payment,
+    *,
+    trans_status: str | None,
+    trans_id: str | None,
+) -> bool:
+    existing_status = _normalize_trans_status(payment.payzen_status)
+    if existing_status is None or trans_status is None:
+        return False
+
+    if existing_status != trans_status:
+        return False
+
+    # Terminal status is immutable: same status means this notification was
+    # already applied, even if the upstream retry payload differs slightly.
+    if trans_status in _TERMINAL_TRANS_STATUSES:
+        return True
+
+    if trans_id is None:
+        return True
+
+    return payment.payzen_trans_id == trans_id
+
+
+def _is_conflicting_terminal_retry(
+    payment: Payment,
+    *,
+    trans_status: str | None,
+) -> bool:
+    existing_status = _normalize_trans_status(payment.payzen_status)
+    if existing_status is None or trans_status is None:
+        return False
+
+    return (
+        existing_status in _TERMINAL_TRANS_STATUSES
+        and trans_status in _TERMINAL_TRANS_STATUSES
+        and existing_status != trans_status
+    )
 
 
 def _resolve_checkout_status_targets(trans_status: str | None) -> tuple[str | None, str | None]:
@@ -259,6 +309,7 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
     3. Creates a PaymentLog entry
     4. Updates payment status (PENDING -> VALIDATED or ERROR)
     5. Synchronizes the linked order status to keep checkout entities coherent
+    6. Handles IPN retries idempotently (duplicate and conflicting terminal retries)
     """
     error = None
     fields = {}
@@ -309,6 +360,39 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
             raise ValueError(f"Payment not found: {payzen_order_id}")
 
         trans_status = _normalize_trans_status(fields.get("trans_status"))
+        trans_id = _extract_trans_id(fields)
+
+        if _is_duplicate_retry_for_payment(
+            payment,
+            trans_status=trans_status,
+            trans_id=trans_id,
+        ):
+            logger.info(
+                "Duplicate PayZen IPN ignored for payment_id=%s, trans_status=%s",
+                payment.id,
+                trans_status,
+            )
+            return JSONResponse(
+                content={"status": "ok", "message": "IPN deja traite"},
+            )
+
+        if _is_conflicting_terminal_retry(
+            payment,
+            trans_status=trans_status,
+        ):
+            logger.warning(
+                "Conflicting terminal PayZen IPN ignored for payment_id=%s: "
+                "existing=%s incoming=%s",
+                payment.id,
+                payment.payzen_status,
+                trans_status,
+            )
+            return JSONResponse(
+                content={"status": "ok", "message": "IPN terminal contradictoire ignore"},
+            )
+
+        if trans_status is not None:
+            fields["trans_status"] = trans_status
 
         # Update payment with PayZen data, then sync payment/order statuses
         payment = await crud_payment.update_payment_from_payzen(
