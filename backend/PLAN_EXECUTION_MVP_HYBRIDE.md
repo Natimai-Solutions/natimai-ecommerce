@@ -293,6 +293,9 @@ Checklist:
   - Form token: [backend/app/api/routes/payzen.py#L56](app/api/routes/payzen.py#L56)
   - Lookup paiement: [backend/app/api/routes/payzen.py#L176](app/api/routes/payzen.py#L176)
 - [x] C7 Solidifier outbox: aligner schema evenement / modele / registry / handlers, ajouter idempotence cote consommateur.
+  - Statut: COMPLETE le 2026-05-09. correlation_id desormais propage par la base CRUD (create_draft / update_draft / delete_draft) avec record.id comme valeur par defaut, permettant le tracage du cycle de vie par entite.
+  - Sites de propagation: [backend/app/features/base/crud.py#L630](app/features/base/crud.py#L630), [backend/app/features/base/crud.py#L834](app/features/base/crud.py#L834), [backend/app/features/base/crud.py#L1056](app/features/base/crud.py#L1056)
+  - Tests de non-regression: [backend/app/tests/api/test_phase_c7_outbox_consumer_idempotency.py](app/tests/api/test_phase_c7_outbox_consumer_idempotency.py) (3 tests verifient correlation_id == record.id pour create/update/delete)
 
 Definition of Done phase C:
 - Un client peut aller jusqu'au paiement sans blocage technique.

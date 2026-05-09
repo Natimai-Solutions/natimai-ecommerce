@@ -16,11 +16,18 @@ def anyio_backend() -> str:
 
 
 def test_consumer_key_builder_is_deterministic() -> None:
-    key_1 = build_outbox_consumer_key("evt-1", "app.handlers.product:create_notification")
-    key_2 = build_outbox_consumer_key("evt-1", "app.handlers.product:create_notification")
+    key_1 = build_outbox_consumer_key(
+        "evt-1", "app.handlers.product:create_notification"
+    )
+    key_2 = build_outbox_consumer_key(
+        "evt-1", "app.handlers.product:create_notification"
+    )
 
     assert key_1 == key_2
-    assert key_1 == "outbox:consumer:processed:evt-1:app.handlers.product:create_notification"
+    assert (
+        key_1
+        == "outbox:consumer:processed:evt-1:app.handlers.product:create_notification"
+    )
 
 
 def test_load_handlers_registers_product_create_handler() -> None:

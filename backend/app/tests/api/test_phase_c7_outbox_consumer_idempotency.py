@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, Mock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlmodel import Field, SQLModel
@@ -16,7 +16,7 @@ from app.outbox.poller import enqueue_jobs_for_event
 
 
 class _C7TestModel(SQLModel):
-    id: str = Field(default_factory=lambda: str(uuid4()))
+    id: UUID = Field(default_factory=uuid4)
     name: str | None = None
 
 
@@ -47,7 +47,7 @@ async def test_create_draft_uses_configured_outbox_event_type_once(
     publish_mock = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
     monkeypatch.setattr("app.features.base.crud.outbox_registry.publish", publish_mock)
 
-    await crud.create_draft(
+    record = await crud.create_draft(
         session=session,
         data=_C7TestSchema(name="demo"),
         user=None,
@@ -57,6 +57,69 @@ async def test_create_draft_uses_configured_outbox_event_type_once(
     assert publish_mock.await_args is not None
     publish_args = publish_mock.await_args.args
     assert publish_args[1] == "create.stock_movement"
+    assert publish_mock.await_args.kwargs.get("correlation_id") == record.id
+
+
+@pytest.mark.anyio
+async def test_update_draft_propagates_record_id_as_correlation_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    crud = CrudBase[_C7TestModel, _C7TestSchema, _C7TestSchema](
+        model=_C7TestModel,
+        schema_create=_C7TestSchema,
+        schema_update=_C7TestSchema,
+        outbox_events={"update": "update.stock_movement"},
+    )
+
+    session = AsyncMock()
+    record = _C7TestModel(name="before")
+
+    publish_mock = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
+    monkeypatch.setattr("app.features.base.crud.outbox_registry.publish", publish_mock)
+
+    await crud.update_draft(
+        session=session,
+        id=record.id,
+        data=_C7TestSchema(name="after"),
+        user=None,
+        record=record,
+    )
+
+    assert publish_mock.await_count == 1
+    assert publish_mock.await_args is not None
+    assert publish_mock.await_args.args[1] == "update.stock_movement"
+    assert publish_mock.await_args.kwargs.get("correlation_id") == record.id
+
+
+@pytest.mark.anyio
+async def test_delete_draft_propagates_record_id_as_correlation_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    crud = CrudBase[_C7TestModel, _C7TestSchema, _C7TestSchema](
+        model=_C7TestModel,
+        schema_create=_C7TestSchema,
+        schema_update=_C7TestSchema,
+        outbox_events={"delete": "delete.stock_movement"},
+    )
+
+    session = AsyncMock()
+    session.delete = AsyncMock()
+    record = _C7TestModel(name="doomed")
+
+    publish_mock = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
+    monkeypatch.setattr("app.features.base.crud.outbox_registry.publish", publish_mock)
+
+    await crud.delete_draft(
+        session=session,
+        id=record.id,
+        record=record,
+        user=None,
+    )
+
+    assert publish_mock.await_count == 1
+    assert publish_mock.await_args is not None
+    assert publish_mock.await_args.args[1] == "delete.stock_movement"
+    assert publish_mock.await_args.kwargs.get("correlation_id") == record.id
 
 
 @pytest.mark.anyio

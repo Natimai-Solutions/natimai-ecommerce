@@ -79,7 +79,9 @@ async def test_poll_outbox_once_marks_done_when_enqueue_succeeds(
     result = SimpleNamespace(first=Mock(return_value=event))
     session.exec = AsyncMock(return_value=result)
 
-    async def _commit_and_refresh(_session: AsyncMock, current: OutboxEvent) -> OutboxEvent:
+    async def _commit_and_refresh(
+        _session: AsyncMock, current: OutboxEvent
+    ) -> OutboxEvent:
         return current
 
     monkeypatch.setattr(
@@ -109,7 +111,9 @@ async def test_poll_outbox_once_schedules_retry_when_enqueue_fails(
     result = SimpleNamespace(first=Mock(return_value=event))
     session.exec = AsyncMock(return_value=result)
 
-    async def _commit_and_refresh(_session: AsyncMock, current: OutboxEvent) -> OutboxEvent:
+    async def _commit_and_refresh(
+        _session: AsyncMock, current: OutboxEvent
+    ) -> OutboxEvent:
         return current
 
     monkeypatch.setattr(

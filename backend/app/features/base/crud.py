@@ -628,7 +628,10 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 action="create", record=record, user=user, data=data_dict
             )
             await outbox_registry.publish(
-                session, self.outbox_events["create"], payload
+                session,
+                self.outbox_events["create"],
+                payload,
+                correlation_id=getattr(record, "id", None),
             )
 
         await self.after_create(session, record=record, data=data, user=user)
@@ -829,7 +832,10 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 action="update", record=record, user=user, data=payload_data
             )
             await outbox_registry.publish(
-                session, self.outbox_events["update"], payload
+                session,
+                self.outbox_events["update"],
+                payload,
+                correlation_id=getattr(record, "id", None),
             )
 
         # Extract and apply updates
@@ -1051,7 +1057,10 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 # No data parameter - handled by the helper method
             )
             await outbox_registry.publish(
-                session, self.outbox_events["delete"], payload
+                session,
+                self.outbox_events["delete"],
+                payload,
+                correlation_id=getattr(record, "id", None),
             )
         await session.delete(record)
         await self.after_delete(session, id=id, record=record, user=user)
