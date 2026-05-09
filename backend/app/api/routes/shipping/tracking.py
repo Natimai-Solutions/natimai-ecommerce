@@ -201,10 +201,15 @@ class ShippingRouteTrackingRouter(
                     session=session,
                     tracking_id=tracking_id,
                     new_status_id=request.new_status_id,
-                    user_id=current_user.id,
+                    changed_by=str(current_user.id),
                     reason=request.reason,
                 )
                 return ShippingRouteTrackingPublic.model_validate(updated_tracking)
+
+            except RecordNotFoundError:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Tracking not found"
+                )
 
             except ValueError as e:
                 raise HTTPException(

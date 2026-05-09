@@ -82,37 +82,64 @@ class ShippingRouteTrackingCrud(
         result = await session.exec(statement)
         return result.first()
 
+    async def get_status_by_id(
+        self, session: AsyncSession, status_id: uuid.UUID
+    ):
+        """Get StatusDefinition by ID."""
+        from app.features.shipping.models.status import StatusDefinition
+
+        status = await session.get(StatusDefinition, status_id)
+        if not status or not status.is_active:
+            return None
+        return status
+
     async def update_status(
         self,
         session: AsyncSession,
         tracking_id: uuid.UUID,
-        new_status: str,
+        new_status_id: uuid.UUID | None = None,
+        new_status: str | None = None,
+        reason: str | None = None,
         notes: str | None = None,
         force: bool = False,
-        changed_by: str | None = None,
+        changed_by: str | uuid.UUID | None = None,
         change_type: str = "manual",
         consolidation_id: uuid.UUID | None = None,
     ) -> ShippingRouteTracking | None:
         """Update tracking status with transition validation and logging"""
-        tracking = await self.get(session=session, id=tracking_id)
-        if not tracking:
-            return None
+        if new_status_id is None and new_status is None:
+            raise ValueError("Either 'new_status_id' or 'new_status' must be provided")
+
+        # Backward compatibility for older internal calls using notes.
+        if reason is None and notes is not None:
+            reason = notes
+
+        tracking = await self.read(session=session, id=tracking_id)
 
         # Get current status info
         old_status_obj = tracking.status
         old_status_code = old_status_obj.code if old_status_obj else None
 
         # Get new status definition
-        new_status_obj = await self.get_status_by_code(
-            session, new_status, "route_tracking"
-        )
+        if new_status_id is not None:
+            new_status_obj = await self.get_status_by_id(session, new_status_id)
+            if not new_status_obj or new_status_obj.entity != "route_tracking":
+                raise ValueError(
+                    f"Status '{new_status_id}' not found for entity 'route_tracking'"
+                )
+        else:
+            new_status_obj = await self.get_status_by_code(
+                session, new_status, "route_tracking"
+            )
         if not new_status_obj:
             raise ValueError(
                 f"Status '{new_status}' not found for entity 'route_tracking'"
             )
 
+        new_status_code = new_status_obj.code
+
         # Skip if status is the same
-        if old_status_code == new_status:
+        if old_status_code == new_status_code:
             return tracking
 
         # Validate status transition if not forced
@@ -121,12 +148,12 @@ class ShippingRouteTrackingCrud(
             is_valid = await self.validate_status_transition(
                 session=session,
                 current_status=old_status_code,
-                new_status=new_status,
+                new_status=new_status_code,
                 entity="route_tracking",
             )
             if not is_valid:
                 raise ValueError(
-                    f"Invalid status transition from '{old_status_code}' to '{new_status}' "
+                    f"Invalid status transition from '{old_status_code}' to '{new_status_code}' "
                     f"for entity 'route_tracking'"
                 )
 
@@ -134,7 +161,7 @@ class ShippingRouteTrackingCrud(
             transition = await self.get_status_transition(
                 session=session,
                 current_status=old_status_code,
-                new_status=new_status,
+                new_status=new_status_code,
                 entity="route_tracking",
             )
 
@@ -143,11 +170,14 @@ class ShippingRouteTrackingCrud(
             "status_id": new_status_obj.id,
             "last_status_update": datetime.utcnow(),
         }
-        if notes:
-            update_data["notes"] = notes
+        if reason:
+            update_data["notes"] = reason
 
         updated_tracking = await self.update(
-            session=session, record=tracking, data=update_data
+            session=session,
+            id=tracking_id,
+            record=tracking,
+            data=update_data,
         )
 
         # Create status change log
@@ -158,8 +188,8 @@ class ShippingRouteTrackingCrud(
             to_status_id=new_status_obj.id,
             change_type=change_type,
             consolidation_id=consolidation_id,
-            changed_by=changed_by,
-            reason=notes,
+            changed_by=str(changed_by) if changed_by is not None else None,
+            reason=reason,
             transition=transition,
         )
 

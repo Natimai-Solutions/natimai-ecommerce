@@ -107,6 +107,8 @@ Action:
 - Aligner create_payment_with_log sur create_draft + commit explicite, ou adapter a l'API CRUD standard.
 
 ### 3.4 Tracking: mismatch de parametres
+Statut: RESOLU le 2026-05-08 (contrat update_status harmonise: support new_status_id cote CRUD, mapping changed_by/reason cote route, compatibilite conservee pour new_status interne).
+
 - CRUD attend new_status string:
   - [backend/app/features/shipping/crud/route_tracking.py#L85](app/features/shipping/crud/route_tracking.py#L85)
   - [backend/app/features/shipping/crud/route_tracking.py#L89](app/features/shipping/crud/route_tracking.py#L89)
@@ -236,7 +238,7 @@ Checklist:
 - [x] A1 Corriger les 10 appels get/remove vers read/delete dans routes user/address/review/notification (liste exhaustive en 3.1).
 - [x] A2 Corriger signatures dans CRUD integrations Ingram (read/update standards, plus de record_id).
 - [x] A3 Corriger le flux create_payment_with_log pour qu'il respecte la base CRUD.
-- [ ] A4 Harmoniser route tracking et CRUD update_status (signature commune).
+- [x] A4 Harmoniser route tracking et CRUD update_status (signature commune).
 - [ ] A5 Ajouter tests de non-regression minimum sur routes corrigees.
 - [ ] A6 Ajouter endpoint refresh token + strategie de rotation/revocation (cf. 3.11).
 - [ ] A7 Reactiver le routeur paiement principal commente dans [backend/app/api/__init__.py#L32](app/api/__init__.py#L32) une fois A3 valide.
