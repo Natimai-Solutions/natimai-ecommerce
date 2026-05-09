@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, status
 
@@ -11,9 +12,147 @@ from app.features.cart.models.cart import (
     CartItemAddRequest,
     CartItemDetail,
     CartItemQuantityUpdateRequest,
+    CheckoutRequest,
+    CheckoutResponse,
+)
+from app.features.inventory.crud import crud_inventory, crud_stock_movement
+from app.features.inventory.models.stock_movement import (
+    InventoryStockMovementCreate,
+    MovementStatus,
+    MovementType,
+    ReferenceType,
+)
+from app.features.order.crud.order_crud import crud_order
+from app.features.order.crud.order_line_crud import crud_order_line
+from app.features.order.crud.order_status_crud import crud_order_status
+from app.features.order.models.order import OrderCreate
+from app.features.order.models.order_line import OrderLineCreate
+from app.features.order.models.order_status import OrderStatus, OrderStatusCreate
+from app.features.payment.crud.payment import crud_payment
+from app.features.payment.crud.payment_status import crud_payment_status
+from app.features.payment.models.payment import PaymentCreate
+from app.features.payment.models.payment_status import (
+    PaymentStatus,
+    PaymentStatusCreate,
 )
 from app.features.product.models.product import Product
+from app.features.user.models.user import User
 from app.utils.money import quantize_amount
+
+_PENDING_ORDER_STATUS = "Pending"
+_PENDING_PAYMENT_STATUS = "Pending"
+
+
+async def _get_or_create_order_pending_status(session: SessionDep) -> OrderStatus:
+    status_record = await crud_order_status.get_by_name(
+        session,
+        name=_PENDING_ORDER_STATUS,
+    )
+    if status_record is not None:
+        return status_record
+
+    return await crud_order_status.create_draft(
+        session=session,
+        data=OrderStatusCreate(name=_PENDING_ORDER_STATUS),
+        user=None,
+    )
+
+
+async def _get_or_create_payment_pending_status(
+    session: SessionDep,
+) -> PaymentStatus:
+    status_record = await crud_payment_status.get_by_name(
+        session,
+        name=_PENDING_PAYMENT_STATUS,
+    )
+    if status_record is not None:
+        return status_record
+
+    return await crud_payment_status.create_draft(
+        session=session,
+        data=PaymentStatusCreate(
+            name=_PENDING_PAYMENT_STATUS,
+            description="Payment created at checkout and awaiting processing",
+        ),
+        user=None,
+    )
+
+
+async def _reserve_stock_for_checkout(
+    session: SessionDep,
+    *,
+    order_id: uuid.UUID,
+    product: Product,
+    quantity: int,
+    current_user: User,
+) -> None:
+    quantity_decimal = Decimal(quantity)
+    inventory = await crud_inventory.get_by_product_and_place(
+        session=session,
+        product_id=product.id,
+        place_id=None,
+    )
+
+    if inventory is not None:
+        if inventory.quantity < quantity_decimal:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Insufficient stock for product {product.id}",
+            )
+
+        inventory.quantity -= quantity_decimal
+        session.add(inventory)
+
+        await crud_stock_movement.create_draft(
+            session=session,
+            data=InventoryStockMovementCreate(
+                movement_type=MovementType.OUTGOING.value,
+                reference_type=ReferenceType.ORDER.value,
+                reference_id=order_id,
+                from_place_id=inventory.place_id,
+                to_place_id=None,
+                product_id=product.id,
+                quantity=quantity_decimal,
+                unit_cost=product.base_price,
+                reason="Stock reserved during checkout",
+                status=MovementStatus.PENDING.value,
+            ),
+            user=current_user,
+        )
+        return
+
+    if product.is_supplier_managed:
+        if product.supplier_quantity < quantity_decimal:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Insufficient supplier stock for product {product.id}",
+            )
+
+        product.supplier_quantity -= quantity_decimal
+        session.add(product)
+
+        await crud_stock_movement.create_draft(
+            session=session,
+            data=InventoryStockMovementCreate(
+                movement_type=MovementType.OUTGOING.value,
+                reference_type=ReferenceType.ORDER.value,
+                reference_id=order_id,
+                from_place_id=None,
+                to_place_id=None,
+                product_id=product.id,
+                quantity=quantity_decimal,
+                unit_cost=product.base_price,
+                reason="Supplier stock reserved during checkout",
+                status=MovementStatus.PENDING.value,
+            ),
+            user=current_user,
+        )
+        return
+
+    raise HTTPException(
+        status_code=409,
+        detail=f"No reservable stock found for product {product.id}",
+    )
 
 router = APIRouter(prefix="/cart", tags=["cart"])
 
@@ -163,3 +302,120 @@ async def clear_my_cart(
     await session.refresh(cart)
 
     return _build_cart_detail(cart, [])
+
+
+@router.post(
+    "/checkout",
+    response_model=CheckoutResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def checkout_my_cart(
+    session: SessionDep,
+    current_user: CurrentUser,
+    payload: CheckoutRequest,
+) -> CheckoutResponse:
+    cart = await crud_cart.get_active_cart_by_user(
+        session=session,
+        user_id=current_user.id,
+    )
+    if cart is None:
+        raise HTTPException(status_code=400, detail="No active cart found")
+
+    items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart.id)
+    if not items:
+        raise HTTPException(status_code=400, detail="Cart is empty")
+
+    try:
+        order_status = await _get_or_create_order_pending_status(session)
+        order = await crud_order.create_draft(
+            session=session,
+            data=OrderCreate(
+                user_id=current_user.id,
+                order_status_id=order_status.id,
+                total_amount=Decimal("0.00"),
+                shipping_address=payload.shipping_address,
+                notes=payload.notes,
+            ),
+            user=current_user,
+        )
+
+        total_amount = Decimal("0.00")
+        for item in items:
+            product = await _get_active_product_or_404(
+                session,
+                product_id=item.product_id,
+            )
+
+            await _reserve_stock_for_checkout(
+                session=session,
+                order_id=order.id,
+                product=product,
+                quantity=item.quantity,
+                current_user=current_user,
+            )
+
+            await crud_order_line.create_draft(
+                session=session,
+                data=OrderLineCreate(
+                    order_id=order.id,
+                    product_id=item.product_id,
+                    quantity=item.quantity,
+                    unit_price=item.unit_price,
+                    discount_amount=Decimal("0.00"),
+                    notes=None,
+                ),
+                user=current_user,
+            )
+            total_amount += item.unit_price * item.quantity
+
+        total_amount = quantize_amount(total_amount, cart.currency)
+        if total_amount <= 0:
+            raise HTTPException(status_code=400, detail="Cart total must be > 0")
+
+        order.total_amount = total_amount
+        session.add(order)
+
+        payment_status = await _get_or_create_payment_pending_status(session)
+        payment = await crud_payment.create_draft(
+            session=session,
+            data=PaymentCreate(
+                amount=total_amount,
+                currency=cart.currency,
+                order_id=order.id,
+                user_id=current_user.id,
+            ),
+            user=current_user,
+        )
+        payment.payment_status_id = payment_status.id
+        session.add(payment)
+
+        cart.is_checked_out = True
+        cart.total_amount = total_amount
+        session.add(cart)
+
+        for item in items:
+            item.is_active = False
+            session.add(item)
+
+        await session.commit()
+
+        await session.refresh(order)
+        await session.refresh(payment)
+        await session.refresh(cart)
+
+        return CheckoutResponse(
+            order_id=order.id,
+            payment_id=payment.id,
+            cart_id=cart.id,
+            total_amount=total_amount,
+            currency=cart.currency,
+            item_count=len(items),
+            message="Checkout completed",
+        )
+
+    except HTTPException:
+        await session.rollback()
+        raise
+    except Exception as exc:
+        await session.rollback()
+        raise HTTPException(status_code=500, detail="Checkout failed") from exc

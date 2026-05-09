@@ -147,3 +147,26 @@ class CartDetailPublic(SQLModel):
     total_amount: Decimal
     is_checked_out: bool
     items: list[CartItemDetail] = Field(default_factory=list)
+
+
+class CheckoutRequest(SQLModel):
+    shipping_address: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Shipping address snapshot for order creation",
+    )
+    notes: str | None = Field(
+        default=None,
+        max_length=1000,
+        description="Optional checkout notes",
+    )
+
+
+class CheckoutResponse(SQLModel):
+    order_id: uuid.UUID
+    payment_id: uuid.UUID
+    cart_id: uuid.UUID
+    total_amount: Decimal
+    currency: str
+    item_count: int
+    message: str = Field(default="Checkout completed")

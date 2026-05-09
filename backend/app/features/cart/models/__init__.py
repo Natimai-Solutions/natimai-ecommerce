@@ -15,6 +15,8 @@ from app.features.cart.models.cart import (
     CartPublic,
     CartsPublic,
     CartUpdate,
+    CheckoutRequest,
+    CheckoutResponse,
 )
 
 __all__ = [
@@ -34,4 +36,6 @@ __all__ = [
     "CartItemQuantityUpdateRequest",
     "CartItemDetail",
     "CartDetailPublic",
+    "CheckoutRequest",
+    "CheckoutResponse",
 ]
