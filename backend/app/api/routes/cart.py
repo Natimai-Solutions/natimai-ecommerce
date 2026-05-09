@@ -120,14 +120,27 @@ async def _reserve_stock_for_checkout(
         place_id=None,
     )
 
-    if inventory is not None:
-        if inventory.quantity < quantity_decimal:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Insufficient stock for product {product.id}",
-            )
+    local_available = inventory.quantity if inventory is not None else Decimal("0.00")
+    supplier_available = (
+        product.supplier_quantity if product.is_supplier_managed else Decimal("0.00")
+    )
 
-        inventory.quantity -= quantity_decimal
+    if local_available + supplier_available < quantity_decimal:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Insufficient stock for product {product.id}: "
+                f"requested={quantity_decimal}, "
+                f"local_available={local_available}, "
+                f"supplier_available={supplier_available}"
+            ),
+        )
+
+    local_to_reserve = min(local_available, quantity_decimal)
+    supplier_to_reserve = quantity_decimal - local_to_reserve
+
+    if local_to_reserve > 0 and inventory is not None:
+        inventory.quantity -= local_to_reserve
         session.add(inventory)
 
         await crud_stock_movement.create_draft(
@@ -139,23 +152,16 @@ async def _reserve_stock_for_checkout(
                 from_place_id=inventory.place_id,
                 to_place_id=None,
                 product_id=product.id,
-                quantity=quantity_decimal,
+                quantity=local_to_reserve,
                 unit_cost=product.base_price,
-                reason="Stock reserved during checkout",
+                reason="Local stock reserved during checkout",
                 status=MovementStatus.PENDING.value,
             ),
             user=current_user,
         )
-        return
 
-    if product.is_supplier_managed:
-        if product.supplier_quantity < quantity_decimal:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Insufficient supplier stock for product {product.id}",
-            )
-
-        product.supplier_quantity -= quantity_decimal
+    if supplier_to_reserve > 0:
+        product.supplier_quantity -= supplier_to_reserve
         session.add(product)
 
         await crud_stock_movement.create_draft(
@@ -167,19 +173,13 @@ async def _reserve_stock_for_checkout(
                 from_place_id=None,
                 to_place_id=None,
                 product_id=product.id,
-                quantity=quantity_decimal,
+                quantity=supplier_to_reserve,
                 unit_cost=product.base_price,
                 reason="Supplier stock reserved during checkout",
                 status=MovementStatus.PENDING.value,
             ),
             user=current_user,
         )
-        return
-
-    raise HTTPException(
-        status_code=409,
-        detail=f"No reservable stock found for product {product.id}",
-    )
 
 router = APIRouter(prefix="/cart", tags=["cart"])
 
