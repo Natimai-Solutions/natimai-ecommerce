@@ -395,5 +395,6 @@ class IngramMicroService:
             logger.error(f"Failed to fetch price and availability: {e}")
             raise
 
+
 # Singleton instance
 ingram_service = IngramMicroService()

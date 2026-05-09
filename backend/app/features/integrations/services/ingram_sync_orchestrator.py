@@ -163,7 +163,9 @@ class IngramSyncOrchestrator:
             "errors": 0,
         }
 
-        logger.debug("Starting orchestrated product sync for categories: %s", categories)
+        logger.debug(
+            "Starting orchestrated product sync for categories: %s", categories
+        )
 
         for category in categories:
             try:

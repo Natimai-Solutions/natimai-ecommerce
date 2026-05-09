@@ -8,12 +8,13 @@ minor units regardless of the currency scale.
 
 from decimal import Decimal
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
 
 from app.features.payment.crud.payment import crud_payment
-from app.features.payment.models.payment import PaymentBase
+from app.features.payment.models.payment import Payment, PaymentBase
 from app.features.payment.models.payment_log import PaymentLogBase
 
 
@@ -51,12 +52,11 @@ async def test_update_payment_from_payzen_converts_eur_minor_units_to_decimal(
     session = AsyncMock()
 
     monkeypatch.setattr(
-        "app.features.payment.crud.payment_status.crud_payment_status."
-        "get_by_name",
+        "app.features.payment.crud.payment_status.crud_payment_status.get_by_name",
         AsyncMock(return_value=None),
     )
 
-    payzen_fields = {
+    payzen_fields: dict[str, object] = {
         "amount": "1250",
         "trans_uuid": "trans-uuid",
         "trans_status": "PAID",
@@ -67,7 +67,7 @@ async def test_update_payment_from_payzen_converts_eur_minor_units_to_decimal(
 
     updated = await crud_payment.update_payment_from_payzen(
         session=session,
-        payment=payment,
+        payment=cast(Payment, payment),
         payzen_fields=payzen_fields,
         commit=False,
     )
@@ -95,12 +95,11 @@ async def test_update_payment_from_payzen_preserves_xpf_zero_decimal(
     session = AsyncMock()
 
     monkeypatch.setattr(
-        "app.features.payment.crud.payment_status.crud_payment_status."
-        "get_by_name",
+        "app.features.payment.crud.payment_status.crud_payment_status.get_by_name",
         AsyncMock(return_value=None),
     )
 
-    payzen_fields = {
+    payzen_fields: dict[str, object] = {
         "amount": "1500",
         "trans_uuid": "trans-uuid",
         "trans_status": "PAID",
@@ -111,7 +110,7 @@ async def test_update_payment_from_payzen_preserves_xpf_zero_decimal(
 
     updated = await crud_payment.update_payment_from_payzen(
         session=session,
-        payment=payment,
+        payment=cast(Payment, payment),
         payzen_fields=payzen_fields,
         commit=False,
     )
