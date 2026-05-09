@@ -117,6 +117,23 @@ class NotificationCrud(CrudBase[Notification, NotificationCreate, NotificationUp
 class UserNotificationCrud(
     CrudBase[UserNotification, UserNotificationCreate, UserNotificationUpdate]
 ):
+    async def get_by_user_and_notification(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: uuid.UUID,
+        notification_id: uuid.UUID,
+    ) -> UserNotification | None:
+        """Get a user-notification link for a specific user and notification."""
+        statement = select(self.model).where(
+            self.model.user_id == user_id,
+            self.model.notification_id == notification_id,
+            self.model.is_admin_active.is_(True),
+            self.model.is_active.is_(True),
+        )
+        exec_result = await session.exec(statement)
+        return exec_result.first()
+
     async def mark_as_read(
         self, session: AsyncSession, *, notification_id: uuid.UUID, user_id: uuid.UUID
     ) -> UserNotification | None:
