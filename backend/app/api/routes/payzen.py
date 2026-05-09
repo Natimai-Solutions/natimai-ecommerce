@@ -15,8 +15,16 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentUser, SessionDep
+from app.features.order.crud.order_crud import crud_order
+from app.features.order.crud.order_status_crud import crud_order_status
+from app.features.order.models.order_status import OrderStatus, OrderStatusCreate
 from app.features.payment.crud.payment import crud_payment
-from app.features.payment.models.payment import PaymentCreate
+from app.features.payment.crud.payment_status import crud_payment_status
+from app.features.payment.models.payment import Payment, PaymentCreate
+from app.features.payment.models.payment_status import (
+    PaymentStatus,
+    PaymentStatusCreate,
+)
 from app.features.payment.utils.payzen import (
     create_payzen_form_token,
     validate_ipn_signature,
@@ -24,6 +32,104 @@ from app.features.payment.utils.payzen import (
 from app.utils.money import decimal_to_minor_units
 
 logger = logging.getLogger(__name__)
+
+_PAID_TRANS_STATUS = "PAID"
+_FAILED_TRANS_STATUSES = {"REFUSED", "ABANDONED", "CANCELLED"}
+
+_PAYMENT_STATUS_COMPLETED = "Completed"
+_PAYMENT_STATUS_FAILED = "Failed"
+
+_ORDER_STATUS_PAID = "Paid"
+_ORDER_STATUS_PAYMENT_FAILED = "PaymentFailed"
+
+
+def _normalize_trans_status(value: object | None) -> str | None:
+    if not isinstance(value, str):
+        return None
+
+    normalized = value.strip().upper()
+    return normalized or None
+
+
+def _resolve_checkout_status_targets(trans_status: str | None) -> tuple[str | None, str | None]:
+    if trans_status == _PAID_TRANS_STATUS:
+        return _PAYMENT_STATUS_COMPLETED, _ORDER_STATUS_PAID
+
+    if trans_status in _FAILED_TRANS_STATUSES:
+        return _PAYMENT_STATUS_FAILED, _ORDER_STATUS_PAYMENT_FAILED
+
+    return None, None
+
+
+async def _get_or_create_payment_status(
+    session: SessionDep,
+    *,
+    name: str,
+) -> PaymentStatus:
+    status_record = await crud_payment_status.get_by_name(session, name=name)
+    if status_record is not None:
+        return status_record
+
+    return await crud_payment_status.create_draft(
+        session=session,
+        data=PaymentStatusCreate(
+            name=name,
+            description=f"Auto-created by PayZen IPN: {name}",
+        ),
+        user=None,
+    )
+
+
+async def _get_or_create_order_status(
+    session: SessionDep,
+    *,
+    name: str,
+) -> OrderStatus:
+    status_record = await crud_order_status.get_by_name(session, name=name)
+    if status_record is not None:
+        return status_record
+
+    return await crud_order_status.create_draft(
+        session=session,
+        data=OrderStatusCreate(name=name),
+        user=None,
+    )
+
+
+async def _sync_checkout_entities_for_payzen_status(
+    session: SessionDep,
+    *,
+    payment: Payment,
+    trans_status: str | None,
+) -> None:
+    payment_status_name, order_status_name = _resolve_checkout_status_targets(trans_status)
+
+    if payment_status_name is not None:
+        payment_status = await _get_or_create_payment_status(
+            session=session,
+            name=payment_status_name,
+        )
+        payment.payment_status_id = payment_status.id
+        session.add(payment)
+
+    if payment.order_id is None or order_status_name is None:
+        return
+
+    order = await crud_order.read(session, id=payment.order_id)
+    if order is None:
+        logger.warning(
+            "Unable to sync order status from IPN: order %s not found for payment %s",
+            payment.order_id,
+            payment.id,
+        )
+        return
+
+    order_status = await _get_or_create_order_status(
+        session=session,
+        name=order_status_name,
+    )
+    order.order_status_id = order_status.id
+    session.add(order)
 
 
 # Pydantic models for API requests/responses
@@ -152,6 +258,7 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
     2. Updates the Payment record with the transaction result
     3. Creates a PaymentLog entry
     4. Updates payment status (PENDING -> VALIDATED or ERROR)
+    5. Synchronizes the linked order status to keep checkout entities coherent
     """
     error = None
     fields = {}
@@ -201,14 +308,28 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
             logger.error(f"Payment not found for order_id: {payzen_order_id}")
             raise ValueError(f"Payment not found: {payzen_order_id}")
 
-        # Update payment with PayZen data
-        await crud_payment.update_payment_from_payzen(
-            session, payment=payment, payzen_fields=fields, commit=True
+        trans_status = _normalize_trans_status(fields.get("trans_status"))
+
+        # Update payment with PayZen data, then sync payment/order statuses
+        payment = await crud_payment.update_payment_from_payzen(
+            session,
+            payment=payment,
+            payzen_fields=fields,
+            commit=False,
         )
+
+        await _sync_checkout_entities_for_payzen_status(
+            session=session,
+            payment=payment,
+            trans_status=trans_status,
+        )
+
+        await session.commit()
+        await session.refresh(payment)
 
         logger.info(
             f"Payment updated successfully: payment_id={payment.id}, "
-            f"status={fields.get('trans_status')}"
+            f"status={trans_status}"
         )
 
     except Exception as e:

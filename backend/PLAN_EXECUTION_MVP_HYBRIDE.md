@@ -288,7 +288,7 @@ Checklist:
 - [x] C2 Ajouter endpoint checkout transactionnel unique (creation commande + lignes + total + reservation stock + creation paiement).
 - [x] C3 Figer les montants au checkout (snapshot lignes + frais).
 - [x] C4 Verifier disponibilite stock fournisseur/local au checkout.
-- [ ] C5 Relier commande et paiement proprement (etats coherents).
+- [x] C5 Relier commande et paiement proprement (etats coherents).
 - [ ] C6 Durcir IPN PayZen (idempotence + gestion retries).
   - Form token: [backend/app/api/routes/payzen.py#L56](app/api/routes/payzen.py#L56)
   - Lookup paiement: [backend/app/api/routes/payzen.py#L176](app/api/routes/payzen.py#L176)
