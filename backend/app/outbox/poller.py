@@ -129,9 +129,15 @@ async def enqueue_jobs_for_event(event: OutboxEvent) -> None:
 
                 logger.debug("Enqueuing job %s for handler: %s", job_id, handler_path)
 
-                # Enqueue the handler with the payload
+                # Enqueue through the worker entrypoint so handler signature,
+                # payload contract, and idempotency checks stay centralized.
                 await arq_pool.enqueue_job(
-                    handler_path, **event.payload, _job_id=job_id
+                    "execute_outbox_handler",
+                    handler_path=handler_path,
+                    event_id=str(event.id),
+                    event_type=event.type,
+                    payload=event.payload,
+                    _job_id=job_id,
                 )
                 jobs_enqueued += 1
 
@@ -316,7 +322,12 @@ class OutboxPoller:
                         handler_path = f"{handler.__module__}:{handler.__name__}"
 
                         await arq_pool.enqueue_job(
-                            handler_path, **event.payload, _job_id=job_id
+                            "execute_outbox_handler",
+                            handler_path=handler_path,
+                            event_id=str(event.id),
+                            event_type=event.type,
+                            payload=event.payload,
+                            _job_id=job_id,
                         )
 
                     # Mark as DONE if everything went well

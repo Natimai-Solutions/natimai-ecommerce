@@ -103,7 +103,9 @@ async def test_add_cart_item_increments_and_recomputes_total(
     monkeypatch.setattr(crud_cart_item, "add_or_increment", add_mock)
     monkeypatch.setattr(crud_cart, "sync_total", sync_total_mock)
     monkeypatch.setattr(crud_cart_item, "get_by_cart_id", get_items_mock)
-    monkeypatch.setattr("app.api.routes.cart._get_active_product_or_404", get_product_mock)
+    monkeypatch.setattr(
+        "app.api.routes.cart._get_active_product_or_404", get_product_mock
+    )
 
     result = await add_cart_item(
         session=session,

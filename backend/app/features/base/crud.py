@@ -565,16 +565,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        if "create" in self.outbox_events:
-            await outbox_registry.publish(
-                session,
-                self.outbox_events["create"],
-                {
-                    "id": str(record.id),
-                    "type": record.__class__.__name__,
-                    "user_id": str(user.id) if user else None,
-                },
-            )
+        pass
 
     @track_crud_operation
     async def after_create_commit(
@@ -637,7 +628,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 action="create", record=record, user=user, data=data_dict
             )
             await outbox_registry.publish(
-                session, f"create.{self.model.__name__.lower()}", payload
+                session, self.outbox_events["create"], payload
             )
 
         await self.after_create(session, record=record, data=data, user=user)
@@ -769,16 +760,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        if "update" in self.outbox_events:
-            await outbox_registry.publish(
-                session,
-                self.outbox_events["update"],
-                {
-                    "id": str(record.id),
-                    "type": record.__class__.__name__,
-                    "user_id": str(user.id) if user else None,
-                },
-            )
+        pass
 
     @track_crud_operation
     async def after_update_commit(
@@ -847,7 +829,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 action="update", record=record, user=user, data=payload_data
             )
             await outbox_registry.publish(
-                session, f"update.{self.model.__name__.lower()}", payload
+                session, self.outbox_events["update"], payload
             )
 
         # Extract and apply updates
@@ -1006,16 +988,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        if "delete" in self.outbox_events:
-            await outbox_registry.publish(
-                session,
-                self.outbox_events["delete"],
-                {
-                    "id": str(record.id),
-                    "type": record.__class__.__name__,
-                    "user_id": str(user.id) if user else None,
-                },
-            )
+        pass
 
     @track_crud_operation
     async def after_delete_commit(
@@ -1078,7 +1051,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 # No data parameter - handled by the helper method
             )
             await outbox_registry.publish(
-                session, f"delete.{self.model.__name__.lower()}", payload
+                session, self.outbox_events["delete"], payload
             )
         await session.delete(record)
         await self.after_delete(session, id=id, record=record, user=user)

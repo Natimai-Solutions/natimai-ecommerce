@@ -181,6 +181,7 @@ async def _reserve_stock_for_checkout(
             user=current_user,
         )
 
+
 router = APIRouter(prefix="/cart", tags=["cart"])
 
 

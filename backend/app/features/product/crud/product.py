@@ -143,4 +143,9 @@ crud_product = ProductCrud(
     schema_create=ProductCreate,
     schema_update=ProductUpdate,
     order_by=col(Product.created_at),
+    outbox_events={
+        "create": "create.product",
+        "update": "update.product",
+        "delete": "delete.product",
+    },
 )

@@ -141,7 +141,9 @@ async def test_sync_checkout_entities_ignores_unknown_status(
         ),
     )
 
-    get_order_mock = AsyncMock(return_value=SimpleNamespace(id=uuid4(), order_status_id=None))
+    get_order_mock = AsyncMock(
+        return_value=SimpleNamespace(id=uuid4(), order_status_id=None)
+    )
     monkeypatch.setattr(crud_order, "read", get_order_mock)
 
     await _sync_checkout_entities_for_payzen_status(

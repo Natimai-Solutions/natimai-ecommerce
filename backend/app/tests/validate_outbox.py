@@ -1,190 +1,61 @@
-# mypy: ignore-errors
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock
 
-"""
-Simple validation script to test outbox integration manually.
+import pytest
 
-This script demonstrates the complete outbox flow:
-1. Create a payment via CRUD
-2. Verify outbox event is created
-3. Show that handlers are registered
-4. Demonstrate retry mechanism
-"""
-
-import asyncio
-import os
-import sys
-
-from sqlmodel.ext.asyncio.session import AsyncSession
-
-# Add the app to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
-from app.core.db import engine
-from app.features.product.crud.product import crud_product
-from app.features.product.models.product import ProductCreate
+from app.outbox.consumer import build_outbox_consumer_key
+from app.outbox.loader import load_handlers
 from app.outbox.models import OutboxEvent
+from app.outbox.poller import enqueue_jobs_for_event
 from app.outbox.registry import outbox_registry
 
 
-async def validate_outbox_integration():
-    """Validate that CRUD -> Outbox -> Handler integration works"""
-
-    print("🔍 Validating Outbox Integration...")
-    print("=" * 50)
-
-    # 1. Check registered handlers
-    print(f"📋 Registered handlers: {list(outbox_registry.handlers.keys())}")
-
-    if "create.product" in outbox_registry.handlers:
-        print("✅ Product handler is registered")
-    else:
-        print("❌ Product handler not found")
-        return
-
-    # 2. Get database session
-    async with AsyncSession(engine) as session:
-        try:
-            # 3. Create a product (this should trigger outbox event)
-            print("\n💳 Creating product...")
-
-            product_data = ProductCreate(
-                name="Test Product",
-                base_price=19.99,
-                description="A product for testing",
-            )
-
-            # mypy: ignore-errors
-
-            # Create product via CRUD (should publish outbox event)
-            result = await crud_product.create(session, data=product_data)
-            print(f"✅ Product created: {result}")
-
-            # 4. Check if outbox event was created
-            print("\n📤 Checking outbox events...")
-
-            from sqlmodel import select
-
-            stmt = (
-                select(OutboxEvent)
-                .where(OutboxEvent.type == "create.product")
-                .order_by(OutboxEvent.created_at.desc())
-                .limit(1)
-            )
-
-            result = await session.exec(stmt)
-            event = result.first()
-
-            print(f"Debug - Event type: {type(event)}")
-            print(f"Debug - Event: {event}")
-
-            if event:
-                print("✅ Outbox event created:")
-                print(f"   ID: {event.id}")
-                print(f"   Type: {event.type}")
-                print(f"   Status: {event.status}")
-                print(f"   Payload: {event.payload}")
-                print(f"   Created: {event.created_at}")
-
-                # 5. Demonstrate handler lookup
-                handlers = outbox_registry.get_handlers(event.type)
-                print(f"✅ Found {len(handlers)} handler(s) for {event.type}")
-
-                for handler in handlers:
-                    print(f"   Handler: {handler.__name__}")
-
-                # 6. Show what would happen in ARQ
-                print("\n🔄 ARQ would execute:")
-                print(f"   Job ID: outbox:{event.id}:process_outbox_event")
-                print("   Function: process_outbox_event")
-                print(
-                    f"   Args: {{'id': {event.id}, 'event_type': '{event.type}', ...}}"
-                )
-
-                return True
-
-            else:
-                print("❌ No outbox event found")
-                return False
-
-        except Exception as e:
-            print(f"❌ Error: {e}")
-            import traceback
-
-            traceback.print_exc()
-            return False
-
-        finally:
-            await session.close()
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
 
 
-async def validate_retry_mechanism():
-    """Validate retry mechanism configuration"""
+def test_consumer_key_builder_is_deterministic() -> None:
+    key_1 = build_outbox_consumer_key("evt-1", "app.handlers.product:create_notification")
+    key_2 = build_outbox_consumer_key("evt-1", "app.handlers.product:create_notification")
 
-    print("\n🔄 Validating Retry Mechanism...")
-    print("=" * 50)
+    assert key_1 == key_2
+    assert key_1 == "outbox:consumer:processed:evt-1:app.handlers.product:create_notification"
 
-    # Show ARQ configuration
-    from app.core.arq_worker import WorkerSettings
 
-    print("📊 ARQ Configuration:")
-    print(f"   max_tries: {WorkerSettings.max_tries}")
-    print(f"   retry_delay: {WorkerSettings.retry_delay}s")
-    print(f"   job_timeout: {WorkerSettings.job_timeout}s")
+def test_load_handlers_registers_product_create_handler() -> None:
+    outbox_registry.clear_handlers("create.product")
+    load_handlers()
 
-    # Show outbox poller configuration
-    from app.outbox.poller import MAX_ATTEMPTS
+    handlers = outbox_registry.get_handlers("create.product")
+    assert handlers
 
-    print("\n📊 Outbox Poller Configuration:")
-    print(f"   max_attempts: {MAX_ATTEMPTS}")
-    print("   exponential_backoff: 2^attempt seconds")
 
-    print("\n🎯 Retry Strategy:")
-    print(f"   1. Outbox poller retries up to {MAX_ATTEMPTS} times")
-    print(f"   2. Each ARQ job retries up to {WorkerSettings.max_tries} times")
-    print(
-        f"   3. Total possible attempts: {MAX_ATTEMPTS} × {WorkerSettings.max_tries} = {MAX_ATTEMPTS * WorkerSettings.max_tries}"
+@pytest.mark.anyio
+async def test_enqueue_builds_expected_outbox_job_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_handler(_session: object, _payload: dict[str, object]) -> None:
+        return None
+
+    event = OutboxEvent(type="create.product", payload={"id": "p-1"})
+
+    enqueue_job_mock = AsyncMock(return_value=SimpleNamespace(job_id="job-1"))
+    arq_pool = SimpleNamespace(enqueue_job=enqueue_job_mock)
+
+    monkeypatch.setattr(
+        "app.outbox.poller.get_arq_pool",
+        AsyncMock(return_value=arq_pool),
     )
-    print("   4. Fixed job IDs prevent duplicates")
-    print("   5. Failed events marked with FAILED status")
+    monkeypatch.setattr(
+        "app.outbox.poller.outbox_registry.get_handlers",
+        Mock(return_value=[fake_handler]),
+    )
 
+    await enqueue_jobs_for_event(event)
 
-async def main():
-    """Run validation tests"""
-
-    print("🚀 Outbox Integration Validation")
-    print("=" * 50)
-
-    # Test 1: Integration flow
-    success = await validate_outbox_integration()
-
-    # Test 2: Retry configuration
-    await validate_retry_mechanism()
-
-    # Summary
-    print("\n📋 Validation Summary:")
-    print("=" * 50)
-
-    if success:
-        print("✅ CRUD -> Outbox integration: WORKING")
-        print("✅ Handler registration: WORKING")
-        print("✅ Event creation: WORKING")
-        print("✅ Retry mechanism: CONFIGURED")
-        print("✅ System ready for production")
-    else:
-        print("❌ Integration validation failed")
-        print("🔧 Check database connection and CRUD setup")
-
-    print("\n🎯 Next Steps:")
-    print("   1. Start ARQ worker: arq app.core.arq_worker.WorkerSettings")
-    print("   2. Start outbox poller: python -m app.outbox.poller")
-    print("   3. Monitor logs for event processing")
-    print("   4. Test with real API calls")
-
-
-if __name__ == "__main__":
-    """
-    Run validation:
-    cd backend
-    python app/tests/validate_outbox.py
-    """
-    asyncio.run(main())
+    assert enqueue_job_mock.await_args is not None
+    kwargs = enqueue_job_mock.await_args.kwargs
+    assert kwargs["_job_id"] == f"outbox:{event.id}:{fake_handler.__name__}"
+    assert kwargs["event_id"] == str(event.id)
+    assert kwargs["event_type"] == "create.product"

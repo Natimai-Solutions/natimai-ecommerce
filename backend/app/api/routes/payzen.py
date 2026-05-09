@@ -101,7 +101,9 @@ def _is_conflicting_terminal_retry(
     )
 
 
-def _resolve_checkout_status_targets(trans_status: str | None) -> tuple[str | None, str | None]:
+def _resolve_checkout_status_targets(
+    trans_status: str | None,
+) -> tuple[str | None, str | None]:
     if trans_status == _PAID_TRANS_STATUS:
         return _PAYMENT_STATUS_COMPLETED, _ORDER_STATUS_PAID
 
@@ -152,7 +154,9 @@ async def _sync_checkout_entities_for_payzen_status(
     payment: Payment,
     trans_status: str | None,
 ) -> None:
-    payment_status_name, order_status_name = _resolve_checkout_status_targets(trans_status)
+    payment_status_name, order_status_name = _resolve_checkout_status_targets(
+        trans_status
+    )
 
     if payment_status_name is not None:
         payment_status = await _get_or_create_payment_status(
@@ -388,7 +392,10 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
                 trans_status,
             )
             return JSONResponse(
-                content={"status": "ok", "message": "IPN terminal contradictoire ignore"},
+                content={
+                    "status": "ok",
+                    "message": "IPN terminal contradictoire ignore",
+                },
             )
 
         if trans_status is not None:

@@ -249,7 +249,9 @@ async def test_checkout_rolls_back_when_stock_reservation_fails(
     monkeypatch.setattr(
         crud_order,
         "create_draft",
-        AsyncMock(return_value=SimpleNamespace(id=uuid4(), total_amount=Decimal("0.00"))),
+        AsyncMock(
+            return_value=SimpleNamespace(id=uuid4(), total_amount=Decimal("0.00"))
+        ),
     )
     monkeypatch.setattr(
         "app.api.routes.cart._get_active_product_or_404",
@@ -257,7 +259,9 @@ async def test_checkout_rolls_back_when_stock_reservation_fails(
     )
     monkeypatch.setattr(
         "app.api.routes.cart._reserve_stock_for_checkout",
-        AsyncMock(side_effect=HTTPException(status_code=409, detail="Insufficient stock")),
+        AsyncMock(
+            side_effect=HTTPException(status_code=409, detail="Insufficient stock")
+        ),
     )
 
     with pytest.raises(HTTPException) as exc_info:

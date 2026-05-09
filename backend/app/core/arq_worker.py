@@ -1,13 +1,11 @@
-import importlib
 import logging
 import sys
 from typing import Any
 
 from arq.connections import RedisSettings, create_pool
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.core.db import engine
+from app.outbox.consumer import execute_outbox_handler
 from app.tasks.icecat_tasks import (
     batch_enrich_products_task,
     enrich_product_with_icecat_task,
@@ -46,38 +44,6 @@ logger = logging.getLogger(__name__)
 async def get_redis_pool() -> Any:
     """Get Redis pool for ARQ job enqueuing"""
     return await create_pool(RedisSettings.from_dsn(str(settings.REDIS_URL)))
-
-
-# Fonction générique pour résoudre et exécuter les handlers outbox
-async def execute_outbox_handler(
-    _ctx: dict[str, Any], handler_path: str, **kwargs: Any
-) -> None:
-    """
-    Résout et exécute un handler outbox depuis son chemin de module.
-
-    Args:
-        ctx: Contexte ARQ
-        handler_path: Chemin du handler au format "module.path:function_name"
-        **kwargs: Arguments à passer au handler
-    """
-    try:
-        # Résoudre le handler depuis le chemin
-        mod, func = handler_path.split(":")
-        module = importlib.import_module(mod)
-        handler = getattr(module, func)
-
-        logger.debug("Executing handler %s with kwargs: %s", handler_path, kwargs)
-
-        # Créer une session de base de données
-        async with AsyncSession(engine) as session:
-            # Exécuter le handler avec la session et les kwargs
-            await handler(session, kwargs)
-
-        logger.debug("Successfully executed handler %s", handler_path)
-
-    except Exception as e:
-        logger.error("Failed to execute handler %s: %s", handler_path, str(e))
-        raise
 
 
 # Tes handlers ARQ existants

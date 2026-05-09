@@ -7,6 +7,7 @@ outbox pattern implementation.
 """
 
 import logging
+import uuid
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -44,7 +45,7 @@ class OutboxRegistry:
         event_type: str,
         payload: dict[str, Any],
         delay_seconds: int = 0,
-        correlation_id: str | None = None,
+        correlation_id: str | uuid.UUID | None = None,
     ) -> OutboxEvent:
         """
         Publish an event to the outbox.
@@ -58,7 +59,7 @@ class OutboxRegistry:
             event_type (str): Type/name of the event to publish
             payload (Dict[str, Any]): Event data payload
             delay_seconds (int, optional): Delay before processing the event. Defaults to 0.
-            correlation_id (str, optional): ID for tracking related events
+            correlation_id (str | UUID, optional): ID for tracking related events
 
         Returns:
             OutboxEvent: The created outbox event
@@ -88,11 +89,19 @@ class OutboxRegistry:
                     "Event scheduled for delayed processing: %s seconds", delay_seconds
                 )
 
+            correlation_uuid: uuid.UUID | None
+            if correlation_id is None:
+                correlation_uuid = None
+            elif isinstance(correlation_id, uuid.UUID):
+                correlation_uuid = correlation_id
+            else:
+                correlation_uuid = uuid.UUID(correlation_id)
+
             event = OutboxEvent(
                 type=event_type,
                 payload=payload,
                 next_run_at=next_run_at,
-                correlation_id=correlation_id,
+                correlation_id=correlation_uuid,
             )
             session.add(event)
             await session.flush()  # To get the ID
