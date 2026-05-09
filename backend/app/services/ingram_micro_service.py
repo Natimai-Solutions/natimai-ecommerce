@@ -5,7 +5,6 @@ No SDK dependency - uses aiohttp for OAuth and API requests.
 """
 # mypy: disable-error-code="arg-type,assignment,no-any-return,no-untyped-call,no-untyped-def,return-value,type-arg,valid-type"
 
-import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -13,7 +12,6 @@ from uuid import uuid4
 
 import aiohttp
 from pydantic import BaseModel, Field
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 
@@ -396,143 +394,6 @@ class IngramMicroService:
         except Exception as e:
             logger.error(f"Failed to fetch price and availability: {e}")
             raise
-
-    def _convert_ingram_to_product_create(
-        self, ingram_product: IngramProductData
-    ) -> dict[str, any]:
-        """Convert Ingram product data to Product creation data using generic supplier fields"""
-        return {
-            "name": ingram_product.product_name,
-            "description": ingram_product.description
-            or f"{ingram_product.manufacturer} {ingram_product.product_name}",
-            # "supplier_price": Decimal(str(ingram_product.price or 0.0)),
-            # "base_price": Decimal(str(ingram_product.price or 0.0)), # TODO: Review pricing strategy
-            "has_variants": False,
-            # Generic supplier fields
-            "supplier_sku": ingram_product.sku,
-            "vendor_part_number": ingram_product.vendor_part_number,
-            "manufacturer": ingram_product.manufacturer,
-            "supplier_name": "Ingram Micro",  # Specific supplier identifier
-            "supplier_category": ingram_product.category,
-            "supplier_subcategory": ingram_product.subcategory,
-            "weight": ingram_product.weight,
-            "supplier_image_url": ingram_product.image_url,
-            "supplier_spec_url": ingram_product.specification_url,
-            # "last_supplier_sync": ingram_product.last_updated.isoformat(), #Sync is for inventory and pricing only
-            "is_supplier_managed": True,
-            "is_active": True,
-            "upc": ingram_product.upc_code,
-        }
-
-    async def _upsert_product(
-        self, session: AsyncSession, ingram_product: IngramProductData
-    ) -> dict[str, any]:
-        """Insert or update a product from Ingram data"""
-        from app.features.product.crud.product import crud_product
-        from app.features.product.models.product import ProductCreate, ProductUpdate
-
-        # Check if product already exists by supplier SKU and Ingram Micro supplier name
-        existing_product = await crud_product.get_by_supplier_sku(
-            session=session,
-            supplier_sku=ingram_product.sku,
-            supplier_name="Ingram Micro",
-        )
-
-        product_data_dict = self._convert_ingram_to_product_create(ingram_product)
-
-        if existing_product:
-            # Update existing product - convert dict to ProductUpdate
-            product_update = ProductUpdate(**product_data_dict)
-            updated_product = await crud_product.update(
-                session=session, id=existing_product.id, data=product_update, user=None
-            )
-            return {"action": "updated", "product_id": str(updated_product.id)}
-        else:
-            # Create new product - convert dict to ProductCreate
-            product_create = ProductCreate(**product_data_dict)
-            new_product = await crud_product.create(
-                session=session, data=product_create, user=None
-            )
-            return {"action": "created", "product_id": str(new_product.id)}
-
-    async def sync_products_to_database(
-        self, session: AsyncSession, categories: list[str]
-    ) -> dict[str, int]:
-        """
-        Synchronize products from Ingram Micro to local database
-
-        Args:
-            session: Database session
-            categories: List of categories to synchronize
-
-        Returns:
-            Dictionary with sync statistics
-        """
-        stats = {
-            "total_fetched": 0,
-            "new_products": 0,
-            "updated_products": 0,
-            "skipped_products": 0,
-            "errors": 0,
-        }
-
-        logger.debug(f"Starting product sync for categories: {categories}")
-
-        for category in categories:
-            try:
-                page = 1
-                page_size = 100
-                while True:
-                    products = await self.get_product_catalog(
-                        category=category, page_number=page, page_size=page_size
-                    )
-
-                    if not products:
-                        break
-
-                    stats["total_fetched"] += len(products)
-
-                    for product in products:
-                        # Skip products with no SKU or invalid data
-                        if not product.sku or not product.product_name:
-                            stats["skipped_products"] += 1
-                            continue
-
-                        try:
-                            result = await self._upsert_product(session, product)
-
-                            if result["action"] == "created":
-                                stats["new_products"] += 1
-                            elif result["action"] == "updated":
-                                stats["updated_products"] += 1
-
-                            # Commit after each successful product to avoid transaction issues
-                            await session.commit()
-
-                        except Exception as e:
-                            logger.error(f"Error syncing product {product.sku}: {e}")
-                            stats["errors"] += 1
-                            # Critical: Rollback to clear the failed transaction state
-                            await session.rollback()
-                            continue
-
-                    page += 1
-
-                    # For local development, limit pages to avoid long syncs
-                    # if settings.ENVIRONMENT == "local" and page > 10:
-                    #   break
-
-                    # Add delay to respect rate limits
-                    await asyncio.sleep(0.5)
-
-            except Exception as e:
-                logger.error(f"Error syncing category {category}: {e}")
-                stats["errors"] += 1
-
-        # No final commit needed as we commit after each product
-        logger.debug(f"Product sync completed. Stats: {stats}")
-        return stats
-
 
 # Singleton instance
 ingram_service = IngramMicroService()

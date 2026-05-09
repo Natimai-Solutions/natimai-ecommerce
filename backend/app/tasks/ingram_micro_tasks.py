@@ -15,6 +15,9 @@ from app.core.config import settings
 from app.core.db import engine
 from app.features.integrations.crud.ingram_sync import ingram_sync_log_crud
 from app.features.integrations.models.ingram_sync import SyncStatus, SyncType
+from app.features.integrations.services.ingram_sync_orchestrator import (
+    ingram_sync_orchestrator,
+)
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product, ProductUpdate
 from app.services.ingram_micro_service import ingram_service
@@ -77,7 +80,7 @@ async def sync_ingram_products_task(
 
             try:
                 # Perform the sync
-                stats = await ingram_service.sync_products_to_database(
+                stats = await ingram_sync_orchestrator.sync_products_to_database(
                     session=session, categories=sync_categories
                 )
             except Exception as e:
