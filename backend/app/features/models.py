@@ -1,6 +1,7 @@
 from app.features.analytic.models.analytic_product import AnalyticsProduct
 from app.features.analytic.models.analytic_sale import AnalyticsSale
 from app.features.analytic.models.analytic_user import AnalyticsUser
+from app.features.cart.models.cart import Cart, CartItem
 from app.features.discount.models import Discount
 from app.features.integrations.models.ingram_sync import (
     IngramProductMapping,
@@ -43,6 +44,8 @@ __all__ = [
     "AnalyticsSale",
     "AnalyticsUser",
     "Brand",
+    "Cart",
+    "CartItem",
     "Category",
     "DeliveryTask",
     "Discount",
