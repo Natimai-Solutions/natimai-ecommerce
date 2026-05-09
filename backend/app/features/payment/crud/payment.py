@@ -12,6 +12,7 @@ from app.features.payment.models.payment import (
     PaymentUpdate,
 )
 from app.features.payment.models.payment_log import PaymentLog
+from app.utils.money import parse_minor_units
 
 
 class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
@@ -151,6 +152,8 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         from app.features.payment.crud.payment_status import crud_payment_status
 
         # Extract Payzen data
+        amount_minor = parse_minor_units(payzen_fields.get("amount", payment.amount))
+
         payment.payzen_trans_id = payzen_fields.get("trans_uuid") or payzen_fields.get(
             "trans_id"
         )
@@ -158,6 +161,7 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         payment.payzen_status = payzen_fields.get("trans_status")
         payment.payzen_payment_method = payzen_fields.get("payment_cards")
         payment.payzen_data = payzen_fields.get("_raw_answer")
+        payment.amount = amount_minor
 
         # Update payment status based on Payzen status
         trans_status = payzen_fields.get("trans_status")
@@ -184,7 +188,7 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
             payment_id=payment.id,
             payzen_trans_id=payment.payzen_trans_id,
             payzen_order_id=payment.payzen_order_id,
-            amount=int(payzen_fields.get("amount", 0)),
+            amount=amount_minor,
             payment_method=payment.payzen_payment_method,
             status=payment.payzen_status,
             error_code=payzen_fields.get("error_code"),
