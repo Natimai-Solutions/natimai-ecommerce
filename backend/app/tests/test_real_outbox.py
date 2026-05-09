@@ -4,17 +4,8 @@ Tests that the JSON serialization fix resolves the actual error.
 """
 
 import asyncio
-import os
-import sys
 from datetime import datetime
-
-# Add the backend directory to Python path for relative imports
-backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-sys.path.insert(0, backend_dir)
-
 from unittest.mock import Mock
-
-from sqlmodel import Session
 
 from app.features.product.crud import product
 from app.features.product.models.product import ProductCreate, ProductUpdate
@@ -27,9 +18,6 @@ async def test_real_outbox_creation():
     print("=" * 50)
 
     try:
-        # Mock database session
-        db = Mock(spec=Session)
-
         # Mock a record that would be returned from database
         mock_record = Mock()
         mock_record.id = 123

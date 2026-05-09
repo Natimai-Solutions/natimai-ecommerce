@@ -66,7 +66,7 @@ def update_product_with_icecat_data(
 
 
 async def enrich_product_with_icecat_task(
-    ctx: dict[str, Any], product_id: str
+    _ctx: dict[str, Any], product_id: str
 ) -> dict[str, Any]:
     """
     Background task to enrich a single product with Icecat data
@@ -147,7 +147,7 @@ async def enrich_product_with_icecat_task(
 
 
 async def batch_enrich_products_task(
-    ctx: dict[str, Any], limit: int = 50
+    _ctx: dict[str, Any], limit: int = 50
 ) -> dict[str, Any]:
     """
     Background task to batch enrich products with Icecat data
@@ -179,10 +179,12 @@ async def batch_enrich_products_task(
             # - Have vendor part number and manufacturer
             query = (
                 select(Product)
-                .where(Product.is_supplier_managed == True)
-                .where((Product.is_enriched == False) | (Product.is_enriched == None))
-                .where(Product.vendor_part_number != None)
-                .where(Product.manufacturer != None)
+                .where(Product.is_supplier_managed.is_(True))
+                .where(
+                    Product.is_enriched.is_(False) | Product.is_enriched.is_(None)
+                )
+                .where(Product.vendor_part_number.is_not(None))
+                .where(Product.manufacturer.is_not(None))
                 .limit(limit)
             )
 

@@ -5,6 +5,7 @@ Handles scheduled and on-demand product catalog sync.
 
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from arq import cron
 from sqlmodel import or_
@@ -19,8 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 async def sync_ingram_products_task(
-    ctx, categories: list[str] | None = None, **kwargs
-) -> dict[str, any]:
+    _ctx, categories: list[str] | None = None, **_kwargs
+) -> dict[str, Any]:
     """
     ARQ task to synchronize products from Ingram Micro API
 
@@ -93,8 +94,8 @@ async def sync_ingram_products_task(
 
 
 async def sync_ingram_inventory_task(
-    ctx, skus: list[str] | None = None, **kwargs
-) -> dict[str, any]:
+    _ctx, skus: list[str] | None = None, **_kwargs
+) -> dict[str, Any]:
     """
     ARQ task to update inventory levels from Ingram Micro API
 
@@ -226,7 +227,7 @@ async def sync_ingram_inventory_task(
         }
 
 
-async def check_ingram_api_health_task(ctx, **kwargs) -> dict[str, any]:
+async def check_ingram_api_health_task(_ctx, **_kwargs) -> dict[str, Any]:
     """
     ARQ task to check Ingram Micro API health and connectivity
 
@@ -279,7 +280,7 @@ def get_ingram_sync_cron_jobs():
     jobs.append(
         cron(
             sync_ingram_products_task,
-            hour={h for h in range(0, 24, sync_hour_interval)},
+            hour=set(range(0, 24, sync_hour_interval)),
             minute=0,
             second=0,
             name="ingram_product_sync",
@@ -290,7 +291,7 @@ def get_ingram_sync_cron_jobs():
     jobs.append(
         cron(
             sync_ingram_inventory_task,
-            hour={h for h in range(0, 24, 2)},
+            hour=set(range(0, 24, 2)),
             minute=30,  # Offset from product sync
             second=0,
             name="ingram_inventory_sync",

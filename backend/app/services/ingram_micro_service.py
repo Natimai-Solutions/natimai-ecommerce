@@ -374,7 +374,7 @@ class IngramMicroService:
                     # Sum quantities from all warehouses
                     for warehouse in availability.get("availabilityByWarehouse", []):
                         qty = warehouse.get("quantityAvailable", 0)
-                        if isinstance(qty, (int, float)):
+                        if isinstance(qty, int | float):
                             total_qty += int(qty)
 
                     availability_info = {

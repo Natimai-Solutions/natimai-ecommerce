@@ -67,7 +67,7 @@ class TestOutboxIntegration:
         with patch.object(test_crud, "_create_record") as mock_create:
             mock_create.return_value = {"id": 1, "name": "test_item"}
 
-            result = await test_crud.create(db_session, test_data)
+            await test_crud.create(db_session, test_data)
 
             # Verify outbox event was created
             query = await db_session.execute(
@@ -230,12 +230,12 @@ class TestOutboxIntegration:
 if __name__ == "__main__":
     """
     Run integration tests to verify outbox pattern:
-    
+
     python -m pytest app/tests/test_outbox_integration.py -v
-    
+
     These tests verify:
     1. CRUD -> Outbox event creation
-    2. Poller -> ARQ job enqueuing  
+    2. Poller -> ARQ job enqueuing
     3. ARQ -> Handler execution
     4. Error handling and retries
     5. Idempotence and duplicate prevention
