@@ -15,6 +15,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.integrations.crud.ingram_sync import ingram_product_mapping_crud
 from app.features.integrations.models.ingram_sync import IngramProductMapping
+from app.features.integrations.services.supplier_data_normalization import (
+    DEFAULT_CURRENCY,
+    normalize_supplier_snapshot,
+)
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product, ProductCreate, ProductUpdate
 from app.services.ingram_micro_service import (
@@ -37,10 +41,17 @@ class IngramSyncOrchestrator:
         self, ingram_product: IngramProductData
     ) -> dict[str, Any]:
         """Convert Ingram product payload into local product schema fields."""
+        snapshot = normalize_supplier_snapshot(
+            raw_price=ingram_product.price,
+            raw_quantity=ingram_product.availability,
+            raw_currency=DEFAULT_CURRENCY,
+        )
+
         return {
             "name": ingram_product.product_name,
             "description": ingram_product.description
             or f"{ingram_product.manufacturer} {ingram_product.product_name}",
+            "base_price": snapshot.base_price,
             "has_variants": False,
             "supplier_sku": ingram_product.sku,
             "vendor_part_number": ingram_product.vendor_part_number,
@@ -51,6 +62,9 @@ class IngramSyncOrchestrator:
             "weight": ingram_product.weight,
             "supplier_image_url": ingram_product.image_url,
             "supplier_spec_url": ingram_product.specification_url,
+            "supplier_quantity": snapshot.supplier_quantity,
+            "supplier_price": snapshot.supplier_price,
+            "supplier_price_currency": snapshot.supplier_price_currency,
             "is_supplier_managed": True,
             "is_active": True,
             "upc": ingram_product.upc_code,
@@ -69,6 +83,7 @@ class IngramSyncOrchestrator:
             mapped_product = await session.get(Product, mapping.local_product_id)
             if (
                 mapped_product is not None
+                and mapped_product.is_supplier_managed
                 and mapped_product.supplier_name == SUPPLIER_NAME
                 and mapped_product.supplier_sku == ingram_product.sku
             ):
@@ -84,6 +99,7 @@ class IngramSyncOrchestrator:
             session=session,
             supplier_sku=ingram_product.sku,
             supplier_name=SUPPLIER_NAME,
+            supplier_managed_only=True,
         )
         return supplier_product, mapping
 

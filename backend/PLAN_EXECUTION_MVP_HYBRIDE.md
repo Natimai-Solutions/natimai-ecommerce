@@ -264,8 +264,8 @@ Checklist:
   - Orchestrateur metier: [backend/app/features/integrations/services/ingram_sync_orchestrator.py](app/features/integrations/services/ingram_sync_orchestrator.py)
   - Appel depuis la tache: [backend/app/tasks/ingram_micro_tasks.py](app/tasks/ingram_micro_tasks.py)
 - [x] B3 Implementer idempotence stricte par supplier_name + supplier_sku + mapping persiste.
-- [ ] B4 Verifier creation/edition de produits manuels sans ecrasement par sync fournisseur.
-- [ ] B5 Normaliser et valider les champs prix/stock fournisseur avant publication produit.
+- [x] B4 Verifier creation/edition de produits manuels sans ecrasement par sync fournisseur.
+- [x] B5 Normaliser et valider les champs prix/stock fournisseur avant publication produit.
 - [ ] B6 Aligner le modele de prix sur Decimal (ou montants entiers en centimes) de maniere coherente: produit, commande, paiement.
 
 Definition of Done phase B:

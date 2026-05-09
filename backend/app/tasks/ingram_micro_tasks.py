@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
 from arq import cron
-from sqlmodel import col, or_
+from sqlmodel import and_, col, or_
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
@@ -18,11 +18,15 @@ from app.features.integrations.models.ingram_sync import SyncStatus, SyncType
 from app.features.integrations.services.ingram_sync_orchestrator import (
     ingram_sync_orchestrator,
 )
+from app.features.integrations.services.supplier_data_normalization import (
+    normalize_supplier_snapshot,
+)
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product, ProductUpdate
 from app.services.ingram_micro_service import ingram_service
 
 logger = logging.getLogger(__name__)
+SUPPLIER_NAME = "Ingram Micro"
 
 
 async def sync_ingram_products_task(
@@ -156,9 +160,13 @@ async def sync_ingram_inventory_task(
                 one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
                 result = await crud_product.read_multi(
                     session,
-                    filter=or_(
-                        col(Product.last_supplier_sync) <= one_hour_ago,
-                        col(Product.last_supplier_sync).is_(None),
+                    filter=and_(
+                        Product.supplier_name == SUPPLIER_NAME,
+                        col(Product.is_supplier_managed).is_(True),
+                        or_(
+                            col(Product.last_supplier_sync) <= one_hour_ago,
+                            col(Product.last_supplier_sync).is_(None),
+                        ),
                     ),
                 )
                 products = result.get("data", [])
@@ -181,31 +189,31 @@ async def sync_ingram_inventory_task(
                         skus=batch_skus, include_pricing=True, include_availability=True
                     )
 
-                    # Update database with inventory levels AND prices
-                    from decimal import Decimal
-
                     for sku, data in results.items():
                         try:
                             # Find product by supplier SKU
                             product = await crud_product.get_by_supplier_sku(
                                 session=session,
                                 supplier_sku=sku,
-                                supplier_name="Ingram Micro",
+                                supplier_name=SUPPLIER_NAME,
+                                supplier_managed_only=True,
                             )
 
                             logger.debug(f"Processing SKU {sku} with data: {data}")
 
                             if product:
+                                snapshot = normalize_supplier_snapshot(
+                                    raw_price=data.get("customer_price", 0),
+                                    raw_quantity=data.get("total_quantity", 0),
+                                    raw_currency=data.get("currency", "USD"),
+                                )
+
                                 # Prepare update data
                                 update_data = ProductUpdate(
-                                    supplier_price=Decimal(
-                                        str(data.get("customer_price", 0))
-                                    ),
-                                    supplier_price_currency=data.get("currency", "USD"),
-                                    base_price=Decimal(
-                                        str(data.get("customer_price", 0))
-                                    ),
-                                    supplier_quantity=data.get("total_quantity", 0),
+                                    supplier_price=snapshot.supplier_price,
+                                    supplier_price_currency=snapshot.supplier_price_currency,
+                                    base_price=snapshot.base_price,
+                                    supplier_quantity=snapshot.supplier_quantity,
                                     last_supplier_sync=datetime.now(timezone.utc),
                                 )
 

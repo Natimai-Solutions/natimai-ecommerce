@@ -19,12 +19,20 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         session: AsyncSession,
         supplier_sku: str,
         supplier_name: str | None = None,
+        supplier_managed_only: bool = True,
     ) -> Product | None:
-        """Get a product by its supplier SKU and optionally filter by supplier name"""
+        """Get a product by supplier identity.
+
+        By default, only supplier-managed products are returned to avoid
+        accidentally mutating manual products during supplier sync jobs.
+        """
         conditions = [
             Product.supplier_sku == supplier_sku,
             col(Product.is_active).is_(True),
         ]
+
+        if supplier_managed_only:
+            conditions.append(col(Product.is_supplier_managed).is_(True))
 
         if supplier_name:
             conditions.append(Product.supplier_name == supplier_name)
