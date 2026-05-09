@@ -91,7 +91,9 @@ async def test_refresh_token_rotates_and_returns_new_pair(
         "get_by_user_and_jti",
         get_refresh_mock,
     )
-    monkeypatch.setattr(login_routes.crud_user_refresh_token, "rotate_token", rotate_mock)
+    monkeypatch.setattr(
+        login_routes.crud_user_refresh_token, "rotate_token", rotate_mock
+    )
 
     response = client.post(
         "/api/v1/login/refresh-token",
@@ -144,7 +146,9 @@ async def test_refresh_token_expired_is_revoked_and_rejected(
         "get_by_user_and_jti",
         get_refresh_mock,
     )
-    monkeypatch.setattr(login_routes.crud_user_refresh_token, "revoke_token", revoke_mock)
+    monkeypatch.setattr(
+        login_routes.crud_user_refresh_token, "revoke_token", revoke_mock
+    )
 
     response = client.post(
         "/api/v1/login/refresh-token",

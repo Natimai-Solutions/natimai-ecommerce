@@ -185,7 +185,9 @@ async def test_notification_delete_uses_delete_with_id_and_record(
         "get_by_user_and_notification",
         relation_mock,
     )
-    monkeypatch.setattr(notification_routes.crud_user_notification, "delete", delete_mock)
+    monkeypatch.setattr(
+        notification_routes.crud_user_notification, "delete", delete_mock
+    )
 
     response = client.delete(
         f"/api/v1/notification/users/{user_id}/notifications/{notification_id}"

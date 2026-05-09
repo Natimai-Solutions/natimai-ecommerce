@@ -114,5 +114,7 @@ async def test_update_status_keeps_legacy_new_status_code() -> None:
 async def test_update_status_requires_target_status() -> None:
     crud = _build_crud()
 
-    with pytest.raises(ValueError, match="Either 'new_status_id' or 'new_status' must be provided"):
+    with pytest.raises(
+        ValueError, match="Either 'new_status_id' or 'new_status' must be provided"
+    ):
         await crud.update_status(session=AsyncMock(), tracking_id=uuid.uuid4())

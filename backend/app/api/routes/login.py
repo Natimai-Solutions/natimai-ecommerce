@@ -27,7 +27,9 @@ def _build_token_bundle(user_id: uuid.UUID) -> tuple[str, str, str, datetime]:
     refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
     refresh_jti = str(uuid.uuid4())
-    access_token = security.create_access_token(user_id, expires_delta=access_token_expires)
+    access_token = security.create_access_token(
+        user_id, expires_delta=access_token_expires
+    )
     refresh_token = security.create_refresh_token(
         user_id,
         expires_delta=refresh_token_expires,

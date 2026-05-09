@@ -82,9 +82,7 @@ class ShippingRouteTrackingCrud(
         result = await session.exec(statement)
         return result.first()
 
-    async def get_status_by_id(
-        self, session: AsyncSession, status_id: uuid.UUID
-    ):
+    async def get_status_by_id(self, session: AsyncSession, status_id: uuid.UUID):
         """Get StatusDefinition by ID."""
         from app.features.shipping.models.status import StatusDefinition
 
