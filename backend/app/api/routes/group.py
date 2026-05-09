@@ -123,7 +123,7 @@ async def remove_user_from_group(
 async def get_group_users(
     session: SessionDep,
     group_id: uuid.UUID,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
 ) -> UserGroupsPublic:
     """Get all users in a specific group"""
     user_groups = await crud_user_group.get_group_users(

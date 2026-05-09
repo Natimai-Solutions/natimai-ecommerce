@@ -61,7 +61,7 @@ class HealthResponse(BaseModel):
 
 @router.post("/sync/products", response_model=SyncResponse)
 async def trigger_product_sync(
-    request: SyncRequest, current_user: CurrentSuperUser
+    request: SyncRequest, _current_user: CurrentSuperUser
 ) -> SyncResponse:
     """
     Manually trigger product catalog synchronization from Ingram Micro.
@@ -107,7 +107,7 @@ async def trigger_product_sync(
 
 @router.post("/sync/inventory", response_model=SyncResponse)
 async def trigger_inventory_sync(
-    request: InventoryRefreshRequest, current_user: CurrentSuperUser
+    request: InventoryRefreshRequest, _current_user: CurrentSuperUser
 ) -> SyncResponse:
     """
     Manually trigger inventory level refresh from Ingram Micro.
@@ -141,7 +141,7 @@ async def trigger_inventory_sync(
 
 @router.get("/health", response_model=HealthResponse)
 async def check_ingram_health(
-    session: SessionDep, current_user: CurrentSuperUser
+    _session: SessionDep, _current_user: CurrentSuperUser
 ) -> HealthResponse:
     """
     Check Ingram Micro API health and configuration status.
@@ -207,7 +207,7 @@ async def check_ingram_health(
 
 @router.get("/config")
 async def get_sync_config(
-    current_user: CurrentSuperUser,
+    _current_user: CurrentSuperUser,
 ) -> dict[str, Any]:
     """
     Get current Ingram Micro synchronization configuration.
@@ -231,7 +231,7 @@ async def get_sync_config(
 
 @router.get("/categories")
 async def get_available_categories(
-    current_user: CurrentSuperUser,
+    _current_user: CurrentSuperUser,
 ) -> list[str]:
     """
     Get list of available product categories from Ingram Micro.
@@ -252,7 +252,7 @@ async def get_available_categories(
 
 
 @router.get("/test-api")
-async def test_api_connection(current_user: CurrentSuperUser) -> dict[str, Any]:
+async def test_api_connection(_current_user: CurrentSuperUser) -> dict[str, Any]:
     """
     Test API connection and return sample data.
 

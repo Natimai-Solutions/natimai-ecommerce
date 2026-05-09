@@ -74,7 +74,7 @@ class OutboxPollerService:
     def setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown."""
 
-        def signal_handler(signum, frame):
+        def signal_handler(signum, _frame):
             logger.debug("Received signal %d, shutting down gracefully...", signum)
             self.running = False
 

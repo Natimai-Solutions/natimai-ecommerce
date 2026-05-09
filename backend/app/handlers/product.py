@@ -7,5 +7,5 @@ logger = logging.getLogger(__name__)
 
 
 @outbox_handler("create.product")
-async def create_notification(session, payload) -> None:
+async def create_notification(_session, payload) -> None:
     logger.debug("Received product creation event with payload: %s", payload)

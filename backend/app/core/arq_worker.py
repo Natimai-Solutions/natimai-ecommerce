@@ -7,6 +7,16 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.db import engine
+from app.tasks.icecat_tasks import (
+    batch_enrich_products_task,
+    enrich_product_with_icecat_task,
+)
+from app.tasks.ingram_micro_tasks import (
+    check_ingram_api_health_task,
+    get_ingram_sync_cron_jobs,
+    sync_ingram_inventory_task,
+    sync_ingram_products_task,
+)
 
 
 # Custom logging filter to suppress "already running elsewhere" messages
@@ -38,7 +48,7 @@ async def get_redis_pool():
 
 
 # Fonction générique pour résoudre et exécuter les handlers outbox
-async def execute_outbox_handler(ctx, handler_path: str, **kwargs):
+async def execute_outbox_handler(_ctx, handler_path: str, **kwargs):
     """
     Résout et exécute un handler outbox depuis son chemin de module.
 
@@ -65,20 +75,6 @@ async def execute_outbox_handler(ctx, handler_path: str, **kwargs):
     except Exception as e:
         logger.error("Failed to execute handler %s: %s", handler_path, str(e))
         raise
-
-
-# Import des tâches Ingram Micro
-# Import des tâches Icecat
-from app.tasks.icecat_tasks import (
-    batch_enrich_products_task,
-    enrich_product_with_icecat_task,
-)
-from app.tasks.ingram_micro_tasks import (
-    check_ingram_api_health_task,
-    get_ingram_sync_cron_jobs,
-    sync_ingram_inventory_task,
-    sync_ingram_products_task,
-)
 
 
 # Tes handlers ARQ existants

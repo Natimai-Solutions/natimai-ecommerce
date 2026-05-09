@@ -140,7 +140,6 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
     3. Creates a PaymentLog entry
     4. Updates payment status (PENDING -> VALIDATED or ERROR)
     """
-    success = False
     error = None
     fields = {}
 
@@ -151,8 +150,6 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
 
         # Validate PayZen IPN signature and extract payment data
         fields = validate_ipn_signature(fields_dict)
-        success = True
-
         # Log IPN notification
         logger.info(
             f"PayZen IPN received: "

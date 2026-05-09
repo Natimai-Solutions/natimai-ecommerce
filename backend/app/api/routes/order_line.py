@@ -48,7 +48,7 @@ router = OrderLineRouter(
 @router.get("/order/{order_id}", response_model=list[OrderLinePublic])
 async def get_order_lines(
     session: SessionDep,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
     order_id: uuid.UUID,
 ) -> list[OrderLinePublic]:
     """
@@ -86,7 +86,7 @@ async def get_product_order_lines(
 @router.get("/order/{order_id}/total", response_model=dict)
 async def calculate_order_total(
     session: SessionDep,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
     order_id: uuid.UUID,
 ) -> dict:
     """

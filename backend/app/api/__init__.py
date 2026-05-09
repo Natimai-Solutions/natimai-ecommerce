@@ -1,7 +1,5 @@
 from fastapi import APIRouter
 
-api_router = APIRouter()
-
 from app.api.routes.address import router as address_router
 from app.api.routes.analytics_product import router as analytics_product_router
 from app.api.routes.analytics_sale import router as analytics_sale_router
@@ -38,6 +36,8 @@ from app.api.routes.user_review import (
 )
 from app.api.routes.user_wishlist import router as user_wishlist_router
 from app.api.routes.utils import router as utils_router
+
+api_router = APIRouter()
 
 api_router.include_router(login_router, tags=["login"])
 api_router.include_router(partner_router)

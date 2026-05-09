@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Field, SQLModel
 
 from app.api.base_router import BaseRouter
@@ -98,7 +98,7 @@ class ShippingRouteTrackingRouter(
         async def get_order_tracking(
             order_id: uuid.UUID,
             session: SessionDep,
-            current_user: CurrentUser | None = Depends(get_current_user_optional),
+            _current_user: CurrentUser | None = Depends(get_current_user_optional),
         ):
             # Récupérer le tracking principal pour cette commande
             tracking = await self.crud.get_by_order_id(
@@ -158,7 +158,7 @@ class ShippingRouteTrackingRouter(
         async def get_tracking_status(
             tracking_id: uuid.UUID,
             session: SessionDep,
-            current_user: CurrentUser | None = Depends(get_current_user_optional),
+            _current_user: CurrentUser | None = Depends(get_current_user_optional),
         ):
             try:
                 tracking = await self.crud.read(session=session, id=tracking_id)
@@ -228,10 +228,10 @@ class ShippingRouteTrackingRouter(
             limit: int = Query(
                 default=100, le=500, description="Nombre maximum d'entrées"
             ),
-            current_user: CurrentUser | None = Depends(get_current_user_optional),
+            _current_user: CurrentUser | None = Depends(get_current_user_optional),
         ):
             try:
-                tracking = await self.crud.read(session=session, id=tracking_id)
+                await self.crud.read(session=session, id=tracking_id)
             except RecordNotFoundError:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND, detail="Tracking not found"
@@ -323,8 +323,6 @@ consolidation_router = BaseRouter(
 
 
 # Router simple pour les logs (lecture seule via APIRouter)
-from fastapi import APIRouter
-
 logs_router = APIRouter(
     prefix="/logs",
     tags=["shipping"],
@@ -341,7 +339,7 @@ async def get_tracking_logs(
     tracking_id: uuid.UUID,
     session: SessionDep,
     limit: int = Query(default=100, le=500),
-    current_user: CurrentUser | None = Depends(get_current_user_optional),
+    _current_user: CurrentUser | None = Depends(get_current_user_optional),
 ):
     """Récupère l'historique des logs pour un tracking"""
     # On utilise directement le CRUD du tracking pour accéder aux logs

@@ -94,7 +94,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         if sync_time is None:
             sync_time = datetime.utcnow()
 
-        product = await self.get(session=session, id=product_id)
+        product = await session.get(self.model, product_id)
         if not product:
             return None
 

@@ -87,7 +87,7 @@ class ShippingRouteRouter(
             max_hops: int = Query(
                 10, ge=1, le=20, description="Nombre maximum d'étapes"
             ),
-            current_user: CurrentUser | None = Depends(get_current_user_optional),
+            _current_user: CurrentUser | None = Depends(get_current_user_optional),
         ):
             paths = await self.crud.get_routes_between_places(
                 session=session,
@@ -133,7 +133,7 @@ class ShippingRouteRouter(
             prefer_direct: bool = Query(
                 True, description="Privilégier les routes directes"
             ),
-            current_user: CurrentUser | None = Depends(get_current_user_optional),
+            _current_user: CurrentUser | None = Depends(get_current_user_optional),
         ):
             path = await self.crud.get_optimal_route_between_places(
                 session=session,
@@ -171,7 +171,7 @@ class ShippingRouteRouter(
             is_to_customer: bool | None = Query(
                 None, description="Filtrer par type de destination"
             ),
-            current_user: CurrentUser | None = Depends(get_current_user_optional),
+            _current_user: CurrentUser | None = Depends(get_current_user_optional),
         ):
             stats = await self.crud.get_routing_statistics(
                 session=session,

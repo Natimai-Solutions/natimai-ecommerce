@@ -103,7 +103,7 @@ async def get_category_promotions(
 async def use_discount(
     session: SessionDep,
     discount_id: uuid.UUID,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
 ) -> DiscountPublic:
     """
     Incrémenter le compteur d'utilisation d'une réduction.

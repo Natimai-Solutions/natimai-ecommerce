@@ -333,7 +333,7 @@ class IngramProductMappingCrud(
             List of sync-enabled mappings
         """
         statement = select(IngramProductMapping).where(
-            IngramProductMapping.sync_enabled == True
+            IngramProductMapping.sync_enabled.is_(True)
         )
 
         if limit:
@@ -383,7 +383,7 @@ class IngramProductMappingCrud(
 
         statement = select(IngramProductMapping).where(
             and_(
-                IngramProductMapping.sync_enabled == True,
+                IngramProductMapping.sync_enabled.is_(True),
                 IngramProductMapping.last_synced < stale_threshold,
             )
         )

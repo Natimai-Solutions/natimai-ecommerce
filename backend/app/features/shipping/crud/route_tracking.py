@@ -343,7 +343,7 @@ class ShippingRouteTrackingCrud(
         Used for automatic progression (Ingram → Warehouse → Bora Bora)
         """
         # Get current tracking
-        current_tracking = await self.get(session=session, id=current_tracking_id)
+        current_tracking = await session.get(self.model, current_tracking_id)
         if not current_tracking:
             return None
 
@@ -516,10 +516,11 @@ class ShippingRouteTrackingConsolidationCrud(
     ) -> bool:
         """Add a tracking to consolidation"""
         # Get the tracking
-        tracking_crud = ShippingRouteTrackingCrud(ShippingRouteTracking)
-        tracking = await tracking_crud.get(session=session, id=tracking_id)
+        tracking = await session.get(ShippingRouteTracking, tracking_id)
         if not tracking:
             return False
+
+        tracking_crud = ShippingRouteTrackingCrud(ShippingRouteTracking)
 
         # Update tracking with consolidation ID
         await tracking_crud.update(
@@ -529,7 +530,7 @@ class ShippingRouteTrackingConsolidationCrud(
         )
 
         # Update consolidation total orders
-        consolidation = await self.get(session=session, id=consolidation_id)
+        consolidation = await session.get(self.model, consolidation_id)
         if consolidation:
             await self.update(
                 session=session,
@@ -546,13 +547,14 @@ class ShippingRouteTrackingConsolidationCrud(
     ) -> bool:
         """Remove a tracking from consolidation"""
         # Get the tracking
-        tracking_crud = ShippingRouteTrackingCrud(ShippingRouteTracking)
-        tracking = await tracking_crud.get(session=session, id=tracking_id)
+        tracking = await session.get(ShippingRouteTracking, tracking_id)
         if not tracking or not tracking.consolidation_id:
             return False
 
+        tracking_crud = ShippingRouteTrackingCrud(ShippingRouteTracking)
+
         # Get consolidation for count update
-        consolidation = await self.get(session=session, id=tracking.consolidation_id)
+        consolidation = await session.get(self.model, tracking.consolidation_id)
 
         # Remove from consolidation
         await tracking_crud.update(
@@ -577,7 +579,7 @@ class ShippingRouteTrackingConsolidationCrud(
         update_trackings: bool = True,
     ) -> ShippingRouteTrackingConsolidation | None:
         """Update consolidation status and optionally all linked trackings"""
-        consolidation = await self.get(session=session, id=consolidation_id)
+        consolidation = await session.get(self.model, consolidation_id)
         if not consolidation:
             return None
 
