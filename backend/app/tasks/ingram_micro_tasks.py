@@ -5,22 +5,25 @@ Handles scheduled and on-demand product catalog sync.
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
 from arq import cron
-from sqlmodel import or_
+from sqlmodel import col, or_
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.db import engine
-from app.features.product.crud.product import Product, crud_product
+from app.features.product.crud.product import crud_product
+from app.features.product.models.product import Product, ProductUpdate
 from app.services.ingram_micro_service import ingram_service
 
 logger = logging.getLogger(__name__)
 
 
 async def sync_ingram_products_task(
-    _ctx, categories: list[str] | None = None, **_kwargs
+    _ctx: dict[str, Any],
+    categories: list[str] | None = None,
+    **_kwargs: Any,
 ) -> dict[str, Any]:
     """
     ARQ task to synchronize products from Ingram Micro API
@@ -94,7 +97,9 @@ async def sync_ingram_products_task(
 
 
 async def sync_ingram_inventory_task(
-    _ctx, skus: list[str] | None = None, **_kwargs
+    _ctx: dict[str, Any],
+    skus: list[str] | None = None,
+    **_kwargs: Any,
 ) -> dict[str, Any]:
     """
     ARQ task to update inventory levels from Ingram Micro API
@@ -121,8 +126,8 @@ async def sync_ingram_inventory_task(
                 result = await crud_product.read_multi(
                     session,
                     filter=or_(
-                        Product.last_supplier_sync <= one_hour_ago,
-                        Product.last_supplier_sync.is_(None),
+                        col(Product.last_supplier_sync) <= one_hour_ago,
+                        col(Product.last_supplier_sync).is_(None),
                     ),
                 )
                 products = result.get("data", [])
@@ -147,8 +152,6 @@ async def sync_ingram_inventory_task(
 
                     # Update database with inventory levels AND prices
                     from decimal import Decimal
-
-                    from app.features.product.models.product import ProductUpdate
 
                     for sku, data in results.items():
                         try:
@@ -227,7 +230,9 @@ async def sync_ingram_inventory_task(
         }
 
 
-async def check_ingram_api_health_task(_ctx, **_kwargs) -> dict[str, Any]:
+async def check_ingram_api_health_task(
+    _ctx: dict[str, Any], **_kwargs: Any
+) -> dict[str, Any]:
     """
     ARQ task to check Ingram Micro API health and connectivity
 
@@ -267,7 +272,7 @@ async def check_ingram_api_health_task(_ctx, **_kwargs) -> dict[str, Any]:
 
 
 # Cron job configuration for scheduled synchronization
-def get_ingram_sync_cron_jobs():
+def get_ingram_sync_cron_jobs() -> list[Any]:
     """Get cron job configurations for Ingram Micro sync"""
 
     if not settings.INGRAM_SYNC_ENABLED:
@@ -279,7 +284,7 @@ def get_ingram_sync_cron_jobs():
     sync_hour_interval = settings.INGRAM_SYNC_INTERVAL_HOURS
     jobs.append(
         cron(
-            sync_ingram_products_task,
+            "sync_ingram_products_task",
             hour=set(range(0, 24, sync_hour_interval)),
             minute=0,
             second=0,
@@ -290,7 +295,7 @@ def get_ingram_sync_cron_jobs():
     # Inventory sync - more frequent (every 2 hours)
     jobs.append(
         cron(
-            sync_ingram_inventory_task,
+            "sync_ingram_inventory_task",
             hour=set(range(0, 24, 2)),
             minute=30,  # Offset from product sync
             second=0,
@@ -301,7 +306,7 @@ def get_ingram_sync_cron_jobs():
     # API health check - daily at 6 AM
     jobs.append(
         cron(
-            check_ingram_api_health_task,
+            "check_ingram_api_health_task",
             hour=6,
             minute=0,
             second=0,
@@ -361,7 +366,7 @@ async def trigger_manual_sync(categories: list[str] | None = None) -> str:
     )
 
     logger.info(f"Manual Ingram sync triggered with job ID: {job.job_id}")
-    return job.job_id
+    return cast(str, job.job_id)
 
 
 async def trigger_inventory_refresh(skus: list[str] | None = None) -> str:
@@ -414,4 +419,4 @@ async def trigger_inventory_refresh(skus: list[str] | None = None) -> str:
     )
 
     logger.info(f"Manual inventory refresh triggered with job ID: {job.job_id}")
-    return job.job_id
+    return cast(str, job.job_id)

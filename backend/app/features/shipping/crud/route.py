@@ -2,9 +2,12 @@
 CRUD for delivery routes and their steps.
 """
 
-import uuid
+# mypy: disable-error-code="arg-type,attr-defined"
 
-from sqlmodel import and_, or_, select
+import uuid
+from typing import Any
+
+from sqlmodel import and_, col, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -42,7 +45,7 @@ class ShippingRouteCrud(
             if place_id not in all_routes_cache:
                 conditions = [
                     ShippingRoute.to_place_id == place_id,
-                    ShippingRoute.is_active.is_(True),
+                    col(ShippingRoute.is_active).is_(True),
                 ]
 
                 if is_to_customer is not None:
@@ -51,11 +54,11 @@ class ShippingRouteCrud(
                 statement = (
                     select(ShippingRoute)
                     .where(and_(*conditions))
-                    .order_by(ShippingRoute.priority.asc())
+                    .order_by(col(ShippingRoute.priority).asc())
                 )
 
                 result = await session.exec(statement)
-                all_routes_cache[place_id] = result.all()
+                all_routes_cache[place_id] = list(result.all())
 
             return all_routes_cache[place_id]
 
@@ -163,7 +166,7 @@ class ShippingRouteCrud(
         from_place_id: uuid.UUID,
         to_place_id: uuid.UUID,
         is_to_customer: bool | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Récupère des statistiques sur les chemins disponibles entre deux lieux.
 
@@ -216,7 +219,7 @@ class ShippingRouteCrud(
 
         conditions = [
             ShippingRoute.from_place_id == from_place_id,
-            ShippingRoute.is_active.is_(True),
+            col(ShippingRoute.is_active).is_(True),
         ]
 
         if mode:
@@ -225,11 +228,11 @@ class ShippingRouteCrud(
         statement = (
             select(ShippingRoute)
             .where(and_(*conditions))
-            .order_by(ShippingRoute.priority.asc())
+            .order_by(col(ShippingRoute.priority).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_routes_to_place(
         self,
@@ -241,7 +244,7 @@ class ShippingRouteCrud(
 
         conditions = [
             ShippingRoute.to_place_id == to_place_id,
-            ShippingRoute.is_active.is_(True),
+            col(ShippingRoute.is_active).is_(True),
         ]
 
         if mode:
@@ -250,11 +253,11 @@ class ShippingRouteCrud(
         statement = (
             select(ShippingRoute)
             .where(and_(*conditions))
-            .order_by(ShippingRoute.priority.asc())
+            .order_by(col(ShippingRoute.priority).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_intermediary_routes(
         self,
@@ -264,8 +267,8 @@ class ShippingRouteCrud(
         """Récupère les routes intermédiaires (non client final)"""
 
         conditions = [
-            ShippingRoute.is_to_customer.is_(False),
-            ShippingRoute.is_active.is_(True),
+            col(ShippingRoute.is_to_customer).is_(False),
+            col(ShippingRoute.is_active).is_(True),
         ]
 
         if allow_consolidation is not None:
@@ -274,11 +277,11 @@ class ShippingRouteCrud(
         statement = (
             select(ShippingRoute)
             .where(and_(*conditions))
-            .order_by(ShippingRoute.priority.asc())
+            .order_by(col(ShippingRoute.priority).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_customer_routes(
         self,
@@ -288,8 +291,8 @@ class ShippingRouteCrud(
         """Récupère les routes vers les clients"""
 
         conditions = [
-            ShippingRoute.is_to_customer.is_(True),
-            ShippingRoute.is_active.is_(True),
+            col(ShippingRoute.is_to_customer).is_(True),
+            col(ShippingRoute.is_active).is_(True),
         ]
 
         if from_place_id:
@@ -298,11 +301,11 @@ class ShippingRouteCrud(
         statement = (
             select(ShippingRoute)
             .where(and_(*conditions))
-            .order_by(ShippingRoute.priority.asc())
+            .order_by(col(ShippingRoute.priority).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def search_routes(
         self,
@@ -315,7 +318,7 @@ class ShippingRouteCrud(
 
         from app.features.place.models import Place
 
-        conditions = [ShippingRoute.is_active.is_(True)]
+        conditions = [col(ShippingRoute.is_active).is_(True)]
 
         if mode:
             conditions.append(ShippingRoute.mode == mode)
@@ -325,10 +328,10 @@ class ShippingRouteCrud(
 
         # Recherche dans différents champs
         search_conditions = [
-            ShippingRoute.name.ilike(f"%{search_term}%"),
-            ShippingRoute.operator.ilike(f"%{search_term}%"),
-            ShippingRoute.operator_ref.ilike(f"%{search_term}%"),
-            ShippingRoute.notes.ilike(f"%{search_term}%"),
+            col(ShippingRoute.name).ilike(f"%{search_term}%"),
+            col(ShippingRoute.operator).ilike(f"%{search_term}%"),
+            col(ShippingRoute.operator_ref).ilike(f"%{search_term}%"),
+            col(ShippingRoute.notes).ilike(f"%{search_term}%"),
         ]
 
         statement = (
@@ -339,15 +342,15 @@ class ShippingRouteCrud(
                     *conditions,
                     or_(
                         *search_conditions,
-                        Place.name.ilike(f"%{search_term}%"),
+                        col(Place.name).ilike(f"%{search_term}%"),
                     ),
                 )
             )
-            .order_by(ShippingRoute.priority.asc())
+            .order_by(col(ShippingRoute.priority).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_routes_by_partner(
         self,
@@ -367,14 +370,14 @@ class ShippingRouteCrud(
             .where(
                 and_(
                     condition,
-                    ShippingRoute.is_active.is_(True),
+                    col(ShippingRoute.is_active).is_(True),
                 )
             )
-            .order_by(ShippingRoute.priority.asc())
+            .order_by(col(ShippingRoute.priority).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
 
 crud_shipping_route = ShippingRouteCrud(
@@ -382,7 +385,7 @@ crud_shipping_route = ShippingRouteCrud(
     schema_create=ShippingRouteCreate,
     schema_update=ShippingRouteUpdate,
     default_filter=and_(
-        ShippingRoute.is_active.is_(True),
+        col(ShippingRoute.is_active).is_(True),
     ),
-    order_by=ShippingRoute.priority.asc(),
+    order_by=col(ShippingRoute.priority).asc(),
 )

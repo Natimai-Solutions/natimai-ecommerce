@@ -14,28 +14,32 @@ from app.features.base.crud import CrudOperationError, track_crud_operation
 
 # Test the decorator without arguments
 @track_crud_operation
-async def test_method_no_args(session, *, data, user=None):
+async def test_method_no_args(
+    session: object, *, data: object, user: object = None
+) -> str:
     print(f"Method called with session: {session}, data: {data}, user: {user}")
     return "success"
 
 
 # Test the decorator with arguments
 @track_crud_operation(step_name="custom_operation")
-async def test_method_with_args(session, *, data, user=None):
-    print(
-        f"Custom method called with session: {session}, data: {data}, user: {user}"
-    )
+async def test_method_with_args(
+    session: object, *, data: object, user: object = None
+) -> str:
+    print(f"Custom method called with session: {session}, data: {data}, user: {user}")
     return "success"
 
 
 # Test error handling
 @track_crud_operation
-async def test_method_error(session, *, data, user=None):
+async def test_method_error(
+    session: object, *, data: object, user: object = None
+) -> None:
     _ = (session, data, user)
     raise ValueError("Test error")
 
 
-async def test_decorator():
+async def test_decorator() -> bool:
     """Test that the decorator works correctly"""
 
     print("🧪 Testing track_crud_operation decorator...")

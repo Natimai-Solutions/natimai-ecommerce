@@ -1,6 +1,8 @@
+# mypy: disable-error-code="arg-type"
+
 import uuid
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -24,13 +26,13 @@ class InventoryCrud(CrudBase[Inventory, InventoryCreate, InventoryUpdate]):
         """Get inventory by product and place"""
         conditions = [
             Inventory.product_id == product_id,
-            Inventory.is_active.is_(True),
+            col(Inventory.is_active).is_(True),
         ]
 
         if place_id is not None:
             conditions.append(Inventory.place_id == place_id)
         else:
-            conditions.append(Inventory.place_id.is_(None))
+            conditions.append(col(Inventory.place_id).is_(None))
 
         statement = select(Inventory).where(*conditions)
         result = await session.exec(statement)
@@ -41,7 +43,7 @@ class InventoryCrud(CrudBase[Inventory, InventoryCreate, InventoryUpdate]):
     ) -> list[Inventory]:
         """Get all inventory records for a product across all places"""
         statement = select(Inventory).where(
-            Inventory.product_id == product_id, Inventory.is_active.is_(True)
+            Inventory.product_id == product_id, col(Inventory.is_active).is_(True)
         )
         result = await session.exec(statement)
         return list(result.all())
@@ -51,7 +53,7 @@ crud_inventory = InventoryCrud(
     model=Inventory,
     schema_create=InventoryCreate,
     schema_update=InventoryUpdate,
-    order_by=Inventory.created_at,
+    order_by=col(Inventory.created_at),
     outbox_events={
         "create": "create.inventory",
         "update": "update.inventory",

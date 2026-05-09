@@ -37,7 +37,7 @@ async def test_connection() -> bool:
     try:
         async with AsyncSession(engine) as session:
             # Simple query to test connection
-            await session.exec(text("SELECT 1"))
+            await session.execute(text("SELECT 1"))
             return True
     except Exception as e:
         raise Exception(f"Database connection failed: {e}")

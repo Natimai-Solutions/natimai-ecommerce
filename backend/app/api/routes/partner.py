@@ -1,3 +1,5 @@
+from typing import Any
+
 from app.api.base_router import BaseRouter
 from app.features.partner.crud import crud_partner
 from app.features.partner.models import (
@@ -16,7 +18,7 @@ class PartnerRouter(
         PartnerUpdate,
         PartnerPublic,
         PartnersPublic,
-        type(crud_partner),
+        Any,
     ]
 ):
     pass

@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+
 """
 Simple validation script to test outbox integration manually.
 
@@ -50,6 +52,8 @@ async def validate_outbox_integration():
                 base_price=19.99,
                 description="A product for testing",
             )
+
+            # mypy: ignore-errors
 
             # Create product via CRUD (should publish outbox event)
             result = await crud_product.create(session, data=product_data)

@@ -16,6 +16,7 @@ from app.features.user.models.notification import (
     NotificationPublic,
     NotificationsPublic,
     NotificationUpdate,
+    UserNotificationCreate,
 )
 
 
@@ -93,7 +94,7 @@ async def get_user_unread_notifications_count(
     session: SessionDep,
     current_user: CurrentUser,
     user_id: uuid.UUID,
-) -> dict:
+) -> dict[str, object]:
     """Get count of unread notifications for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise HTTPException(status_code=403, detail="Not authorized")
@@ -141,7 +142,7 @@ async def mark_notification_as_read(
     current_user: CurrentUser,
     user_id: uuid.UUID,
     notification_id: uuid.UUID,
-) -> dict:
+) -> dict[str, str]:
     """Mark a notification as read for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise HTTPException(status_code=403, detail="Not authorized")
@@ -166,7 +167,7 @@ async def mark_all_notifications_as_read(
     session: SessionDep,
     current_user: CurrentUser,
     user_id: uuid.UUID,
-) -> dict:
+) -> dict[str, str]:
     """Mark all notifications as read for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
         raise HTTPException(status_code=403, detail="Not authorized")
@@ -220,11 +221,20 @@ async def create_user_notification(
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Create the notification
-    notification = await crud_notification.create(session=session, data=notification_in)
+    notification = await crud_notification.create(
+        session=session,
+        data=notification_in,
+        user=None,
+    )
 
     # Create the user-notification relationship
-    await crud_user_notification.create_for_user(
-        session=session, user_id=user_id, notification_id=notification.id
+    await crud_user_notification.create(
+        session=session,
+        data=UserNotificationCreate(
+            notification_id=notification.id,
+            user_id=user_id,
+        ),
+        user=None,
     )
 
     return NotificationPublic.model_validate(notification)

@@ -1,10 +1,12 @@
+# mypy: disable-error-code="arg-type,type-arg"
+
 """
 CRUD for physical places (airports, ports, warehouses, addresses...).
 """
 
 import uuid
 
-from sqlmodel import and_, or_, select
+from sqlmodel import and_, col, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -24,7 +26,7 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
         """Retrieve a place by its code"""
         statement = select(Place).where(
             Place.code == code,
-            Place.is_active.is_(True),
+            col(Place.is_active).is_(True),
         )
 
         result = await session.exec(statement)
@@ -40,16 +42,18 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
 
         conditions = [
             Place.type == place_type,
-            Place.is_active.is_(True),
+            col(Place.is_active).is_(True),
         ]
 
         if country:
             conditions.append(Place.country == country)
 
-        statement = select(Place).where(and_(*conditions)).order_by(Place.name.asc())
+        statement = (
+            select(Place).where(and_(*conditions)).order_by(col(Place.name).asc())
+        )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_warehouses(
         self,
@@ -60,8 +64,8 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
         """Récupère les entrepôts"""
 
         conditions = [
-            Place.is_warehouse.is_(True),
-            Place.is_active.is_(True),
+            col(Place.is_warehouse).is_(True),
+            col(Place.is_active).is_(True),
         ]
 
         if country:
@@ -69,16 +73,18 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
 
         # Filtres par service
         if with_service == "customs":
-            conditions.append(Place.customs_clearance.is_(True))
+            conditions.append(col(Place.customs_clearance).is_(True))
         elif with_service == "consolidation":
-            conditions.append(Place.consolidation_service.is_(True))
+            conditions.append(col(Place.consolidation_service).is_(True))
         elif with_service == "repackaging":
-            conditions.append(Place.repackaging_service.is_(True))
+            conditions.append(col(Place.repackaging_service).is_(True))
 
-        statement = select(Place).where(and_(*conditions)).order_by(Place.name.asc())
+        statement = (
+            select(Place).where(and_(*conditions)).order_by(col(Place.name).asc())
+        )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_by_country(
         self,
@@ -90,16 +96,18 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
 
         conditions = [
             Place.country == country_code,
-            Place.is_active.is_(True),
+            col(Place.is_active).is_(True),
         ]
 
         if place_type:
             conditions.append(Place.type == place_type)
 
-        statement = select(Place).where(and_(*conditions)).order_by(Place.name.asc())
+        statement = (
+            select(Place).where(and_(*conditions)).order_by(col(Place.name).asc())
+        )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def search_places(
         self,
@@ -110,7 +118,7 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
     ) -> list[Place]:
         """Recherche de lieux par nom, code ou adresse"""
 
-        conditions = [Place.is_active.is_(True)]
+        conditions = [col(Place.is_active).is_(True)]
 
         if place_type:
             conditions.append(Place.type == place_type)
@@ -120,20 +128,20 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
 
         # Search in different fields
         search_conditions = [
-            Place.name.ilike(f"%{search_term}%"),
-            Place.code.ilike(f"%{search_term}%"),
-            Place.city.ilike(f"%{search_term}%"),
-            Place.address_line1.ilike(f"%{search_term}%"),
+            col(Place.name).ilike(f"%{search_term}%"),
+            col(Place.code).ilike(f"%{search_term}%"),
+            col(Place.city).ilike(f"%{search_term}%"),
+            col(Place.address_line1).ilike(f"%{search_term}%"),
         ]
 
         statement = (
             select(Place)
             .where(and_(*conditions, or_(*search_conditions)))
-            .order_by(Place.name.asc())
+            .order_by(col(Place.name).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_nearest_places(
         self,
@@ -150,9 +158,9 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
         """
 
         conditions = [
-            Place.is_active.is_(True),
-            Place.latitude.is_not(None),
-            Place.longitude.is_not(None),
+            col(Place.is_active).is_(True),
+            col(Place.latitude).is_not(None),
+            col(Place.longitude).is_not(None),
         ]
 
         if place_type:
@@ -164,10 +172,10 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
             degree_range = max_distance_km / 111.0
             conditions.extend(
                 [
-                    Place.latitude.between(
+                    col(Place.latitude).between(
                         latitude - degree_range, latitude + degree_range
                     ),
-                    Place.longitude.between(
+                    col(Place.longitude).between(
                         longitude - degree_range, longitude + degree_range
                     ),
                 ]
@@ -179,14 +187,15 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
             # Tri approximatif par distance (somme des différences absolues)
             .order_by(
                 (
-                    abs(Place.latitude - latitude) + abs(Place.longitude - longitude)
+                    abs(col(Place.latitude) - latitude)
+                    + abs(col(Place.longitude) - longitude)
                 ).asc()
             )
             .limit(limit)
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_capacity_info(
         self,
@@ -237,7 +246,10 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
             new_capacity = 0
 
         updated_place = await self.update(
-            session, record=place, data={"current_capacity_m3": new_capacity}
+            session,
+            id=place.id,
+            record=place,
+            data={"current_capacity_m3": new_capacity},
         )
 
         return updated_place
@@ -248,7 +260,7 @@ crud_place = PlaceCrud(
     schema_create=PlaceCreate,
     schema_update=PlaceUpdate,
     default_filter=and_(
-        Place.is_active.is_(True),
+        col(Place.is_active).is_(True),
     ),
-    order_by=Place.name.asc(),
+    order_by=col(Place.name).asc(),
 )

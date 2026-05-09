@@ -19,7 +19,7 @@ import logging
 import os
 import signal
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TypedDict
 
 from app.outbox.health import health_checker
 
@@ -39,6 +39,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class SchedulerStats(TypedDict):
+    total_checks: int
+    total_recoveries: int
+    last_check: str | None
+    last_recovery: str | None
+
+
 class HealthCheckScheduler:
     """
     Scheduler pour les vérifications de santé de l'outbox.
@@ -46,11 +53,11 @@ class HealthCheckScheduler:
     Exécute périodiquement les vérifications et récupérations automatiques.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.running = False
-        self.task = None
+        self.task: asyncio.Task[None] | None = None
 
-    async def start(self):
+    async def start(self) -> None:
         """Démarre le scheduler."""
         logger.debug("Starting Outbox Health Check Scheduler")
         logger.debug("Check interval: %d seconds", HEALTH_CHECK_INTERVAL)
@@ -65,16 +72,16 @@ class HealthCheckScheduler:
 
         await self.task
 
-    def _signal_handler(self, signum, frame):
+    def _signal_handler(self, signum: int, _frame: Any) -> None:
         """Gestionnaire de signaux pour un arrêt propre."""
         logger.debug("Received signal %d, shutting down gracefully", signum)
         self.running = False
         if self.task:
             self.task.cancel()
 
-    async def _run_scheduler(self):
+    async def _run_scheduler(self) -> None:
         """Boucle principale du scheduler."""
-        stats = {
+        stats: SchedulerStats = {
             "total_checks": 0,
             "total_recoveries": 0,
             "last_check": None,
@@ -99,7 +106,7 @@ class HealthCheckScheduler:
                 logger.error("Unexpected error in scheduler: %s", str(e), exc_info=True)
                 await asyncio.sleep(30)  # Attendre avant de retry
 
-    async def _run_health_check(self, stats: dict[str, Any]):
+    async def _run_health_check(self, stats: SchedulerStats) -> None:
         """Exécute une vérification de santé complète."""
         check_start = datetime.now(timezone.utc)
 
@@ -156,7 +163,7 @@ class HealthCheckScheduler:
             logger.error("Health check execution failed: %s", str(e), exc_info=True)
 
 
-async def main():
+async def main() -> None:
     """Point d'entrée principal du service de health check."""
     logger.debug("Outbox Health Check Service starting...")
 

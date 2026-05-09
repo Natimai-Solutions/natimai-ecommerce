@@ -5,6 +5,7 @@ Tracks sync operations, results, and audit trail.
 
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel
@@ -57,7 +58,7 @@ class IngramSyncLogBase(SQLModel):
     duration_seconds: float | None = Field(
         default=None, description="Total sync duration in seconds"
     )
-    statistics: dict | None = Field(
+    statistics: dict[str, Any] | None = Field(
         default=None, sa_column=Column(JSON), description="Sync statistics and metrics"
     )
     error_message: str | None = Field(
@@ -96,7 +97,7 @@ class IngramSyncLogUpdate(SQLModel):
     status: SyncStatus | None = None
     completed_at: datetime | None = None
     duration_seconds: float | None = None
-    statistics: dict | None = None
+    statistics: dict[str, Any] | None = None
     error_message: str | None = None
 
 

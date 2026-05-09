@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 
 from fastapi import HTTPException
 
@@ -21,7 +22,7 @@ class GroupSecurityRouter(
         GroupSecurityUpdate,
         GroupSecurityPublic,
         GroupSecuritiesPublic,
-        type[crud_group_security],
+        Any,
     ]
 ):
     """Router for GroupSecurity endpoints"""
@@ -68,7 +69,7 @@ async def check_permission(
     table_name: str,
     permission: str,
     current_user: CurrentUser,
-) -> dict:
+) -> dict[str, str | bool]:
     """Check if a group has a specific permission on a table"""
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Admin access required")

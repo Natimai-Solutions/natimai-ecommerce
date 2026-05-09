@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlmodel import and_, desc, func, select
+from sqlmodel import and_, col, desc, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -60,7 +60,7 @@ class IngramSyncLogCrud(
             created_by=created_by,
         )
 
-        return await self.create(session=session, data=sync_data)
+        return await self.create(session=session, data=sync_data, user=None)
 
     async def start_sync(
         self, session: AsyncSession, sync_log_id: UUID
@@ -86,7 +86,7 @@ class IngramSyncLogCrud(
         session: AsyncSession,
         sync_log_id: UUID,
         status: SyncStatus,
-        statistics: dict | None = None,
+        statistics: dict[str, Any] | None = None,
         error_message: str | None = None,
     ) -> IngramSyncLog:
         """
@@ -152,7 +152,7 @@ class IngramSyncLogCrud(
             statement = statement.where(IngramSyncLog.sync_type == sync_type)
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_last_successful_sync(
         self,
@@ -207,14 +207,19 @@ class IngramSyncLogCrud(
 
         # Count syncs by status
         status_counts = await session.exec(
-            select(IngramSyncLog.status, func.count(IngramSyncLog.id).label("count"))
+            select(
+                IngramSyncLog.status, func.count(col(IngramSyncLog.id)).label("count")
+            )
             .where(IngramSyncLog.started_at >= since)
             .group_by(IngramSyncLog.status)
         )
 
         # Count syncs by type
         type_counts = await session.exec(
-            select(IngramSyncLog.sync_type, func.count(IngramSyncLog.id).label("count"))
+            select(
+                IngramSyncLog.sync_type,
+                func.count(col(IngramSyncLog.id)).label("count"),
+            )
             .where(IngramSyncLog.started_at >= since)
             .group_by(IngramSyncLog.sync_type)
         )
@@ -225,15 +230,17 @@ class IngramSyncLogCrud(
                 and_(
                     IngramSyncLog.started_at >= since,
                     IngramSyncLog.status == SyncStatus.SUCCESS,
-                    IngramSyncLog.duration_seconds.is_not(None),
+                    col(IngramSyncLog.duration_seconds).is_not(None),
                 )
             )
         )
 
+        status_rows = status_counts.all()
+        type_rows = type_counts.all()
         return {
             "period_days": days,
-            "status_breakdown": {row.status: row.count for row in status_counts.all()},
-            "type_breakdown": {row.sync_type: row.count for row in type_counts.all()},
+            "status_breakdown": {row[0]: row[1] for row in status_rows},
+            "type_breakdown": {row[0]: row[1] for row in type_rows},
             "average_duration_seconds": avg_duration.first(),
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -254,7 +261,7 @@ class IngramSyncLogCrud(
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_to_keep)
 
         # Count records to be deleted
-        count_statement = select(func.count(IngramSyncLog.id)).where(
+        count_statement = select(func.count(col(IngramSyncLog.id))).where(
             IngramSyncLog.created_at < cutoff_date
         )
         result = await session.exec(count_statement)
@@ -267,7 +274,7 @@ class IngramSyncLogCrud(
         old_logs = await session.exec(delete_statement)
 
         for log in old_logs.all():
-            session.delete(log)
+            await session.delete(log)
 
         await session.commit()
 
@@ -333,14 +340,14 @@ class IngramProductMappingCrud(
             List of sync-enabled mappings
         """
         statement = select(IngramProductMapping).where(
-            IngramProductMapping.sync_enabled.is_(True)
+            col(IngramProductMapping.sync_enabled).is_(True)
         )
 
         if limit:
             statement = statement.limit(limit)
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def update_last_synced(
         self,
@@ -383,13 +390,13 @@ class IngramProductMappingCrud(
 
         statement = select(IngramProductMapping).where(
             and_(
-                IngramProductMapping.sync_enabled.is_(True),
+                col(IngramProductMapping.sync_enabled).is_(True),
                 IngramProductMapping.last_synced < stale_threshold,
             )
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
 
 # Singleton instances

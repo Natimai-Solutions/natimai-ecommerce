@@ -1,4 +1,4 @@
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -14,7 +14,7 @@ class CategoryCrud(CrudBase[Category, CategoryCreate, CategoryUpdate]):
         """Récupère une catégorie par son nom"""
         statement = select(Category).where(
             Category.name == name,
-            Category.is_active.is_(True),
+            col(Category.is_active).is_(True),
         )
         result = await session.exec(statement)
         return result.first()
@@ -24,7 +24,7 @@ crud_category = CategoryCrud(
     model=Category,
     schema_create=CategoryCreate,
     schema_update=CategoryUpdate,
-    order_by=Category.name,
+    order_by=col(Category.name),
     outbox_events={
         "create": "create.category",
         "update": "update.category",

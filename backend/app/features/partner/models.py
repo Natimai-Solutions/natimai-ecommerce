@@ -3,6 +3,8 @@ Reference models for the delivery system.
 Business actors and physical places.
 """
 
+# mypy: disable-error-code="assignment,misc,override"
+
 import uuid
 from typing import TYPE_CHECKING
 

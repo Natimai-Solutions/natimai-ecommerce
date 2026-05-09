@@ -135,5 +135,5 @@ async def get_public_wishlists(
     wishlists = await crud_wishlist.get_public_wishlists(
         session=session, skip=skip, limit=limit
     )
-    count = await crud_wishlist.count_public_wishlists(session=session)
+    count = len(wishlists)
     return WishlistsPublic(data=wishlists, count=count)

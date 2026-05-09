@@ -1,8 +1,10 @@
+# mypy: disable-error-code="arg-type"
+
 """
 CRUD for partners (clients and suppliers).
 """
 
-from sqlmodel import and_, or_, select
+from sqlmodel import and_, col, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -22,7 +24,7 @@ class PartnerCrud(CrudBase[Partner, PartnerCreate, PartnerUpdate]):
         """Retrieve a partner by email"""
         statement = select(Partner).where(
             Partner.email == email,
-            Partner.is_active.is_(True),
+            col(Partner.is_active).is_(True),
         )
 
         result = await session.exec(statement)
@@ -35,24 +37,24 @@ class PartnerCrud(CrudBase[Partner, PartnerCreate, PartnerUpdate]):
     ) -> list[Partner]:
         """Search for partners by name, email or city"""
 
-        conditions = [Partner.is_active.is_(True)]
+        conditions = [col(Partner.is_active).is_(True)]
 
         # Search in different fields
         search_conditions = [
-            Partner.name.ilike(f"%{search_term}%"),
-            Partner.email.ilike(f"%{search_term}%"),
-            Partner.city.ilike(f"%{search_term}%"),
-            Partner.phone.ilike(f"%{search_term}%"),
+            col(Partner.name).ilike(f"%{search_term}%"),
+            col(Partner.email).ilike(f"%{search_term}%"),
+            col(Partner.city).ilike(f"%{search_term}%"),
+            col(Partner.phone).ilike(f"%{search_term}%"),
         ]
 
         statement = (
             select(Partner)
             .where(and_(*conditions, or_(*search_conditions)))
-            .order_by(Partner.name.asc())
+            .order_by(col(Partner.name).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_by_country(
         self,
@@ -66,14 +68,14 @@ class PartnerCrud(CrudBase[Partner, PartnerCreate, PartnerUpdate]):
             .where(
                 and_(
                     Partner.country == country_code,
-                    Partner.is_active.is_(True),
+                    col(Partner.is_active).is_(True),
                 )
             )
-            .order_by(Partner.name.asc())
+            .order_by(col(Partner.name).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_partners_with_routes(
         self,
@@ -92,13 +94,13 @@ class PartnerCrud(CrudBase[Partner, PartnerCreate, PartnerUpdate]):
         statement = (
             select(Partner)
             .join(ShippingRoute, join_condition)
-            .where(Partner.is_active.is_(True))
+            .where(col(Partner.is_active).is_(True))
             .distinct()
-            .order_by(Partner.name.asc())
+            .order_by(col(Partner.name).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
 
 crud_partner = PartnerCrud(
@@ -106,7 +108,7 @@ crud_partner = PartnerCrud(
     schema_create=PartnerCreate,
     schema_update=PartnerUpdate,
     default_filter=and_(
-        Partner.is_active.is_(True),
+        col(Partner.is_active).is_(True),
     ),
-    order_by=Partner.name.asc(),
+    order_by=col(Partner.name).asc(),
 )

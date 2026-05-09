@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 
 from fastapi import Depends, HTTPException
 
@@ -27,7 +28,7 @@ class GroupRouter(
         GroupUpdate,
         GroupPublic,
         GroupsPublic,
-        type[crud_group],
+        Any,
     ]
 ):
     """Router for Group endpoints"""
@@ -100,7 +101,7 @@ async def remove_user_from_group(
     group_id: uuid.UUID,
     user_id: uuid.UUID,
     current_user: CurrentUser,
-) -> dict:
+) -> dict[str, str]:
     """Remove a user from a group"""
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Admin access required")

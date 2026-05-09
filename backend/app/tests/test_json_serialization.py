@@ -3,6 +3,7 @@
 import datetime
 import json
 import uuid
+from typing import cast
 
 from sqlmodel import SQLModel
 
@@ -70,7 +71,7 @@ def test_payload_json_compatibility() -> None:
 
     payload = crud._build_outbox_payload(
         action="create",
-        record=MockRecord(),
+        record=cast(SerializationModel, MockRecord()),
         user=None,
         data={
             "name": "updated",

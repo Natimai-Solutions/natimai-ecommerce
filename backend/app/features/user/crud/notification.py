@@ -1,6 +1,6 @@
 import uuid
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -27,25 +27,28 @@ class NotificationCrud(CrudBase[Notification, NotificationCreate, NotificationUp
         """Get notifications for a specific user."""
         statement = (
             select(Notification)
-            .join(UserNotification, Notification.id == UserNotification.notification_id)
+            .join(
+                UserNotification,
+                col(Notification.id) == col(UserNotification.notification_id),
+            )
             .where(
                 UserNotification.user_id == user_id,
-                Notification.is_admin_active.is_(True),
-                Notification.is_active.is_(True),
+                col(Notification.is_admin_active).is_(True),
+                col(Notification.is_active).is_(True),
             )
         )
 
         if unread_only:
-            statement = statement.where(UserNotification.is_read.is_(False))
+            statement = statement.where(col(UserNotification.is_read).is_(False))
 
         statement = (
             statement.offset(skip)
             .limit(limit)
-            .order_by(UserNotification.sent_at.desc())
+            .order_by(col(UserNotification.sent_at).desc())
         )
 
         exec_result = await session.exec(statement)
-        return exec_result.all()
+        return list(exec_result.all())
 
     async def get_user_notification(
         self, session: AsyncSession, *, notification_id: uuid.UUID, user_id: uuid.UUID
@@ -53,12 +56,15 @@ class NotificationCrud(CrudBase[Notification, NotificationCreate, NotificationUp
         """Get a specific notification for a user."""
         statement = (
             select(Notification)
-            .join(UserNotification, Notification.id == UserNotification.notification_id)
+            .join(
+                UserNotification,
+                col(Notification.id) == col(UserNotification.notification_id),
+            )
             .where(
                 Notification.id == notification_id,
                 UserNotification.user_id == user_id,
-                Notification.is_admin_active.is_(True),
-                Notification.is_active.is_(True),
+                col(Notification.is_admin_active).is_(True),
+                col(Notification.is_active).is_(True),
             )
         )
         exec_result = await session.exec(statement)
@@ -99,16 +105,19 @@ class NotificationCrud(CrudBase[Notification, NotificationCreate, NotificationUp
         """Count notifications for a user."""
         statement = (
             select(Notification)
-            .join(UserNotification, Notification.id == UserNotification.notification_id)
+            .join(
+                UserNotification,
+                col(Notification.id) == col(UserNotification.notification_id),
+            )
             .where(
                 UserNotification.user_id == user_id,
-                Notification.is_admin_active.is_(True),
-                Notification.is_active.is_(True),
+                col(Notification.is_admin_active).is_(True),
+                col(Notification.is_active).is_(True),
             )
         )
 
         if unread_only:
-            statement = statement.where(UserNotification.is_read.is_(False))
+            statement = statement.where(col(UserNotification.is_read).is_(False))
 
         exec_result = await session.exec(statement)
         return len(exec_result.all())
@@ -128,8 +137,8 @@ class UserNotificationCrud(
         statement = select(self.model).where(
             self.model.user_id == user_id,
             self.model.notification_id == notification_id,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
         return exec_result.first()
@@ -141,8 +150,8 @@ class UserNotificationCrud(
         statement = select(self.model).where(
             self.model.notification_id == notification_id,
             self.model.user_id == user_id,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
         user_notification = exec_result.first()
@@ -166,9 +175,9 @@ class UserNotificationCrud(
         """Mark all notifications as read for a user."""
         statement = select(self.model).where(
             self.model.user_id == user_id,
-            self.model.is_read.is_(False),
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_read).is_(False),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
         user_notifications = exec_result.all()

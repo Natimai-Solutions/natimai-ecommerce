@@ -88,7 +88,7 @@ async def calculate_order_total(
     session: SessionDep,
     _current_user: CurrentUser,
     order_id: uuid.UUID,
-) -> dict:
+) -> dict[str, object]:
     """
     Calculer le total d'une commande à partir de ses lignes.
     """

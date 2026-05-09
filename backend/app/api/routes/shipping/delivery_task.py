@@ -1,3 +1,5 @@
+from typing import Any
+
 from app.api.base_router import BaseRouter
 from app.features.shipping.crud import (
     crud_delivery_task,
@@ -18,7 +20,7 @@ class DeliveryTaskRouter(
         DeliveryTaskUpdate,
         DeliveryTaskPublic,
         DeliveryTasksPublic,
-        type(crud_delivery_task),
+        Any,
     ]
 ):
     pass

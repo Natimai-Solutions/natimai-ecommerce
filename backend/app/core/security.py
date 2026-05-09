@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
 import jwt
 from passlib.context import CryptContext
@@ -36,7 +36,9 @@ def create_refresh_token(
 
 
 def decode_token(token: str) -> dict[str, Any]:
-    return jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
+    return cast(
+        dict[str, Any], jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
+    )
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

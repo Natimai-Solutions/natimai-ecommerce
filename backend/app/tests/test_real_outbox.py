@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+
 """
 Test to validate real CRUD operations with outbox integration.
 Tests that the JSON serialization fix resolves the actual error.

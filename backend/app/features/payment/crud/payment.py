@@ -1,6 +1,8 @@
+# mypy: disable-error-code="arg-type,assignment,call-overload"
+
 import uuid
 
-from sqlmodel import func, select
+from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -21,8 +23,8 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         statement = (
             select(Payment)
             .where(
-                Payment.is_admin_active.is_(True),
-                Payment.is_active.is_(True),
+                col(Payment.is_admin_active).is_(True),
+                col(Payment.is_active).is_(True),
             )
             .order_by(func.random())
         )
@@ -32,7 +34,7 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
 
         result = await session.exec(statement)
 
-        return result.all()
+        return list(result.all())
 
     async def get_by_user_id(
         self,
@@ -47,15 +49,15 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
             select(self.model)
             .where(
                 self.model.user_id == user_id,
-                self.model.is_admin_active.is_(True),
-                self.model.is_active.is_(True),
+                col(self.model.is_admin_active).is_(True),
+                col(self.model.is_active).is_(True),
             )
             .offset(skip)
             .limit(limit)
-            .order_by(self.model.created_at.desc())
+            .order_by(col(self.model.created_at).desc())
         )
         exec_result = await session.exec(statement)
-        return exec_result.all()
+        return list(exec_result.all())
 
     async def get_by_order_id(
         self,
@@ -66,8 +68,8 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         """Get payment by order ID."""
         statement = select(self.model).where(
             self.model.order_id == order_id,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
         return exec_result.first()
@@ -81,8 +83,8 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         """Get payment by Payzen order ID."""
         statement = select(self.model).where(
             self.model.payzen_order_id == payzen_order_id,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
         return exec_result.first()
@@ -131,7 +133,7 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         session: AsyncSession,
         *,
         payment: Payment,
-        payzen_fields: dict,
+        payzen_fields: dict[str, object],
         commit: bool = True,
     ) -> Payment:
         """

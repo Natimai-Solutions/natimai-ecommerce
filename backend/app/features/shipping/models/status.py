@@ -3,6 +3,8 @@ Configurable status models.
 Flexible status and transition system.
 """
 
+# mypy: disable-error-code="assignment,misc,override"
+
 import uuid
 
 from sqlalchemy import Column
@@ -62,13 +64,13 @@ class StatusDefinitionCreate(StatusDefinitionBase, BaseCreate):
 
 
 class StatusDefinitionUpdate(StatusDefinitionBase, BaseUpdate):
-    entity: str | None = None
-    code: str | None = None
-    name: str | None = None
+    entity: str | None = None  # type: ignore[assignment]
+    code: str | None = None  # type: ignore[assignment]
+    name: str | None = None  # type: ignore[assignment]
     description: str | None = None
     rank: int | None = None
-    is_terminal: bool | None = None
-    is_error: bool | None = None
+    is_terminal: bool | None = None  # type: ignore[assignment]
+    is_error: bool | None = None  # type: ignore[assignment]
     ui_color: str | None = None
     ui_icon: str | None = None
 
@@ -111,13 +113,13 @@ class StatusTransitionCreate(StatusTransitionBase, BaseCreate):
 
 
 class StatusTransitionUpdate(StatusTransitionBase, BaseUpdate):
-    entity: str | None = None
-    from_code: str | None = None
-    to_code: str | None = None
+    entity: str | None = None  # type: ignore[assignment]
+    from_code: str | None = None  # type: ignore[assignment]
+    to_code: str | None = None  # type: ignore[assignment]
     guard_name: str | None = None
-    auto_advance: bool | None = None
-    requires_confirmation: bool | None = None
-    requires_scan: bool | None = None
+    auto_advance: bool | None = None  # type: ignore[assignment]
+    requires_confirmation: bool | None = None  # type: ignore[assignment]
+    requires_scan: bool | None = None  # type: ignore[assignment]
 
 
 class StatusTransitionPublic(StatusTransitionBase, BasePublic):

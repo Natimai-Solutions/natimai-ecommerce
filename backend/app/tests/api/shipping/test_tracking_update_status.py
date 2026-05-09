@@ -39,11 +39,11 @@ async def test_update_status_accepts_new_status_id() -> None:
     session = AsyncMock()
     session.get = AsyncMock(return_value=new_status)
 
-    crud.read = AsyncMock(return_value=tracking)
-    crud.validate_status_transition = AsyncMock(return_value=True)
-    crud.get_status_transition = AsyncMock(return_value=None)
-    crud.update = AsyncMock(return_value=updated_tracking)
-    crud.create_status_log = AsyncMock()
+    crud.read = AsyncMock(return_value=tracking)  # type: ignore[method-assign]
+    crud.validate_status_transition = AsyncMock(return_value=True)  # type: ignore[method-assign]
+    crud.get_status_transition = AsyncMock(return_value=None)  # type: ignore[method-assign]
+    crud.update = AsyncMock(return_value=updated_tracking)  # type: ignore[method-assign]
+    crud.create_status_log = AsyncMock()  # type: ignore[method-assign]
 
     changed_by = uuid.uuid4()
     result = await crud.update_status(
@@ -55,14 +55,17 @@ async def test_update_status_accepts_new_status_id() -> None:
     )
 
     assert result is updated_tracking
+    assert session.get.await_args is not None
     assert session.get.await_args.args[1] == new_status_id
 
+    assert crud.update.await_args is not None
     update_kwargs = crud.update.await_args.kwargs
     assert update_kwargs["id"] == tracking_id
     assert update_kwargs["data"]["status_id"] == new_status_id
     assert update_kwargs["data"]["notes"] == "manual update"
     assert "last_status_update" in update_kwargs["data"]
 
+    assert crud.create_status_log.await_args is not None
     log_kwargs = crud.create_status_log.await_args.kwargs
     assert log_kwargs["from_status_id"] == old_status.id
     assert log_kwargs["to_status_id"] == new_status_id
@@ -86,12 +89,12 @@ async def test_update_status_keeps_legacy_new_status_code() -> None:
     tracking = SimpleNamespace(id=tracking_id, status=old_status)
     updated_tracking = SimpleNamespace(id=tracking_id, status=new_status)
 
-    crud.read = AsyncMock(return_value=tracking)
-    crud.get_status_by_code = AsyncMock(return_value=new_status)
-    crud.validate_status_transition = AsyncMock(return_value=True)
-    crud.get_status_transition = AsyncMock(return_value=None)
-    crud.update = AsyncMock(return_value=updated_tracking)
-    crud.create_status_log = AsyncMock()
+    crud.read = AsyncMock(return_value=tracking)  # type: ignore[method-assign]
+    crud.get_status_by_code = AsyncMock(return_value=new_status)  # type: ignore[method-assign]
+    crud.validate_status_transition = AsyncMock(return_value=True)  # type: ignore[method-assign]
+    crud.get_status_transition = AsyncMock(return_value=None)  # type: ignore[method-assign]
+    crud.update = AsyncMock(return_value=updated_tracking)  # type: ignore[method-assign]
+    crud.create_status_log = AsyncMock()  # type: ignore[method-assign]
 
     result = await crud.update_status(
         session=AsyncMock(),
@@ -103,9 +106,11 @@ async def test_update_status_keeps_legacy_new_status_code() -> None:
     assert result is updated_tracking
     crud.get_status_by_code.assert_awaited_once()
 
+    assert crud.update.await_args is not None
     update_kwargs = crud.update.await_args.kwargs
     assert update_kwargs["data"]["notes"] == "legacy note"
 
+    assert crud.create_status_log.await_args is not None
     log_kwargs = crud.create_status_log.await_args.kwargs
     assert log_kwargs["reason"] == "legacy note"
 

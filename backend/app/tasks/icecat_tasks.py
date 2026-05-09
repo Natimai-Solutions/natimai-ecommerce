@@ -5,9 +5,10 @@ Handles background jobs for enriching products with Icecat data (images, specifi
 
 import datetime
 import logging
-from typing import Any
+from typing import Any, cast
+from uuid import UUID
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import engine
@@ -81,10 +82,16 @@ async def enrich_product_with_icecat_task(
 
     logger.info(f"Starting Icecat enrichment for product ID: {product_id}")
 
+    try:
+        product_uuid = UUID(product_id)
+    except ValueError:
+        logger.error("Invalid product ID: %s", product_id)
+        return {"status": "error", "message": "Invalid product ID"}
+
     async with AsyncSession(engine) as session:
         try:
             # Get product from database
-            product = await crud_product.read(session, id=product_id)
+            product = await crud_product.read(session, id=product_uuid)
 
             if not product:
                 logger.error(f"Product not found: {product_id}")
@@ -120,7 +127,7 @@ async def enrich_product_with_icecat_task(
             # Update product in database
             if update_data:
                 await crud_product.update(
-                    session, id=product_id, data=update_data, record=product
+                    session, id=product_uuid, data=update_data, record=product
                 )
                 await session.commit()
 
@@ -179,12 +186,13 @@ async def batch_enrich_products_task(
             # - Have vendor part number and manufacturer
             query = (
                 select(Product)
-                .where(Product.is_supplier_managed.is_(True))
+                .where(col(Product.is_supplier_managed).is_(True))
                 .where(
-                    Product.is_enriched.is_(False) | Product.is_enriched.is_(None)
+                    col(Product.is_enriched).is_(False)
+                    | col(Product.is_enriched).is_(None)
                 )
-                .where(Product.vendor_part_number.is_not(None))
-                .where(Product.manufacturer.is_not(None))
+                .where(col(Product.vendor_part_number).is_not(None))
+                .where(col(Product.manufacturer).is_not(None))
                 .limit(limit)
             )
 
@@ -196,7 +204,7 @@ async def batch_enrich_products_task(
             for product in products:
                 stats["total_processed"] += 1
                 await session.refresh(product)
-                product_id = str(product.id)
+                product_id = product.id
 
                 try:
                     # Get Icecat enrichment data
@@ -249,12 +257,12 @@ async def trigger_product_enrichment(product_id: str) -> str:
     """
     from app.core.arq_pool import get_arq_pool
 
-    arq_pool = await get_arq_pool()
+    arq_pool = await get_arq_pool()  # type: ignore[no-untyped-call]
 
     job = await arq_pool.enqueue_job(
         "enrich_product_with_icecat_task", product_id=product_id
     )
-    return job.job_id
+    return cast(str, job.job_id)
 
 
 async def trigger_batch_enrichment(limit: int = 50) -> str:
@@ -269,7 +277,7 @@ async def trigger_batch_enrichment(limit: int = 50) -> str:
     """
     from app.core.arq_pool import get_arq_pool
 
-    arq_pool = await get_arq_pool()
+    arq_pool = await get_arq_pool()  # type: ignore[no-untyped-call]
 
     job = await arq_pool.enqueue_job("batch_enrich_products_task", limit=limit)
-    return job.job_id
+    return cast(str, job.job_id)

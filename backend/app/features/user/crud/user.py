@@ -1,3 +1,4 @@
+import uuid
 from typing import Any
 
 from sqlmodel import select
@@ -10,29 +11,40 @@ from app.features.user.models.user import User, UserCreate, UserUpdate
 
 class CrudUser(CrudBase[User, UserCreate, UserUpdate]):
     async def create(
-        self, session: AsyncSession, *, data: UserCreate, **kwargs
+        self,
+        session: AsyncSession,
+        *,
+        data: UserCreate,
+        user: User | None,
     ) -> User:
         """
         Create new user with automatic password hashing.
 
         The UserCreate model automatically converts 'password' to 'hashed_password'.
         """
-        return await super().create(session, data=data, **kwargs)
+        return await super().create(session, data=data, user=user)
 
     async def update(
         self,
         session: AsyncSession,
         *,
-        record: User,
+        id: uuid.UUID,
         data: UserUpdate | dict[str, Any],
-        **kwargs,
+        user: User | None = None,
+        record: User | None = None,
     ) -> User:
         """
         Update user with automatic password hashing if password is provided.
 
         The UserUpdate model automatically converts 'password' to 'hashed_password'.
         """
-        return await super().update(session, record=record, data=data, **kwargs)
+        return await super().update(
+            session,
+            id=id,
+            data=data,
+            user=user,
+            record=record,
+        )
 
     async def authenticate(
         self, session: AsyncSession, *, email: str, password: str

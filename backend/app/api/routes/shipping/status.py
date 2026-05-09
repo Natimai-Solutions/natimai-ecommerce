@@ -1,3 +1,5 @@
+from typing import Any
+
 from app.api.base_router import BaseRouter
 from app.features.shipping.crud import (
     crud_status_definition,
@@ -24,7 +26,7 @@ class StatusDefinitionRouter(
         StatusDefinitionUpdate,
         StatusDefinitionPublic,
         StatusDefinitionsPublic,
-        type(crud_status_definition),
+        Any,
     ]
 ):
     pass
@@ -37,7 +39,7 @@ class StatusTransitionRouter(
         StatusTransitionUpdate,
         StatusTransitionPublic,
         StatusTransitionsPublic,
-        type(crud_status_transition),
+        Any,
     ]
 ):
     pass

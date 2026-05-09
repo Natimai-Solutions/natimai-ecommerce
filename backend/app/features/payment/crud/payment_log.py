@@ -1,6 +1,6 @@
 import uuid
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -25,15 +25,15 @@ class PaymentLogCrud(CrudBase[PaymentLog, PaymentLogCreate, PaymentLogUpdate]):
             select(self.model)
             .where(
                 self.model.payment_id == payment_id,
-                self.model.is_admin_active.is_(True),
-                self.model.is_active.is_(True),
+                col(self.model.is_admin_active).is_(True),
+                col(self.model.is_active).is_(True),
             )
             .offset(skip)
             .limit(limit)
-            .order_by(self.model.created_at.desc())
+            .order_by(col(self.model.created_at).desc())
         )
         exec_result = await session.exec(statement)
-        return exec_result.all()
+        return list(exec_result.all())
 
     async def get_by_payzen_trans_id(
         self,
@@ -44,8 +44,8 @@ class PaymentLogCrud(CrudBase[PaymentLog, PaymentLogCreate, PaymentLogUpdate]):
         """Get a payment log by Payzen transaction ID."""
         statement = select(self.model).where(
             self.model.payzen_trans_id == payzen_trans_id,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
         return exec_result.first()
@@ -55,5 +55,5 @@ crud_payment_log = PaymentLogCrud(
     model=PaymentLog,
     schema_create=PaymentLogCreate,
     schema_update=PaymentLogUpdate,
-    order_by=PaymentLog.created_at,
+    order_by=col(PaymentLog.created_at),
 )

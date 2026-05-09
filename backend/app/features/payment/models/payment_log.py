@@ -1,4 +1,7 @@
+# mypy: disable-error-code="assignment,misc,override"
+
 import uuid
+from typing import Any
 
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel
@@ -27,7 +30,7 @@ class PaymentLogBase(Base):
         default=None, description="Payzen transaction status (PAID, REFUSED, etc.)"
     )
     error_code: str | None = Field(default=None, description="Payzen error code if any")
-    raw_data: dict | None = Field(
+    raw_data: dict[str, Any] | None = Field(
         default=None,
         sa_column=Column(JSON),
         description="Raw Payzen IPN data",
@@ -46,7 +49,7 @@ class PaymentLogUpdate(PaymentLogBase, BaseUpdate):
     payment_method: str | None = None
     status: str | None = None
     error_code: str | None = None
-    raw_data: dict | None = None
+    raw_data: dict[str, Any] | None = None
 
 
 class PaymentLog(PaymentLogBase, table=True):

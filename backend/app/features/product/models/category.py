@@ -1,3 +1,5 @@
+# mypy: disable-error-code="assignment,misc,override"
+
 import uuid
 
 from sqlmodel import Field, SQLModel

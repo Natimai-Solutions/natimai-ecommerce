@@ -26,7 +26,10 @@ class PaymentRouter(
 
 
 class Auth:
-    pass
+    read: bool = True
+    create: bool = True
+    update: bool = True
+    delete: bool = True
 
 
 router = PaymentRouter(

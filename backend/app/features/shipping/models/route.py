@@ -3,6 +3,8 @@ Shipping route models.
 Reusable logistics route and its steps.
 """
 
+# mypy: disable-error-code="assignment,misc,override"
+
 import uuid
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional

@@ -7,6 +7,7 @@ including form token generation and IPN (Instant Payment Notification) handling.
 
 import logging
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -35,7 +36,7 @@ class FormTokenRequest(BaseModel):
     return_url: str | None = Field(
         default=None, description="URL to return to after payment"
     )
-    metadata: dict | None = Field(
+    metadata: dict[str, Any] | None = Field(
         default=None, description="Additional metadata for the payment"
     )
 

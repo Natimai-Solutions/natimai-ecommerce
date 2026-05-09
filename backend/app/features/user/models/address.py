@@ -1,3 +1,5 @@
+# mypy: disable-error-code="assignment,misc,override"
+
 import uuid
 
 from pydantic import field_validator

@@ -5,7 +5,7 @@ from sqlmodel import Field, SQLModel
 
 
 class BaseCreate(SQLModel):
-    is_active: bool | None = Field(default=True)
+    is_active: bool = Field(default=True)
 
 
 class BaseUpdate(SQLModel):

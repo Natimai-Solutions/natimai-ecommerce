@@ -125,7 +125,7 @@ async def create_payzen_form_token(
     customer_last_name: str = "",
     return_url: str | None = None,
     form_action: str = "SILENT",
-    metadata: dict | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Create a formToken via PayZen REST API.

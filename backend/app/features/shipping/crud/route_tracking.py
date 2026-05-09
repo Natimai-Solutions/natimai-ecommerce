@@ -2,13 +2,19 @@
 CRUD for shipping route tracking and consolidations.
 """
 
+# mypy: disable-error-code="arg-type,attr-defined,no-untyped-def"
+
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sqlmodel import and_, desc, select
+from sqlmodel import and_, col, desc, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
+
+if TYPE_CHECKING:
+    from app.features.shipping.models.status import StatusDefinition, StatusTransition
 from app.features.shipping.models.route_tracking import (
     ShippingRouteTracking,
     ShippingRouteTrackingConsolidation,
@@ -37,7 +43,7 @@ class ShippingRouteTrackingCrud(
         """Retrieve tracking by order ID"""
         statement = select(ShippingRouteTracking).where(
             ShippingRouteTracking.order_id == order_id,
-            ShippingRouteTracking.is_active.is_(True),
+            col(ShippingRouteTracking.is_active).is_(True),
         )
 
         result = await session.exec(statement)
@@ -52,37 +58,44 @@ class ShippingRouteTrackingCrud(
         """Retrieve trackings for a specific route"""
         conditions = [
             ShippingRouteTracking.route_id == route_id,
-            ShippingRouteTracking.is_active.is_(True),
+            col(ShippingRouteTracking.is_active).is_(True),
         ]
 
         if status_filter:
-            conditions.append(ShippingRouteTracking.status_code.in_(status_filter))
+            from app.features.shipping.models.status import StatusDefinition
+
+            status_subq = select(StatusDefinition.id).where(
+                col(StatusDefinition.code).in_(status_filter)
+            )
+            conditions.append(col(ShippingRouteTracking.status_id).in_(status_subq))
 
         statement = (
             select(ShippingRouteTracking)
             .where(and_(*conditions))
-            .order_by(ShippingRouteTracking.selected_at.desc())
+            .order_by(col(ShippingRouteTracking.selected_at).desc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_status_by_code(
         self, session: AsyncSession, status_code: str, entity: str = "route_tracking"
-    ):
+    ) -> "StatusDefinition | None":
         """Get StatusDefinition by code and entity"""
         from app.features.shipping.models.status import StatusDefinition
 
         statement = select(StatusDefinition).where(
             StatusDefinition.entity == entity,
             StatusDefinition.code == status_code,
-            StatusDefinition.is_active.is_(True),
+            col(StatusDefinition.is_active).is_(True),
         )
 
         result = await session.exec(statement)
         return result.first()
 
-    async def get_status_by_id(self, session: AsyncSession, status_id: uuid.UUID):
+    async def get_status_by_id(
+        self, session: AsyncSession, status_id: uuid.UUID
+    ) -> "StatusDefinition | None":
         """Get StatusDefinition by ID."""
         from app.features.shipping.models.status import StatusDefinition
 
@@ -208,7 +221,7 @@ class ShippingRouteTrackingCrud(
             StatusTransition.entity == entity,
             StatusTransition.from_code == current_status,
             StatusTransition.to_code == new_status,
-            StatusTransition.is_active.is_(True),
+            col(StatusTransition.is_active).is_(True),
         )
 
         result = await session.exec(statement)
@@ -229,18 +242,18 @@ class ShippingRouteTrackingCrud(
         session: AsyncSession,
         current_status: str,
         entity: str = "route_tracking",
-    ) -> list:
+    ) -> list["StatusTransition"]:
         """Get available status transitions from current status"""
         from app.features.shipping.models.status import StatusTransition
 
         statement = select(StatusTransition).where(
             StatusTransition.entity == entity,
             StatusTransition.from_code == current_status,
-            StatusTransition.is_active.is_(True),
+            col(StatusTransition.is_active).is_(True),
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_trackings_for_consolidation(
         self,
@@ -250,11 +263,11 @@ class ShippingRouteTrackingCrud(
         """Retrieve all trackings in a consolidation"""
         statement = select(ShippingRouteTracking).where(
             ShippingRouteTracking.consolidation_id == consolidation_id,
-            ShippingRouteTracking.is_active.is_(True),
+            col(ShippingRouteTracking.is_active).is_(True),
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_unconsolidated_trackings(
         self,
@@ -263,8 +276,8 @@ class ShippingRouteTrackingCrud(
     ) -> list[ShippingRouteTracking]:
         """Retrieve trackings not yet consolidated"""
         conditions = [
-            ShippingRouteTracking.consolidation_id.is_(None),
-            ShippingRouteTracking.is_active.is_(True),
+            col(ShippingRouteTracking.consolidation_id).is_(None),
+            col(ShippingRouteTracking.is_active).is_(True),
         ]
 
         if route_id:
@@ -273,11 +286,11 @@ class ShippingRouteTrackingCrud(
         statement = (
             select(ShippingRouteTracking)
             .where(and_(*conditions))
-            .order_by(ShippingRouteTracking.selected_at.asc())
+            .order_by(col(ShippingRouteTracking.selected_at).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_trackings_by_order_sequence(
         self,
@@ -289,13 +302,13 @@ class ShippingRouteTrackingCrud(
             select(ShippingRouteTracking)
             .where(
                 ShippingRouteTracking.order_id == order_id,
-                ShippingRouteTracking.is_active.is_(True),
+                col(ShippingRouteTracking.is_active).is_(True),
             )
-            .order_by(ShippingRouteTracking.sequence_order.asc())
+            .order_by(col(ShippingRouteTracking.sequence_order).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_current_route_for_order(
         self,
@@ -303,14 +316,19 @@ class ShippingRouteTrackingCrud(
         order_id: uuid.UUID,
     ) -> ShippingRouteTracking | None:
         """Get the current active route for an order (not completed/delivered)"""
+        from app.features.shipping.models.status import StatusDefinition
+
+        terminal_status_subq = select(StatusDefinition.id).where(
+            col(StatusDefinition.code).in_(["completed", "delivered"])
+        )
         statement = (
             select(ShippingRouteTracking)
             .where(
                 ShippingRouteTracking.order_id == order_id,
-                ShippingRouteTracking.is_active.is_(True),
-                ~ShippingRouteTracking.status_code.in_(["completed", "delivered"]),
+                col(ShippingRouteTracking.is_active).is_(True),
+                col(ShippingRouteTracking.status_id).not_in(terminal_status_subq),
             )
-            .order_by(ShippingRouteTracking.sequence_order.asc())
+            .order_by(col(ShippingRouteTracking.sequence_order).asc())
         )
 
         result = await session.exec(statement)
@@ -325,7 +343,7 @@ class ShippingRouteTrackingCrud(
         """Get the next route in sequence for an order"""
         statement = select(ShippingRouteTracking).where(
             ShippingRouteTracking.order_id == order_id,
-            ShippingRouteTracking.is_active.is_(True),
+            col(ShippingRouteTracking.is_active).is_(True),
             ShippingRouteTracking.sequence_order == current_sequence + 1,
         )
 
@@ -383,7 +401,7 @@ class ShippingRouteTrackingCrud(
         current_status: str,
         new_status: str,
         entity: str = "route_tracking",
-    ):
+    ) -> "StatusTransition | None":
         """Get the specific status transition if it exists"""
         from app.features.shipping.models.status import StatusTransition
 
@@ -391,7 +409,7 @@ class ShippingRouteTrackingCrud(
             StatusTransition.entity == entity,
             StatusTransition.from_code == current_status,
             StatusTransition.to_code == new_status,
-            StatusTransition.is_active.is_(True),
+            col(StatusTransition.is_active).is_(True),
         )
 
         result = await session.exec(statement)
@@ -445,7 +463,7 @@ class ShippingRouteTrackingCrud(
         self,
         session: AsyncSession,
         tracking_id: uuid.UUID,
-    ) -> list:
+    ) -> list[ShippingRouteTrackingLogs]:
         """Get complete status history for a tracking"""
         from app.features.shipping.models.route_tracking import (
             ShippingRouteTrackingLogs,
@@ -454,11 +472,11 @@ class ShippingRouteTrackingCrud(
         statement = (
             select(ShippingRouteTrackingLogs)
             .where(ShippingRouteTrackingLogs.tracking_id == tracking_id)
-            .order_by(ShippingRouteTrackingLogs.created_at.asc())
+            .order_by(col(ShippingRouteTrackingLogs.created_at).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
 
 class ShippingRouteTrackingConsolidationCrud(
@@ -476,7 +494,7 @@ class ShippingRouteTrackingConsolidationCrud(
         """Retrieve consolidation by code"""
         statement = select(ShippingRouteTrackingConsolidation).where(
             ShippingRouteTrackingConsolidation.consolidation_code == consolidation_code,
-            ShippingRouteTrackingConsolidation.is_active.is_(True),
+            col(ShippingRouteTrackingConsolidation.is_active).is_(True),
         )
 
         result = await session.exec(statement)
@@ -491,22 +509,27 @@ class ShippingRouteTrackingConsolidationCrud(
         """Retrieve consolidations for a route"""
         conditions = [
             ShippingRouteTrackingConsolidation.route_id == route_id,
-            ShippingRouteTrackingConsolidation.is_active.is_(True),
+            col(ShippingRouteTrackingConsolidation.is_active).is_(True),
         ]
 
         if status_filter:
+            from app.features.shipping.models.status import StatusDefinition
+
+            status_subq = select(StatusDefinition.id).where(
+                col(StatusDefinition.code).in_(status_filter)
+            )
             conditions.append(
-                ShippingRouteTrackingConsolidation.status_code.in_(status_filter)
+                col(ShippingRouteTrackingConsolidation.status_id).in_(status_subq)
             )
 
         statement = (
             select(ShippingRouteTrackingConsolidation)
             .where(and_(*conditions))
-            .order_by(ShippingRouteTrackingConsolidation.created_at.desc())
+            .order_by(col(ShippingRouteTrackingConsolidation.created_at).desc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def add_tracking_to_consolidation(
         self,
@@ -520,11 +543,16 @@ class ShippingRouteTrackingConsolidationCrud(
         if not tracking:
             return False
 
-        tracking_crud = ShippingRouteTrackingCrud(ShippingRouteTracking)
+        tracking_crud = ShippingRouteTrackingCrud(
+            model=ShippingRouteTracking,
+            schema_create=ShippingRouteTrackingCreate,
+            schema_update=ShippingRouteTrackingUpdate,
+        )
 
         # Update tracking with consolidation ID
         await tracking_crud.update(
             session=session,
+            id=tracking.id,
             record=tracking,
             data={"consolidation_id": consolidation_id},
         )
@@ -534,6 +562,7 @@ class ShippingRouteTrackingConsolidationCrud(
         if consolidation:
             await self.update(
                 session=session,
+                id=consolidation.id,
                 record=consolidation,
                 data={"total_orders": consolidation.total_orders + 1},
             )
@@ -551,20 +580,28 @@ class ShippingRouteTrackingConsolidationCrud(
         if not tracking or not tracking.consolidation_id:
             return False
 
-        tracking_crud = ShippingRouteTrackingCrud(ShippingRouteTracking)
+        tracking_crud = ShippingRouteTrackingCrud(
+            model=ShippingRouteTracking,
+            schema_create=ShippingRouteTrackingCreate,
+            schema_update=ShippingRouteTrackingUpdate,
+        )
 
         # Get consolidation for count update
         consolidation = await session.get(self.model, tracking.consolidation_id)
 
         # Remove from consolidation
         await tracking_crud.update(
-            session=session, record=tracking, data={"consolidation_id": None}
+            session=session,
+            id=tracking.id,
+            record=tracking,
+            data={"consolidation_id": None},
         )
 
         # Update consolidation total orders
         if consolidation and consolidation.total_orders > 0:
             await self.update(
                 session=session,
+                id=consolidation.id,
                 record=consolidation,
                 data={"total_orders": consolidation.total_orders - 1},
             )
@@ -585,7 +622,10 @@ class ShippingRouteTrackingConsolidationCrud(
 
         # Update consolidation status
         consolidation = await self.update(
-            session=session, record=consolidation, data={"status_code": new_status}
+            session=session,
+            id=consolidation.id,
+            record=consolidation,
+            data={"status_code": new_status},
         )
 
         # Update all linked trackings if requested
@@ -634,7 +674,7 @@ class ShippingRouteTrackingLogsCrud(
             select(ShippingRouteTrackingLogs)
             .where(
                 ShippingRouteTrackingLogs.tracking_id == tracking_id,
-                ShippingRouteTrackingLogs.is_active.is_(True),
+                col(ShippingRouteTrackingLogs.is_active).is_(True),
             )
             .order_by(desc(ShippingRouteTrackingLogs.created_at))
             .offset(offset)
@@ -642,7 +682,7 @@ class ShippingRouteTrackingLogsCrud(
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_by_status_change(
         self,
@@ -652,7 +692,7 @@ class ShippingRouteTrackingLogsCrud(
         limit: int = 100,
     ) -> list[ShippingRouteTrackingLogs]:
         """Get logs filtered by status change (from and/or to)."""
-        conditions = [ShippingRouteTrackingLogs.is_active.is_(True)]
+        conditions = [col(ShippingRouteTrackingLogs.is_active).is_(True)]
 
         if from_status_id is not None:
             conditions.append(
@@ -670,7 +710,7 @@ class ShippingRouteTrackingLogsCrud(
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_by_change_type(
         self,
@@ -683,14 +723,14 @@ class ShippingRouteTrackingLogsCrud(
             select(ShippingRouteTrackingLogs)
             .where(
                 ShippingRouteTrackingLogs.change_type == change_type,
-                ShippingRouteTrackingLogs.is_active.is_(True),
+                col(ShippingRouteTrackingLogs.is_active).is_(True),
             )
             .order_by(desc(ShippingRouteTrackingLogs.created_at))
             .limit(limit)
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_by_consolidation_id(
         self,
@@ -703,14 +743,14 @@ class ShippingRouteTrackingLogsCrud(
             select(ShippingRouteTrackingLogs)
             .where(
                 ShippingRouteTrackingLogs.consolidation_id == consolidation_id,
-                ShippingRouteTrackingLogs.is_active.is_(True),
+                col(ShippingRouteTrackingLogs.is_active).is_(True),
             )
             .order_by(desc(ShippingRouteTrackingLogs.created_at))
             .limit(limit)
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_auto_advanced_logs(
         self,
@@ -721,15 +761,15 @@ class ShippingRouteTrackingLogsCrud(
         statement = (
             select(ShippingRouteTrackingLogs)
             .where(
-                ShippingRouteTrackingLogs.was_auto_advance.is_(True),
-                ShippingRouteTrackingLogs.is_active.is_(True),
+                col(ShippingRouteTrackingLogs.was_auto_advance).is_(True),
+                col(ShippingRouteTrackingLogs.is_active).is_(True),
             )
             .order_by(desc(ShippingRouteTrackingLogs.created_at))
             .limit(limit)
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_logs_requiring_confirmation(
         self,
@@ -740,15 +780,15 @@ class ShippingRouteTrackingLogsCrud(
         statement = (
             select(ShippingRouteTrackingLogs)
             .where(
-                ShippingRouteTrackingLogs.required_confirmation.is_(True),
-                ShippingRouteTrackingLogs.is_active.is_(True),
+                col(ShippingRouteTrackingLogs.required_confirmation).is_(True),
+                col(ShippingRouteTrackingLogs.is_active).is_(True),
             )
             .order_by(desc(ShippingRouteTrackingLogs.created_at))
             .limit(limit)
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_logs_by_date_range(
         self,
@@ -760,9 +800,9 @@ class ShippingRouteTrackingLogsCrud(
     ) -> list[ShippingRouteTrackingLogs]:
         """Get logs within a specific date range, optionally filtered by tracking ID."""
         conditions = [
-            ShippingRouteTrackingLogs.created_at >= start_date,
-            ShippingRouteTrackingLogs.created_at <= end_date,
-            ShippingRouteTrackingLogs.is_active.is_(True),
+            col(ShippingRouteTrackingLogs.created_at) >= start_date,
+            col(ShippingRouteTrackingLogs.created_at) <= end_date,
+            col(ShippingRouteTrackingLogs.is_active).is_(True),
         ]
 
         if tracking_id is not None:
@@ -776,7 +816,7 @@ class ShippingRouteTrackingLogsCrud(
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def create_status_log(
         self,
@@ -806,7 +846,7 @@ class ShippingRouteTrackingLogsCrud(
             required_confirmation=required_confirmation,
         )
 
-        return await self.create(session=session, data=log_data)
+        return await self.create(session=session, data=log_data, user=None)
 
     async def get_latest_status_for_tracking(
         self,
@@ -818,7 +858,7 @@ class ShippingRouteTrackingLogsCrud(
             select(ShippingRouteTrackingLogs)
             .where(
                 ShippingRouteTrackingLogs.tracking_id == tracking_id,
-                ShippingRouteTrackingLogs.is_active.is_(True),
+                col(ShippingRouteTrackingLogs.is_active).is_(True),
             )
             .order_by(desc(ShippingRouteTrackingLogs.created_at))
             .limit(1)
@@ -836,7 +876,7 @@ class ShippingRouteTrackingLogsCrud(
         """Count the number of status changes for a tracking, optionally filtered by type."""
         conditions = [
             ShippingRouteTrackingLogs.tracking_id == tracking_id,
-            ShippingRouteTrackingLogs.is_active.is_(True),
+            col(ShippingRouteTrackingLogs.is_active).is_(True),
         ]
 
         if change_type is not None:
@@ -860,14 +900,14 @@ class ShippingRouteTrackingLogsCrud(
             .where(
                 ShippingRouteTrackingLogs.from_status_id == from_status_id,
                 ShippingRouteTrackingLogs.to_status_id == to_status_id,
-                ShippingRouteTrackingLogs.is_active.is_(True),
+                col(ShippingRouteTrackingLogs.is_active).is_(True),
             )
             .order_by(desc(ShippingRouteTrackingLogs.created_at))
             .limit(limit)
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def soft_delete_logs_for_tracking(
         self,

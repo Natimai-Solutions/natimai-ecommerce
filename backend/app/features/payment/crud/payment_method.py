@@ -1,4 +1,4 @@
-from sqlmodel import func, select
+from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -20,8 +20,8 @@ class PaymentMethodCrud(
         statement = (
             select(PaymentMethod)
             .where(
-                PaymentMethod.is_admin_active.is_(True),
-                PaymentMethod.is_active.is_(True),
+                col(PaymentMethod.is_admin_active).is_(True),
+                col(PaymentMethod.is_active).is_(True),
             )
             .order_by(func.random())
         )
@@ -31,12 +31,12 @@ class PaymentMethodCrud(
 
         result = await session.exec(statement)
 
-        return result.all()
+        return list(result.all())
 
 
 crud_payment_method = PaymentMethodCrud(
     model=PaymentMethod,
     schema_create=PaymentMethodCreate,
     schema_update=PaymentMethodUpdate,
-    order_by=PaymentMethod.name,
+    order_by=col(PaymentMethod.name),
 )

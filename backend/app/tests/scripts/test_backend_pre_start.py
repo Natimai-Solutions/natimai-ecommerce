@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import MagicMock, patch
 
 from sqlmodel import select
@@ -19,7 +20,7 @@ def test_init_successful_connection() -> None:
         patch.object(logger, "warn"),
     ):
         try:
-            init(engine_mock)
+            asyncio.run(init(engine_mock))
             connection_successful = True
         except Exception:
             connection_successful = False

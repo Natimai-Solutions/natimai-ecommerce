@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> PostgresDsn:
-        return MultiHostUrl.build(
+        return MultiHostUrl.build(  # type: ignore[return-value]
             scheme="postgresql+psycopg",
             username=self.POSTGRES_USER,
             password=self.POSTGRES_PASSWORD,
@@ -203,4 +203,4 @@ class Settings(BaseSettings):
         return self
 
 
-settings = Settings()  # type: ignore
+settings = Settings()

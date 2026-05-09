@@ -7,7 +7,6 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from pydantic import computed_field
 from sqlalchemy import Column
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlmodel import Field, Relationship, SQLModel
@@ -117,7 +116,6 @@ class ShippingRouteTracking(ShippingRouteTrackingBase, table=True):
         }
     )
 
-    @computed_field
     @property
     def is_terminal(self) -> bool:
         if self.consolidation and self.consolidation.status:
@@ -126,6 +124,7 @@ class ShippingRouteTracking(ShippingRouteTrackingBase, table=True):
                 return consolidation_is_terminal
         if self.status:
             return self.status.is_terminal
+        return False
 
 
 class ShippingRouteTrackingCreate(ShippingRouteTrackingBase, BaseCreate):

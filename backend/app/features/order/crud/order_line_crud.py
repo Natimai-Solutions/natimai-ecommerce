@@ -1,7 +1,7 @@
 import uuid
 from decimal import Decimal
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -21,7 +21,7 @@ class OrderLineCrud(CrudBase[OrderLine, OrderLineCreate, OrderLineUpdate]):
         """Récupère toutes les lignes d'une commande"""
         statement = select(OrderLine).where(
             OrderLine.order_id == order_id,
-            OrderLine.is_active.is_(True),
+            col(OrderLine.is_active).is_(True),
         )
         result = await session.exec(statement)
         return list(result.all())
@@ -38,11 +38,11 @@ class OrderLineCrud(CrudBase[OrderLine, OrderLineCreate, OrderLineUpdate]):
             select(OrderLine)
             .where(
                 OrderLine.product_id == product_id,
-                OrderLine.is_active.is_(True),
+                col(OrderLine.is_active).is_(True),
             )
             .offset(skip)
             .limit(limit)
-            .order_by(OrderLine.created_at.desc())
+            .order_by(col(OrderLine.created_at).desc())
         )
         result = await session.exec(statement)
         return list(result.all())
@@ -68,7 +68,7 @@ crud_order_line = OrderLineCrud(
     model=OrderLine,
     schema_create=OrderLineCreate,
     schema_update=OrderLineUpdate,
-    order_by=OrderLine.created_at.desc(),
+    order_by=col(OrderLine.created_at).desc(),
     outbox_events={
         "create": "create.order_line",
         "update": "update.order_line",

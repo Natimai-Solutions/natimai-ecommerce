@@ -24,5 +24,5 @@ class OutboxEvent(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    def touch(self):
+    def touch(self) -> None:
         self.updated_at = datetime.now(timezone.utc)

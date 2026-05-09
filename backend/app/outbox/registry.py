@@ -17,6 +17,8 @@ from .models import OutboxEvent
 
 logger = logging.getLogger(__name__)
 
+Handler = Callable[..., Any]
+
 
 class OutboxRegistry:
     """
@@ -31,8 +33,8 @@ class OutboxRegistry:
         model_classes (Dict[str, Type[Any]]): Mapping of event types to model classes
     """
 
-    def __init__(self):
-        self.handlers: dict[str, list[Callable]] = {}
+    def __init__(self) -> None:
+        self.handlers: dict[str, list[Handler]] = {}
         self.model_classes: dict[str, type[Any]] = {}
         logger.debug("Initialized OutboxRegistry")
 
@@ -107,8 +109,11 @@ class OutboxRegistry:
             raise
 
     def register_handler(
-        self, event_type: str, handler: Callable, model_class: type[Any] = None
-    ):
+        self,
+        event_type: str,
+        handler: Handler,
+        model_class: type[Any] | None = None,
+    ) -> None:
         """
         Register a handler function for a specific event type.
 
@@ -150,7 +155,7 @@ class OutboxRegistry:
             logger.error("Failed to register handler for %s: %s", event_type, str(e))
             raise
 
-    def get_handlers(self, event_type: str) -> list[Callable]:
+    def get_handlers(self, event_type: str) -> list[Handler]:
         """
         Get all registered handlers for a specific event type.
 
@@ -189,7 +194,7 @@ class OutboxRegistry:
         logger.debug("Listed %d registered event types", len(event_types))
         return event_types
 
-    def handler_count(self, event_type: str = None) -> int:
+    def handler_count(self, event_type: str | None = None) -> int:
         """
         Get the count of handlers for a specific event type or all event types.
 
@@ -204,7 +209,7 @@ class OutboxRegistry:
         else:
             return sum(len(handlers) for handlers in self.handlers.values())
 
-    def clear_handlers(self, event_type: str = None):
+    def clear_handlers(self, event_type: str | None = None) -> None:
         """
         Clear handlers for a specific event type or all event types.
 

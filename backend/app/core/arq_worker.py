@@ -1,6 +1,7 @@
 import importlib
 import logging
 import sys
+from typing import Any
 
 from arq.connections import RedisSettings, create_pool
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -21,7 +22,7 @@ from app.tasks.ingram_micro_tasks import (
 
 # Custom logging filter to suppress "already running elsewhere" messages
 class SuppressAlreadyRunningFilter(logging.Filter):
-    def filter(self, record):
+    def filter(self, record: logging.LogRecord) -> bool:
         return "already running elsewhere" not in record.getMessage()
 
 
@@ -42,13 +43,15 @@ logger = logging.getLogger(__name__)
 
 
 # Redis pool pour ARQ
-async def get_redis_pool():
+async def get_redis_pool() -> Any:
     """Get Redis pool for ARQ job enqueuing"""
     return await create_pool(RedisSettings.from_dsn(str(settings.REDIS_URL)))
 
 
 # Fonction générique pour résoudre et exécuter les handlers outbox
-async def execute_outbox_handler(_ctx, handler_path: str, **kwargs):
+async def execute_outbox_handler(
+    _ctx: dict[str, Any], handler_path: str, **kwargs: Any
+) -> None:
     """
     Résout et exécute un handler outbox depuis son chemin de module.
 
@@ -78,7 +81,7 @@ async def execute_outbox_handler(_ctx, handler_path: str, **kwargs):
 
 
 # Tes handlers ARQ existants
-async def example_handler(ctx, **kwargs):
+async def example_handler(_ctx: dict[str, Any], **_kwargs: Any) -> None:
     # ... logique du handler
     pass
 

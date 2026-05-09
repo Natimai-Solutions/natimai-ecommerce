@@ -57,7 +57,7 @@ class TestEnrichmentRequest(BaseModel):
 async def enrich_product(
     request: EnrichmentRequest,
     _session: SessionDep,
-    _current_user=Depends(get_current_active_superuser),
+    _current_user: Any = Depends(get_current_active_superuser),
 ) -> EnrichmentResponse:
     """
     Manually trigger Icecat enrichment for a specific product.
@@ -92,7 +92,7 @@ async def enrich_product(
 async def batch_enrich_products(
     request: BatchEnrichmentRequest,
     _session: SessionDep,
-    _current_user=Depends(get_current_active_superuser),
+    _current_user: Any = Depends(get_current_active_superuser),
 ) -> EnrichmentResponse:
     """
     Manually trigger batch Icecat enrichment for multiple products.
@@ -172,7 +172,7 @@ async def test_icecat_enrichment(
 
 @router.get("/status")
 async def get_enrichment_status(
-    _current_user=Depends(get_current_active_superuser),
+    _current_user: Any = Depends(get_current_active_superuser),
 ) -> dict[str, Any]:
     """
     Get Icecat enrichment status and configuration.

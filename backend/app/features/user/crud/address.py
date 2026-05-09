@@ -1,6 +1,6 @@
 import uuid
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -20,14 +20,14 @@ class AddressCrud(CrudBase[Address, AddressCreate, AddressUpdate]):
             select(self.model)
             .where(
                 self.model.user_id == user_id,
-                self.model.is_admin_active.is_(True),
-                self.model.is_active.is_(True),
+                col(self.model.is_admin_active).is_(True),
+                col(self.model.is_active).is_(True),
             )
             .offset(skip)
             .limit(limit)
         )
         exec_result = await session.exec(statement)
-        return exec_result.all()
+        return list(exec_result.all())
 
     async def get_by_user_and_type(
         self, session: AsyncSession, *, user_id: uuid.UUID, address_type: str
@@ -35,11 +35,11 @@ class AddressCrud(CrudBase[Address, AddressCreate, AddressUpdate]):
         statement = select(self.model).where(
             self.model.user_id == user_id,
             self.model.type == address_type,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
-        return exec_result.all()
+        return list(exec_result.all())
 
     async def create_for_user(
         self,
@@ -65,8 +65,8 @@ class AddressCrud(CrudBase[Address, AddressCreate, AddressUpdate]):
     async def count_by_user(self, session: AsyncSession, *, user_id: uuid.UUID) -> int:
         statement = select(self.model).where(
             self.model.user_id == user_id,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
         return len(exec_result.all())

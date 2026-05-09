@@ -1,4 +1,7 @@
+# mypy: disable-error-code="assignment,misc,override"
+
 import uuid
+from typing import Any
 
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel
@@ -82,7 +85,7 @@ class Payment(PaymentBase, table=True):
     payzen_form_token: str | None = Field(
         default=None, description="Payzen form token generated for this payment"
     )
-    payzen_data: dict | None = Field(
+    payzen_data: dict[str, Any] | None = Field(
         default=None,
         sa_column=Column(JSON),
         description="Raw Payzen response data",

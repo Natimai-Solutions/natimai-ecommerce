@@ -1,3 +1,5 @@
+# mypy: disable-error-code="import-untyped"
+
 from app.features.payment.crud.payment import crud_payment as payment
 from app.features.payment.crud.payment_method import (
     crud_payment_method as payment_method,

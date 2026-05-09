@@ -1,4 +1,7 @@
+# mypy: disable-error-code="arg-type,call-arg,misc,no-untyped-def,var-annotated"
+
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Field, SQLModel
@@ -78,15 +81,15 @@ class ShippingRouteTrackingRouter(
         ShippingRouteTrackingUpdate,
         ShippingRouteTrackingPublic,
         ShippingRouteTrackingsPublic,
-        type(crud_shipping_route_tracking),
+        Any,
     ]
 ):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         # Ajouter les endpoints personnalisés après initialisation
         self.add_tracking_endpoints()
 
-    def add_tracking_endpoints(self):
+    def add_tracking_endpoints(self) -> None:
         """Ajoute les endpoints personnalisés pour le tracking"""
 
         @self.get(

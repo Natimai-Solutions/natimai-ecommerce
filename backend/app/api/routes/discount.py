@@ -51,7 +51,7 @@ router = DiscountRouter(
 async def validate_coupon(
     session: SessionDep,
     code: str,
-) -> dict:
+) -> dict[str, object]:
     """
     Valider un code coupon.
     Retourne les informations du coupon si valide.

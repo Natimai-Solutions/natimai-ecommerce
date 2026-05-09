@@ -10,9 +10,9 @@ import importlib
 import logging
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.arq_pool import get_arq_pool
@@ -63,13 +63,13 @@ def resolve(path: str) -> Callable[..., Any]:
     try:
         mod, func = path.split(":")
         module = importlib.import_module(mod)
-        return getattr(module, func)
+        return cast(Callable[..., Any], getattr(module, func))
     except (ValueError, ImportError, AttributeError) as e:
         logger.error("Failed to resolve function path %s: %s", path, str(e))
         raise
 
 
-async def maybe_await(fn, *args, **kwargs):
+async def maybe_await(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
     """
     Call a function and await it if it's async.
 
@@ -87,7 +87,7 @@ async def maybe_await(fn, *args, **kwargs):
     return result
 
 
-async def enqueue_jobs_for_event(event: OutboxEvent):
+async def enqueue_jobs_for_event(event: OutboxEvent) -> None:
     """
     Use the registry to send handlers to ARQ for processing.
 
@@ -103,7 +103,7 @@ async def enqueue_jobs_for_event(event: OutboxEvent):
     try:
         logger.debug("Processing event ID %s of type: %s", event.id, event.type)
 
-        arq_pool = await get_arq_pool()
+        arq_pool = await get_arq_pool()  # type: ignore[no-untyped-call]
 
         # Get handlers from registry
         handlers = outbox_registry.get_handlers(event.type)
@@ -174,7 +174,7 @@ async def poll_outbox_once(session: AsyncSession) -> bool:
             select(OutboxEvent)
             .where(OutboxEvent.status == "PENDING")
             .where(OutboxEvent.next_run_at <= datetime.now(timezone.utc))
-            .order_by(OutboxEvent.created_at)
+            .order_by(col(OutboxEvent.created_at))
             .limit(1)
         )
         event = result.first()
@@ -242,12 +242,12 @@ class OutboxPoller:
     processing all pending events, individual events, and retrying failed events.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         logger.debug("Initialized OutboxPoller")
 
     async def process_pending_events(
         self, session: AsyncSession, limit: int | None = None
-    ):
+    ) -> int:
         """
         Process all pending events by sending them to ARQ.
 
@@ -266,14 +266,14 @@ class OutboxPoller:
                 "Starting batch processing of pending events (limit: %s)", limit
             )
 
-            arq_pool = await get_arq_pool()
+            arq_pool = await get_arq_pool()  # type: ignore[no-untyped-call]
 
             # Get all pending events that are due
             query = (
                 select(OutboxEvent)
                 .where(OutboxEvent.status == "PENDING")
                 .where(OutboxEvent.next_run_at <= datetime.now(timezone.utc))
-                .order_by(OutboxEvent.created_at)
+                .order_by(col(OutboxEvent.created_at))
             )
 
             if limit:

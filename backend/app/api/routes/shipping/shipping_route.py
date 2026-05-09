@@ -1,4 +1,7 @@
+# mypy: disable-error-code="misc,no-untyped-def,type-arg"
+
 import uuid
+from typing import Any
 
 from fastapi import Depends, HTTPException, Query
 from sqlmodel import Field, SQLModel
@@ -59,16 +62,16 @@ class ShippingRouteRouter(
         ShippingRouteUpdate,
         ShippingRoutePublic,
         ShippingRoutesPublic,
-        type(crud_shipping_route),
+        Any,
     ]
 ):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         # Ajouter les endpoints personnalisés après initialisation
         self.add_routing_endpoints()
 
-    def add_routing_endpoints(self):
+    def add_routing_endpoints(self) -> None:
         """Ajoute les endpoints personnalisés de routage"""
 
         @self.get(

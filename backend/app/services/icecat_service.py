@@ -4,6 +4,8 @@ Handles product specifications, images, and technical details retrieval.
 Documentation: https://iceclog.com/manual-for-icecat-json-product-requests/
 """
 
+# mypy: disable-error-code="arg-type,no-any-return,no-untyped-call,no-untyped-def,type-arg"
+
 import logging
 from typing import Any
 

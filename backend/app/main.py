@@ -1,3 +1,4 @@
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import sentry_sdk
@@ -19,7 +20,7 @@ if settings.SENTRY_DSN and settings.ENVIRONMENT != "local":
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI):
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
     print("Loading outbox handlers...")
     load_handlers()

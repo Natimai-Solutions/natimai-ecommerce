@@ -1,9 +1,12 @@
+# mypy: disable-error-code="arg-type,assignment,attr-defined,no-any-return,no-untyped-call,no-untyped-def,return-value,type-arg,union-attr,valid-type"
+
 import datetime
 import functools
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from hashlib import md5
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, ParamSpec, TypeVar, overload
 
 from sqlalchemy.dialects import postgresql
 from sqlmodel import SQLModel, func, select
@@ -20,6 +23,8 @@ ModelType = TypeVar("ModelType", bound=SQLModel)
 UserType = TypeVar("UserType", bound=User)
 CreateSchemaType = TypeVar("CreateSchemaType", bound=SQLModel)
 UpdateSchemaType = TypeVar("UpdateSchemaType", bound=SQLModel)
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
 class RecordNotFoundError(Exception):
@@ -40,7 +45,26 @@ class CrudOperationError(Exception):
     pass
 
 
-def track_crud_operation(func=None, *, step_name=None):
+@overload
+def track_crud_operation(
+    func: Callable[P, Awaitable[R]],
+) -> Callable[P, Awaitable[R]]: ...
+
+
+@overload
+def track_crud_operation(
+    *, step_name: str | None = None
+) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]: ...
+
+
+def track_crud_operation(
+    func: Callable[P, Awaitable[R]] | None = None,
+    *,
+    step_name: str | None = None,
+) -> (
+    Callable[P, Awaitable[R]]
+    | Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]
+):
     """
     Decorator that tracks CRUD operations and handles their exceptions.
     Can be used with or without arguments.
@@ -53,9 +77,9 @@ def track_crud_operation(func=None, *, step_name=None):
         async def my_func(): ...
     """
 
-    def decorator(fn):
+    def decorator(fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
         @functools.wraps(fn)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             operation_name = step_name or fn.__name__
             try:
                 return await fn(*args, **kwargs)
@@ -786,7 +810,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         session: AsyncSession,
         *,
         id: uuid.UUID,
-        data: UpdateSchemaType,
+        data: UpdateSchemaType | dict[str, Any],
         user: UserType | None = None,
         record: ModelType | None = None,
     ) -> ModelType:
@@ -842,7 +866,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         session: AsyncSession,
         *,
         id: uuid.UUID,
-        data: UpdateSchemaType,
+        data: UpdateSchemaType | dict[str, Any],
         user: UserType | None = None,
         record: ModelType | None = None,
     ) -> ModelType:

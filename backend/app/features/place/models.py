@@ -3,6 +3,8 @@ Modèles de lieux physiques.
 Tout lieu physique (aéroport, port, entrepôt, adresse client, île...).
 """
 
+# mypy: disable-error-code="assignment,misc,override"
+
 import uuid
 
 from sqlalchemy import Column

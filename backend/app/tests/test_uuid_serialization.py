@@ -14,7 +14,7 @@ class _DummyModel(SQLModel):
     pass
 
 
-def test_json_serialization():
+def test_json_serialization() -> None:
     """Test que la sérialisation JSON gère correctement UUID et datetime"""
 
     # Créer une instance du CRUD pour accéder à la méthode

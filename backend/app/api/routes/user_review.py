@@ -206,7 +206,7 @@ async def get_product_reviews(
 async def get_product_review_average(
     session: SessionDep,
     product_id: uuid.UUID,
-) -> dict:
+) -> dict[str, object]:
     """Get average rating for a specific product."""
     average_rating = await crud_review.get_average_rating_by_product(
         session=session, product_id=product_id

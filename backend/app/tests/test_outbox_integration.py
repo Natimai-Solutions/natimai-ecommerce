@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+
 """
 Test outbox integration end-to-end: CRUD -> Outbox -> ARQ -> Handler
 

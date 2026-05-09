@@ -24,10 +24,7 @@ class UserCreate(UserBase, BaseCreate):
     hashed_password: str | None = Field(default=None, exclude=True)  # Auto-généré
 
     @model_validator(mode="after")
-    def hash_password(self):
-        """
-        Automatically hash password when creating a user.
-        """
+    def hash_password(self) -> "UserCreate":
         if self.password and not self.hashed_password:
             self.hashed_password = get_password_hash(self.password)
         return self
@@ -41,13 +38,10 @@ class UserUpdate(BaseUpdate):
     is_superuser: bool | None = None
     is_verified: bool | None = None
     password: str | None = Field(default=None, min_length=8, max_length=128)
-    hashed_password: str | None = Field(default=None, exclude=True)  # Auto-généré
+    hashed_password: str | None = Field(default=None, exclude=True)
 
     @model_validator(mode="after")
-    def hash_password(self):
-        """
-        Automatically hash password when updating a user.
-        """
+    def hash_password(self) -> "UserUpdate":
         if self.password and not self.hashed_password:
             self.hashed_password = get_password_hash(self.password)
         return self
@@ -66,10 +60,7 @@ class UserPasswordUpdate(SQLModel):
     hashed_password: str | None = Field(default=None, exclude=True)  # Auto-généré
 
     @model_validator(mode="after")
-    def hash_password(self):
-        """
-        Automatically hash password when updating a user.
-        """
+    def hash_password(self) -> "UserPasswordUpdate":
         if self.new_password and not self.hashed_password:
             self.hashed_password = get_password_hash(self.new_password)
         return self

@@ -43,7 +43,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.db import engine, get_db
+from app.core.db import engine
 from app.outbox.loader import load_handlers
 from app.outbox.poller import OutboxPoller, poll_outbox_once
 
@@ -67,21 +67,23 @@ class OutboxPollerService:
     with various operation modes and configuration options.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.running = False
         self.poller = OutboxPoller()
 
-    def setup_signal_handlers(self):
+    def setup_signal_handlers(self) -> None:
         """Setup signal handlers for graceful shutdown."""
 
-        def signal_handler(signum, _frame):
+        def signal_handler(signum: int, _frame: object) -> None:
             logger.debug("Received signal %d, shutting down gracefully...", signum)
             self.running = False
 
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
-    async def run_continuous(self, interval: int = 10, max_events: int = None):
+    async def run_continuous(
+        self, interval: int = 10, max_events: int | None = None
+    ) -> None:
         """
         Run the poller continuously with the specified interval.
 
@@ -129,7 +131,7 @@ class OutboxPollerService:
 
         logger.debug("Outbox poller service stopped")
 
-    async def run_once(self, max_events: int = None):
+    async def run_once(self, max_events: int | None = None) -> int:
         """
         Process all pending events once and exit.
 
@@ -139,7 +141,7 @@ class OutboxPollerService:
         logger.debug("Running outbox poller once (max_events: %s)", max_events)
 
         try:
-            async with get_db() as session:
+            async with AsyncSession(engine) as session:
                 processed = await self.poller.process_pending_events(
                     session, max_events
                 )
@@ -151,7 +153,7 @@ class OutboxPollerService:
             logger.error("Error in one-time processing: %s", str(e), exc_info=True)
             return 0
 
-    async def run_single(self, event_id: str = None):
+    async def run_single(self, event_id: str | None = None) -> int:
         """
         Process a single event and exit.
 
@@ -161,7 +163,7 @@ class OutboxPollerService:
         logger.debug("Processing single event (ID: %s)", event_id or "any")
 
         try:
-            async with get_db() as session:
+            async with AsyncSession(engine) as session:
                 if event_id:
                     success = await self.poller.process_single_event(session, event_id)
                     if success:
@@ -182,7 +184,7 @@ class OutboxPollerService:
             logger.error("Error processing single event: %s", str(e), exc_info=True)
             return 0
 
-    async def run_retry(self, max_attempts: int = 5):
+    async def run_retry(self, max_attempts: int = 5) -> int:
         """
         Retry failed events and exit.
 
@@ -192,7 +194,7 @@ class OutboxPollerService:
         logger.debug("Retrying failed events (max_attempts: %d)", max_attempts)
 
         try:
-            async with get_db() as session:
+            async with AsyncSession(engine) as session:
                 retried = await self.poller.retry_failed_events(session, max_attempts)
                 logger.debug(
                     "Retry operation completed: %d events reset for retry", retried
@@ -202,7 +204,7 @@ class OutboxPollerService:
             logger.error("Error retrying failed events: %s", str(e), exc_info=True)
             return 0
 
-    async def run_cleanup(self, days_old: int = 30):
+    async def run_cleanup(self, days_old: int = 30) -> int:
         """
         Clean up old events and exit.
 
@@ -212,7 +214,7 @@ class OutboxPollerService:
         logger.debug("Cleaning up events older than %d days", days_old)
 
         try:
-            async with get_db() as session:
+            async with AsyncSession(engine) as session:
                 cleaned = await self.poller.cleanup_old_events(session, days_old)
                 logger.debug("Cleanup operation completed: %d events removed", cleaned)
                 return cleaned
@@ -221,7 +223,7 @@ class OutboxPollerService:
             return 0
 
 
-async def main():
+async def main() -> int:
     """Main entry point for the outbox poller script."""
     parser = argparse.ArgumentParser(
         description="Standalone Outbox Event Poller",

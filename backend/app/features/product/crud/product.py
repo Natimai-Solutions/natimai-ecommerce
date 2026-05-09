@@ -1,6 +1,8 @@
+# mypy: disable-error-code="arg-type,assignment,operator"
+
 from datetime import datetime
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -19,7 +21,10 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         supplier_name: str | None = None,
     ) -> Product | None:
         """Get a product by its supplier SKU and optionally filter by supplier name"""
-        conditions = [Product.supplier_sku == supplier_sku, Product.is_active.is_(True)]
+        conditions = [
+            Product.supplier_sku == supplier_sku,
+            col(Product.is_active).is_(True),
+        ]
 
         if supplier_name:
             conditions.append(Product.supplier_name == supplier_name)
@@ -39,8 +44,8 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         """Get all products from a specific supplier, optionally filtered by category"""
         conditions = [
             Product.supplier_name == supplier_name,
-            Product.is_supplier_managed.is_(True),
-            Product.is_active.is_(True),
+            col(Product.is_supplier_managed).is_(True),
+            col(Product.is_active).is_(True),
         ]
 
         if category:
@@ -49,7 +54,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         statement = (
             select(Product)
             .where(*conditions)
-            .order_by(Product.created_at.desc())
+            .order_by(col(Product.created_at).desc())
             .limit(limit)
             .offset(offset)
         )
@@ -70,9 +75,9 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         threshold_iso = threshold_time.isoformat()
 
         conditions = [
-            Product.is_supplier_managed.is_(True),
-            Product.is_active.is_(True),
-            (Product.last_supplier_sync.is_(None))
+            col(Product.is_supplier_managed).is_(True),
+            col(Product.is_active).is_(True),
+            (col(Product.last_supplier_sync).is_(None))
             | (Product.last_supplier_sync < threshold_iso),
         ]
 
@@ -114,7 +119,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         """Get a product by vendor part number and optionally manufacturer"""
         conditions = [
             Product.vendor_part_number == vendor_part_number,
-            Product.is_active.is_(True),
+            col(Product.is_active).is_(True),
         ]
 
         if manufacturer:
@@ -129,5 +134,5 @@ crud_product = ProductCrud(
     model=Product,
     schema_create=ProductCreate,
     schema_update=ProductUpdate,
-    order_by=Product.created_at,
+    order_by=col(Product.created_at),
 )

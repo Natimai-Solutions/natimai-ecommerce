@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from app.outbox.decorators import outbox_handler
 
@@ -7,5 +8,5 @@ logger = logging.getLogger(__name__)
 
 
 @outbox_handler("create.product")
-async def create_notification(_session, payload) -> None:
+async def create_notification(_session: Any, payload: dict[str, Any]) -> None:
     logger.debug("Received product creation event with payload: %s", payload)

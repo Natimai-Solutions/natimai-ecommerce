@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import AsyncGenerator, Generator
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -6,15 +7,16 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 
-import app.api.routes.login as login_routes
 from app.core import security
 from app.core.db import get_db
+from app.features.user.crud.refresh_token import crud_user_refresh_token
+from app.features.user.crud.user import crud_user
 from app.main import app
 
 
 @pytest.fixture(autouse=True)
-def override_db_dependency():
-    async def _override_get_db():
+def override_db_dependency() -> Generator[None, None, None]:
+    async def _override_get_db() -> AsyncGenerator[SimpleNamespace, None]:
         yield SimpleNamespace()
 
     app.dependency_overrides[get_db] = _override_get_db
@@ -33,9 +35,9 @@ async def test_login_access_token_persists_refresh_session(
     authenticate_mock = AsyncMock(return_value=user)
     persist_refresh_mock = AsyncMock(return_value=SimpleNamespace(id=uuid.uuid4()))
 
-    monkeypatch.setattr(login_routes.crud_user, "authenticate", authenticate_mock)
+    monkeypatch.setattr(crud_user, "authenticate", authenticate_mock)
     monkeypatch.setattr(
-        login_routes.crud_user_refresh_token,
+        crud_user_refresh_token,
         "create_for_user",
         persist_refresh_mock,
     )
@@ -53,6 +55,7 @@ async def test_login_access_token_persists_refresh_session(
     assert refresh_payload["sub"] == str(user_id)
     assert refresh_payload["jti"]
 
+    assert persist_refresh_mock.await_args is not None
     persist_kwargs = persist_refresh_mock.await_args.kwargs
     assert persist_kwargs["user_id"] == user_id
     assert persist_kwargs["jti"] == refresh_payload["jti"]
@@ -85,15 +88,13 @@ async def test_refresh_token_rotates_and_returns_new_pair(
     get_refresh_mock = AsyncMock(return_value=refresh_session)
     rotate_mock = AsyncMock(return_value=SimpleNamespace(id=uuid.uuid4()))
 
-    monkeypatch.setattr(login_routes.crud_user, "read", read_user_mock)
+    monkeypatch.setattr(crud_user, "read", read_user_mock)
     monkeypatch.setattr(
-        login_routes.crud_user_refresh_token,
+        crud_user_refresh_token,
         "get_by_user_and_jti",
         get_refresh_mock,
     )
-    monkeypatch.setattr(
-        login_routes.crud_user_refresh_token, "rotate_token", rotate_mock
-    )
+    monkeypatch.setattr(crud_user_refresh_token, "rotate_token", rotate_mock)
 
     response = client.post(
         "/api/v1/login/refresh-token",
@@ -108,6 +109,7 @@ async def test_refresh_token_rotates_and_returns_new_pair(
     assert new_refresh_payload["sub"] == str(user_id)
     assert new_refresh_payload["jti"] != old_jti
 
+    assert rotate_mock.await_args is not None
     rotate_kwargs = rotate_mock.await_args.kwargs
     assert rotate_kwargs["current_token"] is refresh_session
     assert rotate_kwargs["new_jti"] == new_refresh_payload["jti"]
@@ -140,15 +142,13 @@ async def test_refresh_token_expired_is_revoked_and_rejected(
     get_refresh_mock = AsyncMock(return_value=refresh_session)
     revoke_mock = AsyncMock(return_value=refresh_session)
 
-    monkeypatch.setattr(login_routes.crud_user, "read", read_user_mock)
+    monkeypatch.setattr(crud_user, "read", read_user_mock)
     monkeypatch.setattr(
-        login_routes.crud_user_refresh_token,
+        crud_user_refresh_token,
         "get_by_user_and_jti",
         get_refresh_mock,
     )
-    monkeypatch.setattr(
-        login_routes.crud_user_refresh_token, "revoke_token", revoke_mock
-    )
+    monkeypatch.setattr(crud_user_refresh_token, "revoke_token", revoke_mock)
 
     response = client.post(
         "/api/v1/login/refresh-token",
@@ -158,6 +158,7 @@ async def test_refresh_token_expired_is_revoked_and_rejected(
     assert response.status_code == 401
     assert response.json()["detail"] == "Refresh token expiré"
 
+    assert revoke_mock.await_args is not None
     revoke_kwargs = revoke_mock.await_args.kwargs
     assert revoke_kwargs["token"] is refresh_session
     assert revoke_kwargs["reason"] == "expired"
@@ -189,14 +190,14 @@ async def test_refresh_token_reuse_revokes_all_active_sessions(
     get_refresh_mock = AsyncMock(return_value=refresh_session)
     revoke_all_mock = AsyncMock(return_value=2)
 
-    monkeypatch.setattr(login_routes.crud_user, "read", read_user_mock)
+    monkeypatch.setattr(crud_user, "read", read_user_mock)
     monkeypatch.setattr(
-        login_routes.crud_user_refresh_token,
+        crud_user_refresh_token,
         "get_by_user_and_jti",
         get_refresh_mock,
     )
     monkeypatch.setattr(
-        login_routes.crud_user_refresh_token,
+        crud_user_refresh_token,
         "revoke_all_active_for_user",
         revoke_all_mock,
     )
@@ -209,6 +210,7 @@ async def test_refresh_token_reuse_revokes_all_active_sessions(
     assert response.status_code == 401
     assert response.json()["detail"] == "Refresh token révoqué"
 
+    assert revoke_all_mock.await_args is not None
     revoke_all_kwargs = revoke_all_mock.await_args.kwargs
     assert revoke_all_kwargs["user_id"] == user_id
     assert revoke_all_kwargs["reason"] == "reuse_detected"

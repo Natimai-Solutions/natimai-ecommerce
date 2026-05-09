@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import AsyncGenerator, Generator
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -6,14 +7,17 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 
-import app.api.routes.address as address_routes
 import app.api.routes.shipping.tracking as tracking_routes
-import app.api.routes.user_notification as notification_routes
-import app.api.routes.user_review as review_routes
 from app.api.deps import get_current_user
 from app.core.db import get_db
 from app.features.base.crud import RecordNotFoundError
 from app.features.shipping.models.route_tracking import ShippingRouteTracking
+from app.features.user.crud.address import crud_address
+from app.features.user.crud.notification import (
+    crud_notification,
+    crud_user_notification,
+)
+from app.features.user.crud.review import crud_review
 from app.features.user.models.address import Address
 from app.features.user.models.notification import Notification, UserNotification
 from app.features.user.models.review import Review
@@ -26,11 +30,11 @@ def current_user() -> SimpleNamespace:
 
 
 @pytest.fixture(autouse=True)
-def override_dependencies(current_user: SimpleNamespace):
+def override_dependencies(current_user: SimpleNamespace) -> Generator[None, None, None]:
     async def _override_current_user() -> SimpleNamespace:
         return current_user
 
-    async def _override_get_db():
+    async def _override_get_db() -> AsyncGenerator[SimpleNamespace, None]:
         yield SimpleNamespace()
 
     app.dependency_overrides[get_current_user] = _override_current_user
@@ -62,11 +66,12 @@ async def test_address_get_uses_read_with_id(
     )
 
     read_mock = AsyncMock(return_value=address)
-    monkeypatch.setattr(address_routes.crud_address, "read", read_mock)
+    monkeypatch.setattr(crud_address, "read", read_mock)
 
     response = client.get(f"/api/v1/address/users/{user_id}/addresses/{address_id}")
 
     assert response.status_code == 200
+    assert read_mock.await_args is not None
     read_kwargs = read_mock.await_args.kwargs
     assert read_kwargs["id"] == address_id
 
@@ -98,8 +103,8 @@ async def test_review_update_uses_read_then_update_with_id_and_record(
 
     read_mock = AsyncMock(return_value=review)
     update_mock = AsyncMock(return_value=updated_review)
-    monkeypatch.setattr(review_routes.crud_review, "read", read_mock)
-    monkeypatch.setattr(review_routes.crud_review, "update", update_mock)
+    monkeypatch.setattr(crud_review, "read", read_mock)
+    monkeypatch.setattr(crud_review, "update", update_mock)
 
     response = client.patch(
         f"/api/v1/review/users/{user_id}/reviews/{review_id}",
@@ -108,9 +113,11 @@ async def test_review_update_uses_read_then_update_with_id_and_record(
 
     assert response.status_code == 200
 
+    assert read_mock.await_args is not None
     read_kwargs = read_mock.await_args.kwargs
     assert read_kwargs["id"] == review_id
 
+    assert update_mock.await_args is not None
     update_kwargs = update_mock.await_args.kwargs
     assert update_kwargs["id"] == review_id
     assert update_kwargs["record"] is review
@@ -145,11 +152,11 @@ async def test_notification_get_uses_read_with_id(
     read_mock = AsyncMock(return_value=notification)
 
     monkeypatch.setattr(
-        notification_routes.crud_user_notification,
+        crud_user_notification,
         "get_by_user_and_notification",
         relation_mock,
     )
-    monkeypatch.setattr(notification_routes.crud_notification, "read", read_mock)
+    monkeypatch.setattr(crud_notification, "read", read_mock)
 
     response = client.get(
         f"/api/v1/notification/users/{user_id}/notifications/{notification_id}"
@@ -157,6 +164,7 @@ async def test_notification_get_uses_read_with_id(
 
     assert response.status_code == 200
 
+    assert read_mock.await_args is not None
     read_kwargs = read_mock.await_args.kwargs
     assert read_kwargs["id"] == notification_id
 
@@ -181,13 +189,11 @@ async def test_notification_delete_uses_delete_with_id_and_record(
     delete_mock = AsyncMock(return_value=True)
 
     monkeypatch.setattr(
-        notification_routes.crud_user_notification,
+        crud_user_notification,
         "get_by_user_and_notification",
         relation_mock,
     )
-    monkeypatch.setattr(
-        notification_routes.crud_user_notification, "delete", delete_mock
-    )
+    monkeypatch.setattr(crud_user_notification, "delete", delete_mock)
 
     response = client.delete(
         f"/api/v1/notification/users/{user_id}/notifications/{notification_id}"
@@ -195,6 +201,7 @@ async def test_notification_delete_uses_delete_with_id_and_record(
 
     assert response.status_code == 204
 
+    assert delete_mock.await_args is not None
     delete_kwargs = delete_mock.await_args.kwargs
     assert delete_kwargs["id"] == user_notification.id
     assert delete_kwargs["record"] is user_notification
@@ -233,6 +240,7 @@ async def test_tracking_update_status_passes_harmonized_signature(
 
     assert response.status_code == 200
 
+    assert update_status_mock.await_args is not None
     update_kwargs = update_status_mock.await_args.kwargs
     assert update_kwargs["tracking_id"] == tracking_id
     assert update_kwargs["new_status_id"] == new_status_id

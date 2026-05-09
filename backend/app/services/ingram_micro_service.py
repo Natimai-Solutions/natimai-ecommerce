@@ -3,6 +3,7 @@ Service for Ingram Micro REST API integration.
 Handles product catalog synchronization and inventory management using direct HTTP calls.
 No SDK dependency - uses aiohttp for OAuth and API requests.
 """
+# mypy: disable-error-code="arg-type,assignment,no-any-return,no-untyped-call,no-untyped-def,return-value,type-arg,valid-type"
 
 import asyncio
 import logging

@@ -1,6 +1,6 @@
 import uuid
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -27,15 +27,15 @@ class WishlistCrud(CrudBase[Wishlist, WishlistCreate, WishlistUpdate]):
             select(self.model)
             .where(
                 self.model.user_id == user_id,
-                self.model.is_admin_active.is_(True),
-                self.model.is_active.is_(True),
+                col(self.model.is_admin_active).is_(True),
+                col(self.model.is_active).is_(True),
             )
             .offset(skip)
             .limit(limit)
-            .order_by(self.model.created_at.desc())
+            .order_by(col(self.model.created_at).desc())
         )
         exec_result = await session.exec(statement)
-        return exec_result.all()
+        return list(exec_result.all())
 
     async def get_public_wishlists(
         self, session: AsyncSession, *, skip: int = 0, limit: int = 100
@@ -43,16 +43,16 @@ class WishlistCrud(CrudBase[Wishlist, WishlistCreate, WishlistUpdate]):
         statement = (
             select(self.model)
             .where(
-                self.model.is_public.is_(True),
-                self.model.is_admin_active.is_(True),
-                self.model.is_active.is_(True),
+                col(self.model.is_public).is_(True),
+                col(self.model.is_admin_active).is_(True),
+                col(self.model.is_active).is_(True),
             )
             .offset(skip)
             .limit(limit)
-            .order_by(self.model.created_at.desc())
+            .order_by(col(self.model.created_at).desc())
         )
         exec_result = await session.exec(statement)
-        return exec_result.all()
+        return list(exec_result.all())
 
     async def get_user_wishlist_by_id(
         self, session: AsyncSession, *, wishlist_id: uuid.UUID, user_id: uuid.UUID
@@ -60,8 +60,8 @@ class WishlistCrud(CrudBase[Wishlist, WishlistCreate, WishlistUpdate]):
         statement = select(self.model).where(
             self.model.id == wishlist_id,
             self.model.user_id == user_id,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
         return exec_result.first()
@@ -85,8 +85,8 @@ class WishlistCrud(CrudBase[Wishlist, WishlistCreate, WishlistUpdate]):
     async def count_by_user(self, session: AsyncSession, *, user_id: uuid.UUID) -> int:
         statement = select(self.model).where(
             self.model.user_id == user_id,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
         return len(exec_result.all())
@@ -105,15 +105,15 @@ class WishlistItemCrud(CrudBase[WishlistItem, WishlistItemCreate, WishlistItemUp
             select(self.model)
             .where(
                 self.model.wishlist_id == wishlist_id,
-                self.model.is_admin_active.is_(True),
-                self.model.is_active.is_(True),
+                col(self.model.is_admin_active).is_(True),
+                col(self.model.is_active).is_(True),
             )
             .offset(skip)
             .limit(limit)
-            .order_by(self.model.created_at.desc())
+            .order_by(col(self.model.created_at).desc())
         )
         exec_result = await session.exec(statement)
-        return exec_result.all()
+        return list(exec_result.all())
 
     async def get_by_wishlist_and_product(
         self, session: AsyncSession, *, wishlist_id: uuid.UUID, product_id: uuid.UUID
@@ -121,8 +121,8 @@ class WishlistItemCrud(CrudBase[WishlistItem, WishlistItemCreate, WishlistItemUp
         statement = select(self.model).where(
             self.model.wishlist_id == wishlist_id,
             self.model.product_id == product_id,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
         return exec_result.first()
@@ -148,8 +148,8 @@ class WishlistItemCrud(CrudBase[WishlistItem, WishlistItemCreate, WishlistItemUp
     ) -> int:
         statement = select(self.model).where(
             self.model.wishlist_id == wishlist_id,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
         return len(exec_result.all())

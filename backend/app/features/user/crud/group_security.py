@@ -1,6 +1,6 @@
 import uuid
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase, track_crud_operation
@@ -39,7 +39,7 @@ class GroupSecurityCrud(
         statement = select(GroupSecurity).where(
             GroupSecurity.group_id == group_id,
             GroupSecurity.table_name == table_name,
-            GroupSecurity.is_active.is_(True),
+            col(GroupSecurity.is_active).is_(True),
         )
         result = await session.exec(statement)
         return result.first()
@@ -65,9 +65,9 @@ class GroupSecurityCrud(
             select(GroupSecurity)
             .where(
                 GroupSecurity.group_id == group_id,
-                GroupSecurity.is_active.is_(True),
+                col(GroupSecurity.is_active).is_(True),
             )
-            .order_by(GroupSecurity.table_name)
+            .order_by(col(GroupSecurity.table_name))
         )
         result = await session.exec(statement)
         return list(result.all())
@@ -93,9 +93,9 @@ class GroupSecurityCrud(
             select(GroupSecurity)
             .where(
                 GroupSecurity.table_name == table_name,
-                GroupSecurity.is_active.is_(True),
+                col(GroupSecurity.is_active).is_(True),
             )
-            .order_by(GroupSecurity.group_id)
+            .order_by(col(GroupSecurity.group_id))
         )
         result = await session.exec(statement)
         return list(result.all())
@@ -137,7 +137,7 @@ class GroupSecurityCrud(
             "delete": rule.can_delete,
         }
 
-        return permission_map.get(permission, False)
+        return bool(permission_map.get(permission, False))
 
     @track_crud_operation
     async def before_create(
@@ -175,7 +175,7 @@ crud_group_security = GroupSecurityCrud(
     model=GroupSecurity,
     schema_create=GroupSecurityCreate,
     schema_update=GroupSecurityUpdate,
-    order_by=GroupSecurity.table_name,
+    order_by=col(GroupSecurity.table_name),
     outbox_events={
         "create": "create.group_security",
         "update": "update.group_security",

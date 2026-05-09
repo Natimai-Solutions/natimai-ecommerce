@@ -1,5 +1,6 @@
 import uuid
 
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.analytic.models.analytic_user import (
@@ -19,10 +20,9 @@ class AnalyticsUserCrud(
         self, session: AsyncSession, *, user_id: uuid.UUID
     ) -> AnalyticsUser | None:
         """Get analytics by user ID"""
-        from sqlmodel import select
-
         statement = select(AnalyticsUser).where(
-            AnalyticsUser.user_id == user_id, AnalyticsUser.is_active.is_(True)
+            AnalyticsUser.user_id == user_id,
+            col(AnalyticsUser.is_active).is_(True),
         )
         result = await session.exec(statement)
         return result.first()

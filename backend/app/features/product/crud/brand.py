@@ -1,4 +1,4 @@
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -10,7 +10,7 @@ class BrandCrud(CrudBase[Brand, BrandCreate, BrandUpdate]):
         """Récupère une marque par son nom"""
         statement = select(Brand).where(
             Brand.name == name,
-            Brand.is_active.is_(True),
+            col(Brand.is_active).is_(True),
         )
         result = await session.exec(statement)
         return result.first()
@@ -20,7 +20,7 @@ crud_brand = BrandCrud(
     model=Brand,
     schema_create=BrandCreate,
     schema_update=BrandUpdate,
-    order_by=Brand.name,
+    order_by=col(Brand.name),
     outbox_events={
         "create": "create.brand",
         "update": "update.brand",

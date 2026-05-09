@@ -1,7 +1,7 @@
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, Protocol, TypeVar, cast
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import SQLModel
@@ -15,7 +15,7 @@ CreateSchemaType = TypeVar("CreateSchemaType", bound=SQLModel)
 UpdateSchemaType = TypeVar("UpdateSchemaType", bound=SQLModel)
 PublicSchemaType = TypeVar("PublicSchemaType", bound=SQLModel)
 PublicsSchemaType = TypeVar("PublicsSchemaType", bound=SQLModel)
-CrudType = TypeVar("CrudType", bound=CrudBase)  # type: ignore
+CrudType = TypeVar("CrudType", bound=CrudBase[Any, Any, Any])
 
 
 @dataclass
@@ -28,10 +28,17 @@ class Routes:
 
 
 class Auth:
-    read = True
-    create = True
-    update = True
-    delete = True
+    read: bool = True
+    create: bool = True
+    update: bool = True
+    delete: bool = True
+
+
+class AuthConfig(Protocol):
+    read: bool
+    create: bool
+    update: bool
+    delete: bool
 
 
 class BaseRouter(
@@ -49,17 +56,17 @@ class BaseRouter(
         self,
         name: str,
         crud: CrudType,
-        schema_public: PublicSchemaType | None = None,
-        schema_publics: PublicsSchemaType | None = None,
-        schema_create: CreateSchemaType | None = None,
-        schema_update: UpdateSchemaType | None = None,
-        auth: Auth | None = None,
+        schema_public: type[PublicSchemaType] | None = None,
+        schema_publics: type[PublicsSchemaType] | None = None,
+        schema_create: type[CreateSchemaType] | None = None,
+        schema_update: type[UpdateSchemaType] | None = None,
+        auth: type[AuthConfig] | AuthConfig | None = None,
         tags: list[str] | None = None,
         routes_before: list[Routes] | None = None,
         routes_after: list[Routes] | None = None,
         auto: bool = False,
-        *args,
-        **kwargs,
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
         self.name = "".join(
             [
@@ -90,9 +97,9 @@ class BaseRouter(
             path = path.replace(" ", "_")
             kwargs["prefix"] = f"/{path}"
 
-        self.tags = tags or [self.name]
+        self.route_tags = tags or [self.name]
 
-        kwargs["tags"] = self.tags
+        kwargs["tags"] = self.route_tags
 
         super().__init__(*args, **kwargs)
 
@@ -105,7 +112,7 @@ class BaseRouter(
 
     async def _check_auth(
         self, session: SessionDep, permission: str, current_user: CurrentUser | None
-    ):
+    ) -> None:
         """Helper method to check authorization for an endpoint."""
         auth_required = getattr(self.auth, permission, True)
         if auth_required and current_user is None:
@@ -120,7 +127,7 @@ class BaseRouter(
                 status_code=403, detail=f"Not authorized to {permission} on {self.name}"
             )
 
-    def generate_read_multi_endpoint(self):
+    def generate_read_multi_endpoint(self) -> Callable[..., Any]:
         async def read_multi(
             session: SessionDep,
             skip: int = 0,
@@ -129,7 +136,7 @@ class BaseRouter(
             order_by: str | None = None,
             include_archived: bool = False,
             current_user: CurrentUser | None = Depends(get_current_user_optional),
-        ) -> PublicsSchemaType:
+        ) -> Any:
             await self._check_auth(session, "read", current_user)
             result = await self.crud.read_multi(
                 session,
@@ -145,7 +152,7 @@ class BaseRouter(
         read_multi.__name__ = f"get_multiple_{self.name}s"
         return read_multi
 
-    def generate_read_endpoint(self) -> Callable:
+    def generate_read_endpoint(self) -> Callable[..., Any]:
         async def read(
             session: SessionDep,
             id: uuid.UUID,  # Fixed: use UUID instead of int
@@ -156,45 +163,49 @@ class BaseRouter(
                 record = await self.crud.read(session, id=id, user=current_user)
             except RecordNotFoundError:
                 raise HTTPException(status_code=404, detail=f"{self.name} not found")
-            return record
+            return cast(PublicSchemaType, record)
 
         read.__name__ = f"get_one_{self.name}"
         return read
 
-    def generate_create_endpoint(self) -> Callable:
+    def generate_create_endpoint(self) -> Callable[..., Any]:
         async def create(
             session: SessionDep,
-            data: self.schema_create,  # type: ignore
+            data: CreateSchemaType,
             current_user: CurrentUser | None = Depends(get_current_user_optional),
         ) -> PublicSchemaType:
             await self._check_auth(session, "create", current_user)
-            return await self.crud.create(session, data=data, user=current_user)
+            created = await self.crud.create(session, data=data, user=current_user)
+            return cast(PublicSchemaType, created)
 
         create.__name__ = f"create_{self.name}"
         return create
 
-    def generate_update_endpoint(self) -> Callable:
+    def generate_update_endpoint(self) -> Callable[..., Any]:
         async def update(
             session: SessionDep,
             id: uuid.UUID,  # Fixed: use UUID
-            data: self.schema_update,  # type: ignore
+            data: UpdateSchemaType,
             current_user: CurrentUser | None = Depends(get_current_user_optional),
-        ):
+        ) -> PublicSchemaType:
             await self._check_auth(session, "update", current_user)
-            return await self.crud.update(session, id=id, data=data, user=current_user)
+            updated = await self.crud.update(
+                session, id=id, data=data, user=current_user
+            )
+            return cast(PublicSchemaType, updated)
 
         update.__name__ = f"update_{self.name}"
         return update
 
-    def generate_delete_endpoint(self) -> Callable:
+    def generate_delete_endpoint(self) -> Callable[..., Any]:
         async def delete(
             session: SessionDep,
             id: uuid.UUID,  # Fixed: use UUID
             current_user: CurrentUser | None = Depends(get_current_user_optional),
-        ):
+        ) -> Message:
             await self._check_auth(session, "delete", current_user)
             await self.crud.delete(session, id=id, user=current_user)
-            return {"message": "Deleted successfully"}
+            return Message(message="Deleted successfully")
 
         delete.__name__ = f"delete_{self.name}"
         return delete
@@ -208,35 +219,35 @@ class BaseRouter(
                 path="/",
                 endpoint=self.generate_read_multi_endpoint(),
                 methods=["GET"],
-                tags=self.tags,
+                tags=self.route_tags,
                 response_model=self.schema_publics,
             ),
             Routes(
                 path="/{id}",
                 endpoint=self.generate_read_endpoint(),
                 methods=["GET"],
-                tags=self.tags,
+                tags=self.route_tags,
                 response_model=self.schema_public,
             ),
             Routes(
                 path="/",
                 endpoint=self.generate_create_endpoint(),
                 methods=["POST"],
-                tags=self.tags,
+                tags=self.route_tags,
                 response_model=self.schema_public,
             ),
             Routes(
                 path="/{id}",
                 endpoint=self.generate_update_endpoint(),
                 methods=["PUT"],
-                tags=self.tags,
+                tags=self.route_tags,
                 response_model=self.schema_public,
             ),
             Routes(
                 path="/{id}",
                 endpoint=self.generate_delete_endpoint(),
                 methods=["DELETE"],
-                tags=self.tags,
+                tags=self.route_tags,
                 response_model=Message,
             ),
         ]
@@ -252,3 +263,5 @@ class BaseRouter(
 
         for route in routes:
             self.add_api_route(**asdict(route))
+
+        return self
