@@ -147,6 +147,8 @@ class UsersPublic(SQLModel):
 # Contents of JWT token
 class TokenPayload(SQLModel):
     sub: str | None = None
+    type: str | None = None
+    jti: str | None = None
 
 
 # JSON payload containing access token

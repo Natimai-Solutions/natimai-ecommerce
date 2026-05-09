@@ -31,6 +31,7 @@ from app.features.user.models.address import Address
 from app.features.user.models.group import Group
 from app.features.user.models.group_security import GroupSecurity
 from app.features.user.models.notification import Notification, UserNotification
+from app.features.user.models.refresh_token import UserRefreshToken
 from app.features.user.models.review import Review
 from app.features.user.models.user import User
 from app.features.user.models.user_group import UserGroup
@@ -71,6 +72,7 @@ __all__ = [
     "User",
     "UserGroup",
     "UserNotification",
+    "UserRefreshToken",
     "Wishlist",
     "WishlistItem",
 ]

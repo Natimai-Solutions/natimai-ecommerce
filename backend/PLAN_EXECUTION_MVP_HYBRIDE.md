@@ -194,6 +194,8 @@ Action:
 - Soit ecrire le contenu reel (op.add_column pour chaque champ PayZen ajoute au modele Payment), soit supprimer cette revision et regenerer une migration via `alembic revision --autogenerate`.
 
 ### 3.11 Endpoint refresh token absent
+Statut: RESOLU le 2026-05-08 (endpoint POST /login/refresh-token ajoute, rotation systematique activee, revocation persistante en DB via user_refresh_tokens).
+
 Le modele de requete existe mais aucune route ne le consomme. Le refresh token genere au login devient inutile cote client.
 
 - Modele present: [backend/app/features/user/models/user.py#L160](app/features/user/models/user.py#L160) (`RefreshTokenRequest`)
@@ -240,7 +242,7 @@ Checklist:
 - [x] A3 Corriger le flux create_payment_with_log pour qu'il respecte la base CRUD.
 - [x] A4 Harmoniser route tracking et CRUD update_status (signature commune).
 - [x] A5 Ajouter tests de non-regression minimum sur routes corrigees.
-- [ ] A6 Ajouter endpoint refresh token + strategie de rotation/revocation (cf. 3.11).
+- [x] A6 Ajouter endpoint refresh token + strategie de rotation/revocation (cf. 3.11).
 - [ ] A7 Reactiver le routeur paiement principal commente dans [backend/app/api/__init__.py#L32](app/api/__init__.py#L32) une fois A3 valide.
 - [ ] A8 Rejouer migration from-scratch en local et verifier seed initial.
 
