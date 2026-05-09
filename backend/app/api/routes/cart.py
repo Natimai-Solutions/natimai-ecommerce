@@ -43,6 +43,33 @@ _PENDING_ORDER_STATUS = "Pending"
 _PENDING_PAYMENT_STATUS = "Pending"
 
 
+def _snapshot_checkout_amounts(
+    *,
+    items: list[CartItem],
+    currency: str,
+    shipping_fee_amount: Decimal,
+    payment_fee_amount: Decimal,
+) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal]:
+    subtotal_amount = sum(
+        (item.unit_price * item.quantity for item in items),
+        Decimal("0.00"),
+    )
+    subtotal_amount = quantize_amount(subtotal_amount, currency)
+
+    shipping_fee = quantize_amount(shipping_fee_amount, currency)
+    payment_fee = quantize_amount(payment_fee_amount, currency)
+    total_fees_amount = quantize_amount(shipping_fee + payment_fee, currency)
+    total_amount = quantize_amount(subtotal_amount + total_fees_amount, currency)
+
+    return (
+        subtotal_amount,
+        shipping_fee,
+        payment_fee,
+        total_fees_amount,
+        total_amount,
+    )
+
+
 async def _get_or_create_order_pending_status(session: SessionDep) -> OrderStatus:
     status_record = await crud_order_status.get_by_name(
         session,
@@ -325,6 +352,21 @@ async def checkout_my_cart(
     if not items:
         raise HTTPException(status_code=400, detail="Cart is empty")
 
+    (
+        subtotal_amount,
+        shipping_fee_amount,
+        payment_fee_amount,
+        total_fees_amount,
+        total_amount,
+    ) = _snapshot_checkout_amounts(
+        items=items,
+        currency=cart.currency,
+        shipping_fee_amount=payload.shipping_fee_amount,
+        payment_fee_amount=payload.payment_fee_amount,
+    )
+    if total_amount <= 0:
+        raise HTTPException(status_code=400, detail="Cart total must be > 0")
+
     try:
         order_status = await _get_or_create_order_pending_status(session)
         order = await crud_order.create_draft(
@@ -332,14 +374,17 @@ async def checkout_my_cart(
             data=OrderCreate(
                 user_id=current_user.id,
                 order_status_id=order_status.id,
-                total_amount=Decimal("0.00"),
+                total_amount=total_amount,
+                subtotal_amount=subtotal_amount,
+                shipping_fee_amount=shipping_fee_amount,
+                payment_fee_amount=payment_fee_amount,
+                total_fees_amount=total_fees_amount,
                 shipping_address=payload.shipping_address,
                 notes=payload.notes,
             ),
             user=current_user,
         )
 
-        total_amount = Decimal("0.00")
         for item in items:
             product = await _get_active_product_or_404(
                 session,
@@ -366,14 +411,6 @@ async def checkout_my_cart(
                 ),
                 user=current_user,
             )
-            total_amount += item.unit_price * item.quantity
-
-        total_amount = quantize_amount(total_amount, cart.currency)
-        if total_amount <= 0:
-            raise HTTPException(status_code=400, detail="Cart total must be > 0")
-
-        order.total_amount = total_amount
-        session.add(order)
 
         payment_status = await _get_or_create_payment_pending_status(session)
         payment = await crud_payment.create_draft(
@@ -407,6 +444,10 @@ async def checkout_my_cart(
             order_id=order.id,
             payment_id=payment.id,
             cart_id=cart.id,
+            subtotal_amount=subtotal_amount,
+            shipping_fee_amount=shipping_fee_amount,
+            payment_fee_amount=payment_fee_amount,
+            total_fees_amount=total_fees_amount,
             total_amount=total_amount,
             currency=cart.currency,
             item_count=len(items),

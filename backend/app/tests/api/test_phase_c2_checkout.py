@@ -86,10 +86,11 @@ async def test_checkout_creates_order_payment_and_marks_cart_checked_out(
         "app.api.routes.cart._reserve_stock_for_checkout",
         AsyncMock(return_value=None),
     )
+    create_order_mock = AsyncMock(return_value=order)
     monkeypatch.setattr(
         crud_order,
         "create_draft",
-        AsyncMock(return_value=order),
+        create_order_mock,
     )
     monkeypatch.setattr(
         crud_order_line,
@@ -118,8 +119,13 @@ async def test_checkout_creates_order_payment_and_marks_cart_checked_out(
     assert response.item_count == 1
     assert response.total_amount == Decimal("20")
 
+    assert create_order_mock.await_args is not None
+    order_create = create_order_mock.await_args.kwargs["data"]
+
     assert payment.payment_status_id == payment_status.id
-    assert order.total_amount == Decimal("20")
+    assert order_create.subtotal_amount == Decimal("20")
+    assert order_create.total_fees_amount == Decimal("0")
+    assert order_create.total_amount == Decimal("20")
     assert cart.is_checked_out is True
     assert item.is_active is False
 

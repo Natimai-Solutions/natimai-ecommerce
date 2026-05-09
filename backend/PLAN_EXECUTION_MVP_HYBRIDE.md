@@ -286,7 +286,7 @@ Livrable phase C:
 Checklist:
 - [x] C1 Ajouter panier persistant (cart et cart items).
 - [x] C2 Ajouter endpoint checkout transactionnel unique (creation commande + lignes + total + reservation stock + creation paiement).
-- [ ] C3 Figer les montants au checkout (snapshot lignes + frais).
+- [x] C3 Figer les montants au checkout (snapshot lignes + frais).
 - [ ] C4 Verifier disponibilite stock fournisseur/local au checkout.
 - [ ] C5 Relier commande et paiement proprement (etats coherents).
 - [ ] C6 Durcir IPN PayZen (idempotence + gestion retries).

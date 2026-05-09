@@ -24,6 +24,34 @@ class OrderBase(Base):
         decimal_places=2,
         description="Montant total de la commande",
     )
+    subtotal_amount: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Sous-total des lignes au checkout",
+    )
+    shipping_fee_amount: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Frais de livraison figes au checkout",
+    )
+    payment_fee_amount: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Frais de paiement figes au checkout",
+    )
+    total_fees_amount: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Total des frais figes au checkout",
+    )
     shipping_address: str | None = Field(
         default=None,
         max_length=500,
@@ -44,6 +72,10 @@ class OrderUpdate(BaseUpdate):
     user_id: uuid.UUID | None = None
     order_status_id: uuid.UUID | None = None
     total_amount: Decimal | None = None
+    subtotal_amount: Decimal | None = None
+    shipping_fee_amount: Decimal | None = None
+    payment_fee_amount: Decimal | None = None
+    total_fees_amount: Decimal | None = None
     shipping_address: str | None = None
     notes: str | None = None
 

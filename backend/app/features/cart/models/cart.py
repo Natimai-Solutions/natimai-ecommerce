@@ -160,12 +160,30 @@ class CheckoutRequest(SQLModel):
         max_length=1000,
         description="Optional checkout notes",
     )
+    shipping_fee_amount: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Shipping fees snapshot applied at checkout",
+    )
+    payment_fee_amount: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Payment fees snapshot applied at checkout",
+    )
 
 
 class CheckoutResponse(SQLModel):
     order_id: uuid.UUID
     payment_id: uuid.UUID
     cart_id: uuid.UUID
+    subtotal_amount: Decimal
+    shipping_fee_amount: Decimal
+    payment_fee_amount: Decimal
+    total_fees_amount: Decimal
     total_amount: Decimal
     currency: str
     item_count: int
