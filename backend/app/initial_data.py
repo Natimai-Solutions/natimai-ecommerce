@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sys
 
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -55,4 +56,6 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(main())

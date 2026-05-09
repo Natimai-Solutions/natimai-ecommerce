@@ -244,7 +244,7 @@ Checklist:
 - [x] A5 Ajouter tests de non-regression minimum sur routes corrigees.
 - [x] A6 Ajouter endpoint refresh token + strategie de rotation/revocation (cf. 3.11).
 - [x] A7 Reactiver le routeur paiement principal commente dans [backend/app/api/__init__.py#L32](app/api/__init__.py#L32) une fois A3 valide.
-- [ ] A8 Rejouer migration from-scratch en local et verifier seed initial.
+- [x] A8 Rejouer migration from-scratch en local et verifier seed initial (valide sur DB temporaire fastapi_ecommerce_a8_check).
 
 Definition of Done phase A:
 - Aucun endpoint critique ne plante sur mismatch de signature.
