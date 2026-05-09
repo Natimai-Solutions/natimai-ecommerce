@@ -1,6 +1,7 @@
 # mypy: disable-error-code="assignment,misc,override"
 
 import uuid
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import JSON, Column
@@ -10,8 +11,12 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class PaymentBase(Base):
-    amount: int = Field(
-        ..., gt=0, description="Amount to be paid in cents/smallest currency unit"
+    amount: Decimal = Field(
+        ...,
+        gt=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Amount to be paid expressed in the payment currency",
     )
     currency: str = Field(
         default="XPF", description="Currency of the payment (XPF, EUR, etc.)"
@@ -26,7 +31,7 @@ class PaymentCreate(PaymentBase, BaseCreate):
 
 
 class PaymentUpdate(PaymentBase, BaseUpdate):
-    amount: int | None = None
+    amount: Decimal | None = None
     currency: str | None = None
     order_id: uuid.UUID | None = None
     user_id: uuid.UUID | None = None

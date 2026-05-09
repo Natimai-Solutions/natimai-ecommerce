@@ -1,6 +1,7 @@
 # mypy: disable-error-code="assignment,misc,override"
 
 import uuid
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import JSON, Column
@@ -22,7 +23,12 @@ class PaymentLogBase(Base):
     payzen_order_id: str | None = Field(
         default=None, index=True, description="Payzen order ID"
     )
-    amount: int = Field(..., description="Amount in cents/smallest currency unit")
+    amount: Decimal = Field(
+        ...,
+        max_digits=12,
+        decimal_places=2,
+        description="Amount expressed in the payment currency",
+    )
     payment_method: str | None = Field(
         default=None, description="Payment method used (CB, Visa, Mastercard, etc.)"
     )
@@ -45,7 +51,7 @@ class PaymentLogUpdate(PaymentLogBase, BaseUpdate):
     payment_id: uuid.UUID | None = None
     payzen_trans_id: str | None = None
     payzen_order_id: str | None = None
-    amount: int | None = None
+    amount: Decimal | None = None
     payment_method: str | None = None
     status: str | None = None
     error_code: str | None = None

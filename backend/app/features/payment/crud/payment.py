@@ -12,7 +12,7 @@ from app.features.payment.models.payment import (
     PaymentUpdate,
 )
 from app.features.payment.models.payment_log import PaymentLog
-from app.utils.money import parse_minor_units
+from app.utils.money import minor_units_to_decimal, parse_minor_units
 
 
 class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
@@ -151,8 +151,15 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         """
         from app.features.payment.crud.payment_status import crud_payment_status
 
-        # Extract Payzen data
-        amount_minor = parse_minor_units(payzen_fields.get("amount", payment.amount))
+        # PayZen IPN reports amount in the smallest currency unit (e.g. cents for EUR).
+        # Convert it back to a currency-aware Decimal so that the persisted amount
+        # stays consistent with order/product totals.
+        raw_amount = payzen_fields.get("amount")
+        if raw_amount is not None:
+            amount_minor = parse_minor_units(raw_amount)
+            amount_decimal = minor_units_to_decimal(amount_minor, payment.currency)
+        else:
+            amount_decimal = payment.amount
 
         payment.payzen_trans_id = payzen_fields.get("trans_uuid") or payzen_fields.get(
             "trans_id"
@@ -161,7 +168,7 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         payment.payzen_status = payzen_fields.get("trans_status")
         payment.payzen_payment_method = payzen_fields.get("payment_cards")
         payment.payzen_data = payzen_fields.get("_raw_answer")
-        payment.amount = amount_minor
+        payment.amount = amount_decimal
 
         # Update payment status based on Payzen status
         trans_status = payzen_fields.get("trans_status")
@@ -188,7 +195,7 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
             payment_id=payment.id,
             payzen_trans_id=payment.payzen_trans_id,
             payzen_order_id=payment.payzen_order_id,
-            amount=amount_minor,
+            amount=amount_decimal,
             payment_method=payment.payzen_payment_method,
             status=payment.payzen_status,
             error_code=payzen_fields.get("error_code"),

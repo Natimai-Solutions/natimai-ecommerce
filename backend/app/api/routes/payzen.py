@@ -7,6 +7,7 @@ including form token generation and IPN (Instant Payment Notification) handling.
 
 import logging
 import uuid
+from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -20,6 +21,7 @@ from app.features.payment.utils.payzen import (
     create_payzen_form_token,
     validate_ipn_signature,
 )
+from app.utils.money import decimal_to_minor_units
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +30,13 @@ logger = logging.getLogger(__name__)
 class FormTokenRequest(BaseModel):
     """Request model for PayZen form token generation."""
 
-    amount: int = Field(..., gt=0, description="Amount in cents/smallest currency unit")
+    amount: Decimal = Field(
+        ...,
+        gt=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Amount expressed in the payment currency",
+    )
     currency: str = Field(default="XPF", description="Currency code (XPF, EUR, etc.)")
     order_id: uuid.UUID | None = Field(
         default=None, description="Order ID to associate with payment (optional)"
@@ -85,10 +93,14 @@ async def generate_form_token(
         commit=False,
     )
 
+    # PayZen API expects the amount in the smallest currency unit (e.g. cents),
+    # so we convert from Decimal at this single boundary.
+    payzen_amount_minor = decimal_to_minor_units(request.amount, request.currency)
+
     # Generate PayZen form token
     try:
         payzen_result = await create_payzen_form_token(
-            amount=request.amount,
+            amount=payzen_amount_minor,
             currency=request.currency,
             order_id=str(payment.id),  # Use payment ID as order ID
             customer_email=current_user.email,

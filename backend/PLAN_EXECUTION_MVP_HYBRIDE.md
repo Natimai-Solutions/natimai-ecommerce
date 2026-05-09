@@ -267,6 +267,9 @@ Checklist:
 - [x] B4 Verifier creation/edition de produits manuels sans ecrasement par sync fournisseur.
 - [x] B5 Normaliser et valider les champs prix/stock fournisseur avant publication produit.
 - [x] B6 Aligner le modele de prix sur Decimal (ou montants entiers en centimes) de maniere coherente: produit, commande, paiement.
+  - Statut: RESOLU le 2026-05-08. `payments.amount` et `payment_logs.amount` passent de INTEGER (centimes) a NUMERIC(12,2), alignes sur Order/OrderLine/Product. Conversion en centimes confinee a la frontiere PayZen (decimal_to_minor_units / minor_units_to_decimal).
+  - Migration: [backend/app/alembic/versions/7d4c2e1a9b30_payments_amount_to_decimal.py](app/alembic/versions/7d4c2e1a9b30_payments_amount_to_decimal.py)
+  - Tests de non-regression: [backend/app/tests/api/test_phase_b6_payment_amount_decimal.py](app/tests/api/test_phase_b6_payment_amount_decimal.py)
 
 Definition of Done phase B:
 - Un import complet Ingram + enrichissement Icecat peut tourner sans intervention manuelle.
