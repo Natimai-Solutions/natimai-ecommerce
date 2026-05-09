@@ -13,8 +13,10 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.features.integrations.crud.ingram_sync import ingram_product_mapping_crud
+from app.features.integrations.models.ingram_sync import IngramProductMapping
 from app.features.product.crud.product import crud_product
-from app.features.product.models.product import ProductCreate, ProductUpdate
+from app.features.product.models.product import Product, ProductCreate, ProductUpdate
 from app.services.ingram_micro_service import (
     IngramMicroService,
     IngramProductData,
@@ -22,6 +24,7 @@ from app.services.ingram_micro_service import (
 )
 
 logger = logging.getLogger(__name__)
+SUPPLIER_NAME = "Ingram Micro"
 
 
 class IngramSyncOrchestrator:
@@ -42,7 +45,7 @@ class IngramSyncOrchestrator:
             "supplier_sku": ingram_product.sku,
             "vendor_part_number": ingram_product.vendor_part_number,
             "manufacturer": ingram_product.manufacturer,
-            "supplier_name": "Ingram Micro",
+            "supplier_name": SUPPLIER_NAME,
             "supplier_category": ingram_product.category,
             "supplier_subcategory": ingram_product.subcategory,
             "weight": ingram_product.weight,
@@ -53,35 +56,80 @@ class IngramSyncOrchestrator:
             "upc": ingram_product.upc_code,
         }
 
+    async def _resolve_existing_product(
+        self, session: AsyncSession, ingram_product: IngramProductData
+    ) -> tuple[Product | None, IngramProductMapping | None]:
+        """Resolve the target product using persisted mapping first, then supplier identity."""
+        mapping = await ingram_product_mapping_crud.get_by_ingram_sku(
+            session=session,
+            ingram_sku=ingram_product.sku,
+        )
+
+        if mapping is not None:
+            mapped_product = await session.get(Product, mapping.local_product_id)
+            if (
+                mapped_product is not None
+                and mapped_product.supplier_name == SUPPLIER_NAME
+                and mapped_product.supplier_sku == ingram_product.sku
+            ):
+                return mapped_product, mapping
+
+            logger.warning(
+                "Ingram mapping mismatch for SKU %s (mapping_id=%s). Falling back to supplier identity.",
+                ingram_product.sku,
+                mapping.id,
+            )
+
+        supplier_product = await crud_product.get_by_supplier_sku(
+            session=session,
+            supplier_sku=ingram_product.sku,
+            supplier_name=SUPPLIER_NAME,
+        )
+        return supplier_product, mapping
+
     async def upsert_product(
         self, session: AsyncSession, ingram_product: IngramProductData
     ) -> dict[str, str]:
         """Insert or update a local product from one Ingram payload."""
-        existing_product = await crud_product.get_by_supplier_sku(
+        existing_product, _existing_mapping = await self._resolve_existing_product(
             session=session,
-            supplier_sku=ingram_product.sku,
-            supplier_name="Ingram Micro",
+            ingram_product=ingram_product,
         )
 
         product_data_dict = self._convert_ingram_to_product_data(ingram_product)
 
         if existing_product:
             product_update = ProductUpdate(**product_data_dict)
-            updated_product = await crud_product.update(
+            product = await crud_product.update(
                 session=session,
                 id=existing_product.id,
                 data=product_update,
                 user=None,
             )
-            return {"action": "updated", "product_id": str(updated_product.id)}
+            action = "updated"
 
-        product_create = ProductCreate(**product_data_dict)
-        new_product = await crud_product.create(
+        else:
+            product_create = ProductCreate(**product_data_dict)
+            product = await crud_product.create(
+                session=session,
+                data=product_create,
+                user=None,
+            )
+            action = "created"
+
+        mapping = await ingram_product_mapping_crud.upsert_mapping_for_sku(
             session=session,
-            data=product_create,
-            user=None,
+            ingram_sku=ingram_product.sku,
+            local_product_id=product.id,
+            vendor_part_number=ingram_product.vendor_part_number,
+            manufacturer=ingram_product.manufacturer,
         )
-        return {"action": "created", "product_id": str(new_product.id)}
+
+        return {
+            "action": action,
+            "product_id": str(product.id),
+            "mapping_id": str(mapping.id),
+        }
 
     async def sync_products_to_database(
         self, session: AsyncSession, categories: list[str]

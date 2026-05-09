@@ -301,11 +301,54 @@ class IngramProductMappingCrud(
         Returns:
             Product mapping or None
         """
-        statement = select(IngramProductMapping).where(
-            IngramProductMapping.ingram_sku == ingram_sku
+        statement = (
+            select(IngramProductMapping)
+            .where(IngramProductMapping.ingram_sku == ingram_sku)
+            .order_by(desc(IngramProductMapping.last_synced))
         )
         result = await session.exec(statement)
         return result.first()
+
+    async def upsert_mapping_for_sku(
+        self,
+        session: AsyncSession,
+        *,
+        ingram_sku: str,
+        local_product_id: UUID,
+        vendor_part_number: str,
+        manufacturer: str,
+        sync_time: datetime | None = None,
+    ) -> IngramProductMapping:
+        """Create or update the persisted mapping for an Ingram SKU."""
+        if sync_time is None:
+            sync_time = datetime.now(timezone.utc)
+
+        mapping = await self.get_by_ingram_sku(session=session, ingram_sku=ingram_sku)
+        if mapping is None:
+            return await self.create(
+                session=session,
+                data=IngramProductMappingCreate(
+                    ingram_sku=ingram_sku,
+                    local_product_id=local_product_id,
+                    vendor_part_number=vendor_part_number,
+                    manufacturer=manufacturer,
+                    last_synced=sync_time,
+                    sync_enabled=True,
+                ),
+                user=None,
+            )
+
+        return await self.update(
+            session=session,
+            id=mapping.id,
+            data=IngramProductMappingUpdate(
+                local_product_id=local_product_id,
+                vendor_part_number=vendor_part_number,
+                manufacturer=manufacturer,
+                last_synced=sync_time,
+                sync_enabled=True,
+            ),
+        )
 
     async def get_by_local_product_id(
         self, session: AsyncSession, product_id: UUID

@@ -174,6 +174,9 @@ class IngramProductMappingCreate(IngramProductMappingBase):
 class IngramProductMappingUpdate(SQLModel):
     """Schema for updating product mapping"""
 
+    local_product_id: UUID | None = None
+    vendor_part_number: str | None = None
+    manufacturer: str | None = None
     last_synced: datetime | None = None
     sync_enabled: bool | None = None
 
