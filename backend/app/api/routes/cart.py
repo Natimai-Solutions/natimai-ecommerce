@@ -186,13 +186,17 @@ async def _resolve_tracking_address_for_checkout(
     if shipping_address:
         normalized_shipping_address = shipping_address.strip().lower()
         for address in existing_shipping_addresses:
-            candidate = ", ".join(
-                [
-                    address.street,
-                    address.city,
-                    address.country,
-                ]
-            ).strip().lower()
+            candidate = (
+                ", ".join(
+                    [
+                        address.street,
+                        address.city,
+                        address.country,
+                    ]
+                )
+                .strip()
+                .lower()
+            )
             if candidate == normalized_shipping_address:
                 return address
 
@@ -200,7 +204,9 @@ async def _resolve_tracking_address_for_checkout(
         return existing_shipping_addresses[0]
 
     if shipping_address:
-        chunks = [chunk.strip() for chunk in shipping_address.split(",") if chunk.strip()]
+        chunks = [
+            chunk.strip() for chunk in shipping_address.split(",") if chunk.strip()
+        ]
     else:
         chunks = []
 
@@ -349,23 +355,23 @@ async def _link_fulfillment_segments_to_tracking(
 
         consolidation_id = None
         if segment == FulfillmentSegment.CONSOLIDATION_PF:
-            consolidation = await crud_shipping_route_tracking_consolidation.create_draft(
-                session=session,
-                data=ShippingRouteTrackingConsolidationCreate(
-                    route_id=selected_route.id,
-                    name=f"PF consolidation {order_id}",
-                    consolidation_code=(
-                        f"pf-{str(order_id)[:8]}-{sequence_order}"
+            consolidation = (
+                await crud_shipping_route_tracking_consolidation.create_draft(
+                    session=session,
+                    data=ShippingRouteTrackingConsolidationCreate(
+                        route_id=selected_route.id,
+                        name=f"PF consolidation {order_id}",
+                        consolidation_code=(f"pf-{str(order_id)[:8]}-{sequence_order}"),
+                        status_id=consolidation_status.id,
+                        tracking_ref=None,
+                        total_orders=1,
+                        notes=(
+                            f"Auto-created from checkout segment={segment.value} "
+                            f"quantity={quantity}"
+                        ),
                     ),
-                    status_id=consolidation_status.id,
-                    tracking_ref=None,
-                    total_orders=1,
-                    notes=(
-                        f"Auto-created from checkout segment={segment.value} "
-                        f"quantity={quantity}"
-                    ),
-                ),
-                user=current_user,
+                    user=current_user,
+                )
             )
             consolidation_id = consolidation.id
 
@@ -382,10 +388,7 @@ async def _link_fulfillment_segments_to_tracking(
                 last_status_update=None,
                 tracking_ref=None,
                 estimated_delivery=None,
-                notes=(
-                    f"segment={segment.value};quantity={quantity};"
-                    f"origin=checkout"
-                ),
+                notes=(f"segment={segment.value};quantity={quantity};origin=checkout"),
             ),
             user=current_user,
         )
@@ -519,8 +522,7 @@ async def _reserve_stock_for_checkout(
         session.add(product)
 
         supplier_reason = (
-            "Supplier stock reserved during checkout "
-            f"(segment={segment.segment.value})"
+            f"Supplier stock reserved during checkout (segment={segment.segment.value})"
         )
 
         await crud_stock_movement.create_draft(

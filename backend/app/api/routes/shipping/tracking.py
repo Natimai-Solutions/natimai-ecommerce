@@ -122,7 +122,9 @@ def _derive_order_exception_scenarios(
         )
 
         status_definition = status_by_id.get(tracking.status_id)
-        status_code = _normalize_text(status_definition.code if status_definition else None)
+        status_code = _normalize_text(
+            status_definition.code if status_definition else None
+        )
         notes_text = _normalize_text(tracking.notes)
 
         is_supplier_delay = _is_supplier_delay_status_code(status_code)
@@ -250,11 +252,9 @@ class ShippingRouteTrackingRouter(
             # Récupérer les consolidations pour toutes les routes de cette commande
             consolidations = []
             for t in trackings:
-                route_consolidations = (
-                    await crud_shipping_route_tracking_consolidation.get_consolidations_for_route(
-                        session=session,
-                        route_id=t.route_id,
-                    )
+                route_consolidations = await crud_shipping_route_tracking_consolidation.get_consolidations_for_route(
+                    session=session,
+                    route_id=t.route_id,
                 )
                 consolidations.extend(route_consolidations)
 

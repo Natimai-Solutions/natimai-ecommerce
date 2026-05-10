@@ -94,9 +94,7 @@ async def test_link_segments_creates_tracking_entries_with_consolidation(
     assert create_consolidation_mock.await_count == 1
 
     local_tracking_data = create_tracking_mock.await_args_list[0].kwargs["data"]
-    consolidation_tracking_data = create_tracking_mock.await_args_list[1].kwargs[
-        "data"
-    ]
+    consolidation_tracking_data = create_tracking_mock.await_args_list[1].kwargs["data"]
 
     assert local_tracking_data.order_id == order_id
     assert local_tracking_data.route_id == local_route.id
