@@ -325,7 +325,10 @@ Checklist:
   - Statut: COMPLETE le 2026-05-09. Endpoint tracking commande calcule un overall_status derive des segments via StatusDefinition route_tracking (priorite erreur, sinon premier segment non terminal par sequence_order, sinon dernier terminal), et expose current_route_sequence coherent.
   - Implementation: [backend/app/api/routes/shipping/tracking.py](app/api/routes/shipping/tracking.py)
   - Tests: [backend/app/tests/api/test_phase_d3_order_global_status.py](app/tests/api/test_phase_d3_order_global_status.py)
-- [ ] D4 Ajouter scenarios d'exception (retard fournisseur, split colis, echec segment).
+- [x] D4 Ajouter scenarios d'exception (retard fournisseur, split colis, echec segment).
+  - Statut: COMPLETE le 2026-05-09. Endpoint order tracking expose des `exception_scenarios` derives des segments: `supplier_delay` (retard fournisseur), `parcel_split` (split colis: sequence duplicate ou marqueur note), `segment_failure` (statut erreur hors retard fournisseur).
+  - Implementation: [backend/app/api/routes/shipping/tracking.py](app/api/routes/shipping/tracking.py)
+  - Tests: [backend/app/tests/api/test_phase_d4_tracking_exception_scenarios.py](app/tests/api/test_phase_d4_tracking_exception_scenarios.py)
 
 Definition of Done phase D:
 - Une commande hybride affiche des etats utiles cote client et admin.

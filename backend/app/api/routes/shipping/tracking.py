@@ -28,6 +28,45 @@ from app.features.shipping.models.route_tracking import (
 )
 from app.features.shipping.models.status import StatusDefinition
 
+_SUPPLIER_DELAY_STATUS_CODES = {
+    "supplier_delay",
+    "supplier_delayed",
+    "delayed_supplier",
+    "retard_fournisseur",
+}
+_SEGMENT_FAILURE_STATUS_CODES = {
+    "segment_failed",
+    "segment_failure",
+    "failed",
+    "echec_segment",
+}
+_SPLIT_PARCEL_NOTE_MARKERS = (
+    "split_parcel",
+    "split_colis",
+    "colis_split",
+    "multi_colis",
+)
+
+
+def _normalize_text(value: str | None) -> str:
+    if value is None:
+        return ""
+    return value.strip().lower()
+
+
+def _is_supplier_delay_status_code(code: str) -> bool:
+    normalized_code = _normalize_text(code)
+    if normalized_code in _SUPPLIER_DELAY_STATUS_CODES:
+        return True
+    return "supplier" in normalized_code and "delay" in normalized_code
+
+
+def _is_segment_failure_status_code(code: str) -> bool:
+    normalized_code = _normalize_text(code)
+    if normalized_code in _SEGMENT_FAILURE_STATUS_CODES:
+        return True
+    return normalized_code.endswith("_failed")
+
 
 def _derive_order_overall_status(
     trackings: list[ShippingRouteTracking],
@@ -60,6 +99,56 @@ def _derive_order_overall_status(
 
     last_tracking, last_status_definition = resolved_statuses[-1]
     return last_tracking.sequence_order, last_status_definition.code
+
+
+def _derive_order_exception_scenarios(
+    trackings: list[ShippingRouteTracking],
+    *,
+    status_by_id: dict[uuid.UUID, StatusDefinition],
+) -> list[str]:
+    """Derive exception scenarios for an order from tracking segments."""
+    if not trackings:
+        return []
+
+    has_supplier_delay = False
+    has_segment_failure = False
+    has_split_parcel = False
+
+    sequence_counts: dict[int, int] = {}
+
+    for tracking in sorted(trackings, key=lambda item: item.sequence_order):
+        sequence_counts[tracking.sequence_order] = (
+            sequence_counts.get(tracking.sequence_order, 0) + 1
+        )
+
+        status_definition = status_by_id.get(tracking.status_id)
+        status_code = _normalize_text(status_definition.code if status_definition else None)
+        notes_text = _normalize_text(tracking.notes)
+
+        is_supplier_delay = _is_supplier_delay_status_code(status_code)
+        if is_supplier_delay:
+            has_supplier_delay = True
+
+        if _is_segment_failure_status_code(status_code):
+            has_segment_failure = True
+        elif status_definition and status_definition.is_error and not is_supplier_delay:
+            has_segment_failure = True
+
+        if any(marker in notes_text for marker in _SPLIT_PARCEL_NOTE_MARKERS):
+            has_split_parcel = True
+
+    if any(count > 1 for count in sequence_counts.values()):
+        has_split_parcel = True
+
+    scenarios: list[str] = []
+    if has_supplier_delay:
+        scenarios.append("supplier_delay")
+    if has_split_parcel:
+        scenarios.append("parcel_split")
+    if has_segment_failure:
+        scenarios.append("segment_failure")
+
+    return scenarios
 
 
 # Modèles de requête pour les endpoints POST
@@ -104,6 +193,10 @@ class OrderTrackingResponse(SQLModel):
         default=None, description="Séquence de route actuelle"
     )
     overall_status: str = Field(description="Statut global de la commande")
+    exception_scenarios: list[str] = Field(
+        default_factory=list,
+        description="Scenarios d'exception detectes pour la commande",
+    )
     consolidations: list[ShippingRouteTrackingConsolidationPublic] = Field(
         default_factory=list, description="Consolidations associées"
     )
@@ -159,8 +252,9 @@ class ShippingRouteTrackingRouter(
             for t in trackings:
                 route_consolidations = (
                     await crud_shipping_route_tracking_consolidation.get_consolidations_for_route(
-                    session=session, route_id=t.route_id
-                )
+                        session=session,
+                        route_id=t.route_id,
+                    )
                 )
                 consolidations.extend(route_consolidations)
 
@@ -168,8 +262,14 @@ class ShippingRouteTrackingRouter(
                 session=session,
                 entity="route_tracking",
             )
-            status_by_id = {status_record.id: status_record for status_record in status_definitions}
+            status_by_id = {
+                status_record.id: status_record for status_record in status_definitions
+            }
             current_sequence, overall_status = _derive_order_overall_status(
+                trackings,
+                status_by_id=status_by_id,
+            )
+            exception_scenarios = _derive_order_exception_scenarios(
                 trackings,
                 status_by_id=status_by_id,
             )
@@ -181,6 +281,7 @@ class ShippingRouteTrackingRouter(
                 ],
                 current_route_sequence=current_sequence,
                 overall_status=overall_status,
+                exception_scenarios=exception_scenarios,
                 consolidations=[
                     ShippingRouteTrackingConsolidationPublic.model_validate(c)
                     for c in consolidations
