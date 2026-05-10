@@ -347,7 +347,10 @@ Livrable phase E:
 - Produit exploitable sans suivi quotidien.
 
 Checklist:
-- [ ] E1 Tests integration E2E des parcours critiques (login -> catalogue -> panier -> checkout -> paiement -> tracking -> historique).
+- [x] E1 Tests integration E2E des parcours critiques (login -> catalogue -> panier -> checkout -> paiement -> tracking -> historique).
+  - Statut: COMPLETE le 2026-05-09. Parcours API E2E critique valide de bout en bout avec etat partage teste sur les etapes login, catalogue, panier, checkout, paiement, tracking et historiques (tracking + commandes).
+  - Implementation: [backend/app/tests/api/test_phase_e1_e2e_critical_journey.py](app/tests/api/test_phase_e1_e2e_critical_journey.py)
+  - Validation: ruff + mypy + pytest cibles OK.
 - [ ] E2 Logs structures et tableaux de bord minimaux (jobs, erreurs, delais, metriques paiement/commande, alertes erreurs checkout).
 - [ ] E3 Runbook operationnel (relance sync, relance job, traitement IPN en echec).
 - [ ] E4 Checklist pre-prod et plan rollback.
