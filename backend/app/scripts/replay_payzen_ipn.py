@@ -252,7 +252,9 @@ async def run() -> int:
         args = parse_args()
         kr_answer_payload = build_kr_answer_from_args(args)
 
-        kr_answer = json.dumps(kr_answer_payload, separators=(",", ":"), ensure_ascii=False)
+        kr_answer = json.dumps(
+            kr_answer_payload, separators=(",", ":"), ensure_ascii=False
+        )
         hmac_key = resolve_hmac_key(mode=args.mode, override_key=args.hmac_key)
         kr_hash = sign_kr_answer(kr_answer=kr_answer, hmac_key=hmac_key)
 

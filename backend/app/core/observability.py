@@ -33,7 +33,9 @@ def log_structured_event(
         "event": event,
         **fields,
     }
-    message = json.dumps(payload, default=_json_default, ensure_ascii=True, sort_keys=True)
+    message = json.dumps(
+        payload, default=_json_default, ensure_ascii=True, sort_keys=True
+    )
     log_method = getattr(logger, level, logger.info)
     log_method(message)
 

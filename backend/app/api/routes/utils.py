@@ -72,7 +72,9 @@ async def _collect_commerce_metrics(
         select(func.count()).select_from(Order).where(col(Order.is_active).is_(True))
     )
     orders_last_24h_result = await session.exec(
-        select(func.count()).select_from(Order).where(
+        select(func.count())
+        .select_from(Order)
+        .where(
             col(Order.is_active).is_(True),
             col(Order.created_at) >= since_24h,
         )
@@ -84,7 +86,9 @@ async def _collect_commerce_metrics(
         .where(col(Payment.is_active).is_(True))
     )
     payments_last_24h_result = await session.exec(
-        select(func.count()).select_from(Payment).where(
+        select(func.count())
+        .select_from(Payment)
+        .where(
             col(Payment.is_active).is_(True),
             col(Payment.created_at) >= since_24h,
         )
@@ -110,7 +114,9 @@ async def _collect_outbox_metrics(
 
     stale_cutoff = now - timedelta(minutes=15)
     stale_pending_result = await session.exec(
-        select(func.count()).select_from(OutboxEvent).where(
+        select(func.count())
+        .select_from(OutboxEvent)
+        .where(
             OutboxEvent.status == "PENDING",
             col(OutboxEvent.created_at) <= stale_cutoff,
         )

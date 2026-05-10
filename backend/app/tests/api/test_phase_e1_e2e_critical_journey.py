@@ -174,7 +174,11 @@ def test_e1_critical_journey_login_catalog_cart_checkout_payment_tracking_histor
         **_kwargs: Any,
     ) -> CartItem:
         for item in e1_state.cart_items:
-            if item.cart_id == cart_id and item.product_id == product.id and item.is_active:
+            if (
+                item.cart_id == cart_id
+                and item.product_id == product.id
+                and item.is_active
+            ):
                 item.quantity += quantity
                 return item
 
