@@ -12,6 +12,7 @@ from app.features.base.crud import RecordNotFoundError
 from app.features.shipping.crud import (
     crud_shipping_route_tracking,
     crud_shipping_route_tracking_consolidation,
+    crud_status_definition,
 )
 from app.features.shipping.models.route_tracking import (
     ShippingRouteTracking,
@@ -25,6 +26,40 @@ from app.features.shipping.models.route_tracking import (
     ShippingRouteTrackingsPublic,
     ShippingRouteTrackingUpdate,
 )
+from app.features.shipping.models.status import StatusDefinition
+
+
+def _derive_order_overall_status(
+    trackings: list[ShippingRouteTracking],
+    *,
+    status_by_id: dict[uuid.UUID, StatusDefinition],
+) -> tuple[int | None, str]:
+    """Derive the current sequence and overall order status from tracking segments."""
+    if not trackings:
+        return None, "unknown"
+
+    ordered_trackings = sorted(trackings, key=lambda tracking: tracking.sequence_order)
+    resolved_statuses: list[tuple[ShippingRouteTracking, StatusDefinition]] = []
+
+    for tracking in ordered_trackings:
+        status_definition = status_by_id.get(tracking.status_id)
+        if status_definition is None:
+            continue
+        resolved_statuses.append((tracking, status_definition))
+
+    if not resolved_statuses:
+        return ordered_trackings[-1].sequence_order, "unknown"
+
+    for tracking, status_definition in resolved_statuses:
+        if status_definition.is_error:
+            return tracking.sequence_order, status_definition.code
+
+    for tracking, status_definition in resolved_statuses:
+        if not status_definition.is_terminal:
+            return tracking.sequence_order, status_definition.code
+
+    last_tracking, last_status_definition = resolved_statuses[-1]
+    return last_tracking.sequence_order, last_status_definition.code
 
 
 # Modèles de requête pour les endpoints POST
@@ -122,22 +157,22 @@ class ShippingRouteTrackingRouter(
             # Récupérer les consolidations pour toutes les routes de cette commande
             consolidations = []
             for t in trackings:
-                route_consolidations = await self.crud.get_consolidations_for_route(
+                route_consolidations = (
+                    await crud_shipping_route_tracking_consolidation.get_consolidations_for_route(
                     session=session, route_id=t.route_id
+                )
                 )
                 consolidations.extend(route_consolidations)
 
-            # Déterminer la séquence actuelle
-            current_sequence = max((t.sequence_order for t in trackings), default=0)
-
-            # Déterminer le statut global (basé sur le tracking avec la séquence la plus élevée)
-            current_tracking = max(trackings, key=lambda x: x.sequence_order)
-            status_details = await self.crud.get_status_by_code(
+            status_definitions = await crud_status_definition.get_by_entity(
                 session=session,
-                entity="shipping_route_tracking",
-                status_code=current_tracking.status_id,
+                entity="route_tracking",
             )
-            overall_status = status_details.code if status_details else "unknown"
+            status_by_id = {status_record.id: status_record for status_record in status_definitions}
+            current_sequence, overall_status = _derive_order_overall_status(
+                trackings,
+                status_by_id=status_by_id,
+            )
 
             return OrderTrackingResponse(
                 order_id=order_id,

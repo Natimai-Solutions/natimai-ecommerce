@@ -321,7 +321,10 @@ Checklist:
   - Statut: COMPLETE le 2026-05-09. Les segments agreges au checkout sont relies aux objets tracking existants via creation de ShippingRouteTracking par segment (sequence ordonnee), resolution route/statut/adresse, et creation de ShippingRouteTrackingConsolidation pour le segment consolidation_pf.
   - Implementation: [backend/app/api/routes/cart.py](app/api/routes/cart.py)
   - Tests: [backend/app/tests/api/test_phase_d2_tracking_segment_linkage.py](app/tests/api/test_phase_d2_tracking_segment_linkage.py)
-- [ ] D3 Exposer un statut global commande derive des segments.
+- [x] D3 Exposer un statut global commande derive des segments.
+  - Statut: COMPLETE le 2026-05-09. Endpoint tracking commande calcule un overall_status derive des segments via StatusDefinition route_tracking (priorite erreur, sinon premier segment non terminal par sequence_order, sinon dernier terminal), et expose current_route_sequence coherent.
+  - Implementation: [backend/app/api/routes/shipping/tracking.py](app/api/routes/shipping/tracking.py)
+  - Tests: [backend/app/tests/api/test_phase_d3_order_global_status.py](app/tests/api/test_phase_d3_order_global_status.py)
 - [ ] D4 Ajouter scenarios d'exception (retard fournisseur, split colis, echec segment).
 
 Definition of Done phase D:
