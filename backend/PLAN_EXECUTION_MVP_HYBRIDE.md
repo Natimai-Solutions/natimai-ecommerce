@@ -317,7 +317,10 @@ Checklist:
   - Statut: COMPLETE le 2026-05-09. Orchestration appliquee au checkout avec segmentation explicite local/supplier_direct/consolidation_pf et persistence de la synthese par ligne de commande (notes).
   - Implementation: [backend/app/api/routes/cart.py](app/api/routes/cart.py)
   - Tests: [backend/app/tests/api/test_phase_d1_fulfillment_orchestration.py](app/tests/api/test_phase_d1_fulfillment_orchestration.py)
-- [ ] D2 Relier ces segments aux objets tracking existants.
+- [x] D2 Relier ces segments aux objets tracking existants.
+  - Statut: COMPLETE le 2026-05-09. Les segments agreges au checkout sont relies aux objets tracking existants via creation de ShippingRouteTracking par segment (sequence ordonnee), resolution route/statut/adresse, et creation de ShippingRouteTrackingConsolidation pour le segment consolidation_pf.
+  - Implementation: [backend/app/api/routes/cart.py](app/api/routes/cart.py)
+  - Tests: [backend/app/tests/api/test_phase_d2_tracking_segment_linkage.py](app/tests/api/test_phase_d2_tracking_segment_linkage.py)
 - [ ] D3 Exposer un statut global commande derive des segments.
 - [ ] D4 Ajouter scenarios d'exception (retard fournisseur, split colis, echec segment).
 

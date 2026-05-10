@@ -196,6 +196,10 @@ async def test_checkout_persists_segment_note_from_orchestration(
         reserve_mock,
     )
     monkeypatch.setattr(
+        "app.api.routes.cart._link_fulfillment_segments_to_tracking",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
         crud_order,
         "create_draft",
         AsyncMock(return_value=order),

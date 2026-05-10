@@ -1,9 +1,12 @@
+import logging
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
 
 from fastapi import APIRouter, HTTPException, status
+from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
@@ -38,11 +41,27 @@ from app.features.payment.models.payment_status import (
     PaymentStatusCreate,
 )
 from app.features.product.models.product import Product
+from app.features.shipping.crud import (
+    crud_shipping_route,
+    crud_shipping_route_tracking,
+    crud_shipping_route_tracking_consolidation,
+    crud_status_definition,
+)
+from app.features.shipping.models.route import ShippingRoute
+from app.features.shipping.models.route_tracking import (
+    ShippingRouteTrackingConsolidationCreate,
+    ShippingRouteTrackingCreate,
+)
+from app.features.shipping.models.status import StatusDefinition, StatusDefinitionCreate
+from app.features.user.crud.address import crud_address
+from app.features.user.models.address import Address, AddressCreate
 from app.features.user.models.user import User
 from app.utils.money import quantize_amount
 
 _PENDING_ORDER_STATUS = "Pending"
 _PENDING_PAYMENT_STATUS = "Pending"
+
+logger = logging.getLogger(__name__)
 
 
 class FulfillmentSegment(str, Enum):
@@ -55,6 +74,13 @@ class FulfillmentSegment(str, Enum):
 class FulfillmentAllocation:
     segment: FulfillmentSegment
     quantity: Decimal
+
+
+_FULFILLMENT_SEGMENT_PRIORITY: dict[FulfillmentSegment, int] = {
+    FulfillmentSegment.LOCAL: 1,
+    FulfillmentSegment.SUPPLIER_DIRECT: 2,
+    FulfillmentSegment.CONSOLIDATION_PF: 2,
+}
 
 
 _PF_ADDRESS_MARKERS = (
@@ -143,6 +169,226 @@ def _format_fulfillment_segments_note(
         for segment in segments
     )
     return f"fulfillment_segments={serialized_segments}"
+
+
+async def _resolve_tracking_address_for_checkout(
+    session: SessionDep,
+    *,
+    current_user: User,
+    shipping_address: str | None,
+) -> Address:
+    existing_shipping_addresses = await crud_address.get_by_user_and_type(
+        session=session,
+        user_id=current_user.id,
+        address_type="shipping",
+    )
+
+    if shipping_address:
+        normalized_shipping_address = shipping_address.strip().lower()
+        for address in existing_shipping_addresses:
+            candidate = ", ".join(
+                [
+                    address.street,
+                    address.city,
+                    address.country,
+                ]
+            ).strip().lower()
+            if candidate == normalized_shipping_address:
+                return address
+
+    if existing_shipping_addresses and not shipping_address:
+        return existing_shipping_addresses[0]
+
+    if shipping_address:
+        chunks = [chunk.strip() for chunk in shipping_address.split(",") if chunk.strip()]
+    else:
+        chunks = []
+
+    street = chunks[0] if chunks else "Checkout shipping address"
+    city = chunks[1] if len(chunks) > 1 else "Unknown"
+    country = chunks[-1] if chunks else "PF"
+
+    return await crud_address.create_draft(
+        session=session,
+        data=AddressCreate(
+            user_id=current_user.id,
+            street=street,
+            city=city,
+            state=None,
+            postal_code="00000",
+            country=country,
+            type="shipping",
+        ),
+        user=current_user,
+    )
+
+
+async def _get_or_create_tracking_status(
+    session: SessionDep,
+    *,
+    entity: str,
+    code: str,
+    name: str,
+) -> StatusDefinition:
+    status_record = await crud_status_definition.get_by_code(
+        session=session,
+        entity=entity,
+        code=code,
+    )
+    if status_record is not None:
+        return status_record
+
+    return await crud_status_definition.create_draft(
+        session=session,
+        data=StatusDefinitionCreate(
+            entity=entity,
+            code=code,
+            name=name,
+            description=f"Auto-created status for {entity}",
+            sequence_order=0,
+            is_terminal=False,
+            is_error=False,
+            ui_color=None,
+            ui_icon=None,
+        ),
+        user=None,
+    )
+
+
+async def _resolve_tracking_route_for_segment(
+    session: SessionDep,
+    *,
+    segment: FulfillmentSegment,
+) -> ShippingRoute | None:
+    if segment == FulfillmentSegment.CONSOLIDATION_PF:
+        intermediary_routes = await crud_shipping_route.get_intermediary_routes(
+            session=session,
+            allow_consolidation=True,
+        )
+        if intermediary_routes:
+            return intermediary_routes[0]
+
+    customer_routes = await crud_shipping_route.get_customer_routes(session=session)
+
+    if segment == FulfillmentSegment.LOCAL:
+        if customer_routes:
+            return customer_routes[0]
+    elif segment == FulfillmentSegment.SUPPLIER_DIRECT:
+        for route in customer_routes:
+            if not route.allow_consolidation:
+                return route
+        if customer_routes:
+            return customer_routes[0]
+    elif segment == FulfillmentSegment.CONSOLIDATION_PF:
+        for route in customer_routes:
+            if route.allow_consolidation:
+                return route
+        if customer_routes:
+            return customer_routes[0]
+
+    fallback_statement = (
+        select(ShippingRoute)
+        .where(col(ShippingRoute.is_active).is_(True))
+        .order_by(col(ShippingRoute.priority).asc())
+        .limit(1)
+    )
+    fallback_result = await session.exec(fallback_statement)
+    return fallback_result.first()
+
+
+async def _link_fulfillment_segments_to_tracking(
+    session: SessionDep,
+    *,
+    order_id: uuid.UUID,
+    current_user: User,
+    shipping_address: str | None,
+    segment_totals: dict[FulfillmentSegment, Decimal],
+) -> None:
+    if not segment_totals:
+        return
+
+    shipping_address_record = await _resolve_tracking_address_for_checkout(
+        session=session,
+        current_user=current_user,
+        shipping_address=shipping_address,
+    )
+
+    route_tracking_status = await _get_or_create_tracking_status(
+        session=session,
+        entity="route_tracking",
+        code="pending",
+        name="Pending",
+    )
+    consolidation_status = await _get_or_create_tracking_status(
+        session=session,
+        entity="consolidation",
+        code="pending",
+        name="Pending",
+    )
+
+    ordered_segments = sorted(
+        segment_totals.items(),
+        key=lambda item: (
+            _FULFILLMENT_SEGMENT_PRIORITY[item[0]],
+            item[0].value,
+        ),
+    )
+
+    for sequence_order, (segment, quantity) in enumerate(ordered_segments, start=1):
+        selected_route = await _resolve_tracking_route_for_segment(
+            session=session,
+            segment=segment,
+        )
+        if selected_route is None:
+            logger.warning(
+                "D2 skipped: no shipping route available for segment=%s order_id=%s",
+                segment.value,
+                order_id,
+            )
+            continue
+
+        consolidation_id = None
+        if segment == FulfillmentSegment.CONSOLIDATION_PF:
+            consolidation = await crud_shipping_route_tracking_consolidation.create_draft(
+                session=session,
+                data=ShippingRouteTrackingConsolidationCreate(
+                    route_id=selected_route.id,
+                    name=f"PF consolidation {order_id}",
+                    consolidation_code=(
+                        f"pf-{str(order_id)[:8]}-{sequence_order}"
+                    ),
+                    status_id=consolidation_status.id,
+                    tracking_ref=None,
+                    total_orders=1,
+                    notes=(
+                        f"Auto-created from checkout segment={segment.value} "
+                        f"quantity={quantity}"
+                    ),
+                ),
+                user=current_user,
+            )
+            consolidation_id = consolidation.id
+
+        await crud_shipping_route_tracking.create_draft(
+            session=session,
+            data=ShippingRouteTrackingCreate(
+                order_id=order_id,
+                route_id=selected_route.id,
+                status_id=route_tracking_status.id,
+                address_id=shipping_address_record.id,
+                consolidation_id=consolidation_id,
+                selected_at=datetime.now(timezone.utc),
+                sequence_order=sequence_order,
+                last_status_update=None,
+                tracking_ref=None,
+                estimated_delivery=None,
+                notes=(
+                    f"segment={segment.value};quantity={quantity};"
+                    f"origin=checkout"
+                ),
+            ),
+            user=current_user,
+        )
 
 
 def _snapshot_checkout_amounts(
@@ -501,6 +747,8 @@ async def checkout_my_cart(
             user=current_user,
         )
 
+        segment_totals: dict[FulfillmentSegment, Decimal] = {}
+
         for item in items:
             product = await _get_active_product_or_404(
                 session,
@@ -515,6 +763,11 @@ async def checkout_my_cart(
                 current_user=current_user,
                 shipping_address=payload.shipping_address,
             )
+            line_segments = line_segments or []
+
+            for segment in line_segments:
+                current_total = segment_totals.get(segment.segment, Decimal("0.00"))
+                segment_totals[segment.segment] = current_total + segment.quantity
 
             line_notes = _format_fulfillment_segments_note(line_segments or [])
 
@@ -530,6 +783,22 @@ async def checkout_my_cart(
                 ),
                 user=current_user,
             )
+
+        if segment_totals:
+            try:
+                await _link_fulfillment_segments_to_tracking(
+                    session=session,
+                    order_id=order.id,
+                    current_user=current_user,
+                    shipping_address=payload.shipping_address,
+                    segment_totals=segment_totals,
+                )
+            except Exception as tracking_exc:
+                logger.warning(
+                    "D2 tracking linkage failed for order_id=%s: %s",
+                    order.id,
+                    tracking_exc,
+                )
 
         payment_status = await _get_or_create_payment_pending_status(session)
         payment = await crud_payment.create_draft(
