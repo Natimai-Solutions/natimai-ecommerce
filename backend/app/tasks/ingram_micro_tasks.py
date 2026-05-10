@@ -323,7 +323,7 @@ def get_ingram_sync_cron_jobs() -> list[Any]:
     sync_hour_interval = settings.INGRAM_SYNC_INTERVAL_HOURS
     jobs.append(
         cron(
-            "sync_ingram_products_task",
+            sync_ingram_products_task,
             hour=set(range(0, 24, sync_hour_interval)),
             minute=0,
             second=0,
@@ -334,7 +334,7 @@ def get_ingram_sync_cron_jobs() -> list[Any]:
     # Inventory sync - more frequent (every 2 hours)
     jobs.append(
         cron(
-            "sync_ingram_inventory_task",
+            sync_ingram_inventory_task,
             hour=set(range(0, 24, 2)),
             minute=30,  # Offset from product sync
             second=0,
@@ -345,7 +345,7 @@ def get_ingram_sync_cron_jobs() -> list[Any]:
     # API health check - daily at 6 AM
     jobs.append(
         cron(
-            "check_ingram_api_health_task",
+            check_ingram_api_health_task,
             hour=6,
             minute=0,
             second=0,
