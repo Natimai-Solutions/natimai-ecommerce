@@ -356,7 +356,10 @@ Checklist:
   - Implementation: [backend/app/core/observability.py](app/core/observability.py), [backend/app/api/routes/cart.py](app/api/routes/cart.py), [backend/app/api/routes/utils.py](app/api/routes/utils.py)
   - Tests: [backend/app/tests/api/test_phase_e2_observability_dashboard.py](app/tests/api/test_phase_e2_observability_dashboard.py)
   - Validation: ruff + mypy + pytest cibles (E2 + E1 + D1-D4) OK.
-- [ ] E3 Runbook operationnel (relance sync, relance job, traitement IPN en echec).
+- [x] E3 Runbook operationnel (relance sync, relance job, traitement IPN en echec).
+  - Statut: COMPLETE le 2026-05-10. Runbook operationnel E3 ajoute avec procedures executeables pour relance Ingram/Icecat, reprise jobs ARQ/outbox, et traitement IPN PayZen en echec via script de replay signe.
+  - Implementation: [backend/RUNBOOK_OPERATIONNEL_E3.md](RUNBOOK_OPERATIONNEL_E3.md), [backend/app/scripts/replay_payzen_ipn.py](app/scripts/replay_payzen_ipn.py), [backend/app/core/config.py](app/core/config.py)
+  - Tests: [backend/app/tests/api/test_phase_e3_operational_entrypoints.py](app/tests/api/test_phase_e3_operational_entrypoints.py)
 - [ ] E4 Checklist pre-prod et plan rollback.
 
 Definition of Done phase E:

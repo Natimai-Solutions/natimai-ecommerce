@@ -173,13 +173,13 @@ class Settings(BaseSettings):
         """Compute the PayZen IPN URL based on backend configuration."""
         if self.PAYZEN_IPN_URL:
             return self.PAYZEN_IPN_URL
-        # Default to API endpoint + payment/payzen/ipn
+        # Default to API endpoint + payzen/ipn
         backend_url = (
             str(self.BACKEND_CORS_ORIGINS[0])
             if self.BACKEND_CORS_ORIGINS
             else "http://localhost:8000"
         )
-        return f"{backend_url}{self.API_V1_STR}/payment/payzen/ipn"
+        return f"{backend_url}{self.API_V1_STR}/payzen/ipn"
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
         if value == "changethis":
