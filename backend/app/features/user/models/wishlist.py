@@ -1,10 +1,13 @@
 # mypy: disable-error-code="assignment,misc,override"
 
+import datetime
 import uuid
 
 from sqlmodel import Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
+
+_DEFAULT_WISHLIST_NAME = "Favorites"
 
 
 class WishlistBase(Base):
@@ -95,3 +98,28 @@ class WishlistItemsPublic(SQLModel):
         default_factory=list, description="List of wishlist items"
     )
     count: int = Field(default=0, description="Total number of wishlist items")
+
+
+class WishlistItemAddRequest(SQLModel):
+    product_id: uuid.UUID = Field(
+        description="ID of the product to add to the wishlist"
+    )
+    notes: str | None = Field(
+        default=None, max_length=500, description="Optional personal notes"
+    )
+
+
+class WishlistItemDetail(SQLModel):
+    id: uuid.UUID
+    product_id: uuid.UUID
+    notes: str | None = None
+    created_at: datetime.datetime | None = None
+
+
+class WishlistDetailPublic(SQLModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    name: str
+    description: str | None = None
+    is_public: bool
+    items: list[WishlistItemDetail] = Field(default_factory=list)
