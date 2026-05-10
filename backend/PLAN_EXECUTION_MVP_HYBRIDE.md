@@ -310,10 +310,13 @@ Livrable phase D:
 - Routage fulfillment hybride + suivi client comprehensible.
 
 Checklist:
-- [ ] D1 Definir et implementer regles d'orchestration:
+- [x] D1 Definir et implementer regles d'orchestration:
   - segment fournisseur direct
   - segment local
   - segment consolidation PF
+  - Statut: COMPLETE le 2026-05-09. Orchestration appliquee au checkout avec segmentation explicite local/supplier_direct/consolidation_pf et persistence de la synthese par ligne de commande (notes).
+  - Implementation: [backend/app/api/routes/cart.py](app/api/routes/cart.py)
+  - Tests: [backend/app/tests/api/test_phase_d1_fulfillment_orchestration.py](app/tests/api/test_phase_d1_fulfillment_orchestration.py)
 - [ ] D2 Relier ces segments aux objets tracking existants.
 - [ ] D3 Exposer un statut global commande derive des segments.
 - [ ] D4 Ajouter scenarios d'exception (retard fournisseur, split colis, echec segment).

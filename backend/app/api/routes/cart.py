@@ -1,5 +1,7 @@
 import uuid
+from dataclasses import dataclass
 from decimal import Decimal
+from enum import Enum
 
 from fastapi import APIRouter, HTTPException, status
 
@@ -41,6 +43,106 @@ from app.utils.money import quantize_amount
 
 _PENDING_ORDER_STATUS = "Pending"
 _PENDING_PAYMENT_STATUS = "Pending"
+
+
+class FulfillmentSegment(str, Enum):
+    LOCAL = "local"
+    SUPPLIER_DIRECT = "supplier_direct"
+    CONSOLIDATION_PF = "consolidation_pf"
+
+
+@dataclass(frozen=True)
+class FulfillmentAllocation:
+    segment: FulfillmentSegment
+    quantity: Decimal
+
+
+_PF_ADDRESS_MARKERS = (
+    "PF",
+    "POLYNESIE",
+    "TAHITI",
+    "PAPEETE",
+    "MOOREA",
+    "BORA",
+    "RANGIROA",
+)
+
+
+def _is_polynesia_shipping_address(shipping_address: str | None) -> bool:
+    if not shipping_address:
+        return True
+
+    normalized_address = shipping_address.upper()
+    return any(marker in normalized_address for marker in _PF_ADDRESS_MARKERS)
+
+
+def _select_supplier_segment(shipping_address: str | None) -> FulfillmentSegment:
+    if _is_polynesia_shipping_address(shipping_address):
+        return FulfillmentSegment.CONSOLIDATION_PF
+    return FulfillmentSegment.SUPPLIER_DIRECT
+
+
+def _plan_checkout_fulfillment_segments(
+    *,
+    product: Product,
+    quantity: int,
+    local_available: Decimal,
+    supplier_available: Decimal,
+    shipping_address: str | None,
+) -> list[FulfillmentAllocation]:
+    requested_quantity = Decimal(quantity)
+    total_available = local_available + supplier_available
+
+    if total_available < requested_quantity:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Insufficient stock for product {product.id}: "
+                f"requested={requested_quantity}, "
+                f"local_available={local_available}, "
+                f"supplier_available={supplier_available}"
+            ),
+        )
+
+    local_to_reserve = min(local_available, requested_quantity)
+    supplier_to_reserve = requested_quantity - local_to_reserve
+
+    segments: list[FulfillmentAllocation] = []
+    if local_to_reserve > 0:
+        segments.append(
+            FulfillmentAllocation(
+                segment=FulfillmentSegment.LOCAL,
+                quantity=local_to_reserve,
+            )
+        )
+
+    if supplier_to_reserve > 0:
+        segments.append(
+            FulfillmentAllocation(
+                segment=_select_supplier_segment(shipping_address),
+                quantity=supplier_to_reserve,
+            )
+        )
+
+    return segments
+
+
+def _format_fulfillment_segments_note(
+    segments: list[FulfillmentAllocation],
+) -> str | None:
+    if not segments:
+        return None
+
+    def _format_quantity(quantity: Decimal) -> str:
+        if quantity == quantity.to_integral_value():
+            return str(int(quantity))
+        return format(quantity.normalize(), "f")
+
+    serialized_segments = ",".join(
+        f"{segment.segment.value}:{_format_quantity(segment.quantity)}"
+        for segment in segments
+    )
+    return f"fulfillment_segments={serialized_segments}"
 
 
 def _snapshot_checkout_amounts(
@@ -112,7 +214,8 @@ async def _reserve_stock_for_checkout(
     product: Product,
     quantity: int,
     current_user: User,
-) -> None:
+    shipping_address: str | None = None,
+) -> list[FulfillmentAllocation]:
     quantity_decimal = Decimal(quantity)
     inventory = await crud_inventory.get_by_product_and_place(
         session=session,
@@ -125,44 +228,54 @@ async def _reserve_stock_for_checkout(
         product.supplier_quantity if product.is_supplier_managed else Decimal("0.00")
     )
 
-    if local_available + supplier_available < quantity_decimal:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"Insufficient stock for product {product.id}: "
-                f"requested={quantity_decimal}, "
-                f"local_available={local_available}, "
-                f"supplier_available={supplier_available}"
-            ),
-        )
+    segments = _plan_checkout_fulfillment_segments(
+        product=product,
+        quantity=quantity,
+        local_available=local_available,
+        supplier_available=supplier_available,
+        shipping_address=shipping_address,
+    )
 
-    local_to_reserve = min(local_available, quantity_decimal)
-    supplier_to_reserve = quantity_decimal - local_to_reserve
+    for segment in segments:
+        if segment.segment == FulfillmentSegment.LOCAL:
+            if inventory is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Insufficient local stock for product {product.id}: "
+                        f"requested={quantity_decimal}, "
+                        f"local_available={local_available}"
+                    ),
+                )
 
-    if local_to_reserve > 0 and inventory is not None:
-        inventory.quantity -= local_to_reserve
-        session.add(inventory)
+            inventory.quantity -= segment.quantity
+            session.add(inventory)
 
-        await crud_stock_movement.create_draft(
-            session=session,
-            data=InventoryStockMovementCreate(
-                movement_type=MovementType.OUTGOING.value,
-                reference_type=ReferenceType.ORDER.value,
-                reference_id=order_id,
-                from_place_id=inventory.place_id,
-                to_place_id=None,
-                product_id=product.id,
-                quantity=local_to_reserve,
-                unit_cost=product.base_price,
-                reason="Local stock reserved during checkout",
-                status=MovementStatus.PENDING.value,
-            ),
-            user=current_user,
-        )
+            await crud_stock_movement.create_draft(
+                session=session,
+                data=InventoryStockMovementCreate(
+                    movement_type=MovementType.OUTGOING.value,
+                    reference_type=ReferenceType.ORDER.value,
+                    reference_id=order_id,
+                    from_place_id=inventory.place_id,
+                    to_place_id=None,
+                    product_id=product.id,
+                    quantity=segment.quantity,
+                    unit_cost=product.base_price,
+                    reason="Local stock reserved during checkout (segment=local)",
+                    status=MovementStatus.PENDING.value,
+                ),
+                user=current_user,
+            )
+            continue
 
-    if supplier_to_reserve > 0:
-        product.supplier_quantity -= supplier_to_reserve
+        product.supplier_quantity -= segment.quantity
         session.add(product)
+
+        supplier_reason = (
+            "Supplier stock reserved during checkout "
+            f"(segment={segment.segment.value})"
+        )
 
         await crud_stock_movement.create_draft(
             session=session,
@@ -173,13 +286,15 @@ async def _reserve_stock_for_checkout(
                 from_place_id=None,
                 to_place_id=None,
                 product_id=product.id,
-                quantity=supplier_to_reserve,
+                quantity=segment.quantity,
                 unit_cost=product.base_price,
-                reason="Supplier stock reserved during checkout",
+                reason=supplier_reason,
                 status=MovementStatus.PENDING.value,
             ),
             user=current_user,
         )
+
+    return segments
 
 
 router = APIRouter(prefix="/cart", tags=["cart"])
@@ -392,13 +507,16 @@ async def checkout_my_cart(
                 product_id=item.product_id,
             )
 
-            await _reserve_stock_for_checkout(
+            line_segments = await _reserve_stock_for_checkout(
                 session=session,
                 order_id=order.id,
                 product=product,
                 quantity=item.quantity,
                 current_user=current_user,
+                shipping_address=payload.shipping_address,
             )
+
+            line_notes = _format_fulfillment_segments_note(line_segments or [])
 
             await crud_order_line.create_draft(
                 session=session,
@@ -408,7 +526,7 @@ async def checkout_my_cart(
                     quantity=item.quantity,
                     unit_price=item.unit_price,
                     discount_amount=Decimal("0.00"),
-                    notes=None,
+                    notes=line_notes,
                 ),
                 user=current_user,
             )
