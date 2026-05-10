@@ -351,7 +351,11 @@ Checklist:
   - Statut: COMPLETE le 2026-05-09. Parcours API E2E critique valide de bout en bout avec etat partage teste sur les etapes login, catalogue, panier, checkout, paiement, tracking et historiques (tracking + commandes).
   - Implementation: [backend/app/tests/api/test_phase_e1_e2e_critical_journey.py](app/tests/api/test_phase_e1_e2e_critical_journey.py)
   - Validation: ruff + mypy + pytest cibles OK.
-- [ ] E2 Logs structures et tableaux de bord minimaux (jobs, erreurs, delais, metriques paiement/commande, alertes erreurs checkout).
+- [x] E2 Logs structures et tableaux de bord minimaux (jobs, erreurs, delais, metriques paiement/commande, alertes erreurs checkout).
+  - Statut: COMPLETE le 2026-05-09. Ajout d'un module d'observabilite avec logs JSON structures et metriques checkout runtime (taux d'echec, p95, alertes), instrumentation checkout, et endpoint dashboard minimal exposant metriques commerce + outbox + alertes checkout.
+  - Implementation: [backend/app/core/observability.py](app/core/observability.py), [backend/app/api/routes/cart.py](app/api/routes/cart.py), [backend/app/api/routes/utils.py](app/api/routes/utils.py)
+  - Tests: [backend/app/tests/api/test_phase_e2_observability_dashboard.py](app/tests/api/test_phase_e2_observability_dashboard.py)
+  - Validation: ruff + mypy + pytest cibles (E2 + E1 + D1-D4) OK.
 - [ ] E3 Runbook operationnel (relance sync, relance job, traitement IPN en echec).
 - [ ] E4 Checklist pre-prod et plan rollback.
 

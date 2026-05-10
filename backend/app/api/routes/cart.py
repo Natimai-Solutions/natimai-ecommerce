@@ -4,11 +4,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
+from time import perf_counter
 
 from fastapi import APIRouter, HTTPException, status
 from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep
+from app.core.observability import log_structured_event, observe_checkout_result
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
 from app.features.cart.models.cart import (
     Cart,
@@ -705,6 +707,7 @@ async def checkout_my_cart(
     current_user: CurrentUser,
     payload: CheckoutRequest,
 ) -> CheckoutResponse:
+    checkout_started = perf_counter()
     cart = await crud_cart.get_active_cart_by_user(
         session=session,
         user_id=current_user.id,
@@ -796,10 +799,12 @@ async def checkout_my_cart(
                     segment_totals=segment_totals,
                 )
             except Exception as tracking_exc:
-                logger.warning(
-                    "D2 tracking linkage failed for order_id=%s: %s",
-                    order.id,
-                    tracking_exc,
+                log_structured_event(
+                    logger,
+                    level="warning",
+                    event="checkout_tracking_linkage_failed",
+                    order_id=order.id,
+                    error=str(tracking_exc),
                 )
 
         payment_status = await _get_or_create_payment_pending_status(session)
@@ -830,6 +835,24 @@ async def checkout_my_cart(
         await session.refresh(payment)
         await session.refresh(cart)
 
+        checkout_duration_ms = int((perf_counter() - checkout_started) * 1000)
+        observe_checkout_result(
+            success=True,
+            duration_ms=checkout_duration_ms,
+        )
+        log_structured_event(
+            logger,
+            level="info",
+            event="checkout_completed",
+            order_id=order.id,
+            payment_id=payment.id,
+            user_id=current_user.id,
+            amount=total_amount,
+            currency=cart.currency,
+            item_count=len(items),
+            duration_ms=checkout_duration_ms,
+        )
+
         return CheckoutResponse(
             order_id=order.id,
             payment_id=payment.id,
@@ -845,8 +868,37 @@ async def checkout_my_cart(
         )
 
     except HTTPException:
+        checkout_duration_ms = int((perf_counter() - checkout_started) * 1000)
+        observe_checkout_result(
+            success=False,
+            duration_ms=checkout_duration_ms,
+            error_code="http_error",
+        )
+        log_structured_event(
+            logger,
+            level="warning",
+            event="checkout_failed",
+            user_id=current_user.id,
+            error_code="http_error",
+            duration_ms=checkout_duration_ms,
+        )
         await session.rollback()
         raise
     except Exception as exc:
+        checkout_duration_ms = int((perf_counter() - checkout_started) * 1000)
+        observe_checkout_result(
+            success=False,
+            duration_ms=checkout_duration_ms,
+            error_code="internal_error",
+        )
+        log_structured_event(
+            logger,
+            level="error",
+            event="checkout_failed",
+            user_id=current_user.id,
+            error_code="internal_error",
+            error=str(exc),
+            duration_ms=checkout_duration_ms,
+        )
         await session.rollback()
         raise HTTPException(status_code=500, detail="Checkout failed") from exc
