@@ -360,7 +360,10 @@ Checklist:
   - Statut: COMPLETE le 2026-05-10. Runbook operationnel E3 ajoute avec procedures executeables pour relance Ingram/Icecat, reprise jobs ARQ/outbox, et traitement IPN PayZen en echec via script de replay signe.
   - Implementation: [backend/RUNBOOK_OPERATIONNEL_E3.md](RUNBOOK_OPERATIONNEL_E3.md), [backend/app/scripts/replay_payzen_ipn.py](app/scripts/replay_payzen_ipn.py), [backend/app/core/config.py](app/core/config.py)
   - Tests: [backend/app/tests/api/test_phase_e3_operational_entrypoints.py](app/tests/api/test_phase_e3_operational_entrypoints.py)
-- [ ] E4 Checklist pre-prod et plan rollback.
+- [x] E4 Checklist pre-prod et plan rollback.
+  - Statut: COMPLETE le 2026-05-09. Checklist pre-prod et plan rollback operationnel ajoutes, avec procedures de sauvegarde, deploiement, smoke tests, rollback par niveaux (application, migration, restauration backup) et post-incident.
+  - Implementation: [backend/CHECKLIST_PREPROD_ROLLBACK_E4.md](CHECKLIST_PREPROD_ROLLBACK_E4.md)
+  - Tests: [backend/app/tests/test_phase_e4_preprod_rollback_doc.py](app/tests/test_phase_e4_preprod_rollback_doc.py)
 
 Definition of Done phase E:
 - Tu peux laisser tourner plusieurs jours et reprendre rapidement avec vision claire.
