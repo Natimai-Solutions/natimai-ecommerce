@@ -333,6 +333,12 @@ Checklist:
 Definition of Done phase D:
 - Une commande hybride affiche des etats utiles cote client et admin.
 
+Points d'attention Phase D (releves a la verification du 2026-05-09, non bloquants):
+- [cart.py#L218](app/api/routes/cart.py#L218): `postal_code="00000"` code en dur dans le fallback d'adresse (`_resolve_tracking_address_for_checkout`). Acceptable MVP, mais pourrait surprendre une validation downstream (carriers, exports comptables). A revoir si le client saisit une adresse de livraison structuree.
+- [cart.py#L796](app/api/routes/cart.py#L796): les erreurs du linkage tracking sont avalees (log warning + continue) dans `checkout_my_cart`. Choix delibere (tracking non critique), mais une commande peut exister sans tracking. Prevoir un job de reconciliation ou alerte cote E2 (logs/dashboards) pour detecter ces cas.
+- [cart.py#L322](app/api/routes/cart.py#L322): `_get_or_create_tracking_status` pour `entity="consolidation"` est appele meme sans segment PF. Inefficacite mineure (un get + create one-shot), pas un bug. A inliner sous condition `if FulfillmentSegment.CONSOLIDATION_PF in segment_totals`.
+- [cart.py#L86-L94](app/api/routes/cart.py#L86-L94): le marker `"PF"` (2 caracteres) est matche en substring sur l'adresse upper-case. Risque theorique de faux positif sur des chaines contenant "PF" hors contexte Polynesie. Considerer un match a frontiere de mot (split sur virgule + comparaison de tokens) si des cas reels remontent.
+
 ---
 
 ## Phase E - Fiabilisation exploitation (Semaine 10)
