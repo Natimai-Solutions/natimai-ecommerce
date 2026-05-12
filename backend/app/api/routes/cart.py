@@ -21,6 +21,7 @@ from app.features.cart.models.cart import (
     CartItemQuantityUpdateRequest,
     CheckoutRequest,
     CheckoutResponse,
+    CheckoutShippingPreference,
 )
 from app.features.inventory.crud import crud_inventory, crud_stock_movement
 from app.features.inventory.models.stock_movement import (
@@ -55,6 +56,10 @@ from app.features.shipping.models.route_tracking import (
     ShippingRouteTrackingCreate,
 )
 from app.features.shipping.models.status import StatusDefinition, StatusDefinitionCreate
+from app.features.shipping.services import (
+    calculate_shipping_for_routes,
+    serialize_shipping_cost_summary,
+)
 from app.features.user.crud.address import crud_address
 from app.features.user.models.address import Address, AddressCreate
 from app.features.user.models.user import User
@@ -171,6 +176,155 @@ def _format_fulfillment_segments_note(
         for segment in segments
     )
     return f"fulfillment_segments={serialized_segments}"
+
+
+def _route_total_cost(
+    route: ShippingRoute,
+    *,
+    total_weight_kg: Decimal,
+    declared_value: Decimal,
+    currency: str,
+) -> Decimal:
+    summary = calculate_shipping_for_routes(
+        routes=[route],
+        total_weight_kg=total_weight_kg,
+        declared_value=declared_value,
+        currency=currency,
+    )
+    return summary.total_fee
+
+
+def _route_preference_sort_key(
+    route: ShippingRoute,
+    preference: CheckoutShippingPreference,
+    *,
+    total_weight_kg: Decimal,
+    declared_value: Decimal,
+    currency: str,
+) -> tuple[float, float, float]:
+    route_priority = float(route.priority if route.priority is not None else 999)
+    eta_days = float(route.eta_days if route.eta_days is not None else 9999)
+    carbon = (
+        route.carbon_footprint_kg_co2e
+        if route.carbon_footprint_kg_co2e is not None
+        else 999999.0
+    )
+
+    if preference == CheckoutShippingPreference.FASTEST:
+        return (eta_days, carbon, route_priority)
+
+    if preference == CheckoutShippingPreference.ECO_FRIENDLY:
+        return (carbon, eta_days, route_priority)
+
+    # CHEAPEST: rank by the actually recomputed segment cost (not display priority).
+    route_cost = float(
+        _route_total_cost(
+            route,
+            total_weight_kg=total_weight_kg,
+            declared_value=declared_value,
+            currency=currency,
+        )
+    )
+    return (route_cost, eta_days, route_priority)
+
+
+async def _resolve_selected_checkout_routes(
+    session: SessionDep,
+    *,
+    shipping_route_ids: list[uuid.UUID],
+) -> list[ShippingRoute]:
+    if not shipping_route_ids:
+        return []
+
+    ordered_route_ids: list[uuid.UUID] = []
+    seen_route_ids: set[uuid.UUID] = set()
+
+    for route_id in shipping_route_ids:
+        if route_id in seen_route_ids:
+            continue
+        seen_route_ids.add(route_id)
+        ordered_route_ids.append(route_id)
+
+    statement = select(ShippingRoute).where(
+        col(ShippingRoute.id).in_(ordered_route_ids),
+        col(ShippingRoute.is_active).is_(True),
+    )
+    result = await session.exec(statement)
+    routes = list(result.all())
+
+    route_by_id = {route.id: route for route in routes}
+    missing_route_ids = [
+        str(route_id) for route_id in ordered_route_ids if route_id not in route_by_id
+    ]
+    if missing_route_ids:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Unknown or inactive shipping routes: "
+                + ", ".join(missing_route_ids)
+            ),
+        )
+
+    return [route_by_id[route_id] for route_id in ordered_route_ids]
+
+
+async def _select_checkout_routes_by_preference(
+    session: SessionDep,
+    *,
+    preference: CheckoutShippingPreference | None,
+    total_weight_kg: Decimal,
+    declared_value: Decimal,
+    currency: str,
+) -> list[ShippingRoute]:
+    if preference is None:
+        return []
+
+    def sort_key(route: ShippingRoute) -> tuple[float, float, float]:
+        return _route_preference_sort_key(
+            route,
+            preference,
+            total_weight_kg=total_weight_kg,
+            declared_value=declared_value,
+            currency=currency,
+        )
+
+    selected_routes: list[ShippingRoute] = []
+
+    intermediary_routes = await crud_shipping_route.get_intermediary_routes(
+        session=session,
+    )
+    if intermediary_routes:
+        selected_routes.append(min(intermediary_routes, key=sort_key))
+
+    customer_routes = await crud_shipping_route.get_customer_routes(session=session)
+    if customer_routes:
+        selected_customer_route = min(customer_routes, key=sort_key)
+        if not selected_routes or selected_routes[-1].id != selected_customer_route.id:
+            selected_routes.append(selected_customer_route)
+
+    return selected_routes
+
+
+def _compute_checkout_declared_value_and_weight(
+    *,
+    items: list[CartItem],
+    products_by_id: dict[uuid.UUID, Product],
+) -> tuple[Decimal, Decimal]:
+    declared_value = Decimal("0")
+    total_weight_kg = Decimal("0")
+
+    for item in items:
+        product = products_by_id[item.product_id]
+        item_quantity = Decimal(item.quantity)
+        declared_value += item.unit_price * item_quantity
+
+        product_weight_value = getattr(product, "weight", None)
+        if product_weight_value is not None:
+            product_weight = Decimal(str(product_weight_value))
+            if product_weight > 0:
+                total_weight_kg += product_weight * item_quantity
+
+    return declared_value, total_weight_kg
 
 
 async def _resolve_tracking_address_for_checkout(
@@ -391,6 +545,53 @@ async def _link_fulfillment_segments_to_tracking(
                 tracking_ref=None,
                 estimated_delivery=None,
                 notes=(f"segment={segment.value};quantity={quantity};origin=checkout"),
+            ),
+            user=current_user,
+        )
+
+
+async def _link_selected_routes_to_tracking(
+    session: SessionDep,
+    *,
+    order_id: uuid.UUID,
+    current_user: User,
+    shipping_address: str | None,
+    selected_routes: list[ShippingRoute],
+) -> None:
+    if not selected_routes:
+        return
+
+    shipping_address_record = await _resolve_tracking_address_for_checkout(
+        session=session,
+        current_user=current_user,
+        shipping_address=shipping_address,
+    )
+
+    route_tracking_status = await _get_or_create_tracking_status(
+        session=session,
+        entity="route_tracking",
+        code="pending",
+        name="Pending",
+    )
+
+    for sequence_order, route in enumerate(selected_routes, start=1):
+        await crud_shipping_route_tracking.create_draft(
+            session=session,
+            data=ShippingRouteTrackingCreate(
+                order_id=order_id,
+                route_id=route.id,
+                status_id=route_tracking_status.id,
+                address_id=shipping_address_record.id,
+                consolidation_id=None,
+                selected_at=datetime.now(timezone.utc),
+                sequence_order=sequence_order,
+                last_status_update=None,
+                tracking_ref=None,
+                estimated_delivery=None,
+                notes=(
+                    "origin=checkout_selected_routes;"
+                    f"sequence={sequence_order}"
+                ),
             ),
             user=current_user,
         )
@@ -719,6 +920,47 @@ async def checkout_my_cart(
     if not items:
         raise HTTPException(status_code=400, detail="Cart is empty")
 
+    products_by_id: dict[uuid.UUID, Product] = {}
+    for item in items:
+        product = await _get_active_product_or_404(
+            session,
+            product_id=item.product_id,
+        )
+        products_by_id[item.product_id] = product
+
+    declared_value, total_weight_kg = _compute_checkout_declared_value_and_weight(
+        items=items,
+        products_by_id=products_by_id,
+    )
+
+    selected_routes = await _resolve_selected_checkout_routes(
+        session=session,
+        shipping_route_ids=payload.shipping_route_ids,
+    )
+    if not selected_routes:
+        selected_routes = await _select_checkout_routes_by_preference(
+            session=session,
+            preference=payload.shipping_preference,
+            total_weight_kg=total_weight_kg,
+            declared_value=declared_value,
+            currency=cart.currency,
+        )
+
+    shipping_cost_summary = None
+    shipping_cost_breakdown_payload: dict | None = None
+    shipping_fee_input = payload.shipping_fee_amount or Decimal("0.00")
+    if selected_routes:
+        shipping_cost_summary = calculate_shipping_for_routes(
+            routes=selected_routes,
+            total_weight_kg=total_weight_kg,
+            declared_value=declared_value,
+            currency=cart.currency,
+        )
+        shipping_fee_input = shipping_cost_summary.total_fee
+        shipping_cost_breakdown_payload = serialize_shipping_cost_summary(
+            shipping_cost_summary
+        )
+
     (
         subtotal_amount,
         shipping_fee_amount,
@@ -728,7 +970,7 @@ async def checkout_my_cart(
     ) = _snapshot_checkout_amounts(
         items=items,
         currency=cart.currency,
-        shipping_fee_amount=payload.shipping_fee_amount,
+        shipping_fee_amount=shipping_fee_input,
         payment_fee_amount=payload.payment_fee_amount,
     )
     if total_amount <= 0:
@@ -747,6 +989,7 @@ async def checkout_my_cart(
                 payment_fee_amount=payment_fee_amount,
                 total_fees_amount=total_fees_amount,
                 shipping_address=payload.shipping_address,
+                shipping_cost_breakdown=shipping_cost_breakdown_payload,
                 notes=payload.notes,
             ),
             user=current_user,
@@ -755,10 +998,7 @@ async def checkout_my_cart(
         segment_totals: dict[FulfillmentSegment, Decimal] = {}
 
         for item in items:
-            product = await _get_active_product_or_404(
-                session,
-                product_id=item.product_id,
-            )
+            product = products_by_id[item.product_id]
 
             line_segments = await _reserve_stock_for_checkout(
                 session=session,
@@ -789,7 +1029,24 @@ async def checkout_my_cart(
                 user=current_user,
             )
 
-        if segment_totals:
+        if selected_routes:
+            try:
+                await _link_selected_routes_to_tracking(
+                    session=session,
+                    order_id=order.id,
+                    current_user=current_user,
+                    shipping_address=payload.shipping_address,
+                    selected_routes=selected_routes,
+                )
+            except Exception as tracking_exc:
+                log_structured_event(
+                    logger,
+                    level="warning",
+                    event="checkout_selected_routes_tracking_linkage_failed",
+                    order_id=order.id,
+                    error=str(tracking_exc),
+                )
+        elif segment_totals:
             try:
                 await _link_fulfillment_segments_to_tracking(
                     session=session,
@@ -864,6 +1121,16 @@ async def checkout_my_cart(
             total_amount=total_amount,
             currency=cart.currency,
             item_count=len(items),
+            applied_shipping_route_ids=[route.id for route in selected_routes],
+            shipping_eta_days=(
+                shipping_cost_summary.eta_days if shipping_cost_summary else None
+            ),
+            shipping_carbon_footprint_kg_co2e=(
+                shipping_cost_summary.carbon_footprint_kg_co2e
+                if shipping_cost_summary
+                else None
+            ),
+            shipping_cost_breakdown=shipping_cost_breakdown_payload,
             message="Checkout completed",
         )
 

@@ -2,6 +2,8 @@
 
 import uuid
 from decimal import Decimal
+from enum import Enum
+from typing import Any
 
 from sqlmodel import Field, SQLModel, UniqueConstraint
 
@@ -149,6 +151,12 @@ class CartDetailPublic(SQLModel):
     items: list[CartItemDetail] = Field(default_factory=list)
 
 
+class CheckoutShippingPreference(str, Enum):
+    FASTEST = "fastest"
+    ECO_FRIENDLY = "eco_friendly"
+    CHEAPEST = "cheapest"
+
+
 class CheckoutRequest(SQLModel):
     shipping_address: str | None = Field(
         default=None,
@@ -160,12 +168,15 @@ class CheckoutRequest(SQLModel):
         max_length=1000,
         description="Optional checkout notes",
     )
-    shipping_fee_amount: Decimal = Field(
-        default=Decimal("0.00"),
+    shipping_fee_amount: Decimal | None = Field(
+        default=None,
         ge=0,
         max_digits=12,
         decimal_places=2,
-        description="Shipping fees snapshot applied at checkout",
+        description=(
+            "Deprecated manual shipping fee override. "
+            "Used only if no shipping routes are selected"
+        ),
     )
     payment_fee_amount: Decimal = Field(
         default=Decimal("0.00"),
@@ -173,6 +184,18 @@ class CheckoutRequest(SQLModel):
         max_digits=12,
         decimal_places=2,
         description="Payment fees snapshot applied at checkout",
+    )
+    shipping_route_ids: list[uuid.UUID] = Field(
+        default_factory=list,
+        description=(
+            "Ordered list of selected shipping routes for this checkout path"
+        ),
+    )
+    shipping_preference: CheckoutShippingPreference | None = Field(
+        default=None,
+        description=(
+            "Automatic selection preference when shipping_route_ids is empty"
+        ),
     )
 
 
@@ -187,4 +210,14 @@ class CheckoutResponse(SQLModel):
     total_amount: Decimal
     currency: str
     item_count: int
+    applied_shipping_route_ids: list[uuid.UUID] = Field(default_factory=list)
+    shipping_eta_days: int | None = None
+    shipping_carbon_footprint_kg_co2e: float | None = None
+    shipping_cost_breakdown: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "Snapshot detaille des couts de livraison par troncon "
+            "(meme contenu que sur la commande)"
+        ),
+    )
     message: str = Field(default="Checkout completed")

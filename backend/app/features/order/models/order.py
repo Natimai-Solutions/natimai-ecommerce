@@ -1,7 +1,8 @@
 import uuid
 from decimal import Decimal
+from typing import Any
 
-from sqlmodel import Field, SQLModel
+from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
@@ -57,6 +58,14 @@ class OrderBase(Base):
         max_length=500,
         description="Adresse de livraison",
     )
+    shipping_cost_breakdown: dict[str, Any] | None = Field(
+        default=None,
+        sa_column=Column(JSON),
+        description=(
+            "Snapshot detaille des couts de livraison par troncon au checkout "
+            "(routes selectionnees, forfait/poids/valeur, ETA, empreinte carbone)"
+        ),
+    )
     notes: str | None = Field(
         default=None,
         max_length=1000,
@@ -77,6 +86,7 @@ class OrderUpdate(BaseUpdate):
     payment_fee_amount: Decimal | None = None
     total_fees_amount: Decimal | None = None
     shipping_address: str | None = None
+    shipping_cost_breakdown: dict[str, Any] | None = None
     notes: str | None = None
 
 
