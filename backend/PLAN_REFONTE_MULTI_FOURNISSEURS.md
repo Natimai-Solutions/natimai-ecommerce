@@ -1,222 +1,140 @@
-# Plan de refonte — Support multi-fournisseurs
+# Architecture multi-fournisseurs
 
-> Document de référence pour une implémentation future.
-> État actuel : intégration Ingram Micro uniquement.
-> Objectif : permettre l'ajout de fournisseurs supplémentaires (TechData, Also, etc.) sans dupliquer la stack.
-
----
-
-## 1. Évaluation de l'existant
-
-**Difficulté actuelle d'ajouter un fournisseur : moyenne.** La moitié du travail est déjà faite, l'autre moitié demande une vraie abstraction.
-
-### Ce qui est déjà supplier-agnostic ✅
-
-- **Modèle `Product`** ([backend/app/features/product/models/product.py:25-158](backend/app/features/product/models/product.py#L25-L158))
-  - Champs génériques déjà présents : `supplier_sku`, `supplier_name`, `supplier_price`, `supplier_price_currency`, `supplier_quantity`, `supplier_category`, `supplier_subcategory`, `last_supplier_sync`, `is_supplier_managed`, `vendor_part_number`, `manufacturer`
-  - Pas de colonne Ingram-spécifique
-- **Lookup CRUD** : `crud_product.get_by_supplier_sku(supplier_sku, supplier_name, ...)` accepte déjà un `supplier_name` en paramètre
-- **Schémas de tracking** : `IngramSyncLog` et `IngramProductMapping` ne contiennent rien d'intrinsèquement Ingram dans leurs colonnes (juste le nommage)
-- **Infrastructure ARQ** (cron, dedup Redis) : générique
-- **Normalisation prix/quantité** (`normalize_supplier_snapshot()`) : générique
-
-### Ce qui est couplé à Ingram ❌
-
-| Couche | Fichier | Problème |
-|---|---|---|
-| Service HTTP | [backend/app/services/ingram_micro_service.py](backend/app/services/ingram_micro_service.py) | Endpoints, OAuth, headers (`IM-CustomerNumber`, `IM-CountryCode`…) hardcodés |
-| Orchestrateur | [backend/app/features/integrations/services/ingram_sync_orchestrator.py:34-219](backend/app/features/integrations/services/ingram_sync_orchestrator.py#L34-L219) | `_convert_ingram_to_product_data()` mappe directement `IngramProductData → Product` |
-| Tâches ARQ | [backend/app/tasks/ingram_micro_tasks.py](backend/app/tasks/ingram_micro_tasks.py) | 3 fonctions dédiées Ingram (`sync_ingram_products_task`, etc.) |
-| Routes | [backend/app/api/routes/ingram_micro.py](backend/app/api/routes/ingram_micro.py) | Router dédié, supplier_name "Ingram Micro" en dur |
-| Settings | [backend/app/core/config.py:134-143](backend/app/core/config.py#L134-L143) | Préfixe `INGRAM_*` sans namespace fournisseur |
+> **État : implémenté.** L'ancienne intégration mono-fournisseur (Ingram Micro)
+> a été refondue derrière une abstraction `SupplierAdapter`. Ce document décrit
+> l'architecture en place et **comment ajouter un nouveau fournisseur**.
 
 ---
 
-## 2. Architecture cible
-
-### 2.1 Interface `SupplierAdapter` (ABC)
-
-Nouveau fichier : `backend/app/services/suppliers/base.py`
-
-```python
-from abc import ABC, abstractmethod
-
-class SupplierAdapter(ABC):
-    name: str                       # "ingram_micro", "techdata"
-    display_name: str               # "Ingram Micro"
-    default_categories: list[str]
-    batch_size: int                 # taille de batch pour price/availability
-
-    @abstractmethod
-    async def fetch_catalog(
-        self, category: str, **filters
-    ) -> list[NormalizedProductData]: ...
-
-    @abstractmethod
-    async def fetch_price_and_availability(
-        self, skus: list[str]
-    ) -> dict[str, NormalizedPricing]: ...
-
-    @abstractmethod
-    async def health_check(self) -> bool: ...
-```
-
-### 2.2 DTO commun `NormalizedProductData`
-
-**Pièce centrale manquante.** Aujourd'hui le mapping Ingram → Product est direct ; demain :
+## 1. Vue d'ensemble
 
 ```
-IngramAdapter   → NormalizedProductData ─┐
-TechDataAdapter → NormalizedProductData ─┼─→ Product (via orchestrateur générique)
-AlsoAdapter     → NormalizedProductData ─┘
+IngramMicroAdapter ─┐
+TechDataAdapter  ───┼─→ NormalizedProductData / NormalizedPricing ─→ SupplierSyncOrchestrator ─→ Product
+AlsoAdapter      ───┘                                                        │
+                                                                             ├─→ supplier_sync_logs
+                                                                             └─→ supplier_product_mappings
 ```
 
-Chaque adapter porte la responsabilité de sa normalisation. L'orchestrateur ne voit plus que le DTO commun.
+- Chaque adapter encapsule **son** API : auth (OAuth, API key, JWT…), endpoints,
+  pagination, rate limiting, et la **normalisation** de ses payloads.
+- L'orchestrateur, les tâches ARQ et les routes HTTP ne voient que l'interface
+  `SupplierAdapter` et les DTO communs — jamais une forme propre à un vendor.
+- Une seule paire de tables (`supplier_sync_logs`, `supplier_product_mappings`)
+  sert tous les distributeurs ; la colonne `supplier_name` (indexée) porte le
+  *nom machine* de l'adapter (`"ingram_micro"`, `"techdata"`, …).
 
-### 2.3 Orchestrateur générique
+---
 
-Renommer `IngramSyncOrchestrator` → `SupplierSyncOrchestrator(adapter: SupplierAdapter)`. Le code devient :
+## 2. Fichiers clés
 
-```python
-class SupplierSyncOrchestrator:
-    def __init__(self, adapter: SupplierAdapter):
-        self.adapter = adapter
-
-    async def sync_products(self, categories: list[str]):
-        for cat in categories:
-            normalized = await self.adapter.fetch_catalog(category=cat)
-            for item in normalized:
-                await self._upsert_product(item, supplier_name=self.adapter.name)
-```
-
-### 2.4 Migration Alembic des modèles de tracking
-
-| Avant | Après |
+| Rôle | Fichier |
 |---|---|
-| `ingram_sync_log` | `supplier_sync_log` (+ colonne `supplier_name` indexée) |
-| `ingram_product_mapping` | `supplier_product_mapping` (+ colonne `supplier_name` indexée) |
-| `IngramSyncLog` | `SupplierSyncLog` |
-| `IngramProductMapping` | `SupplierProductMapping` |
+| Interface + DTO | [backend/app/services/suppliers/base.py](backend/app/services/suppliers/base.py) — `SupplierAdapter`, `NormalizedProductData`, `NormalizedPricing`, `SupplierHealth` |
+| Registry | [backend/app/services/suppliers/__init__.py](backend/app/services/suppliers/__init__.py) — `SUPPLIERS`, `get_adapter()`, `all_adapters()`, `supplier_names()` |
+| Adapter Ingram | [backend/app/services/suppliers/ingram_micro.py](backend/app/services/suppliers/ingram_micro.py) — `IngramMicroService` (client REST) + `IngramMicroAdapter` |
+| Orchestrateur | [backend/app/features/integrations/services/supplier_sync_orchestrator.py](backend/app/features/integrations/services/supplier_sync_orchestrator.py) — `SupplierSyncOrchestrator(adapter)` |
+| Modèles tracking | [backend/app/features/integrations/models/supplier_sync.py](backend/app/features/integrations/models/supplier_sync.py) — `SupplierSyncLog`, `SupplierProductMapping` |
+| CRUD tracking | [backend/app/features/integrations/crud/supplier_sync.py](backend/app/features/integrations/crud/supplier_sync.py) — scopé par `supplier_name` |
+| Tâches ARQ | [backend/app/tasks/supplier_tasks.py](backend/app/tasks/supplier_tasks.py) — `sync_supplier_products_task`, `sync_supplier_inventory_task`, `check_supplier_health_task`, `get_supplier_sync_cron_jobs()` |
+| Routes HTTP | [backend/app/api/routes/suppliers.py](backend/app/api/routes/suppliers.py) — router générique `/suppliers/*` |
+| Normalisation prix/stock | [backend/app/features/integrations/services/supplier_data_normalization.py](backend/app/features/integrations/services/supplier_data_normalization.py) |
 
-**⚠️ Risque principal de la refonte.** À faire **avant** d'avoir trop de données en prod.
-
-### 2.5 Registry et configuration
-
-```python
-# backend/app/services/suppliers/__init__.py
-SUPPLIERS: dict[str, type[SupplierAdapter]] = {
-    "ingram_micro": IngramMicroAdapter,
-    "techdata": TechDataAdapter,
-}
-```
-
-**Settings imbriqués (Pydantic `BaseSettings`)** :
+### Routes exposées (`/api/v1`)
 
 ```
-SUPPLIER__INGRAM__CLIENT_ID=...
-SUPPLIER__INGRAM__CLIENT_SECRET=...
-SUPPLIER__TECHDATA__API_KEY=...
+GET   /suppliers                                # liste des fournisseurs enregistrés + état
+POST  /suppliers/{supplier_name}/sync/products  # enqueue un sync catalogue
+POST  /suppliers/{supplier_name}/sync/inventory # enqueue un refresh prix/stock
+GET   /suppliers/{supplier_name}/health         # connectivité + dernier sync réussi
+GET   /suppliers/{supplier_name}/config         # configuration (sans secrets)
+GET   /suppliers/{supplier_name}/categories     # catégories synchronisées par défaut
 ```
 
-### 2.6 Routes paramétrées
+### Tâches ARQ / cron
 
-Remplacer le router `/ingram/*` par un router générique :
-
-```
-POST  /suppliers/{supplier_name}/sync/products
-POST  /suppliers/{supplier_name}/sync/inventory
-GET   /suppliers/{supplier_name}/health
-GET   /suppliers/{supplier_name}/config
-GET   /suppliers                              # liste des fournisseurs enregistrés
-```
-
-### 2.7 Tâches ARQ paramétrées
-
-Une seule fonction par type de sync :
-
-```python
-async def sync_supplier_products_task(ctx, supplier_name: str, categories: list[str]): ...
-async def sync_supplier_inventory_task(ctx, supplier_name: str, skus: list[str] | None): ...
-async def check_supplier_health_task(ctx, supplier_name: str): ...
-```
-
-La planification cron itère sur `SUPPLIERS.keys()`.
+`get_supplier_sync_cron_jobs()` itère sur `all_adapters()` et planifie, pour chaque
+fournisseur **sync activé**, trois jobs : `{name}_product_sync` (toutes les
+`sync_interval_hours()` h), `{name}_inventory_sync` (toutes les 2 h),
+`{name}_api_health_check` (quotidien). arq ne sachant pas passer d'arguments à un
+cron, chaque job est une petite closure liée au `supplier_name` (`_bind_supplier`).
 
 ---
 
-## 3. Plan d'exécution suggéré
+## 3. Ajouter un nouveau fournisseur
 
-### Phase 1 — Préparation (sans casser l'existant)
-1. Créer `app/services/suppliers/base.py` (ABC + DTOs `NormalizedProductData`, `NormalizedPricing`)
-2. Wrapper `IngramMicroAdapter(SupplierAdapter)` autour du service existant — pas de modification de comportement
-3. Tests unitaires sur l'adapter
+1. **Créer l'adapter** `backend/app/services/suppliers/<nom>.py` :
 
-### Phase 2 — Migration des modèles
-4. Migration Alembic : renommer tables, ajouter colonnes `supplier_name`, backfiller `"ingram_micro"` sur les lignes existantes
-5. Renommer modèles SQLModel + CRUD
-6. Mettre à jour les imports
+   ```python
+   from app.services.suppliers.base import (
+       NormalizedPricing, NormalizedProductData, SupplierAdapter, SupplierHealth,
+   )
 
-### Phase 3 — Orchestrateur générique
-7. Créer `SupplierSyncOrchestrator` paramétré
-8. Remplacer `_convert_ingram_to_product_data()` par la normalisation portée par l'adapter
-9. Garder l'ancien orchestrateur en deprecation warning pendant 1 release
+   class TechDataAdapter(SupplierAdapter):
+       name = "techdata"
+       display_name = "TechData"
+       price_batch_size = 100
 
-### Phase 4 — Routes & tâches
-10. Nouveau router `/suppliers/{supplier_name}/*`
-11. Ancien router `/ingram/*` redirige vers le nouveau (deprecated)
-12. Refactor des tâches ARQ vers les versions paramétrées
-13. Mise à jour de la planification cron
+       def is_configured(self) -> bool: ...
+       def is_sync_enabled(self) -> bool: ...
+       def sync_interval_hours(self) -> int: ...      # optionnel (0 = pas de cron)
 
-### Phase 5 — Ajout d'un 2ᵉ fournisseur (preuve de fonctionnement)
-14. Implémenter `TechDataAdapter` (ou autre)
-15. Settings, registration, premier sync end-to-end
+       async def fetch_catalog(self, category, **filters):   # async generator
+           ...
+           yield [NormalizedProductData(...), ...]            # une page par yield
 
-### Phase 6 — Nettoyage
-16. Suppression du router deprecated
-17. Suppression de l'ancien orchestrateur
-18. Documentation contributeurs
+       async def fetch_price_and_availability(self, skus) -> dict[str, NormalizedPricing]:
+           ...
 
----
+       async def health_check(self) -> SupplierHealth:
+           ...
+   ```
 
-## 4. Tradeoff — Quand faire la refonte ?
+   L'adapter porte la responsabilité de **toute** sa normalisation : c'est lui
+   qui transforme la réponse de son API en `NormalizedProductData` /
+   `NormalizedPricing`.
 
-| Situation | Recommandation |
-|---|---|
-| Un seul fournisseur supplémentaire prévu, jamais plus | **Copier-coller** Ingram → X (~1 jour). La refonte n'en vaut pas la peine. |
-| 2 fournisseurs supplémentaires ou plus prévus | **Refonte ABC justifiée.** ROI à partir du 2ᵉ adapter. |
-| Frontend admin doit lister/gérer les fournisseurs de façon générique | **Refonte nécessaire** dès maintenant. |
-| Beaucoup de données en prod sur les tables `ingram_*` | **Repousser la migration** ou prévoir un downtime de maintenance. |
+2. **Enregistrer l'adapter** dans `backend/app/services/suppliers/__init__.py` :
 
----
+   ```python
+   from app.services.suppliers.techdata import TechDataAdapter
+   SUPPLIERS = {
+       IngramMicroAdapter.name: IngramMicroAdapter,
+       TechDataAdapter.name: TechDataAdapter,
+   }
+   ```
 
-## 5. Points d'attention
+3. **Ajouter sa configuration** dans `backend/app/core/config.py` (préfixe propre
+   au fournisseur, ex. `TECHDATA_API_KEY`, `TECHDATA_SYNC_ENABLED`,
+   `TECHDATA_SYNC_CATEGORIES`, …) — l'adapter lit `settings.TECHDATA_*` dans ses
+   méthodes `is_configured()` / `default_categories` / etc.
 
-- **Idempotence des syncs** — vérifier que `_resolve_existing_product()` (lookup par mapping puis fallback `supplier_sku + supplier_name`) reste correct quand plusieurs fournisseurs partagent un même SKU vendor (ex : même `vendor_part_number` Lenovo chez Ingram et TechData → 2 entrées Product distinctes attendues, ou fusion ? **Décision produit à prendre.**)
-- **Conflits de prix** — si un même produit (même MPN) est référencé chez 2 fournisseurs, lequel sert de source de vérité pour `base_price` ? Politique "best price" ? "preferred supplier" ? Champ `preferred_supplier_id` à ajouter ?
-- **OAuth/auth par fournisseur** — chaque adapter encapsule sa propre stratégie d'auth (OAuth 2.0 client credentials pour Ingram, API Key pour d'autres, JWT signé pour d'autres encore)
-- **Rate limiting** — propriété `requests_per_minute` sur l'adapter, gérée par un middleware/throttler partagé
-- **Observabilité** — étiquetage métriques/logs par `supplier_name` (Prometheus labels)
+C'est tout : routes, tâches ARQ, planification cron, table de tracking et CRUD
+fonctionnent automatiquement pour le nouveau fournisseur.
 
 ---
 
-## 6. Inventaire des fichiers impactés
+## 4. Décisions produit encore ouvertes
 
-### À créer
-- `backend/app/services/suppliers/__init__.py` (registry)
-- `backend/app/services/suppliers/base.py` (ABC + DTOs)
-- `backend/app/services/suppliers/ingram_micro.py` (adapter wrapping)
-- `backend/app/services/suppliers/<nouveau>.py` (futurs adapters)
-- `backend/app/api/routes/suppliers.py` (router générique)
-- Migration Alembic de renommage
+- **SKU vendor partagé** — si deux fournisseurs référencent le même
+  `vendor_part_number` (ex. un Lenovo chez Ingram et chez TechData), le système
+  crée aujourd'hui **deux `Product` distincts** (résolution par
+  `supplier_sku` + `supplier_name`, jamais de fusion). Une éventuelle fusion /
+  `preferred_supplier_id` reste à arbitrer.
+- **Conflit de prix** — quelle source de vérité pour `base_price` si le même
+  produit (même MPN) existe chez deux fournisseurs ? Politique « best price » ?
+  « preferred supplier » ? Champ à ajouter le cas échéant.
+- **Rate limiting** — la propriété `requests_per_minute` existe sur l'adapter
+  mais n'est pas encore consommée par un throttler partagé.
+- **Observabilité** — les logs sont déjà étiquetés par `supplier_name` ; reste à
+  câbler les labels Prometheus.
 
-### À modifier
-- [backend/app/features/integrations/models/ingram_sync.py](backend/app/features/integrations/models/ingram_sync.py) → renommer
-- [backend/app/features/integrations/crud/ingram_sync.py](backend/app/features/integrations/crud/ingram_sync.py) → renommer
-- [backend/app/features/integrations/services/ingram_sync_orchestrator.py](backend/app/features/integrations/services/ingram_sync_orchestrator.py) → généraliser
-- [backend/app/tasks/ingram_micro_tasks.py](backend/app/tasks/ingram_micro_tasks.py) → paramétrer
-- [backend/app/core/config.py:134-143](backend/app/core/config.py#L134-L143) → settings imbriqués
-- [backend/app/api/__init__.py:77](backend/app/api/__init__.py#L77) → wiring routes
+---
 
-### À déprécier puis supprimer
-- [backend/app/api/routes/ingram_micro.py](backend/app/api/routes/ingram_micro.py)
-- [backend/app/services/ingram_micro_service.py](backend/app/services/ingram_micro_service.py) (logique migrée dans l'adapter)
+## 5. Migration de base de données
+
+Migration Alembic `e8c4a2d6f1b0_rename_ingram_to_supplier` :
+`ingram_sync_logs` → `supplier_sync_logs`, `ingram_product_mappings` →
+`supplier_product_mappings` (colonne `ingram_sku` renommée `supplier_sku`),
+ajout des colonnes `supplier_name` indexées (back-fill `"ingram_micro"`),
+`vendor_part_number`/`manufacturer` passés nullable.

@@ -185,7 +185,9 @@ def calculate_shipping_for_routes(
         billable_weight = _convert_weight_from_kg(normalized_weight_kg, weight_unit)
         weight_fee = price_per_weight_unit * billable_weight
 
-        value_rate = _extract_value_rate(metadata) if pricing_effective else Decimal("0")
+        value_rate = (
+            _extract_value_rate(metadata) if pricing_effective else Decimal("0")
+        )
         value_fee = normalized_declared_value * value_rate
 
         route_total = fixed_fee + weight_fee + value_fee

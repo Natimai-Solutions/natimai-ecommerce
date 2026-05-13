@@ -154,9 +154,7 @@ async def remove_product_from_my_wishlist(
         product_id=product_id,
     )
     if not removed:
-        raise HTTPException(
-            status_code=404, detail="Product not found in wishlist"
-        )
+        raise HTTPException(status_code=404, detail="Product not found in wishlist")
 
     items = await crud_wishlist_item.get_by_wishlist_id(
         session=session, wishlist_id=wishlist.id

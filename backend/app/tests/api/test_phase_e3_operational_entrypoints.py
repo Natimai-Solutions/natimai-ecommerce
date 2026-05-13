@@ -6,9 +6,10 @@ def test_e3_operational_entrypoints_exposed_in_openapi() -> None:
     paths = schema.get("paths", {})
 
     expected_paths: dict[str, set[str]] = {
-        "/api/v1/ingram/sync/products": {"post"},
-        "/api/v1/ingram/sync/inventory": {"post"},
-        "/api/v1/ingram/health": {"get"},
+        "/api/v1/suppliers": {"get"},
+        "/api/v1/suppliers/{supplier_name}/sync/products": {"post"},
+        "/api/v1/suppliers/{supplier_name}/sync/inventory": {"post"},
+        "/api/v1/suppliers/{supplier_name}/health": {"get"},
         "/api/v1/icecat/enrich": {"post"},
         "/api/v1/icecat/enrich/batch": {"post"},
         "/api/v1/icecat/status": {"get"},

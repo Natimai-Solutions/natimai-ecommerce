@@ -187,15 +187,11 @@ class CheckoutRequest(SQLModel):
     )
     shipping_route_ids: list[uuid.UUID] = Field(
         default_factory=list,
-        description=(
-            "Ordered list of selected shipping routes for this checkout path"
-        ),
+        description=("Ordered list of selected shipping routes for this checkout path"),
     )
     shipping_preference: CheckoutShippingPreference | None = Field(
         default=None,
-        description=(
-            "Automatic selection preference when shipping_route_ids is empty"
-        ),
+        description=("Automatic selection preference when shipping_route_ids is empty"),
     )
 
 

@@ -3,9 +3,9 @@ from app.features.analytic.models.analytic_sale import AnalyticsSale
 from app.features.analytic.models.analytic_user import AnalyticsUser
 from app.features.cart.models.cart import Cart, CartItem
 from app.features.discount.models import Discount
-from app.features.integrations.models.ingram_sync import (
-    IngramProductMapping,
-    IngramSyncLog,
+from app.features.integrations.models.supplier_sync import (
+    SupplierProductMapping,
+    SupplierSyncLog,
 )
 from app.features.inventory.models.inventory import Inventory
 from app.features.inventory.models.stock_movement import InventoryStockMovement
@@ -51,8 +51,6 @@ __all__ = [
     "Discount",
     "Group",
     "GroupSecurity",
-    "IngramProductMapping",
-    "IngramSyncLog",
     "Inventory",
     "InventoryStockMovement",
     "Notification",
@@ -72,6 +70,8 @@ __all__ = [
     "ShippingRouteTrackingLogs",
     "StatusDefinition",
     "StatusTransition",
+    "SupplierProductMapping",
+    "SupplierSyncLog",
     "User",
     "UserGroup",
     "UserNotification",

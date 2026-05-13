@@ -35,7 +35,9 @@ class ShippingSegmentCostResponse(SQLModel):
     value_fee: Decimal = Field(description="Part à la valeur marchandise")
     total_fee: Decimal = Field(description="Coût total du tronçon (bornes appliquées)")
     weight_unit: str = Field(description="Unité de poids facturée (kg/lb)")
-    billable_weight: Decimal = Field(description="Poids facturable dans l'unité du tronçon")
+    billable_weight: Decimal = Field(
+        description="Poids facturable dans l'unité du tronçon"
+    )
     eta_days: int | None = None
     carbon_footprint_kg_co2e: float | None = None
     pricing_effective: bool = Field(
@@ -127,7 +129,9 @@ class RoutingStatisticsResponse(SQLModel):
     )
 
 
-def _segment_cost_response(summary: ShippingCostSummary) -> list[ShippingSegmentCostResponse]:
+def _segment_cost_response(
+    summary: ShippingCostSummary,
+) -> list[ShippingSegmentCostResponse]:
     return [
         ShippingSegmentCostResponse(
             route_id=segment.route_id,

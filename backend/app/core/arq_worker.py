@@ -10,11 +10,11 @@ from app.tasks.icecat_tasks import (
     batch_enrich_products_task,
     enrich_product_with_icecat_task,
 )
-from app.tasks.ingram_micro_tasks import (
-    check_ingram_api_health_task,
-    get_ingram_sync_cron_jobs,
-    sync_ingram_inventory_task,
-    sync_ingram_products_task,
+from app.tasks.supplier_tasks import (
+    check_supplier_health_task,
+    get_supplier_sync_cron_jobs,
+    sync_supplier_inventory_task,
+    sync_supplier_products_task,
 )
 
 
@@ -56,18 +56,18 @@ class WorkerSettings:
     functions = [
         execute_outbox_handler,  # Fonction générique pour les handlers outbox
         example_handler,
-        # Tâches Ingram Micro
-        sync_ingram_products_task,
-        sync_ingram_inventory_task,
-        check_ingram_api_health_task,
+        # Tâches fournisseurs (multi-distributeurs)
+        sync_supplier_products_task,
+        sync_supplier_inventory_task,
+        check_supplier_health_task,
         # Tâches Icecat
         enrich_product_with_icecat_task,
         batch_enrich_products_task,
         # ... tes autres handlers
     ]
 
-    # Cron jobs pour la synchronisation planifiée
-    cron_jobs = get_ingram_sync_cron_jobs()
+    # Cron jobs pour la synchronisation planifiée (un jeu par fournisseur enregistré)
+    cron_jobs = get_supplier_sync_cron_jobs()
 
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)
     # pas besoin de cron job ici

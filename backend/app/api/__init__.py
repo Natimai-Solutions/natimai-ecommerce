@@ -11,7 +11,6 @@ from app.api.routes.discount import router as discount_router
 from app.api.routes.group import router as group_router
 from app.api.routes.group_security import router as group_security_router
 from app.api.routes.icecat import router as icecat_router
-from app.api.routes.ingram_micro import router as ingram_micro_router
 from app.api.routes.inventory import router as inventory_router
 from app.api.routes.login import router as login_router
 from app.api.routes.order import router as order_router
@@ -29,6 +28,7 @@ from app.api.routes.product import (
 )
 from app.api.routes.shipping import shipping_router
 from app.api.routes.stock_movement import router as stock_movement_router
+from app.api.routes.suppliers import router as suppliers_router
 from app.api.routes.user_notification import (
     router as user_notification_router,
 )
@@ -73,8 +73,8 @@ api_router.include_router(payzen_router)
 # Shipping routes
 api_router.include_router(shipping_router)
 
-# Ingram Micro integration routes
-api_router.include_router(ingram_micro_router, prefix="/ingram", tags=["ingram-micro"])
+# Supplier (distributor) integration routes
+api_router.include_router(suppliers_router)
 
 # Icecat product enrichment routes
 api_router.include_router(icecat_router, prefix="/icecat", tags=["icecat"])

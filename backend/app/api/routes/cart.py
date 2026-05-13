@@ -260,8 +260,7 @@ async def _resolve_selected_checkout_routes(
         raise HTTPException(
             status_code=400,
             detail=(
-                "Unknown or inactive shipping routes: "
-                + ", ".join(missing_route_ids)
+                "Unknown or inactive shipping routes: " + ", ".join(missing_route_ids)
             ),
         )
 
@@ -588,10 +587,7 @@ async def _link_selected_routes_to_tracking(
                 last_status_update=None,
                 tracking_ref=None,
                 estimated_delivery=None,
-                notes=(
-                    "origin=checkout_selected_routes;"
-                    f"sequence={sequence_order}"
-                ),
+                notes=(f"origin=checkout_selected_routes;sequence={sequence_order}"),
             ),
             user=current_user,
         )
