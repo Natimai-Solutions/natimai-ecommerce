@@ -168,6 +168,9 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         payment.payzen_status = payzen_fields.get("trans_status")
         payment.payzen_payment_method = payzen_fields.get("payment_cards")
         payment.payzen_data = payzen_fields.get("_raw_answer")
+        payment.provider_code = getattr(payment, "provider_code", None) or "payzen"
+        payment.provider_reference = payment.payzen_trans_id or payment.payzen_order_id
+        payment.provider_data = payzen_fields
         payment.amount = amount_decimal
 
         # Update payment status based on Payzen status

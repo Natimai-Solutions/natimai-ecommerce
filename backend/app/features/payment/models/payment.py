@@ -21,6 +21,12 @@ class PaymentBase(Base):
     currency: str = Field(
         default="XPF", description="Currency of the payment (XPF, EUR, etc.)"
     )
+    provider_code: str = Field(
+        default="payzen",
+        max_length=50,
+        index=True,
+        description="Payment provider identifier (payzen, stripe, manual_check, etc.)",
+    )
 
 
 class PaymentCreate(PaymentBase, BaseCreate):
@@ -33,8 +39,11 @@ class PaymentCreate(PaymentBase, BaseCreate):
 class PaymentUpdate(PaymentBase, BaseUpdate):
     amount: Decimal | None = None
     currency: str | None = None
+    provider_code: str | None = None
     order_id: uuid.UUID | None = None
     user_id: uuid.UUID | None = None
+    provider_reference: str | None = None
+    provider_data: dict[str, Any] | None = None
 
 
 class Payment(PaymentBase, table=True):
@@ -71,6 +80,17 @@ class Payment(PaymentBase, table=True):
         nullable=True,
         index=True,
         description="ID of the payment status",
+    )
+    provider_reference: str | None = Field(
+        default=None,
+        max_length=255,
+        index=True,
+        description="Provider-side payment reference (transaction id, external order id, etc.)",
+    )
+    provider_data: dict[str, Any] | None = Field(
+        default=None,
+        sa_column=Column(JSON),
+        description="Raw provider payload for provider-agnostic workflows",
     )
     payzen_trans_id: str | None = Field(
         default=None, index=True, description="Payzen transaction UUID"
@@ -116,6 +136,8 @@ class PaymentPublic(PaymentBase, BasePublic):
         default=None,
         description="ID of the payment status",
     )
+    provider_reference: str | None = None
+    provider_data: dict[str, Any] | None = None
     payzen_trans_id: str | None = None
     payzen_order_id: str | None = None
     payzen_payment_method: str | None = None

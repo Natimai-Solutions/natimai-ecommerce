@@ -156,7 +156,7 @@ Attendu:
 ### 4.1 Detection
 
 Signaux frequents:
-- retours 400/500 sur `POST /api/v1/payzen/ipn`
+- retours 400/500 sur `POST /api/v1/payments/webhooks/payzen`
 - paiement sans statut terminal (`PAID`, `REFUSED`, `ABANDONED`, `CANCELLED`)
 - incoherence paiement/commande apres checkout
 

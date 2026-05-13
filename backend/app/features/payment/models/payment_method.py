@@ -22,6 +22,24 @@ class PaymentMethodBase(Base):
         decimal_places=2,
         description="Fee associated with the payment method",
     )
+    provider_code: str = Field(
+        default="payzen",
+        max_length=50,
+        index=True,
+        description="Provider identifier used by payment dispatch",
+    )
+    requires_admin_validation: bool = Field(
+        default=False,
+        description="Whether this method requires explicit admin validation",
+    )
+    requires_document_upload: bool = Field(
+        default=False,
+        description="Whether this method requires a supporting document upload",
+    )
+    sort_order: int = Field(
+        default=0,
+        description="Display order in checkout payment method listing",
+    )
 
 
 class PaymentMethodCreate(PaymentMethodBase, BaseCreate):
@@ -30,6 +48,12 @@ class PaymentMethodCreate(PaymentMethodBase, BaseCreate):
 
 class PaymentMethodUpdate(PaymentMethodBase, BaseUpdate):
     name: str | None = None
+    description: str | None = None
+    fee: Decimal | None = None
+    provider_code: str | None = None
+    requires_admin_validation: bool | None = None
+    requires_document_upload: bool | None = None
+    sort_order: int | None = None
 
 
 class PaymentMethod(PaymentMethodBase, table=True):

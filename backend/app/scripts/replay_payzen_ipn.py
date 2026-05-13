@@ -31,7 +31,7 @@ import httpx
 
 from app.core.config import settings
 
-DEFAULT_IPN_PATH = "/api/v1/payzen/ipn"
+DEFAULT_IPN_PATH = "/api/v1/payments/webhooks/payzen"
 
 
 def resolve_hmac_key(*, mode: str, override_key: str | None) -> str:

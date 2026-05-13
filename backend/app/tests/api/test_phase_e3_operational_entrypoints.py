@@ -15,7 +15,8 @@ def test_e3_operational_entrypoints_exposed_in_openapi() -> None:
         "/api/v1/icecat/enrich": {"post"},
         "/api/v1/icecat/enrich/batch": {"post"},
         "/api/v1/icecat/status": {"get"},
-        "/api/v1/payzen/ipn": {"post"},
+        "/api/v1/payments/initiate": {"post"},
+        "/api/v1/payments/webhooks/{provider_code}": {"post"},
         "/api/v1/utils/observability/dashboard": {"get"},
     }
 

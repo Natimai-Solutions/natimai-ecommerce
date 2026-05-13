@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from fastapi import Request
 
-from app.api.routes.payzen import payzen_ipn
+from app.api.routes.payments import payzen_ipn
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.models.payment import Payment
 
@@ -36,7 +36,7 @@ async def test_payzen_ipn_ignores_duplicate_terminal_retry(
     )
 
     monkeypatch.setattr(
-        "app.api.routes.payzen.validate_ipn_signature",
+        "app.api.routes.payments.validate_ipn_signature",
         Mock(
             return_value={
                 "order_id": str(payment.id),
@@ -63,7 +63,7 @@ async def test_payzen_ipn_ignores_duplicate_terminal_retry(
 
     sync_mock = AsyncMock(return_value=None)
     monkeypatch.setattr(
-        "app.api.routes.payzen._sync_checkout_entities_for_payzen_status",
+        "app.api.routes.payments._sync_checkout_entities_for_payzen_status",
         sync_mock,
     )
 
@@ -103,7 +103,7 @@ async def test_payzen_ipn_ignores_conflicting_terminal_retry(
     )
 
     monkeypatch.setattr(
-        "app.api.routes.payzen.validate_ipn_signature",
+        "app.api.routes.payments.validate_ipn_signature",
         Mock(
             return_value={
                 "order_id": str(payment.id),
@@ -130,7 +130,7 @@ async def test_payzen_ipn_ignores_conflicting_terminal_retry(
 
     sync_mock = AsyncMock(return_value=None)
     monkeypatch.setattr(
-        "app.api.routes.payzen._sync_checkout_entities_for_payzen_status",
+        "app.api.routes.payments._sync_checkout_entities_for_payzen_status",
         sync_mock,
     )
 

@@ -21,7 +21,7 @@ from app.api.routes.payment import router as payment_router
 from app.api.routes.payment_method import (
     router as payment_method_router,
 )
-from app.api.routes.payzen import router as payzen_router
+from app.api.routes.payments import router as payments_router
 from app.api.routes.place import router as place_router
 from app.api.routes.product import (
     router as product_router,
@@ -45,6 +45,7 @@ api_router.include_router(partner_router)
 api_router.include_router(place_router)
 api_router.include_router(payment_router)
 api_router.include_router(payment_method_router)
+api_router.include_router(payments_router)
 api_router.include_router(product_router)
 api_router.include_router(discount_router)
 api_router.include_router(cart_router)
@@ -66,9 +67,6 @@ api_router.include_router(user_review_router)
 api_router.include_router(user_notification_router)
 api_router.include_router(user_wishlist_router)
 api_router.include_router(utils_router, prefix="/utils")
-
-# Payzen payment integration
-api_router.include_router(payzen_router)
 
 # Shipping routes
 api_router.include_router(shipping_router)

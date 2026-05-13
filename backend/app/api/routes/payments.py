@@ -1,10 +1,3 @@
-"""
-PayZen payment integration routes.
-
-This module provides API endpoints for PayZen payment gateway integration,
-including form token generation and IPN (Instant Payment Notification) handling.
-"""
-
 import logging
 import uuid
 from decimal import Decimal
@@ -25,9 +18,16 @@ from app.features.payment.models.payment_status import (
     PaymentStatus,
     PaymentStatusCreate,
 )
-from app.features.payment.utils.payzen import (
-    create_payzen_form_token,
-    validate_ipn_signature,
+from app.features.payment.providers.base import InitiationRequest
+from app.features.payment.services.provider_dispatch import (
+    PaymentApiProviderResolutionError,
+    PaymentMethodInactiveError,
+    PaymentMethodNotFoundError,
+    PaymentMethodResolutionError,
+    initiate_api_payment,
+    parse_api_webhook,
+    resolve_api_provider,
+    resolve_provider_code_for_payment_method,
 )
 from app.utils.money import decimal_to_minor_units
 
@@ -42,6 +42,11 @@ _PAYMENT_STATUS_FAILED = "Failed"
 
 _ORDER_STATUS_PAID = "Paid"
 _ORDER_STATUS_PAYMENT_FAILED = "PaymentFailed"
+
+
+def validate_ipn_signature(fields_dict: dict[str, Any]) -> dict[str, Any]:
+    webhook_result = parse_api_webhook("payzen", fields_dict)
+    return webhook_result.payload
 
 
 def _normalize_trans_status(value: object | None) -> str | None:
@@ -74,8 +79,6 @@ def _is_duplicate_retry_for_payment(
     if existing_status != trans_status:
         return False
 
-    # Terminal status is immutable: same status means this notification was
-    # already applied, even if the upstream retry payload differs slightly.
     if trans_status in _TERMINAL_TRANS_STATUSES:
         return True
 
@@ -186,173 +189,42 @@ async def _sync_checkout_entities_for_payzen_status(
     session.add(order)
 
 
-# Pydantic models for API requests/responses
-class FormTokenRequest(BaseModel):
-    """Request model for PayZen form token generation."""
-
-    amount: Decimal = Field(
-        ...,
-        gt=0,
-        max_digits=12,
-        decimal_places=2,
-        description="Amount expressed in the payment currency",
-    )
-    currency: str = Field(default="XPF", description="Currency code (XPF, EUR, etc.)")
-    order_id: uuid.UUID | None = Field(
-        default=None, description="Order ID to associate with payment (optional)"
-    )
-    return_url: str | None = Field(
-        default=None, description="URL to return to after payment"
-    )
-    metadata: dict[str, Any] | None = Field(
-        default=None, description="Additional metadata for the payment"
-    )
-
-
-class FormTokenResponse(BaseModel):
-    """Response model for PayZen form token generation."""
-
-    form_token: str = Field(..., description="PayZen form token")
-    server_url: str = Field(..., description="PayZen server URL")
-    public_key: str = Field(..., description="PayZen public key")
-    payment_id: uuid.UUID = Field(..., description="Payment ID created in database")
-
-
-router = APIRouter(prefix="/payzen", tags=["payment", "payzen"])
-
-
-@router.post("/form-token", response_model=FormTokenResponse)
-async def generate_form_token(
-    session: SessionDep,
-    request: FormTokenRequest,
-    current_user: CurrentUser,
-) -> FormTokenResponse:
-    """
-    Generate a PayZen form token for JavaScript payment integration.
-
-    Conforms to PayZen documentation:
-    https://secure.osb.pf/doc/fr-FR/rest/V4.0/javascript/guide/formToken/presentation.html
-
-    This endpoint:
-    1. Creates a Payment record with PENDING status
-    2. Generates a PayZen form token
-    3. Returns the token and payment info to the frontend
-    """
-    # Create payment record with pending status
-    payment_data = PaymentCreate(
-        amount=request.amount,
-        currency=request.currency,
-        order_id=request.order_id,
-        user_id=current_user.id,
-    )
-
-    payment = await crud_payment.create_payment_with_log(
-        session,
-        payment_data=payment_data,
-        user=current_user,
-        commit=False,
-    )
-
-    # PayZen API expects the amount in the smallest currency unit (e.g. cents),
-    # so we convert from Decimal at this single boundary.
-    payzen_amount_minor = decimal_to_minor_units(request.amount, request.currency)
-
-    # Generate PayZen form token
-    try:
-        payzen_result = await create_payzen_form_token(
-            amount=payzen_amount_minor,
-            currency=request.currency,
-            order_id=str(payment.id),  # Use payment ID as order ID
-            customer_email=current_user.email,
-            customer_reference=str(current_user.id),
-            customer_first_name=current_user.full_name.split()[0]
-            if current_user.full_name
-            else "",
-            customer_last_name=" ".join(current_user.full_name.split()[1:])
-            if current_user.full_name and len(current_user.full_name.split()) > 1
-            else "",
-            return_url=request.return_url,
-            form_action="SILENT",
-            metadata=request.metadata,
-        )
-
-        # Update payment with PayZen data
-        payment.payzen_form_token = payzen_result["form_token"]
-        payment.payzen_order_id = str(payment.id)
-        session.add(payment)
-
-        await session.commit()
-        await session.refresh(payment)
-
-        return FormTokenResponse(
-            form_token=payzen_result["form_token"],
-            server_url=payzen_result["server_url"],
-            public_key=payzen_result["public_key"],
-            payment_id=payment.id,
-        )
-
-    except HTTPException:
-        await session.rollback()
-        raise
-    except Exception as e:
-        await session.rollback()
-        logger.error(f"Error generating form token: {e}")
-        raise HTTPException(500, "Error generating payment form token")
-
-
-@router.post("/ipn")
 async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
-    """
-    PayZen IPN (Instant Payment Notification) endpoint.
-
-    Handles payment notifications from PayZen after a payment is processed.
-
-    This endpoint:
-    1. Validates the PayZen signature
-    2. Updates the Payment record with the transaction result
-    3. Creates a PaymentLog entry
-    4. Updates payment status (PENDING -> VALIDATED or ERROR)
-    5. Synchronizes the linked order status to keep checkout entities coherent
-    6. Handles IPN retries idempotently (duplicate and conflicting terminal retries)
-    """
     error = None
-    fields = {}
+    fields: dict[str, object] = {}
 
     try:
-        # Get form data from PayZen
         form_data = await request.form()
         fields_dict = dict(form_data)
-
-        # Validate PayZen IPN signature and extract payment data
         fields = validate_ipn_signature(fields_dict)
-        # Log IPN notification
+
         logger.info(
-            f"PayZen IPN received: "
-            f"order_id={fields.get('order_id')}, "
-            f"trans_status={fields.get('trans_status')}, "
-            f"amount={fields.get('amount')}"
+            "PayZen IPN received: order_id=%s, trans_status=%s, amount=%s",
+            fields.get("order_id"),
+            fields.get("trans_status"),
+            fields.get("amount"),
         )
 
     except Exception as e:
         error = str(e)
         logger.error(f"Error processing PayZen IPN: {error}")
         return JSONResponse(
-            status_code=400, content={"status": "error", "message": error}
+            status_code=400,
+            content={"status": "error", "message": error},
         )
 
-    # Process the payment
     try:
-        # Find the payment by PayZen order ID
-        payzen_order_id = fields.get("order_id")
+        payzen_order_id_obj = fields.get("order_id")
+        payzen_order_id = str(payzen_order_id_obj) if payzen_order_id_obj else ""
         if not payzen_order_id:
             raise ValueError("Missing order_id in PayZen IPN")
 
         payment = await crud_payment.get_by_payzen_order_id(
-            session, payzen_order_id=payzen_order_id
+            session,
+            payzen_order_id=payzen_order_id,
         )
 
         if not payment:
-            # Try to find by UUID conversion
             try:
                 payment_uuid = uuid.UUID(payzen_order_id)
                 payment = await crud_payment.read(session, id=payment_uuid)
@@ -385,8 +257,7 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
             trans_status=trans_status,
         ):
             logger.warning(
-                "Conflicting terminal PayZen IPN ignored for payment_id=%s: "
-                "existing=%s incoming=%s",
+                "Conflicting terminal PayZen IPN ignored for payment_id=%s: existing=%s incoming=%s",
                 payment.id,
                 payment.payzen_status,
                 trans_status,
@@ -401,7 +272,6 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
         if trans_status is not None:
             fields["trans_status"] = trans_status
 
-        # Update payment with PayZen data, then sync payment/order statuses
         payment = await crud_payment.update_payment_from_payzen(
             session,
             payment=payment,
@@ -419,8 +289,9 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
         await session.refresh(payment)
 
         logger.info(
-            f"Payment updated successfully: payment_id={payment.id}, "
-            f"status={trans_status}"
+            "Payment updated successfully: payment_id=%s, status=%s",
+            payment.id,
+            trans_status,
         )
 
     except Exception as e:
@@ -432,3 +303,160 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
         )
 
     return JSONResponse(content={"status": "ok"})
+
+
+class PaymentsInitiateRequest(BaseModel):
+    payment_method_id: uuid.UUID = Field(
+        ..., description="Payment method to use for provider dispatch"
+    )
+    amount: Decimal = Field(
+        ...,
+        gt=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Amount expressed in the payment currency",
+    )
+    currency: str = Field(default="XPF", description="Currency code (XPF, EUR, etc.)")
+    order_id: uuid.UUID | None = Field(
+        default=None,
+        description="Order ID to associate with payment (optional)",
+    )
+    return_url: str | None = Field(
+        default=None,
+        description="URL to return to after payment",
+    )
+    metadata: dict[str, Any] | None = Field(
+        default=None,
+        description="Additional metadata for the payment",
+    )
+
+
+class PaymentsInitiateResponse(BaseModel):
+    payment_id: uuid.UUID
+    provider_code: str
+    provider_reference: str | None = None
+    form_token: str | None = None
+    server_url: str | None = None
+    public_key: str | None = None
+    redirect_url: str | None = None
+    instructions: str | None = None
+
+
+router = APIRouter(prefix="/payments", tags=["payment"])
+
+
+@router.post("/initiate", response_model=PaymentsInitiateResponse)
+async def initiate_payment(
+    session: SessionDep,
+    request: PaymentsInitiateRequest,
+    current_user: CurrentUser,
+) -> PaymentsInitiateResponse:
+    try:
+        provider_code = await resolve_provider_code_for_payment_method(
+            session,
+            request.payment_method_id,
+        )
+    except PaymentMethodNotFoundError as e:
+        raise HTTPException(404, str(e)) from e
+    except (PaymentMethodInactiveError, PaymentMethodResolutionError) as e:
+        raise HTTPException(400, str(e)) from e
+
+    payment_data = PaymentCreate(
+        amount=request.amount,
+        currency=request.currency,
+        provider_code=provider_code,
+        order_id=request.order_id,
+        user_id=current_user.id,
+    )
+    payment = await crud_payment.create_payment_with_log(
+        session,
+        payment_data=payment_data,
+        user=current_user,
+        commit=False,
+    )
+    payment.payment_method_id = request.payment_method_id
+
+    amount_minor = decimal_to_minor_units(request.amount, request.currency)
+
+    try:
+        provider_result = await initiate_api_payment(
+            provider_code,
+            InitiationRequest(
+                amount=amount_minor,
+                currency=request.currency,
+                order_id=str(payment.id),
+                customer_email=current_user.email,
+                customer_reference=str(current_user.id),
+                customer_first_name=current_user.full_name.split()[0]
+                if current_user.full_name
+                else "",
+                customer_last_name=" ".join(current_user.full_name.split()[1:])
+                if current_user.full_name and len(current_user.full_name.split()) > 1
+                else "",
+                return_url=request.return_url,
+                form_action="SILENT",
+                metadata=request.metadata,
+            ),
+        )
+
+        payment.provider_code = provider_code
+        payment.provider_reference = provider_result.provider_reference or str(payment.id)
+        payment.provider_data = provider_result.raw_response
+
+        if provider_code == "payzen":
+            payment.payzen_form_token = provider_result.form_token
+            payment.payzen_order_id = str(payment.id)
+
+        session.add(payment)
+        await session.commit()
+        await session.refresh(payment)
+
+        return PaymentsInitiateResponse(
+            payment_id=payment.id,
+            provider_code=provider_code,
+            provider_reference=payment.provider_reference,
+            form_token=provider_result.form_token,
+            server_url=provider_result.server_url,
+            public_key=provider_result.public_key,
+            redirect_url=provider_result.redirect_url,
+            instructions=provider_result.instructions,
+        )
+
+    except HTTPException:
+        await session.rollback()
+        raise
+    except PaymentApiProviderResolutionError as e:
+        await session.rollback()
+        raise HTTPException(400, str(e)) from e
+    except Exception as e:
+        await session.rollback()
+        logger.error(f"Error initiating payment: {e}")
+        raise HTTPException(500, "Error initiating payment")
+
+
+@router.post("/webhooks/{provider_code}")
+async def process_provider_webhook(
+    provider_code: str,
+    session: SessionDep,
+    request: Request,
+) -> JSONResponse:
+    normalized_provider_code = provider_code.strip().lower()
+
+    if normalized_provider_code == "payzen":
+        return await payzen_ipn(session=session, request=request)
+
+    try:
+        resolve_api_provider(normalized_provider_code)
+    except PaymentApiProviderResolutionError as e:
+        return JSONResponse(
+            status_code=404,
+            content={"status": "error", "message": str(e)},
+        )
+
+    return JSONResponse(
+        status_code=501,
+        content={
+            "status": "error",
+            "message": f"Webhook processing not implemented for provider: {normalized_provider_code}",
+        },
+    )
