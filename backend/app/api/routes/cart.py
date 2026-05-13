@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
 from time import perf_counter
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 from sqlmodel import col, select
@@ -943,7 +944,7 @@ async def checkout_my_cart(
         )
 
     shipping_cost_summary = None
-    shipping_cost_breakdown_payload: dict | None = None
+    shipping_cost_breakdown_payload: dict[str, Any] | None = None
     shipping_fee_input = payload.shipping_fee_amount or Decimal("0.00")
     if selected_routes:
         shipping_cost_summary = calculate_shipping_for_routes(

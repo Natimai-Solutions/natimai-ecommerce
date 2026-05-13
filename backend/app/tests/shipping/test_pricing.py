@@ -1,8 +1,10 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 from types import SimpleNamespace
+from typing import Any, cast
 from uuid import uuid4
 
+from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.services.pricing import (
     calculate_shipping_for_routes,
     serialize_shipping_cost_summary,
@@ -13,19 +15,22 @@ def _route(
     *,
     base_price: str,
     price_per_kg: str,
-    route_metadata: dict | None = None,
+    route_metadata: dict[str, Any] | None = None,
     eta_days: int | None = None,
     carbon: float | None = None,
     name: str | None = None,
-):
-    return SimpleNamespace(
-        id=uuid4(),
-        name=name,
-        base_price=Decimal(base_price),
-        price_per_kg=Decimal(price_per_kg),
-        route_metadata=route_metadata,
-        eta_days=eta_days,
-        carbon_footprint_kg_co2e=carbon,
+) -> ShippingRoute:
+    return cast(
+        ShippingRoute,
+        SimpleNamespace(
+            id=uuid4(),
+            name=name,
+            base_price=Decimal(base_price),
+            price_per_kg=Decimal(price_per_kg),
+            route_metadata=route_metadata,
+            eta_days=eta_days,
+            carbon_footprint_kg_co2e=carbon,
+        ),
     )
 
 

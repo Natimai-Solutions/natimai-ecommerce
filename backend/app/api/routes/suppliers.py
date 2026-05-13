@@ -163,6 +163,10 @@ async def trigger_inventory_sync(
             status_code=400,
             detail=f"{adapter.display_name} synchronization is disabled in settings",
         )
+    if not adapter.is_configured():
+        raise HTTPException(
+            status_code=500, detail=f"{adapter.display_name} credentials not configured"
+        )
 
     try:
         job_id = await trigger_inventory_refresh(adapter.name, skus=request.skus)

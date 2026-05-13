@@ -12,7 +12,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel
-from sqlmodel import JSON, Column, Field, SQLModel
+from sqlmodel import JSON, Column, Field, SQLModel, UniqueConstraint
 
 
 class SyncStatus(str, Enum):
@@ -164,6 +164,13 @@ class SupplierProductMapping(SupplierProductMappingBase, table=True):
     """Database model for supplier product mapping"""
 
     __tablename__ = "supplier_product_mappings"
+    __table_args__ = (
+        UniqueConstraint(
+            "supplier_name",
+            "supplier_sku",
+            name="uq_supplier_product_mappings_supplier_name_supplier_sku",
+        ),
+    )
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     created_at: datetime = Field(

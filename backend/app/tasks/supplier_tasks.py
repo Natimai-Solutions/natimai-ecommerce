@@ -138,6 +138,9 @@ async def sync_supplier_inventory_task(
     adapter = get_adapter(supplier_name)
     if not adapter.is_sync_enabled():
         return {"status": "disabled", "message": "Sync disabled in settings"}
+    if not adapter.is_configured():
+        logger.error("%s credentials not configured", supplier_name)
+        return {"status": "error", "message": f"Missing {supplier_name} credentials"}
 
     logger.debug(
         "Starting %s inventory sync for %s products",
@@ -289,17 +292,24 @@ def get_supplier_sync_cron_jobs() -> list[Any]:
         if not adapter.is_sync_enabled():
             continue
         name = adapter.name
-        interval = max(adapter.sync_interval_hours(), 1)
+        interval = int(adapter.sync_interval_hours())
 
-        jobs.append(
-            cron(
-                _bind_supplier(sync_supplier_products_task, name, "product_sync"),
-                hour=set(range(0, 24, interval)),
-                minute=0,
-                second=0,
-                name=f"{name}_product_sync",
+        if interval > 0:
+            jobs.append(
+                cron(
+                    _bind_supplier(sync_supplier_products_task, name, "product_sync"),
+                    hour=set(range(0, 24, interval)),
+                    minute=0,
+                    second=0,
+                    name=f"{name}_product_sync",
+                )
             )
-        )
+        else:
+            logger.debug(
+                "%s product sync cron disabled (sync_interval_hours=%s)",
+                name,
+                interval,
+            )
         jobs.append(
             cron(
                 _bind_supplier(sync_supplier_inventory_task, name, "inventory_sync"),

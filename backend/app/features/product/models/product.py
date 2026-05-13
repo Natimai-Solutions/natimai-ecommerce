@@ -67,6 +67,7 @@ class ProductBase(Base):
     supplier_name: str | None = Field(
         default=None,
         max_length=100,
+        index=True,
         description="Name of the supplier/vendor (Ingram Micro, Tech Data, etc.)",
     )
     supplier_category: str | None = Field(
