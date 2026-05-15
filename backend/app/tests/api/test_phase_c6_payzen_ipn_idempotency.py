@@ -63,8 +63,13 @@ async def test_payzen_ipn_ignores_duplicate_terminal_retry(
 
     sync_mock = AsyncMock(return_value=None)
     monkeypatch.setattr(
-        "app.api.routes.payments._sync_checkout_entities_for_payzen_status",
+        "app.api.routes.payments._sync_payment_status_for_payzen_status",
         sync_mock,
+    )
+    publish_event_mock = AsyncMock(return_value=None)
+    monkeypatch.setattr(
+        "app.api.routes.payments._publish_payzen_outcome_event",
+        publish_event_mock,
     )
 
     request = cast(
@@ -130,8 +135,13 @@ async def test_payzen_ipn_ignores_conflicting_terminal_retry(
 
     sync_mock = AsyncMock(return_value=None)
     monkeypatch.setattr(
-        "app.api.routes.payments._sync_checkout_entities_for_payzen_status",
+        "app.api.routes.payments._sync_payment_status_for_payzen_status",
         sync_mock,
+    )
+    publish_event_mock = AsyncMock(return_value=None)
+    monkeypatch.setattr(
+        "app.api.routes.payments._publish_payzen_outcome_event",
+        publish_event_mock,
     )
 
     request = cast(

@@ -14,9 +14,6 @@ from app.features.attachment.service import (
     register_uploaded_attachment,
 )
 from app.features.base.crud import RecordNotFoundError
-from app.features.order.crud.order_crud import crud_order
-from app.features.order.crud.order_status_crud import crud_order_status
-from app.features.order.models.order_status import OrderStatus, OrderStatusCreate
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_status import crud_payment_status
 from app.features.payment.models.payment import Payment, PaymentCreate
@@ -53,6 +50,7 @@ from app.features.payment.services.provider_dispatch import (
     resolve_api_provider,
     resolve_provider_code_for_payment_method,
 )
+from app.outbox.registry import outbox_registry
 from app.utils.money import decimal_to_minor_units
 
 logger = logging.getLogger(__name__)
@@ -63,9 +61,9 @@ _TERMINAL_TRANS_STATUSES = {_PAID_TRANS_STATUS, *_FAILED_TRANS_STATUSES}
 
 _PAYMENT_STATUS_COMPLETED = "Completed"
 _PAYMENT_STATUS_FAILED = "Failed"
-
-_ORDER_STATUS_PAID = "Paid"
-_ORDER_STATUS_PAYMENT_FAILED = "PaymentFailed"
+# Order status names live in app.handlers.payment now — they are derived
+# from the outbox event types this module publishes (payment.captured /
+# payment.rejected).
 
 
 def validate_ipn_signature(fields_dict: dict[str, Any]) -> dict[str, Any]:
@@ -128,16 +126,24 @@ def _is_conflicting_terminal_retry(
     )
 
 
-def _resolve_checkout_status_targets(
-    trans_status: str | None,
-) -> tuple[str | None, str | None]:
+def _resolve_payment_status_for_trans_status(trans_status: str | None) -> str | None:
     if trans_status == _PAID_TRANS_STATUS:
-        return _PAYMENT_STATUS_COMPLETED, _ORDER_STATUS_PAID
-
+        return _PAYMENT_STATUS_COMPLETED
     if trans_status in _FAILED_TRANS_STATUSES:
-        return _PAYMENT_STATUS_FAILED, _ORDER_STATUS_PAYMENT_FAILED
+        return _PAYMENT_STATUS_FAILED
+    return None
 
-    return None, None
+
+def _resolve_payzen_event_for_trans_status(trans_status: str | None) -> str | None:
+    """Map a Payzen trans_status to the outbox event type the IPN should publish.
+
+    Returning None means we do not publish (intermediate / non-terminal status).
+    """
+    if trans_status == _PAID_TRANS_STATUS:
+        return "payment.captured"
+    if trans_status in _FAILED_TRANS_STATUSES:
+        return "payment.rejected"
+    return None
 
 
 async def _get_or_create_payment_status(
@@ -159,58 +165,57 @@ async def _get_or_create_payment_status(
     )
 
 
-async def _get_or_create_order_status(
-    session: SessionDep,
-    *,
-    name: str,
-) -> OrderStatus:
-    status_record = await crud_order_status.get_by_name(session, name=name)
-    if status_record is not None:
-        return status_record
-
-    return await crud_order_status.create_draft(
-        session=session,
-        data=OrderStatusCreate(name=name),
-        user=None,
-    )
-
-
-async def _sync_checkout_entities_for_payzen_status(
+async def _sync_payment_status_for_payzen_status(
     session: SessionDep,
     *,
     payment: Payment,
     trans_status: str | None,
 ) -> None:
-    payment_status_name, order_status_name = _resolve_checkout_status_targets(
-        trans_status
+    """Update Payment.payment_status_id inline. Order status sync is deferred to
+    outbox handlers (`on_payment_captured` / `on_payment_rejected`).
+    """
+    payment_status_name = _resolve_payment_status_for_trans_status(trans_status)
+    if payment_status_name is None:
+        return
+
+    payment_status = await _get_or_create_payment_status(
+        session=session, name=payment_status_name
     )
+    payment.payment_status_id = payment_status.id
+    session.add(payment)
 
-    if payment_status_name is not None:
-        payment_status = await _get_or_create_payment_status(
-            session=session,
-            name=payment_status_name,
-        )
-        payment.payment_status_id = payment_status.id
-        session.add(payment)
 
-    if payment.order_id is None or order_status_name is None:
+async def _publish_payzen_outcome_event(
+    session: SessionDep,
+    *,
+    payment: Payment,
+    trans_status: str | None,
+) -> None:
+    event_type = _resolve_payzen_event_for_trans_status(trans_status)
+    if event_type is None:
         return
 
-    order = await crud_order.read(session, id=payment.order_id)
-    if order is None:
-        logger.warning(
-            "Unable to sync order status from IPN: order %s not found for payment %s",
-            payment.order_id,
-            payment.id,
-        )
-        return
-
-    order_status = await _get_or_create_order_status(
+    payload = {
+        "payment_id": str(payment.id),
+        "order_id": str(payment.order_id) if payment.order_id else None,
+        "user_id": str(payment.user_id) if payment.user_id else None,
+        "provider_code": payment.provider_code or "payzen",
+        "provider_reference": payment.provider_reference,
+        "action": "webhook",
+        "admin_user_id": None,
+        "reason": None,
+        "reference": payment.payzen_trans_id,
+        "metadata": {
+            "trans_status": trans_status,
+            "trans_id": payment.payzen_trans_id,
+        },
+    }
+    await outbox_registry.publish(
         session=session,
-        name=order_status_name,
+        event_type=event_type,
+        payload=payload,
+        correlation_id=payment.id,
     )
-    order.order_status_id = order_status.id
-    session.add(order)
 
 
 async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
@@ -303,7 +308,13 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
             commit=False,
         )
 
-        await _sync_checkout_entities_for_payzen_status(
+        await _sync_payment_status_for_payzen_status(
+            session=session,
+            payment=payment,
+            trans_status=trans_status,
+        )
+
+        await _publish_payzen_outcome_event(
             session=session,
             payment=payment,
             trans_status=trans_status,
