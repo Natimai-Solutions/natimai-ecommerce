@@ -111,7 +111,7 @@ async def test_payzen_ipn_uses_provider_parser_path(
     update_payment_mock = AsyncMock(return_value=payment)
     monkeypatch.setattr(
         crud_payment,
-        "update_payment_from_payzen",
+        "update_payment_from_webhook_payload",
         update_payment_mock,
     )
 

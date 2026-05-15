@@ -257,7 +257,7 @@ async def test_payzen_ipn_updates_payment_inline_and_publishes_outbox_event(
     )
     monkeypatch.setattr(
         crud_payment,
-        "update_payment_from_payzen",
+        "update_payment_from_webhook_payload",
         AsyncMock(return_value=payment),
     )
 

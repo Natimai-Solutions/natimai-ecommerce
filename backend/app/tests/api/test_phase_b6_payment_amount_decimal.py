@@ -34,7 +34,7 @@ def test_payment_log_base_amount_is_decimal() -> None:
 
 
 @pytest.mark.anyio
-async def test_update_payment_from_payzen_converts_eur_minor_units_to_decimal(
+async def test_update_payment_from_webhook_payload_converts_eur_minor_units_to_decimal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     payment = SimpleNamespace(
@@ -63,10 +63,10 @@ async def test_update_payment_from_payzen_converts_eur_minor_units_to_decimal(
         "_raw_answer": {},
     }
 
-    updated = await crud_payment.update_payment_from_payzen(
+    updated = await crud_payment.update_payment_from_webhook_payload(
         session=session,
         payment=cast(Payment, payment),
-        payzen_fields=payzen_fields,
+        webhook_fields=payzen_fields,
         commit=False,
     )
 
@@ -75,7 +75,7 @@ async def test_update_payment_from_payzen_converts_eur_minor_units_to_decimal(
 
 
 @pytest.mark.anyio
-async def test_update_payment_from_payzen_preserves_xpf_zero_decimal(
+async def test_update_payment_from_webhook_payload_preserves_xpf_zero_decimal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     payment = SimpleNamespace(
@@ -104,10 +104,10 @@ async def test_update_payment_from_payzen_preserves_xpf_zero_decimal(
         "_raw_answer": {},
     }
 
-    updated = await crud_payment.update_payment_from_payzen(
+    updated = await crud_payment.update_payment_from_webhook_payload(
         session=session,
         payment=cast(Payment, payment),
-        payzen_fields=payzen_fields,
+        webhook_fields=payzen_fields,
         commit=False,
     )
 

@@ -58,7 +58,7 @@ async def test_payzen_ipn_ignores_duplicate_terminal_retry(
     update_payment_mock = AsyncMock(return_value=payment)
     monkeypatch.setattr(
         crud_payment,
-        "update_payment_from_payzen",
+        "update_payment_from_webhook_payload",
         update_payment_mock,
     )
 
@@ -137,7 +137,7 @@ async def test_payzen_ipn_ignores_conflicting_terminal_retry(
     update_payment_mock = AsyncMock(return_value=payment)
     monkeypatch.setattr(
         crud_payment,
-        "update_payment_from_payzen",
+        "update_payment_from_webhook_payload",
         update_payment_mock,
     )
 

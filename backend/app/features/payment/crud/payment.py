@@ -131,56 +131,44 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
 
         return payment
 
-    async def update_payment_from_payzen(
+    async def update_payment_from_webhook_payload(
         self,
         session: AsyncSession,
         *,
         payment: Payment,
-        payzen_fields: dict[str, object],
+        webhook_fields: dict[str, object],
         commit: bool = True,
     ) -> Payment:
-        """
-        Update payment with Payzen transaction data.
-
-        Args:
-            session: Database session
-            payment: Payment to update
-            payzen_fields: Payzen IPN fields
-            commit: Whether to commit the transaction
-
-        Returns:
-            Updated payment
-        """
         from app.features.payment.crud.payment_status import crud_payment_status
 
-        # PayZen IPN reports amount in the smallest currency unit (e.g. cents for EUR).
+        # Provider IPN reports amount in the smallest currency unit (e.g. cents for EUR).
         # Convert it back to a currency-aware Decimal so that the persisted amount
         # stays consistent with order/product totals.
-        raw_amount = payzen_fields.get("amount")
+        raw_amount = webhook_fields.get("amount")
         if raw_amount is not None:
             amount_minor = parse_minor_units(raw_amount)
             amount_decimal = minor_units_to_decimal(amount_minor, payment.currency)
         else:
             amount_decimal = payment.amount
 
-        trans_id_raw = payzen_fields.get("trans_uuid") or payzen_fields.get("trans_id")
+        trans_id_raw = webhook_fields.get("trans_uuid") or webhook_fields.get("trans_id")
         trans_id = str(trans_id_raw).strip() if trans_id_raw is not None else None
         if trans_id == "":
             trans_id = None
 
-        order_id_raw = payzen_fields.get("order_id")
+        order_id_raw = webhook_fields.get("order_id")
         order_id = str(order_id_raw).strip() if order_id_raw is not None else None
         if order_id == "":
             order_id = None
 
-        trans_status = payzen_fields.get("trans_status")
-        payment_method = payzen_fields.get("payment_cards")
-        error_code = payzen_fields.get("error_code")
+        trans_status = webhook_fields.get("trans_status")
+        payment_method = webhook_fields.get("payment_cards")
+        error_code = webhook_fields.get("error_code")
 
         provider_data: dict[str, object] = {}
         if isinstance(payment.provider_data, dict):
             provider_data.update(payment.provider_data)
-        provider_data.update(payzen_fields)
+        provider_data.update(webhook_fields)
         if trans_id is not None:
             provider_data["trans_id"] = trans_id
             provider_data["trans_uuid"] = trans_id
@@ -197,16 +185,13 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         payment.provider_data = provider_data or None
         payment.amount = amount_decimal
 
-        # Update payment status based on Payzen status
         if trans_status == "PAID":
-            # Payment successful - update to validated status
             validated_status = await crud_payment_status.get_by_name(
                 session, name="Completed"
             )
             if validated_status:
                 payment.payment_status_id = validated_status.id
         elif trans_status in ["REFUSED", "ABANDONED", "CANCELLED"]:
-            # Payment failed - update to error status
             failed_status = await crud_payment_status.get_by_name(
                 session, name="Failed"
             )
@@ -215,7 +200,6 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
 
         session.add(payment)
 
-        # Create payment log entry
         payment_log = PaymentLog(
             payment_id=payment.id,
             provider_reference=trans_id,
@@ -224,7 +208,7 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
             payment_method=str(payment_method) if payment_method is not None else None,
             status=str(trans_status) if trans_status is not None else None,
             error_code=str(error_code) if error_code is not None else None,
-            raw_data=payzen_fields,
+            raw_data=webhook_fields,
         )
         session.add(payment_log)
 

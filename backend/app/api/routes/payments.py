@@ -383,10 +383,10 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
         if trans_status is not None:
             fields["trans_status"] = trans_status
 
-        payment = await crud_payment.update_payment_from_payzen(
+        payment = await crud_payment.update_payment_from_webhook_payload(
             session,
             payment=payment,
-            payzen_fields=fields,
+            webhook_fields=fields,
             commit=False,
         )
 
