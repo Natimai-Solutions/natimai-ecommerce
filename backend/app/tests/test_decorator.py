@@ -11,9 +11,7 @@ def anyio_backend() -> str:
 
 
 @track_crud_operation
-async def _method_no_args(
-    session: object, *, data: object, user: object = None
-) -> str:
+async def _method_no_args(session: object, *, data: object, user: object = None) -> str:
     _ = (session, data, user)
     return "success"
 
@@ -27,9 +25,7 @@ async def _method_with_args(
 
 
 @track_crud_operation
-async def _method_error(
-    session: object, *, data: object, user: object = None
-) -> None:
+async def _method_error(session: object, *, data: object, user: object = None) -> None:
     _ = (session, data, user)
     raise ValueError("Test error")
 

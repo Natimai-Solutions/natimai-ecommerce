@@ -74,18 +74,17 @@ class PaymentProvider(ABC):
 
 class ApiPaymentProvider(PaymentProvider, ABC):
     @abstractmethod
-    async def initiate_payment(self, request: InitiationRequest) -> InitiationResult:
-        ...
+    async def initiate_payment(
+        self, request: InitiationRequest
+    ) -> InitiationResult: ...
 
     @abstractmethod
-    def parse_webhook_notification(self, payload: dict[str, Any]) -> WebhookResult:
-        ...
+    def parse_webhook_notification(self, payload: dict[str, Any]) -> WebhookResult: ...
 
 
 class ManualPaymentProvider(PaymentProvider, ABC):
     @abstractmethod
-    async def register_intent(self, request: InitiationRequest) -> InitiationResult:
-        ...
+    async def register_intent(self, request: InitiationRequest) -> InitiationResult: ...
 
     @abstractmethod
     async def confirm_received(
@@ -94,8 +93,7 @@ class ManualPaymentProvider(PaymentProvider, ABC):
         payment_reference: str,
         admin_user_id: str,
         reference: str | None = None,
-    ) -> ValidationResult:
-        ...
+    ) -> ValidationResult: ...
 
     @abstractmethod
     async def reject(
@@ -104,14 +102,12 @@ class ManualPaymentProvider(PaymentProvider, ABC):
         payment_reference: str,
         admin_user_id: str,
         reason: str,
-    ) -> ValidationResult:
-        ...
+    ) -> ValidationResult: ...
 
 
 class DocumentValidatedProvider(PaymentProvider, ABC):
     @abstractmethod
-    async def register_intent(self, request: InitiationRequest) -> InitiationResult:
-        ...
+    async def register_intent(self, request: InitiationRequest) -> InitiationResult: ...
 
     @abstractmethod
     async def attach_document(
@@ -120,8 +116,7 @@ class DocumentValidatedProvider(PaymentProvider, ABC):
         payment_reference: str,
         file_key: str,
         filename: str,
-    ) -> AttachmentResult:
-        ...
+    ) -> AttachmentResult: ...
 
     @abstractmethod
     async def approve(
@@ -130,8 +125,7 @@ class DocumentValidatedProvider(PaymentProvider, ABC):
         payment_reference: str,
         admin_user_id: str,
         comment: str | None = None,
-    ) -> ValidationResult:
-        ...
+    ) -> ValidationResult: ...
 
     @abstractmethod
     async def reject(
@@ -140,5 +134,4 @@ class DocumentValidatedProvider(PaymentProvider, ABC):
         payment_reference: str,
         admin_user_id: str,
         reason: str,
-    ) -> ValidationResult:
-        ...
+    ) -> ValidationResult: ...

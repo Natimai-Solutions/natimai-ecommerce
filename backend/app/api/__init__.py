@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.routes.address import router as address_router
+from app.api.routes.admin_payments import router as admin_payments_router
 from app.api.routes.analytics_product import router as analytics_product_router
 from app.api.routes.analytics_sale import router as analytics_sale_router
 from app.api.routes.analytics_user import router as analytics_user_router
@@ -46,6 +47,7 @@ api_router.include_router(place_router)
 api_router.include_router(payment_router)
 api_router.include_router(payment_method_router)
 api_router.include_router(payments_router)
+api_router.include_router(admin_payments_router)
 api_router.include_router(product_router)
 api_router.include_router(discount_router)
 api_router.include_router(cart_router)

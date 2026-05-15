@@ -12,7 +12,6 @@ from app.features.payment.crud.payment import crud_payment
 from app.features.payment.models.payment import Payment
 from app.features.payment.providers.base import InitiationRequest, InitiationResult
 from app.features.payment.services.provider_dispatch import (
-    PaymentApiProviderResolutionError,
     PaymentMethodNotFoundError,
 )
 
@@ -168,7 +167,7 @@ async def test_payments_initiate_returns_404_when_method_not_found(
 
 
 @pytest.mark.anyio
-async def test_payments_initiate_returns_400_when_provider_not_api(
+async def test_payments_initiate_returns_400_when_provider_unsupported(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = AsyncMock()
@@ -194,15 +193,11 @@ async def test_payments_initiate_returns_400_when_provider_not_api(
     )
     monkeypatch.setattr(
         "app.api.routes.payments.resolve_provider_code_for_payment_method",
-        AsyncMock(return_value="manual_check"),
+        AsyncMock(return_value="future_provider"),
     )
     monkeypatch.setattr(
-        "app.api.routes.payments.initiate_api_payment",
-        AsyncMock(
-            side_effect=PaymentApiProviderResolutionError(
-                "Payment provider 'manual_check' does not support API initiation"
-            )
-        ),
+        "app.api.routes.payments.get_provider",
+        lambda provider_code: object(),
     )
 
     request = PaymentsInitiateRequest(
@@ -228,5 +223,5 @@ async def test_payments_initiate_returns_400_when_provider_not_api(
         )
 
     assert exc_info.value.status_code == 400
-    assert "does not support API initiation" in str(exc_info.value.detail)
+    assert "does not support payment initiation" in str(exc_info.value.detail)
     session.rollback.assert_awaited_once()

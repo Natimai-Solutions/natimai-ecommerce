@@ -57,7 +57,11 @@ async def test_payments_webhooks_unknown_provider_returns_404(
 
     monkeypatch.setattr(
         "app.api.routes.payments.resolve_api_provider",
-        Mock(side_effect=PaymentApiProviderResolutionError("Unknown payment provider: stripe")),
+        Mock(
+            side_effect=PaymentApiProviderResolutionError(
+                "Unknown payment provider: stripe"
+            )
+        ),
     )
 
     response = await process_provider_webhook(
@@ -92,4 +96,7 @@ async def test_payments_webhooks_known_non_payzen_returns_501(
     )
 
     assert response.status_code == 501
-    assert b"Webhook processing not implemented for provider: manual_check" in response.body
+    assert (
+        b"Webhook processing not implemented for provider: manual_check"
+        in response.body
+    )

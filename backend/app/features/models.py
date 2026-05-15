@@ -17,6 +17,7 @@ from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_log import PaymentLog
 from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.models.payment_status import PaymentStatus
+from app.features.payment.models.payment_validation import PaymentValidation
 from app.features.place.models import Place
 from app.features.product.models.brand import Brand
 from app.features.product.models.category import Category
@@ -62,6 +63,7 @@ __all__ = [
     "PaymentLog",
     "PaymentMethod",
     "PaymentStatus",
+    "PaymentValidation",
     "Place",
     "Product",
     "Review",

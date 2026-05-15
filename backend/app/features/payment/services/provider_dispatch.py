@@ -12,12 +12,17 @@ from app.features.payment.providers.base import (
     ApiPaymentProvider,
     InitiationRequest,
     InitiationResult,
+    ManualPaymentProvider,
     WebhookResult,
 )
 
 
 class PaymentApiProviderResolutionError(RuntimeError):
     """Raised when a provider does not support API initiation/webhooks."""
+
+
+class PaymentManualProviderResolutionError(RuntimeError):
+    """Raised when a provider does not support the manual validation workflow."""
 
 
 class PaymentMethodResolutionError(RuntimeError):
@@ -81,3 +86,21 @@ def parse_api_webhook(
 ) -> WebhookResult:
     provider = resolve_api_provider(provider_code)
     return provider.parse_webhook_notification(payload)
+
+
+def resolve_manual_provider(provider_code: str) -> ManualPaymentProvider:
+    provider = get_provider(provider_code)
+    if not isinstance(provider, ManualPaymentProvider):
+        raise PaymentManualProviderResolutionError(
+            f"Payment provider '{provider_code}' is not a manual provider"
+        )
+
+    return provider
+
+
+async def register_manual_payment_intent(
+    provider_code: str,
+    request: InitiationRequest,
+) -> InitiationResult:
+    provider = resolve_manual_provider(provider_code)
+    return await provider.register_intent(request)

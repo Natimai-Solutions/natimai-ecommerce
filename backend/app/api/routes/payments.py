@@ -18,7 +18,16 @@ from app.features.payment.models.payment_status import (
     PaymentStatus,
     PaymentStatusCreate,
 )
-from app.features.payment.providers.base import InitiationRequest
+from app.features.payment.providers import get_provider
+from app.features.payment.providers.base import (
+    ApiPaymentProvider,
+    InitiationRequest,
+    ManualPaymentProvider,
+    UnknownPaymentProviderError,
+)
+from app.features.payment.services.manual_payment import (
+    register_intent as register_manual_intent,
+)
 from app.features.payment.services.provider_dispatch import (
     PaymentApiProviderResolutionError,
     PaymentMethodInactiveError,
@@ -345,6 +354,31 @@ class PaymentsInitiateResponse(BaseModel):
 router = APIRouter(prefix="/payments", tags=["payment"])
 
 
+def _build_initiation_request(
+    *,
+    payment_id: uuid.UUID,
+    request: "PaymentsInitiateRequest",
+    current_user: CurrentUser,
+) -> InitiationRequest:
+    amount_minor = decimal_to_minor_units(request.amount, request.currency)
+    name_parts = current_user.full_name.split() if current_user.full_name else []
+    first_name = name_parts[0] if name_parts else ""
+    last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+
+    return InitiationRequest(
+        amount=amount_minor,
+        currency=request.currency,
+        order_id=str(payment_id),
+        customer_email=current_user.email,
+        customer_reference=str(current_user.id),
+        customer_first_name=first_name,
+        customer_last_name=last_name,
+        return_url=request.return_url,
+        form_action="SILENT",
+        metadata=request.metadata,
+    )
+
+
 @router.post("/initiate", response_model=PaymentsInitiateResponse)
 async def initiate_payment(
     session: SessionDep,
@@ -359,6 +393,11 @@ async def initiate_payment(
     except PaymentMethodNotFoundError as e:
         raise HTTPException(404, str(e)) from e
     except (PaymentMethodInactiveError, PaymentMethodResolutionError) as e:
+        raise HTTPException(400, str(e)) from e
+
+    try:
+        provider = get_provider(provider_code)
+    except UnknownPaymentProviderError as e:
         raise HTTPException(400, str(e)) from e
 
     payment_data = PaymentCreate(
@@ -376,38 +415,53 @@ async def initiate_payment(
     )
     payment.payment_method_id = request.payment_method_id
 
-    amount_minor = decimal_to_minor_units(request.amount, request.currency)
+    initiation_request = _build_initiation_request(
+        payment_id=payment.id,
+        request=request,
+        current_user=current_user,
+    )
 
     try:
-        provider_result = await initiate_api_payment(
-            provider_code,
-            InitiationRequest(
-                amount=amount_minor,
-                currency=request.currency,
-                order_id=str(payment.id),
-                customer_email=current_user.email,
-                customer_reference=str(current_user.id),
-                customer_first_name=current_user.full_name.split()[0]
-                if current_user.full_name
-                else "",
-                customer_last_name=" ".join(current_user.full_name.split()[1:])
-                if current_user.full_name and len(current_user.full_name.split()) > 1
-                else "",
-                return_url=request.return_url,
-                form_action="SILENT",
-                metadata=request.metadata,
-            ),
-        )
+        if isinstance(provider, ApiPaymentProvider):
+            provider_result = await initiate_api_payment(
+                provider_code,
+                initiation_request,
+            )
 
-        payment.provider_code = provider_code
-        payment.provider_reference = provider_result.provider_reference or str(payment.id)
-        payment.provider_data = provider_result.raw_response
+            payment.provider_code = provider_code
+            payment.provider_reference = provider_result.provider_reference or str(
+                payment.id
+            )
+            payment.provider_data = provider_result.raw_response
 
-        if provider_code == "payzen":
-            payment.payzen_form_token = provider_result.form_token
-            payment.payzen_order_id = str(payment.id)
+            if provider_code == "payzen":
+                payment.payzen_form_token = provider_result.form_token
+                payment.payzen_order_id = str(payment.id)
 
-        session.add(payment)
+            session.add(payment)
+
+        elif isinstance(provider, ManualPaymentProvider):
+            provider_result = await provider.register_intent(initiation_request)
+
+            payment.provider_code = provider_code
+            payment.provider_reference = provider_result.provider_reference or str(
+                payment.id
+            )
+            payment.provider_data = provider_result.raw_response
+
+            await register_manual_intent(
+                session,
+                payment=payment,
+                instructions=provider_result.instructions,
+                user=current_user,
+            )
+
+        else:
+            raise HTTPException(
+                400,
+                f"Provider '{provider_code}' does not support payment initiation",
+            )
+
         await session.commit()
         await session.refresh(payment)
 

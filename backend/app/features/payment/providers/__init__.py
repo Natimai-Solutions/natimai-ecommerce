@@ -11,10 +11,16 @@ from app.features.payment.providers.base import (
     ValidationResult,
     WebhookResult,
 )
+from app.features.payment.providers.manual import (
+    ManualCheckProvider,
+    ManualTransferProvider,
+)
 from app.features.payment.providers.payzen import PayzenProvider
 
 SUPPORTED_PROVIDERS: dict[str, type[PaymentProvider]] = {
     PayzenProvider.code: PayzenProvider,
+    ManualCheckProvider.code: ManualCheckProvider,
+    ManualTransferProvider.code: ManualTransferProvider,
 }
 
 
@@ -33,7 +39,9 @@ __all__ = [
     "DocumentValidatedProvider",
     "InitiationRequest",
     "InitiationResult",
+    "ManualCheckProvider",
     "ManualPaymentProvider",
+    "ManualTransferProvider",
     "PaymentProvider",
     "PaymentProviderError",
     "PayzenProvider",
