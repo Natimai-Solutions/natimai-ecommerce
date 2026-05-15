@@ -9,6 +9,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_status_crud import crud_order_status
 from app.features.order.models.order_status import OrderStatusCreate
+from app.features.payment.services.notifications import (
+    send_payment_event_notifications,
+)
 from app.outbox.decorators import outbox_handler
 
 logger = logging.getLogger(__name__)
@@ -16,6 +19,13 @@ logger = logging.getLogger(__name__)
 ORDER_STATUS_PAID = "Paid"
 ORDER_STATUS_PAYMENT_FAILED = "PaymentFailed"
 ORDER_STATUS_AWAITING_PAYMENT = "AwaitingPayment"
+
+EVENT_WEBHOOK_RECEIVED = "payment.webhook_received"
+EVENT_AWAITING_VALIDATION = "payment.awaiting_validation"
+EVENT_DOCUMENT_REQUIRED = "payment.document_required"
+EVENT_CAPTURED = "payment.captured"
+EVENT_REJECTED = "payment.rejected"
+EVENT_DOCUMENT_INFECTED = "payment.document_infected"
 
 
 async def _get_or_create_order_status_id(
@@ -70,6 +80,21 @@ async def _sync_order_status(
     order.order_status_id = status_id
     session.add(order)
     await session.commit()
+
+
+async def _notify_payment_event(
+    *,
+    event_type: str,
+    payload: dict[str, Any],
+) -> None:
+    try:
+        await send_payment_event_notifications(event_type=event_type, payload=payload)
+    except Exception as exc:
+        logger.error(
+            "Unexpected error while notifying payment event %s: %s",
+            event_type,
+            exc,
+        )
 
 
 @outbox_handler("payment.awaiting_validation")
@@ -216,3 +241,50 @@ async def on_payment_document_infected(
         payload=payload,
         target_status_name=ORDER_STATUS_PAYMENT_FAILED,
     )
+
+
+@outbox_handler(EVENT_WEBHOOK_RECEIVED)
+async def on_payment_webhook_received(
+    _session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    logger.info(
+        "Payment webhook received: payment_id=%s provider=%s",
+        payload.get("payment_id"),
+        payload.get("provider_code"),
+    )
+    await _notify_payment_event(event_type=EVENT_WEBHOOK_RECEIVED, payload=payload)
+
+
+@outbox_handler(EVENT_AWAITING_VALIDATION)
+async def on_payment_awaiting_validation_notify(
+    _session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    await _notify_payment_event(event_type=EVENT_AWAITING_VALIDATION, payload=payload)
+
+
+@outbox_handler(EVENT_DOCUMENT_REQUIRED)
+async def on_payment_document_required_notify(
+    _session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    await _notify_payment_event(event_type=EVENT_DOCUMENT_REQUIRED, payload=payload)
+
+
+@outbox_handler(EVENT_CAPTURED)
+async def on_payment_captured_notify(
+    _session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    await _notify_payment_event(event_type=EVENT_CAPTURED, payload=payload)
+
+
+@outbox_handler(EVENT_REJECTED)
+async def on_payment_rejected_notify(
+    _session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    await _notify_payment_event(event_type=EVENT_REJECTED, payload=payload)
+
+
+@outbox_handler(EVENT_DOCUMENT_INFECTED)
+async def on_payment_document_infected_notify(
+    _session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    await _notify_payment_event(event_type=EVENT_DOCUMENT_INFECTED, payload=payload)

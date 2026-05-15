@@ -46,7 +46,6 @@ def _make_payment(provider_code: str = "manual_check") -> Payment:
             provider_reference="ref-init",
             provider_data=None,
             payment_status_id=None,
-            payzen_status=None,
         ),
     )
 

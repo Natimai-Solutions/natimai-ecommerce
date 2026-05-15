@@ -37,7 +37,6 @@ def _make_payment(provider_code: str = "po_public") -> Payment:
             provider_reference=None,
             provider_data=None,
             payment_status_id=None,
-            payzen_status=None,
         ),
     )
 

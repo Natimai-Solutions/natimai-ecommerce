@@ -17,11 +17,15 @@ class PaymentLogBase(Base):
         index=True,
         description="ID of the payment associated with this log",
     )
-    payzen_trans_id: str | None = Field(
-        default=None, index=True, description="Payzen transaction UUID"
+    provider_reference: str | None = Field(
+        default=None,
+        index=True,
+        description="Provider-side transaction reference",
     )
-    payzen_order_id: str | None = Field(
-        default=None, index=True, description="Payzen order ID"
+    provider_order_reference: str | None = Field(
+        default=None,
+        index=True,
+        description="Provider-side order/payment reference",
     )
     amount: Decimal = Field(
         ...,
@@ -49,8 +53,8 @@ class PaymentLogCreate(PaymentLogBase, BaseCreate):
 
 class PaymentLogUpdate(PaymentLogBase, BaseUpdate):
     payment_id: uuid.UUID | None = None
-    payzen_trans_id: str | None = None
-    payzen_order_id: str | None = None
+    provider_reference: str | None = None
+    provider_order_reference: str | None = None
     amount: Decimal | None = None
     payment_method: str | None = None
     status: str | None = None

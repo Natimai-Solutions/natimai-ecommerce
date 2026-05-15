@@ -7,8 +7,9 @@ import pytest
 from fastapi import Request
 
 from app.api.routes.payments import (
-    _publish_payzen_outcome_event,
-    _sync_payment_status_for_payzen_status,
+    _publish_provider_outcome_event,
+    _publish_provider_webhook_received_event,
+    _sync_payment_status_for_provider_status,
     payzen_ipn,
 )
 from app.features.payment.crud.payment import crud_payment
@@ -39,7 +40,7 @@ async def test_sync_payment_status_sets_completed_on_paid(
         AsyncMock(return_value=completed_status),
     )
 
-    await _sync_payment_status_for_payzen_status(
+    await _sync_payment_status_for_provider_status(
         session=session, payment=payment, trans_status="PAID"
     )
 
@@ -66,7 +67,7 @@ async def test_sync_payment_status_creates_missing_failed_status(
     create_mock = AsyncMock(return_value=created_status)
     monkeypatch.setattr(crud_payment_status, "create_draft", create_mock)
 
-    await _sync_payment_status_for_payzen_status(
+    await _sync_payment_status_for_provider_status(
         session=session, payment=payment, trans_status="REFUSED"
     )
 
@@ -88,7 +89,7 @@ async def test_sync_payment_status_ignores_unknown_status() -> None:
         ),
     )
 
-    await _sync_payment_status_for_payzen_status(
+    await _sync_payment_status_for_provider_status(
         session=session, payment=payment, trans_status="UNDER_REVIEW"
     )
 
@@ -96,7 +97,7 @@ async def test_sync_payment_status_ignores_unknown_status() -> None:
 
 
 @pytest.mark.anyio
-async def test_publish_payzen_outcome_event_publishes_captured_on_paid(
+async def test_publish_provider_outcome_event_publishes_captured_on_paid(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = AsyncMock()
@@ -108,14 +109,14 @@ async def test_publish_payzen_outcome_event_publishes_captured_on_paid(
             user_id=uuid4(),
             provider_code="payzen",
             provider_reference="tx-123",
-            payzen_trans_id="tx-123",
+            provider_data={"trans_id": "tx-123", "trans_status": "PAID"},
         ),
     )
 
     publish_mock = AsyncMock()
     monkeypatch.setattr("app.api.routes.payments.outbox_registry.publish", publish_mock)
 
-    await _publish_payzen_outcome_event(
+    await _publish_provider_outcome_event(
         session=session, payment=payment, trans_status="PAID"
     )
 
@@ -129,7 +130,7 @@ async def test_publish_payzen_outcome_event_publishes_captured_on_paid(
 
 
 @pytest.mark.anyio
-async def test_publish_payzen_outcome_event_publishes_rejected_on_failure(
+async def test_publish_provider_outcome_event_publishes_rejected_on_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = AsyncMock()
@@ -141,13 +142,13 @@ async def test_publish_payzen_outcome_event_publishes_rejected_on_failure(
             user_id=uuid4(),
             provider_code="payzen",
             provider_reference=None,
-            payzen_trans_id=None,
+            provider_data=None,
         ),
     )
     publish_mock = AsyncMock()
     monkeypatch.setattr("app.api.routes.payments.outbox_registry.publish", publish_mock)
 
-    await _publish_payzen_outcome_event(
+    await _publish_provider_outcome_event(
         session=session, payment=payment, trans_status="REFUSED"
     )
 
@@ -156,7 +157,7 @@ async def test_publish_payzen_outcome_event_publishes_rejected_on_failure(
 
 
 @pytest.mark.anyio
-async def test_publish_payzen_outcome_event_skips_non_terminal_status(
+async def test_publish_provider_outcome_event_skips_non_terminal_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = AsyncMock()
@@ -168,17 +169,53 @@ async def test_publish_payzen_outcome_event_skips_non_terminal_status(
             user_id=uuid4(),
             provider_code="payzen",
             provider_reference=None,
-            payzen_trans_id=None,
+            provider_data=None,
         ),
     )
     publish_mock = AsyncMock()
     monkeypatch.setattr("app.api.routes.payments.outbox_registry.publish", publish_mock)
 
-    await _publish_payzen_outcome_event(
+    await _publish_provider_outcome_event(
         session=session, payment=payment, trans_status="UNDER_REVIEW"
     )
 
     publish_mock.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_publish_provider_webhook_received_event_publishes_audit_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = AsyncMock()
+    payment = cast(
+        Payment,
+        SimpleNamespace(
+            id=uuid4(),
+            order_id=uuid4(),
+            user_id=uuid4(),
+            provider_code="payzen",
+            provider_reference="order-123",
+        ),
+    )
+
+    publish_mock = AsyncMock()
+    monkeypatch.setattr("app.api.routes.payments.outbox_registry.publish", publish_mock)
+
+    await _publish_provider_webhook_received_event(
+        session=session,
+        payment=payment,
+        raw_payload={"kr-answer": "raw", "count": 1},
+        validated_payload={"order_id": "order-123", "trans_status": "PAID"},
+        trans_status="PAID",
+        trans_id="tx-999",
+    )
+
+    publish_mock.assert_awaited_once()
+    kwargs = publish_mock.call_args.kwargs
+    assert kwargs["event_type"] == "payment.webhook_received"
+    assert kwargs["payload"]["payment_id"] == str(payment.id)
+    assert kwargs["payload"]["metadata"]["raw_payload"]["kr-answer"] == "raw"
+    assert kwargs["payload"]["metadata"]["trans_id"] == "tx-999"
 
 
 @pytest.mark.anyio
@@ -197,8 +234,7 @@ async def test_payzen_ipn_updates_payment_inline_and_publishes_outbox_event(
             provider_code="payzen",
             provider_reference="tx-1",
             payment_status_id=None,
-            payzen_status=None,
-            payzen_trans_id="tx-1",
+            provider_data={"trans_id": "tx-1"},
         ),
     )
 
@@ -216,7 +252,7 @@ async def test_payzen_ipn_updates_payment_inline_and_publishes_outbox_event(
     )
     monkeypatch.setattr(
         crud_payment,
-        "get_by_payzen_order_id",
+        "get_by_provider_reference",
         AsyncMock(return_value=payment),
     )
     monkeypatch.setattr(
@@ -227,13 +263,18 @@ async def test_payzen_ipn_updates_payment_inline_and_publishes_outbox_event(
 
     sync_payment_status_mock = AsyncMock()
     monkeypatch.setattr(
-        "app.api.routes.payments._sync_payment_status_for_payzen_status",
+        "app.api.routes.payments._sync_payment_status_for_provider_status",
         sync_payment_status_mock,
     )
     publish_event_mock = AsyncMock()
     monkeypatch.setattr(
-        "app.api.routes.payments._publish_payzen_outcome_event",
+        "app.api.routes.payments._publish_provider_outcome_event",
         publish_event_mock,
+    )
+    publish_webhook_received_mock = AsyncMock()
+    monkeypatch.setattr(
+        "app.api.routes.payments._publish_provider_webhook_received_event",
+        publish_webhook_received_mock,
     )
 
     request = cast(
@@ -245,6 +286,7 @@ async def test_payzen_ipn_updates_payment_inline_and_publishes_outbox_event(
     assert response.status_code == 200
 
     sync_payment_status_mock.assert_awaited_once()
+    publish_webhook_received_mock.assert_awaited_once()
     publish_event_mock.assert_awaited_once()
     # publish_event_mock must run BEFORE commit (event is part of the
     # same transaction as the Payment update — outbox guarantee)

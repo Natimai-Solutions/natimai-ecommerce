@@ -58,6 +58,7 @@ logger = logging.getLogger(__name__)
 _PAID_TRANS_STATUS = "PAID"
 _FAILED_TRANS_STATUSES = {"REFUSED", "ABANDONED", "CANCELLED"}
 _TERMINAL_TRANS_STATUSES = {_PAID_TRANS_STATUS, *_FAILED_TRANS_STATUSES}
+_WEBHOOK_RECEIVED_EVENT = "payment.webhook_received"
 
 _PAYMENT_STATUS_COMPLETED = "Completed"
 _PAYMENT_STATUS_FAILED = "Failed"
@@ -88,13 +89,39 @@ def _extract_trans_id(fields: dict[str, object]) -> str | None:
     return normalized or None
 
 
+def _jsonable_webhook_payload(payload: dict[str, Any]) -> dict[str, object]:
+    jsonable: dict[str, object] = {}
+    for key, value in payload.items():
+        if isinstance(value, str | int | float | bool) or value is None:
+            jsonable[key] = value
+        else:
+            jsonable[key] = str(value)
+    return jsonable
+
+
+def _provider_data_as_dict(payment: Payment) -> dict[str, object]:
+    if isinstance(payment.provider_data, dict):
+        return payment.provider_data
+    return {}
+
+
+def _get_existing_provider_status(payment: Payment) -> str | None:
+    provider_data = _provider_data_as_dict(payment)
+    return _normalize_trans_status(provider_data.get("trans_status"))
+
+
+def _get_existing_provider_trans_id(payment: Payment) -> str | None:
+    provider_data = _provider_data_as_dict(payment)
+    return _extract_trans_id(provider_data)
+
+
 def _is_duplicate_retry_for_payment(
     payment: Payment,
     *,
     trans_status: str | None,
     trans_id: str | None,
 ) -> bool:
-    existing_status = _normalize_trans_status(payment.payzen_status)
+    existing_status = _get_existing_provider_status(payment)
     if existing_status is None or trans_status is None:
         return False
 
@@ -107,7 +134,7 @@ def _is_duplicate_retry_for_payment(
     if trans_id is None:
         return True
 
-    return payment.payzen_trans_id == trans_id
+    return _get_existing_provider_trans_id(payment) == trans_id
 
 
 def _is_conflicting_terminal_retry(
@@ -115,7 +142,7 @@ def _is_conflicting_terminal_retry(
     *,
     trans_status: str | None,
 ) -> bool:
-    existing_status = _normalize_trans_status(payment.payzen_status)
+    existing_status = _get_existing_provider_status(payment)
     if existing_status is None or trans_status is None:
         return False
 
@@ -134,7 +161,7 @@ def _resolve_payment_status_for_trans_status(trans_status: str | None) -> str | 
     return None
 
 
-def _resolve_payzen_event_for_trans_status(trans_status: str | None) -> str | None:
+def _resolve_outcome_event_for_trans_status(trans_status: str | None) -> str | None:
     """Map a Payzen trans_status to the outbox event type the IPN should publish.
 
     Returning None means we do not publish (intermediate / non-terminal status).
@@ -159,13 +186,13 @@ async def _get_or_create_payment_status(
         session=session,
         data=PaymentStatusCreate(
             name=name,
-            description=f"Auto-created by PayZen IPN: {name}",
+            description=f"Auto-created by provider webhook: {name}",
         ),
         user=None,
     )
 
 
-async def _sync_payment_status_for_payzen_status(
+async def _sync_payment_status_for_provider_status(
     session: SessionDep,
     *,
     payment: Payment,
@@ -185,15 +212,17 @@ async def _sync_payment_status_for_payzen_status(
     session.add(payment)
 
 
-async def _publish_payzen_outcome_event(
+async def _publish_provider_outcome_event(
     session: SessionDep,
     *,
     payment: Payment,
     trans_status: str | None,
 ) -> None:
-    event_type = _resolve_payzen_event_for_trans_status(trans_status)
+    event_type = _resolve_outcome_event_for_trans_status(trans_status)
     if event_type is None:
         return
+
+    trans_id = _get_existing_provider_trans_id(payment)
 
     payload = {
         "payment_id": str(payment.id),
@@ -204,10 +233,10 @@ async def _publish_payzen_outcome_event(
         "action": "webhook",
         "admin_user_id": None,
         "reason": None,
-        "reference": payment.payzen_trans_id,
+        "reference": trans_id,
         "metadata": {
             "trans_status": trans_status,
-            "trans_id": payment.payzen_trans_id,
+            "trans_id": trans_id,
         },
     }
     await outbox_registry.publish(
@@ -218,13 +247,52 @@ async def _publish_payzen_outcome_event(
     )
 
 
+async def _publish_provider_webhook_received_event(
+    session: SessionDep,
+    *,
+    payment: Payment,
+    raw_payload: dict[str, Any],
+    validated_payload: dict[str, object],
+    trans_status: str | None,
+    trans_id: str | None,
+) -> None:
+    user_id = getattr(payment, "user_id", None)
+    order_id = getattr(payment, "order_id", None)
+
+    payload = {
+        "payment_id": str(payment.id),
+        "order_id": str(order_id) if order_id else None,
+        "user_id": str(user_id) if user_id else None,
+        "provider_code": (getattr(payment, "provider_code", None) or "payzen"),
+        "provider_reference": getattr(payment, "provider_reference", None),
+        "action": "webhook_received",
+        "admin_user_id": None,
+        "reason": None,
+        "reference": trans_id,
+        "metadata": {
+            "trans_status": trans_status,
+            "trans_id": trans_id,
+            "raw_payload": _jsonable_webhook_payload(raw_payload),
+            "validated_payload": _jsonable_webhook_payload(validated_payload),
+        },
+    }
+    await outbox_registry.publish(
+        session=session,
+        event_type=_WEBHOOK_RECEIVED_EVENT,
+        payload=payload,
+        correlation_id=payment.id,
+    )
+
+
 async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
     error = None
+    raw_fields: dict[str, Any] = {}
     fields: dict[str, object] = {}
 
     try:
         form_data = await request.form()
         fields_dict = dict(form_data)
+        raw_fields = dict(fields_dict)
         fields = validate_ipn_signature(fields_dict)
 
         logger.info(
@@ -243,29 +311,41 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
         )
 
     try:
-        payzen_order_id_obj = fields.get("order_id")
-        payzen_order_id = str(payzen_order_id_obj) if payzen_order_id_obj else ""
-        if not payzen_order_id:
+        provider_order_reference_obj = fields.get("order_id")
+        provider_order_reference = (
+            str(provider_order_reference_obj) if provider_order_reference_obj else ""
+        )
+        if not provider_order_reference:
             raise ValueError("Missing order_id in PayZen IPN")
 
-        payment = await crud_payment.get_by_payzen_order_id(
+        payment = await crud_payment.get_by_provider_reference(
             session,
-            payzen_order_id=payzen_order_id,
+            provider_code="payzen",
+            provider_reference=provider_order_reference,
         )
 
         if not payment:
             try:
-                payment_uuid = uuid.UUID(payzen_order_id)
+                payment_uuid = uuid.UUID(provider_order_reference)
                 payment = await crud_payment.read(session, id=payment_uuid)
             except (ValueError, AttributeError):
                 pass
 
         if not payment:
-            logger.error(f"Payment not found for order_id: {payzen_order_id}")
-            raise ValueError(f"Payment not found: {payzen_order_id}")
+            logger.error(f"Payment not found for order_id: {provider_order_reference}")
+            raise ValueError(f"Payment not found: {provider_order_reference}")
 
         trans_status = _normalize_trans_status(fields.get("trans_status"))
         trans_id = _extract_trans_id(fields)
+
+        await _publish_provider_webhook_received_event(
+            session=session,
+            payment=payment,
+            raw_payload=raw_fields,
+            validated_payload=fields,
+            trans_status=trans_status,
+            trans_id=trans_id,
+        )
 
         if _is_duplicate_retry_for_payment(
             payment,
@@ -277,6 +357,7 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
                 payment.id,
                 trans_status,
             )
+            await session.commit()
             return JSONResponse(
                 content={"status": "ok", "message": "IPN deja traite"},
             )
@@ -288,9 +369,10 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
             logger.warning(
                 "Conflicting terminal PayZen IPN ignored for payment_id=%s: existing=%s incoming=%s",
                 payment.id,
-                payment.payzen_status,
+                _get_existing_provider_status(payment),
                 trans_status,
             )
+            await session.commit()
             return JSONResponse(
                 content={
                     "status": "ok",
@@ -308,13 +390,13 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
             commit=False,
         )
 
-        await _sync_payment_status_for_payzen_status(
+        await _sync_payment_status_for_provider_status(
             session=session,
             payment=payment,
             trans_status=trans_status,
         )
 
-        await _publish_payzen_outcome_event(
+        await _publish_provider_outcome_event(
             session=session,
             payment=payment,
             trans_status=trans_status,
@@ -458,11 +540,15 @@ async def initiate_payment(
             payment.provider_reference = provider_result.provider_reference or str(
                 payment.id
             )
-            payment.provider_data = provider_result.raw_response
-
+            provider_data: dict[str, object] = {}
+            if isinstance(provider_result.raw_response, dict):
+                provider_data.update(provider_result.raw_response)
             if provider_code == "payzen":
-                payment.payzen_form_token = provider_result.form_token
-                payment.payzen_order_id = str(payment.id)
+                provider_data["form_token"] = provider_result.form_token
+                provider_data["server_url"] = provider_result.server_url
+                provider_data["public_key"] = provider_result.public_key
+                provider_data["order_id"] = str(payment.id)
+            payment.provider_data = provider_data or None
 
             session.add(payment)
 

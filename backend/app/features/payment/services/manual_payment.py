@@ -34,10 +34,6 @@ ACTION_APPROVE = "approve"
 ACTION_REJECT = "reject"
 
 
-class PaymentNotPendingValidationError(RuntimeError):
-    """Raised when a payment is not in a state that admits manual validation."""
-
-
 class PaymentNotManualError(RuntimeError):
     """Raised when a payment does not belong to a manual provider."""
 
@@ -125,10 +121,6 @@ async def register_intent(
     )
 
     return payment
-
-
-def _is_pending_manual_validation(payment: Payment) -> bool:
-    return payment.payzen_status is None and payment.payment_status_id is not None
 
 
 async def approve_manual_payment(

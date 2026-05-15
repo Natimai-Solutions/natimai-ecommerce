@@ -96,6 +96,6 @@ def test_payzen_provider_parse_webhook_delegates_to_utility(
     result = provider.parse_webhook_notification({"kr-answer": "raw"})
 
     assert result.provider_code == "payzen"
-    assert result.provider_reference == "tr_123"
+    assert result.provider_reference == "order_123"
     assert result.payment_status == "PAID"
     assert result.payload == expected_fields

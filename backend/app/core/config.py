@@ -169,6 +169,11 @@ class Settings(BaseSettings):
         "image/png",
     ]
 
+    # Payment event notifications
+    PAYMENT_NOTIFICATIONS_EMAIL_ENABLED: bool = True
+    PAYMENT_NOTIFICATIONS_SLACK_ENABLED: bool = False
+    PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL: HttpUrl | None = None
+
     # ClamAV antivirus
     CLAMAV_ENABLED: bool = False
     CLAMAV_HOST: str = "clamav"

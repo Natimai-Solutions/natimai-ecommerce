@@ -92,29 +92,6 @@ class Payment(PaymentBase, table=True):
         sa_column=Column(JSON),
         description="Raw provider payload for provider-agnostic workflows",
     )
-    payzen_trans_id: str | None = Field(
-        default=None, index=True, description="Payzen transaction UUID"
-    )
-    payzen_order_id: str | None = Field(
-        default=None, index=True, description="Payzen order ID (same as payment id)"
-    )
-    payzen_payment_method: str | None = Field(
-        default=None, description="Payment method used (CB, Visa, Mastercard)"
-    )
-    payzen_status: str | None = Field(
-        default=None, description="Payzen transaction status (PAID, REFUSED, etc.)"
-    )
-    payzen_error_code: str | None = Field(
-        default=None, description="Payzen error code if any"
-    )
-    payzen_form_token: str | None = Field(
-        default=None, description="Payzen form token generated for this payment"
-    )
-    payzen_data: dict[str, Any] | None = Field(
-        default=None,
-        sa_column=Column(JSON),
-        description="Raw Payzen response data",
-    )
 
 
 class PaymentPublic(PaymentBase, BasePublic):
@@ -138,10 +115,6 @@ class PaymentPublic(PaymentBase, BasePublic):
     )
     provider_reference: str | None = None
     provider_data: dict[str, Any] | None = None
-    payzen_trans_id: str | None = None
-    payzen_order_id: str | None = None
-    payzen_payment_method: str | None = None
-    payzen_status: str | None = None
 
 
 class PaymentsPublic(SQLModel):

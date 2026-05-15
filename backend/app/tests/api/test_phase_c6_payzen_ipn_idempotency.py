@@ -29,8 +29,9 @@ async def test_payzen_ipn_ignores_duplicate_terminal_retry(
         SimpleNamespace(
             id=uuid4(),
             order_id=uuid4(),
-            payzen_status="PAID",
-            payzen_trans_id="tx-001",
+            provider_code="payzen",
+            provider_reference=None,
+            provider_data={"trans_status": "PAID", "trans_id": "tx-001"},
             payment_status_id=None,
         ),
     )
@@ -50,7 +51,7 @@ async def test_payzen_ipn_ignores_duplicate_terminal_retry(
     )
     monkeypatch.setattr(
         crud_payment,
-        "get_by_payzen_order_id",
+        "get_by_provider_reference",
         AsyncMock(return_value=payment),
     )
 
@@ -63,13 +64,18 @@ async def test_payzen_ipn_ignores_duplicate_terminal_retry(
 
     sync_mock = AsyncMock(return_value=None)
     monkeypatch.setattr(
-        "app.api.routes.payments._sync_payment_status_for_payzen_status",
+        "app.api.routes.payments._sync_payment_status_for_provider_status",
         sync_mock,
     )
     publish_event_mock = AsyncMock(return_value=None)
     monkeypatch.setattr(
-        "app.api.routes.payments._publish_payzen_outcome_event",
+        "app.api.routes.payments._publish_provider_outcome_event",
         publish_event_mock,
+    )
+    publish_webhook_received_mock = AsyncMock(return_value=None)
+    monkeypatch.setattr(
+        "app.api.routes.payments._publish_provider_webhook_received_event",
+        publish_webhook_received_mock,
     )
 
     request = cast(
@@ -85,7 +91,8 @@ async def test_payzen_ipn_ignores_duplicate_terminal_retry(
 
     update_payment_mock.assert_not_awaited()
     sync_mock.assert_not_awaited()
-    session.commit.assert_not_awaited()
+    publish_webhook_received_mock.assert_awaited_once()
+    session.commit.assert_awaited_once()
     session.rollback.assert_not_awaited()
 
 
@@ -101,8 +108,9 @@ async def test_payzen_ipn_ignores_conflicting_terminal_retry(
         SimpleNamespace(
             id=uuid4(),
             order_id=uuid4(),
-            payzen_status="PAID",
-            payzen_trans_id="tx-paid",
+            provider_code="payzen",
+            provider_reference=None,
+            provider_data={"trans_status": "PAID", "trans_id": "tx-paid"},
             payment_status_id=None,
         ),
     )
@@ -122,7 +130,7 @@ async def test_payzen_ipn_ignores_conflicting_terminal_retry(
     )
     monkeypatch.setattr(
         crud_payment,
-        "get_by_payzen_order_id",
+        "get_by_provider_reference",
         AsyncMock(return_value=payment),
     )
 
@@ -135,13 +143,18 @@ async def test_payzen_ipn_ignores_conflicting_terminal_retry(
 
     sync_mock = AsyncMock(return_value=None)
     monkeypatch.setattr(
-        "app.api.routes.payments._sync_payment_status_for_payzen_status",
+        "app.api.routes.payments._sync_payment_status_for_provider_status",
         sync_mock,
     )
     publish_event_mock = AsyncMock(return_value=None)
     monkeypatch.setattr(
-        "app.api.routes.payments._publish_payzen_outcome_event",
+        "app.api.routes.payments._publish_provider_outcome_event",
         publish_event_mock,
+    )
+    publish_webhook_received_mock = AsyncMock(return_value=None)
+    monkeypatch.setattr(
+        "app.api.routes.payments._publish_provider_webhook_received_event",
+        publish_webhook_received_mock,
     )
 
     request = cast(
@@ -157,5 +170,6 @@ async def test_payzen_ipn_ignores_conflicting_terminal_retry(
 
     update_payment_mock.assert_not_awaited()
     sync_mock.assert_not_awaited()
-    session.commit.assert_not_awaited()
+    publish_webhook_received_mock.assert_awaited_once()
+    session.commit.assert_awaited_once()
     session.rollback.assert_not_awaited()

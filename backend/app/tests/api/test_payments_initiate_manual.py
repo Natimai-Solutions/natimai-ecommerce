@@ -34,9 +34,6 @@ async def test_payments_initiate_dispatches_manual_check(
             payment_status_id=None,
             order_id=uuid4(),
             user_id=uuid4(),
-            payzen_form_token=None,
-            payzen_order_id=None,
-            payzen_status=None,
         ),
     )
 
@@ -121,9 +118,6 @@ async def test_payments_initiate_dispatches_manual_transfer(
             payment_status_id=None,
             order_id=None,
             user_id=uuid4(),
-            payzen_form_token=None,
-            payzen_order_id=None,
-            payzen_status=None,
         ),
     )
 

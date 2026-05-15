@@ -75,15 +75,17 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         exec_result = await session.exec(statement)
         return exec_result.first()
 
-    async def get_by_payzen_order_id(
+    async def get_by_provider_reference(
         self,
         session: AsyncSession,
         *,
-        payzen_order_id: str,
+        provider_code: str,
+        provider_reference: str,
     ) -> Payment | None:
-        """Get payment by Payzen order ID."""
+        """Get payment by provider code and provider-side reference."""
         statement = select(self.model).where(
-            self.model.payzen_order_id == payzen_order_id,
+            self.model.provider_code == provider_code,
+            self.model.provider_reference == provider_reference,
             col(self.model.is_admin_active).is_(True),
             col(self.model.is_active).is_(True),
         )
@@ -161,20 +163,41 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         else:
             amount_decimal = payment.amount
 
-        payment.payzen_trans_id = payzen_fields.get("trans_uuid") or payzen_fields.get(
-            "trans_id"
-        )
-        payment.payzen_order_id = payzen_fields.get("order_id")
-        payment.payzen_status = payzen_fields.get("trans_status")
-        payment.payzen_payment_method = payzen_fields.get("payment_cards")
-        payment.payzen_data = payzen_fields.get("_raw_answer")
-        payment.provider_code = getattr(payment, "provider_code", None) or "payzen"
-        payment.provider_reference = payment.payzen_trans_id or payment.payzen_order_id
-        payment.provider_data = payzen_fields
+        trans_id_raw = payzen_fields.get("trans_uuid") or payzen_fields.get("trans_id")
+        trans_id = str(trans_id_raw).strip() if trans_id_raw is not None else None
+        if trans_id == "":
+            trans_id = None
+
+        order_id_raw = payzen_fields.get("order_id")
+        order_id = str(order_id_raw).strip() if order_id_raw is not None else None
+        if order_id == "":
+            order_id = None
+
+        trans_status = payzen_fields.get("trans_status")
+        payment_method = payzen_fields.get("payment_cards")
+        error_code = payzen_fields.get("error_code")
+
+        provider_data: dict[str, object] = {}
+        if isinstance(payment.provider_data, dict):
+            provider_data.update(payment.provider_data)
+        provider_data.update(payzen_fields)
+        if trans_id is not None:
+            provider_data["trans_id"] = trans_id
+            provider_data["trans_uuid"] = trans_id
+        if order_id is not None:
+            provider_data["order_id"] = order_id
+        if payment_method is not None:
+            provider_data["payment_cards"] = payment_method
+        if error_code is not None:
+            provider_data["error_code"] = error_code
+
+        payment.provider_code = payment.provider_code or "payzen"
+        if not payment.provider_reference:
+            payment.provider_reference = order_id or trans_id
+        payment.provider_data = provider_data or None
         payment.amount = amount_decimal
 
         # Update payment status based on Payzen status
-        trans_status = payzen_fields.get("trans_status")
         if trans_status == "PAID":
             # Payment successful - update to validated status
             validated_status = await crud_payment_status.get_by_name(
@@ -184,7 +207,6 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
                 payment.payment_status_id = validated_status.id
         elif trans_status in ["REFUSED", "ABANDONED", "CANCELLED"]:
             # Payment failed - update to error status
-            payment.payzen_error_code = payzen_fields.get("error_code")
             failed_status = await crud_payment_status.get_by_name(
                 session, name="Failed"
             )
@@ -196,12 +218,12 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         # Create payment log entry
         payment_log = PaymentLog(
             payment_id=payment.id,
-            payzen_trans_id=payment.payzen_trans_id,
-            payzen_order_id=payment.payzen_order_id,
+            provider_reference=trans_id,
+            provider_order_reference=order_id,
             amount=amount_decimal,
-            payment_method=payment.payzen_payment_method,
-            status=payment.payzen_status,
-            error_code=payzen_fields.get("error_code"),
+            payment_method=str(payment_method) if payment_method is not None else None,
+            status=str(trans_status) if trans_status is not None else None,
+            error_code=str(error_code) if error_code is not None else None,
             raw_data=payzen_fields,
         )
         session.add(payment_log)

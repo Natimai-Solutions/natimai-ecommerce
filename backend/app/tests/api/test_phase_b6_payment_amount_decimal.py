@@ -9,7 +9,7 @@ minor units regardless of the currency scale.
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import cast
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -41,15 +41,13 @@ async def test_update_payment_from_payzen_converts_eur_minor_units_to_decimal(
         id="00000000-0000-0000-0000-000000000001",
         amount=Decimal("0.00"),
         currency="EUR",
-        payzen_trans_id=None,
-        payzen_order_id=None,
-        payzen_status=None,
-        payzen_payment_method=None,
-        payzen_data=None,
-        payzen_error_code=None,
+        provider_code="payzen",
+        provider_reference=None,
+        provider_data=None,
         payment_status_id=None,
     )
     session = AsyncMock()
+    session.add = Mock()
 
     monkeypatch.setattr(
         "app.features.payment.crud.payment_status.crud_payment_status.get_by_name",
@@ -84,15 +82,13 @@ async def test_update_payment_from_payzen_preserves_xpf_zero_decimal(
         id="00000000-0000-0000-0000-000000000002",
         amount=Decimal("0.00"),
         currency="XPF",
-        payzen_trans_id=None,
-        payzen_order_id=None,
-        payzen_status=None,
-        payzen_payment_method=None,
-        payzen_data=None,
-        payzen_error_code=None,
+        provider_code="payzen",
+        provider_reference=None,
+        provider_data=None,
         payment_status_id=None,
     )
     session = AsyncMock()
+    session.add = Mock()
 
     monkeypatch.setattr(
         "app.features.payment.crud.payment_status.crud_payment_status.get_by_name",

@@ -68,8 +68,9 @@ async def test_payzen_ipn_uses_provider_parser_path(
         SimpleNamespace(
             id=uuid4(),
             order_id=uuid4(),
-            payzen_status=None,
-            payzen_trans_id=None,
+            provider_code="payzen",
+            provider_reference=None,
+            provider_data=None,
             payment_status_id=None,
         ),
     )
@@ -103,7 +104,7 @@ async def test_payzen_ipn_uses_provider_parser_path(
     )
     monkeypatch.setattr(
         crud_payment,
-        "get_by_payzen_order_id",
+        "get_by_provider_reference",
         AsyncMock(return_value=payment),
     )
 
@@ -116,13 +117,18 @@ async def test_payzen_ipn_uses_provider_parser_path(
 
     sync_mock = AsyncMock(return_value=None)
     monkeypatch.setattr(
-        "app.api.routes.payments._sync_payment_status_for_payzen_status",
+        "app.api.routes.payments._sync_payment_status_for_provider_status",
         sync_mock,
     )
     publish_event_mock = AsyncMock(return_value=None)
     monkeypatch.setattr(
-        "app.api.routes.payments._publish_payzen_outcome_event",
+        "app.api.routes.payments._publish_provider_outcome_event",
         publish_event_mock,
+    )
+    publish_webhook_received_mock = AsyncMock(return_value=None)
+    monkeypatch.setattr(
+        "app.api.routes.payments._publish_provider_webhook_received_event",
+        publish_webhook_received_mock,
     )
 
     request = cast(
@@ -138,5 +144,6 @@ async def test_payzen_ipn_uses_provider_parser_path(
     assert captured_payload == {"kr-answer": "raw", "kr-hash": "abc"}
 
     update_payment_mock.assert_awaited_once()
+    publish_webhook_received_mock.assert_awaited_once()
     sync_mock.assert_awaited_once()
     session.commit.assert_awaited_once()

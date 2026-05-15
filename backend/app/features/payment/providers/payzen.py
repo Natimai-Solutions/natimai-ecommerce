@@ -44,10 +44,17 @@ class PayzenProvider(ApiPaymentProvider):
         fields = validate_ipn_signature(payload)
 
         provider_reference: str | None = None
-        trans_id = fields.get("trans_uuid") or fields.get("trans_id")
-        if trans_id is not None:
-            normalized_trans_id = str(trans_id).strip()
-            provider_reference = normalized_trans_id or None
+        order_id = fields.get("order_id")
+        if order_id is not None:
+            normalized_order_id = str(order_id).strip()
+            provider_reference = normalized_order_id or None
+
+        # Fallback kept for robustness if an upstream payload misses order_id.
+        if provider_reference is None:
+            trans_id = fields.get("trans_uuid") or fields.get("trans_id")
+            if trans_id is not None:
+                normalized_trans_id = str(trans_id).strip()
+                provider_reference = normalized_trans_id or None
 
         payment_status = fields.get("trans_status")
         if not isinstance(payment_status, str):

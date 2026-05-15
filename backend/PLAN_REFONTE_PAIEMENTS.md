@@ -1,7 +1,8 @@
 # Plan de refonte — Architecture multi-providers de paiement
 
-> Document de référence — phases 1 à 7 implémentées et testées (220 tests verts).
-> Reste : suppression colonnes `payzen_*` legacy, migration de l'IPN Payzen vers l'outbox, providers Stripe/PayPal.
+> Document de référence — phases 1, 2, 3, 4, 5, 6 et 7 implémentées et testées.
+> Outbox paiement: événements métier + audit webhook (`payment.webhook_received`) + notifications email/Slack branchés.
+> Reste : appliquer en production les migrations de cleanup `payzen_*`, providers Stripe/PayPal.
 
 ---
 
@@ -11,12 +12,12 @@
 
 | Phase | Statut | Notes |
 |---|---|---|
-| 1 — Refonte du modèle | ✅ DONE (sauf cleanup payzen_*) | `provider_code`/`provider_reference`/`provider_data` + tables `payment_validations` et `payment_attachments` créés. Colonnes `payzen_*` conservées pour rétrocompatibilité (à supprimer après stabilisation) |
+| 1 — Refonte du modèle | ✅ DONE | `provider_code`/`provider_reference`/`provider_data` + tables `payment_validations` et `payment_attachments` créés. Cleanup `payzen_*` implémenté via migrations (`payments` + `payment_logs`), reste l'application en production |
 | 2 — Abstractions | ✅ DONE | `PaymentProvider`, `ApiPaymentProvider`, `ManualPaymentProvider`, `DocumentValidatedProvider` + DTOs + registry |
 | 3 — Paiements manuels | ✅ DONE | `ManualCheckProvider`, `ManualTransferProvider` + routes admin + outbox + seeds |
 | 4 — Module Attachment | ✅ DONE | `FileStorage` (S3/local) + `AntivirusScanner` (clamd/noop) + service upload + scan AV async |
 | 5 — Bons de commande publics | ✅ DONE | `PublicPurchaseOrderProvider` + routes upload/confirm/download + handler AV |
-| 6 — Outbox | ⚠️ PARTIEL | Câblé pour paiements manuels et documents. **IPN Payzen reste inline** — à migrer |
+| 6 — Outbox | ✅ DONE | Câblé pour paiements manuels, documents, et IPN Payzen (`payment.captured`/`payment.rejected`) + audit `payment.webhook_received` et handlers notifications email/Slack |
 | 7 — Routes génériques | ✅ DONE | `POST /payments/initiate`, `POST /payments/webhooks/{provider_code}`, routes legacy `/payzen/*` retirées |
 | 8 — Stripe / PayPal | ❌ NOT DONE | À planifier |
 
@@ -29,6 +30,8 @@
 - Migration phase 1 — [a6b3d4e5f901_add_payment_provider_fields_phase1.py](backend/app/alembic/versions/a6b3d4e5f901_add_payment_provider_fields_phase1.py)
 - Migration phase 3 — [b8c4f2a9d317_add_payment_validations_table.py](backend/app/alembic/versions/b8c4f2a9d317_add_payment_validations_table.py)
 - Migration phase 4 — [c9e1f3a82b46_add_payment_attachments_table.py](backend/app/alembic/versions/c9e1f3a82b46_add_payment_attachments_table.py)
+- Migration cleanup `payments` — [1a2c9e5f7b31_drop_legacy_payzen_columns_from_payments.py](backend/app/alembic/versions/1a2c9e5f7b31_drop_legacy_payzen_columns_from_payments.py)
+- Migration cleanup `payment_logs` — [2d7f4b8c9e11_rename_payment_log_payzen_columns.py](backend/app/alembic/versions/2d7f4b8c9e11_rename_payment_log_payzen_columns.py)
 - [backend/app/features/payment/crud/payment_validation.py](backend/app/features/payment/crud/payment_validation.py)
 - [backend/app/features/payment/crud/payment_attachment.py](backend/app/features/payment/crud/payment_attachment.py)
 
@@ -109,11 +112,10 @@
 
 ### Reste à faire
 
-1. **Migration de l'IPN Payzen vers l'outbox** (phase 6 résiduelle) : aujourd'hui [backend/app/api/routes/payments.py](backend/app/api/routes/payments.py) met à jour Payment + Order inline dans `payzen_ipn`. À refactoriser pour publier `payment.captured` / `payment.rejected` et laisser les handlers existants synchroniser l'Order.
-2. **Suppression colonnes `payzen_*`** (phase 1 cleanup) : créer une migration de drop une fois validé que `provider_data` JSONB couvre tous les besoins. Backfill préalable nécessaire pour la prod.
-3. **Providers Stripe & PayPal** (phase 8) : implémenter `StripeProvider` et `PaypalProvider` comme `ApiPaymentProvider`. Le squelette est en place.
-4. **UI admin** (frontend) : table paiements en attente + boutons approve/reject + prévisualisation du document. Sortie du périmètre backend de cette refonte.
-5. **Antivirus en production** : container `clamav` actuellement requis par `api` et `arq-worker` via healthcheck. Le scan AV des documents tourne dans le worker outbox.
+1. **Suppression/renommage colonnes `payzen_*`** (phase 1 cleanup) : migrations implémentées (`payments` + `payment_logs`, avec backfill `payments` vers `provider_data`), reste à appliquer en production.
+2. **Providers Stripe & PayPal** (phase 8) : implémenter `StripeProvider` et `PaypalProvider` comme `ApiPaymentProvider`. Le squelette est en place.
+3. **UI admin** (frontend) : table paiements en attente + boutons approve/reject + prévisualisation du document. Sortie du périmètre backend de cette refonte.
+4. **Antivirus en production** : container `clamav` actuellement requis par `api` et `arq-worker` via healthcheck. Le scan AV des documents tourne dans le worker outbox.
 
 ### Procédure de mise en service
 
@@ -341,7 +343,9 @@ Nouveau module `backend/app/features/attachment/` :
 
 ### 2.8 Outbox pour la fiabilité
 
-L'infrastructure `app/outbox/` est déjà en place et inutilisée pour les paiements. À câbler pour :
+L'infrastructure `app/outbox/` est en place et utilisée pour les paiements manuels, documents, et les issues terminales IPN Payzen (`payment.captured` / `payment.rejected`).
+
+Compléments à ajouter pour finaliser la phase 6 :
 
 | Événement | Type | Consommateur |
 |---|---|---|
@@ -352,7 +356,7 @@ L'infrastructure `app/outbox/` est déjà en place et inutilisée pour les paiem
 | Document uploadé | `payment.document_uploaded` | Notif admin pour review |
 | Antivirus négatif | `payment.document_infected` | Alerte admin + suppression fichier |
 
-Ça remplace la logique inline actuelle dans [backend/app/api/routes/payzen.py:151-186](backend/app/api/routes/payzen.py#L151-L186) où la mise à jour Payment + Order est dans la même requête HTTP (si Order update échoue, Payment reste désynchronisé).
+Le flux IPN actuel dans [backend/app/api/routes/payments.py](backend/app/api/routes/payments.py) met à jour `Payment`, puis publie les événements outbox terminaux ; la synchronisation `Order` est faite côté handlers outbox.
 
 ---
 
@@ -361,7 +365,7 @@ L'infrastructure `app/outbox/` est déjà en place et inutilisée pour les paiem
 ### Phase 1 — Refonte du modèle ✅ DONE (sauf cleanup)
 1. ✅ Migration Alembic [a6b3d4e5f901](backend/app/alembic/versions/a6b3d4e5f901_add_payment_provider_fields_phase1.py) : `provider_code`, `provider_reference`, `provider_data` sur `payment` + enrichissement `payment_method`
 2. ⚠️ **Backfill non requis** : les colonnes `provider_data` sont nullables et `provider_code` a une valeur par défaut `"payzen"`. Pour la prod, prévoir tout de même un script de copie `payzen_*` → `provider_data` avant suppression
-3. ❌ **À faire** : migration de drop des colonnes `payzen_*` (après validation du nouveau modèle en prod)
+3. ✅ Migration de drop des colonnes `payzen_*` implémentée avec backfill vers `provider_data` (déploiement prod restant)
 4. ✅ Tables [payment_validations](backend/app/alembic/versions/b8c4f2a9d317_add_payment_validations_table.py) et [payment_attachments](backend/app/alembic/versions/c9e1f3a82b46_add_payment_attachments_table.py) créées
 5. ✅ Colonnes `provider_code`, `requires_admin_validation`, `requires_document_upload`, `sort_order` ajoutées sur `payment_method`
 
@@ -392,10 +396,10 @@ L'infrastructure `app/outbox/` est déjà en place et inutilisée pour les paiem
 23. ❌ **UI admin** (frontend hors périmètre) — la route admin de download est en place ([GET /admin/payments/{id}/attachments/{att_id}/download](backend/app/api/routes/admin_payments.py))
 
 ### Phase 6 — Outbox pour fiabilité ⚠️ PARTIEL
-24. ❌ **À faire** : migration de [payzen_ipn()](backend/app/api/routes/payments.py) vers l'outbox. Aujourd'hui la mise à jour Payment + Order reste inline dans la requête IPN
+24. ✅ IPN Payzen branché outbox pour les issues terminales (`payment.captured` / `payment.rejected`) via [payzen_ipn()](backend/app/api/routes/payments.py)
 25. ✅ Idempotence préservée pour Payzen via `payzen_trans_id` ([test_phase_c6_payzen_ipn_idempotency.py](backend/app/tests/api/test_phase_c6_payzen_ipn_idempotency.py))
-26. ❌ **À faire** : handlers email/Slack (uniquement logs aujourd'hui)
-27. ✅ Sync Order status via outbox pour les paiements manuels et documents ([handlers/payment.py](backend/app/handlers/payment.py))
+26. ❌ **À faire** : event `payment.webhook_received` (payload brut) + handlers email/Slack (uniquement logs aujourd'hui)
+27. ✅ Sync Order status via outbox pour manuel, document, et IPN Payzen terminal ([handlers/payment.py](backend/app/handlers/payment.py))
 
 Events publiés et consommés actuellement :
 
@@ -404,8 +408,8 @@ Events publiés et consommés actuellement :
 | `payment.awaiting_validation` | `register_intent` (manuel) | Order → `AwaitingPayment` |
 | `payment.document_required` | `register_intent` (document) | Order → `AwaitingPayment` |
 | `payment.document_uploaded` | `mark_document_uploaded` | Scan AV → quarantine si infecté |
-| `payment.captured` | `approve_manual_payment` / `approve_document_payment` | Order → `Paid` |
-| `payment.rejected` | `reject_manual_payment` / `reject_document_payment` | Order → `PaymentFailed` |
+| `payment.captured` | `approve_manual_payment` / `approve_document_payment` / `payzen_ipn` | Order → `Paid` |
+| `payment.rejected` | `reject_manual_payment` / `reject_document_payment` / `payzen_ipn` | Order → `PaymentFailed` |
 | `payment.document_infected` | `mark_document_infected` | Order → `PaymentFailed` |
 
 ### Phase 7 — Routes génériques ✅ DONE
@@ -468,7 +472,7 @@ Events publiés et consommés actuellement :
 - [backend/app/api/routes/admin_payments.py](backend/app/api/routes/admin_payments.py) — routes admin
 - [backend/app/api/routes/internal_storage.py](backend/app/api/routes/internal_storage.py) — endpoints signés pour backend local
 - [backend/app/handlers/payment.py](backend/app/handlers/payment.py) — handlers outbox
-- 3 migrations Alembic ([a6b3d4e5f901](backend/app/alembic/versions/a6b3d4e5f901_add_payment_provider_fields_phase1.py), [b8c4f2a9d317](backend/app/alembic/versions/b8c4f2a9d317_add_payment_validations_table.py), [c9e1f3a82b46](backend/app/alembic/versions/c9e1f3a82b46_add_payment_attachments_table.py))
+- 4 migrations Alembic ([a6b3d4e5f901](backend/app/alembic/versions/a6b3d4e5f901_add_payment_provider_fields_phase1.py), [b8c4f2a9d317](backend/app/alembic/versions/b8c4f2a9d317_add_payment_validations_table.py), [c9e1f3a82b46](backend/app/alembic/versions/c9e1f3a82b46_add_payment_attachments_table.py), [1a2c9e5f7b31](backend/app/alembic/versions/1a2c9e5f7b31_drop_legacy_payzen_columns_from_payments.py))
 
 ### Modifiés ✅
 - [backend/app/features/payment/models/payment.py](backend/app/features/payment/models/payment.py) — ajout `provider_code`, `provider_reference`, `provider_data` (colonnes `payzen_*` conservées temporairement)

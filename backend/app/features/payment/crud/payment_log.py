@@ -35,15 +35,15 @@ class PaymentLogCrud(CrudBase[PaymentLog, PaymentLogCreate, PaymentLogUpdate]):
         exec_result = await session.exec(statement)
         return list(exec_result.all())
 
-    async def get_by_payzen_trans_id(
+    async def get_by_provider_reference(
         self,
         session: AsyncSession,
         *,
-        payzen_trans_id: str,
+        provider_reference: str,
     ) -> PaymentLog | None:
-        """Get a payment log by Payzen transaction ID."""
+        """Get a payment log by provider transaction reference."""
         statement = select(self.model).where(
-            self.model.payzen_trans_id == payzen_trans_id,
+            self.model.provider_reference == provider_reference,
             col(self.model.is_admin_active).is_(True),
             col(self.model.is_active).is_(True),
         )

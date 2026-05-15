@@ -36,8 +36,6 @@ async def test_payments_initiate_dispatches_by_payment_method(
             provider_code=None,
             provider_reference=None,
             provider_data=None,
-            payzen_form_token=None,
-            payzen_order_id=None,
         ),
     )
 
@@ -115,9 +113,10 @@ async def test_payments_initiate_dispatches_by_payment_method(
     assert payment.payment_method_id == request.payment_method_id
     assert payment.provider_code == "payzen"
     assert payment.provider_reference == "tx_123"
-    assert payment.provider_data == {"status": "SUCCESS"}
-    assert payment.payzen_form_token == "token_123"
-    assert payment.payzen_order_id == str(payment.id)
+    assert payment.provider_data is not None
+    assert payment.provider_data["status"] == "SUCCESS"
+    assert payment.provider_data["form_token"] == "token_123"
+    assert payment.provider_data["order_id"] == str(payment.id)
 
     assert response.payment_id == payment.id
     assert response.provider_code == "payzen"
@@ -181,8 +180,6 @@ async def test_payments_initiate_returns_400_when_provider_unsupported(
             provider_code=None,
             provider_reference=None,
             provider_data=None,
-            payzen_form_token=None,
-            payzen_order_id=None,
         ),
     )
 

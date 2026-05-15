@@ -163,7 +163,7 @@ Signaux frequents:
 Diagnostic SQL:
 
 ```powershell
-docker compose exec postgres psql -U postgres -d fastapi_ecommerce -c "SELECT id, payzen_order_id, payzen_status, payzen_trans_id, updated_at FROM payments WHERE is_active = true ORDER BY updated_at DESC LIMIT 30;"
+docker compose exec postgres psql -U postgres -d fastapi_ecommerce -c "SELECT id, provider_code, provider_reference, provider_data->>'trans_status' AS trans_status, provider_data->>'trans_id' AS trans_id, updated_at FROM payments WHERE is_active = true ORDER BY updated_at DESC LIMIT 30;"
 docker compose exec postgres psql -U postgres -d fastapi_ecommerce -c "SELECT id, payment_id, status, error_code, created_at FROM payment_logs ORDER BY created_at DESC LIMIT 30;"
 ```
 
@@ -198,12 +198,12 @@ Options utiles:
 ### 4.3 Verification apres replay
 
 ```powershell
-docker compose exec postgres psql -U postgres -d fastapi_ecommerce -c "SELECT id, payzen_order_id, payzen_status, payzen_trans_id, updated_at FROM payments WHERE id = '<PAYMENT_UUID>';"
+docker compose exec postgres psql -U postgres -d fastapi_ecommerce -c "SELECT id, provider_code, provider_reference, provider_data->>'trans_status' AS trans_status, provider_data->>'trans_id' AS trans_id, updated_at FROM payments WHERE id = '<PAYMENT_UUID>';"
 Invoke-RestMethod -Method Get -Uri "$API_BASE/api/v1/utils/observability/dashboard"
 ```
 
 Attendu:
-- `payments.payzen_status` en statut terminal coherent
+- `payments.provider_data.trans_status` en statut terminal coherent
 - creation/maj de logs de paiement
 - coherence des statuts checkout (paiement + commande)
 
@@ -216,6 +216,6 @@ Escalader si l'un des cas suivants persiste apres relance:
 
 Donnees a fournir pour l'analyse:
 - `job_id` ARQ concernes
-- `payment_id` ou `payzen_order_id`
+- `payment_id` ou `provider_reference`
 - extrait logs `api`, `arq-worker`, `outbox-poller`
 - sortie de l'endpoint observabilite

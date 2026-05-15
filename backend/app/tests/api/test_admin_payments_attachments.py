@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
@@ -44,7 +44,6 @@ def _make_payment(provider_code: str = "po_public") -> Payment:
             provider_reference=None,
             provider_data=None,
             payment_status_id=None,
-            payzen_status=None,
             amount=100,
             currency="EUR",
         ),
@@ -109,6 +108,7 @@ async def test_approve_payment_routes_document_provider_to_document_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = AsyncMock()
+    session.add = Mock()
     payment = _make_payment(provider_code="po_public")
     monkeypatch.setattr(crud_payment, "read", AsyncMock(return_value=payment))
 
@@ -145,6 +145,7 @@ async def test_reject_payment_routes_document_provider_to_document_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = AsyncMock()
+    session.add = Mock()
     payment = _make_payment(provider_code="po_public")
     monkeypatch.setattr(crud_payment, "read", AsyncMock(return_value=payment))
 

@@ -19,6 +19,7 @@ def test_payment_handlers_registered() -> None:
     assert "payment.awaiting_validation" in types
     assert "payment.captured" in types
     assert "payment.rejected" in types
+    assert "payment.webhook_received" in types
 
 
 def _make_order(status_id: Any = None) -> Any:
@@ -153,3 +154,47 @@ async def test_payment_handler_skips_on_invalid_order_id(
     await handlers.on_payment_captured(cast(Any, session), payload)
 
     read_mock.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_payment_webhook_received_handler_dispatches_notifications(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    notify_mock = AsyncMock()
+    monkeypatch.setattr(handlers, "send_payment_event_notifications", notify_mock)
+
+    payload = {
+        "payment_id": str(uuid4()),
+        "order_id": str(uuid4()),
+        "provider_code": "payzen",
+        "user_id": str(uuid4()),
+    }
+
+    await handlers.on_payment_webhook_received(cast(Any, AsyncMock()), payload)
+
+    notify_mock.assert_awaited_once_with(
+        event_type="payment.webhook_received",
+        payload=payload,
+    )
+
+
+@pytest.mark.anyio
+async def test_payment_captured_notification_handler_dispatches_notifications(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    notify_mock = AsyncMock()
+    monkeypatch.setattr(handlers, "send_payment_event_notifications", notify_mock)
+
+    payload = {
+        "payment_id": str(uuid4()),
+        "order_id": str(uuid4()),
+        "provider_code": "manual_transfer",
+        "user_id": str(uuid4()),
+    }
+
+    await handlers.on_payment_captured_notify(cast(Any, AsyncMock()), payload)
+
+    notify_mock.assert_awaited_once_with(
+        event_type="payment.captured",
+        payload=payload,
+    )
