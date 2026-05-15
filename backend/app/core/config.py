@@ -171,8 +171,18 @@ class Settings(BaseSettings):
 
     # Payment event notifications
     PAYMENT_NOTIFICATIONS_EMAIL_ENABLED: bool = True
+    PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER: str = "noop"
     PAYMENT_NOTIFICATIONS_SLACK_ENABLED: bool = False
+    PAYMENT_NOTIFICATIONS_SLACK_PROVIDER: str = "slack_webhook"
     PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL: HttpUrl | None = None
+
+    # Mailgun notification provider
+    MAILGUN_API_BASE_URL: str = "https://api.mailgun.net/v3"
+    MAILGUN_DOMAIN: str | None = None
+    MAILGUN_API_KEY: str | None = None
+    MAILGUN_FROM_EMAIL: str | None = None
+    MAILGUN_FROM_NAME: str | None = None
+    MAILGUN_TIMEOUT_SECONDS: int = 10
 
     # ClamAV antivirus
     CLAMAV_ENABLED: bool = False

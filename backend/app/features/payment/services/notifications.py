@@ -3,12 +3,18 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import httpx
-
 from app.core.config import settings
-from app.utils.email import send_email
+from app.features.notification.providers import (
+    NotificationMessage,
+    NotificationProvider,
+    UnknownNotificationProviderError,
+    get_notification_provider,
+)
 
 logger = logging.getLogger(__name__)
+
+_EMAIL_CHANNEL = "email"
+_SLACK_CHANNEL = "slack"
 
 
 def _as_non_empty_str(value: object | None) -> str | None:
@@ -39,6 +45,11 @@ def _build_notification_message(event_type: str, payload: dict[str, Any]) -> str
     return "Payment event: " + " ".join(fragments)
 
 
+def _build_notification_subject(event_type: str, payload: dict[str, Any]) -> str:
+    payment_id = _as_non_empty_str(payload.get("payment_id")) or "unknown"
+    return f"[Payment] {event_type} - {payment_id}"
+
+
 def _collect_email_targets(payload: dict[str, Any]) -> list[str]:
     targets: list[str] = []
 
@@ -54,18 +65,44 @@ def _collect_email_targets(payload: dict[str, Any]) -> list[str]:
     return targets
 
 
-async def _send_email_notifications(message: str, payload: dict[str, Any]) -> None:
+def _resolve_provider(provider_code: str) -> NotificationProvider:
+    try:
+        return get_notification_provider(provider_code)
+    except UnknownNotificationProviderError:
+        logger.warning(
+            "Unknown notification provider '%s', fallback to noop",
+            provider_code,
+        )
+        return get_notification_provider("noop")
+
+
+async def _send_email_notifications(
+    event_type: str,
+    message: str,
+    payload: dict[str, Any],
+) -> None:
     if not settings.PAYMENT_NOTIFICATIONS_EMAIL_ENABLED:
         return
 
+    provider = _resolve_provider(settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER)
+    subject = _build_notification_subject(event_type, payload)
+
     for target in _collect_email_targets(payload):
-        try:
-            await send_email(target, message)
-        except Exception as exc:
+        result = await provider.send(
+            NotificationMessage(
+                channel=_EMAIL_CHANNEL,
+                recipient=target,
+                subject=subject,
+                text=message,
+                metadata={"event_type": event_type, "payload": payload},
+            )
+        )
+        if not result.delivered:
             logger.warning(
-                "Payment notification email failed for target=%s: %s",
+                "Payment notification email failed for target=%s provider=%s: %s",
                 target,
-                exc,
+                result.provider_code,
+                result.error,
             )
 
 
@@ -77,28 +114,22 @@ async def _send_slack_notification(
     if not settings.PAYMENT_NOTIFICATIONS_SLACK_ENABLED:
         return
 
-    webhook_url = settings.PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL
-    if webhook_url is None:
-        logger.debug(
-            "Slack notifications enabled but webhook URL is missing for payment event"
+    provider = _resolve_provider(settings.PAYMENT_NOTIFICATIONS_SLACK_PROVIDER)
+    result = await provider.send(
+        NotificationMessage(
+            channel=_SLACK_CHANNEL,
+            recipient="payment-alerts",
+            subject=_build_notification_subject(event_type, payload),
+            text=message,
+            metadata={"event_type": event_type, "payload": payload},
         )
-        return
-
-    body = {
-        "text": message,
-        "event_type": event_type,
-        "payment_id": payload.get("payment_id"),
-        "order_id": payload.get("order_id"),
-        "provider_code": payload.get("provider_code"),
-        "payload": payload,
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(str(webhook_url), json=body)
-        response.raise_for_status()
-    except Exception as exc:
-        logger.warning("Slack payment notification failed: %s", exc)
+    )
+    if not result.delivered:
+        logger.warning(
+            "Slack payment notification failed with provider=%s: %s",
+            result.provider_code,
+            result.error,
+        )
 
 
 async def send_payment_event_notifications(
@@ -108,5 +139,5 @@ async def send_payment_event_notifications(
 ) -> None:
     message = _build_notification_message(event_type, payload)
 
-    await _send_email_notifications(message, payload)
+    await _send_email_notifications(event_type, message, payload)
     await _send_slack_notification(event_type, message, payload)

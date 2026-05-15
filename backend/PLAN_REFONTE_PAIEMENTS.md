@@ -17,7 +17,7 @@
 | 3 — Paiements manuels | ✅ DONE | `ManualCheckProvider`, `ManualTransferProvider` + routes admin + outbox + seeds |
 | 4 — Module Attachment | ✅ DONE | `FileStorage` (S3/local) + `AntivirusScanner` (clamd/noop) + service upload + scan AV async |
 | 5 — Bons de commande publics | ✅ DONE | `PublicPurchaseOrderProvider` + routes upload/confirm/download + handler AV |
-| 6 — Outbox | ✅ DONE | Câblé pour paiements manuels, documents, et IPN Payzen (`payment.captured`/`payment.rejected`) + audit `payment.webhook_received` et handlers notifications email/Slack |
+| 6 — Outbox | ✅ DONE | Câblé pour paiements manuels, documents, et IPN Payzen (`payment.captured`/`payment.rejected`) + audit `payment.webhook_received` et handlers notifications email/Slack via providers extensibles (Mailgun/noop/slack_webhook) |
 | 7 — Routes génériques | ✅ DONE | `POST /payments/initiate`, `POST /payments/webhooks/{provider_code}`, routes legacy `/payzen/*` retirées |
 | 8 — Stripe / PayPal | ❌ NOT DONE | À planifier |
 
@@ -48,6 +48,15 @@
 - [backend/app/features/payment/services/provider_dispatch.py](backend/app/features/payment/services/provider_dispatch.py) — résolution provider depuis payment_method
 - [backend/app/features/payment/services/manual_payment.py](backend/app/features/payment/services/manual_payment.py) — orchestration manuel + outbox
 - [backend/app/features/payment/services/document_payment.py](backend/app/features/payment/services/document_payment.py) — orchestration documents + outbox
+- [backend/app/features/payment/services/notifications.py](backend/app/features/payment/services/notifications.py) — orchestration notifications paiement provider-based (email/slack)
+
+**Providers notifications**
+
+- [backend/app/features/notification/providers/base.py](backend/app/features/notification/providers/base.py) — contrat provider (`NotificationProvider`, `NotificationMessage`, `NotificationResult`)
+- [backend/app/features/notification/providers/__init__.py](backend/app/features/notification/providers/__init__.py) — registry `SUPPORTED_NOTIFICATION_PROVIDERS`
+- [backend/app/features/notification/providers/mailgun.py](backend/app/features/notification/providers/mailgun.py) — provider Mailgun
+- [backend/app/features/notification/providers/noop.py](backend/app/features/notification/providers/noop.py) — provider no-op pour fallback/dev
+- [backend/app/features/notification/providers/slack_webhook.py](backend/app/features/notification/providers/slack_webhook.py) — provider Slack webhook
 
 **Module Attachment**
 
