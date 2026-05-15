@@ -8,17 +8,32 @@ from pydantic import BaseModel, Field
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.features.attachment.service import issue_download_url
 from app.features.base.crud import RecordNotFoundError
 from app.features.payment.crud.payment import crud_payment
+from app.features.payment.crud.payment_attachment import crud_payment_attachment
 from app.features.payment.crud.payment_status import crud_payment_status
 from app.features.payment.crud.payment_validation import crud_payment_validation
 from app.features.payment.models.payment import Payment
+from app.features.payment.models.payment_attachment import (
+    PaymentAttachmentPublic,
+)
 from app.features.payment.models.payment_validation import (
     PaymentValidation,
     PaymentValidationPublic,
 )
+from app.features.payment.providers.document_validated import (
+    DOCUMENT_STATUS_DOCUMENT_UPLOADED,
+    DOCUMENT_STATUS_UNDER_REVIEW,
+)
 from app.features.payment.providers.manual import (
     MANUAL_STATUS_AWAITING_VALIDATION,
+)
+from app.features.payment.services.document_payment import (
+    DOCUMENT_PROVIDER_CODES,
+    PaymentNotDocumentValidatedError,
+    approve_document_payment,
+    reject_document_payment,
 )
 from app.features.payment.services.manual_payment import (
     PaymentNotManualError,
@@ -79,17 +94,29 @@ async def list_pending_validation(
     session: SessionDep,
     _admin: CurrentSuperUser,
 ) -> list[PaymentPendingValidationItem]:
-    awaiting_status = await crud_payment_status.get_by_name(
-        session, name=MANUAL_STATUS_AWAITING_VALIDATION
-    )
-    if awaiting_status is None:
+    pending_status_names = [
+        MANUAL_STATUS_AWAITING_VALIDATION,
+        DOCUMENT_STATUS_DOCUMENT_UPLOADED,
+        DOCUMENT_STATUS_UNDER_REVIEW,
+    ]
+    status_ids: list[uuid.UUID] = []
+    for name in pending_status_names:
+        status = await crud_payment_status.get_by_name(session, name=name)
+        if status is not None:
+            status_ids.append(status.id)
+
+    if not status_ids:
         return []
+
+    manual_or_document_provider = col(Payment.provider_code).startswith(
+        "manual_"
+    ) | col(Payment.provider_code).in_(list(DOCUMENT_PROVIDER_CODES))
 
     statement = (
         select(Payment)
         .where(
-            Payment.payment_status_id == awaiting_status.id,
-            col(Payment.provider_code).startswith("manual_"),
+            col(Payment.payment_status_id).in_(status_ids),
+            manual_or_document_provider,
             col(Payment.is_active).is_(True),
             col(Payment.is_admin_active).is_(True),
         )
@@ -133,17 +160,29 @@ async def approve_payment(
 ) -> PaymentValidationResponse:
     payment = await _get_payment_or_404(session, payment_id)
 
-    try:
-        outcome = await approve_manual_payment(
-            session,
-            payment=payment,
-            admin=admin,
-            reference=body.reference,
-            comment=body.comment,
-        )
-    except PaymentNotManualError as e:
-        await session.rollback()
-        raise HTTPException(400, str(e)) from e
+    if payment.provider_code in DOCUMENT_PROVIDER_CODES:
+        try:
+            outcome = await approve_document_payment(
+                session,
+                payment=payment,
+                admin=admin,
+                comment=body.comment,
+            )
+        except PaymentNotDocumentValidatedError as e:
+            await session.rollback()
+            raise HTTPException(400, str(e)) from e
+    else:
+        try:
+            outcome = await approve_manual_payment(
+                session,
+                payment=payment,
+                admin=admin,
+                reference=body.reference,
+                comment=body.comment,
+            )
+        except PaymentNotManualError as e:
+            await session.rollback()
+            raise HTTPException(400, str(e)) from e
 
     await session.commit()
     await session.refresh(outcome.payment)
@@ -167,16 +206,28 @@ async def reject_payment(
 ) -> PaymentValidationResponse:
     payment = await _get_payment_or_404(session, payment_id)
 
-    try:
-        outcome = await reject_manual_payment(
-            session,
-            payment=payment,
-            admin=admin,
-            reason=body.reason,
-        )
-    except PaymentNotManualError as e:
-        await session.rollback()
-        raise HTTPException(400, str(e)) from e
+    if payment.provider_code in DOCUMENT_PROVIDER_CODES:
+        try:
+            outcome = await reject_document_payment(
+                session,
+                payment=payment,
+                admin=admin,
+                reason=body.reason,
+            )
+        except PaymentNotDocumentValidatedError as e:
+            await session.rollback()
+            raise HTTPException(400, str(e)) from e
+    else:
+        try:
+            outcome = await reject_manual_payment(
+                session,
+                payment=payment,
+                admin=admin,
+                reason=body.reason,
+            )
+        except PaymentNotManualError as e:
+            await session.rollback()
+            raise HTTPException(400, str(e)) from e
 
     await session.commit()
     await session.refresh(outcome.payment)
@@ -188,4 +239,64 @@ async def reject_payment(
         validation=PaymentValidationPublic.model_validate(
             outcome.validation, from_attributes=True
         ),
+    )
+
+
+class AttachmentDownloadResponse(BaseModel):
+    download_url: str
+    expires_in: int
+
+
+@router.get(
+    "/{payment_id}/attachments",
+    response_model=list[PaymentAttachmentPublic],
+)
+async def list_payment_attachments(
+    payment_id: uuid.UUID,
+    session: SessionDep,
+    _admin: CurrentSuperUser,
+) -> list[PaymentAttachmentPublic]:
+    await _get_payment_or_404(session, payment_id)
+    items = await crud_payment_attachment.list_for_payment(
+        session, payment_id=payment_id
+    )
+    return [
+        PaymentAttachmentPublic.model_validate(item, from_attributes=True)
+        for item in items
+    ]
+
+
+@router.get(
+    "/{payment_id}/attachments/{attachment_id}/download",
+    response_model=AttachmentDownloadResponse,
+)
+async def get_attachment_download_url(
+    payment_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    session: SessionDep,
+    _admin: CurrentSuperUser,
+) -> AttachmentDownloadResponse:
+    await _get_payment_or_404(session, payment_id)
+
+    try:
+        attachment = await crud_payment_attachment.read(session, id=attachment_id)
+    except RecordNotFoundError as e:
+        raise HTTPException(404, f"Attachment {attachment_id} not found") from e
+
+    if attachment.payment_id != payment_id:
+        raise HTTPException(404, "Attachment does not belong to this payment")
+
+    if attachment.av_scanned and attachment.av_clean is False:
+        raise HTTPException(
+            403,
+            f"Attachment quarantined by antivirus: {attachment.av_signature}",
+        )
+
+    presigned = issue_download_url(
+        file_key=attachment.file_key,
+        filename=attachment.filename,
+    )
+    return AttachmentDownloadResponse(
+        download_url=presigned.url,
+        expires_in=presigned.expires_in,
     )

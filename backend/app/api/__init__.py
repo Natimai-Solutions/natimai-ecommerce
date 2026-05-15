@@ -12,6 +12,7 @@ from app.api.routes.discount import router as discount_router
 from app.api.routes.group import router as group_router
 from app.api.routes.group_security import router as group_security_router
 from app.api.routes.icecat import router as icecat_router
+from app.api.routes.internal_storage import router as internal_storage_router
 from app.api.routes.inventory import router as inventory_router
 from app.api.routes.login import router as login_router
 from app.api.routes.order import router as order_router
@@ -48,6 +49,7 @@ api_router.include_router(payment_router)
 api_router.include_router(payment_method_router)
 api_router.include_router(payments_router)
 api_router.include_router(admin_payments_router)
+api_router.include_router(internal_storage_router)
 api_router.include_router(product_router)
 api_router.include_router(discount_router)
 api_router.include_router(cart_router)

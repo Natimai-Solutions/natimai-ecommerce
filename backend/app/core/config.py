@@ -154,6 +154,26 @@ class Settings(BaseSettings):
     S3_ACCESS_KEY_ID: str | None = None
     S3_SECRET_KEY_ID: str | None = None
     S3_BUCKET_NAME: str | None = None
+    S3_REGION: str = "us-east-1"
+
+    # File storage backend selection for payment attachments
+    FILE_STORAGE_BACKEND: Literal["s3", "local"] = "local"
+    FILE_STORAGE_LOCAL_ROOT: str = "/tmp/fastapi_ecommerce_storage"
+    FILE_STORAGE_PRESIGNED_TTL_SECONDS: int = 300
+
+    # Payment attachment validation
+    PAYMENT_ATTACHMENT_MAX_BYTES: int = 10 * 1024 * 1024  # 10 MB
+    PAYMENT_ATTACHMENT_ALLOWED_MIME: list[str] = [
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+    ]
+
+    # ClamAV antivirus
+    CLAMAV_ENABLED: bool = False
+    CLAMAV_HOST: str = "clamav"
+    CLAMAV_PORT: int = 3310
+    CLAMAV_TIMEOUT_SECONDS: int = 30
 
     # PayZen Configuration
     PAYZEN_SITE_ID: str | None = None

@@ -11,6 +11,9 @@ from app.features.payment.providers.base import (
     ValidationResult,
     WebhookResult,
 )
+from app.features.payment.providers.document_validated import (
+    PublicPurchaseOrderProvider,
+)
 from app.features.payment.providers.manual import (
     ManualCheckProvider,
     ManualTransferProvider,
@@ -21,6 +24,7 @@ SUPPORTED_PROVIDERS: dict[str, type[PaymentProvider]] = {
     PayzenProvider.code: PayzenProvider,
     ManualCheckProvider.code: ManualCheckProvider,
     ManualTransferProvider.code: ManualTransferProvider,
+    PublicPurchaseOrderProvider.code: PublicPurchaseOrderProvider,
 }
 
 
@@ -45,6 +49,7 @@ __all__ = [
     "PaymentProvider",
     "PaymentProviderError",
     "PayzenProvider",
+    "PublicPurchaseOrderProvider",
     "SUPPORTED_PROVIDERS",
     "UnknownPaymentProviderError",
     "ValidationResult",

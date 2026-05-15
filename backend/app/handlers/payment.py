@@ -112,3 +112,107 @@ async def on_payment_rejected(session: AsyncSession, payload: dict[str, Any]) ->
     await _sync_order_status(
         session, payload=payload, target_status_name=ORDER_STATUS_PAYMENT_FAILED
     )
+
+
+@outbox_handler("payment.document_required")
+async def on_payment_document_required(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    logger.info(
+        "Payment requires document upload: payment_id=%s order_id=%s",
+        payload.get("payment_id"),
+        payload.get("order_id"),
+    )
+    await _sync_order_status(
+        session,
+        payload=payload,
+        target_status_name=ORDER_STATUS_AWAITING_PAYMENT,
+    )
+
+
+@outbox_handler("payment.document_uploaded")
+async def on_payment_document_uploaded(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    """Run antivirus scan asynchronously after a document upload is confirmed.
+
+    On infection: transition the payment via `mark_document_infected`,
+    which publishes `payment.document_infected` for downstream notifications.
+    """
+    import uuid as _uuid
+
+    from app.features.attachment.antivirus.factory import get_antivirus_scanner
+    from app.features.attachment.storage.factory import get_file_storage
+    from app.features.payment.crud.payment import crud_payment
+    from app.features.payment.crud.payment_attachment import (
+        crud_payment_attachment,
+    )
+    from app.features.payment.services.document_payment import (
+        mark_document_infected,
+    )
+
+    attachment_id_raw = payload.get("attachment_id")
+    payment_id_raw = payload.get("payment_id")
+    if not attachment_id_raw or not payment_id_raw:
+        logger.warning("Missing attachment_id/payment_id in payload — skipping scan")
+        return
+
+    try:
+        attachment_id = _uuid.UUID(str(attachment_id_raw))
+        payment_id = _uuid.UUID(str(payment_id_raw))
+    except (TypeError, ValueError):
+        logger.warning("Invalid UUIDs in document_uploaded payload — skipping")
+        return
+
+    try:
+        attachment = await crud_payment_attachment.read(session, id=attachment_id)
+        payment = await crud_payment.read(session, id=payment_id)
+    except Exception as e:
+        logger.warning("Cannot load attachment/payment for AV scan: %s", e)
+        return
+
+    storage = get_file_storage()
+    scanner = get_antivirus_scanner()
+
+    try:
+        data = await storage.get_bytes(key=attachment.file_key)
+        result = await scanner.scan_bytes(data)
+    except Exception as e:
+        logger.error("AV scan failed for attachment %s: %s", attachment_id, e)
+        return
+
+    attachment.av_scanned = True
+    attachment.av_clean = result.is_clean
+    attachment.av_signature = result.signature
+    session.add(attachment)
+
+    if not result.is_clean:
+        try:
+            await storage.delete(key=attachment.file_key)
+        except Exception:
+            pass
+        await mark_document_infected(
+            session,
+            payment=payment,
+            attachment=attachment,
+            signature=result.signature,
+        )
+
+    await session.commit()
+
+
+@outbox_handler("payment.document_infected")
+async def on_payment_document_infected(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    logger.error(
+        "Document flagged as infected: payment_id=%s attachment_id=%s signature=%s",
+        payload.get("payment_id"),
+        payload.get("attachment_id"),
+        (payload.get("metadata") or {}).get("signature"),
+    )
+    await _sync_order_status(
+        session,
+        payload=payload,
+        target_status_name=ORDER_STATUS_PAYMENT_FAILED,
+    )

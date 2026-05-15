@@ -1,4 +1,3 @@
-
 import pytest
 
 from app.features.payment.providers.base import (

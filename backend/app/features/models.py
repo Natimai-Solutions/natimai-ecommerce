@@ -14,6 +14,7 @@ from app.features.order.models.order_line import OrderLine
 from app.features.order.models.order_status import OrderStatus
 from app.features.partner.models import Partner
 from app.features.payment.models.payment import Payment
+from app.features.payment.models.payment_attachment import PaymentAttachment
 from app.features.payment.models.payment_log import PaymentLog
 from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.models.payment_status import PaymentStatus
@@ -60,6 +61,7 @@ __all__ = [
     "OrderStatus",
     "Partner",
     "Payment",
+    "PaymentAttachment",
     "PaymentLog",
     "PaymentMethod",
     "PaymentStatus",

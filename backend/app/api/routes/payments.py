@@ -8,6 +8,12 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentUser, SessionDep
+from app.features.attachment.service import (
+    AttachmentValidationError,
+    issue_upload_intent,
+    register_uploaded_attachment,
+)
+from app.features.base.crud import RecordNotFoundError
 from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_status_crud import crud_order_status
 from app.features.order.models.order_status import OrderStatus, OrderStatusCreate
@@ -21,9 +27,18 @@ from app.features.payment.models.payment_status import (
 from app.features.payment.providers import get_provider
 from app.features.payment.providers.base import (
     ApiPaymentProvider,
+    DocumentValidatedProvider,
     InitiationRequest,
     ManualPaymentProvider,
     UnknownPaymentProviderError,
+)
+from app.features.payment.services.document_payment import (
+    DOCUMENT_PROVIDER_CODES,
+    PaymentNotDocumentValidatedError,
+    mark_document_uploaded,
+)
+from app.features.payment.services.document_payment import (
+    register_intent as register_document_intent,
 )
 from app.features.payment.services.manual_payment import (
     register_intent as register_manual_intent,
@@ -456,6 +471,22 @@ async def initiate_payment(
                 user=current_user,
             )
 
+        elif isinstance(provider, DocumentValidatedProvider):
+            provider_result = await provider.register_intent(initiation_request)
+
+            payment.provider_code = provider_code
+            payment.provider_reference = provider_result.provider_reference or str(
+                payment.id
+            )
+            payment.provider_data = provider_result.raw_response
+
+            await register_document_intent(
+                session,
+                payment=payment,
+                instructions=provider_result.instructions,
+                user=current_user,
+            )
+
         else:
             raise HTTPException(
                 400,
@@ -486,6 +517,146 @@ async def initiate_payment(
         await session.rollback()
         logger.error(f"Error initiating payment: {e}")
         raise HTTPException(500, "Error initiating payment")
+
+
+class UploadDocumentRequest(BaseModel):
+    filename: str = Field(..., min_length=1, max_length=255)
+    mimetype: str = Field(..., min_length=1, max_length=100)
+    document_type: str = Field(default="purchase_order", max_length=50)
+
+
+class UploadDocumentResponse(BaseModel):
+    payment_id: uuid.UUID
+    file_key: str
+    upload_url: str
+    upload_method: str
+    upload_headers: dict[str, str]
+    expires_in: int
+    max_bytes: int
+    allowed_mime: list[str]
+
+
+class DocumentUploadedRequest(BaseModel):
+    file_key: str = Field(..., min_length=1, max_length=512)
+    filename: str = Field(..., min_length=1, max_length=255)
+    mimetype: str = Field(..., min_length=1, max_length=100)
+    document_type: str = Field(default="purchase_order", max_length=50)
+
+
+class DocumentUploadedResponse(BaseModel):
+    payment_id: uuid.UUID
+    attachment_id: uuid.UUID
+    payment_status_id: uuid.UUID | None
+    av_scan: str = "queued"
+
+
+async def _resolve_owned_document_payment(
+    session: SessionDep,
+    *,
+    payment_id: uuid.UUID,
+    current_user: CurrentUser,
+) -> Any:
+    try:
+        payment = await crud_payment.read(session, id=payment_id)
+    except RecordNotFoundError as e:
+        raise HTTPException(404, f"Payment {payment_id} not found") from e
+
+    if payment.user_id != current_user.id:
+        raise HTTPException(403, "You cannot operate on this payment")
+
+    if payment.provider_code not in DOCUMENT_PROVIDER_CODES:
+        raise HTTPException(
+            400,
+            f"Payment provider '{payment.provider_code}' is not document-validated",
+        )
+    return payment
+
+
+@router.post(
+    "/{payment_id}/upload-document",
+    response_model=UploadDocumentResponse,
+)
+async def issue_document_upload_url(
+    payment_id: uuid.UUID,
+    body: UploadDocumentRequest,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> UploadDocumentResponse:
+    await _resolve_owned_document_payment(
+        session, payment_id=payment_id, current_user=current_user
+    )
+
+    try:
+        intent = issue_upload_intent(
+            payment_id=payment_id,
+            filename=body.filename,
+            mimetype=body.mimetype,
+            document_type=body.document_type,
+        )
+    except AttachmentValidationError as e:
+        raise HTTPException(400, str(e)) from e
+
+    return UploadDocumentResponse(
+        payment_id=payment_id,
+        file_key=intent.file_key,
+        upload_url=intent.upload.url,
+        upload_method=intent.upload.method,
+        upload_headers=intent.upload.headers,
+        expires_in=intent.upload.expires_in,
+        max_bytes=intent.max_bytes,
+        allowed_mime=intent.allowed_mime,
+    )
+
+
+@router.post(
+    "/{payment_id}/document-uploaded",
+    response_model=DocumentUploadedResponse,
+)
+async def confirm_document_uploaded(
+    payment_id: uuid.UUID,
+    body: DocumentUploadedRequest,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> DocumentUploadedResponse:
+    payment = await _resolve_owned_document_payment(
+        session, payment_id=payment_id, current_user=current_user
+    )
+
+    try:
+        attachment = await register_uploaded_attachment(
+            session,
+            payment_id=payment.id,
+            file_key=body.file_key,
+            filename=body.filename,
+            mimetype=body.mimetype,
+            document_type=body.document_type,
+            user=current_user,
+        )
+    except AttachmentValidationError as e:
+        await session.rollback()
+        raise HTTPException(400, str(e)) from e
+
+    try:
+        await mark_document_uploaded(
+            session,
+            payment=payment,
+            attachment=attachment,
+            user=current_user,
+        )
+    except PaymentNotDocumentValidatedError as e:
+        await session.rollback()
+        raise HTTPException(400, str(e)) from e
+
+    await session.commit()
+    await session.refresh(payment)
+    await session.refresh(attachment)
+
+    return DocumentUploadedResponse(
+        payment_id=payment.id,
+        attachment_id=attachment.id,
+        payment_status_id=payment.payment_status_id,
+        av_scan="queued",
+    )
 
 
 @router.post("/webhooks/{provider_code}")
