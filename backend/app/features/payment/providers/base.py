@@ -13,12 +13,15 @@ class UnknownPaymentProviderError(PaymentProviderError):
     """Raised when the provider registry receives an unknown provider code."""
 
     def __init__(self, provider_code: str) -> None:
+        """Initialize the unknown payment provider error instance."""
         self.provider_code = provider_code
         super().__init__(f"Unknown payment provider: {provider_code}")
 
 
 @dataclass(slots=True)
 class InitiationRequest:
+    """Represents initiation request."""
+
     amount: int
     currency: str
     order_id: str
@@ -33,6 +36,8 @@ class InitiationRequest:
 
 @dataclass(slots=True)
 class InitiationResult:
+    """Represents initiation result."""
+
     provider_code: str
     provider_reference: str | None = None
     redirect_url: str | None = None
@@ -45,6 +50,8 @@ class InitiationResult:
 
 @dataclass(slots=True)
 class WebhookResult:
+    """Represents webhook result."""
+
     provider_code: str
     provider_reference: str | None
     payment_status: str | None
@@ -53,6 +60,8 @@ class WebhookResult:
 
 @dataclass(slots=True)
 class ValidationResult:
+    """Represents validation result."""
+
     provider_code: str
     payment_status: str
     provider_reference: str | None = None
@@ -61,6 +70,8 @@ class ValidationResult:
 
 @dataclass(slots=True)
 class AttachmentResult:
+    """Represents attachment result."""
+
     file_key: str
     filename: str
     mimetype: str | None = None
@@ -69,22 +80,32 @@ class AttachmentResult:
 
 
 class PaymentProvider(ABC):
+    """Represents payment provider."""
+
     code: str
 
 
 class ApiPaymentProvider(PaymentProvider, ABC):
-    @abstractmethod
-    async def initiate_payment(
-        self, request: InitiationRequest
-    ) -> InitiationResult: ...
+    """Define the API-driven payment provider contract."""
 
     @abstractmethod
-    def parse_webhook_notification(self, payload: dict[str, Any]) -> WebhookResult: ...
+    async def initiate_payment(self, request: InitiationRequest) -> InitiationResult:
+        """Initiate a payment with the external provider."""
+        ...
+
+    @abstractmethod
+    def parse_webhook_notification(self, payload: dict[str, Any]) -> WebhookResult:
+        """Parse a provider webhook payload into a normalized result."""
+        ...
 
 
 class ManualPaymentProvider(PaymentProvider, ABC):
+    """Define the manual-payment provider contract."""
+
     @abstractmethod
-    async def register_intent(self, request: InitiationRequest) -> InitiationResult: ...
+    async def register_intent(self, request: InitiationRequest) -> InitiationResult:
+        """Register a manual payment intent."""
+        ...
 
     @abstractmethod
     async def confirm_received(
@@ -93,7 +114,9 @@ class ManualPaymentProvider(PaymentProvider, ABC):
         payment_reference: str,
         admin_user_id: str,
         reference: str | None = None,
-    ) -> ValidationResult: ...
+    ) -> ValidationResult:
+        """Confirm that the manual payment has been received."""
+        ...
 
     @abstractmethod
     async def reject(
@@ -102,12 +125,18 @@ class ManualPaymentProvider(PaymentProvider, ABC):
         payment_reference: str,
         admin_user_id: str,
         reason: str,
-    ) -> ValidationResult: ...
+    ) -> ValidationResult:
+        """Reject a manual payment intent."""
+        ...
 
 
 class DocumentValidatedProvider(PaymentProvider, ABC):
+    """Define the document-validated payment provider contract."""
+
     @abstractmethod
-    async def register_intent(self, request: InitiationRequest) -> InitiationResult: ...
+    async def register_intent(self, request: InitiationRequest) -> InitiationResult:
+        """Register a document-validated payment intent."""
+        ...
 
     @abstractmethod
     async def attach_document(
@@ -116,7 +145,9 @@ class DocumentValidatedProvider(PaymentProvider, ABC):
         payment_reference: str,
         file_key: str,
         filename: str,
-    ) -> AttachmentResult: ...
+    ) -> AttachmentResult:
+        """Attach a supporting document to a payment reference."""
+        ...
 
     @abstractmethod
     async def approve(
@@ -125,7 +156,9 @@ class DocumentValidatedProvider(PaymentProvider, ABC):
         payment_reference: str,
         admin_user_id: str,
         comment: str | None = None,
-    ) -> ValidationResult: ...
+    ) -> ValidationResult:
+        """Approve a document-validated payment."""
+        ...
 
     @abstractmethod
     async def reject(
@@ -134,4 +167,6 @@ class DocumentValidatedProvider(PaymentProvider, ABC):
         payment_reference: str,
         admin_user_id: str,
         reason: str,
-    ) -> ValidationResult: ...
+    ) -> ValidationResult:
+        """Reject a document-validated payment."""
+        ...

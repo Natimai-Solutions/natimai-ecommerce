@@ -16,6 +16,8 @@ from app.features.user.models.wishlist import (
 
 
 class WishlistCrud(CrudBase[Wishlist, WishlistCreate, WishlistUpdate]):
+    """Represents wishlist crud."""
+
     async def get_by_user_id(
         self,
         session: AsyncSession,
@@ -24,6 +26,7 @@ class WishlistCrud(CrudBase[Wishlist, WishlistCreate, WishlistUpdate]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[Wishlist]:
+        """Get by user id."""
         statement = (
             select(self.model)
             .where(
@@ -41,6 +44,7 @@ class WishlistCrud(CrudBase[Wishlist, WishlistCreate, WishlistUpdate]):
     async def get_public_wishlists(
         self, session: AsyncSession, *, skip: int = 0, limit: int = 100
     ) -> list[Wishlist]:
+        """Get public wishlists."""
         statement = (
             select(self.model)
             .where(
@@ -58,6 +62,7 @@ class WishlistCrud(CrudBase[Wishlist, WishlistCreate, WishlistUpdate]):
     async def get_user_wishlist_by_id(
         self, session: AsyncSession, *, wishlist_id: uuid.UUID, user_id: uuid.UUID
     ) -> Wishlist | None:
+        """Get user wishlist by id."""
         statement = select(self.model).where(
             self.model.id == wishlist_id,
             self.model.user_id == user_id,
@@ -75,6 +80,7 @@ class WishlistCrud(CrudBase[Wishlist, WishlistCreate, WishlistUpdate]):
         user_id: uuid.UUID,
         current_user: uuid.UUID | None = None,
     ) -> Wishlist:
+        """Create for user."""
         obj_data = data.model_dump()
         obj_data["user_id"] = user_id
         record = self.model(**obj_data)
@@ -84,6 +90,7 @@ class WishlistCrud(CrudBase[Wishlist, WishlistCreate, WishlistUpdate]):
         return record
 
     async def count_by_user(self, session: AsyncSession, *, user_id: uuid.UUID) -> int:
+        """Execute count by user."""
         statement = select(self.model).where(
             self.model.user_id == user_id,
             col(self.model.is_admin_active).is_(True),
@@ -98,6 +105,7 @@ class WishlistCrud(CrudBase[Wishlist, WishlistCreate, WishlistUpdate]):
         *,
         user_id: uuid.UUID,
     ) -> Wishlist:
+        """Get or create default for user."""
         existing = await self.get_by_user_id(
             session=session, user_id=user_id, skip=0, limit=1
         )
@@ -117,6 +125,8 @@ class WishlistCrud(CrudBase[Wishlist, WishlistCreate, WishlistUpdate]):
 
 
 class WishlistItemCrud(CrudBase[WishlistItem, WishlistItemCreate, WishlistItemUpdate]):
+    """Represents wishlist item crud."""
+
     async def get_by_wishlist_id(
         self,
         session: AsyncSession,
@@ -125,6 +135,7 @@ class WishlistItemCrud(CrudBase[WishlistItem, WishlistItemCreate, WishlistItemUp
         skip: int = 0,
         limit: int = 100,
     ) -> list[WishlistItem]:
+        """Get by wishlist id."""
         statement = (
             select(self.model)
             .where(
@@ -142,6 +153,7 @@ class WishlistItemCrud(CrudBase[WishlistItem, WishlistItemCreate, WishlistItemUp
     async def get_by_wishlist_and_product(
         self, session: AsyncSession, *, wishlist_id: uuid.UUID, product_id: uuid.UUID
     ) -> WishlistItem | None:
+        """Get by wishlist and product."""
         statement = select(self.model).where(
             self.model.wishlist_id == wishlist_id,
             self.model.product_id == product_id,
@@ -159,6 +171,7 @@ class WishlistItemCrud(CrudBase[WishlistItem, WishlistItemCreate, WishlistItemUp
         wishlist_id: uuid.UUID,
         current_user: uuid.UUID | None = None,
     ) -> WishlistItem:
+        """Create for wishlist."""
         obj_data = data.model_dump()
         obj_data["wishlist_id"] = wishlist_id
         record = self.model(**obj_data)
@@ -170,6 +183,7 @@ class WishlistItemCrud(CrudBase[WishlistItem, WishlistItemCreate, WishlistItemUp
     async def count_by_wishlist(
         self, session: AsyncSession, *, wishlist_id: uuid.UUID
     ) -> int:
+        """Execute count by wishlist."""
         statement = select(self.model).where(
             self.model.wishlist_id == wishlist_id,
             col(self.model.is_admin_active).is_(True),
@@ -186,6 +200,7 @@ class WishlistItemCrud(CrudBase[WishlistItem, WishlistItemCreate, WishlistItemUp
         product_id: uuid.UUID,
         notes: str | None = None,
     ) -> WishlistItem:
+        """Execute add product."""
         existing = await self.get_by_wishlist_and_product(
             session=session, wishlist_id=wishlist_id, product_id=product_id
         )
@@ -210,6 +225,7 @@ class WishlistItemCrud(CrudBase[WishlistItem, WishlistItemCreate, WishlistItemUp
         wishlist_id: uuid.UUID,
         product_id: uuid.UUID,
     ) -> bool:
+        """Execute deactivate by wishlist and product."""
         item = await self.get_by_wishlist_and_product(
             session=session, wishlist_id=wishlist_id, product_id=product_id
         )

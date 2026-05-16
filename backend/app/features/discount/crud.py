@@ -16,8 +16,10 @@ from app.features.discount.models import (
 
 
 class DiscountCrud(CrudBase[Discount, DiscountCreate, DiscountUpdate]):
+    """Represents discount crud."""
+
     async def get_by_code(self, session: AsyncSession, code: str) -> Discount | None:
-        """Récupère un coupon par son code"""
+        """Get by code."""
         statement = select(Discount).where(
             Discount.code == code,
             Discount.discount_type == DiscountType.COUPON,
@@ -32,7 +34,7 @@ class DiscountCrud(CrudBase[Discount, DiscountCreate, DiscountUpdate]):
         product_id: uuid.UUID | None = None,
         category_id: uuid.UUID | None = None,
     ) -> list[Discount]:
-        """Récupère les promotions actives pour un produit ou une catégorie"""
+        """Get active promotions."""
         now = datetime.datetime.now()
         conditions = [
             Discount.discount_type == DiscountType.PROMOTION,
@@ -95,7 +97,7 @@ class DiscountCrud(CrudBase[Discount, DiscountCreate, DiscountUpdate]):
     async def increment_usage(
         self, session: AsyncSession, discount_id: uuid.UUID
     ) -> Discount:
-        """Incrémente le compteur d'utilisation d'une réduction"""
+        """Execute increment usage."""
         discount = await session.get(Discount, discount_id)
         if discount:
             discount.current_uses += 1

@@ -19,10 +19,14 @@ class InventoryRouter(
         InventoryCrud,
     ]
 ):
+    """Represents inventory router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = True  # Admin only - gestion stock
     create = True  # Admin only
     update = True  # Admin only

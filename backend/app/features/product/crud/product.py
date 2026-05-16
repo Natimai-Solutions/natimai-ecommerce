@@ -14,6 +14,8 @@ from app.features.product.models.product import (
 
 
 class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
+    """Represents product crud."""
+
     async def get_by_supplier_sku(
         self,
         session: AsyncSession,

@@ -19,6 +19,8 @@ from app.features.shipping.models.status import (
 class StatusDefinitionCrud(
     CrudBase[StatusDefinition, StatusDefinitionCreate, StatusDefinitionUpdate]
 ):
+    """Represents status definition crud."""
+
     async def get_by_code(
         self,
         session: AsyncSession,
@@ -64,7 +66,7 @@ class StatusDefinitionCrud(
         session: AsyncSession,
         entity: str,
     ) -> list[StatusDefinition]:
-        """Récupère les statuts terminaux d'une entité"""
+        """Get terminal statuses."""
 
         statement = (
             select(StatusDefinition)
@@ -85,6 +87,8 @@ class StatusDefinitionCrud(
 class StatusTransitionCrud(
     CrudBase[StatusTransition, StatusTransitionCreate, StatusTransitionUpdate]
 ):
+    """Represents status transition crud."""
+
     async def get_transitions_from_status(
         self,
         session: AsyncSession,
@@ -110,7 +114,7 @@ class StatusTransitionCrud(
         entity: str,
         to_code: str,
     ) -> list[StatusTransition]:
-        """Récupère les transitions menant à un statut"""
+        """Get transitions to status."""
 
         statement = select(StatusTransition).where(
             and_(
@@ -128,7 +132,7 @@ class StatusTransitionCrud(
         session: AsyncSession,
         entity: str,
     ) -> list[StatusTransition]:
-        """Récupère les transitions automatiques d'une entité"""
+        """Get auto transitions."""
 
         statement = select(StatusTransition).where(
             and_(
@@ -148,7 +152,7 @@ class StatusTransitionCrud(
         from_code: str,
         to_code: str,
     ) -> bool:
-        """Vérifie si une transition est autorisée"""
+        """Check whether transition allowed."""
 
         statement = select(StatusTransition).where(
             and_(

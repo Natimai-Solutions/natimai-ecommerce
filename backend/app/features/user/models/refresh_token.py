@@ -7,6 +7,8 @@ from app.features.base.models import Base, BaseCreate, BaseUpdate
 
 
 class UserRefreshTokenBase(Base):
+    """Represents user refresh token base."""
+
     user_id: uuid.UUID = Field(
         foreign_key="users.id",
         index=True,
@@ -45,10 +47,14 @@ class UserRefreshTokenBase(Base):
 
 
 class UserRefreshTokenCreate(UserRefreshTokenBase, BaseCreate):
+    """Represents user refresh token create."""
+
     pass
 
 
 class UserRefreshTokenUpdate(BaseUpdate):
+    """Represents user refresh token update."""
+
     revoked_at: datetime.datetime | None = None
     replaced_by_jti: str | None = None
     revoked_reason: str | None = None
@@ -56,6 +62,8 @@ class UserRefreshTokenUpdate(BaseUpdate):
 
 
 class UserRefreshToken(UserRefreshTokenBase, table=True):
+    """Represents user refresh token."""
+
     __tablename__ = "user_refresh_tokens"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)

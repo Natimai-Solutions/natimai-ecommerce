@@ -18,6 +18,7 @@ _SLACK_CHANNEL = "slack"
 
 
 def _as_non_empty_str(value: object | None) -> str | None:
+    """Execute as non empty str."""
     if value is None:
         return None
     text = str(value).strip()
@@ -25,6 +26,7 @@ def _as_non_empty_str(value: object | None) -> str | None:
 
 
 def _build_notification_message(event_type: str, payload: dict[str, Any]) -> str:
+    """Build notification message."""
     payment_id = _as_non_empty_str(payload.get("payment_id")) or "unknown"
     order_id = _as_non_empty_str(payload.get("order_id")) or "n/a"
     provider_code = _as_non_empty_str(payload.get("provider_code")) or "unknown"
@@ -46,11 +48,13 @@ def _build_notification_message(event_type: str, payload: dict[str, Any]) -> str
 
 
 def _build_notification_subject(event_type: str, payload: dict[str, Any]) -> str:
+    """Build notification subject."""
     payment_id = _as_non_empty_str(payload.get("payment_id")) or "unknown"
     return f"[Payment] {event_type} - {payment_id}"
 
 
 def _collect_email_targets(payload: dict[str, Any]) -> list[str]:
+    """Execute collect email targets."""
     targets: list[str] = []
 
     for key in ("user_id", "admin_user_id"):
@@ -66,6 +70,7 @@ def _collect_email_targets(payload: dict[str, Any]) -> list[str]:
 
 
 def _resolve_provider(provider_code: str) -> NotificationProvider:
+    """Execute resolve provider."""
     try:
         return get_notification_provider(provider_code)
     except UnknownNotificationProviderError:
@@ -81,6 +86,7 @@ async def _send_email_notifications(
     message: str,
     payload: dict[str, Any],
 ) -> None:
+    """Execute send email notifications."""
     if not settings.PAYMENT_NOTIFICATIONS_EMAIL_ENABLED:
         return
 
@@ -111,6 +117,7 @@ async def _send_slack_notification(
     message: str,
     payload: dict[str, Any],
 ) -> None:
+    """Execute send slack notification."""
     if not settings.PAYMENT_NOTIFICATIONS_SLACK_ENABLED:
         return
 
@@ -137,6 +144,7 @@ async def send_payment_event_notifications(
     event_type: str,
     payload: dict[str, Any],
 ) -> None:
+    """Execute send payment event notifications."""
     message = _build_notification_message(event_type, payload)
 
     await _send_email_notifications(event_type, message, payload)

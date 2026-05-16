@@ -23,6 +23,7 @@ wait_seconds = 1
     after=after_log(logger, logging.WARN),
 )
 async def init(db_engine: AsyncEngine) -> None:
+    """Initialize application resources."""
     try:
         async with AsyncSession(db_engine) as session:
             # Try to create session to check if DB is awake
@@ -33,6 +34,7 @@ async def init(db_engine: AsyncEngine) -> None:
 
 
 async def main() -> None:
+    """Run the main entry point."""
     logger.debug("Initializing service")
     await init(engine)
     logger.debug("Service finished initializing")

@@ -12,9 +12,12 @@ logger = logging.getLogger(__name__)
 
 
 class NoopNotificationProvider(NotificationProvider):
+    """Represents noop notification provider."""
+
     code = "noop"
 
     async def send(self, message: NotificationMessage) -> NotificationResult:
+        """Execute send."""
         logger.info(
             "Noop notification provider: channel=%s recipient=%s subject=%s",
             message.channel,

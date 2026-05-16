@@ -6,8 +6,10 @@ from app.features.product.models.brand import Brand, BrandCreate, BrandUpdate
 
 
 class BrandCrud(CrudBase[Brand, BrandCreate, BrandUpdate]):
+    """Represents brand crud."""
+
     async def get_by_name(self, session: AsyncSession, name: str) -> Brand | None:
-        """Récupère une marque par son nom"""
+        """Get by name."""
         statement = select(Brand).where(
             Brand.name == name,
             col(Brand.is_active).is_(True),

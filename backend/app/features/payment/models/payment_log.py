@@ -11,6 +11,8 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class PaymentLogBase(Base):
+    """Represents payment log base."""
+
     payment_id: uuid.UUID = Field(
         foreign_key="payments.id",
         nullable=False,
@@ -48,10 +50,14 @@ class PaymentLogBase(Base):
 
 
 class PaymentLogCreate(PaymentLogBase, BaseCreate):
+    """Represents payment log create."""
+
     pass
 
 
 class PaymentLogUpdate(PaymentLogBase, BaseUpdate):
+    """Represents payment log update."""
+
     payment_id: uuid.UUID | None = None
     provider_reference: str | None = None
     provider_order_reference: str | None = None
@@ -63,6 +69,8 @@ class PaymentLogUpdate(PaymentLogBase, BaseUpdate):
 
 
 class PaymentLog(PaymentLogBase, table=True):
+    """Represents payment log."""
+
     __tablename__ = "payment_logs"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -73,6 +81,8 @@ class PaymentLog(PaymentLogBase, table=True):
 
 
 class PaymentLogPublic(PaymentLogBase, BasePublic):
+    """Represents payment log public."""
+
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
         primary_key=True,
@@ -81,6 +91,8 @@ class PaymentLogPublic(PaymentLogBase, BasePublic):
 
 
 class PaymentLogsPublic(SQLModel):
+    """Represents payment logs public."""
+
     data: list[PaymentLogPublic] = Field(
         default_factory=list, description="List of payment logs"
     )

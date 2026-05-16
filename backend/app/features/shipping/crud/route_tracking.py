@@ -35,6 +35,8 @@ class ShippingRouteTrackingCrud(
         ShippingRouteTrackingUpdate,
     ]
 ):
+    """Represents shipping route tracking crud."""
+
     async def get_by_order_id(
         self,
         session: AsyncSession,
@@ -486,6 +488,8 @@ class ShippingRouteTrackingConsolidationCrud(
         ShippingRouteTrackingConsolidationUpdate,
     ]
 ):
+    """Represents shipping route tracking consolidation crud."""
+
     async def get_by_code(
         self,
         session: AsyncSession,

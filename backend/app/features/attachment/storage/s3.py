@@ -16,8 +16,9 @@ from app.features.attachment.storage.base import (
 
 
 def _build_s3_client() -> Any:
+    """Build s3 client."""
     try:
-        import boto3
+        import boto3  # type: ignore[import-untyped]
     except ImportError as e:
         raise StorageError(
             "boto3 is required for the S3 storage backend. "
@@ -34,12 +35,15 @@ def _build_s3_client() -> Any:
 
 
 class S3FileStorage(FileStorage):
+    """Represents s3 file storage."""
+
     def __init__(
         self,
         *,
         bucket: str | None = None,
         client: Any | None = None,
     ) -> None:
+        """Initialize the s3 file storage instance."""
         resolved_bucket = bucket or settings.S3_BUCKET_NAME
         if not resolved_bucket:
             raise StorageError("S3_BUCKET_NAME is required for the S3 backend")
@@ -55,6 +59,7 @@ class S3FileStorage(FileStorage):
         max_bytes: int,
         ttl_seconds: int,
     ) -> PresignedUpload:
+        """Generate upload url."""
         url = self.client.generate_presigned_url(
             ClientMethod="put_object",
             Params={
@@ -78,6 +83,7 @@ class S3FileStorage(FileStorage):
         ttl_seconds: int,
         filename: str | None = None,
     ) -> PresignedDownload:
+        """Generate download url."""
         params: dict[str, Any] = {"Bucket": self.bucket, "Key": key}
         if filename:
             params["ResponseContentDisposition"] = f'attachment; filename="{filename}"'
@@ -90,6 +96,7 @@ class S3FileStorage(FileStorage):
         return PresignedDownload(url=url, expires_in=ttl_seconds)
 
     async def head(self, *, key: str) -> dict[str, Any] | None:
+        """Execute head."""
         try:
             response = self.client.head_object(Bucket=self.bucket, Key=key)
         except Exception:
@@ -100,6 +107,7 @@ class S3FileStorage(FileStorage):
         }
 
     async def get_bytes(self, *, key: str) -> bytes:
+        """Get bytes."""
         try:
             response = self.client.get_object(Bucket=self.bucket, Key=key)
         except Exception as e:
@@ -108,4 +116,5 @@ class S3FileStorage(FileStorage):
         return body.read()
 
     async def delete(self, *, key: str) -> None:
+        """Execute delete."""
         self.client.delete_object(Bucket=self.bucket, Key=key)

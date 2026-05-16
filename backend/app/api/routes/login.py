@@ -23,6 +23,7 @@ router = APIRouter()
 
 
 def _build_token_bundle(user_id: uuid.UUID) -> tuple[str, str, str, datetime]:
+    """Build token bundle."""
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
@@ -79,6 +80,7 @@ async def refresh_access_token(
     session: SessionDep,
     payload: RefreshTokenRequest,
 ) -> Token:
+    """Execute refresh access token."""
     try:
         decoded_payload = security.decode_token(payload.refresh_token)
         token_data = TokenPayload(**decoded_payload)

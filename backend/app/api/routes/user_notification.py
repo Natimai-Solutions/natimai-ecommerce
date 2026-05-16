@@ -37,10 +37,14 @@ class NotificationRouter(
         NotificationCrud,
     ]
 ):
+    """Represents notification router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = True
     create = True
     update = True

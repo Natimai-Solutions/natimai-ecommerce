@@ -49,12 +49,14 @@ _SPLIT_PARCEL_NOTE_MARKERS = (
 
 
 def _normalize_text(value: str | None) -> str:
+    """Normalize optional text for case-insensitive comparisons."""
     if value is None:
         return ""
     return value.strip().lower()
 
 
 def _is_supplier_delay_status_code(code: str) -> bool:
+    """Return whether a status code represents supplier delay."""
     normalized_code = _normalize_text(code)
     if normalized_code in _SUPPLIER_DELAY_STATUS_CODES:
         return True
@@ -62,6 +64,7 @@ def _is_supplier_delay_status_code(code: str) -> bool:
 
 
 def _is_segment_failure_status_code(code: str) -> bool:
+    """Return whether a status code represents segment failure."""
     normalized_code = _normalize_text(code)
     if normalized_code in _SEGMENT_FAILURE_STATUS_CODES:
         return True
@@ -155,7 +158,7 @@ def _derive_order_exception_scenarios(
 
 # Modèles de requête pour les endpoints POST
 class UpdateStatusRequest(SQLModel):
-    """Requête pour mettre à jour le statut d'un tracking"""
+    """Request payload for updating tracking status."""
 
     new_status_id: uuid.UUID = Field(description="Nouveau statut")
     reason: str | None = Field(default=None, description="Raison du changement")
@@ -163,7 +166,7 @@ class UpdateStatusRequest(SQLModel):
 
 # Modèles de réponse pour les endpoints spécialisés
 class TrackingStatusResponse(SQLModel):
-    """Réponse pour le statut d'un tracking"""
+    """Current status snapshot for a tracking record."""
 
     tracking_id: uuid.UUID = Field(description="ID du tracking")
     order_id: uuid.UUID = Field(description="ID de la commande")
@@ -175,7 +178,7 @@ class TrackingStatusResponse(SQLModel):
 
 
 class TrackingHistoryResponse(SQLModel):
-    """Réponse pour l'historique d'un tracking"""
+    """Historical status changes for a tracking record."""
 
     tracking_id: uuid.UUID = Field(description="ID du tracking")
     history: list[ShippingRouteTrackingLogsPublic] = Field(
@@ -185,7 +188,7 @@ class TrackingHistoryResponse(SQLModel):
 
 
 class OrderTrackingResponse(SQLModel):
-    """Réponse complète pour le suivi d'une commande"""
+    """Aggregated tracking view for an order."""
 
     order_id: uuid.UUID = Field(description="ID de la commande")
     trackings: list[ShippingRouteTrackingPublic] = Field(
@@ -214,13 +217,16 @@ class ShippingRouteTrackingRouter(
         Any,
     ]
 ):
+    """Router exposing tracking CRUD and advanced tracking endpoints."""
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Initialize the shipping route tracking router instance."""
         super().__init__(*args, **kwargs)
         # Ajouter les endpoints personnalisés après initialisation
         self.add_tracking_endpoints()
 
     def add_tracking_endpoints(self) -> None:
-        """Ajoute les endpoints personnalisés pour le tracking"""
+        """Register custom endpoints for tracking workflows."""
 
         @self.get(
             "/order/{order_id}",
@@ -234,6 +240,7 @@ class ShippingRouteTrackingRouter(
             _current_user: CurrentUser | None = Depends(get_current_user_optional),
         ):
             # Récupérer le tracking principal pour cette commande
+            """Return tracking progress and consolidations for an order."""
             tracking = await self.crud.get_by_order_id(
                 session=session, order_id=order_id
             )
@@ -299,6 +306,7 @@ class ShippingRouteTrackingRouter(
             session: SessionDep,
             _current_user: CurrentUser | None = Depends(get_current_user_optional),
         ):
+            """Return the current status of a tracking record."""
             try:
                 tracking = await self.crud.read(session=session, id=tracking_id)
             except RecordNotFoundError:
@@ -335,6 +343,7 @@ class ShippingRouteTrackingRouter(
             session: SessionDep,
             current_user: CurrentUser,
         ):
+            """Update tracking status with transition validation."""
             try:
                 updated_tracking = await self.crud.update_status(
                     session=session,
@@ -369,6 +378,7 @@ class ShippingRouteTrackingRouter(
             ),
             _current_user: CurrentUser | None = Depends(get_current_user_optional),
         ):
+            """Return tracking status-change history."""
             try:
                 await self.crud.read(session=session, id=tracking_id)
             except RecordNotFoundError:
@@ -400,6 +410,7 @@ class ShippingRouteTrackingRouter(
             session: SessionDep,
             current_user: CurrentUser,
         ):
+            """Activate the next route in a multi-hop tracking sequence."""
             try:
                 next_tracking = await self.crud.activate_next_route(
                     session=session,
@@ -419,6 +430,8 @@ class ShippingRouteTrackingRouter(
 
 
 class Auth:
+    """Authorization flags for tracking endpoints."""
+
     read = True
     create = True
     update = True
@@ -441,6 +454,8 @@ shipping_route_tracking_router = ShippingRouteTrackingRouter(
 
 # Router simple pour les consolidations (BaseRouter standard)
 class ConsolidationAuth:
+    """Authorization flags for consolidation endpoints."""
+
     read = True
     create = True
     update = True
@@ -480,7 +495,7 @@ async def get_tracking_logs(
     limit: int = Query(default=100, le=500),
     _current_user: CurrentUser | None = Depends(get_current_user_optional),
 ):
-    """Récupère l'historique des logs pour un tracking"""
+    """Return tracking log entries for a tracking record."""
     # On utilise directement le CRUD du tracking pour accéder aux logs
     history = await crud_shipping_route_tracking.get_status_history(
         session=session, tracking_id=tracking_id, limit=limit

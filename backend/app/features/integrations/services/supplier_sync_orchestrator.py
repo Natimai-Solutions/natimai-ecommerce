@@ -36,10 +36,12 @@ class SupplierSyncOrchestrator:
     """Application-level orchestrator for one supplier's sync workflows."""
 
     def __init__(self, adapter: SupplierAdapter) -> None:
+        """Initialize the supplier sync orchestrator instance."""
         self.adapter = adapter
 
     @property
     def supplier_name(self) -> str:
+        """Execute supplier name."""
         return self.adapter.name
 
     @classmethod

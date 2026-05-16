@@ -14,6 +14,7 @@ OUTBOX_CONSUMER_IDEMPOTENCY_TTL_SECONDS = 60 * 60 * 24 * 30  # 30 days
 
 
 def build_outbox_consumer_key(event_id: str, handler_path: str) -> str:
+    """Build outbox consumer key."""
     return f"outbox:consumer:processed:{event_id}:{handler_path}"
 
 

@@ -7,6 +7,8 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class InventoryBase(Base):
+    """Represents inventory base."""
+
     quantity: Decimal = Field(
         default=Decimal("0.00"),
         ge=0,
@@ -32,10 +34,14 @@ class InventoryBase(Base):
 
 
 class InventoryCreate(InventoryBase, BaseCreate):
+    """Represents inventory create."""
+
     pass
 
 
 class InventoryUpdate(BaseUpdate):
+    """Represents inventory update."""
+
     quantity: Decimal | None = None
     product_id: uuid.UUID | None = None
     place_id: uuid.UUID | None = None
@@ -43,6 +49,8 @@ class InventoryUpdate(BaseUpdate):
 
 
 class Inventory(InventoryBase, table=True):
+    """Represents inventory."""
+
     __tablename__ = "inventories"
     __table_args__ = (UniqueConstraint("product_id", "place_id"),)
     id: uuid.UUID = Field(
@@ -54,10 +62,14 @@ class Inventory(InventoryBase, table=True):
 
 
 class InventoryPublic(InventoryBase, BasePublic):
+    """Represents inventory public."""
+
     id: uuid.UUID
 
 
 class InventoriesPublic(SQLModel):
+    """Represents inventories public."""
+
     data: list[InventoryPublic] = Field(
         default_factory=list,
         description="List of inventories",

@@ -23,6 +23,7 @@ class IcecatService:
     def __init__(self):
         # Use Open Icecat API (free tier)
         # For Full Icecat, use: https://live.icecat.biz/api
+        """Initialize the icecat service instance."""
         self.base_url = "https://live.icecat.biz/api"
         self.use_open_icecat = getattr(settings, "ICECAT_USE_OPEN", True)
         self.username = settings.ICECAT_USERNAME

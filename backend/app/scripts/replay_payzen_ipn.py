@@ -105,6 +105,7 @@ def sign_kr_answer(*, kr_answer: str, hmac_key: str) -> str:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse args."""
     parser = argparse.ArgumentParser(description="Replay a PayZen IPN callback")
     parser.add_argument(
         "--base-url",
@@ -288,6 +289,7 @@ async def run() -> int:
 
 
 def main() -> int:
+    """Run the main entry point."""
     return asyncio.run(run())
 
 

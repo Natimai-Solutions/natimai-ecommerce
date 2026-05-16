@@ -21,10 +21,14 @@ class PlaceRouter(
         Any,
     ]
 ):
+    """Represents place router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = True
     create = True
     update = True

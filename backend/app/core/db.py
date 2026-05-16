@@ -23,6 +23,7 @@ engine = create_async_engine(
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """Get db."""
     async with AsyncSession(engine) as session:
         yield session
 

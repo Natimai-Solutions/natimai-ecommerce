@@ -15,9 +15,12 @@ from app.features.payment.utils.payzen import (
 
 
 class PayzenProvider(ApiPaymentProvider):
+    """Represents payzen provider."""
+
     code = "payzen"
 
     async def initiate_payment(self, request: InitiationRequest) -> InitiationResult:
+        """Execute initiate payment."""
         payzen_result = await create_payzen_form_token(
             amount=request.amount,
             currency=request.currency,
@@ -41,6 +44,7 @@ class PayzenProvider(ApiPaymentProvider):
         )
 
     def parse_webhook_notification(self, payload: dict[str, Any]) -> WebhookResult:
+        """Parse webhook notification."""
         fields = validate_ipn_signature(payload)
 
         provider_reference: str | None = None

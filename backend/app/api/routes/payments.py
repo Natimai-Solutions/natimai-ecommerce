@@ -68,11 +68,13 @@ _PAYMENT_STATUS_FAILED = "Failed"
 
 
 def validate_ipn_signature(fields_dict: dict[str, Any]) -> dict[str, Any]:
+    """Validate ipn signature."""
     webhook_result = parse_api_webhook("payzen", fields_dict)
     return webhook_result.payload
 
 
 def _normalize_trans_status(value: object | None) -> str | None:
+    """Execute normalize trans status."""
     if not isinstance(value, str):
         return None
 
@@ -81,6 +83,7 @@ def _normalize_trans_status(value: object | None) -> str | None:
 
 
 def _extract_trans_id(fields: dict[str, object]) -> str | None:
+    """Execute extract trans id."""
     trans_id = fields.get("trans_uuid") or fields.get("trans_id")
     if trans_id is None:
         return None
@@ -90,6 +93,7 @@ def _extract_trans_id(fields: dict[str, object]) -> str | None:
 
 
 def _jsonable_webhook_payload(payload: dict[str, Any]) -> dict[str, object]:
+    """Execute jsonable webhook payload."""
     jsonable: dict[str, object] = {}
     for key, value in payload.items():
         if isinstance(value, str | int | float | bool) or value is None:
@@ -100,17 +104,20 @@ def _jsonable_webhook_payload(payload: dict[str, Any]) -> dict[str, object]:
 
 
 def _provider_data_as_dict(payment: Payment) -> dict[str, object]:
+    """Execute provider data as dict."""
     if isinstance(payment.provider_data, dict):
         return payment.provider_data
     return {}
 
 
 def _get_existing_provider_status(payment: Payment) -> str | None:
+    """Get existing provider status."""
     provider_data = _provider_data_as_dict(payment)
     return _normalize_trans_status(provider_data.get("trans_status"))
 
 
 def _get_existing_provider_trans_id(payment: Payment) -> str | None:
+    """Get existing provider trans id."""
     provider_data = _provider_data_as_dict(payment)
     return _extract_trans_id(provider_data)
 
@@ -121,6 +128,7 @@ def _is_duplicate_retry_for_payment(
     trans_status: str | None,
     trans_id: str | None,
 ) -> bool:
+    """Check whether duplicate retry for payment."""
     existing_status = _get_existing_provider_status(payment)
     if existing_status is None or trans_status is None:
         return False
@@ -142,6 +150,7 @@ def _is_conflicting_terminal_retry(
     *,
     trans_status: str | None,
 ) -> bool:
+    """Check whether conflicting terminal retry."""
     existing_status = _get_existing_provider_status(payment)
     if existing_status is None or trans_status is None:
         return False
@@ -154,6 +163,7 @@ def _is_conflicting_terminal_retry(
 
 
 def _resolve_payment_status_for_trans_status(trans_status: str | None) -> str | None:
+    """Execute resolve payment status for trans status."""
     if trans_status == _PAID_TRANS_STATUS:
         return _PAYMENT_STATUS_COMPLETED
     if trans_status in _FAILED_TRANS_STATUSES:
@@ -178,6 +188,7 @@ async def _get_or_create_payment_status(
     *,
     name: str,
 ) -> PaymentStatus:
+    """Get or create payment status."""
     status_record = await crud_payment_status.get_by_name(session, name=name)
     if status_record is not None:
         return status_record
@@ -218,6 +229,7 @@ async def _publish_provider_outcome_event(
     payment: Payment,
     trans_status: str | None,
 ) -> None:
+    """Execute publish provider outcome event."""
     event_type = _resolve_outcome_event_for_trans_status(trans_status)
     if event_type is None:
         return
@@ -256,6 +268,7 @@ async def _publish_provider_webhook_received_event(
     trans_status: str | None,
     trans_id: str | None,
 ) -> None:
+    """Execute publish provider webhook received event."""
     user_id = getattr(payment, "user_id", None)
     order_id = getattr(payment, "order_id", None)
 
@@ -285,6 +298,7 @@ async def _publish_provider_webhook_received_event(
 
 
 async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
+    """Execute payzen ipn."""
     error = None
     raw_fields: dict[str, Any] = {}
     fields: dict[str, object] = {}
@@ -423,6 +437,8 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
 
 
 class PaymentsInitiateRequest(BaseModel):
+    """Represents payments initiate request."""
+
     payment_method_id: uuid.UUID = Field(
         ..., description="Payment method to use for provider dispatch"
     )
@@ -449,6 +465,8 @@ class PaymentsInitiateRequest(BaseModel):
 
 
 class PaymentsInitiateResponse(BaseModel):
+    """Represents payments initiate response."""
+
     payment_id: uuid.UUID
     provider_code: str
     provider_reference: str | None = None
@@ -468,6 +486,7 @@ def _build_initiation_request(
     request: "PaymentsInitiateRequest",
     current_user: CurrentUser,
 ) -> InitiationRequest:
+    """Build initiation request."""
     amount_minor = decimal_to_minor_units(request.amount, request.currency)
     name_parts = current_user.full_name.split() if current_user.full_name else []
     first_name = name_parts[0] if name_parts else ""
@@ -493,6 +512,7 @@ async def initiate_payment(
     request: PaymentsInitiateRequest,
     current_user: CurrentUser,
 ) -> PaymentsInitiateResponse:
+    """Execute initiate payment."""
     try:
         provider_code = await resolve_provider_code_for_payment_method(
             session,
@@ -617,12 +637,16 @@ async def initiate_payment(
 
 
 class UploadDocumentRequest(BaseModel):
+    """Represents upload document request."""
+
     filename: str = Field(..., min_length=1, max_length=255)
     mimetype: str = Field(..., min_length=1, max_length=100)
     document_type: str = Field(default="purchase_order", max_length=50)
 
 
 class UploadDocumentResponse(BaseModel):
+    """Represents upload document response."""
+
     payment_id: uuid.UUID
     file_key: str
     upload_url: str
@@ -634,6 +658,8 @@ class UploadDocumentResponse(BaseModel):
 
 
 class DocumentUploadedRequest(BaseModel):
+    """Represents document uploaded request."""
+
     file_key: str = Field(..., min_length=1, max_length=512)
     filename: str = Field(..., min_length=1, max_length=255)
     mimetype: str = Field(..., min_length=1, max_length=100)
@@ -641,6 +667,8 @@ class DocumentUploadedRequest(BaseModel):
 
 
 class DocumentUploadedResponse(BaseModel):
+    """Represents document uploaded response."""
+
     payment_id: uuid.UUID
     attachment_id: uuid.UUID
     payment_status_id: uuid.UUID | None
@@ -653,6 +681,7 @@ async def _resolve_owned_document_payment(
     payment_id: uuid.UUID,
     current_user: CurrentUser,
 ) -> Any:
+    """Execute resolve owned document payment."""
     try:
         payment = await crud_payment.read(session, id=payment_id)
     except RecordNotFoundError as e:
@@ -679,6 +708,7 @@ async def issue_document_upload_url(
     session: SessionDep,
     current_user: CurrentUser,
 ) -> UploadDocumentResponse:
+    """Execute issue document upload url."""
     await _resolve_owned_document_payment(
         session, payment_id=payment_id, current_user=current_user
     )
@@ -715,6 +745,7 @@ async def confirm_document_uploaded(
     session: SessionDep,
     current_user: CurrentUser,
 ) -> DocumentUploadedResponse:
+    """Execute confirm document uploaded."""
     payment = await _resolve_owned_document_payment(
         session, payment_id=payment_id, current_user=current_user
     )
@@ -762,6 +793,7 @@ async def process_provider_webhook(
     session: SessionDep,
     request: Request,
 ) -> JSONResponse:
+    """Execute process provider webhook."""
     normalized_provider_code = provider_code.strip().lower()
 
     if normalized_provider_code == "payzen":

@@ -13,12 +13,15 @@ class UnknownNotificationProviderError(NotificationProviderError):
     """Raised when the provider registry receives an unknown provider code."""
 
     def __init__(self, provider_code: str) -> None:
+        """Initialize the unknown notification provider error instance."""
         self.provider_code = provider_code
         super().__init__(f"Unknown notification provider: {provider_code}")
 
 
 @dataclass(slots=True)
 class NotificationMessage:
+    """Represents notification message."""
+
     channel: str
     recipient: str
     text: str
@@ -28,6 +31,8 @@ class NotificationMessage:
 
 @dataclass(slots=True)
 class NotificationResult:
+    """Represents notification result."""
+
     provider_code: str
     delivered: bool
     external_id: str | None = None
@@ -35,7 +40,11 @@ class NotificationResult:
 
 
 class NotificationProvider(ABC):
+    """Represents notification provider."""
+
     code: str
 
     @abstractmethod
-    async def send(self, message: NotificationMessage) -> NotificationResult: ...
+    async def send(self, message: NotificationMessage) -> NotificationResult:
+        """Send a notification message through the provider."""
+        ...

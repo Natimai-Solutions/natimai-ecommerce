@@ -11,6 +11,8 @@ class StorageError(RuntimeError):
 
 @dataclass(slots=True)
 class PresignedUpload:
+    """Represents presigned upload."""
+
     url: str
     method: str = "PUT"
     headers: dict[str, str] = field(default_factory=dict)
@@ -20,11 +22,15 @@ class PresignedUpload:
 
 @dataclass(slots=True)
 class PresignedDownload:
+    """Represents presigned download."""
+
     url: str
     expires_in: int = 0
 
 
 class FileStorage(ABC):
+    """Define the file storage backend contract."""
+
     @abstractmethod
     def generate_upload_url(
         self,

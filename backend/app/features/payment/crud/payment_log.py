@@ -12,6 +12,8 @@ from app.features.payment.models.payment_log import (
 
 
 class PaymentLogCrud(CrudBase[PaymentLog, PaymentLogCreate, PaymentLogUpdate]):
+    """Represents payment log crud."""
+
     async def get_by_payment_id(
         self,
         session: AsyncSession,

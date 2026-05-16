@@ -40,11 +40,14 @@ class PaymentNotManualError(RuntimeError):
 
 @dataclass(slots=True)
 class ManualValidationOutcome:
+    """Represents manual validation outcome."""
+
     payment: Payment
     validation: PaymentValidation
 
 
 async def _get_or_create_status(session: AsyncSession, *, name: str) -> PaymentStatus:
+    """Get or create status."""
     status = await crud_payment_status.get_by_name(session, name=name)
     if status is not None:
         return status
@@ -68,6 +71,7 @@ def _build_event_payload(
     reference: str | None,
     extra_data: dict[str, Any] | None,
 ) -> dict[str, Any]:
+    """Build event payload."""
     return {
         "payment_id": str(payment.id),
         "order_id": str(payment.order_id) if payment.order_id else None,
@@ -89,6 +93,7 @@ async def register_intent(
     instructions: str | None,
     user: User | None,
 ) -> Payment:
+    """Execute register intent."""
     awaiting_status = await _get_or_create_status(
         session,
         name=MANUAL_STATUS_AWAITING_VALIDATION,
@@ -131,6 +136,7 @@ async def approve_manual_payment(
     reference: str | None,
     comment: str | None,
 ) -> ManualValidationOutcome:
+    """Execute approve manual payment."""
     if not payment.provider_code or not payment.provider_code.startswith("manual_"):
         raise PaymentNotManualError(
             f"Payment {payment.id} provider '{payment.provider_code}' is not manual"
@@ -185,6 +191,7 @@ async def reject_manual_payment(
     admin: User,
     reason: str,
 ) -> ManualValidationOutcome:
+    """Execute reject manual payment."""
     if not payment.provider_code or not payment.provider_code.startswith("manual_"):
         raise PaymentNotManualError(
             f"Payment {payment.id} provider '{payment.provider_code}' is not manual"

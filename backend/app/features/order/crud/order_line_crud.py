@@ -13,12 +13,14 @@ from app.features.order.models.order_line import (
 
 
 class OrderLineCrud(CrudBase[OrderLine, OrderLineCreate, OrderLineUpdate]):
+    """Represents order line crud."""
+
     async def get_by_order(
         self,
         session: AsyncSession,
         order_id: uuid.UUID,
     ) -> list[OrderLine]:
-        """Récupère toutes les lignes d'une commande"""
+        """Get by order."""
         statement = select(OrderLine).where(
             OrderLine.order_id == order_id,
             col(OrderLine.is_active).is_(True),
@@ -33,7 +35,7 @@ class OrderLineCrud(CrudBase[OrderLine, OrderLineCreate, OrderLineUpdate]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[OrderLine]:
-        """Récupère les lignes de commande pour un produit spécifique"""
+        """Get by product."""
         statement = (
             select(OrderLine)
             .where(
@@ -52,7 +54,7 @@ class OrderLineCrud(CrudBase[OrderLine, OrderLineCreate, OrderLineUpdate]):
         session: AsyncSession,
         order_id: uuid.UUID,
     ) -> Decimal:
-        """Calcule le total d'une commande à partir de ses lignes"""
+        """Calculate order total."""
         lines = await self.get_by_order(session, order_id)
         total = sum(
             (

@@ -23,6 +23,8 @@ class SupplierType(str, Enum):
 
 
 class ProductBase(Base):
+    """Represents product base."""
+
     name: str = Field(
         description="Name of the product",
         max_length=100,
@@ -171,10 +173,14 @@ class ProductBase(Base):
 
 
 class ProductCreate(ProductBase, BaseCreate):
+    """Represents product create."""
+
     pass
 
 
 class ProductUpdate(ProductBase, BaseUpdate):
+    """Represents product update."""
+
     name: str | None = None
     description: str | None = None
     base_price: Decimal | None = None
@@ -198,6 +204,8 @@ class ProductUpdate(ProductBase, BaseUpdate):
 
 
 class Product(ProductBase, table=True):
+    """Represents product."""
+
     __tablename__ = "products"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -220,6 +228,8 @@ class Product(ProductBase, table=True):
 
 
 class ProductPublic(ProductBase, BasePublic):
+    """Represents product public."""
+
     id: uuid.UUID
     category_id: uuid.UUID | None = None
 
@@ -241,6 +251,8 @@ class ProductPublic(ProductBase, BasePublic):
 
 
 class ProductsPublic(SQLModel):
+    """Represents products public."""
+
     data: list[ProductPublic] = Field(
         default_factory=list,
         description="List of products",

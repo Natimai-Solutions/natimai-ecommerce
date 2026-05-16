@@ -40,10 +40,14 @@ class WishlistRouter(
         WishlistCrud,
     ]
 ):
+    """Represents wishlist router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = False  # No auth required for public endpoints
     create = True
     update = True
@@ -67,6 +71,7 @@ def _build_wishlist_detail(
     wishlist: Wishlist,
     items: list[WishlistItem],
 ) -> WishlistDetailPublic:
+    """Build wishlist detail."""
     return WishlistDetailPublic(
         id=wishlist.id,
         user_id=wishlist.user_id,
@@ -88,6 +93,7 @@ def _build_wishlist_detail(
 async def _get_active_product_or_404(
     session: SessionDep, *, product_id: uuid.UUID
 ) -> Product:
+    """Get active product or 404."""
     product = await session.get(Product, product_id)
     if product is None or not product.is_active or not product.is_admin_active:
         raise HTTPException(status_code=404, detail="Product not found")

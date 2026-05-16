@@ -17,6 +17,8 @@ def validate_address_type(v: str, field_name: str = "Address type") -> str:
 
 
 class AddressBase(Base):
+    """Represents address base."""
+
     street: str = Field(description="Street address")
     city: str = Field(description="City of the address")
     state: str | None = Field(default=None, description="State of the address")
@@ -30,14 +32,19 @@ class AddressBase(Base):
     @field_validator("type")
     @classmethod
     def validate_type(cls, v: str) -> str:
+        """Validate type."""
         return validate_address_type(v)
 
 
 class AddressCreate(AddressBase, BaseCreate):
+    """Represents address create."""
+
     user_id: uuid.UUID = Field(description="ID of the user")
 
 
 class AddressUpdate(AddressBase, BaseUpdate):
+    """Represents address update."""
+
     street: str | None = None
     city: str | None = None
     state: str | None = None
@@ -49,12 +56,15 @@ class AddressUpdate(AddressBase, BaseUpdate):
     @field_validator("type")
     @classmethod
     def validate_type(cls, v: str | None) -> str | None:
+        """Validate type."""
         if v is not None:
             return validate_address_type(v)
         return v
 
 
 class Address(AddressBase, table=True):
+    """Represents address."""
+
     __tablename__ = "addresses"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     user_id: uuid.UUID = Field(
@@ -63,11 +73,15 @@ class Address(AddressBase, table=True):
 
 
 class AddressPublic(AddressBase, BasePublic):
+    """Represents address public."""
+
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     user_id: uuid.UUID = Field(description="ID of the user")
 
 
 class AddressesPublic(SQLModel):
+    """Represents addresses public."""
+
     data: list[AddressPublic] = Field(
         default_factory=list, description="List of addresses"
     )

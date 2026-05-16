@@ -16,6 +16,7 @@ from typing_extensions import Self
 
 
 def parse_cors(v: Any) -> list[str] | str:
+    """Parse cors."""
     if isinstance(v, str) and not v.startswith("["):
         return [i.strip() for i in v.split(",")]
     elif isinstance(v, list | str):
@@ -24,6 +25,8 @@ def parse_cors(v: Any) -> list[str] | str:
 
 
 class Settings(BaseSettings):
+    """Represents settings."""
+
     model_config = SettingsConfigDict(
         # Use top level .env file (one level above ./backend/)
         env_file="../.env",
@@ -41,6 +44,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _check_secret_key(self) -> Self:
+        """Check secret key."""
         if not self.SECRET_KEY:
             # Generate a random key only if not provided (for development)
             self.SECRET_KEY = secrets.token_urlsafe(32)
@@ -58,6 +62,7 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def all_cors_origins(self) -> list[str]:
+        """Execute all cors origins."""
         return [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [
             self.FRONTEND_HOST
         ]
@@ -74,6 +79,7 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> PostgresDsn:
+        """Execute SQLALCHEMY DATABASE URI."""
         return MultiHostUrl.build(  # type: ignore[return-value]
             scheme="postgresql+psycopg",
             username=self.POSTGRES_USER,
@@ -94,6 +100,7 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def REDIS_URL(self) -> str:
+        """Execute REDIS URL."""
         if self.REDIS_USER and self.REDIS_PASSWORD:
             return (
                 f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_SERVER}:{self.REDIS_PORT}"
@@ -107,6 +114,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _set_default_emails_from(self) -> Self:
+        """Set default emails from."""
         if not self.EMAILS_FROM_NAME:
             self.EMAILS_FROM_NAME = self.PROJECT_NAME
         return self
@@ -116,6 +124,7 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def emails_enabled(self) -> bool:
+        """Execute emails enabled."""
         return bool(self.EMAILS_API_URL and self.EMAILS_API_KEY)
 
     # TODO: update type to EmailStr when sqlmodel supports it
@@ -217,6 +226,7 @@ class Settings(BaseSettings):
         return f"{backend_url}{self.API_V1_STR}/payments/webhooks/payzen"
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
+        """Check default secret."""
         if value == "changethis":
             message = (
                 f'The value of {var_name} is "changethis", '
@@ -229,6 +239,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _enforce_non_default_secrets(self) -> Self:
+        """Execute enforce non default secrets."""
         self._check_default_secret("SECRET_KEY", self.SECRET_KEY)
         self._check_default_secret("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD)
         self._check_default_secret(

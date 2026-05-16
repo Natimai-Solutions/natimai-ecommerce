@@ -18,6 +18,8 @@ from app.features.place.models import (
 
 
 class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
+    """Represents place crud."""
+
     async def get_by_code(
         self,
         session: AsyncSession,
@@ -61,7 +63,7 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
         country: str | None = None,
         with_service: str | None = None,
     ) -> list[Place]:
-        """Récupère les entrepôts"""
+        """Get warehouses."""
 
         conditions = [
             col(Place.is_warehouse).is_(True),
@@ -92,7 +94,7 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
         country_code: str,
         place_type: str | None = None,
     ) -> list[Place]:
-        """Récupère les lieux d'un pays"""
+        """Get by country."""
 
         conditions = [
             Place.country == country_code,
@@ -152,10 +154,7 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
         place_type: str | None = None,
         limit: int = 10,
     ) -> list[Place]:
-        """
-        Récupère les lieux les plus proches d'une position
-        Note: Pour une implémentation complète, utiliser PostGIS
-        """
+        """Get nearest places."""
 
         conditions = [
             col(Place.is_active).is_(True),
@@ -202,7 +201,7 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
         session: AsyncSession,
         place_id: uuid.UUID,
     ) -> dict:
-        """Récupère les informations de capacité d'un entrepôt"""
+        """Get capacity info."""
 
         place = await self.read(session, id=place_id)
         if not place or not place.is_warehouse:
@@ -233,7 +232,7 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
         place_id: uuid.UUID,
         capacity_change_m3: float,
     ) -> Place | None:
-        """Met à jour la capacité actuelle d'un entrepôt"""
+        """Update capacity."""
 
         place = await self.read(session, id=place_id)
         if not place or not place.is_warehouse:

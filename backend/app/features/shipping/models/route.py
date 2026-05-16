@@ -150,10 +150,14 @@ class ShippingRoute(ShippingRouteBase, table=True):
 
 
 class ShippingRouteCreate(ShippingRouteBase, BaseCreate):
+    """Represents shipping route create."""
+
     pass
 
 
 class ShippingRouteUpdate(ShippingRouteBase, BaseUpdate):
+    """Represents shipping route update."""
+
     from_place_id: uuid.UUID | None = None
     to_place_id: uuid.UUID | None = None
     from_partner_id: uuid.UUID | None = None
@@ -181,10 +185,14 @@ class ShippingRouteUpdate(ShippingRouteBase, BaseUpdate):
 
 
 class ShippingRoutePublic(ShippingRouteBase, BasePublic):
+    """Represents shipping route public."""
+
     id: uuid.UUID
 
 
 class ShippingRoutesPublic(SQLModel):
+    """Represents shipping routes public."""
+
     data: list[ShippingRoutePublic] = Field(
         default_factory=list,
         description="List of shipping routes",

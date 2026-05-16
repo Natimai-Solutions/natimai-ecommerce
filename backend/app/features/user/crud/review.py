@@ -8,6 +8,8 @@ from app.features.user.models.review import Review, ReviewCreate, ReviewUpdate
 
 
 class ReviewCrud(CrudBase[Review, ReviewCreate, ReviewUpdate]):
+    """Represents review crud."""
+
     async def get_by_user_id(
         self,
         session: AsyncSession,

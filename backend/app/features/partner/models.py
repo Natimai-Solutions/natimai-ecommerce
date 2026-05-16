@@ -45,10 +45,14 @@ class PartnerBase(Base):
 
 
 class PartnerCreate(PartnerBase, BaseCreate):
+    """Represents partner create."""
+
     pass
 
 
 class PartnerUpdate(PartnerBase, BaseUpdate):
+    """Represents partner update."""
+
     name: str | None = None
     is_customer: bool | None = None
     is_supplier: bool | None = None
@@ -62,7 +66,7 @@ class PartnerUpdate(PartnerBase, BaseUpdate):
 
 
 class Partner(PartnerBase, table=True):
-    """Acteur métier (fournisseur)"""
+    """Represents partner."""
 
     __tablename__ = "partners"
 
@@ -73,10 +77,14 @@ class Partner(PartnerBase, table=True):
 
 
 class PartnerPublic(PartnerBase, BasePublic):
+    """Represents partner public."""
+
     id: uuid.UUID
 
 
 class PartnersPublic(SQLModel):
+    """Represents partners public."""
+
     data: list[PartnerPublic] = Field(
         default_factory=list,
         description="List of partners",

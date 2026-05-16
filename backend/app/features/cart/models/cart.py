@@ -11,6 +11,8 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class CartBase(Base):
+    """Represents cart base."""
+
     user_id: uuid.UUID = Field(
         foreign_key="users.id",
         index=True,
@@ -35,10 +37,14 @@ class CartBase(Base):
 
 
 class CartCreate(CartBase, BaseCreate):
+    """Represents cart create."""
+
     pass
 
 
 class CartUpdate(BaseUpdate):
+    """Represents cart update."""
+
     user_id: uuid.UUID | None = None
     currency: str | None = None
     total_amount: Decimal | None = None
@@ -46,6 +52,8 @@ class CartUpdate(BaseUpdate):
 
 
 class Cart(CartBase, table=True):
+    """Represents cart."""
+
     __tablename__ = "carts"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -56,10 +64,14 @@ class Cart(CartBase, table=True):
 
 
 class CartPublic(CartBase, BasePublic):
+    """Represents cart public."""
+
     id: uuid.UUID
 
 
 class CartsPublic(SQLModel):
+    """Represents carts public."""
+
     data: list[CartPublic] = Field(
         default_factory=list,
         description="List of carts",
@@ -68,6 +80,8 @@ class CartsPublic(SQLModel):
 
 
 class CartItemBase(Base):
+    """Represents cart item base."""
+
     cart_id: uuid.UUID = Field(
         foreign_key="carts.id",
         index=True,
@@ -92,10 +106,14 @@ class CartItemBase(Base):
 
 
 class CartItemCreate(CartItemBase, BaseCreate):
+    """Represents cart item create."""
+
     pass
 
 
 class CartItemUpdate(BaseUpdate):
+    """Represents cart item update."""
+
     cart_id: uuid.UUID | None = None
     product_id: uuid.UUID | None = None
     quantity: int | None = None
@@ -103,6 +121,8 @@ class CartItemUpdate(BaseUpdate):
 
 
 class CartItem(CartItemBase, table=True):
+    """Represents cart item."""
+
     __tablename__ = "cart_items"
     __table_args__ = (UniqueConstraint("cart_id", "product_id"),)
     id: uuid.UUID = Field(
@@ -114,10 +134,14 @@ class CartItem(CartItemBase, table=True):
 
 
 class CartItemPublic(CartItemBase, BasePublic):
+    """Represents cart item public."""
+
     id: uuid.UUID
 
 
 class CartItemsPublic(SQLModel):
+    """Represents cart items public."""
+
     data: list[CartItemPublic] = Field(
         default_factory=list,
         description="List of cart items",
@@ -126,15 +150,21 @@ class CartItemsPublic(SQLModel):
 
 
 class CartItemAddRequest(SQLModel):
+    """Represents cart item add request."""
+
     product_id: uuid.UUID = Field(description="ID of the product to add")
     quantity: int = Field(default=1, ge=1, description="Quantity to add")
 
 
 class CartItemQuantityUpdateRequest(SQLModel):
+    """Represents cart item quantity update request."""
+
     quantity: int = Field(ge=1, description="New quantity")
 
 
 class CartItemDetail(SQLModel):
+    """Represents cart item detail."""
+
     id: uuid.UUID
     product_id: uuid.UUID
     quantity: int
@@ -143,6 +173,8 @@ class CartItemDetail(SQLModel):
 
 
 class CartDetailPublic(SQLModel):
+    """Represents cart detail public."""
+
     id: uuid.UUID
     user_id: uuid.UUID
     currency: str
@@ -152,12 +184,16 @@ class CartDetailPublic(SQLModel):
 
 
 class CheckoutShippingPreference(str, Enum):
+    """Represents checkout shipping preference."""
+
     FASTEST = "fastest"
     ECO_FRIENDLY = "eco_friendly"
     CHEAPEST = "cheapest"
 
 
 class CheckoutRequest(SQLModel):
+    """Represents checkout request."""
+
     shipping_address: str | None = Field(
         default=None,
         max_length=500,
@@ -196,6 +232,8 @@ class CheckoutRequest(SQLModel):
 
 
 class CheckoutResponse(SQLModel):
+    """Represents checkout response."""
+
     order_id: uuid.UUID
     payment_id: uuid.UUID
     cart_id: uuid.UUID

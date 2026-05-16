@@ -16,11 +16,14 @@ from app.utils.money import minor_units_to_decimal, parse_minor_units
 
 
 class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
+    """Represents payment crud."""
+
     async def get_random_payments(
         self,
         session: AsyncSession,
         limit: int = 100,
     ) -> list[Payment]:
+        """Get random payments."""
         statement = (
             select(Payment)
             .where(
@@ -139,6 +142,7 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         webhook_fields: dict[str, object],
         commit: bool = True,
     ) -> Payment:
+        """Update payment from webhook payload."""
         from app.features.payment.crud.payment_status import crud_payment_status
 
         # Provider IPN reports amount in the smallest currency unit (e.g. cents for EUR).
@@ -151,7 +155,9 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         else:
             amount_decimal = payment.amount
 
-        trans_id_raw = webhook_fields.get("trans_uuid") or webhook_fields.get("trans_id")
+        trans_id_raw = webhook_fields.get("trans_uuid") or webhook_fields.get(
+            "trans_id"
+        )
         trans_id = str(trans_id_raw).strip() if trans_id_raw is not None else None
         if trans_id == "":
             trans_id = None

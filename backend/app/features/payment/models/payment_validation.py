@@ -10,6 +10,8 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class PaymentValidationBase(Base):
+    """Represents payment validation base."""
+
     payment_id: uuid.UUID = Field(
         foreign_key="payments.id",
         nullable=False,
@@ -41,10 +43,14 @@ class PaymentValidationBase(Base):
 
 
 class PaymentValidationCreate(PaymentValidationBase, BaseCreate):
+    """Represents payment validation create."""
+
     pass
 
 
 class PaymentValidationUpdate(PaymentValidationBase, BaseUpdate):
+    """Represents payment validation update."""
+
     payment_id: uuid.UUID | None = None
     action: str | None = None
     admin_user_id: uuid.UUID | None = None
@@ -53,6 +59,8 @@ class PaymentValidationUpdate(PaymentValidationBase, BaseUpdate):
 
 
 class PaymentValidation(PaymentValidationBase, table=True):
+    """Represents payment validation."""
+
     __tablename__ = "payment_validations"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -62,9 +70,13 @@ class PaymentValidation(PaymentValidationBase, table=True):
 
 
 class PaymentValidationPublic(PaymentValidationBase, BasePublic):
+    """Represents payment validation public."""
+
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
 
 
 class PaymentValidationsPublic(SQLModel):
+    """Represents payment validations public."""
+
     data: list[PaymentValidationPublic] = Field(default_factory=list)
     count: int = Field(default=0)

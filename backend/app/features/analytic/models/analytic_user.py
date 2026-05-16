@@ -10,6 +10,8 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class AnalyticsUserBase(Base):
+    """Represents analytics user base."""
+
     user_id: uuid.UUID = Field(foreign_key="users.id", description="ID of the user")
     login_count: int = Field(
         default=0, description="Number of times the user has logged in"
@@ -44,10 +46,14 @@ class AnalyticsUserBase(Base):
 
 
 class AnalyticsUserCreate(AnalyticsUserBase, BaseCreate):
+    """Represents analytics user create."""
+
     pass
 
 
 class AnalyticsUserUpdate(AnalyticsUserBase, BaseUpdate):
+    """Represents analytics user update."""
+
     user_id: uuid.UUID | None = None
     login_count: int | None = None
     purchase_count: int | None = None
@@ -59,14 +65,20 @@ class AnalyticsUserUpdate(AnalyticsUserBase, BaseUpdate):
 
 
 class AnalyticsUser(AnalyticsUserBase, table=True):
+    """Represents analytics user."""
+
     __tablename__ = "analytics_users"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
 
 
 class AnalyticsUserPublic(AnalyticsUserBase, BasePublic):
+    """Represents analytics user public."""
+
     id: uuid.UUID
 
 
 class AnalyticsUsersPublic(SQLModel):
+    """Represents analytics users public."""
+
     data: list[AnalyticsUserPublic] = Field(default_factory=list)
     count: int = Field(default=0, description="Total number of analytics users")

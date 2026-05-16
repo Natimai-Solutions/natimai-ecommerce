@@ -22,10 +22,14 @@ class AnalyticsProductRouter(
         AnalyticsProductCrud,
     ]
 ):
+    """Represents analytics product router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = True  # Admin only - données sensibles
     create = True  # Admin only
     update = True  # Admin only

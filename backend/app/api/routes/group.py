@@ -203,6 +203,8 @@ routes_user_groups = [
 
 # Authentication configuration
 class Auth:
+    """Represents auth."""
+
     read = True  # Authentication required for read
     create = True  # Authentication required for create
     update = True  # Authentication required for update

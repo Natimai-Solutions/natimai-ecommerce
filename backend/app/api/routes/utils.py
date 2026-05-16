@@ -16,10 +16,13 @@ router = APIRouter()
 
 @router.get("/health-check", tags=["utils"])
 async def health_check() -> bool:
+    """Execute health check."""
     return True
 
 
 class TaskStatus(BaseModel):
+    """Represents task status."""
+
     task_id: uuid.UUID
     finished: bool
     success: bool
@@ -27,6 +30,8 @@ class TaskStatus(BaseModel):
 
 
 class CheckoutObservabilityMetrics(BaseModel):
+    """Represents checkout observability metrics."""
+
     window_minutes: int
     attempts: int
     successes: int
@@ -39,6 +44,8 @@ class CheckoutObservabilityMetrics(BaseModel):
 
 
 class OutboxObservabilityMetrics(BaseModel):
+    """Represents outbox observability metrics."""
+
     pending: int
     running: int
     done: int
@@ -48,6 +55,8 @@ class OutboxObservabilityMetrics(BaseModel):
 
 
 class CommerceObservabilityMetrics(BaseModel):
+    """Represents commerce observability metrics."""
+
     orders_total: int
     orders_last_24h: int
     payments_total: int
@@ -55,6 +64,8 @@ class CommerceObservabilityMetrics(BaseModel):
 
 
 class ObservabilityDashboard(BaseModel):
+    """Represents observability dashboard."""
+
     generated_at: datetime
     commerce: CommerceObservabilityMetrics
     outbox_jobs: OutboxObservabilityMetrics
@@ -66,6 +77,7 @@ async def _collect_commerce_metrics(
     *,
     now: datetime,
 ) -> CommerceObservabilityMetrics:
+    """Execute collect commerce metrics."""
     since_24h = now - timedelta(hours=24)
 
     orders_total_result = await session.exec(
@@ -107,6 +119,7 @@ async def _collect_outbox_metrics(
     *,
     now: datetime,
 ) -> OutboxObservabilityMetrics:
+    """Execute collect outbox metrics."""
     status_counts_result = await session.exec(
         select(OutboxEvent.status, func.count()).group_by(OutboxEvent.status)
     )
@@ -153,6 +166,7 @@ async def _collect_outbox_metrics(
     response_model=ObservabilityDashboard,
 )
 async def get_observability_dashboard(session: SessionDep) -> ObservabilityDashboard:
+    """Get observability dashboard."""
     now = datetime.now(timezone.utc)
     commerce_metrics = await _collect_commerce_metrics(session, now=now)
     outbox_metrics = await _collect_outbox_metrics(session, now=now)

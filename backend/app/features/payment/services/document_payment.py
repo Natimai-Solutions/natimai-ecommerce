@@ -54,16 +54,20 @@ DOCUMENT_PROVIDER_CODES = {"po_public"}
 
 
 def _is_document_provider(provider_code: str | None) -> bool:
+    """Check whether document provider."""
     return bool(provider_code) and provider_code in DOCUMENT_PROVIDER_CODES
 
 
 @dataclass(slots=True)
 class DocumentValidationOutcome:
+    """Represents document validation outcome."""
+
     payment: Payment
     validation: PaymentValidation
 
 
 async def _get_or_create_status(session: AsyncSession, *, name: str) -> PaymentStatus:
+    """Get or create status."""
     status = await crud_payment_status.get_by_name(session, name=name)
     if status is not None:
         return status
@@ -87,6 +91,7 @@ def _build_event_payload(
     attachment_id: uuid.UUID | None,
     extra_data: dict[str, Any] | None,
 ) -> dict[str, Any]:
+    """Build event payload."""
     return {
         "payment_id": str(payment.id),
         "order_id": str(payment.order_id) if payment.order_id else None,
@@ -108,6 +113,7 @@ async def register_intent(
     instructions: str | None,
     user: User | None,
 ) -> Payment:
+    """Execute register intent."""
     status = await _get_or_create_status(
         session, name=DOCUMENT_STATUS_DOCUMENT_REQUIRED
     )
@@ -148,6 +154,7 @@ async def mark_document_uploaded(
     attachment: PaymentAttachment,
     user: User | None,
 ) -> Payment:
+    """Execute mark document uploaded."""
     if not _is_document_provider(payment.provider_code):
         raise PaymentNotDocumentValidatedError(
             f"Payment {payment.id} provider '{payment.provider_code}' is not document-validated"
@@ -202,6 +209,7 @@ async def approve_document_payment(
     admin: User,
     comment: str | None,
 ) -> DocumentValidationOutcome:
+    """Execute approve document payment."""
     if not _is_document_provider(payment.provider_code):
         raise PaymentNotDocumentValidatedError(
             f"Payment {payment.id} provider '{payment.provider_code}' is not document-validated"
@@ -246,6 +254,7 @@ async def reject_document_payment(
     admin: User,
     reason: str,
 ) -> DocumentValidationOutcome:
+    """Execute reject document payment."""
     if not _is_document_provider(payment.provider_code):
         raise PaymentNotDocumentValidatedError(
             f"Payment {payment.id} provider '{payment.provider_code}' is not document-validated"
@@ -290,6 +299,7 @@ async def mark_document_infected(
     attachment: PaymentAttachment,
     signature: str | None,
 ) -> Payment:
+    """Execute mark document infected."""
     status = await _get_or_create_status(session, name=DOCUMENT_STATUS_REJECTED)
     payment.payment_status_id = status.id
     session.add(payment)

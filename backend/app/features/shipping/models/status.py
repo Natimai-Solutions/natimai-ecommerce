@@ -60,10 +60,14 @@ class StatusDefinition(StatusDefinitionBase, table=True):
 
 
 class StatusDefinitionCreate(StatusDefinitionBase, BaseCreate):
+    """Represents status definition create."""
+
     pass
 
 
 class StatusDefinitionUpdate(StatusDefinitionBase, BaseUpdate):
+    """Represents status definition update."""
+
     entity: str | None = None  # type: ignore[assignment]
     code: str | None = None  # type: ignore[assignment]
     name: str | None = None  # type: ignore[assignment]
@@ -76,6 +80,8 @@ class StatusDefinitionUpdate(StatusDefinitionBase, BaseUpdate):
 
 
 class StatusDefinitionPublic(StatusDefinitionBase, BasePublic):
+    """Represents status definition public."""
+
     id: uuid.UUID
 
 
@@ -109,10 +115,14 @@ class StatusTransition(StatusTransitionBase, table=True):
 
 
 class StatusTransitionCreate(StatusTransitionBase, BaseCreate):
+    """Represents status transition create."""
+
     pass
 
 
 class StatusTransitionUpdate(StatusTransitionBase, BaseUpdate):
+    """Represents status transition update."""
+
     entity: str | None = None  # type: ignore[assignment]
     from_code: str | None = None  # type: ignore[assignment]
     to_code: str | None = None  # type: ignore[assignment]
@@ -123,10 +133,14 @@ class StatusTransitionUpdate(StatusTransitionBase, BaseUpdate):
 
 
 class StatusTransitionPublic(StatusTransitionBase, BasePublic):
+    """Represents status transition public."""
+
     id: uuid.UUID
 
 
 class StatusDefinitionsPublic(SQLModel):
+    """Represents status definitions public."""
+
     data: list[StatusDefinitionPublic] = Field(
         default_factory=list,
         description="List of status definitions",
@@ -138,6 +152,8 @@ class StatusDefinitionsPublic(SQLModel):
 
 
 class StatusTransitionsPublic(SQLModel):
+    """Represents status transitions public."""
+
     data: list[StatusTransitionPublic] = Field(
         default_factory=list,
         description="List of status transitions",

@@ -22,10 +22,14 @@ class OrderLineRouter(
         OrderLineCrud,
     ]
 ):
+    """Represents order line router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = True  # Authentification requise pour lire
     create = True  # Authentification requise pour créer
     update = True  # Authentification requise pour modifier
@@ -51,9 +55,7 @@ async def get_order_lines(
     _current_user: CurrentUser,
     order_id: uuid.UUID,
 ) -> list[OrderLinePublic]:
-    """
-    Récupérer toutes les lignes d'une commande.
-    """
+    """Get order lines."""
     lines = await crud_order_line.get_by_order(session=session, order_id=order_id)
     return [OrderLinePublic.model_validate(line) for line in lines]
 
@@ -66,9 +68,7 @@ async def get_product_order_lines(
     skip: int = 0,
     limit: int = 100,
 ) -> list[OrderLinePublic]:
-    """
-    Récupérer les lignes de commande pour un produit (admin uniquement).
-    """
+    """Get product order lines."""
     if not current_user.is_superuser:
         from fastapi import HTTPException, status
 
@@ -89,9 +89,7 @@ async def calculate_order_total(
     _current_user: CurrentUser,
     order_id: uuid.UUID,
 ) -> dict[str, object]:
-    """
-    Calculer le total d'une commande à partir de ses lignes.
-    """
+    """Calculate order total."""
     total = await crud_order_line.calculate_order_total(
         session=session, order_id=order_id
     )

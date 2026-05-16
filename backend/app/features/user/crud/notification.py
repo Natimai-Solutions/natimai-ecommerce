@@ -15,6 +15,8 @@ from app.features.user.models.notification import (
 
 
 class NotificationCrud(CrudBase[Notification, NotificationCreate, NotificationUpdate]):
+    """Represents notification crud."""
+
     async def get_by_user_id(
         self,
         session: AsyncSession,
@@ -126,6 +128,8 @@ class NotificationCrud(CrudBase[Notification, NotificationCreate, NotificationUp
 class UserNotificationCrud(
     CrudBase[UserNotification, UserNotificationCreate, UserNotificationUpdate]
 ):
+    """Represents user notification crud."""
+
     async def get_by_user_and_notification(
         self,
         session: AsyncSession,

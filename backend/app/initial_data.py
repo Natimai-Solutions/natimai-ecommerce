@@ -43,6 +43,7 @@ async def init_db(session: AsyncSession) -> None:
 
 
 async def init() -> None:
+    """Initialize application resources."""
     async with AsyncSession(engine) as session:
         await init_db(session)
         await api_initial_data(session)
@@ -50,6 +51,7 @@ async def init() -> None:
 
 
 async def main() -> None:
+    """Run the main entry point."""
     logger.debug("Creating initial data")
     await init()
     logger.debug("Initial data created")

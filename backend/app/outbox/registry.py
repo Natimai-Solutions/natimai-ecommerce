@@ -35,6 +35,7 @@ class OutboxRegistry:
     """
 
     def __init__(self) -> None:
+        """Initialize the outbox registry instance."""
         self.handlers: dict[str, list[Handler]] = {}
         self.model_classes: dict[str, type[Any]] = {}
         logger.debug("Initialized OutboxRegistry")

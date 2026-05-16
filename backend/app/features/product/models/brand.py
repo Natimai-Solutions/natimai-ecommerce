@@ -8,6 +8,8 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class BrandBase(Base):
+    """Represents brand base."""
+
     name: str = Field(
         description="Name of the brand",
         max_length=100,
@@ -26,16 +28,22 @@ class BrandBase(Base):
 
 
 class BrandCreate(BrandBase, BaseCreate):
+    """Represents brand create."""
+
     pass
 
 
 class BrandUpdate(BrandBase, BaseUpdate):
+    """Represents brand update."""
+
     name: str | None = None
     description: str | None = None
     image_url: str | None = None
 
 
 class Brand(BrandBase, table=True):
+    """Represents brand."""
+
     __tablename__ = "brands"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -46,10 +54,14 @@ class Brand(BrandBase, table=True):
 
 
 class BrandPublic(BrandBase, BasePublic):
+    """Represents brand public."""
+
     id: uuid.UUID
 
 
 class BrandsPublic(SQLModel):
+    """Represents brands public."""
+
     data: list[BrandPublic] = Field(
         default_factory=list,
         description="List of brands",

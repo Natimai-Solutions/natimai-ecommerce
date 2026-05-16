@@ -38,6 +38,7 @@ class PaymentMethodInactiveError(PaymentMethodResolutionError):
 
 
 def resolve_api_provider(provider_code: str) -> ApiPaymentProvider:
+    """Resolve and validate an API-capable payment provider."""
     provider = get_provider(provider_code)
     if not isinstance(provider, ApiPaymentProvider):
         raise PaymentApiProviderResolutionError(
@@ -51,6 +52,7 @@ async def resolve_provider_code_for_payment_method(
     session: AsyncSession,
     payment_method_id: uuid.UUID,
 ) -> str:
+    """Resolve the provider code for an active payment method."""
     try:
         payment_method = await crud_payment_method.read(session, id=payment_method_id)
     except RecordNotFoundError as e:
@@ -76,6 +78,7 @@ async def initiate_api_payment(
     provider_code: str,
     request: InitiationRequest,
 ) -> InitiationResult:
+    """Initiate a payment through an API provider."""
     provider = resolve_api_provider(provider_code)
     return await provider.initiate_payment(request)
 
@@ -84,11 +87,13 @@ def parse_api_webhook(
     provider_code: str,
     payload: dict[str, Any],
 ) -> WebhookResult:
+    """Parse a webhook payload using the provider parser."""
     provider = resolve_api_provider(provider_code)
     return provider.parse_webhook_notification(payload)
 
 
 def resolve_manual_provider(provider_code: str) -> ManualPaymentProvider:
+    """Resolve and validate a manual payment provider."""
     provider = get_provider(provider_code)
     if not isinstance(provider, ManualPaymentProvider):
         raise PaymentManualProviderResolutionError(
@@ -102,5 +107,6 @@ async def register_manual_payment_intent(
     provider_code: str,
     request: InitiationRequest,
 ) -> InitiationResult:
+    """Register a payment intent with a manual provider."""
     provider = resolve_manual_provider(provider_code)
     return await provider.register_intent(request)

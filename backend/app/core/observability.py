@@ -13,6 +13,7 @@ from uuid import UUID
 
 
 def _json_default(value: Any) -> Any:
+    """Execute json default."""
     if isinstance(value, datetime):
         return value.isoformat()
     if isinstance(value, UUID):
@@ -29,6 +30,7 @@ def log_structured_event(
     event: str,
     **fields: Any,
 ) -> None:
+    """Execute log structured event."""
     payload = {
         "event": event,
         **fields,
@@ -42,6 +44,8 @@ def log_structured_event(
 
 @dataclass(frozen=True)
 class CheckoutMetricEvent:
+    """Represents checkout metric event."""
+
     happened_at: datetime
     success: bool
     duration_ms: int
@@ -49,7 +53,10 @@ class CheckoutMetricEvent:
 
 
 class CheckoutMetricsStore:
+    """Represents checkout metrics store."""
+
     def __init__(self, max_events: int = 2000) -> None:
+        """Initialize the checkout metrics store instance."""
         self._events: deque[CheckoutMetricEvent] = deque(maxlen=max_events)
         self._lock = Lock()
 
@@ -60,6 +67,7 @@ class CheckoutMetricsStore:
         duration_ms: int,
         error_code: str | None,
     ) -> None:
+        """Execute record."""
         event = CheckoutMetricEvent(
             happened_at=datetime.now(timezone.utc),
             success=success,
@@ -70,6 +78,7 @@ class CheckoutMetricsStore:
             self._events.append(event)
 
     def reset(self) -> None:
+        """Execute reset."""
         with self._lock:
             self._events.clear()
 
@@ -80,6 +89,7 @@ class CheckoutMetricsStore:
         failure_rate_alert_threshold: float = 0.2,
         min_attempts_for_alert: int = 3,
     ) -> dict[str, Any]:
+        """Execute snapshot."""
         now = datetime.now(timezone.utc)
         window_start = now - timedelta(minutes=window_minutes)
 
@@ -135,6 +145,7 @@ def observe_checkout_result(
     duration_ms: int,
     error_code: str | None = None,
 ) -> None:
+    """Execute observe checkout result."""
     _checkout_metrics_store.record(
         success=success,
         duration_ms=duration_ms,
@@ -146,8 +157,10 @@ def get_checkout_metrics_snapshot(
     *,
     window_minutes: int = 60,
 ) -> dict[str, Any]:
+    """Get checkout metrics snapshot."""
     return _checkout_metrics_store.snapshot(window_minutes=window_minutes)
 
 
 def reset_checkout_metrics_for_tests() -> None:
+    """Execute reset checkout metrics for tests."""
     _checkout_metrics_store.reset()

@@ -16,6 +16,8 @@ DOCUMENT_STATUS_REJECTED = "Failed"
 
 
 class PublicPurchaseOrderProvider(DocumentValidatedProvider):
+    """Represents public purchase order provider."""
+
     code = "po_public"
     instructions = (
         "Veuillez téléverser votre bon de commande signé (PDF, JPG ou PNG) "
@@ -24,6 +26,7 @@ class PublicPurchaseOrderProvider(DocumentValidatedProvider):
     )
 
     async def register_intent(self, request: InitiationRequest) -> InitiationResult:
+        """Execute register intent."""
         return InitiationResult(
             provider_code=self.code,
             provider_reference=request.order_id,
@@ -37,6 +40,7 @@ class PublicPurchaseOrderProvider(DocumentValidatedProvider):
         file_key: str,
         filename: str,
     ) -> AttachmentResult:
+        """Execute attach document."""
         return AttachmentResult(
             file_key=file_key,
             filename=filename,
@@ -50,6 +54,7 @@ class PublicPurchaseOrderProvider(DocumentValidatedProvider):
         admin_user_id: str,
         comment: str | None = None,
     ) -> ValidationResult:
+        """Execute approve."""
         return ValidationResult(
             provider_code=self.code,
             payment_status=DOCUMENT_STATUS_APPROVED,
@@ -67,6 +72,7 @@ class PublicPurchaseOrderProvider(DocumentValidatedProvider):
         admin_user_id: str,
         reason: str,
     ) -> ValidationResult:
+        """Execute reject."""
         return ValidationResult(
             provider_code=self.code,
             payment_status=DOCUMENT_STATUS_REJECTED,

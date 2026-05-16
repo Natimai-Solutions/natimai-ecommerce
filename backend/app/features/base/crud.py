@@ -48,13 +48,17 @@ class CrudOperationError(Exception):
 @overload
 def track_crud_operation(
     func: Callable[P, Awaitable[R]],
-) -> Callable[P, Awaitable[R]]: ...
+) -> Callable[P, Awaitable[R]]:
+    """Type overload for direct decorator usage."""
+    ...
 
 
 @overload
 def track_crud_operation(
     *, step_name: str | None = None
-) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]: ...
+) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
+    """Type overload for parameterized decorator usage."""
+    ...
 
 
 def track_crud_operation(
@@ -78,8 +82,11 @@ def track_crud_operation(
     """
 
     def decorator(fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+        """Wrap a CRUD coroutine with error tracking."""
+
         @functools.wraps(fn)
         async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            """Execute wrapper."""
             operation_name = step_name or fn.__name__
             try:
                 return await fn(*args, **kwargs)
@@ -102,12 +109,16 @@ def track_crud_operation(
 
 
 class OutboxEvent:
+    """Represents outbox event."""
+
     create = True
     update = True
     delete = True
 
 
 class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
+    """Represents crud base."""
+
     def __init__(
         self,
         *,
@@ -137,6 +148,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         self.outbox_events = outbox_events or {}
 
     async def _safe_record_access(self, session: AsyncSession, record: ModelType):
+        """Execute safe record access."""
         try:
             _ = record.id  # Teste l'accès à record
             return record
@@ -151,15 +163,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         records: list[ModelType] | None = None,
         operation: str = "operation",
     ) -> None:
-        """
-        Commit la transaction et rafraîchit les records de manière sécurisée.
-
-        Args:
-            session: Session de base de données
-            record: Record unique à rafraîchir (optionnel)
-            records: Liste de records à rafraîchir (optionnel)
-            operation: Nom de l'opération pour le logging
-        """
+        """Execute safe commit and refresh."""
         try:
             await session.commit()
 
@@ -183,13 +187,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     async def _safe_record_refresh(
         self, session: AsyncSession, record: ModelType
     ) -> None:
-        """
-        Rafraîchit un record de manière sécurisée en vérifiant qu'il n'a pas été supprimé.
-
-        Args:
-            session: Session de base de données
-            record: Record à rafraîchir
-        """
+        """Execute safe record refresh."""
         try:
             # Vérifier si le record est dans un état supprimé
             from sqlalchemy import inspect
@@ -356,6 +354,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         permission: str | None = None,
         user: UserType | None = None,
     ):
+        """Check user permission."""
         return True
 
     async def read_after(

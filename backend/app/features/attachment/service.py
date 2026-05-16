@@ -29,6 +29,8 @@ class AttachmentValidationError(ValueError):
 
 @dataclass(slots=True)
 class UploadIntent:
+    """Represents upload intent."""
+
     payment_id: uuid.UUID
     file_key: str
     upload: PresignedUpload
@@ -37,6 +39,7 @@ class UploadIntent:
 
 
 def _validate_mime(mimetype: str) -> None:
+    """Validate mime."""
     allowed = settings.PAYMENT_ATTACHMENT_ALLOWED_MIME
     if mimetype not in allowed:
         raise AttachmentValidationError(
@@ -45,6 +48,7 @@ def _validate_mime(mimetype: str) -> None:
 
 
 def _build_file_key(*, payment_id: uuid.UUID, document_type: str, filename: str) -> str:
+    """Build file key."""
     return f"payments/{payment_id}/{document_type}/{uuid.uuid4()}-{filename}"
 
 
@@ -55,6 +59,7 @@ def issue_upload_intent(
     mimetype: str,
     document_type: str = DOCUMENT_TYPE_PURCHASE_ORDER,
 ) -> UploadIntent:
+    """Execute issue upload intent."""
     _validate_mime(mimetype)
 
     file_key = _build_file_key(
@@ -90,6 +95,7 @@ async def register_uploaded_attachment(
     document_type: str,
     user: User | None,
 ) -> PaymentAttachment:
+    """Execute register uploaded attachment."""
     _validate_mime(mimetype)
 
     storage = get_file_storage()
@@ -129,6 +135,7 @@ async def scan_attachment_now(
     *,
     attachment: PaymentAttachment,
 ) -> PaymentAttachment:
+    """Execute scan attachment now."""
     storage = get_file_storage()
     scanner = get_antivirus_scanner()
 
@@ -152,6 +159,7 @@ async def scan_attachment_now(
 def issue_download_url(
     *, file_key: str, filename: str | None = None
 ) -> PresignedDownload:
+    """Execute issue download url."""
     storage = get_file_storage()
     return storage.generate_download_url(
         key=file_key,

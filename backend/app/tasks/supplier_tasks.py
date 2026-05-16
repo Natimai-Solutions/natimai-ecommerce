@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 def _now() -> datetime:
+    """Execute now."""
     return datetime.now(timezone.utc)
 
 
@@ -277,7 +278,10 @@ async def check_supplier_health_task(
 
 
 def _bind_supplier(task: Any, supplier_name: str, label: str) -> Any:
+    """Execute bind supplier."""
+
     async def _runner(ctx: dict[str, Any]) -> Any:
+        """Execute runner."""
         return await task(ctx, supplier_name=supplier_name)
 
     _runner.__name__ = f"{supplier_name}_{label}"
@@ -342,6 +346,7 @@ async def _enqueue_with_dedup(
     payload_key: list[str] | None,
     job_kwargs: dict[str, Any],
 ) -> str:
+    """Execute enqueue with dedup."""
     from app.core.arq_worker import get_redis_pool
 
     redis = await get_redis_pool()

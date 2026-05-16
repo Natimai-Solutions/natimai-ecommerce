@@ -116,6 +116,8 @@ routes_after_security = [
 
 # Authentication configuration - Admin only
 class Auth:
+    """Represents auth."""
+
     read = True
     create = True
     update = True

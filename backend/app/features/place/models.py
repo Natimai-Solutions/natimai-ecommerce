@@ -15,7 +15,7 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class PlaceBase(Base):
-    """Tout lieu physique (aéroport, port, entrepôt, adresse client, île...)"""
+    """Represents place base."""
 
     name: str = Field(max_length=200, description="Place name")
     type: str = Field(
@@ -86,7 +86,7 @@ class PlaceBase(Base):
 
 
 class Place(PlaceBase, table=True):
-    """Tout lieu physique (aéroport, port, entrepôt, adresse client, île...)"""
+    """Represents place."""
 
     __tablename__ = "places"
 
@@ -97,10 +97,14 @@ class Place(PlaceBase, table=True):
 
 
 class PlaceCreate(PlaceBase, BaseCreate):
+    """Represents place create."""
+
     pass
 
 
 class PlaceUpdate(PlaceBase, BaseUpdate):
+    """Represents place update."""
+
     name: str | None = None
     type: str | None = None
     code: str | None = None
@@ -123,10 +127,14 @@ class PlaceUpdate(PlaceBase, BaseUpdate):
 
 
 class PlacePublic(PlaceBase, BasePublic):
+    """Represents place public."""
+
     id: uuid.UUID
 
 
 class PlacesPublic(SQLModel):
+    """Represents places public."""
+
     data: list[PlacePublic] = Field(
         default_factory=list,
         description="List of places",

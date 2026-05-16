@@ -12,6 +12,8 @@ from app.features.payment.models.payment_status import (
 class PaymentStatusCrud(
     CrudBase[PaymentStatus, PaymentStatusCreate, PaymentStatusUpdate]
 ):
+    """Represents payment status crud."""
+
     async def get_by_name(
         self,
         session: AsyncSession,

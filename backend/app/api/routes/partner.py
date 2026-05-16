@@ -21,10 +21,14 @@ class PartnerRouter(
         Any,
     ]
 ):
+    """Represents partner router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = True
     create = True
     update = True

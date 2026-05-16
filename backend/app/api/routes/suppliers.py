@@ -32,6 +32,7 @@ router = APIRouter(prefix="/suppliers", tags=["suppliers"])
 def get_supplier_adapter(
     supplier_name: Annotated[str, Path(description="Registered supplier machine name")],
 ) -> SupplierAdapter:
+    """Get supplier adapter."""
     if not has_supplier(supplier_name):
         raise HTTPException(
             status_code=404,
@@ -48,6 +49,8 @@ AdapterDep = Annotated[SupplierAdapter, Depends(get_supplier_adapter)]
 
 
 class SupplierSummary(BaseModel):
+    """Represents supplier summary."""
+
     name: str
     display_name: str
     configured: bool
@@ -56,6 +59,8 @@ class SupplierSummary(BaseModel):
 
 
 class SyncRequest(BaseModel):
+    """Represents sync request."""
+
     categories: list[str] | None = Field(
         default=None,
         description="Categories to sync (defaults to the supplier's configured list)",
@@ -63,6 +68,8 @@ class SyncRequest(BaseModel):
 
 
 class InventoryRefreshRequest(BaseModel):
+    """Represents inventory refresh request."""
+
     skus: list[str] | None = Field(
         default=None,
         description="Specific SKUs to refresh (defaults to all stale products)",
@@ -70,6 +77,8 @@ class InventoryRefreshRequest(BaseModel):
 
 
 class SyncResponse(BaseModel):
+    """Represents sync response."""
+
     job_id: str
     supplier_name: str
     status: str
@@ -78,6 +87,8 @@ class SyncResponse(BaseModel):
 
 
 class HealthResponse(BaseModel):
+    """Represents health response."""
+
     supplier_name: str
     status: str
     api_responsive: bool

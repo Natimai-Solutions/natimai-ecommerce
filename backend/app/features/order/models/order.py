@@ -8,6 +8,8 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class OrderBase(Base):
+    """Represents order base."""
+
     user_id: uuid.UUID = Field(
         foreign_key="users.id",
         index=True,
@@ -74,10 +76,14 @@ class OrderBase(Base):
 
 
 class OrderCreate(OrderBase, BaseCreate):
+    """Represents order create."""
+
     pass
 
 
 class OrderUpdate(BaseUpdate):
+    """Represents order update."""
+
     user_id: uuid.UUID | None = None
     order_status_id: uuid.UUID | None = None
     total_amount: Decimal | None = None
@@ -91,6 +97,8 @@ class OrderUpdate(BaseUpdate):
 
 
 class Order(OrderBase, table=True):
+    """Represents order."""
+
     __tablename__ = "orders"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -101,10 +109,14 @@ class Order(OrderBase, table=True):
 
 
 class OrderPublic(OrderBase, BasePublic):
+    """Represents order public."""
+
     id: uuid.UUID
 
 
 class OrdersPublic(SQLModel):
+    """Represents orders public."""
+
     data: list[OrderPublic] = Field(
         default_factory=list,
         description="Liste des commandes",

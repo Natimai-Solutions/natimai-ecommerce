@@ -15,6 +15,7 @@ _CURRENCY_RE = re.compile(r"^[A-Z]{3}$")
 
 
 def _to_decimal(value: Any, field_name: str) -> Decimal:
+    """Execute to decimal."""
     if isinstance(value, bool):
         raise ValueError(f"{field_name} must not be a boolean")
 
@@ -34,6 +35,7 @@ def normalize_supplier_price(
     *,
     default: Decimal = Decimal("0.00"),
 ) -> Decimal:
+    """Execute normalize supplier price."""
     if value is None or value == "":
         return default
 
@@ -48,6 +50,7 @@ def normalize_supplier_quantity(
     *,
     default: Decimal = Decimal("0.00"),
 ) -> Decimal:
+    """Execute normalize supplier quantity."""
     if value is None or value == "":
         return default
 
@@ -58,6 +61,7 @@ def normalize_supplier_quantity(
 
 
 def normalize_supplier_currency(value: Any, *, default: str = DEFAULT_CURRENCY) -> str:
+    """Execute normalize supplier currency."""
     if not isinstance(value, str):
         return default
 
@@ -73,6 +77,8 @@ def normalize_supplier_currency(value: Any, *, default: str = DEFAULT_CURRENCY) 
 
 @dataclass(frozen=True)
 class NormalizedSupplierSnapshot:
+    """Represents normalized supplier snapshot."""
+
     supplier_price: Decimal
     base_price: Decimal
     supplier_quantity: Decimal
@@ -85,6 +91,7 @@ def normalize_supplier_snapshot(
     raw_quantity: Any,
     raw_currency: Any,
 ) -> NormalizedSupplierSnapshot:
+    """Execute normalize supplier snapshot."""
     supplier_price = normalize_supplier_price(raw_price)
     supplier_quantity = normalize_supplier_quantity(raw_quantity)
     supplier_currency = normalize_supplier_currency(raw_currency)

@@ -73,6 +73,8 @@ logger = logging.getLogger(__name__)
 
 
 class FulfillmentSegment(str, Enum):
+    """Represents fulfillment segment."""
+
     LOCAL = "local"
     SUPPLIER_DIRECT = "supplier_direct"
     CONSOLIDATION_PF = "consolidation_pf"
@@ -80,6 +82,8 @@ class FulfillmentSegment(str, Enum):
 
 @dataclass(frozen=True)
 class FulfillmentAllocation:
+    """Represents fulfillment allocation."""
+
     segment: FulfillmentSegment
     quantity: Decimal
 
@@ -103,6 +107,7 @@ _PF_ADDRESS_MARKERS = (
 
 
 def _is_polynesia_shipping_address(shipping_address: str | None) -> bool:
+    """Check whether polynesia shipping address."""
     if not shipping_address:
         return True
 
@@ -111,6 +116,7 @@ def _is_polynesia_shipping_address(shipping_address: str | None) -> bool:
 
 
 def _select_supplier_segment(shipping_address: str | None) -> FulfillmentSegment:
+    """Execute select supplier segment."""
     if _is_polynesia_shipping_address(shipping_address):
         return FulfillmentSegment.CONSOLIDATION_PF
     return FulfillmentSegment.SUPPLIER_DIRECT
@@ -124,6 +130,7 @@ def _plan_checkout_fulfillment_segments(
     supplier_available: Decimal,
     shipping_address: str | None,
 ) -> list[FulfillmentAllocation]:
+    """Execute plan checkout fulfillment segments."""
     requested_quantity = Decimal(quantity)
     total_available = local_available + supplier_available
 
@@ -164,10 +171,12 @@ def _plan_checkout_fulfillment_segments(
 def _format_fulfillment_segments_note(
     segments: list[FulfillmentAllocation],
 ) -> str | None:
+    """Execute format fulfillment segments note."""
     if not segments:
         return None
 
     def _format_quantity(quantity: Decimal) -> str:
+        """Execute format quantity."""
         if quantity == quantity.to_integral_value():
             return str(int(quantity))
         return format(quantity.normalize(), "f")
@@ -186,6 +195,7 @@ def _route_total_cost(
     declared_value: Decimal,
     currency: str,
 ) -> Decimal:
+    """Execute route total cost."""
     summary = calculate_shipping_for_routes(
         routes=[route],
         total_weight_kg=total_weight_kg,
@@ -203,6 +213,7 @@ def _route_preference_sort_key(
     declared_value: Decimal,
     currency: str,
 ) -> tuple[float, float, float]:
+    """Execute route preference sort key."""
     route_priority = float(route.priority if route.priority is not None else 999)
     eta_days = float(route.eta_days if route.eta_days is not None else 9999)
     carbon = (
@@ -234,6 +245,7 @@ async def _resolve_selected_checkout_routes(
     *,
     shipping_route_ids: list[uuid.UUID],
 ) -> list[ShippingRoute]:
+    """Execute resolve selected checkout routes."""
     if not shipping_route_ids:
         return []
 
@@ -276,10 +288,12 @@ async def _select_checkout_routes_by_preference(
     declared_value: Decimal,
     currency: str,
 ) -> list[ShippingRoute]:
+    """Execute select checkout routes by preference."""
     if preference is None:
         return []
 
     def sort_key(route: ShippingRoute) -> tuple[float, float, float]:
+        """Execute sort key."""
         return _route_preference_sort_key(
             route,
             preference,
@@ -310,6 +324,7 @@ def _compute_checkout_declared_value_and_weight(
     items: list[CartItem],
     products_by_id: dict[uuid.UUID, Product],
 ) -> tuple[Decimal, Decimal]:
+    """Compute checkout declared value and weight."""
     declared_value = Decimal("0")
     total_weight_kg = Decimal("0")
 
@@ -333,6 +348,7 @@ async def _resolve_tracking_address_for_checkout(
     current_user: User,
     shipping_address: str | None,
 ) -> Address:
+    """Execute resolve tracking address for checkout."""
     existing_shipping_addresses = await crud_address.get_by_user_and_type(
         session=session,
         user_id=current_user.id,
@@ -392,6 +408,7 @@ async def _get_or_create_tracking_status(
     code: str,
     name: str,
 ) -> StatusDefinition:
+    """Get or create tracking status."""
     status_record = await crud_status_definition.get_by_code(
         session=session,
         entity=entity,
@@ -422,6 +439,7 @@ async def _resolve_tracking_route_for_segment(
     *,
     segment: FulfillmentSegment,
 ) -> ShippingRoute | None:
+    """Execute resolve tracking route for segment."""
     if segment == FulfillmentSegment.CONSOLIDATION_PF:
         intermediary_routes = await crud_shipping_route.get_intermediary_routes(
             session=session,
@@ -466,6 +484,7 @@ async def _link_fulfillment_segments_to_tracking(
     shipping_address: str | None,
     segment_totals: dict[FulfillmentSegment, Decimal],
 ) -> None:
+    """Execute link fulfillment segments to tracking."""
     if not segment_totals:
         return
 
@@ -558,6 +577,7 @@ async def _link_selected_routes_to_tracking(
     shipping_address: str | None,
     selected_routes: list[ShippingRoute],
 ) -> None:
+    """Execute link selected routes to tracking."""
     if not selected_routes:
         return
 
@@ -601,6 +621,7 @@ def _snapshot_checkout_amounts(
     shipping_fee_amount: Decimal,
     payment_fee_amount: Decimal,
 ) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal]:
+    """Execute snapshot checkout amounts."""
     subtotal_amount = sum(
         (item.unit_price * item.quantity for item in items),
         Decimal("0.00"),
@@ -622,6 +643,7 @@ def _snapshot_checkout_amounts(
 
 
 async def _get_or_create_order_pending_status(session: SessionDep) -> OrderStatus:
+    """Get or create order pending status."""
     status_record = await crud_order_status.get_by_name(
         session,
         name=_PENDING_ORDER_STATUS,
@@ -639,6 +661,7 @@ async def _get_or_create_order_pending_status(session: SessionDep) -> OrderStatu
 async def _get_or_create_payment_pending_status(
     session: SessionDep,
 ) -> PaymentStatus:
+    """Get or create payment pending status."""
     status_record = await crud_payment_status.get_by_name(
         session,
         name=_PENDING_PAYMENT_STATUS,
@@ -665,6 +688,7 @@ async def _reserve_stock_for_checkout(
     current_user: User,
     shipping_address: str | None = None,
 ) -> list[FulfillmentAllocation]:
+    """Execute reserve stock for checkout."""
     quantity_decimal = Decimal(quantity)
     inventory = await crud_inventory.get_by_product_and_place(
         session=session,
@@ -749,6 +773,7 @@ router = APIRouter(prefix="/cart", tags=["cart"])
 
 
 def _build_cart_detail(cart: Cart, items: list[CartItem]) -> CartDetailPublic:
+    """Build cart detail."""
     item_details = [
         CartItemDetail(
             id=item.id,
@@ -775,6 +800,7 @@ async def _get_active_product_or_404(
     *,
     product_id: uuid.UUID,
 ) -> Product:
+    """Get active product or 404."""
     product = await session.get(Product, product_id)
     if product is None or not product.is_active or not product.is_admin_active:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -786,6 +812,7 @@ async def get_my_cart(
     session: SessionDep,
     current_user: CurrentUser,
 ) -> CartDetailPublic:
+    """Get my cart."""
     cart = await crud_cart.get_or_create_active_cart(
         session=session,
         user_id=current_user.id,
@@ -804,6 +831,7 @@ async def add_cart_item(
     current_user: CurrentUser,
     payload: CartItemAddRequest,
 ) -> CartDetailPublic:
+    """Execute add cart item."""
     cart = await crud_cart.get_or_create_active_cart(
         session=session,
         user_id=current_user.id,
@@ -830,6 +858,7 @@ async def update_cart_item_quantity(
     item_id: uuid.UUID,
     payload: CartItemQuantityUpdateRequest,
 ) -> CartDetailPublic:
+    """Update cart item quantity."""
     item = await crud_cart_item.get_active_item_for_user(
         session=session,
         item_id=item_id,
@@ -859,6 +888,7 @@ async def remove_cart_item(
     current_user: CurrentUser,
     item_id: uuid.UUID,
 ) -> CartDetailPublic:
+    """Remove cart item."""
     item = await crud_cart_item.get_active_item_for_user(
         session=session,
         item_id=item_id,
@@ -883,6 +913,7 @@ async def clear_my_cart(
     session: SessionDep,
     current_user: CurrentUser,
 ) -> CartDetailPublic:
+    """Execute clear my cart."""
     cart = await crud_cart.get_or_create_active_cart(
         session=session,
         user_id=current_user.id,
@@ -905,6 +936,7 @@ async def checkout_my_cart(
     current_user: CurrentUser,
     payload: CheckoutRequest,
 ) -> CheckoutResponse:
+    """Execute checkout my cart."""
     checkout_started = perf_counter()
     cart = await crud_cart.get_active_cart_by_user(
         session=session,

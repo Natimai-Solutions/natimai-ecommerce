@@ -80,10 +80,14 @@ class DeliveryTask(DeliveryTaskBase, table=True):
 
 
 class DeliveryTaskCreate(DeliveryTaskBase, BaseCreate):
+    """Represents delivery task create."""
+
     pass
 
 
 class DeliveryTaskUpdate(BaseUpdate):
+    """Represents delivery task update."""
+
     delivery_type: str | None = None
     assignee: str | None = None
     status_code: str | None = None
@@ -92,10 +96,14 @@ class DeliveryTaskUpdate(BaseUpdate):
 
 
 class DeliveryTaskPublic(DeliveryTaskBase, BasePublic):
+    """Represents delivery task public."""
+
     id: uuid.UUID
 
 
 class DeliveryTasksPublic(SQLModel):
+    """Represents delivery tasks public."""
+
     data: list[DeliveryTaskPublic] = Field(
         default_factory=list,
         description="List of delivery tasks",

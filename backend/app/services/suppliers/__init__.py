@@ -35,6 +35,7 @@ def supplier_names() -> list[str]:
 
 
 def has_supplier(name: str) -> bool:
+    """Check whether supplier."""
     return name in SUPPLIERS
 
 

@@ -10,6 +10,8 @@ from app.features.user.models.user import User, UserCreate, UserUpdate
 
 
 class CrudUser(CrudBase[User, UserCreate, UserUpdate]):
+    """Represents crud user."""
+
     async def create(
         self,
         session: AsyncSession,

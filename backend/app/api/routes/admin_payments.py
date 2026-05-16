@@ -31,11 +31,13 @@ from app.features.payment.providers.manual import (
 )
 from app.features.payment.services.document_payment import (
     DOCUMENT_PROVIDER_CODES,
+    DocumentValidationOutcome,
     PaymentNotDocumentValidatedError,
     approve_document_payment,
     reject_document_payment,
 )
 from app.features.payment.services.manual_payment import (
+    ManualValidationOutcome,
     PaymentNotManualError,
     approve_manual_payment,
     reject_manual_payment,
@@ -47,6 +49,8 @@ router = APIRouter(prefix="/admin/payments", tags=["admin-payment"])
 
 
 class PaymentApproveRequest(BaseModel):
+    """Represents payment approve request."""
+
     reference: str | None = Field(
         default=None,
         description="External reference confirming receipt (bank ref, check number, etc.)",
@@ -58,6 +62,8 @@ class PaymentApproveRequest(BaseModel):
 
 
 class PaymentRejectRequest(BaseModel):
+    """Represents payment reject request."""
+
     reason: str = Field(
         ...,
         min_length=1,
@@ -67,6 +73,8 @@ class PaymentRejectRequest(BaseModel):
 
 
 class PaymentPendingValidationItem(BaseModel):
+    """Represents payment pending validation item."""
+
     payment_id: uuid.UUID
     provider_code: str
     provider_reference: str | None
@@ -77,12 +85,15 @@ class PaymentPendingValidationItem(BaseModel):
 
 
 class PaymentValidationResponse(BaseModel):
+    """Represents payment validation response."""
+
     payment_id: uuid.UUID
     payment_status_id: uuid.UUID | None
     validation: PaymentValidationPublic
 
 
 async def _get_payment_or_404(session: SessionDep, payment_id: uuid.UUID) -> Payment:
+    """Get payment or 404."""
     try:
         return await crud_payment.read(session, id=payment_id)
     except RecordNotFoundError as e:
@@ -94,6 +105,7 @@ async def list_pending_validation(
     session: SessionDep,
     _admin: CurrentSuperUser,
 ) -> list[PaymentPendingValidationItem]:
+    """List pending validation."""
     pending_status_names = [
         MANUAL_STATUS_AWAITING_VALIDATION,
         DOCUMENT_STATUS_DOCUMENT_UPLOADED,
@@ -145,6 +157,7 @@ async def list_payment_validations(
     session: SessionDep,
     _admin: CurrentSuperUser,
 ) -> list[PaymentValidation]:
+    """List payment validations."""
     await _get_payment_or_404(session, payment_id)
     return await crud_payment_validation.list_for_payment(
         session, payment_id=payment_id
@@ -158,7 +171,9 @@ async def approve_payment(
     session: SessionDep,
     admin: CurrentSuperUser,
 ) -> PaymentValidationResponse:
+    """Execute approve payment."""
     payment = await _get_payment_or_404(session, payment_id)
+    outcome: DocumentValidationOutcome | ManualValidationOutcome
 
     if payment.provider_code in DOCUMENT_PROVIDER_CODES:
         try:
@@ -204,7 +219,9 @@ async def reject_payment(
     session: SessionDep,
     admin: CurrentSuperUser,
 ) -> PaymentValidationResponse:
+    """Execute reject payment."""
     payment = await _get_payment_or_404(session, payment_id)
+    outcome: DocumentValidationOutcome | ManualValidationOutcome
 
     if payment.provider_code in DOCUMENT_PROVIDER_CODES:
         try:
@@ -243,6 +260,8 @@ async def reject_payment(
 
 
 class AttachmentDownloadResponse(BaseModel):
+    """Represents attachment download response."""
+
     download_url: str
     expires_in: int
 
@@ -256,6 +275,7 @@ async def list_payment_attachments(
     session: SessionDep,
     _admin: CurrentSuperUser,
 ) -> list[PaymentAttachmentPublic]:
+    """List payment attachments."""
     await _get_payment_or_404(session, payment_id)
     items = await crud_payment_attachment.list_for_payment(
         session, payment_id=payment_id
@@ -276,6 +296,7 @@ async def get_attachment_download_url(
     session: SessionDep,
     _admin: CurrentSuperUser,
 ) -> AttachmentDownloadResponse:
+    """Get attachment download url."""
     await _get_payment_or_404(session, payment_id)
 
     try:

@@ -7,6 +7,8 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class OrderLineBase(Base):
+    """Represents order line base."""
+
     order_id: uuid.UUID = Field(
         foreign_key="orders.id",
         index=True,
@@ -42,10 +44,14 @@ class OrderLineBase(Base):
 
 
 class OrderLineCreate(OrderLineBase, BaseCreate):
+    """Represents order line create."""
+
     pass
 
 
 class OrderLineUpdate(BaseUpdate):
+    """Represents order line update."""
+
     order_id: uuid.UUID | None = None
     product_id: uuid.UUID | None = None
     quantity: int | None = None
@@ -55,6 +61,8 @@ class OrderLineUpdate(BaseUpdate):
 
 
 class OrderLine(OrderLineBase, table=True):
+    """Represents order line."""
+
     __tablename__ = "order_lines"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -65,10 +73,14 @@ class OrderLine(OrderLineBase, table=True):
 
 
 class OrderLinePublic(OrderLineBase, BasePublic):
+    """Represents order line public."""
+
     id: uuid.UUID
 
 
 class OrderLinesPublic(SQLModel):
+    """Represents order lines public."""
+
     data: list[OrderLinePublic] = Field(
         default_factory=list,
         description="Liste des lignes de commande",

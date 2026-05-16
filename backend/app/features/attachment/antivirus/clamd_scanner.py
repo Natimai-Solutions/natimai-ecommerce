@@ -19,8 +19,9 @@ from app.features.attachment.antivirus.base import (
 
 
 def _build_client(host: str, port: int, timeout: int) -> Any:
+    """Build client."""
     try:
-        import clamd
+        import clamd  # type: ignore[import-untyped]
     except ImportError as e:
         raise AntivirusError(
             "clamd is required for the ClamAV scanner. "
@@ -31,6 +32,8 @@ def _build_client(host: str, port: int, timeout: int) -> Any:
 
 
 class ClamdScanner(AntivirusScanner):
+    """Represents clamd scanner."""
+
     def __init__(
         self,
         *,
@@ -39,15 +42,18 @@ class ClamdScanner(AntivirusScanner):
         timeout: int = 30,
         client: Any | None = None,
     ) -> None:
+        """Initialize the clamd scanner instance."""
         self.host = host
         self.port = port
         self.timeout = timeout
         self._client = client or _build_client(host, port, timeout)
 
     async def scan_bytes(self, data: bytes) -> ScanResult:
+        """Execute scan bytes."""
         loop = asyncio.get_running_loop()
 
         def _scan() -> dict[str, tuple[str, str | None]]:
+            """Execute scan."""
             return self._client.instream(io.BytesIO(data))
 
         try:

@@ -31,6 +31,7 @@ EVENT_DOCUMENT_INFECTED = "payment.document_infected"
 async def _get_or_create_order_status_id(
     session: AsyncSession, *, name: str
 ) -> uuid.UUID:
+    """Get or create order status id."""
     status = await crud_order_status.get_by_name(session, name=name)
     if status is not None:
         return status.id
@@ -50,6 +51,7 @@ async def _sync_order_status(
     payload: dict[str, Any],
     target_status_name: str,
 ) -> None:
+    """Synchronize order status."""
     raw_order_id = payload.get("order_id")
     if not raw_order_id:
         logger.debug(
@@ -87,6 +89,7 @@ async def _notify_payment_event(
     event_type: str,
     payload: dict[str, Any],
 ) -> None:
+    """Execute notify payment event."""
     try:
         await send_payment_event_notifications(event_type=event_type, payload=payload)
     except Exception as exc:
@@ -101,6 +104,7 @@ async def _notify_payment_event(
 async def on_payment_awaiting_validation(
     session: AsyncSession, payload: dict[str, Any]
 ) -> None:
+    """Handle the payment awaiting validation event."""
     logger.info(
         "Payment awaiting manual validation: payment_id=%s order_id=%s provider=%s",
         payload.get("payment_id"),
@@ -116,6 +120,7 @@ async def on_payment_awaiting_validation(
 
 @outbox_handler("payment.captured")
 async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) -> None:
+    """Handle the payment captured event."""
     logger.info(
         "Payment captured: payment_id=%s order_id=%s",
         payload.get("payment_id"),
@@ -128,6 +133,7 @@ async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) ->
 
 @outbox_handler("payment.rejected")
 async def on_payment_rejected(session: AsyncSession, payload: dict[str, Any]) -> None:
+    """Handle the payment rejected event."""
     logger.info(
         "Payment rejected: payment_id=%s order_id=%s reason=%s",
         payload.get("payment_id"),
@@ -143,6 +149,7 @@ async def on_payment_rejected(session: AsyncSession, payload: dict[str, Any]) ->
 async def on_payment_document_required(
     session: AsyncSession, payload: dict[str, Any]
 ) -> None:
+    """Handle the payment document required event."""
     logger.info(
         "Payment requires document upload: payment_id=%s order_id=%s",
         payload.get("payment_id"),
@@ -230,6 +237,7 @@ async def on_payment_document_uploaded(
 async def on_payment_document_infected(
     session: AsyncSession, payload: dict[str, Any]
 ) -> None:
+    """Handle the payment document infected event."""
     logger.error(
         "Document flagged as infected: payment_id=%s attachment_id=%s signature=%s",
         payload.get("payment_id"),
@@ -247,6 +255,7 @@ async def on_payment_document_infected(
 async def on_payment_webhook_received(
     _session: AsyncSession, payload: dict[str, Any]
 ) -> None:
+    """Handle the payment webhook received event."""
     logger.info(
         "Payment webhook received: payment_id=%s provider=%s",
         payload.get("payment_id"),
@@ -259,6 +268,7 @@ async def on_payment_webhook_received(
 async def on_payment_awaiting_validation_notify(
     _session: AsyncSession, payload: dict[str, Any]
 ) -> None:
+    """Handle the payment awaiting validation notify event."""
     await _notify_payment_event(event_type=EVENT_AWAITING_VALIDATION, payload=payload)
 
 
@@ -266,6 +276,7 @@ async def on_payment_awaiting_validation_notify(
 async def on_payment_document_required_notify(
     _session: AsyncSession, payload: dict[str, Any]
 ) -> None:
+    """Handle the payment document required notify event."""
     await _notify_payment_event(event_type=EVENT_DOCUMENT_REQUIRED, payload=payload)
 
 
@@ -273,6 +284,7 @@ async def on_payment_document_required_notify(
 async def on_payment_captured_notify(
     _session: AsyncSession, payload: dict[str, Any]
 ) -> None:
+    """Handle the payment captured notify event."""
     await _notify_payment_event(event_type=EVENT_CAPTURED, payload=payload)
 
 
@@ -280,6 +292,7 @@ async def on_payment_captured_notify(
 async def on_payment_rejected_notify(
     _session: AsyncSession, payload: dict[str, Any]
 ) -> None:
+    """Handle the payment rejected notify event."""
     await _notify_payment_event(event_type=EVENT_REJECTED, payload=payload)
 
 
@@ -287,4 +300,5 @@ async def on_payment_rejected_notify(
 async def on_payment_document_infected_notify(
     _session: AsyncSession, payload: dict[str, Any]
 ) -> None:
+    """Handle the payment document infected notify event."""
     await _notify_payment_event(event_type=EVENT_DOCUMENT_INFECTED, payload=payload)

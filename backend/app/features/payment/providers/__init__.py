@@ -29,6 +29,7 @@ SUPPORTED_PROVIDERS: dict[str, type[PaymentProvider]] = {
 
 
 def get_provider(provider_code: str) -> PaymentProvider:
+    """Get provider."""
     normalized_code = provider_code.strip().lower()
     provider_class = SUPPORTED_PROVIDERS.get(normalized_code)
     if provider_class is None:

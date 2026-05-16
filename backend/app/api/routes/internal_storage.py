@@ -26,6 +26,7 @@ router = APIRouter(prefix="/internal/storage", tags=["internal-storage"])
 
 
 def _storage() -> LocalFileStorage:
+    """Execute storage."""
     if settings.FILE_STORAGE_BACKEND.lower() != "local":
         raise HTTPException(
             404,
@@ -36,6 +37,7 @@ def _storage() -> LocalFileStorage:
 
 @router.put("/{token}")
 async def upload_via_token(token: str, request: Request) -> Response:
+    """Execute upload via token."""
     try:
         body = decode_token(token)
     except LocalStorageTokenError as e:
@@ -71,6 +73,7 @@ async def upload_via_token(token: str, request: Request) -> Response:
 
 @router.get("/{token}")
 async def download_via_token(token: str) -> Response:
+    """Execute download via token."""
     try:
         body = decode_token(token)
     except LocalStorageTokenError as e:

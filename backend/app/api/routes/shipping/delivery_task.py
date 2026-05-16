@@ -23,10 +23,14 @@ class DeliveryTaskRouter(
         Any,
     ]
 ):
+    """Represents delivery task router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = True
     create = True
     update = True

@@ -20,7 +20,10 @@ from app.tasks.supplier_tasks import (
 
 # Custom logging filter to suppress "already running elsewhere" messages
 class SuppressAlreadyRunningFilter(logging.Filter):
+    """Represents suppress already running filter."""
+
     def filter(self, record: logging.LogRecord) -> bool:
+        """Execute filter."""
         return "already running elsewhere" not in record.getMessage()
 
 
@@ -49,10 +52,13 @@ async def get_redis_pool() -> Any:
 # Tes handlers ARQ existants
 async def example_handler(_ctx: dict[str, Any], **_kwargs: Any) -> None:
     # ... logique du handler
+    """Execute example handler."""
     pass
 
 
 class WorkerSettings:
+    """Represents worker settings."""
+
     functions = [
         execute_outbox_handler,  # Fonction générique pour les handlers outbox
         example_handler,

@@ -22,10 +22,14 @@ class OrderRouter(
         OrderCrud,
     ]
 ):
+    """Represents order router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = True  # Authentification requise pour lire les commandes
     create = True  # Authentification requise pour créer
     update = True  # Authentification requise pour modifier
@@ -53,9 +57,7 @@ async def get_user_orders(
     skip: int = 0,
     limit: int = 100,
 ) -> list[OrderPublic]:
-    """
-    Récupérer les commandes d'un utilisateur.
-    """
+    """Get user orders."""
     # Vérifier que l'utilisateur accède à ses propres commandes ou est admin
     if current_user.id != user_id and not current_user.is_superuser:
         from fastapi import HTTPException, status
@@ -79,9 +81,7 @@ async def get_orders_by_status(
     skip: int = 0,
     limit: int = 100,
 ) -> list[OrderPublic]:
-    """
-    Récupérer les commandes par statut (admin uniquement).
-    """
+    """Get orders by status."""
     if not current_user.is_superuser:
         from fastapi import HTTPException, status
 

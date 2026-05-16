@@ -68,6 +68,7 @@ class OutboxPollerService:
     """
 
     def __init__(self) -> None:
+        """Initialize the outbox poller service instance."""
         self.running = False
         self.poller = OutboxPoller()
 
@@ -75,6 +76,7 @@ class OutboxPollerService:
         """Setup signal handlers for graceful shutdown."""
 
         def signal_handler(signum: int, _frame: object) -> None:
+            """Execute signal handler."""
             logger.debug("Received signal %d, shutting down gracefully...", signum)
             self.running = False
 

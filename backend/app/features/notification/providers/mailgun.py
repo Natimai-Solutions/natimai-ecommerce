@@ -13,9 +13,12 @@ from app.features.notification.providers.base import (
 
 
 class MailgunNotificationProvider(NotificationProvider):
+    """Represents mailgun notification provider."""
+
     code = "mailgun"
 
     def _build_from(self) -> str | None:
+        """Build from."""
         from_email = settings.MAILGUN_FROM_EMAIL or settings.EMAILS_FROM_EMAIL
         if not from_email:
             return None
@@ -28,6 +31,7 @@ class MailgunNotificationProvider(NotificationProvider):
         return f"{from_name} <{from_email}>"
 
     def _configuration_error(self) -> str | None:
+        """Execute configuration error."""
         if not settings.MAILGUN_API_KEY:
             return "MAILGUN_API_KEY is not configured"
         if not settings.MAILGUN_DOMAIN:
@@ -37,6 +41,7 @@ class MailgunNotificationProvider(NotificationProvider):
         return None
 
     async def send(self, message: NotificationMessage) -> NotificationResult:
+        """Execute send."""
         error = self._configuration_error()
         if error is not None:
             return NotificationResult(
@@ -70,7 +75,9 @@ class MailgunNotificationProvider(NotificationProvider):
             data["o:tag"] = event_type.strip()
 
         try:
-            async with httpx.AsyncClient(timeout=settings.MAILGUN_TIMEOUT_SECONDS) as client:
+            async with httpx.AsyncClient(
+                timeout=settings.MAILGUN_TIMEOUT_SECONDS
+            ) as client:
                 response = await client.post(
                     url,
                     auth=("api", settings.MAILGUN_API_KEY or ""),

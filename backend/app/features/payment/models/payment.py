@@ -11,6 +11,8 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class PaymentBase(Base):
+    """Represents payment base."""
+
     amount: Decimal = Field(
         ...,
         gt=0,
@@ -30,6 +32,8 @@ class PaymentBase(Base):
 
 
 class PaymentCreate(PaymentBase, BaseCreate):
+    """Represents payment create."""
+
     order_id: uuid.UUID | None = Field(
         default=None, description="ID of the order associated with this payment"
     )
@@ -37,6 +41,8 @@ class PaymentCreate(PaymentBase, BaseCreate):
 
 
 class PaymentUpdate(PaymentBase, BaseUpdate):
+    """Represents payment update."""
+
     amount: Decimal | None = None
     currency: str | None = None
     provider_code: str | None = None
@@ -47,6 +53,8 @@ class PaymentUpdate(PaymentBase, BaseUpdate):
 
 
 class Payment(PaymentBase, table=True):
+    """Represents payment."""
+
     __tablename__ = "payments"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -95,6 +103,8 @@ class Payment(PaymentBase, table=True):
 
 
 class PaymentPublic(PaymentBase, BasePublic):
+    """Represents payment public."""
+
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
         primary_key=True,
@@ -118,6 +128,8 @@ class PaymentPublic(PaymentBase, BasePublic):
 
 
 class PaymentsPublic(SQLModel):
+    """Represents payments public."""
+
     data: list[PaymentPublic] = Field(
         default_factory=list, description="List of payments"
     )

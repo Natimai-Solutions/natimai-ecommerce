@@ -22,10 +22,14 @@ class ProductRouter(
         ProductCrud,
     ]
 ):
+    """Represents product router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read: bool = False
     create: bool = True
     update: bool = True

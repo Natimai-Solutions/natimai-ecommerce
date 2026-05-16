@@ -13,9 +13,12 @@ MANUAL_STATUS_FAILED = "Failed"
 
 
 class _ManualProviderBase(ManualPaymentProvider):
+    """Represents manual provider base."""
+
     instructions: str = ""
 
     async def register_intent(self, request: InitiationRequest) -> InitiationResult:
+        """Execute register intent."""
         return InitiationResult(
             provider_code=self.code,
             provider_reference=request.order_id,
@@ -29,6 +32,7 @@ class _ManualProviderBase(ManualPaymentProvider):
         admin_user_id: str,
         reference: str | None = None,
     ) -> ValidationResult:
+        """Execute confirm received."""
         metadata: dict[str, object] = {"admin_user_id": admin_user_id}
         if reference is not None:
             metadata["reference"] = reference
@@ -47,6 +51,7 @@ class _ManualProviderBase(ManualPaymentProvider):
         admin_user_id: str,
         reason: str,
     ) -> ValidationResult:
+        """Execute reject."""
         return ValidationResult(
             provider_code=self.code,
             payment_status=MANUAL_STATUS_FAILED,
@@ -59,6 +64,8 @@ class _ManualProviderBase(ManualPaymentProvider):
 
 
 class ManualCheckProvider(_ManualProviderBase):
+    """Represents manual check provider."""
+
     code = "manual_check"
     instructions = (
         "Veuillez libeller votre chèque à l'ordre du marchand et l'envoyer "
@@ -68,6 +75,8 @@ class ManualCheckProvider(_ManualProviderBase):
 
 
 class ManualTransferProvider(_ManualProviderBase):
+    """Represents manual transfer provider."""
+
     code = "manual_transfer"
     instructions = (
         "Veuillez effectuer un virement bancaire vers le compte indiqué en "

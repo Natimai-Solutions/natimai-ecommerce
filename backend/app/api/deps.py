@@ -24,6 +24,7 @@ optional_reusable_oauth2 = OAuth2PasswordBearer(
 
 
 async def get_redis_cache() -> AsyncGenerator[Redis, None]:
+    """Get redis cache."""
     async with RedisCache() as cache:
         yield cache
 
@@ -34,6 +35,7 @@ RedisDep = Annotated[Redis, Depends(get_redis_cache)]
 
 
 async def get_current_user(session: SessionDep, token: TokenDep) -> User:
+    """Get current user."""
     try:
         payload = security.decode_token(token)
         token_data = TokenPayload(**payload)
@@ -59,6 +61,7 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
 async def get_current_verified_user(current_user: CurrentUser) -> User:
+    """Get current verified user."""
     if not current_user.is_verified:
         raise HTTPException(status_code=400, detail="Unverified user")
     return current_user
@@ -70,6 +73,7 @@ CurrentVerifiedUser = Annotated[User, Depends(get_current_verified_user)]
 async def get_current_user_optional(
     session: SessionDep, token: str | None = Depends(optional_reusable_oauth2)
 ) -> CurrentUser | None:
+    """Get current user optional."""
     if token is None:
         return None
     try:
@@ -82,6 +86,7 @@ CurrentUserOptional = Annotated[User | None, Depends(get_current_user_optional)]
 
 
 async def get_current_active_superuser(current_user: CurrentUser) -> User:
+    """Get current active superuser."""
     if not current_user.is_superuser:
         raise HTTPException(
             status_code=403, detail="The user doesn't have enough privileges"

@@ -19,6 +19,8 @@ from app.features.shipping.models.delivery_task import (
 
 
 class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUpdate]):
+    """Represents delivery task crud."""
+
     async def get_tasks_for_order(
         self,
         session: AsyncSession,
@@ -71,7 +73,7 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         delivery_type: str,
         status_code: str | None = None,
     ) -> list[DeliveryTask]:
-        """Récupère les tâches par type de livraison"""
+        """Get tasks by delivery type."""
 
         conditions = [
             DeliveryTask.delivery_type == delivery_type,
@@ -96,7 +98,7 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         address_place_id: uuid.UUID,
         status_code: str | None = None,
     ) -> list[DeliveryTask]:
-        """Récupère les tâches pour un lieu donné"""
+        """Get tasks by place."""
 
         conditions = [
             DeliveryTask.address_place_id == address_place_id,
@@ -122,7 +124,7 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         end_datetime: datetime,
         assignee: str | None = None,
     ) -> list[DeliveryTask]:
-        """Récupère les tâches dans une fenêtre temporelle"""
+        """Get tasks by window."""
 
         conditions = [
             DeliveryTask.window_start >= start_datetime,
@@ -147,7 +149,7 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         session: AsyncSession,
         assignee: str | None = None,
     ) -> list[DeliveryTask]:
-        """Récupère les tâches en attente"""
+        """Get pending tasks."""
 
         conditions = [
             col(DeliveryTask.status_code).in_(
@@ -203,7 +205,7 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         signature_name: str | None = None,
         photo_url: str | None = None,
     ) -> DeliveryTask | None:
-        """Marque une livraison comme terminée"""
+        """Execute complete delivery."""
 
         task = await self.read(session, id=task_id)
         if not task:

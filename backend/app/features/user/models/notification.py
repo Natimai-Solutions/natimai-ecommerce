@@ -38,6 +38,8 @@ def validate_priority(v: int) -> int:
 
 
 class NotificationBase(Base):
+    """Represents notification base."""
+
     title: str = Field(description="Title of the notification", max_length=255)
     content: str = Field(description="Content of the notification", max_length=1000)
     type: str = Field(description="Type of notification")
@@ -83,10 +85,14 @@ class NotificationBase(Base):
 
 
 class NotificationCreate(NotificationBase, BaseCreate):
+    """Represents notification create."""
+
     pass
 
 
 class NotificationUpdate(NotificationBase, BaseUpdate):
+    """Represents notification update."""
+
     title: str | None = None
     content: str | None = None
     type: str | None = None
@@ -99,15 +105,21 @@ class NotificationUpdate(NotificationBase, BaseUpdate):
 
 
 class Notification(NotificationBase, table=True):
+    """Represents notification."""
+
     __tablename__ = "notifications"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
 
 
 class NotificationPublic(NotificationBase, BasePublic):
+    """Represents notification public."""
+
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
 
 
 class NotificationsPublic(SQLModel):
+    """Represents notifications public."""
+
     data: list[NotificationPublic] = Field(
         default_factory=list, description="List of notifications"
     )
@@ -116,6 +128,8 @@ class NotificationsPublic(SQLModel):
 
 # User Notification Link models for many-to-many relationship
 class UserNotificationBase(Base):
+    """Represents user notification base."""
+
     is_read: bool = Field(
         default=False,
         index=True,
@@ -130,16 +144,22 @@ class UserNotificationBase(Base):
 
 
 class UserNotificationCreate(UserNotificationBase, BaseCreate):
+    """Represents user notification create."""
+
     notification_id: uuid.UUID = Field(description="ID of the notification")
     user_id: uuid.UUID = Field(description="ID of the user")
 
 
 class UserNotificationUpdate(UserNotificationBase, BaseUpdate):
+    """Represents user notification update."""
+
     is_read: bool | None = None
     read_at: datetime | None = None
 
 
 class UserNotification(UserNotificationBase, Base, table=True):
+    """Represents user notification."""
+
     __tablename__ = "user_notifications"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     notification_id: uuid.UUID = Field(
@@ -154,12 +174,16 @@ class UserNotification(UserNotificationBase, Base, table=True):
 
 
 class UserNotificationPublic(UserNotificationBase, BasePublic):
+    """Represents user notification public."""
+
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     notification_id: uuid.UUID = Field(description="ID of the notification")
     user_id: uuid.UUID = Field(description="ID of the user")
 
 
 class UserNotificationsPublic(SQLModel):
+    """Represents user notifications public."""
+
     data: list[UserNotificationPublic] = Field(
         default_factory=list, description="List of user notifications"
     )

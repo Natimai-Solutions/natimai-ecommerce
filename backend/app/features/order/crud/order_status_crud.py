@@ -10,8 +10,10 @@ from app.features.order.models.order_status import (
 
 
 class OrderStatusCrud(CrudBase[OrderStatus, OrderStatusCreate, OrderStatusUpdate]):
+    """Represents order status crud."""
+
     async def get_by_name(self, session: AsyncSession, name: str) -> OrderStatus | None:
-        """Récupère un statut par son nom"""
+        """Get by name."""
         statement = select(OrderStatus).where(
             OrderStatus.name == name,
             col(OrderStatus.is_active).is_(True),

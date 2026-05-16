@@ -20,6 +20,7 @@ wait_seconds = 1
     after=after_log(logger, logging.WARN),
 )
 def init(db_engine: Any) -> None:
+    """Initialize application resources."""
     try:
         # Try to create session to check if DB is awake
         with Session(db_engine) as session:
@@ -30,6 +31,7 @@ def init(db_engine: Any) -> None:
 
 
 def main() -> None:
+    """Run the main entry point."""
     logger.debug("Initializing service")
     init(engine)
     logger.debug("Service finished initializing")

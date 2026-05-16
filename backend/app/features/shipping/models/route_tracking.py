@@ -118,6 +118,7 @@ class ShippingRouteTracking(ShippingRouteTrackingBase, table=True):
 
     @property
     def is_terminal(self) -> bool:
+        """Check whether terminal."""
         if self.consolidation and self.consolidation.status:
             consolidation_is_terminal = self.consolidation.status.is_terminal
             if consolidation_is_terminal is not None:
@@ -128,10 +129,14 @@ class ShippingRouteTracking(ShippingRouteTrackingBase, table=True):
 
 
 class ShippingRouteTrackingCreate(ShippingRouteTrackingBase, BaseCreate):
+    """Represents shipping route tracking create."""
+
     pass
 
 
 class ShippingRouteTrackingUpdate(BaseUpdate):
+    """Represents shipping route tracking update."""
+
     status_id: uuid.UUID | None = None
     consolidation_id: uuid.UUID | None = None
     sequence_order: int | None = None
@@ -142,6 +147,8 @@ class ShippingRouteTrackingUpdate(BaseUpdate):
 
 
 class ShippingRouteTrackingPublic(ShippingRouteTrackingBase, BasePublic):
+    """Represents shipping route tracking public."""
+
     id: uuid.UUID
 
 
@@ -216,10 +223,14 @@ class ShippingRouteTrackingConsolidation(
 class ShippingRouteTrackingConsolidationCreate(
     ShippingRouteTrackingConsolidationBase, BaseCreate
 ):
+    """Represents shipping route tracking consolidation create."""
+
     pass
 
 
 class ShippingRouteTrackingConsolidationUpdate(BaseUpdate):
+    """Represents shipping route tracking consolidation update."""
+
     name: str | None = None
     status_id: uuid.UUID | None = None
     tracking_ref: str | None = None
@@ -230,11 +241,15 @@ class ShippingRouteTrackingConsolidationUpdate(BaseUpdate):
 class ShippingRouteTrackingConsolidationPublic(
     ShippingRouteTrackingConsolidationBase, BasePublic
 ):
+    """Represents shipping route tracking consolidation public."""
+
     id: uuid.UUID
 
 
 # Collections
 class ShippingRouteTrackingsPublic(SQLModel):
+    """Represents shipping route trackings public."""
+
     data: list[ShippingRouteTrackingPublic] = Field(
         default_factory=list,
         description="List of shipping route trackings",
@@ -246,6 +261,8 @@ class ShippingRouteTrackingsPublic(SQLModel):
 
 
 class ShippingRouteTrackingConsolidationsPublic(SQLModel):
+    """Represents shipping route tracking consolidations public."""
+
     data: list[ShippingRouteTrackingConsolidationPublic] = Field(
         default_factory=list,
         description="List of shipping route tracking consolidations",
@@ -348,19 +365,27 @@ class ShippingRouteTrackingLogs(ShippingRouteTrackingLogsBase, table=True):
 
 
 class ShippingRouteTrackingLogsCreate(ShippingRouteTrackingLogsBase, BaseCreate):
+    """Represents shipping route tracking logs create."""
+
     pass
 
 
 class ShippingRouteTrackingLogsUpdate(BaseUpdate):
+    """Represents shipping route tracking logs update."""
+
     reason: str | None = None
     changed_by: str | None = None
 
 
 class ShippingRouteTrackingLogsPublic(ShippingRouteTrackingLogsBase, BasePublic):
+    """Represents shipping route tracking logs public."""
+
     id: uuid.UUID
 
 
 class ShippingRouteTrackingLogsListPublic(SQLModel):
+    """Represents shipping route tracking logs list public."""
+
     data: list[ShippingRouteTrackingLogsPublic] = Field(
         default_factory=list,
         description="List of status change logs",

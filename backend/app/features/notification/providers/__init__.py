@@ -19,6 +19,7 @@ SUPPORTED_NOTIFICATION_PROVIDERS: dict[str, type[NotificationProvider]] = {
 
 
 def get_notification_provider(provider_code: str) -> NotificationProvider:
+    """Get notification provider."""
     normalized_code = provider_code.strip().lower()
     provider_class = SUPPORTED_NOTIFICATION_PROVIDERS.get(normalized_code)
     if provider_class is None:

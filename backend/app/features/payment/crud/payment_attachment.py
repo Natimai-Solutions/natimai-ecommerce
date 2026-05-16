@@ -14,12 +14,15 @@ from app.features.payment.models.payment_attachment import (
 class PaymentAttachmentCrud(
     CrudBase[PaymentAttachment, PaymentAttachmentCreate, PaymentAttachmentUpdate]
 ):
+    """Represents payment attachment crud."""
+
     async def list_for_payment(
         self,
         session: AsyncSession,
         *,
         payment_id: uuid.UUID,
     ) -> list[PaymentAttachment]:
+        """List for payment."""
         statement = (
             select(self.model)
             .where(self.model.payment_id == payment_id)
@@ -34,6 +37,7 @@ class PaymentAttachmentCrud(
         *,
         file_key: str,
     ) -> PaymentAttachment | None:
+        """Get by file key."""
         statement = select(self.model).where(self.model.file_key == file_key)
         result = await session.exec(statement)
         return result.first()

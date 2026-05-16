@@ -16,6 +16,8 @@ from app.features.user.models.user import User
 class CrudUserRefreshToken(
     CrudBase[UserRefreshToken, UserRefreshTokenCreate, UserRefreshTokenUpdate]
 ):
+    """Represents crud user refresh token."""
+
     async def get_by_user_and_jti(
         self,
         session: AsyncSession,
@@ -23,6 +25,7 @@ class CrudUserRefreshToken(
         user_id: uuid.UUID,
         jti: str,
     ) -> UserRefreshToken | None:
+        """Get by user and jti."""
         statement = select(self.model).where(
             self.model.user_id == user_id,
             self.model.jti == jti,
@@ -41,6 +44,7 @@ class CrudUserRefreshToken(
         expires_at: datetime.datetime,
         user: User | None = None,
     ) -> UserRefreshToken:
+        """Create for user."""
         token_data = UserRefreshTokenCreate(
             user_id=user_id,
             jti=jti,
@@ -57,6 +61,7 @@ class CrudUserRefreshToken(
         new_expires_at: datetime.datetime,
         user: User | None = None,
     ) -> UserRefreshToken:
+        """Execute rotate token."""
         now = datetime.datetime.now(datetime.timezone.utc)
 
         revoke_data = UserRefreshTokenUpdate(
@@ -99,6 +104,7 @@ class CrudUserRefreshToken(
         replaced_by_jti: str | None = None,
         user: User | None = None,
     ) -> UserRefreshToken:
+        """Execute revoke token."""
         now = datetime.datetime.now(datetime.timezone.utc)
 
         update_data = UserRefreshTokenUpdate(
@@ -122,6 +128,7 @@ class CrudUserRefreshToken(
         user_id: uuid.UUID,
         reason: str,
     ) -> int:
+        """Execute revoke all active for user."""
         statement = select(self.model).where(
             self.model.user_id == user_id,
             col(self.model.revoked_at).is_(None),

@@ -16,6 +16,8 @@ from app.features.partner.models import (
 
 
 class PartnerCrud(CrudBase[Partner, PartnerCreate, PartnerUpdate]):
+    """Represents partner crud."""
+
     async def get_by_email(
         self,
         session: AsyncSession,
@@ -61,7 +63,7 @@ class PartnerCrud(CrudBase[Partner, PartnerCreate, PartnerUpdate]):
         session: AsyncSession,
         country_code: str,
     ) -> list[Partner]:
-        """Récupère les partenaires d'un pays"""
+        """Get by country."""
 
         statement = (
             select(Partner)
@@ -82,7 +84,7 @@ class PartnerCrud(CrudBase[Partner, PartnerCreate, PartnerUpdate]):
         session: AsyncSession,
         is_origin: bool = True,
     ) -> list[Partner]:
-        """Récupère les partenaires ayant des routes (comme origine ou destination)"""
+        """Get partners with routes."""
 
         from app.features.shipping.models.route import ShippingRoute
 

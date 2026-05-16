@@ -16,6 +16,8 @@ def validate_rating(v: int, field_name: str = "Rating") -> int:
 
 
 class ReviewBase(Base):
+    """Represents review base."""
+
     rating: int = Field(..., ge=1, le=5, description="Rating between 1 and 5")
     comment: str | None = Field(
         default=None, max_length=1000, description="Review comment"
@@ -24,15 +26,20 @@ class ReviewBase(Base):
     @field_validator("rating")
     @classmethod
     def validate_rating_field(cls, v: int) -> int:
+        """Validate rating field."""
         return validate_rating(v)
 
 
 class ReviewCreate(ReviewBase, BaseCreate):
+    """Represents review create."""
+
     product_id: uuid.UUID = Field(description="ID of the product being reviewed")
     user_id: uuid.UUID = Field(description="ID of the user who created the review")
 
 
 class ReviewUpdate(ReviewBase, BaseUpdate):
+    """Represents review update."""
+
     rating: int | None = Field(
         default=None, ge=1, le=5, description="Rating between 1 and 5"
     )
@@ -45,12 +52,15 @@ class ReviewUpdate(ReviewBase, BaseUpdate):
     @field_validator("rating")
     @classmethod
     def validate_rating_field(cls, v: int | None) -> int | None:
+        """Validate rating field."""
         if v is not None:
             return validate_rating(v)
         return v
 
 
 class Review(ReviewBase, table=True):
+    """Represents review."""
+
     __tablename__ = "reviews"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     product_id: uuid.UUID = Field(
@@ -68,12 +78,16 @@ class Review(ReviewBase, table=True):
 
 
 class ReviewPublic(ReviewBase, BasePublic):
+    """Represents review public."""
+
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     product_id: uuid.UUID = Field(description="ID of the product being reviewed")
     user_id: uuid.UUID = Field(description="ID of the user who created the review")
 
 
 class ReviewsPublic(SQLModel):
+    """Represents reviews public."""
+
     data: list[ReviewPublic] = Field(
         default_factory=list, description="List of reviews"
     )

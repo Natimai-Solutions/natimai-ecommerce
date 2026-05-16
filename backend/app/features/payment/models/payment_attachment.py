@@ -8,6 +8,8 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class PaymentAttachmentBase(Base):
+    """Represents payment attachment base."""
+
     payment_id: uuid.UUID = Field(
         foreign_key="payments.id",
         nullable=False,
@@ -59,10 +61,14 @@ class PaymentAttachmentBase(Base):
 
 
 class PaymentAttachmentCreate(PaymentAttachmentBase, BaseCreate):
+    """Represents payment attachment create."""
+
     pass
 
 
 class PaymentAttachmentUpdate(PaymentAttachmentBase, BaseUpdate):
+    """Represents payment attachment update."""
+
     payment_id: uuid.UUID | None = None
     file_key: str | None = None
     filename: str | None = None
@@ -76,6 +82,8 @@ class PaymentAttachmentUpdate(PaymentAttachmentBase, BaseUpdate):
 
 
 class PaymentAttachment(PaymentAttachmentBase, table=True):
+    """Represents payment attachment."""
+
     __tablename__ = "payment_attachments"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -85,9 +93,13 @@ class PaymentAttachment(PaymentAttachmentBase, table=True):
 
 
 class PaymentAttachmentPublic(PaymentAttachmentBase, BasePublic):
+    """Represents payment attachment public."""
+
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
 
 
 class PaymentAttachmentsPublic(SQLModel):
+    """Represents payment attachments public."""
+
     data: list[PaymentAttachmentPublic] = Field(default_factory=list)
     count: int = Field(default=0)

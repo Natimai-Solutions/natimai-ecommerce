@@ -10,8 +10,10 @@ from app.features.product.models.category import (
 
 
 class CategoryCrud(CrudBase[Category, CategoryCreate, CategoryUpdate]):
+    """Represents category crud."""
+
     async def get_by_name(self, session: AsyncSession, name: str) -> Category | None:
-        """Récupère une catégorie par son nom"""
+        """Get by name."""
         statement = select(Category).where(
             Category.name == name,
             col(Category.is_active).is_(True),

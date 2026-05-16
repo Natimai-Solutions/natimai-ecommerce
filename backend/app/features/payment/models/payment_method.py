@@ -9,6 +9,8 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class PaymentMethodBase(Base):
+    """Represents payment method base."""
+
     name: str = Field(description="Name of the payment method")
     description: str | None = Field(
         default=None,
@@ -43,10 +45,14 @@ class PaymentMethodBase(Base):
 
 
 class PaymentMethodCreate(PaymentMethodBase, BaseCreate):
+    """Represents payment method create."""
+
     pass
 
 
 class PaymentMethodUpdate(PaymentMethodBase, BaseUpdate):
+    """Represents payment method update."""
+
     name: str | None = None
     description: str | None = None
     fee: Decimal | None = None
@@ -57,15 +63,21 @@ class PaymentMethodUpdate(PaymentMethodBase, BaseUpdate):
 
 
 class PaymentMethod(PaymentMethodBase, table=True):
+    """Represents payment method."""
+
     __tablename__ = "payment_methods"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
 
 
 class PaymentMethodPublic(PaymentMethodBase, BasePublic):
+    """Represents payment method public."""
+
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
 
 
 class PaymentMethodsPublic(SQLModel):
+    """Represents payment methods public."""
+
     data: list[PaymentMethodPublic] = Field(
         default_factory=list, description="List of payment methods"
     )

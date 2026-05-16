@@ -43,8 +43,11 @@ def outbox_handler(
     """
 
     def decorator(func: Handler) -> Handler:
+        """Wrap and register a single-event handler."""
+
         @wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            """Execute wrapper."""
             try:
                 logger.debug(f"Executing handler for event type: {event_type}")
                 result = await func(*args, **kwargs)
@@ -94,8 +97,11 @@ def bulk_outbox_handler(
     """
 
     def decorator(func: Handler) -> Handler:
+        """Wrap and register a multi-event handler."""
+
         @wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            """Execute wrapper."""
             try:
                 logger.debug(f"Executing bulk handler for event types: {event_types}")
                 result = await func(*args, **kwargs)

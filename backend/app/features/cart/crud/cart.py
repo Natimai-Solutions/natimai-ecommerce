@@ -20,12 +20,15 @@ from app.utils.money import quantize_amount
 
 
 class CartCrud(CrudBase[Cart, CartCreate, CartUpdate]):
+    """Represents cart crud."""
+
     async def get_active_cart_by_user(
         self,
         session: AsyncSession,
         *,
         user_id: uuid.UUID,
     ) -> Cart | None:
+        """Get active cart by user."""
         statement = (
             select(self.model)
             .where(
@@ -46,6 +49,7 @@ class CartCrud(CrudBase[Cart, CartCreate, CartUpdate]):
         user_id: uuid.UUID,
         currency: str = "XPF",
     ) -> Cart:
+        """Get or create active cart."""
         cart = await self.get_active_cart_by_user(session, user_id=user_id)
         if cart is not None:
             return cart
@@ -67,6 +71,7 @@ class CartCrud(CrudBase[Cart, CartCreate, CartUpdate]):
         *,
         cart_id: uuid.UUID,
     ) -> Decimal:
+        """Synchronize total."""
         cart = await session.get(self.model, cart_id)
         if (
             cart is None
@@ -98,12 +103,15 @@ class CartCrud(CrudBase[Cart, CartCreate, CartUpdate]):
 
 
 class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
+    """Represents cart item crud."""
+
     async def get_by_cart_id(
         self,
         session: AsyncSession,
         *,
         cart_id: uuid.UUID,
     ) -> list[CartItem]:
+        """Get by cart id."""
         statement = (
             select(self.model)
             .where(
@@ -123,6 +131,7 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
         cart_id: uuid.UUID,
         product_id: uuid.UUID,
     ) -> CartItem | None:
+        """Get by cart and product."""
         statement = select(self.model).where(
             self.model.cart_id == cart_id,
             self.model.product_id == product_id,
@@ -139,6 +148,7 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
         item_id: uuid.UUID,
         user_id: uuid.UUID,
     ) -> CartItem | None:
+        """Get active item for user."""
         statement = (
             select(self.model)
             .join(Cart, Cart.id == self.model.cart_id)
@@ -163,6 +173,7 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
         product: Product,
         quantity: int,
     ) -> CartItem:
+        """Execute add or increment."""
         existing_item = await self.get_by_cart_and_product(
             session=session,
             cart_id=cart_id,
@@ -195,6 +206,7 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
         item: CartItem,
         quantity: int,
     ) -> CartItem:
+        """Update quantity."""
         item.quantity = quantity
         session.add(item)
         await session.commit()
@@ -207,6 +219,7 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
         *,
         item: CartItem,
     ) -> None:
+        """Execute deactivate item."""
         item.is_active = False
         session.add(item)
         await session.commit()
@@ -217,6 +230,7 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
         *,
         cart_id: uuid.UUID,
     ) -> int:
+        """Execute clear cart."""
         items = await self.get_by_cart_id(session=session, cart_id=cart_id)
         for item in items:
             item.is_active = False

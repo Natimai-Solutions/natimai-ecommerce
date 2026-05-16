@@ -20,6 +20,8 @@ CrudType = TypeVar("CrudType", bound=CrudBase[Any, Any, Any])
 
 @dataclass
 class Routes:
+    """Represents routes."""
+
     path: str
     endpoint: Any
     methods: list[str]
@@ -28,6 +30,8 @@ class Routes:
 
 
 class Auth:
+    """Represents auth."""
+
     read: bool = True
     create: bool = True
     update: bool = True
@@ -35,6 +39,8 @@ class Auth:
 
 
 class AuthConfig(Protocol):
+    """Represents auth config."""
+
     read: bool
     create: bool
     update: bool
@@ -52,6 +58,8 @@ class BaseRouter(
     ],
     APIRouter,
 ):
+    """Represents base router."""
+
     def __init__(
         self,
         name: str,
@@ -68,6 +76,7 @@ class BaseRouter(
         *args: Any,
         **kwargs: Any,
     ) -> None:
+        """Initialize the base router instance."""
         self.name = "".join(
             [
                 c.upper() if (i == 0 or name[i - 1] == "_" or name[i - 1] == " ") else c
@@ -128,6 +137,8 @@ class BaseRouter(
             )
 
     def generate_read_multi_endpoint(self) -> Callable[..., Any]:
+        """Generate read multi endpoint."""
+
         async def read_multi(
             session: SessionDep,
             skip: int = 0,
@@ -137,6 +148,7 @@ class BaseRouter(
             include_archived: bool = False,
             current_user: CurrentUser | None = Depends(get_current_user_optional),
         ) -> Any:
+            """Read multi."""
             await self._check_auth(session, "read", current_user)
             result = await self.crud.read_multi(
                 session,
@@ -153,11 +165,14 @@ class BaseRouter(
         return read_multi
 
     def generate_read_endpoint(self) -> Callable[..., Any]:
+        """Generate read endpoint."""
+
         async def read(
             session: SessionDep,
             id: uuid.UUID,  # Fixed: use UUID instead of int
             current_user: CurrentUser | None = Depends(get_current_user_optional),
         ) -> PublicSchemaType:
+            """Execute read."""
             await self._check_auth(session, "read", current_user)
             try:
                 record = await self.crud.read(session, id=id, user=current_user)
@@ -169,11 +184,14 @@ class BaseRouter(
         return read
 
     def generate_create_endpoint(self) -> Callable[..., Any]:
+        """Generate create endpoint."""
+
         async def create(
             session: SessionDep,
             data: CreateSchemaType,
             current_user: CurrentUser | None = Depends(get_current_user_optional),
         ) -> PublicSchemaType:
+            """Execute create."""
             await self._check_auth(session, "create", current_user)
             created = await self.crud.create(session, data=data, user=current_user)
             return cast(PublicSchemaType, created)
@@ -182,12 +200,15 @@ class BaseRouter(
         return create
 
     def generate_update_endpoint(self) -> Callable[..., Any]:
+        """Generate update endpoint."""
+
         async def update(
             session: SessionDep,
             id: uuid.UUID,  # Fixed: use UUID
             data: UpdateSchemaType,
             current_user: CurrentUser | None = Depends(get_current_user_optional),
         ) -> PublicSchemaType:
+            """Execute update."""
             await self._check_auth(session, "update", current_user)
             updated = await self.crud.update(
                 session, id=id, data=data, user=current_user
@@ -198,11 +219,14 @@ class BaseRouter(
         return update
 
     def generate_delete_endpoint(self) -> Callable[..., Any]:
+        """Generate delete endpoint."""
+
         async def delete(
             session: SessionDep,
             id: uuid.UUID,  # Fixed: use UUID
             current_user: CurrentUser | None = Depends(get_current_user_optional),
         ) -> Message:
+            """Execute delete."""
             await self._check_auth(session, "delete", current_user)
             await self.crud.delete(session, id=id, user=current_user)
             return Message(message="Deleted successfully")
@@ -214,6 +238,7 @@ class BaseRouter(
         self,
         routes: list[Routes] | None = None,
     ) -> APIRouter:
+        """Generate endpoints."""
         default_routes = [
             Routes(
                 path="/",

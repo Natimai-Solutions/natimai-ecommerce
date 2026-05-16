@@ -24,10 +24,14 @@ class DiscountRouter(
         DiscountCrud,
     ]
 ):
+    """Represents discount router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = False  # Lecture publique pour valider les coupons
     create = True  # Création réservée aux admins
     update = True  # Modification réservée aux admins
@@ -76,9 +80,7 @@ async def get_product_promotions(
     session: SessionDep,
     product_id: uuid.UUID,
 ) -> list[DiscountPublic]:
-    """
-    Récupérer les promotions actives pour un produit spécifique.
-    """
+    """Get product promotions."""
     promotions = await crud_discount.get_active_promotions(
         session=session, product_id=product_id
     )
@@ -90,9 +92,7 @@ async def get_category_promotions(
     session: SessionDep,
     category_id: uuid.UUID,
 ) -> list[DiscountPublic]:
-    """
-    Récupérer les promotions actives pour une catégorie.
-    """
+    """Get category promotions."""
     promotions = await crud_discount.get_active_promotions(
         session=session, category_id=category_id
     )
@@ -105,9 +105,7 @@ async def use_discount(
     discount_id: uuid.UUID,
     _current_user: CurrentUser,
 ) -> DiscountPublic:
-    """
-    Incrémenter le compteur d'utilisation d'une réduction.
-    """
+    """Execute use discount."""
     discount = await crud_discount.increment_usage(session, discount_id)
     if not discount:
         raise HTTPException(

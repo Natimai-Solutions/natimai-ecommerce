@@ -21,6 +21,8 @@ from app.features.shipping.models.route import (
 class ShippingRouteCrud(
     CrudBase[ShippingRoute, ShippingRouteCreate, ShippingRouteUpdate]
 ):
+    """Represents shipping route crud."""
+
     async def get_routes_between_places(
         self,
         session: AsyncSession,
@@ -69,9 +71,7 @@ class ShippingRouteCrud(
             visited_places: set[uuid.UUID],
             depth: int = 0,
         ) -> list[list[ShippingRoute]]:
-            """
-            Recherche récursive des chemins en remontant depuis la destination
-            """
+            """Execute find paths recursive."""
             # Limite de profondeur pour éviter les boucles infinies
             if depth >= max_hops:
                 return []
@@ -119,7 +119,7 @@ class ShippingRouteCrud(
 
         # Trier les chemins par priorité (somme des priorités des routes)
         def calculate_path_priority(path: list[ShippingRoute]) -> tuple[int, float]:
-            """Calcule la priorité d'un chemin (nombre d'étapes, puis somme des priorités)"""
+            """Calculate path priority."""
             total_priority = sum(route.priority or 999 for route in path)
             return (len(path), total_priority)
 
@@ -135,15 +135,7 @@ class ShippingRouteCrud(
         is_to_customer: bool | None = None,
         prefer_direct: bool = True,
     ) -> list[ShippingRoute] | None:
-        """
-        Récupère le chemin optimal entre deux lieux.
-
-        Args:
-            prefer_direct: Si True, privilégie les routes directes, sinon le chemin le plus court
-
-        Returns:
-            list[ShippingRoute] | None: Le chemin optimal ou None si aucun chemin trouvé
-        """
+        """Get optimal route between places."""
         paths = await self.get_routes_between_places(
             session, from_place_id, to_place_id, is_to_customer
         )
@@ -167,12 +159,7 @@ class ShippingRouteCrud(
         to_place_id: uuid.UUID,
         is_to_customer: bool | None = None,
     ) -> dict[str, Any]:
-        """
-        Récupère des statistiques sur les chemins disponibles entre deux lieux.
-
-        Returns:
-            dict: Statistiques incluant nombre de chemins, longueurs min/max, etc.
-        """
+        """Get routing statistics."""
         paths = await self.get_routes_between_places(
             session, from_place_id, to_place_id, is_to_customer
         )
@@ -215,7 +202,7 @@ class ShippingRouteCrud(
         from_place_id: uuid.UUID,
         mode: str | None = None,
     ) -> list[ShippingRoute]:
-        """Récupère toutes les routes depuis un lieu"""
+        """Get routes from place."""
 
         conditions = [
             ShippingRoute.from_place_id == from_place_id,
@@ -240,7 +227,7 @@ class ShippingRouteCrud(
         to_place_id: uuid.UUID,
         mode: str | None = None,
     ) -> list[ShippingRoute]:
-        """Récupère toutes les routes vers un lieu"""
+        """Get routes to place."""
 
         conditions = [
             ShippingRoute.to_place_id == to_place_id,
@@ -264,7 +251,7 @@ class ShippingRouteCrud(
         session: AsyncSession,
         allow_consolidation: bool | None = None,
     ) -> list[ShippingRoute]:
-        """Récupère les routes intermédiaires (non client final)"""
+        """Get intermediary routes."""
 
         conditions = [
             col(ShippingRoute.is_to_customer).is_(False),
@@ -288,7 +275,7 @@ class ShippingRouteCrud(
         session: AsyncSession,
         from_place_id: uuid.UUID | None = None,
     ) -> list[ShippingRoute]:
-        """Récupère les routes vers les clients"""
+        """Get customer routes."""
 
         conditions = [
             col(ShippingRoute.is_to_customer).is_(True),
@@ -314,7 +301,7 @@ class ShippingRouteCrud(
         mode: str | None = None,
         is_to_customer: bool | None = None,
     ) -> list[ShippingRoute]:
-        """Recherche de routes par nom, opérateur ou notes"""
+        """Execute search routes."""
 
         from app.features.place.models import Place
 
@@ -358,7 +345,7 @@ class ShippingRouteCrud(
         partner_id: uuid.UUID,
         is_origin: bool = True,
     ) -> list[ShippingRoute]:
-        """Récupère les routes d'un partenaire"""
+        """Get routes by partner."""
 
         if is_origin:
             condition = ShippingRoute.from_partner_id == partner_id

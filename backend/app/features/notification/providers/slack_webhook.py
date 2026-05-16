@@ -11,9 +11,12 @@ from app.features.notification.providers.base import (
 
 
 class SlackWebhookNotificationProvider(NotificationProvider):
+    """Represents slack webhook notification provider."""
+
     code = "slack_webhook"
 
     async def send(self, message: NotificationMessage) -> NotificationResult:
+        """Execute send."""
         webhook_url = settings.PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL
         if webhook_url is None:
             return NotificationResult(

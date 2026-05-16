@@ -14,12 +14,15 @@ from app.features.payment.models.payment_validation import (
 class PaymentValidationCrud(
     CrudBase[PaymentValidation, PaymentValidationCreate, PaymentValidationUpdate]
 ):
+    """Represents payment validation crud."""
+
     async def list_for_payment(
         self,
         session: AsyncSession,
         *,
         payment_id: uuid.UUID,
     ) -> list[PaymentValidation]:
+        """List for payment."""
         statement = (
             select(self.model)
             .where(self.model.payment_id == payment_id)

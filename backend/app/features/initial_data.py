@@ -1,7 +1,7 @@
 from decimal import Decimal
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.payment.crud.payment_method import crud_payment_method
 from app.features.payment.crud.payment_status import crud_payment_status
@@ -33,6 +33,7 @@ DEFAULT_PAYMENT_STATUSES: tuple[tuple[str, str], ...] = (
 
 
 async def _seed_payment_statuses(session: AsyncSession) -> None:
+    """Execute seed payment statuses."""
     for name, description in DEFAULT_PAYMENT_STATUSES:
         existing = await crud_payment_status.get_by_name(session, name=name)
         if existing is not None:
@@ -45,6 +46,7 @@ async def _seed_payment_statuses(session: AsyncSession) -> None:
 
 
 async def _seed_manual_payment_methods(session: AsyncSession) -> None:
+    """Execute seed manual payment methods."""
     methods = (
         {
             "name": "Chèque",
@@ -99,5 +101,6 @@ async def _seed_manual_payment_methods(session: AsyncSession) -> None:
 
 
 async def initial_data(session: AsyncSession) -> None:
+    """Execute initial data."""
     await _seed_payment_statuses(session)
     await _seed_manual_payment_methods(session)

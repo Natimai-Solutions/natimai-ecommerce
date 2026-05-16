@@ -9,6 +9,7 @@ from app.features.attachment.antivirus.noop import NoOpScanner
 
 @lru_cache(maxsize=1)
 def get_antivirus_scanner() -> AntivirusScanner:
+    """Get antivirus scanner."""
     if not settings.CLAMAV_ENABLED:
         return NoOpScanner()
 
@@ -22,4 +23,5 @@ def get_antivirus_scanner() -> AntivirusScanner:
 
 
 def reset_antivirus_scanner_cache() -> None:
+    """Execute reset antivirus scanner cache."""
     get_antivirus_scanner.cache_clear()

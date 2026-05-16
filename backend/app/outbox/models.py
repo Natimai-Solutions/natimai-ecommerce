@@ -8,6 +8,8 @@ OutboxStatus = Literal["PENDING", "RUNNING", "DONE", "FAILED"]
 
 
 class OutboxEvent(SQLModel, table=True):
+    """Represents outbox event."""
+
     __tablename__ = "outbox_event"
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     type: str = Field(index=True)  # ex: "CREATE_PAYMENT"
@@ -25,4 +27,5 @@ class OutboxEvent(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     def touch(self) -> None:
+        """Execute touch."""
         self.updated_at = datetime.now(timezone.utc)

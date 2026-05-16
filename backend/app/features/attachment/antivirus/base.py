@@ -10,11 +10,17 @@ class AntivirusError(RuntimeError):
 
 @dataclass(slots=True)
 class ScanResult:
+    """Represents scan result."""
+
     is_clean: bool
     signature: str | None = None
     engine: str = ""
 
 
 class AntivirusScanner(ABC):
+    """Define the antivirus scanner contract."""
+
     @abstractmethod
-    async def scan_bytes(self, data: bytes) -> ScanResult: ...
+    async def scan_bytes(self, data: bytes) -> ScanResult:
+        """Scan raw bytes and return the scan result."""
+        ...

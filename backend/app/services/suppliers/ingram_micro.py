@@ -61,6 +61,7 @@ class IngramMicroService:
 
     def __init__(self) -> None:
         # Ingram Micro sandbox uses /sandbox prefix in the path
+        """Initialize the ingram micro service instance."""
         if settings.INGRAM_ENVIRONMENT == "sandbox":
             self.base_url = f"{INGRAM_URL}/sandbox"
         else:
@@ -334,6 +335,7 @@ class IngramMicroService:
 
 
 def _to_normalized_product(item: IngramProductData) -> NormalizedProductData:
+    """Execute to normalized product."""
     return NormalizedProductData(
         supplier_sku=item.sku,
         name=item.product_name,
@@ -361,11 +363,13 @@ class IngramMicroAdapter(SupplierAdapter):
     price_batch_size = 50
 
     def __init__(self, service: IngramMicroService | None = None) -> None:
+        """Initialize the ingram micro adapter instance."""
         self._service = service
 
     @property
     def service(self) -> IngramMicroService:
         # Built lazily so importing the module never triggers config access.
+        """Execute service."""
         if self._service is None:
             self._service = IngramMicroService()
         return self._service
@@ -374,9 +378,11 @@ class IngramMicroAdapter(SupplierAdapter):
 
     @property
     def default_categories(self) -> list[str]:  # type: ignore[override]
+        """Execute default categories."""
         return list(settings.INGRAM_SYNC_CATEGORIES)
 
     def is_configured(self) -> bool:
+        """Check whether configured."""
         return all(
             [
                 settings.INGRAM_CLIENT_ID,
@@ -386,12 +392,15 @@ class IngramMicroAdapter(SupplierAdapter):
         )
 
     def is_sync_enabled(self) -> bool:
+        """Check whether sync enabled."""
         return bool(settings.INGRAM_SYNC_ENABLED)
 
     def sync_interval_hours(self) -> int:
+        """Synchronize interval hours."""
         return int(settings.INGRAM_SYNC_INTERVAL_HOURS)
 
     def config_summary(self) -> dict[str, Any]:
+        """Execute config summary."""
         summary = super().config_summary()
         summary.update(
             {
@@ -407,6 +416,7 @@ class IngramMicroAdapter(SupplierAdapter):
     async def fetch_catalog(
         self, category: str, **filters: Any
     ) -> AsyncIterator[list[NormalizedProductData]]:
+        """Execute fetch catalog."""
         page = 1
         page_size = int(filters.get("page_size", 100))
         vendors = filters.get("vendors")
@@ -425,6 +435,7 @@ class IngramMicroAdapter(SupplierAdapter):
     async def fetch_price_and_availability(
         self, skus: list[str]
     ) -> dict[str, NormalizedPricing]:
+        """Execute fetch price and availability."""
         if not skus:
             return {}
         raw = await self.service.get_price_and_availability(
@@ -448,6 +459,7 @@ class IngramMicroAdapter(SupplierAdapter):
     # -- health -----------------------------------------------------------
 
     async def health_check(self) -> SupplierHealth:
+        """Execute health check."""
         if not self.is_configured():
             return SupplierHealth(
                 healthy=False,

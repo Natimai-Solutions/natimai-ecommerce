@@ -16,6 +16,8 @@ _SUPPORTED_WEIGHT_UNITS = {"kg", "lb"}
 
 @dataclass(frozen=True)
 class RouteShippingCostBreakdown:
+    """Represents route shipping cost breakdown."""
+
     route_id: uuid.UUID
     route_name: str | None
     fixed_fee: Decimal
@@ -31,6 +33,8 @@ class RouteShippingCostBreakdown:
 
 @dataclass(frozen=True)
 class ShippingCostSummary:
+    """Represents shipping cost summary."""
+
     total_fee: Decimal
     currency: str
     breakdown: list[RouteShippingCostBreakdown]
@@ -39,6 +43,7 @@ class ShippingCostSummary:
 
 
 def _to_decimal(value: Any, default: Decimal = Decimal("0")) -> Decimal:
+    """Execute to decimal."""
     if value is None:
         return default
     if isinstance(value, Decimal):
@@ -50,6 +55,7 @@ def _to_decimal(value: Any, default: Decimal = Decimal("0")) -> Decimal:
 
 
 def _route_metadata_to_dict(route: ShippingRoute) -> dict[str, Any]:
+    """Execute route metadata to dict."""
     raw_metadata = route.route_metadata
     if raw_metadata is None:
         return {}
@@ -69,6 +75,7 @@ def _route_metadata_to_dict(route: ShippingRoute) -> dict[str, Any]:
 
 
 def _resolve_weight_unit(metadata: dict[str, Any]) -> str:
+    """Execute resolve weight unit."""
     candidate = str(metadata.get("weight_unit", "kg")).strip().lower()
     if candidate not in _SUPPORTED_WEIGHT_UNITS:
         return "kg"
@@ -76,12 +83,14 @@ def _resolve_weight_unit(metadata: dict[str, Any]) -> str:
 
 
 def _convert_weight_from_kg(weight_kg: Decimal, target_unit: str) -> Decimal:
+    """Convert weight from kg."""
     if target_unit == "lb":
         return weight_kg * _LB_PER_KG
     return weight_kg
 
 
 def _extract_value_rate(metadata: dict[str, Any]) -> Decimal:
+    """Execute extract value rate."""
     if "value_rate" in metadata:
         return max(_to_decimal(metadata.get("value_rate")), Decimal("0"))
 
@@ -100,6 +109,7 @@ def _extract_value_rate(metadata: dict[str, Any]) -> Decimal:
 
 
 def _extract_bound(metadata: dict[str, Any], key: str) -> Decimal | None:
+    """Execute extract bound."""
     if key not in metadata:
         return None
     value = _to_decimal(metadata.get(key), Decimal("-1"))
@@ -109,6 +119,7 @@ def _extract_bound(metadata: dict[str, Any], key: str) -> Decimal | None:
 
 
 def _parse_effective_date(value: Any) -> datetime | None:
+    """Parse effective date."""
     if value is None:
         return None
     if isinstance(value, datetime):
@@ -164,6 +175,7 @@ def calculate_shipping_for_routes(
     currency: str,
     as_of: datetime | None = None,
 ) -> ShippingCostSummary:
+    """Calculate shipping for routes."""
     normalized_weight_kg = max(total_weight_kg, Decimal("0"))
     normalized_declared_value = max(declared_value, Decimal("0"))
     effective_at = as_of or datetime.now(timezone.utc)

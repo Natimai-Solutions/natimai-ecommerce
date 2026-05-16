@@ -26,7 +26,7 @@ from app.features.shipping.services import (
 
 # Modèles pour les coûts détaillés par tronçon (étape "devis shipping")
 class ShippingSegmentCostResponse(SQLModel):
-    """Coût détaillé d'un tronçon (une route) dans un chemin logistique."""
+    """Detailed cost breakdown for a single shipping segment."""
 
     route_id: uuid.UUID
     route_name: str | None = None
@@ -46,7 +46,7 @@ class ShippingSegmentCostResponse(SQLModel):
 
 
 class ShippingPathQuoteResponse(SQLModel):
-    """Devis détaillé d'un chemin logistique complet (Route 1 + Route 2 + ...)."""
+    """Quoted cost and metadata for one candidate shipping path."""
 
     label: str | None = None
     route_ids: list[uuid.UUID] = Field(description="Routes ordonnées du chemin")
@@ -58,6 +58,8 @@ class ShippingPathQuoteResponse(SQLModel):
 
 
 class ShippingQuotePathRequest(SQLModel):
+    """Input path definition used to request a shipping quote."""
+
     label: str | None = Field(default=None, description="Libellé optionnel du chemin")
     route_ids: list[uuid.UUID] = Field(
         description="Routes ordonnées composant ce chemin (Route 1, Route 2, ...)"
@@ -65,6 +67,8 @@ class ShippingQuotePathRequest(SQLModel):
 
 
 class ShippingQuoteRequest(SQLModel):
+    """Request payload for quoting one or more shipping paths."""
+
     paths: list[ShippingQuotePathRequest] = Field(
         description="Chemins candidats à chiffrer (un chemin par expédition)"
     )
@@ -82,12 +86,14 @@ class ShippingQuoteRequest(SQLModel):
 
 
 class ShippingQuoteResponse(SQLModel):
+    """Response payload containing quotes for all requested paths."""
+
     paths: list[ShippingPathQuoteResponse] = Field(default_factory=list)
 
 
 # Modèles pour les réponses des endpoints de routage
 class RoutePathResponse(SQLModel):
-    """Représente un chemin complet entre deux lieux"""
+    """Routing path details between two places."""
 
     hops: int = Field(description="Nombre d'étapes dans le chemin")
     routes: list[ShippingRoutePublic] = Field(
@@ -107,7 +113,7 @@ class RoutePathResponse(SQLModel):
 
 
 class RoutePathsResponse(SQLModel):
-    """Réponse contenant tous les chemins disponibles"""
+    """Collection of routing paths between two places."""
 
     paths: list[RoutePathResponse] = Field(
         description="Liste de tous les chemins disponibles"
@@ -116,7 +122,7 @@ class RoutePathsResponse(SQLModel):
 
 
 class RoutingStatisticsResponse(SQLModel):
-    """Statistiques sur les chemins de routage"""
+    """Aggregated routing statistics between two places."""
 
     total_paths: int = Field(description="Nombre total de chemins")
     direct_paths: int = Field(description="Nombre de chemins directs")
@@ -132,6 +138,7 @@ class RoutingStatisticsResponse(SQLModel):
 def _segment_cost_response(
     summary: ShippingCostSummary,
 ) -> list[ShippingSegmentCostResponse]:
+    """Convert a shipping summary breakdown into response segments."""
     return [
         ShippingSegmentCostResponse(
             route_id=segment.route_id,
@@ -156,6 +163,7 @@ def _path_quote_response(
     route_ids: list[uuid.UUID],
     label: str | None = None,
 ) -> ShippingPathQuoteResponse:
+    """Build a quote response object for a single path."""
     return ShippingPathQuoteResponse(
         label=label,
         route_ids=route_ids,
@@ -171,6 +179,7 @@ async def _load_active_routes(
     session: SessionDep,
     route_ids: list[uuid.UUID],
 ) -> dict[uuid.UUID, ShippingRoute]:
+    """Load active routes."""
     distinct_ids = list(dict.fromkeys(route_ids))
     if not distinct_ids:
         return {}
@@ -201,14 +210,17 @@ class ShippingRouteRouter(
         Any,
     ]
 ):
+    """Router that exposes shipping route CRUD and routing endpoints."""
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Initialize the shipping route router instance."""
         super().__init__(*args, **kwargs)
 
         # Ajouter les endpoints personnalisés après initialisation
         self.add_routing_endpoints()
 
     def add_routing_endpoints(self) -> None:
-        """Ajoute les endpoints personnalisés de routage"""
+        """Register custom routing and quotation endpoints."""
 
         @self.post(
             "/quote",
@@ -224,6 +236,7 @@ class ShippingRouteRouter(
             session: SessionDep,
             _current_user: CurrentUser | None = Depends(get_current_user_optional),
         ):
+            """Quote each provided route path with detailed segment costs."""
             if not payload.paths:
                 raise HTTPException(
                     status_code=400, detail="At least one path is required"
@@ -292,6 +305,7 @@ class ShippingRouteRouter(
             ),
             _current_user: CurrentUser | None = Depends(get_current_user_optional),
         ):
+            """List all available paths between two places, with optional quotes."""
             paths = await self.crud.get_routes_between_places(
                 session=session,
                 from_place_id=from_place_id,
@@ -357,6 +371,7 @@ class ShippingRouteRouter(
             ),
             _current_user: CurrentUser | None = Depends(get_current_user_optional),
         ):
+            """Return the best available path between two places."""
             path = await self.crud.get_optimal_route_between_places(
                 session=session,
                 from_place_id=from_place_id,
@@ -395,6 +410,7 @@ class ShippingRouteRouter(
             ),
             _current_user: CurrentUser | None = Depends(get_current_user_optional),
         ):
+            """Return aggregate statistics for routes between two places."""
             stats = await self.crud.get_routing_statistics(
                 session=session,
                 from_place_id=from_place_id,
@@ -406,6 +422,8 @@ class ShippingRouteRouter(
 
 
 class Auth:
+    """Authorization flags for shipping route endpoints."""
+
     read = True
     create = True
     update = True

@@ -32,10 +32,14 @@ class AddressRouter(
         AddressCrud,
     ]
 ):
+    """Represents address router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = True
     create = True
     update = True

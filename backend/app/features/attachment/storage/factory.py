@@ -8,6 +8,7 @@ from app.features.attachment.storage.base import FileStorage, StorageError
 
 @lru_cache(maxsize=1)
 def get_file_storage() -> FileStorage:
+    """Get file storage."""
     backend = settings.FILE_STORAGE_BACKEND.lower()
     if backend == "s3":
         from app.features.attachment.storage.s3 import S3FileStorage
@@ -22,4 +23,5 @@ def get_file_storage() -> FileStorage:
 
 
 def reset_file_storage_cache() -> None:
+    """Execute reset file storage cache."""
     get_file_storage.cache_clear()

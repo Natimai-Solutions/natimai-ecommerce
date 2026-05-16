@@ -22,10 +22,14 @@ class OrderStatusRouter(
         OrderStatusCrud,
     ]
 ):
+    """Represents order status router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = False  # Lecture publique des statuts
     create = True  # Création réservée aux admins
     update = True  # Modification réservée aux admins

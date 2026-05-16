@@ -32,10 +32,14 @@ class ReviewRouter(
         ReviewCrud,
     ]
 ):
+    """Represents review router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = True
     create = True
     update = True

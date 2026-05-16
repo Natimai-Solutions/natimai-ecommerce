@@ -249,6 +249,7 @@ class OutboxPoller:
     """
 
     def __init__(self) -> None:
+        """Initialize the outbox poller instance."""
         logger.debug("Initialized OutboxPoller")
 
     async def process_pending_events(

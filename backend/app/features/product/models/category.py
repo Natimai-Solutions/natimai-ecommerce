@@ -8,6 +8,8 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class CategoryBase(Base):
+    """Represents category base."""
+
     name: str = Field(
         index=True,
         max_length=100,
@@ -26,14 +28,20 @@ class CategoryBase(Base):
 
 
 class CategoryCreate(CategoryBase, BaseCreate):
+    """Represents category create."""
+
     pass
 
 
 class CategoryUpdate(CategoryBase, BaseUpdate):
+    """Represents category update."""
+
     pass
 
 
 class Category(CategoryBase, table=True):
+    """Represents category."""
+
     __tablename__ = "categories"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -44,10 +52,14 @@ class Category(CategoryBase, table=True):
 
 
 class CategoryPublic(CategoryBase, BasePublic):
+    """Represents category public."""
+
     id: uuid.UUID
 
 
 class CategoriesPublic(SQLModel):
+    """Represents categories public."""
+
     data: list[CategoryPublic] = Field(
         default_factory=list,
         description="List of categories",

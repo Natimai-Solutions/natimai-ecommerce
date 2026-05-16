@@ -29,6 +29,8 @@ class StatusDefinitionRouter(
         Any,
     ]
 ):
+    """Represents status definition router."""
+
     pass
 
 
@@ -42,10 +44,14 @@ class StatusTransitionRouter(
         Any,
     ]
 ):
+    """Represents status transition router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = True
     create = True
     update = True

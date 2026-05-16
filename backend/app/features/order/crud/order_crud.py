@@ -8,6 +8,8 @@ from app.features.order.models.order import Order, OrderCreate, OrderUpdate
 
 
 class OrderCrud(CrudBase[Order, OrderCreate, OrderUpdate]):
+    """Represents order crud."""
+
     async def get_by_user(
         self,
         session: AsyncSession,
@@ -15,7 +17,7 @@ class OrderCrud(CrudBase[Order, OrderCreate, OrderUpdate]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[Order]:
-        """Récupère les commandes d'un utilisateur"""
+        """Get by user."""
         statement = (
             select(Order)
             .where(
@@ -36,7 +38,7 @@ class OrderCrud(CrudBase[Order, OrderCreate, OrderUpdate]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[Order]:
-        """Récupère les commandes par statut"""
+        """Get by status."""
         statement = (
             select(Order)
             .where(

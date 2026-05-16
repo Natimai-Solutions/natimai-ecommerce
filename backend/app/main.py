@@ -12,6 +12,7 @@ from app.outbox.loader import load_handlers
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:
+    """Execute custom generate unique id."""
     return f"{route.tags[0]}-{route.name}"
 
 
@@ -22,6 +23,7 @@ if settings.SENTRY_DSN and settings.ENVIRONMENT != "local":
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
+    """Execute lifespan."""
     print("Loading outbox handlers...")
     load_handlers()
 

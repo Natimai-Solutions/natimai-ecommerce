@@ -12,11 +12,14 @@ from app.features.payment.models.payment_method import (
 class PaymentMethodCrud(
     CrudBase[PaymentMethod, PaymentMethodCreate, PaymentMethodUpdate]
 ):
+    """Represents payment method crud."""
+
     async def get_random_payment_methods(
         self,
         session: AsyncSession,
         limit: int = 100,
     ) -> list[PaymentMethod]:
+        """Get random payment methods."""
         statement = (
             select(PaymentMethod)
             .where(

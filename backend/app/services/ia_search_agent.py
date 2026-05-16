@@ -45,6 +45,8 @@ RedisDep = Any  # Replace with actual Redis client type
 
 # TODO: Import actual product models and replace these placeholders
 class ProductPublic(BaseModel):
+    """Represents product public."""
+
     id: UUID
     name: str
     description: str | None = None
@@ -53,6 +55,8 @@ class ProductPublic(BaseModel):
 
 
 class Product(BaseModel):
+    """Represents product."""
+
     id: UUID
     name: str
     description: str | None = None
@@ -62,7 +66,10 @@ class Product(BaseModel):
 
 
 class MockCrudProduct:
+    """Represents mock crud product."""
+
     async def get_multi(self, session: AsyncSession, limit: int = 100):
+        """Get multi."""
         return []  # Replace with actual CRUD implementation
 
 

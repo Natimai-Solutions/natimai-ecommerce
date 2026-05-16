@@ -144,6 +144,7 @@ class SupplierSyncLogCrud(
         since = datetime.now(timezone.utc) - timedelta(days=days)
 
         def _scoped(statement: Any) -> Any:
+            """Execute scoped."""
             statement = statement.where(SupplierSyncLog.started_at >= since)
             if supplier_name:
                 statement = statement.where(
