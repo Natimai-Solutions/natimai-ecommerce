@@ -163,6 +163,7 @@ async def test_payment_webhook_received_handler_dispatches_notifications(
     notify_mock = AsyncMock()
     monkeypatch.setattr(handlers, "send_payment_event_notifications", notify_mock)
 
+    session = AsyncMock()
     payload = {
         "payment_id": str(uuid4()),
         "order_id": str(uuid4()),
@@ -170,9 +171,10 @@ async def test_payment_webhook_received_handler_dispatches_notifications(
         "user_id": str(uuid4()),
     }
 
-    await handlers.on_payment_webhook_received(cast(Any, AsyncMock()), payload)
+    await handlers.on_payment_webhook_received(cast(Any, session), payload)
 
     notify_mock.assert_awaited_once_with(
+        session=session,
         event_type="payment.webhook_received",
         payload=payload,
     )
@@ -185,6 +187,7 @@ async def test_payment_captured_notification_handler_dispatches_notifications(
     notify_mock = AsyncMock()
     monkeypatch.setattr(handlers, "send_payment_event_notifications", notify_mock)
 
+    session = AsyncMock()
     payload = {
         "payment_id": str(uuid4()),
         "order_id": str(uuid4()),
@@ -192,9 +195,10 @@ async def test_payment_captured_notification_handler_dispatches_notifications(
         "user_id": str(uuid4()),
     }
 
-    await handlers.on_payment_captured_notify(cast(Any, AsyncMock()), payload)
+    await handlers.on_payment_captured_notify(cast(Any, session), payload)
 
     notify_mock.assert_awaited_once_with(
+        session=session,
         event_type="payment.captured",
         payload=payload,
     )
