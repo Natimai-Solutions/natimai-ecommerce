@@ -131,6 +131,19 @@ def resolve_tax_rate(product, territory="PF") -> TaxRate:
 
 **Objectif** : un site consultable, un panier, et un bouton « Demander un devis » qui envoie un email à l'admin. Pas de paiement en ligne.
 
+**Statut** : 🟡 En cours (backend principal implémenté, validation finale et optimisations restantes)
+
+### Avancement backend (18/05/2026)
+
+- ✅ Pricing runtime : modèles `PriceGroup` / `TaxRate`, résolution taxe + calcul prix, adaptation sync fournisseur sur `cost_amount`.
+- ✅ API catalogue Phase 1 : `POST /product/search`, `GET /product/featured`, `POST/DELETE /product/{id}/feature` (admin).
+- ✅ Demande de devis : `POST /cart/quote-request` avec persistance `QuoteRequest` + envoi email support.
+- ✅ Checkout : snapshot `OrderLine.tax_rate_id` ajouté.
+- ✅ Readiness/liveness : endpoints `/healthz/liveness` et `/healthz/ready` (DB + Redis).
+- 🟡 Migration/seed Phase 1 créés : à valider en environnement d'intégration (upgrade/downgrade + non-régression).
+- 🟡 Recherche avancée PostgreSQL (`tsvector`/GIN/trgm) : optimisation encore à finaliser.
+- 🟡 Documentation ops (variables d'environnement, check ARQ/outbox en prod) : à finaliser avant release.
+
 ### Périmètre fonctionnel
 
 - Synchro Ingram Micro + Icecat opérationnelle (déjà partiellement présent).
@@ -266,7 +279,18 @@ def resolve_tax_rate(product, territory="PF") -> TaxRate:
 7. **Adresses validées**
    - Workflow `Address.is_validated` (déjà partiellement présent) — exposer endpoints pour valider/lister/supprimer.
 
-8. **Paiement CB en production**
+8. **Commande automatique chez Ingram Micro (SUPPLIER_DIRECT)**
+   - **Déclencheur** : handler outbox sur `payment.captured` — pas sur `create.order` (évite de commander si le paiement échoue). Pour les paiements différés (BC, chèque), la commande Ingram est émise à la validation admin.
+   - **Modèle** `SupplierOrder` (nouveau) : `local_order_id`, `supplier_name`, `supplier_order_id` (PO Ingram), `status`, `estimated_delivery`, `raw_response JSONB`, `created_at`, `last_sync_at`.
+   - **Méthode** `IngramMicroService.create_purchase_order(order, lines)` :
+     - Filtre les `OrderLine` avec segment `SUPPLIER_DIRECT` et `product.supplier_name == "ingram_micro"`.
+     - Mappe vers le format attendu par l'API Ingram (endpoint + payload — **doc API requise avant dev**, cf. point d'attention ci-dessous).
+     - Stocke la réponse dans `SupplierOrder`.
+   - **Retry** : 3 tentatives avec backoff exponentiel (ARQ) ; en cas d'échec définitif, alerte email admin + statut `SupplierOrder.status = "failed"`.
+   - **Endpoint admin** `GET /admin/supplier-orders` (liste + filtres `status`, `supplier_name`) + `POST /admin/supplier-orders/{id}/retry` (relance manuelle).
+   - **Point d'attention** : la doc Ingram pour la création d'ordre (endpoint `POST /resellers/v6/orders` ou équivalent, format payload, gestion du PO number, auth webhook retour) doit être obtenue **avant** de démarrer ce chantier. Le stock est déjà décrémenter au checkout — le risque n'est pas la double-réservation mais la commande Ingram manquée.
+
+9. **Paiement CB en production**
    - Validation end-to-end : initiate → form-token → IPN → outbox → order status.
    - Tests de charge légers sur l'IPN.
    - Page de retour client (frontend) qui poll `GET /payments/{id}` jusqu'à statut terminal.
@@ -274,6 +298,7 @@ def resolve_tax_rate(product, territory="PF") -> TaxRate:
 ### Hors périmètre Phase 2
 
 - Chèque / virement / BC, tracking, remboursement, factures.
+- Webhook Ingram de suivi statut commande fournisseur (reporté Phase 3).
 
 ---
 
@@ -309,7 +334,13 @@ def resolve_tax_rate(product, territory="PF") -> TaxRate:
    - `GET /orders/me/{order_id}/tracking` (déjà partiellement : `get_order_tracking` mais à filtrer par `current_user`).
    - Expose `tracking_ref`, `estimated_delivery`, `current_status`, segments, scénarios d'exception.
 
-4. **Bug B5 corrigé** (Phase 0) — confirmer que les endpoints `update_tracking_status` exigent bien admin/logistique.
+4. **Webhook Ingram — suivi statut commande fournisseur**
+   - Endpoint `POST /webhooks/ingram/order-status` (auth par signature ou token Ingram).
+   - Met à jour `SupplierOrder.status` + `estimated_delivery` à chaque callback.
+   - Publish outbox `supplier_order.shipped` → alimente le tracking interne (transition vers statut `shipped` sur la consolidation concernée).
+   - Pré-requis : doc Ingram webhook obtenue en Phase 2.
+
+5. **Bug B5 corrigé** (Phase 0) — confirmer que les endpoints `update_tracking_status` exigent bien admin/logistique.
 
 ### Hors périmètre Phase 3
 
@@ -394,9 +425,13 @@ Phase 0 (bugs)
 
 Phase 1 → Phase 2 (groupes activés sur le pricing posé en P1)
 Phase 2 → Phase 3 (les emails P2 servent aussi tracking P3)
+Phase 2 → Phase 3 (SupplierOrder P2 étendu par webhook Ingram P3)
 Phase 3 → Phase 4 (les hooks de transition statut sont étendus)
 Phase 4 → Phase 5d (tokenisation préparée en P4 pour Z1/Z2)
 M3 (P5a) doit précéder Z2 (P5d)
+
+Doc API Ingram ordre (endpoint + payload + webhook) : pré-requis externe à obtenir
+avant de démarrer l'item 8 de Phase 2.
 ```
 
 ---

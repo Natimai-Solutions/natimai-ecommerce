@@ -11,8 +11,10 @@ from fastapi import APIRouter, HTTPException, status
 from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep
+from app.core.config import settings
 from app.core.observability import log_structured_event, observe_checkout_result
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
+from app.features.cart.crud.quote_request import crud_quote_request
 from app.features.cart.models.cart import (
     Cart,
     CartDetailPublic,
@@ -23,6 +25,11 @@ from app.features.cart.models.cart import (
     CheckoutRequest,
     CheckoutResponse,
     CheckoutShippingPreference,
+)
+from app.features.cart.models.quote_request import (
+    QuoteRequestCreate,
+    QuoteRequestResponse,
+    QuoteRequestSubmit,
 )
 from app.features.inventory.crud import crud_inventory, crud_stock_movement
 from app.features.inventory.models.stock_movement import (
@@ -45,6 +52,12 @@ from app.features.payment.models.payment_status import (
     PaymentStatusCreate,
 )
 from app.features.product.models.product import Product
+from app.features.product.services.pricing import calculate_sale_price, resolve_tax_rate
+from app.features.notification.providers import (
+    NotificationMessage,
+    UnknownNotificationProviderError,
+    get_notification_provider,
+)
 from app.features.shipping.crud import (
     crud_shipping_route,
     crud_shipping_route_tracking,
@@ -804,6 +817,8 @@ async def _get_active_product_or_404(
     product = await session.get(Product, product_id)
     if product is None or not product.is_active or not product.is_admin_active:
         raise HTTPException(status_code=404, detail="Product not found")
+
+    product.base_price = await calculate_sale_price(session, product)
     return product
 
 
@@ -926,6 +941,180 @@ async def clear_my_cart(
     return _build_cart_detail(cart, [])
 
 
+def _format_quote_support_email(
+    *,
+    current_user: User,
+    currency: str,
+    item_snapshots: list[dict[str, str]],
+    subtotal_amount: Decimal,
+    shipping_address: str | None,
+    notes: str | None,
+) -> tuple[str, str]:
+    """Build subject and body for support quote request emails."""
+    subject = f"[Quote Request] user={current_user.id} items={len(item_snapshots)}"
+
+    lines = [
+        "Nouvelle demande de devis",
+        "",
+        f"user_id: {current_user.id}",
+        f"email: {current_user.email}",
+        f"full_name: {current_user.full_name or 'n/a'}",
+        f"phone: {current_user.phone or 'n/a'}",
+        f"shipping_address: {shipping_address or 'n/a'}",
+        f"notes: {notes or 'n/a'}",
+        "",
+        "Panier:",
+    ]
+
+    for item in item_snapshots:
+        lines.append(
+            "- "
+            f"{item['product_name']} "
+            f"(qty={item['quantity']}, unit={item['unit_price']} {currency}, "
+            f"line_total={item['line_total']} {currency})"
+        )
+
+    lines.extend(
+        [
+            "",
+            f"subtotal: {subtotal_amount} {currency}",
+        ]
+    )
+
+    return subject, "\n".join(lines)
+
+
+async def _send_quote_support_email(
+    *,
+    recipient: str,
+    subject: str,
+    text: str,
+    metadata: dict[str, Any],
+) -> bool:
+    """Send support email for a quote request."""
+    provider_code = settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER
+    try:
+        provider = get_notification_provider(provider_code)
+    except UnknownNotificationProviderError:
+        provider = get_notification_provider("noop")
+
+    result = await provider.send(
+        NotificationMessage(
+            channel="email",
+            recipient=recipient,
+            subject=subject,
+            text=text,
+            metadata=metadata,
+        )
+    )
+    if not result.delivered:
+        logger.warning("Quote request email delivery failed: %s", result.error)
+    return result.delivered
+
+
+@router.post(
+    "/quote-request",
+    response_model=QuoteRequestResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_quote_request(
+    session: SessionDep,
+    current_user: CurrentUser,
+    payload: QuoteRequestSubmit,
+) -> QuoteRequestResponse:
+    """Create a quote request from the active cart and notify support."""
+    support_email = (settings.EMAIL_SUPPORT or "").strip()
+    if not support_email:
+        raise HTTPException(
+            status_code=503,
+            detail="EMAIL_SUPPORT is not configured",
+        )
+
+    cart = await crud_cart.get_active_cart_by_user(
+        session=session,
+        user_id=current_user.id,
+    )
+    if cart is None:
+        raise HTTPException(status_code=400, detail="No active cart found")
+
+    items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart.id)
+    if not items:
+        raise HTTPException(status_code=400, detail="Cart is empty")
+
+    item_snapshots: list[dict[str, str]] = []
+    subtotal_amount = Decimal("0.00")
+    for item in items:
+        product = await _get_active_product_or_404(session, product_id=item.product_id)
+        line_total = quantize_amount(item.unit_price * item.quantity, cart.currency)
+        subtotal_amount += line_total
+        item_snapshots.append(
+            {
+                "product_id": str(item.product_id),
+                "product_name": product.name,
+                "quantity": str(item.quantity),
+                "unit_price": str(item.unit_price),
+                "line_total": str(line_total),
+            }
+        )
+
+    subject, email_body = _format_quote_support_email(
+        current_user=current_user,
+        currency=cart.currency,
+        item_snapshots=item_snapshots,
+        subtotal_amount=subtotal_amount,
+        shipping_address=payload.shipping_address,
+        notes=payload.notes,
+    )
+
+    quote_request = await crud_quote_request.create_draft(
+        session=session,
+        data=QuoteRequestCreate(
+            user_id=current_user.id,
+            cart_id=cart.id,
+            email=str(current_user.email),
+            phone=current_user.phone,
+            full_name=current_user.full_name,
+            shipping_address=payload.shipping_address,
+            notes=payload.notes,
+            status="requested",
+            items_snapshot={
+                "currency": cart.currency,
+                "subtotal_amount": str(subtotal_amount),
+                "items": item_snapshots,
+            },
+        ),
+        user=current_user,
+    )
+
+    email_delivered = await _send_quote_support_email(
+        recipient=support_email,
+        subject=subject,
+        text=email_body,
+        metadata={
+            "event_type": "quote.requested",
+            "quote_request_id": str(quote_request.id),
+            "user_id": str(current_user.id),
+        },
+    )
+
+    if not email_delivered:
+        quote_request.status = "email_failed"
+        session.add(quote_request)
+
+    await session.commit()
+    await session.refresh(quote_request)
+
+    return QuoteRequestResponse(
+        quote_request_id=quote_request.id,
+        email_delivered=email_delivered,
+        message=(
+            "Quote request created and support notified"
+            if email_delivered
+            else "Quote request created but support email failed"
+        ),
+    )
+
+
 @router.post(
     "/checkout",
     response_model=CheckoutResponse,
@@ -1028,6 +1217,7 @@ async def checkout_my_cart(
 
         for item in items:
             product = products_by_id[item.product_id]
+            resolved_tax_rate = await resolve_tax_rate(session, product)
 
             line_segments = await _reserve_stock_for_checkout(
                 session=session,
@@ -1054,6 +1244,9 @@ async def checkout_my_cart(
                     unit_price=item.unit_price,
                     discount_amount=Decimal("0.00"),
                     notes=line_notes,
+                    tax_rate_id=(
+                        resolved_tax_rate.id if resolved_tax_rate is not None else None
+                    ),
                 ),
                 user=current_user,
             )

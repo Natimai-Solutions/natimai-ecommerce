@@ -41,6 +41,12 @@ class OrderLineBase(Base):
         max_length=500,
         description="Notes sur cette ligne de commande",
     )
+    tax_rate_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="tax_rates.id",
+        index=True,
+        description="Snapshot du taux de taxe applique a la ligne",
+    )
 
 
 class OrderLineCreate(OrderLineBase, BaseCreate):
@@ -58,6 +64,7 @@ class OrderLineUpdate(BaseUpdate):
     unit_price: Decimal | None = None
     discount_amount: Decimal | None = None
     notes: str | None = None
+    tax_rate_id: uuid.UUID | None = None
 
 
 class OrderLine(OrderLineBase, table=True):

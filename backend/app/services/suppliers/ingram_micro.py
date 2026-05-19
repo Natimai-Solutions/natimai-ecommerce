@@ -148,9 +148,16 @@ class IngramMicroService:
                     raise Exception(f"API request failed: {response.status}")
 
     async def _make_api_post_request(
-        self, endpoint: str, body: dict[str, Any], params: dict[str, str] | None = None
+        self,
+        endpoint: str,
+        body: dict[str, Any],
+        params: dict[str, str] | None = None,
+        expected_statuses: list[int] | None = None,
     ) -> dict[str, Any]:
         """Make authenticated POST request to Ingram Micro API with optional query parameters"""
+        if expected_statuses is None:
+            expected_statuses = [200]
+
         access_token = await self._get_access_token()
 
         correlation_id = str(uuid4()).replace("-", "")[:32]
@@ -178,7 +185,7 @@ class IngramMicroService:
                 url, headers=headers, json=body, params=params
             ) as response:
                 logger.debug(f"Final URL with params: {response.url}")
-                if response.status == 200:
+                if response.status in expected_statuses:
                     return await response.json()
                 else:
                     error_text = await response.text()
@@ -186,6 +193,42 @@ class IngramMicroService:
                         f"API POST request failed: {response.status} - {error_text}"
                     )
                     raise Exception(f"API request failed: {response.status}")
+
+    async def create_purchase_order(
+        self,
+        customer_order_number: str,
+        lines: list[dict[str, Any]],
+        ship_to: dict[str, Any],
+        notes: str | None = None,
+    ) -> dict[str, Any]:
+        """Submit a purchase order to Ingram Micro (POST /resellers/v6/orders).
+
+        ``customer_order_number`` is echoed back in the response and used by Ingram
+        for deduplication — always pass the local order UUID so retries are safe.
+        ``lines`` items must contain ``ingramPartNumber`` and ``quantity``; ``unitPrice``
+        is optional (Ingram falls back to the contracted price when omitted).
+        """
+        numbered_lines = [
+            {"lineNumber": i + 1, **line} for i, line in enumerate(lines)
+        ]
+        body: dict[str, Any] = {
+            "customerOrderNumber": customer_order_number[:35],
+            "shipToInfo": ship_to,
+            "lines": numbered_lines,
+        }
+        if notes:
+            body["notes"] = notes
+
+        logger.info(
+            "Creating Ingram Micro PO: customerOrderNumber=%s lines=%d",
+            customer_order_number,
+            len(lines),
+        )
+        return await self._make_api_post_request(
+            "/resellers/v6/orders",
+            body,
+            expected_statuses=[200, 201],
+        )
 
     async def get_product_catalog(
         self,

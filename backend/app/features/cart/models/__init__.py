@@ -18,6 +18,16 @@ from app.features.cart.models.cart import (
     CheckoutRequest,
     CheckoutResponse,
 )
+from app.features.cart.models.quote_request import (
+    QuoteRequest,
+    QuoteRequestBase,
+    QuoteRequestCreate,
+    QuoteRequestPublic,
+    QuoteRequestResponse,
+    QuoteRequestSubmit,
+    QuoteRequestsPublic,
+    QuoteRequestUpdate,
+)
 
 __all__ = [
     "Cart",
@@ -38,4 +48,12 @@ __all__ = [
     "CartDetailPublic",
     "CheckoutRequest",
     "CheckoutResponse",
+    "QuoteRequest",
+    "QuoteRequestBase",
+    "QuoteRequestCreate",
+    "QuoteRequestUpdate",
+    "QuoteRequestPublic",
+    "QuoteRequestsPublic",
+    "QuoteRequestResponse",
+    "QuoteRequestSubmit",
 ]

@@ -19,6 +19,12 @@ class UserBase(Base):
     is_verified: bool = Field(default=False)
     is_verification_email_sent: bool = Field(default=False)
     last_verification_email_sent: datetime.datetime | None = Field(default=None)
+    price_group_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="price_groups.id",
+        index=True,
+        description="Pricing group assigned to the user",
+    )
 
 
 class UserCreate(UserBase, BaseCreate):
@@ -44,6 +50,7 @@ class UserUpdate(BaseUpdate):
     is_active: bool | None = None
     is_superuser: bool | None = None
     is_verified: bool | None = None
+    price_group_id: uuid.UUID | None = None
     password: str | None = Field(default=None, min_length=8, max_length=128)
     hashed_password: str | None = Field(default=None, exclude=True)
 

@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import date
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -20,6 +21,8 @@ from app.features.payment.providers.manual import (
     MANUAL_STATUS_COMPLETED,
     MANUAL_STATUS_FAILED,
 )
+from app.features.product.models.price_group import PriceGroup
+from app.features.product.models.tax_rate import TaxRate
 
 DEFAULT_PAYMENT_STATUSES: tuple[tuple[str, str], ...] = (
     ("Pending", "Payment initiated, awaiting provider action"),
@@ -100,7 +103,91 @@ async def _seed_manual_payment_methods(session: AsyncSession) -> None:
         )
 
 
+async def _seed_price_groups(session: AsyncSession) -> None:
+    """Seed default price groups used by runtime pricing."""
+    groups = (
+        {
+            "code": "PARTICULIER",
+            "label": "Particulier",
+            "margin_rate_pct": Decimal("30.00"),
+            "default": True,
+            "requires_validation": False,
+        },
+        {
+            "code": "PROFESSIONNEL",
+            "label": "Professionnel",
+            "margin_rate_pct": Decimal("25.00"),
+            "default": False,
+            "requires_validation": True,
+        },
+        {
+            "code": "REVENDEUR",
+            "label": "Revendeur",
+            "margin_rate_pct": Decimal("12.00"),
+            "default": False,
+            "requires_validation": True,
+        },
+        {
+            "code": "PUBLIC",
+            "label": "Public / Etablissements",
+            "margin_rate_pct": Decimal("18.00"),
+            "default": False,
+            "requires_validation": True,
+        },
+    )
+
+    for group in groups:
+        statement = select(PriceGroup).where(PriceGroup.code == group["code"])
+        result = await session.exec(statement)
+        existing = result.first()
+        if existing is not None:
+            continue
+        session.add(PriceGroup.model_validate(group))
+
+
+async def _seed_tax_rates(session: AsyncSession) -> None:
+    """Seed baseline PF tax rates used by pricing resolution."""
+    rates = (
+        {
+            "code": "TGC_NORMAL",
+            "label": "TGC normal",
+            "rate_pct": Decimal("16.00"),
+            "territory_code": "PF",
+            "valid_from": date.today(),
+            "valid_until": None,
+        },
+        {
+            "code": "TGC_REDUIT",
+            "label": "TGC reduit",
+            "rate_pct": Decimal("5.00"),
+            "territory_code": "PF",
+            "valid_from": date.today(),
+            "valid_until": None,
+        },
+        {
+            "code": "TGC_EXONERE",
+            "label": "TGC exonere",
+            "rate_pct": Decimal("0.00"),
+            "territory_code": "PF",
+            "valid_from": date.today(),
+            "valid_until": None,
+        },
+    )
+
+    for rate in rates:
+        statement = select(TaxRate).where(
+            TaxRate.code == rate["code"],
+            TaxRate.territory_code == rate["territory_code"],
+        )
+        result = await session.exec(statement)
+        if result.first() is not None:
+            continue
+        session.add(TaxRate.model_validate(rate))
+
+
 async def initial_data(session: AsyncSession) -> None:
     """Execute initial data."""
     await _seed_payment_statuses(session)
     await _seed_manual_payment_methods(session)
+    await _seed_price_groups(session)
+    await _seed_tax_rates(session)

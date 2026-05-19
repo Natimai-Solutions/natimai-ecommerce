@@ -11,6 +11,7 @@ from app.api.routes.category import router as category_router
 from app.api.routes.discount import router as discount_router
 from app.api.routes.group import router as group_router
 from app.api.routes.group_security import router as group_security_router
+from app.api.routes.health import router as health_router
 from app.api.routes.icecat import router as icecat_router
 from app.api.routes.internal_storage import router as internal_storage_router
 from app.api.routes.inventory import router as inventory_router
@@ -28,6 +29,7 @@ from app.api.routes.place import router as place_router
 from app.api.routes.product import (
     router as product_router,
 )
+from app.api.routes.product_phase1 import router as product_phase1_router
 from app.api.routes.shipping import shipping_router
 from app.api.routes.stock_movement import router as stock_movement_router
 from app.api.routes.suppliers import router as suppliers_router
@@ -50,6 +52,7 @@ api_router.include_router(payment_method_router)
 api_router.include_router(payments_router)
 api_router.include_router(admin_payments_router)
 api_router.include_router(internal_storage_router)
+api_router.include_router(product_phase1_router)
 api_router.include_router(product_router)
 api_router.include_router(discount_router)
 api_router.include_router(cart_router)
@@ -71,6 +74,7 @@ api_router.include_router(user_review_router)
 api_router.include_router(user_notification_router)
 api_router.include_router(user_wishlist_router)
 api_router.include_router(utils_router, prefix="/utils")
+api_router.include_router(health_router)
 
 # Shipping routes
 api_router.include_router(shipping_router)

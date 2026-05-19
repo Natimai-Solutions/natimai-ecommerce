@@ -25,6 +25,12 @@ class CategoryBase(Base):
         max_length=500,
         description="URL of the category image",
     )
+    default_tax_rate_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="tax_rates.id",
+        index=True,
+        description="Default tax rate applied to products in this category",
+    )
 
 
 class CategoryCreate(CategoryBase, BaseCreate):
@@ -36,7 +42,7 @@ class CategoryCreate(CategoryBase, BaseCreate):
 class CategoryUpdate(CategoryBase, BaseUpdate):
     """Represents category update."""
 
-    pass
+    default_tax_rate_id: uuid.UUID | None = None
 
 
 class Category(CategoryBase, table=True):

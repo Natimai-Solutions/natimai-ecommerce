@@ -2,7 +2,9 @@ from app.features.analytic.models.analytic_product import AnalyticsProduct
 from app.features.analytic.models.analytic_sale import AnalyticsSale
 from app.features.analytic.models.analytic_user import AnalyticsUser
 from app.features.cart.models.cart import Cart, CartItem
+from app.features.cart.models.quote_request import QuoteRequest
 from app.features.discount.models import Discount
+from app.features.integrations.models.supplier_order import SupplierOrder
 from app.features.integrations.models.supplier_sync import (
     SupplierProductMapping,
     SupplierSyncLog,
@@ -22,7 +24,9 @@ from app.features.payment.models.payment_validation import PaymentValidation
 from app.features.place.models import Place
 from app.features.product.models.brand import Brand
 from app.features.product.models.category import Category
+from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import Product
+from app.features.product.models.tax_rate import TaxRate
 from app.features.shipping.models.delivery_task import DeliveryTask
 from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.models.route_tracking import (
@@ -49,6 +53,8 @@ __all__ = [
     "Cart",
     "CartItem",
     "Category",
+    "PriceGroup",
+    "TaxRate",
     "DeliveryTask",
     "Discount",
     "Group",
@@ -74,6 +80,7 @@ __all__ = [
     "ShippingRouteTrackingLogs",
     "StatusDefinition",
     "StatusTransition",
+    "SupplierOrder",
     "SupplierProductMapping",
     "SupplierSyncLog",
     "User",
@@ -82,4 +89,5 @@ __all__ = [
     "UserRefreshToken",
     "Wishlist",
     "WishlistItem",
+    "QuoteRequest",
 ]

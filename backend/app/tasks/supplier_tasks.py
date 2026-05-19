@@ -201,9 +201,10 @@ async def sync_supplier_inventory_task(
                                 session=session,
                                 id=product.id,
                                 data=ProductUpdate(
+                                    cost_amount=snapshot.supplier_price,
+                                    cost_currency=snapshot.supplier_price_currency,
                                     supplier_price=snapshot.supplier_price,
                                     supplier_price_currency=snapshot.supplier_price_currency,
-                                    base_price=snapshot.base_price,
                                     supplier_quantity=snapshot.supplier_quantity,
                                     last_supplier_sync=_now(),
                                 ),

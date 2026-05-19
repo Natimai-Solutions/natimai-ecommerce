@@ -151,6 +151,17 @@ class Settings(BaseSettings):
     ]
     INGRAM_SYNC_INTERVAL_HOURS: int = 6  # Synchronisation toutes les 6 heures
 
+    # Ingram Micro — automatic purchase order creation on payment.captured
+    # Enable only after INGRAM_SHIP_TO_* fields are configured.
+    INGRAM_ORDER_CREATION_ENABLED: bool = False
+    INGRAM_SHIP_TO_CONTACT: str | None = None
+    INGRAM_SHIP_TO_COMPANY_NAME: str | None = None
+    INGRAM_SHIP_TO_ADDRESS_LINE1: str | None = None
+    INGRAM_SHIP_TO_CITY: str | None = None
+    INGRAM_SHIP_TO_POSTAL_CODE: str | None = None
+    INGRAM_SHIP_TO_COUNTRY_CODE: str = "PF"
+    INGRAM_SHIP_TO_PHONE: str | None = None
+
     # Icecat API Configuration
     ICECAT_USERNAME: str | None = None
     ICECAT_API_KEY: str | None = None
