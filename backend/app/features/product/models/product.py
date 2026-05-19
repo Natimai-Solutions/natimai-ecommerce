@@ -4,7 +4,9 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
+from typing import Any
 
+from sqlalchemy import JSON, Column
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
@@ -169,6 +171,21 @@ class ProductBase(Base):
     )
     end_of_life_date: str | None = Field(
         default=None, description="End of life date of the product"
+    )
+    technical_specifications: list[dict[str, Any]] | None = Field(
+        default=None,
+        sa_column=Column(JSON),
+        description="Technical specifications extracted from Icecat",
+    )
+    features: list[str] | None = Field(
+        default=None,
+        sa_column=Column(JSON),
+        description="Feature bullet points extracted from Icecat",
+    )
+    icecat_images: list[dict[str, Any]] | None = Field(
+        default=None,
+        sa_column=Column(JSON),
+        description="Icecat gallery metadata for the product",
     )
 
 

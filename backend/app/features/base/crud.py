@@ -353,9 +353,71 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         *,
         permission: str | None = None,
         user: UserType | None = None,
-    ):
-        """Check user permission."""
-        return True
+    ) -> bool:
+        """Check user permission against GroupSecurity rules.
+
+        Returns True when ENABLE_GROUP_PERMISSIONS is False (current default).
+        When enabled, superusers always pass; users without any security group
+        pass (no restrictions); users with security groups must have an explicit
+        rule granting the requested permission on this CRUD's table.
+        """
+        from app.core.config import settings
+
+        if not settings.ENABLE_GROUP_PERMISSIONS:
+            return True
+        if user is None:
+            return False
+        if user.is_superuser:
+            return True
+        if permission is None:
+            return True
+
+        from sqlmodel import col
+
+        from app.features.user.models.group import Group
+        from app.features.user.models.group_security import GroupSecurity
+        from app.features.user.models.user_group import UserGroup
+
+        table_name = self.model.__tablename__
+        permission_col = {
+            "read": GroupSecurity.can_read,
+            "create": GroupSecurity.can_create,
+            "update": GroupSecurity.can_update,
+            "delete": GroupSecurity.can_delete,
+        }.get(permission)
+        if permission_col is None:
+            return False
+
+        # If the user has no security groups, apply no restrictions.
+        has_group_stmt = (
+            select(UserGroup)
+            .join(Group, UserGroup.group_id == Group.id)
+            .where(
+                UserGroup.user_id == user.id,
+                Group.group_type == "security",
+            )
+            .limit(1)
+        )
+        result = await session.exec(has_group_stmt)
+        if result.first() is None:
+            return True
+
+        # User has security groups: require an explicit rule granting the permission.
+        perm_stmt = (
+            select(GroupSecurity)
+            .join(Group, GroupSecurity.group_id == Group.id)
+            .join(UserGroup, UserGroup.group_id == Group.id)
+            .where(
+                UserGroup.user_id == user.id,
+                Group.group_type == "security",
+                GroupSecurity.table_name == table_name,
+                col(GroupSecurity.is_active).is_(True),
+                permission_col.is_(True),
+            )
+            .limit(1)
+        )
+        result = await session.exec(perm_stmt)
+        return result.first() is not None
 
     async def read_after(
         self,
@@ -451,6 +513,8 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         if include_archived is False and self.default_filter is not None:
             statement = statement.where(self.default_filter)
         if filter is not None:
+            if isinstance(filter, str):
+                raise ValueError("String filters are not supported")
             statement = statement.where(filter)
         return statement
 

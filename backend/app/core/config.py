@@ -193,6 +193,11 @@ class Settings(BaseSettings):
     MAILGUN_FROM_NAME: str | None = None
     MAILGUN_TIMEOUT_SECONDS: int = 10
 
+    # Group-based permissions (RBAC)
+    # Set to True in Phase 2 after security groups are seeded and assigned.
+    # When False, all authenticated users pass permission checks (current behavior).
+    ENABLE_GROUP_PERMISSIONS: bool = False
+
     # ClamAV antivirus
     CLAMAV_ENABLED: bool = False
     CLAMAV_HOST: str = "clamav"

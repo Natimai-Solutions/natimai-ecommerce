@@ -13,7 +13,7 @@ Document de travail établi à partir de la vérification fonctionnelle (cf. [PL
 | Entité | Champs à ajouter |
 |--------|------------------|
 | `Product` | `cost_amount: Decimal`, `cost_currency: str`, `customs_rate_pct: Decimal` |
-| `PriceGroup` (nouveau, ou extension de `Group`) | `margin_rate_pct: Decimal`, `vat_rate_pct: Decimal`, `default: bool`, `requires_validation: bool`, `label: str` |
+| `PriceGroup` (nouveau, ou extension de `Group`) | `margin_rate_pct: Decimal`, `default: bool`, `requires_validation: bool`, `label: str` |
 | `User` | `price_group_id: UUID` (FK, nullable → fallback `default=True`) |
 | `OrderLine` | `price_group_applied_id: UUID` (snapshot pour audit) |
 | `PriceOverride` (Phase 5 optionnelle) | `product_id | category_id`, `group_id`, `override_margin_pct`, `valid_from`, `valid_until` |
@@ -21,7 +21,8 @@ Document de travail établi à partir de la vérification fonctionnelle (cf. [PL
 ### Formule unique
 
 ```python
-sale_price = cost × (1 + customs_rate_pct/100) × (1 + margin_rate_pct/100) × (1 + vat_rate_pct/100)
+sale_price = cost × (1 + customs_rate_pct/100) × (1 + margin_rate_pct/100) × (1 + tax_rate.rate_pct/100)
+# tax_rate résolu : product.tax_rate → category.default_tax_rate → TaxRate(code="TGC_NORMAL", territory="PF")
 ```
 
 - Anonymes / non connectés → groupe `default=True` (typiquement « Particulier »).
@@ -32,16 +33,64 @@ sale_price = cost × (1 + customs_rate_pct/100) × (1 + margin_rate_pct/100) × 
 
 | Groupe | Marge | TVA | Validation admin |
 |--------|-------|-----|------------------|
-| Particulier (default) | 30% | TVA PF | Non |
-| Professionnel | 25% | TVA PF | Oui (justificatif d'entreprise) |
-| Revendeur | 12% | TVA PF | Oui (justificatif d'entreprise) |
-| Public / Établissements | 18% | TVA PF | Oui (justificatif) |
+| Particulier (default) | 30% | via `TaxRate` produit/catégorie | Non |
+| Professionnel | 25% | via `TaxRate` produit/catégorie | Oui (justificatif d'entreprise) |
+| Revendeur | 12% | via `TaxRate` produit/catégorie | Oui (justificatif d'entreprise) |
+| Public / Établissements | 18% | via `TaxRate` produit/catégorie | Oui (justificatif) |
 
 **Notes** :
-- En Polynésie française, tous les groupes sont soumis à la TVA. Le taux exact (et le code) est stocké sur `PriceGroup.vat_rate_pct` pour rester ajustable côté admin.
+- En Polynésie française, la taxe (TGC) s'applique à tous les groupes, mais son taux dépend du **produit/catégorie**, pas du groupe client. Le groupe client pilote uniquement la marge. Voir section *Décision transverse : gestion des taux de TVA/TGC*.
 - Pas de SIRET en PF — le justificatif d'entreprise repose sur le **numéro TAHITI** (ou équivalent local). Le champ doit donc être nommé de façon générique (`business_registration_number` plutôt que `siret`) pour rester portable.
-- **Flexibilité géographique** : si à terme on livre hors PF, prévoir un mécanisme de TVA/marge par territoire (extension à un champ `territory_code` sur `PriceGroup`, ou table `PriceGroupTerritoryOverride`). Ne pas ferrer le code sur « TVA PF » comme constante.
+- **Flexibilité géographique** : le champ `territory_code` sur `TaxRate` permet de gérer plusieurs zones fiscales. La résolution du taux (product → category → default du territoire) est centralisée dans `pricing.py` pour ne jamais ferrer le code sur « TVA PF » comme constante.
 - Valeurs gérables via endpoint admin, pas de constantes en dur.
+
+---
+
+## Décision transverse : gestion des taux de TVA / TGC
+
+**Contexte** : en Polynésie française, la taxe sur la consommation (TGC) dépend de la **nature du produit**, pas du groupe client. Le taux est donc une propriété du produit ou de sa catégorie, pas de `PriceGroup`.
+
+### Modèle de données
+
+| Entité | Champs à ajouter |
+|--------|------------------|
+| `TaxRate` (nouveau) | `id`, `code: str` (ex. `TGC_NORMAL`), `label: str`, `rate_pct: Decimal`, `territory_code: str` (ex. `PF`), `valid_from: date`, `valid_until: date \| null` |
+| `Category` | `default_tax_rate_id: UUID \| null` (FK → `TaxRate`) |
+| `Product` | `tax_rate_id: UUID \| null` (FK → `TaxRate`, nullable → fallback sur `Category.default_tax_rate_id`, puis taux standard du territoire) |
+| `OrderLine` | `tax_rate_id: UUID` (snapshot figé au checkout pour historique fiscal) |
+
+### Taux PF à seeder (Phase 1)
+
+| Code | Taux | Usage typique |
+|------|------|---------------|
+| `TGC_NORMAL` | 16 % | Électronique, informatique, services |
+| `TGC_REDUIT` | 5 % | Alimentaire, médicaments, livres |
+| `TGC_EXONERE` | 0 % | Produits exonérés (eau, certains intrants) |
+
+### Résolution du taux dans `pricing.py`
+
+```python
+def resolve_tax_rate(product, territory="PF") -> TaxRate:
+    return (
+        product.tax_rate
+        or product.category.default_tax_rate
+        or TaxRate.get(code="TGC_NORMAL", territory=territory)
+    )
+```
+
+### Invariants
+
+- Un `TaxRate` n'est jamais modifié rétroactivement : on crée un nouveau taux avec `valid_from` et on clôture l'ancien via `valid_until`. Les `OrderLine` gardent leur snapshot.
+- Pas de constante `TVA_RATE = 0.16` dans le code — toujours résolu depuis la BDD.
+- Extension multi-territoire : ajouter un `TaxRate` avec `territory_code="NC"` (Nouvelle-Calédonie) sans toucher à la logique de résolution.
+
+### Jalons par phase
+
+| Phase | Livrable TVA |
+|-------|-------------|
+| **1** | Modèle `TaxRate` + migration + seed 3 taux PF ; champ `Category.default_tax_rate_id` + `Product.tax_rate_id` ; service `resolve_tax_rate()` utilisé dans `calculate_sale_price()` |
+| **2** | Admin CRUD : `GET/POST /admin/tax-rates`, `PUT /admin/tax-rates/{id}` (valid_until only), `PUT /admin/products/{id}/tax-rate`, `PUT /admin/categories/{id}/tax-rate` |
+| **5a** | Facture : ligne HT + code taux + montant TVA ; sous-total TVA regroupé par taux ; snapshot `OrderLine.tax_rate_id` exposé dans le PDF |
 
 ---
 
@@ -49,24 +98,32 @@ sale_price = cost × (1 + customs_rate_pct/100) × (1 + margin_rate_pct/100) × 
 
 **Objectif** : pouvoir déployer sereinement les phases suivantes sans dette qui se propage.
 
+**Statut** : ✅ Réalisée (18/05/2026)
+
 ### Bugs identifiés
 
-| # | Bug | Localisation | Sévérité |
-|---|-----|--------------|----------|
-| B1 | `_collect_email_targets` utilise des UUIDs comme adresses email → aucun email client n'arrive | [notifications.py:53-65](../../app/features/payment/services/notifications.py#L53-L65) | 🔴 Bloquant |
-| B2 | Specs / features / gallery Icecat fetchées puis jetées | [icecat_tasks.py:42-49](../../app/tasks/icecat_tasks.py#L42-L49) | 🔴 Bloquant Phase 1 |
-| B3 | `last_supplier_sync` typé `datetime` mais stocké en ISO string | [product.py CRUD:114](../../app/features/product/crud/product.py#L114) vs modèle | 🟠 Risque comparaison |
-| B4 | `filter: str` du BaseRouter passé brut à SQLAlchemy `.where()` | [base_router.py:135-145](../../app/api/base_router.py#L135-L145) + [crud.py:454-455](../../app/features/base/crud.py#L454-L455) | 🟠 Audit sécurité |
-| B5 | Endpoints tracking/consolidation sans gating admin | [tracking.py](../../app/api/routes/shipping/tracking.py) | 🟠 |
-| B6 | Création produit ouverte à tout user authentifié au lieu de superuser | [product.py:28-32](../../app/api/routes/product.py#L28-L32) | 🟠 |
-| B7 | `CheckoutMetricsStore` in-memory incompatible multi-replicas | [observability.py:137](../../app/core/observability.py#L137) | 🟡 |
-| B8 | Auto-sélection routes shipping greedy par segment ≠ optimum global | [cart.py:271-305](../../app/api/routes/cart.py#L271-L305) | 🟡 |
-| B9 | Mapping `last_supplier_sync` String/Datetime à harmoniser dans la migration | alembic | 🟡 |
+| # | Bug | Localisation | Sévérité | Statut |
+|---|-----|--------------|----------|--------|
+| B1 | `_collect_email_targets` utilise des UUIDs comme adresses email → aucun email client n'arrive | [notifications.py](../../app/features/payment/services/notifications.py) | 🔴 Bloquant | ✅ Corrigé |
+| B2 | Specs / features / gallery Icecat fetchées puis jetées | [icecat_tasks.py](../../app/tasks/icecat_tasks.py) + migration [3b5d9a1c7e42](../../app/alembic/versions/3b5d9a1c7e42_add_icecat_payload_columns_to_products.py) | 🔴 Bloquant Phase 1 | ✅ Corrigé |
+| B3 | `last_supplier_sync` typé `datetime` mais stocké en ISO string | [product.py CRUD](../../app/features/product/crud/product.py) vs modèle | 🟠 Risque comparaison | ✅ Corrigé |
+| B4 | `filter: str` du BaseRouter passé brut à SQLAlchemy `.where()` | [base_router.py](../../app/api/base_router.py) + [crud.py](../../app/features/base/crud.py) | 🟠 Audit sécurité | ✅ Corrigé |
+| B5 | Endpoints tracking/consolidation sans gating admin | [tracking.py](../../app/api/routes/shipping/tracking.py) | 🟠 | ✅ Corrigé |
+| B6 | Création produit ouverte à tout user authentifié au lieu de superuser | [product.py](../../app/api/routes/product.py) | 🟠 | ✅ Corrigé |
+| B7 | `CheckoutMetricsStore` in-memory incompatible multi-replicas | [observability.py:137](../../app/core/observability.py#L137) | 🟡 | ⏸ Reporté Phase 2 |
+| B8 | Auto-sélection routes shipping greedy par segment ≠ optimum global | [cart.py:271-305](../../app/api/routes/cart.py#L271-L305) | 🟡 | ⏸ Reporté Phase 3 |
+| B9 | Mapping `last_supplier_sync` String/Datetime à harmoniser dans la migration | alembic | 🟡 | ⏸ Reporté (suivi migration) |
 
 ### Périmètre Phase 0
 
-- ✅ Corriger B1, B2, B3, B4, B5, B6.
-- ⏸ B7, B8, B9 peuvent attendre Phase 2/3 si pas bloquant.
+- ✅ B1, B2, B3, B4, B5, B6 livrés.
+- ⏸ B7, B8, B9 conservés au backlog des phases ultérieures.
+
+### Validation Phase 0
+
+- Tests ciblés API mis à jour pour les nouveaux garde-fous de sécurité (tracking superuser, création produit superuser, filtre brut rejeté).
+- Régression Icecat couverte par l'activation de la persistance des payloads dans `update_product_with_icecat_data()`.
+- Migration dédiée ajoutée pour la persistance JSON des données Icecat sur `products`.
 
 ---
 
@@ -92,10 +149,17 @@ sale_price = cost × (1 + customs_rate_pct/100) × (1 + margin_rate_pct/100) × 
    - Adapter [supplier_tasks.py:194-211](../../app/tasks/supplier_tasks.py#L194-L211) : stocker `cost_amount` au lieu d'écraser `base_price`. Calculer `base_price` côté présentation.
    - Snapshot pricing dans `CartItem` (déjà) — pas de modification immédiate côté `OrderLine`.
 
+2. **TVA / TGC**
+   - Migration : modèle `TaxRate` (`code`, `label`, `rate_pct`, `territory_code`, `valid_from`, `valid_until`).
+   - Migration : `Category.default_tax_rate_id` (FK nullable) + `Product.tax_rate_id` (FK nullable).
+   - Migration : `OrderLine.tax_rate_id` (FK, snapshot figé au checkout).
+   - Seed des 3 taux PF (`TGC_NORMAL 16%`, `TGC_REDUIT 5%`, `TGC_EXONERE 0%`).
+   - Service `resolve_tax_rate(product, territory) -> TaxRate` dans `pricing.py`.
+   - En Phase 1 : toutes les catégories héritent de `TGC_NORMAL` par défaut ; ajustement manuel possible en admin pour les catégories alimentaires.
+
 2. **Persistance Icecat (corrigé en Phase 0)**
-   - Migration : `technical_specifications JSONB`, `features JSONB`, table `product_images(product_id, url, role, position, width, height)` ou JSONB `images`.
-   - Décommenter [icecat_tasks.py:42-49](../../app/tasks/icecat_tasks.py#L42-L49).
-   - Cron Icecat hebdomadaire (re-sync release/EOL).
+   - ✅ Livré : colonnes `technical_specifications`, `features`, `icecat_images` sur `products` + activation du mapping dans [icecat_tasks.py](../../app/tasks/icecat_tasks.py).
+   - Action résiduelle Phase 1 : activer le cron Icecat hebdomadaire (re-sync release/EOL).
 
 3. **Recherche**
    - Migration : `tsvector` PostgreSQL sur `name || description || manufacturer || vendor_part_number` + index GIN.
@@ -154,7 +218,14 @@ sale_price = cost × (1 + customs_rate_pct/100) × (1 + margin_rate_pct/100) × 
 
 ### Travaux backend
 
-1. **Groupes pricing actifs**
+1. **TVA / TGC — admin CRUD**
+   - `GET /admin/tax-rates` (liste avec filtres `territory_code`, `valid`).
+   - `POST /admin/tax-rates` (créer un nouveau taux, ne remplace pas l'ancien).
+   - `PUT /admin/tax-rates/{id}` (modifier `label` ou fixer `valid_until` pour clôturer).
+   - `PUT /admin/products/{id}/tax-rate` et `PUT /admin/categories/{id}/tax-rate`.
+   - Garde-fou : interdire la modification de `rate_pct` sur un taux existant (créer un nouveau avec `valid_from` à la place).
+
+2. **Groupes pricing actifs**
    - Activation des 4 `PriceGroup`.
    - Endpoint admin `POST /admin/users/{id}/assign-price-group` + workflow de **validation admin systématique** (pas d'auto-validation) :
      - User soumet une demande (`POST /users/me/upgrade-group` avec `business_registration_number` + attestation libre + groupe cible).
@@ -163,7 +234,14 @@ sale_price = cost × (1 + customs_rate_pct/100) × (1 + margin_rate_pct/100) × 
      - Le champ d'identification entreprise reste générique (`business_registration_number`) pour porter aussi bien le numéro TAHITI que d'autres formats si on étend ailleurs.
    - Endpoint public `GET /product/{id}` calcule le prix selon le groupe du `current_user` (anonyme = groupe `default=True`).
 
-2. **OAuth Google + Microsoft**
+3. **RBAC — activation des permissions par groupe**
+   - Seed des groupes de sécurité initiaux : `support`, `logistics_admin`, `payment_admin` (chacun avec `group_type='security'`).
+   - Pour chaque groupe, créer les règles `GroupSecurity` par table (ex. `payment_admin` : can_read + can_update sur `payments`).
+   - Passer `ENABLE_GROUP_PERMISSIONS=true` en prod **après** avoir vérifié que le superuser et les users existants fonctionnent correctement (le superuser bypass est inconditionnel ; les users sans groupe de sécurité ne sont pas restreints).
+   - Assigner les groups de sécurité aux membres de l'équipe admin concernés.
+   - Note : `CrudBase.check_user_permission()` est déjà implémenté et contrôlé par ce flag.
+
+4. **OAuth Google + Microsoft**
    - Lib : `authlib` (recommandé, supporte les deux providers).
    - Config : `GOOGLE_CLIENT_ID/SECRET`, `MICROSOFT_CLIENT_ID/SECRET/TENANT`.
    - Modèle `UserOAuthLink(user_id, provider, provider_user_id, email_at_link, created_at)`.
@@ -172,12 +250,12 @@ sale_price = cost × (1 + customs_rate_pct/100) × (1 + margin_rate_pct/100) × 
      - `GET /auth/{provider}/callback` → échange code, récupère email/profile, lie ou crée le `User`, émet JWT comme login classique.
    - Email = clé de jonction par défaut ; si conflit (email déjà pris par compte password), exiger confirmation manuelle.
 
-3. **Préférences utilisateur**
+5. **Préférences utilisateur**
    - Modèle `UserPreference(user_id, notification_email_enabled, notification_shipping_steps, default_shipping_preference, locale, currency_pref)`.
    - Endpoints `GET/PUT /users/me/preferences`.
    - Au checkout : si `shipping_preference` absent de `CheckoutRequest`, fallback sur `user.preference.default_shipping_preference` (`fastest|cheapest|eco_friendly`).
 
-4. **Email notifications commande/paiement**
+6. **Email notifications commande/paiement**
    - Handlers outbox :
      - `order.created` (publish dans `checkout_my_cart` après commit) → email client « Commande reçue ».
      - `payment.captured` (déjà publié) → email client « Paiement validé ».
@@ -185,10 +263,10 @@ sale_price = cost × (1 + customs_rate_pct/100) × (1 + margin_rate_pct/100) × 
    - Réutiliser l'infra [payment/services/notifications.py](../../app/features/payment/services/notifications.py) **avec bug B1 corrigé** : résoudre `user_id` → `user.email` avant l'appel Mailgun.
    - Templates HTML simples (Jinja2) avec branding minimal.
 
-5. **Adresses validées**
+7. **Adresses validées**
    - Workflow `Address.is_validated` (déjà partiellement présent) — exposer endpoints pour valider/lister/supprimer.
 
-6. **Paiement CB en production**
+8. **Paiement CB en production**
    - Validation end-to-end : initiate → form-token → IPN → outbox → order status.
    - Tests de charge légers sur l'IPN.
    - Page de retour client (frontend) qui poll `GET /payments/{id}` jusqu'à statut terminal.
@@ -290,7 +368,7 @@ sale_price = cost × (1 + customs_rate_pct/100) × (1 + margin_rate_pct/100) × 
 |----|----------------|-------|
 | M1 | Produits les plus vus | Tracking de vues + endpoint top-N |
 | M2 | Déploiement Kubernetes | Helm chart à partir du `docker-compose.prod.yml` |
-| M3 | Factures + export comptable | Modèle Invoice + numérotation + PDF + export FEC/CSV Sage |
+| M3 | Factures + export comptable | Modèle Invoice + numérotation + PDF (avec ventilation TVA par taux via `OrderLine.tax_rate_id`) + export FEC/CSV Sage |
 | M4 | Alerting actif | Job ARQ surveille dashboard → Slack/email sur seuils |
 | Z1 | Paiement en plusieurs fois | Dépend Phase 4 (tokenisation Payzen) |
 | Z2 | Avoir comptable | Dépend M3 (facture) + Phase 4 (refund) |
@@ -332,7 +410,7 @@ M3 (P5a) doit précéder Z2 (P5d)
 | OAuth : conflit email password/social | Décider en Phase 2 : refus + message vs liaison après validation par email |
 | Sync Ingram = écrasement du `cost_amount` côté pricing | Vérifier qu'aucune logique métier ne s'appuie sur le `base_price` pré-Phase 1 |
 | Migrations alembic destructrices sur `Product` (B9 + ajouts cost_amount, customs_rate, JSONB specs) | Une seule migration de fond début Phase 1, plutôt que plusieurs accumulées |
-| Hypothèse « PF only » figée dans le code (TVA, marges, libellés) | Stocker TVA et marges dans `PriceGroup`, jamais en constante ; prévoir un `territory_code` futur sur `PriceGroup` |
+| Hypothèse « PF only » figée dans le code (TVA, marges, libellés) | Taux stockés dans `TaxRate.territory_code`, jamais en constante ; résolution centralisée dans `resolve_tax_rate()` |
 | Identification entreprise non-portable si extension hors PF | Champ générique `business_registration_number` (jamais `siret`) dès la Phase 2 |
 | Templates email manquants | Préparer les 4 templates (commande, payé, échec, livré) en Phase 2 pour ne pas bloquer le déploiement |
 | Données Icecat dépendantes de credentials Open vs Full | Vérifier que le périmètre P1 fonctionne en Open Icecat (gratuit) |

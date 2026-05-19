@@ -82,13 +82,12 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         from datetime import datetime, timedelta
 
         threshold_time = datetime.utcnow() - timedelta(hours=hours_threshold)
-        threshold_iso = threshold_time.isoformat()
 
         conditions = [
             col(Product.is_supplier_managed).is_(True),
             col(Product.is_active).is_(True),
             (col(Product.last_supplier_sync).is_(None))
-            | (Product.last_supplier_sync < threshold_iso),
+            | (Product.last_supplier_sync < threshold_time),
         ]
 
         if supplier_name:
@@ -113,7 +112,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         if not product:
             return None
 
-        product.last_supplier_sync = sync_time.isoformat()
+        product.last_supplier_sync = sync_time
         session.add(product)
         await session.commit()
         await session.refresh(product)

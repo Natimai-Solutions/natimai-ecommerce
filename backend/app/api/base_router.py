@@ -36,6 +36,10 @@ class Auth:
     create: bool = True
     update: bool = True
     delete: bool = True
+    read_superuser: bool = False
+    create_superuser: bool = False
+    update_superuser: bool = False
+    delete_superuser: bool = False
 
 
 class AuthConfig(Protocol):
@@ -95,6 +99,14 @@ class BaseRouter(
             self.auth.update = True
         if not hasattr(self.auth, "delete"):
             self.auth.delete = True
+        if not hasattr(self.auth, "read_superuser"):
+            self.auth.read_superuser = False
+        if not hasattr(self.auth, "create_superuser"):
+            self.auth.create_superuser = False
+        if not hasattr(self.auth, "update_superuser"):
+            self.auth.update_superuser = False
+        if not hasattr(self.auth, "delete_superuser"):
+            self.auth.delete_superuser = False
 
         self.schema_create = schema_create
         self.schema_update = schema_update
@@ -124,9 +136,19 @@ class BaseRouter(
     ) -> None:
         """Helper method to check authorization for an endpoint."""
         auth_required = getattr(self.auth, permission, True)
+        superuser_required = getattr(self.auth, f"{permission}_superuser", False)
+
         if auth_required and current_user is None:
             raise HTTPException(
                 status_code=403, detail=f"Authentication required on {self.name}"
+            )
+
+        if superuser_required and (
+            current_user is None or not current_user.is_superuser
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Superuser privileges required to {permission} on {self.name}",
             )
 
         if current_user and not await self.crud.check_user_permission(
@@ -150,11 +172,16 @@ class BaseRouter(
         ) -> Any:
             """Read multi."""
             await self._check_auth(session, "read", current_user)
+            if filter is not None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Raw string filters are not supported on this endpoint",
+                )
             result = await self.crud.read_multi(
                 session,
                 skip=skip,
                 limit=limit,
-                filter=filter,
+                filter=None,
                 order_by=order_by,
                 include_archived=include_archived,
                 user=current_user,

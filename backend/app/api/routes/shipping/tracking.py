@@ -3,11 +3,11 @@
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlmodel import Field, SQLModel
 
 from app.api.base_router import BaseRouter
-from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
+from app.api.deps import CurrentSuperUser, SessionDep
 from app.features.base.crud import RecordNotFoundError
 from app.features.shipping.crud import (
     crud_shipping_route_tracking,
@@ -237,7 +237,7 @@ class ShippingRouteTrackingRouter(
         async def get_order_tracking(
             order_id: uuid.UUID,
             session: SessionDep,
-            _current_user: CurrentUser | None = Depends(get_current_user_optional),
+            _current_user: CurrentSuperUser,
         ):
             # Récupérer le tracking principal pour cette commande
             """Return tracking progress and consolidations for an order."""
@@ -304,7 +304,7 @@ class ShippingRouteTrackingRouter(
         async def get_tracking_status(
             tracking_id: uuid.UUID,
             session: SessionDep,
-            _current_user: CurrentUser | None = Depends(get_current_user_optional),
+            _current_user: CurrentSuperUser,
         ):
             """Return the current status of a tracking record."""
             try:
@@ -341,7 +341,7 @@ class ShippingRouteTrackingRouter(
             tracking_id: uuid.UUID,
             request: UpdateStatusRequest,
             session: SessionDep,
-            current_user: CurrentUser,
+            current_user: CurrentSuperUser,
         ):
             """Update tracking status with transition validation."""
             try:
@@ -373,10 +373,10 @@ class ShippingRouteTrackingRouter(
         async def get_tracking_history(
             tracking_id: uuid.UUID,
             session: SessionDep,
+            _current_user: CurrentSuperUser,
             limit: int = Query(
                 default=100, le=500, description="Nombre maximum d'entrées"
             ),
-            _current_user: CurrentUser | None = Depends(get_current_user_optional),
         ):
             """Return tracking status-change history."""
             try:
@@ -408,7 +408,7 @@ class ShippingRouteTrackingRouter(
         async def activate_next_route(
             tracking_id: uuid.UUID,
             session: SessionDep,
-            current_user: CurrentUser,
+            current_user: CurrentSuperUser,
         ):
             """Activate the next route in a multi-hop tracking sequence."""
             try:
@@ -436,6 +436,10 @@ class Auth:
     create = True
     update = True
     delete = True
+    read_superuser = True
+    create_superuser = True
+    update_superuser = True
+    delete_superuser = True
 
 
 # Router principal pour les trackings
@@ -460,6 +464,10 @@ class ConsolidationAuth:
     create = True
     update = True
     delete = True
+    read_superuser = True
+    create_superuser = True
+    update_superuser = True
+    delete_superuser = True
 
 
 # Router pour les consolidations
@@ -492,8 +500,8 @@ logs_router = APIRouter(
 async def get_tracking_logs(
     tracking_id: uuid.UUID,
     session: SessionDep,
+    _current_user: CurrentSuperUser,
     limit: int = Query(default=100, le=500),
-    _current_user: CurrentUser | None = Depends(get_current_user_optional),
 ):
     """Return tracking log entries for a tracking record."""
     # On utilise directement le CRUD du tracking pour accéder aux logs

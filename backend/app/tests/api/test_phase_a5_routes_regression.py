@@ -5,8 +5,10 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
+import app.api.routes.product as product_routes
 import app.api.routes.shipping.tracking as tracking_routes
 from app.api.deps import get_current_user
 from app.core.db import get_db
@@ -26,7 +28,7 @@ from app.main import app
 
 @pytest.fixture
 def current_user() -> SimpleNamespace:
-    return SimpleNamespace(id=uuid.uuid4(), is_superuser=False, is_active=True)
+    return SimpleNamespace(id=uuid.uuid4(), is_superuser=True, is_active=True)
 
 
 @pytest.fixture(autouse=True)
@@ -270,3 +272,57 @@ async def test_tracking_update_status_maps_record_not_found_to_404(
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Tracking not found"
+
+
+@pytest.mark.asyncio
+async def test_tracking_update_status_requires_superuser(
+    client: TestClient,
+    current_user: SimpleNamespace,
+) -> None:
+    current_user.is_superuser = False
+    tracking_id = uuid.uuid4()
+    new_status_id = uuid.uuid4()
+
+    response = client.post(
+        f"/api/v1/shipping/tracking/{tracking_id}/update-status",
+        json={"new_status_id": str(new_status_id)},
+    )
+
+    assert response.status_code == 403
+    assert "enough privileges" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_read_multi_rejects_raw_filter_query_string(
+    client: TestClient,
+) -> None:
+    response = client.get("/api/v1/product/?filter=id%20is%20not%20null")
+
+    assert response.status_code == 400
+    assert "Raw string filters" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_product_router_create_permission_requires_superuser(
+    monkeypatch: pytest.MonkeyPatch,
+    current_user: SimpleNamespace,
+) -> None:
+    current_user.is_superuser = False
+
+    permission_mock = AsyncMock(return_value=True)
+    monkeypatch.setattr(
+        product_routes.router.crud,
+        "check_user_permission",
+        permission_mock,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await product_routes.router._check_auth(
+            SimpleNamespace(),
+            "create",
+            current_user,
+        )
+
+    assert exc_info.value.status_code == 403
+    assert "Superuser privileges required" in exc_info.value.detail
+    permission_mock.assert_not_awaited()

@@ -34,6 +34,9 @@ class Auth:
     create: bool = True
     update: bool = True
     delete: bool = True
+    create_superuser: bool = True
+    update_superuser: bool = True
+    delete_superuser: bool = True
 
 
 router = ProductRouter(

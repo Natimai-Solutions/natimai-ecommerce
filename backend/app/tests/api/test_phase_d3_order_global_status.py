@@ -1,5 +1,7 @@
 import uuid
+from collections.abc import Generator
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -7,8 +9,20 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.api.routes.shipping.tracking as tracking_routes
+from app.api.deps import get_current_active_superuser
 from app.features.shipping.models.route_tracking import ShippingRouteTracking
 from app.features.shipping.models.status import StatusDefinition
+from app.main import app
+
+
+@pytest.fixture(autouse=True)
+def override_superuser_dependency() -> Generator[None, None, None]:
+    async def _override_superuser() -> SimpleNamespace:
+        return SimpleNamespace(id=uuid4(), is_superuser=True, is_active=True)
+
+    app.dependency_overrides[get_current_active_superuser] = _override_superuser
+    yield
+    app.dependency_overrides.clear()
 
 
 def _build_status(*, code: str, is_terminal: bool, is_error: bool) -> StatusDefinition:

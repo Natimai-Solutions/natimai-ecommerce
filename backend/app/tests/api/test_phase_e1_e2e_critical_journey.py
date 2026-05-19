@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 
+from app.api.deps import get_current_active_superuser
 from app.api.routes.cart import FulfillmentAllocation, FulfillmentSegment
 from app.core.db import get_db
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
@@ -147,7 +148,11 @@ def override_db_dependency(e1_state: E1State) -> Generator[None, None, None]:
             raise RuntimeError("Missing in-memory session")
         yield e1_state.session
 
+    async def _override_superuser() -> SimpleNamespace:
+        return SimpleNamespace(id=e1_state.user.id, is_superuser=True, is_active=True)
+
     app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_current_active_superuser] = _override_superuser
     yield
     app.dependency_overrides.clear()
 

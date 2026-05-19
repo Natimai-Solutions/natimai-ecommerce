@@ -39,14 +39,14 @@ def update_product_with_icecat_data(
     if icecat_product_data.long_description:
         update_data.long_description = icecat_product_data.long_description
 
-    # if icecat_product_data.specifications:
-    #    update_data.technical_specifications = icecat_product_data.specifications
+    if icecat_product_data.specifications:
+        update_data.technical_specifications = icecat_product_data.specifications
 
-    # if icecat_product_data.features:
-    #    update_data.features = icecat_product_data.features
+    if icecat_product_data.features:
+        update_data.features = icecat_product_data.features
 
-    # if icecat_product_data.images:
-    #    update_data.icecat_images = icecat_product_data.images
+    if icecat_product_data.images:
+        update_data.icecat_images = icecat_product_data.images
 
     if icecat_product_data.release_date:
         update_data.release_date = icecat_product_data.release_date

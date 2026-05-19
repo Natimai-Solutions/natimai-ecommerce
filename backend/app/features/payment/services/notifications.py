@@ -81,6 +81,9 @@ async def _resolve_user_email(
     if raw_str is None:
         return None
 
+    if _looks_like_email(raw_str):
+        return raw_str
+
     try:
         user_uuid = uuid.UUID(raw_str)
     except (TypeError, ValueError):
