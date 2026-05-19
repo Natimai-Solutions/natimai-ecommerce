@@ -95,8 +95,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      clamav:
-        condition: service_healthy
     env_file:
       - .env
     environment:
