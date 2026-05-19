@@ -14,14 +14,17 @@ and price/availability data; this class never talks to a vendor API directly.
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.features.integrations.crud.supplier_sync import supplier_product_mapping_crud
 from app.features.integrations.models.supplier_sync import SupplierProductMapping
 from app.features.integrations.services.supplier_data_normalization import (
     DEFAULT_CURRENCY,
+    NormalizedSupplierSnapshot,
     normalize_supplier_snapshot,
 )
 from app.features.product.crud.product import crud_product
@@ -49,6 +52,17 @@ class SupplierSyncOrchestrator:
         """Build an orchestrator for the registered ``supplier_name``."""
         return cls(get_adapter(supplier_name))
 
+    @staticmethod
+    def _meets_sync_thresholds(snapshot: NormalizedSupplierSnapshot) -> bool:
+        """Return False when price or quantity fall below configured minimums."""
+        min_qty = settings.SUPPLIER_SYNC_MIN_QUANTITY
+        min_price = settings.SUPPLIER_SYNC_MIN_PRICE
+        if min_qty > 0 and snapshot.supplier_quantity < min_qty:
+            return False
+        if min_price > 0 and snapshot.supplier_price < min_price:
+            return False
+        return True
+
     def _to_product_data(self, item: NormalizedProductData) -> dict[str, Any]:
         """Convert a normalized supplier payload into local product fields."""
         snapshot = normalize_supplier_snapshot(
@@ -75,7 +89,7 @@ class SupplierSyncOrchestrator:
             "supplier_price": snapshot.supplier_price,
             "supplier_price_currency": snapshot.supplier_price_currency,
             "is_supplier_managed": True,
-            "is_active": True,
+            "is_active": self._meets_sync_thresholds(snapshot),
             "upc": item.upc,
             "ean": item.ean,
         }
@@ -116,10 +130,51 @@ class SupplierSyncOrchestrator:
         )
         return supplier_product, mapping
 
+    async def _upsert_mapping(
+        self,
+        session: AsyncSession,
+        product: Product,
+        item: NormalizedProductData,
+    ) -> None:
+        """Create or update the supplier→product mapping without committing.
+
+        Avoids an internal commit so that product and mapping stay in the same
+        transaction, committed once by the caller (sync_products_to_database).
+        """
+        sync_time = datetime.now(timezone.utc)
+        mapping = await supplier_product_mapping_crud.get_by_supplier_sku(
+            session=session,
+            supplier_name=self.adapter.name,
+            supplier_sku=item.supplier_sku,
+        )
+        if mapping is None:
+            new_mapping = SupplierProductMapping(
+                supplier_name=self.adapter.name,
+                supplier_sku=item.supplier_sku,
+                local_product_id=product.id,
+                vendor_part_number=item.vendor_part_number,
+                manufacturer=item.manufacturer,
+                last_synced=sync_time,
+                sync_enabled=True,
+            )
+            session.add(new_mapping)
+            await session.flush()
+        else:
+            mapping.local_product_id = product.id
+            mapping.vendor_part_number = item.vendor_part_number
+            mapping.manufacturer = item.manufacturer
+            mapping.last_synced = sync_time
+            mapping.sync_enabled = True
+
     async def upsert_product(
         self, session: AsyncSession, item: NormalizedProductData
     ) -> dict[str, str]:
-        """Insert or update a local product from one normalized supplier payload."""
+        """Insert or update a local product from one normalized supplier payload.
+
+        Uses draft (no-commit) CRUD methods so that product + mapping land in one
+        transaction committed by the caller.  Avoids mid-operation session expiry
+        that would trigger a SQLAlchemy implicit lazy-load error in async mode.
+        """
         existing_product, _existing_mapping = await self._resolve_existing_product(
             session=session, item=item
         )
@@ -127,34 +182,27 @@ class SupplierSyncOrchestrator:
         product_data_dict = self._to_product_data(item)
 
         if existing_product:
-            product = await crud_product.update(
+            product = await crud_product.update_draft(
                 session=session,
                 id=existing_product.id,
                 data=ProductUpdate(**product_data_dict),
                 user=None,
+                record=existing_product,
             )
             action = "updated"
         else:
-            product = await crud_product.create(
+            product = await crud_product.create_draft(
                 session=session,
                 data=ProductCreate(**product_data_dict),
                 user=None,
             )
             action = "created"
 
-        mapping = await supplier_product_mapping_crud.upsert_mapping_for_sku(
-            session=session,
-            supplier_name=self.adapter.name,
-            supplier_sku=item.supplier_sku,
-            local_product_id=product.id,
-            vendor_part_number=item.vendor_part_number,
-            manufacturer=item.manufacturer,
-        )
+        await self._upsert_mapping(session, product, item)
 
         return {
             "action": action,
             "product_id": str(product.id),
-            "mapping_id": str(mapping.id),
         }
 
     async def sync_products_to_database(

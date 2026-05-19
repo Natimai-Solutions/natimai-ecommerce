@@ -1,5 +1,6 @@
 import secrets
 import warnings
+from decimal import Decimal
 from typing import Annotated, Any, Literal
 
 from pydantic import (
@@ -138,6 +139,12 @@ class Settings(BaseSettings):
     # AI
     OPENAI_ORG_ID: str | None = None
     OPENAI_API_KEY: str | None = None
+
+    # Supplier sync eligibility thresholds — products below either threshold
+    # are created/updated with is_active=False and hidden from the storefront.
+    # Set to 0 to disable filtering (default: show everything).
+    SUPPLIER_SYNC_MIN_QUANTITY: Decimal = Decimal("0")
+    SUPPLIER_SYNC_MIN_PRICE: Decimal = Decimal("0")
 
     # Ingram Micro API Configuration
     INGRAM_CLIENT_ID: str | None = None

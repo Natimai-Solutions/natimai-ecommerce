@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -485,6 +485,10 @@ crud_product = ProductCrud(
     schema_create=ProductCreate,
     schema_update=ProductUpdate,
     order_by=col(Product.created_at),
+    default_filter=and_(
+        col(Product.is_active).is_(True),
+        col(Product.is_admin_active).is_(True),
+    ),
     outbox_events={
         "create": "create.product",
         "update": "update.product",
