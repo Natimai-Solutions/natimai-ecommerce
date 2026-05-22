@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, func
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -438,16 +438,22 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         )
 
         query_text = (q or "").strip()
+        _ts_rank: Any | None = None
         if query_text:
-            pattern = f"%{query_text}%"
-            statement = statement.where(
-                or_(
-                    col(Product.name).ilike(pattern),
-                    col(Product.description).ilike(pattern),
-                    col(Product.manufacturer).ilike(pattern),
-                    col(Product.vendor_part_number).ilike(pattern),
-                )
+            # GIN FTS path — expression matches ix_products_search_fts index exactly.
+            search_doc = func.to_tsvector(
+                "simple",
+                func.concat_ws(
+                    " ",
+                    func.coalesce(col(Product.name), ""),
+                    func.coalesce(col(Product.description), ""),
+                    func.coalesce(col(Product.manufacturer), ""),
+                    func.coalesce(col(Product.vendor_part_number), ""),
+                ),
             )
+            ts_q = func.plainto_tsquery("simple", query_text)
+            statement = statement.where(search_doc.op("@@")(ts_q))
+            _ts_rank = func.ts_rank(search_doc, ts_q)
 
         if category_id is not None:
             statement = statement.where(Product.category_id == category_id)
@@ -462,7 +468,12 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         elif in_stock is False:
             statement = statement.where(Product.supplier_quantity <= Decimal("0"))
 
-        statement = statement.order_by(col(Product.created_at).desc())
+        if _ts_rank is not None:
+            statement = statement.order_by(
+                _ts_rank.desc(), col(Product.created_at).desc()
+            )
+        else:
+            statement = statement.order_by(col(Product.created_at).desc())
         result = await session.exec(statement)
         products = list(result.all())
         await self._apply_runtime_sale_prices(session, products)
