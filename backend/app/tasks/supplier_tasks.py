@@ -9,6 +9,7 @@ import hashlib
 import json
 import logging
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any, cast
 from uuid import uuid4
 
@@ -23,6 +24,7 @@ from app.features.integrations.services.supplier_data_normalization import (
     meets_sync_thresholds,
     normalize_supplier_snapshot,
 )
+from app.features.product.services.pricing import CurrencyRateMissing, convert_to_xpf
 from app.features.integrations.services.supplier_sync_orchestrator import (
     SupplierSyncOrchestrator,
 )
@@ -201,6 +203,26 @@ async def sync_supplier_inventory_task(
                                 raw_quantity=data.quantity or 0,
                                 raw_currency=data.currency or "USD",
                             )
+
+                            # Convert supplier price to XPF so that
+                            # SUPPLIER_SYNC_MIN_PRICE is always compared in the
+                            # same currency regardless of the supplier's invoice
+                            # currency (USD, EUR, …).
+                            price_in_xpf: Decimal | None = None
+                            try:
+                                price_in_xpf, _ = await convert_to_xpf(
+                                    session,
+                                    snapshot.supplier_price,
+                                    snapshot.supplier_price_currency,
+                                )
+                            except CurrencyRateMissing:
+                                logger.warning(
+                                    "No CurrencyRate for %s — "
+                                    "SUPPLIER_SYNC_MIN_PRICE check falls back to raw price for SKU %s",
+                                    snapshot.supplier_price_currency,
+                                    sku,
+                                )
+
                             await crud_product.update(
                                 session=session,
                                 id=product.id,
@@ -210,7 +232,9 @@ async def sync_supplier_inventory_task(
                                     supplier_price=snapshot.supplier_price,
                                     supplier_price_currency=snapshot.supplier_price_currency,
                                     supplier_quantity=snapshot.supplier_quantity,
-                                    is_active=meets_sync_thresholds(snapshot),
+                                    is_active=meets_sync_thresholds(
+                                        snapshot, price_in_xpf=price_in_xpf
+                                    ),
                                     last_supplier_sync=_now(),
                                 ),
                                 record=product,

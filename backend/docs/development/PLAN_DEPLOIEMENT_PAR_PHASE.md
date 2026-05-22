@@ -252,7 +252,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 
 **Objectif** : un site consultable, un panier, et un bouton « Demander un devis » qui envoie un email à l'admin. Pas de paiement en ligne.
 
-**Statut** : 🟡 En cours (items bloquants implémentés le 22/05/2026, validation d'intégration restante)
+**Statut** : 🟡 En cours (backend complet le 22/05/2026, validation d'intégration restante)
 
 ### Avancement backend (22/05/2026)
 
@@ -267,9 +267,9 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 - ✅ **Enqueue auto enrichment** à la création d'un produit supplier_managed dans `SupplierSyncOrchestrator.sync_products_to_database` (post-commit).
 - ✅ **Recherche avancée PostgreSQL** : extension `pg_trgm` + index GIN FTS (`ix_products_search_fts`) + index GIN trgm sur `name` (`ix_products_name_trgm`) — migration `f2a4b8c1d9e3` ; `search_products()` utilise `to_tsvector @@ plainto_tsquery` avec classement `ts_rank`.
 - ✅ **Seed CurrencyRate** USD/EUR automatique via `initial_data.py` (plus de config manuelle nécessaire au premier déploiement).
+- ✅ **`meets_sync_thresholds` — conversion XPF** : `supplier_tasks.py` appelle `convert_to_xpf()` avant le check ; `meets_sync_thresholds()` reçoit `price_in_xpf` (fallback sur prix brut si `CurrencyRateMissing`). `SUPPLIER_SYNC_MIN_PRICE` est désormais interprété en XPF quelle que soit la devise fournisseur.
+- ✅ **Documentation ops** : [OPS_ENV_ET_CHECKS.md](OPS_ENV_ET_CHECKS.md) — variables d'environnement par catégorie, checklist premier déploiement, checks ARQ/outbox/taux FX en prod.
 - 🟡 Migration/seed Phase 1 : à valider en environnement d'intégration (upgrade/downgrade + non-régression).
-- 🟡 Documentation ops (variables d'environnement, check ARQ/outbox en prod) : à finaliser avant release.
-- 🟡 `_meets_sync_thresholds` dans `supplier_data_normalization.py` : conversion USD→XPF avant comparaison au `SUPPLIER_SYNC_MIN_PRICE` non implémentée (la fonction est synchrone — nécessite refactoring avec session async).
 
 ### Périmètre fonctionnel
 
