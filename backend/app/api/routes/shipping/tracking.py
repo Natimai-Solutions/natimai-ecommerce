@@ -3,7 +3,7 @@
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 from sqlmodel import Field, SQLModel
 
 from app.api.base_router import BaseRouter
@@ -368,10 +368,16 @@ class ShippingRouteTrackingRouter(
                     details={"tracking_id": str(tracking_id)},
                 ) from exc
 
-            except ValueError as e:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-                )
+            except ValueError as exc:
+                raise AppError(
+                    code="shipping.tracking.invalid_transition",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    message=str(exc),
+                    details={
+                        "tracking_id": str(tracking_id),
+                        "reason": str(exc),
+                    },
+                ) from exc
 
         @self.get(
             "/{tracking_id}/history",
@@ -435,10 +441,16 @@ class ShippingRouteTrackingRouter(
                 else:
                     return None  # Pas de route suivante
 
-            except ValueError as e:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-                )
+            except ValueError as exc:
+                raise AppError(
+                    code="shipping.tracking.invalid_transition",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    message=str(exc),
+                    details={
+                        "tracking_id": str(tracking_id),
+                        "reason": str(exc),
+                    },
+                ) from exc
 
 
 class Auth:

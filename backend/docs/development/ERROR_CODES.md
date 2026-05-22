@@ -156,6 +156,7 @@ async def record_not_found_handler(_req: Request, exc: RecordNotFoundError) -> J
 | Code                          | HTTP | Déclencheur          | `details` exposés |
 |-------------------------------|------|----------------------|-------------------|
 | `shipping.tracking.not_found` | 404  | Tracking introuvable | `tracking_id`     |
+| `shipping.tracking.invalid_transition` | 400  | Transition de tracking invalide | `tracking_id`, `reason` |
 
 ### Domaine `internal`
 
@@ -247,7 +248,8 @@ export function translateApiError(
   },
   "shipping": {
     "tracking": {
-      "not_found": "Suivi introuvable."
+      "not_found": "Suivi introuvable.",
+      "invalid_transition": "Transition de suivi invalide."
     }
   },
   "internal": {

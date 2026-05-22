@@ -276,6 +276,64 @@ async def test_tracking_update_status_maps_record_not_found_to_404(
 
 
 @pytest.mark.asyncio
+async def test_tracking_update_status_maps_value_error_to_400(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tracking_id = uuid.uuid4()
+    new_status_id = uuid.uuid4()
+
+    update_status_mock = AsyncMock(side_effect=ValueError("Transition not allowed"))
+    monkeypatch.setattr(
+        tracking_routes.shipping_route_tracking_router.crud,
+        "update_status",
+        update_status_mock,
+    )
+
+    response = client.post(
+        f"/api/v1/shipping/tracking/{tracking_id}/update-status",
+        json={"new_status_id": str(new_status_id)},
+    )
+
+    assert response.status_code == 400
+    payload = response.json()["error"]
+    assert payload["code"] == "shipping.tracking.invalid_transition"
+    assert payload["details"] == {
+        "tracking_id": str(tracking_id),
+        "reason": "Transition not allowed",
+    }
+
+
+@pytest.mark.asyncio
+async def test_activate_next_route_maps_value_error_to_400(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tracking_id = uuid.uuid4()
+
+    activate_next_route_mock = AsyncMock(
+        side_effect=ValueError("No active segment to activate")
+    )
+    monkeypatch.setattr(
+        tracking_routes.shipping_route_tracking_router.crud,
+        "activate_next_route",
+        activate_next_route_mock,
+    )
+
+    response = client.post(
+        f"/api/v1/shipping/tracking/{tracking_id}/activate-next-route"
+    )
+
+    assert response.status_code == 400
+    payload = response.json()["error"]
+    assert payload["code"] == "shipping.tracking.invalid_transition"
+    assert payload["details"] == {
+        "tracking_id": str(tracking_id),
+        "reason": "No active segment to activate",
+    }
+
+
+@pytest.mark.asyncio
 async def test_tracking_update_status_requires_superuser(
     client: TestClient,
     current_user: SimpleNamespace,
