@@ -21,6 +21,7 @@ from app.features.payment.providers.manual import (
     MANUAL_STATUS_COMPLETED,
     MANUAL_STATUS_FAILED,
 )
+from app.features.product.models.currency_rate import CurrencyRate, CurrencyRateSource
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.tax_rate import TaxRate
 
@@ -185,9 +186,45 @@ async def _seed_tax_rates(session: AsyncSession) -> None:
         session.add(TaxRate.model_validate(rate))
 
 
+async def _seed_currency_rates(session: AsyncSession) -> None:
+    """Seed baseline FX rates used by pricing conversion (cost → XPF)."""
+    rates = (
+        {
+            "currency_code": "EUR",
+            "rate_to_xpf": Decimal("119.332"),
+        },
+        {
+            "currency_code": "USD",
+            "rate_to_xpf": Decimal("100.000"),
+        },
+    )
+
+    for rate in rates:
+        statement = select(CurrencyRate).where(
+            CurrencyRate.currency_code == rate["currency_code"],
+            CurrencyRate.is_active == True,  # noqa: E712
+            CurrencyRate.valid_until == None,  # noqa: E711
+        )
+        result = await session.exec(statement)
+        if result.first() is not None:
+            continue
+        session.add(
+            CurrencyRate(
+                currency_code=rate["currency_code"],
+                rate_to_xpf=rate["rate_to_xpf"],
+                valid_from=date.today(),
+                valid_until=None,
+                source=CurrencyRateSource.manual,
+                is_active=True,
+                is_admin_active=True,
+            )
+        )
+
+
 async def initial_data(session: AsyncSession) -> None:
     """Execute initial data."""
     await _seed_payment_statuses(session)
     await _seed_manual_payment_methods(session)
     await _seed_price_groups(session)
     await _seed_tax_rates(session)
+    await _seed_currency_rates(session)

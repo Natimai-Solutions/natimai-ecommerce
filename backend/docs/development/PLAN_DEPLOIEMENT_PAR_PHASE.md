@@ -252,22 +252,24 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 
 **Objectif** : un site consultable, un panier, et un bouton « Demander un devis » qui envoie un email à l'admin. Pas de paiement en ligne.
 
-**Statut** : 🟡 En cours (backend principal implémenté, validation finale et optimisations restantes)
+**Statut** : 🟡 En cours (items bloquants implémentés le 22/05/2026, validation d'intégration restante)
 
-### Avancement backend (18/05/2026)
+### Avancement backend (22/05/2026)
 
 - ✅ Pricing runtime : modèles `PriceGroup` / `TaxRate`, résolution taxe + calcul prix, adaptation sync fournisseur sur `cost_amount`.
 - ✅ API catalogue Phase 1 : `POST /product/search`, `GET /product/featured`, `POST/DELETE /product/{id}/feature` (admin).
 - ✅ Demande de devis : `POST /cart/quote-request` avec persistance `QuoteRequest` + envoi email support.
 - ✅ Checkout : snapshot `OrderLine.tax_rate_id` ajouté.
 - ✅ Readiness/liveness : endpoints `/healthz/liveness` et `/healthz/ready` (DB + Redis).
-- 🔴 **Devises** : `convert_to_xpf` + modèle `CurrencyRate` + snapshots FX sur `CartItem`/`OrderLine` non implémentés — bloquant pour la justesse des prix de vente affichés.
-- 🔴 **Catalogue specs filtrables** : table `product_spec` + YAML + projection + endpoint facettes non implémentés — `ProductSearchRequest.specs` actuellement non interprété.
-- 🔴 **Filtre `is_enriched=True`** sur endpoints publics : non posé — à ajouter avant déploiement.
-- 🔴 **Enqueue auto enrichment** à la création d'un produit supplier_managed : non câblé (aujourd'hui dépend du batch hebdo).
-- 🟡 Migration/seed Phase 1 créés : à valider en environnement d'intégration (upgrade/downgrade + non-régression).
-- 🟡 Recherche avancée PostgreSQL (`tsvector`/GIN/trgm) : optimisation encore à finaliser.
+- ✅ **Devises** : modèle `CurrencyRate` + migration `d1e5c3f8a294` + helper `convert_to_xpf()` intégré dans `calculate_sale_price()` + snapshots FX sur `CartItem`/`OrderLine` + endpoints admin `GET/PUT /admin/currency-rates`.
+- ✅ **Catalogue specs filtrables** : table `product_spec` + migration `e3b7a1c9d5f2` + `spec_definitions.yaml` (10 specs Ordinateur/Serveur) + projection dans `enrich_product_with_icecat_task` + `upsert_product_specs()` + endpoint `GET /product/categories/{id}/spec-facets` + job ARQ `reproject_product_specs_task`.
+- ✅ **Filtre `is_enriched=True`** sur endpoints publics (`search`, `featured`, `GET /products`, `GET /product/{id}` → 404 si non enrichi sauf superuser).
+- ✅ **Enqueue auto enrichment** à la création d'un produit supplier_managed dans `SupplierSyncOrchestrator.sync_products_to_database` (post-commit).
+- ✅ **Recherche avancée PostgreSQL** : extension `pg_trgm` + index GIN FTS (`ix_products_search_fts`) + index GIN trgm sur `name` (`ix_products_name_trgm`) — migration `f2a4b8c1d9e3` ; `search_products()` utilise `to_tsvector @@ plainto_tsquery` avec classement `ts_rank`.
+- ✅ **Seed CurrencyRate** USD/EUR automatique via `initial_data.py` (plus de config manuelle nécessaire au premier déploiement).
+- 🟡 Migration/seed Phase 1 : à valider en environnement d'intégration (upgrade/downgrade + non-régression).
 - 🟡 Documentation ops (variables d'environnement, check ARQ/outbox en prod) : à finaliser avant release.
+- 🟡 `_meets_sync_thresholds` dans `supplier_data_normalization.py` : conversion USD→XPF avant comparaison au `SUPPLIER_SYNC_MIN_PRICE` non implémentée (la fonction est synchrone — nécessite refactoring avec session async).
 
 ### Périmètre fonctionnel
 

@@ -115,7 +115,9 @@ async def unfeature_product(
     return ProductPublic.model_validate(product)
 
 
-@router.get("/categories/{category_id}/spec-facets", response_model=CategorySpecFacetsResponse)
+@router.get(
+    "/categories/{category_id}/spec-facets", response_model=CategorySpecFacetsResponse
+)
 async def get_category_spec_facets(
     category_id: uuid.UUID,
     session: SessionDep,
@@ -208,13 +210,13 @@ async def get_category_spec_facets(
             )
         if key in facets_by_key:
             facets_by_key[key].values.append(
-                SpecFacetValue(value_numeric=Decimal(str(row.value_numeric)), count=row.cnt)
+                SpecFacetValue(
+                    value_numeric=Decimal(str(row.value_numeric)), count=row.cnt
+                )
             )
 
     # Preserve YAML order
-    ordered_facets = [
-        facets_by_key[key] for key in all_keys if key in facets_by_key
-    ]
+    ordered_facets = [facets_by_key[key] for key in all_keys if key in facets_by_key]
 
     return CategorySpecFacetsResponse(
         category_id=category_id,

@@ -29,7 +29,7 @@ from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product, ProductCreate, ProductUpdate
 from app.services.suppliers import get_adapter
 from app.services.suppliers.base import NormalizedProductData, SupplierAdapter
-from app.tasks.icecat_tasks import trigger_product_enrichment
+from app.tasks.icecat_tasks import trigger_batch_enrichment
 
 logger = logging.getLogger(__name__)
 
@@ -233,23 +233,11 @@ class SupplierSyncOrchestrator:
                             continue
                         try:
                             result = await self.upsert_product(session, item)
-                            is_new = result["action"] == "created"
-                            if is_new:
+                            if result["action"] == "created":
                                 stats["new_products"] += 1
                             elif result["action"] == "updated":
                                 stats["updated_products"] += 1
                             await session.commit()
-                            if is_new:
-                                try:
-                                    await trigger_product_enrichment(
-                                        result["product_id"]
-                                    )
-                                except Exception as enrich_exc:  # noqa: BLE001
-                                    logger.warning(
-                                        "Failed to enqueue Icecat enrichment for new product %s: %s",
-                                        result["product_id"],
-                                        enrich_exc,
-                                    )
                         except Exception as e:  # noqa: BLE001
                             logger.error(
                                 "Error syncing product %s (%s): %s",
@@ -273,4 +261,24 @@ class SupplierSyncOrchestrator:
                 stats["errors"] += 1
 
         logger.debug("%s product sync completed. Stats: %s", self.adapter.name, stats)
+
+        # Enqueue a single batch enrichment job if new products were created.
+        # One job avoids flooding the Icecat API with thousands of individual requests.
+        # The batch task's limit caps concurrent Icecat calls; remaining products
+        # are picked up by the scheduled batch cron.
+        if stats["new_products"] > 0:
+            try:
+                await trigger_batch_enrichment(limit=50)
+                logger.info(
+                    "Enqueued batch Icecat enrichment for %d new %s products",
+                    stats["new_products"],
+                    self.adapter.name,
+                )
+            except Exception as enrich_exc:  # noqa: BLE001
+                logger.warning(
+                    "Failed to enqueue batch Icecat enrichment after %s sync: %s",
+                    self.adapter.name,
+                    enrich_exc,
+                )
+
         return stats

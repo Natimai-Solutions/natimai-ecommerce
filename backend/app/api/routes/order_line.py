@@ -2,6 +2,7 @@ import uuid
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
+from app.core.errors import AppError
 from app.features.order.crud.order_line_crud import OrderLineCrud, crud_order_line
 from app.features.order.models.order_line import (
     OrderLine,
@@ -70,11 +71,11 @@ async def get_product_order_lines(
 ) -> list[OrderLinePublic]:
     """Get product order lines."""
     if not current_user.is_superuser:
-        from fastapi import HTTPException, status
-
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Accès réservé aux administrateurs",
+        raise AppError(
+            code="order.admin_required",
+            status_code=403,
+            message="Admin privileges required to access product order lines",
+            details={"resource": "order_line.product"},
         )
 
     lines = await crud_order_line.get_by_product(

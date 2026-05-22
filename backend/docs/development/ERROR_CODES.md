@@ -149,6 +149,7 @@ async def record_not_found_handler(_req: Request, exc: RecordNotFoundError) -> J
 | `order.not_found`       | 404  | Commande introuvable                 | `order_id`        |
 | `order.not_owned`       | 403  | Commande appartenant à un autre user | `order_id`        |
 | `order.status.not_found`| 404  | Statut de commande inconnu           | `status_name`     |
+| `order.admin_required`  | 403  | Endpoint Order réservé aux admins    | `resource`        |
 
 ### Domaine `internal`
 
@@ -233,6 +234,7 @@ export function translateApiError(
   "order": {
     "not_found": "Commande introuvable.",
     "not_owned": "Vous n'êtes pas autorisé à accéder à cette commande.",
+    "admin_required": "Accès réservé aux administrateurs.",
     "status": {
       "not_found": "Statut de commande inconnu."
     }

@@ -208,3 +208,23 @@ def test_get_order_tracking_exposes_d3_overall_status(
     payload = response.json()
     assert payload["overall_status"] == "in_progress"
     assert payload["current_route_sequence"] == 2
+
+
+def test_get_order_tracking_returns_order_not_found_error_code(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    order_id = uuid4()
+
+    monkeypatch.setattr(
+        tracking_routes.shipping_route_tracking_router.crud,
+        "get_by_order_id",
+        AsyncMock(return_value=None),
+    )
+
+    response = client.get(f"/api/v1/shipping/tracking/order/{order_id}")
+
+    assert response.status_code == 404
+    payload = response.json()
+    assert payload["error"]["code"] == "order.not_found"
+    assert payload["error"]["details"] == {"order_id": str(order_id)}

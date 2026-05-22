@@ -8,6 +8,7 @@ from sqlmodel import Field, SQLModel
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.shipping.crud import (
     crud_shipping_route_tracking,
@@ -246,9 +247,11 @@ class ShippingRouteTrackingRouter(
             )
 
             if not tracking:
-                raise HTTPException(
+                raise AppError(
+                    code="order.not_found",
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No tracking found for this order",
+                    message=f"Order '{order_id}' not found",
+                    details={"order_id": str(order_id)},
                 )
 
             # Récupérer tous les trackings par séquence
