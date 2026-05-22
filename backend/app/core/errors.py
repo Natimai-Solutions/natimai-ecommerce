@@ -48,9 +48,7 @@ async def app_error_handler(_request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content=_app_error_payload(exc))
 
 
-async def record_not_found_handler(
-    _request: Request, exc: Exception
-) -> JSONResponse:
+async def record_not_found_handler(_request: Request, exc: Exception) -> JSONResponse:
     """Map uncaught not-found CRUD errors to stable API error codes."""
     assert isinstance(exc, RecordNotFoundError)
     error = AppError(
