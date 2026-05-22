@@ -312,10 +312,13 @@ class ShippingRouteTrackingRouter(
             """Return the current status of a tracking record."""
             try:
                 tracking = await self.crud.read(session=session, id=tracking_id)
-            except RecordNotFoundError:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND, detail="Tracking not found"
-                )
+            except RecordNotFoundError as exc:
+                raise AppError(
+                    code="shipping.tracking.not_found",
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    message=f"Tracking '{tracking_id}' not found",
+                    details={"tracking_id": str(tracking_id)},
+                ) from exc
 
             # Récupérer les détails du statut
             status_details = await self.crud.get_status_by_code(
@@ -357,10 +360,13 @@ class ShippingRouteTrackingRouter(
                 )
                 return ShippingRouteTrackingPublic.model_validate(updated_tracking)
 
-            except RecordNotFoundError:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND, detail="Tracking not found"
-                )
+            except RecordNotFoundError as exc:
+                raise AppError(
+                    code="shipping.tracking.not_found",
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    message=f"Tracking '{tracking_id}' not found",
+                    details={"tracking_id": str(tracking_id)},
+                ) from exc
 
             except ValueError as e:
                 raise HTTPException(
@@ -384,10 +390,13 @@ class ShippingRouteTrackingRouter(
             """Return tracking status-change history."""
             try:
                 await self.crud.read(session=session, id=tracking_id)
-            except RecordNotFoundError:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND, detail="Tracking not found"
-                )
+            except RecordNotFoundError as exc:
+                raise AppError(
+                    code="shipping.tracking.not_found",
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    message=f"Tracking '{tracking_id}' not found",
+                    details={"tracking_id": str(tracking_id)},
+                ) from exc
 
             history = await self.crud.get_status_history(
                 session=session, tracking_id=tracking_id, limit=limit

@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 import app.api.routes.shipping.tracking as tracking_routes
 from app.api.deps import get_current_active_superuser
+from app.features.base.crud import RecordNotFoundError
 from app.features.shipping.models.route_tracking import ShippingRouteTracking
 from app.features.shipping.models.status import StatusDefinition
 from app.main import app
@@ -228,3 +229,43 @@ def test_get_order_tracking_returns_order_not_found_error_code(
     payload = response.json()
     assert payload["error"]["code"] == "order.not_found"
     assert payload["error"]["details"] == {"order_id": str(order_id)}
+
+
+def test_get_tracking_status_returns_tracking_not_found_error_code(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tracking_id = uuid4()
+
+    monkeypatch.setattr(
+        tracking_routes.shipping_route_tracking_router.crud,
+        "read",
+        AsyncMock(side_effect=RecordNotFoundError("tracking missing")),
+    )
+
+    response = client.get(f"/api/v1/shipping/tracking/{tracking_id}/status")
+
+    assert response.status_code == 404
+    payload = response.json()
+    assert payload["error"]["code"] == "shipping.tracking.not_found"
+    assert payload["error"]["details"] == {"tracking_id": str(tracking_id)}
+
+
+def test_get_tracking_history_returns_tracking_not_found_error_code(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tracking_id = uuid4()
+
+    monkeypatch.setattr(
+        tracking_routes.shipping_route_tracking_router.crud,
+        "read",
+        AsyncMock(side_effect=RecordNotFoundError("tracking missing")),
+    )
+
+    response = client.get(f"/api/v1/shipping/tracking/{tracking_id}/history")
+
+    assert response.status_code == 404
+    payload = response.json()
+    assert payload["error"]["code"] == "shipping.tracking.not_found"
+    assert payload["error"]["details"] == {"tracking_id": str(tracking_id)}

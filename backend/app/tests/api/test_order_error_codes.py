@@ -165,3 +165,26 @@ async def test_order_delete_returns_order_not_found(
     assert exc_info.value.code == "order.not_found"
     assert exc_info.value.status_code == 404
     assert exc_info.value.details == {"order_id": str(order_id)}
+
+
+@pytest.mark.anyio
+async def test_get_user_orders_returns_order_not_owned_for_foreign_user(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = AsyncMock()
+    user_id = uuid4()
+    current_user = SimpleNamespace(id=uuid4(), is_superuser=False)
+    get_by_user_mock = AsyncMock(return_value=[])
+    monkeypatch.setattr(crud_order, "get_by_user", get_by_user_mock)
+
+    with pytest.raises(AppError) as exc_info:
+        await order_routes.get_user_orders(
+            session=session,
+            current_user=current_user,
+            user_id=user_id,
+        )
+
+    assert exc_info.value.code == "order.not_owned"
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.details == {"user_id": str(user_id)}
+    get_by_user_mock.assert_not_awaited()

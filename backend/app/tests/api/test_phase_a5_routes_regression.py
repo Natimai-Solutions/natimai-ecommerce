@@ -271,7 +271,8 @@ async def test_tracking_update_status_maps_record_not_found_to_404(
     )
 
     assert response.status_code == 404
-    assert response.json()["detail"] == "Tracking not found"
+    assert response.json()["error"]["code"] == "shipping.tracking.not_found"
+    assert response.json()["error"]["details"] == {"tracking_id": str(tracking_id)}
 
 
 @pytest.mark.asyncio

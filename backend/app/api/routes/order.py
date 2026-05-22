@@ -156,11 +156,11 @@ async def get_user_orders(
     """Get user orders."""
     # Vérifier que l'utilisateur accède à ses propres commandes ou est admin
     if current_user.id != user_id and not current_user.is_superuser:
-        from fastapi import HTTPException, status
-
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Vous ne pouvez accéder qu'à vos propres commandes",
+        raise AppError(
+            code="order.not_owned",
+            status_code=403,
+            message="You can only access your own orders",
+            details={"user_id": str(user_id)},
         )
 
     orders = await crud_order.get_by_user(

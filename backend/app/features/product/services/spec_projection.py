@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from sqlmodel import col, select
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.product.models.product import Product

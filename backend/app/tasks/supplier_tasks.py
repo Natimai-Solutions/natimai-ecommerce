@@ -24,12 +24,12 @@ from app.features.integrations.services.supplier_data_normalization import (
     meets_sync_thresholds,
     normalize_supplier_snapshot,
 )
-from app.features.product.services.pricing import CurrencyRateMissing, convert_to_xpf
 from app.features.integrations.services.supplier_sync_orchestrator import (
     SupplierSyncOrchestrator,
 )
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product, ProductUpdate
+from app.features.product.services.pricing import CurrencyRateMissing, convert_to_xpf
 from app.services.suppliers import all_adapters, get_adapter, has_supplier
 
 logger = logging.getLogger(__name__)

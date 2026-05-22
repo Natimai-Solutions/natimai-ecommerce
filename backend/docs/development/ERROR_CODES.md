@@ -147,9 +147,15 @@ async def record_not_found_handler(_req: Request, exc: RecordNotFoundError) -> J
 | Code                    | HTTP | Déclencheur                          | `details` exposés |
 |-------------------------|------|--------------------------------------|-------------------|
 | `order.not_found`       | 404  | Commande introuvable                 | `order_id`        |
-| `order.not_owned`       | 403  | Commande appartenant à un autre user | `order_id`        |
+| `order.not_owned`       | 403  | Commande appartenant à un autre user | `order_id`, `user_id` |
 | `order.status.not_found`| 404  | Statut de commande inconnu           | `status_name`     |
 | `order.admin_required`  | 403  | Endpoint Order réservé aux admins    | `resource`        |
+
+### Domaine `shipping`
+
+| Code                          | HTTP | Déclencheur          | `details` exposés |
+|-------------------------------|------|----------------------|-------------------|
+| `shipping.tracking.not_found` | 404  | Tracking introuvable | `tracking_id`     |
 
 ### Domaine `internal`
 
@@ -237,6 +243,11 @@ export function translateApiError(
     "admin_required": "Accès réservé aux administrateurs.",
     "status": {
       "not_found": "Statut de commande inconnu."
+    }
+  },
+  "shipping": {
+    "tracking": {
+      "not_found": "Suivi introuvable."
     }
   },
   "internal": {
