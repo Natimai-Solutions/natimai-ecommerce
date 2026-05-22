@@ -8,6 +8,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from app.api import api_router
 from app.core.config import settings
+from app.core.errors import register_error_handlers
 from app.outbox.loader import load_handlers
 
 
@@ -44,6 +45,8 @@ app = FastAPI(
     generate_unique_id_function=custom_generate_unique_id,
     lifespan=lifespan,
 )
+
+register_error_handlers(app)
 
 # Set all CORS enabled origins
 if settings.BACKEND_CORS_ORIGINS:
