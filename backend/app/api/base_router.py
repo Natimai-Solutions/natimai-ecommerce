@@ -92,23 +92,24 @@ class BaseRouter(
         self.crud = crud
 
         self.auth = auth() if isinstance(auth, type) else auth or Auth()
+        auth_obj = cast(Any, self.auth)
 
-        if not hasattr(self.auth, "read"):
-            self.auth.read = True
-        if not hasattr(self.auth, "create"):
-            self.auth.create = True
-        if not hasattr(self.auth, "update"):
-            self.auth.update = True
-        if not hasattr(self.auth, "delete"):
-            self.auth.delete = True
-        if not hasattr(self.auth, "read_superuser"):
-            self.auth.read_superuser = False
-        if not hasattr(self.auth, "create_superuser"):
-            self.auth.create_superuser = False
-        if not hasattr(self.auth, "update_superuser"):
-            self.auth.update_superuser = False
-        if not hasattr(self.auth, "delete_superuser"):
-            self.auth.delete_superuser = False
+        if not hasattr(auth_obj, "read"):
+            auth_obj.read = True
+        if not hasattr(auth_obj, "create"):
+            auth_obj.create = True
+        if not hasattr(auth_obj, "update"):
+            auth_obj.update = True
+        if not hasattr(auth_obj, "delete"):
+            auth_obj.delete = True
+        if not hasattr(auth_obj, "read_superuser"):
+            auth_obj.read_superuser = False
+        if not hasattr(auth_obj, "create_superuser"):
+            auth_obj.create_superuser = False
+        if not hasattr(auth_obj, "update_superuser"):
+            auth_obj.update_superuser = False
+        if not hasattr(auth_obj, "delete_superuser"):
+            auth_obj.delete_superuser = False
 
         self.schema_create = schema_create
         self.schema_update = schema_update

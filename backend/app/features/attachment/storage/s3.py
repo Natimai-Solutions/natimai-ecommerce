@@ -113,7 +113,12 @@ class S3FileStorage(FileStorage):
         except Exception as e:
             raise StorageError(f"Failed to fetch S3 object {key}: {e}") from e
         body = response["Body"]
-        return body.read()
+        data = body.read()
+        if isinstance(data, bytes):
+            return data
+        if isinstance(data, bytearray):
+            return bytes(data)
+        raise StorageError(f"Unexpected S3 payload type for {key}: {type(data)!r}")
 
     async def delete(self, *, key: str) -> None:
         """Execute delete."""

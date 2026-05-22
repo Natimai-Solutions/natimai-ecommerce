@@ -1,5 +1,6 @@
 from decimal import Decimal
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -19,6 +20,7 @@ from app.features.product.models.product import (
     ProductFeatureRequest,
     ProductSearchRequest,
 )
+from app.features.user.models.user import User
 
 
 @pytest.fixture
@@ -80,7 +82,7 @@ async def test_feature_product_returns_404_when_product_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = AsyncMock()
-    admin = SimpleNamespace(id=uuid4(), is_superuser=True)
+    admin = cast(User, SimpleNamespace(id=uuid4(), is_superuser=True))
 
     monkeypatch.setattr(
         crud_product,
@@ -105,7 +107,7 @@ async def test_unfeature_product_returns_product(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = AsyncMock()
-    admin = SimpleNamespace(id=uuid4(), is_superuser=True)
+    admin = cast(User, SimpleNamespace(id=uuid4(), is_superuser=True))
     product = Product(name="Featured", base_price=Decimal("1000.00"))
 
     monkeypatch.setattr(crud_product, "clear_featured", AsyncMock(return_value=product))

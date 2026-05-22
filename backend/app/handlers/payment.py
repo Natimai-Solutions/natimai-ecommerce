@@ -27,6 +27,23 @@ EVENT_CAPTURED = "payment.captured"
 EVENT_REJECTED = "payment.rejected"
 EVENT_DOCUMENT_INFECTED = "payment.document_infected"
 
+__all__ = [
+    "crud_order",
+    "crud_order_status",
+    "on_payment_awaiting_validation",
+    "on_payment_captured",
+    "on_payment_rejected",
+    "on_payment_document_required",
+    "on_payment_document_uploaded",
+    "on_payment_document_infected",
+    "on_payment_webhook_received",
+    "on_payment_awaiting_validation_notify",
+    "on_payment_document_required_notify",
+    "on_payment_captured_notify",
+    "on_payment_rejected_notify",
+    "on_payment_document_infected_notify",
+]
+
 
 async def _get_or_create_order_status_id(
     session: AsyncSession, *, name: str

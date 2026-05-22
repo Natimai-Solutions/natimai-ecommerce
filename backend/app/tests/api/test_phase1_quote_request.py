@@ -1,5 +1,6 @@
 from decimal import Decimal
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -11,6 +12,7 @@ from app.core.errors import AppError
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
 from app.features.cart.crud.quote_request import crud_quote_request
 from app.features.cart.models.quote_request import QuoteRequestSubmit
+from app.features.user.models.user import User
 
 
 @pytest.fixture
@@ -23,11 +25,14 @@ async def test_quote_request_requires_support_email(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = AsyncMock()
-    current_user = SimpleNamespace(
-        id=uuid4(),
-        email="user@example.com",
-        full_name="User",
-        phone="123456",
+    current_user = cast(
+        User,
+        SimpleNamespace(
+            id=uuid4(),
+            email="user@example.com",
+            full_name="User",
+            phone="123456",
+        ),
     )
 
     monkeypatch.setattr(settings, "EMAIL_SUPPORT", "")
@@ -54,11 +59,14 @@ async def test_quote_request_persists_and_notifies_support(
     product_id = uuid4()
 
     session = AsyncMock()
-    current_user = SimpleNamespace(
-        id=user_id,
-        email="user@example.com",
-        full_name="User",
-        phone="123456",
+    current_user = cast(
+        User,
+        SimpleNamespace(
+            id=user_id,
+            email="user@example.com",
+            full_name="User",
+            phone="123456",
+        ),
     )
     cart = SimpleNamespace(id=cart_id, user_id=user_id, currency="XPF")
     item = SimpleNamespace(

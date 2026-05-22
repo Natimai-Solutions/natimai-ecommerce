@@ -42,15 +42,17 @@ def _app_error_payload(exc: AppError) -> dict[str, Any]:
     }
 
 
-async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
+async def app_error_handler(_request: Request, exc: Exception) -> JSONResponse:
     """Handle application errors with a stable payload contract."""
+    assert isinstance(exc, AppError)
     return JSONResponse(status_code=exc.status_code, content=_app_error_payload(exc))
 
 
 async def record_not_found_handler(
-    _request: Request, exc: RecordNotFoundError
+    _request: Request, exc: Exception
 ) -> JSONResponse:
     """Map uncaught not-found CRUD errors to stable API error codes."""
+    assert isinstance(exc, RecordNotFoundError)
     error = AppError(
         code="internal.record_not_found",
         status_code=404,

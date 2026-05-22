@@ -14,7 +14,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from app.core.config import settings
 from app.features.attachment.storage.base import (
@@ -83,9 +83,11 @@ def decode_token(token: str) -> dict[str, Any]:
         raise LocalStorageTokenError("invalid signature")
 
     body = json.loads(payload.decode("utf-8"))
+    if not isinstance(body, dict):
+        raise LocalStorageTokenError("invalid payload")
     if body.get("exp", 0) < int(time.time()):
         raise LocalStorageTokenError("expired token")
-    return body
+    return cast(dict[str, Any], body)
 
 
 class LocalFileStorage(FileStorage):

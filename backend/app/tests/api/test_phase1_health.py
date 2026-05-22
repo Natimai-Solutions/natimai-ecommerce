@@ -1,3 +1,4 @@
+from types import TracebackType
 from unittest.mock import AsyncMock
 
 import pytest
@@ -9,7 +10,12 @@ class _RedisOk:
     async def __aenter__(self) -> "_RedisOk":
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> bool:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> bool:
         return False
 
     async def ping(self) -> bool:
@@ -20,7 +26,12 @@ class _RedisFail:
     async def __aenter__(self) -> "_RedisFail":
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> bool:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> bool:
         return False
 
     async def ping(self) -> bool:

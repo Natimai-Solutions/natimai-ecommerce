@@ -2,6 +2,7 @@ import uuid
 from collections.abc import AsyncGenerator, Generator
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import AsyncMock
 
 import pytest
@@ -23,6 +24,7 @@ from app.features.user.crud.review import crud_review
 from app.features.user.models.address import Address
 from app.features.user.models.notification import Notification, UserNotification
 from app.features.user.models.review import Review
+from app.features.user.models.user import User
 from app.main import app
 
 
@@ -387,12 +389,13 @@ async def test_product_router_create_permission_requires_superuser(
         "check_user_permission",
         permission_mock,
     )
+    session = cast(Any, AsyncMock())
 
     with pytest.raises(AppError) as exc_info:
         await product_routes.router._check_auth(
-            SimpleNamespace(),
+            session,
             "create",
-            current_user,
+            cast(User, current_user),
         )
 
     assert exc_info.value.status_code == 403

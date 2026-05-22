@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -9,11 +10,16 @@ from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_status_crud import crud_order_status
+from app.features.user.models.user import User
 
 
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
+
+
+def _user(*, is_superuser: bool) -> User:
+    return cast(User, SimpleNamespace(id=uuid4(), is_superuser=is_superuser))
 
 
 @pytest.mark.anyio
@@ -22,7 +28,7 @@ async def test_order_read_returns_order_not_found(
 ) -> None:
     session = AsyncMock()
     order_id = uuid4()
-    current_user = SimpleNamespace(id=uuid4(), is_superuser=False)
+    current_user = _user(is_superuser=False)
 
     monkeypatch.setattr(
         crud_order,
@@ -46,7 +52,7 @@ async def test_order_read_returns_order_not_owned_for_foreign_user(
 ) -> None:
     session = AsyncMock()
     order_id = uuid4()
-    current_user = SimpleNamespace(id=uuid4(), is_superuser=False)
+    current_user = _user(is_superuser=False)
     foreign_order = SimpleNamespace(user_id=uuid4())
 
     monkeypatch.setattr(
@@ -71,7 +77,7 @@ async def test_get_orders_by_status_returns_order_status_not_found(
 ) -> None:
     session = AsyncMock()
     status_id = uuid4()
-    current_user = SimpleNamespace(id=uuid4(), is_superuser=True)
+    current_user = _user(is_superuser=True)
 
     monkeypatch.setattr(
         crud_order_status,
@@ -100,7 +106,7 @@ async def test_get_orders_by_status_returns_order_admin_required_for_non_admin()
 ):
     session = AsyncMock()
     status_id = uuid4()
-    current_user = SimpleNamespace(id=uuid4(), is_superuser=False)
+    current_user = _user(is_superuser=False)
 
     with pytest.raises(AppError) as exc_info:
         await order_routes.get_orders_by_status(
@@ -120,7 +126,7 @@ async def test_order_update_returns_order_not_found(
 ) -> None:
     session = AsyncMock()
     order_id = uuid4()
-    current_user = SimpleNamespace(id=uuid4(), is_superuser=False)
+    current_user = _user(is_superuser=False)
 
     monkeypatch.setattr(
         crud_order,
@@ -149,7 +155,7 @@ async def test_order_delete_returns_order_not_found(
 ) -> None:
     session = AsyncMock()
     order_id = uuid4()
-    current_user = SimpleNamespace(id=uuid4(), is_superuser=False)
+    current_user = _user(is_superuser=False)
 
     monkeypatch.setattr(
         crud_order,
@@ -173,7 +179,7 @@ async def test_get_user_orders_returns_order_not_owned_for_foreign_user(
 ) -> None:
     session = AsyncMock()
     user_id = uuid4()
-    current_user = SimpleNamespace(id=uuid4(), is_superuser=False)
+    current_user = _user(is_superuser=False)
     get_by_user_mock = AsyncMock(return_value=[])
     monkeypatch.setattr(crud_order, "get_by_user", get_by_user_mock)
 

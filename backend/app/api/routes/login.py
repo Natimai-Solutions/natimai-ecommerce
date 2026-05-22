@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from typing import Annotated, Never
 
 from fastapi import APIRouter, Depends
 from fastapi.security import OAuth2PasswordRequestForm
@@ -28,7 +28,7 @@ def _raise_invalid_refresh_token(
     reason: str,
     user_id: uuid.UUID | None = None,
     jti: str | None = None,
-) -> None:
+) -> Never:
     """Raise a standardized AppError for invalid refresh-token scenarios."""
     details: dict[str, str] = {"reason": reason}
     if user_id is not None:
@@ -122,8 +122,10 @@ async def refresh_access_token(
     if token_data.type != "refresh" or not token_data.sub or not token_data.jti:
         _raise_invalid_refresh_token(reason="payload_invalid")
 
+    assert token_data.sub is not None
+    assert token_data.jti is not None
     token_sub = token_data.sub
-    token_jti = token_data.jti
+    token_jti: str = token_data.jti
 
     try:
         user_id = uuid.UUID(token_sub)

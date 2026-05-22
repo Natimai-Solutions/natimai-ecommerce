@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import io
-from typing import Any
+from typing import Any, cast
 
 from app.features.attachment.antivirus.base import (
     AntivirusError,
@@ -54,7 +54,10 @@ class ClamdScanner(AntivirusScanner):
 
         def _scan() -> dict[str, tuple[str, str | None]]:
             """Execute scan."""
-            return self._client.instream(io.BytesIO(data))
+            return cast(
+                dict[str, tuple[str, str | None]],
+                self._client.instream(io.BytesIO(data)),
+            )
 
         try:
             result = await loop.run_in_executor(None, _scan)

@@ -12,7 +12,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
