@@ -19,12 +19,10 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
 from app.features.integrations.crud.supplier_sync import supplier_product_mapping_crud
 from app.features.integrations.models.supplier_sync import SupplierProductMapping
 from app.features.integrations.services.supplier_data_normalization import (
     DEFAULT_CURRENCY,
-    NormalizedSupplierSnapshot,
     normalize_supplier_snapshot,
 )
 from app.features.product.crud.product import crud_product
@@ -52,19 +50,15 @@ class SupplierSyncOrchestrator:
         """Build an orchestrator for the registered ``supplier_name``."""
         return cls(get_adapter(supplier_name))
 
-    @staticmethod
-    def _meets_sync_thresholds(snapshot: NormalizedSupplierSnapshot) -> bool:
-        """Return False when price or quantity fall below configured minimums."""
-        min_qty = settings.SUPPLIER_SYNC_MIN_QUANTITY
-        min_price = settings.SUPPLIER_SYNC_MIN_PRICE
-        if min_qty > 0 and snapshot.supplier_quantity < min_qty:
-            return False
-        if min_price > 0 and snapshot.supplier_price < min_price:
-            return False
-        return True
-
     def _to_product_data(self, item: NormalizedProductData) -> dict[str, Any]:
-        """Convert a normalized supplier payload into local product fields."""
+        """Convert a normalized supplier payload into local product fields.
+
+        Note: ``is_active`` is intentionally not set here. The catalog endpoint
+        of most distributors (Ingram in particular) does not return price or
+        availability, so the sync-threshold decision cannot be made at catalog
+        time. ``is_active`` is computed by the inventory sync where real
+        pricing data is available.
+        """
         snapshot = normalize_supplier_snapshot(
             raw_price=item.price,
             raw_quantity=item.quantity,
@@ -89,7 +83,6 @@ class SupplierSyncOrchestrator:
             "supplier_price": snapshot.supplier_price,
             "supplier_price_currency": snapshot.supplier_price_currency,
             "is_supplier_managed": True,
-            "is_active": self._meets_sync_thresholds(snapshot),
             "upc": item.upc,
             "ean": item.ean,
         }

@@ -102,3 +102,23 @@ def normalize_supplier_snapshot(
         supplier_quantity=supplier_quantity,
         supplier_price_currency=supplier_currency,
     )
+
+
+def meets_sync_thresholds(snapshot: NormalizedSupplierSnapshot) -> bool:
+    """Check whether a snapshot's price and quantity meet configured minimums.
+
+    Only meaningful when called with real pricing data (i.e. from an inventory
+    sync, not a catalog sync where price/quantity may be unavailable).
+    """
+    # Imported here to avoid circular dependency at module load time.
+    from app.core.config import settings
+
+    min_qty = settings.SUPPLIER_SYNC_MIN_QUANTITY
+    min_price = settings.SUPPLIER_SYNC_MIN_PRICE
+    if min_qty > 0 and snapshot.supplier_quantity < min_qty:
+        return False
+    # TODO(P1 devises): convertir supplier_price → XPF avant comparaison une fois
+    # CurrencyRate disponible (cf. décision transverse "gestion des devises").
+    if min_price > 0 and snapshot.supplier_price < min_price:
+        return False
+    return True

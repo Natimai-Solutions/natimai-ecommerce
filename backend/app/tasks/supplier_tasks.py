@@ -20,6 +20,7 @@ from app.core.db import engine
 from app.features.integrations.crud.supplier_sync import supplier_sync_log_crud
 from app.features.integrations.models.supplier_sync import SyncStatus, SyncType
 from app.features.integrations.services.supplier_data_normalization import (
+    meets_sync_thresholds,
     normalize_supplier_snapshot,
 )
 from app.features.integrations.services.supplier_sync_orchestrator import (
@@ -153,6 +154,8 @@ async def sync_supplier_inventory_task(
         async with AsyncSession(engine) as session:
             if not skus:
                 one_hour_ago = _now() - timedelta(hours=1)
+                # include_archived=True so we can also refresh (and potentially
+                # re-activate) products previously marked is_active=False.
                 result = await crud_product.read_multi(
                     session,
                     filter=and_(
@@ -163,6 +166,7 @@ async def sync_supplier_inventory_task(
                             col(Product.last_supplier_sync).is_(None),
                         ),
                     ),
+                    include_archived=True,
                 )
                 products = result.get("data", [])
                 skus = [p.supplier_sku for p in products if p.supplier_sku]
@@ -206,6 +210,7 @@ async def sync_supplier_inventory_task(
                                     supplier_price=snapshot.supplier_price,
                                     supplier_price_currency=snapshot.supplier_price_currency,
                                     supplier_quantity=snapshot.supplier_quantity,
+                                    is_active=meets_sync_thresholds(snapshot),
                                     last_supplier_sync=_now(),
                                 ),
                                 record=product,

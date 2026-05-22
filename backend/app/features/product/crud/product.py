@@ -225,10 +225,14 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
 
         By default, only supplier-managed products are returned to avoid
         accidentally mutating manual products during supplier sync jobs.
+
+        Note: ``is_active`` is intentionally NOT filtered here. Sync jobs must
+        be able to re-find products that were previously deactivated (e.g.
+        below sync thresholds) so they can re-activate them when pricing or
+        availability comes back into bounds.
         """
         conditions = [
             Product.supplier_sku == supplier_sku,
-            col(Product.is_active).is_(True),
         ]
 
         if supplier_managed_only:

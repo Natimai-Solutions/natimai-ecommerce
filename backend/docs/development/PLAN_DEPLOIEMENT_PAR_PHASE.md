@@ -94,6 +94,127 @@ def resolve_tax_rate(product, territory="PF") -> TaxRate:
 
 ---
 
+## Décision transverse : gestion des devises
+
+**Contexte** : les fournisseurs renvoient les prix dans leur devise d'origine (USD pour Ingram, EUR potentiellement pour d'autres), la vitrine PF affiche en XPF et PayZen facture en XPF. Sans conversion explicite, `cost_amount` est multiplié par douane × marge × TVA tel quel — un coût USD donnerait un prix de vente ~100× sous-évalué (1 USD ≈ 119 XPF).
+
+### Modèle de données
+
+| Entité | Champs |
+|--------|--------|
+| `CurrencyRate` (nouveau) | `id`, `currency_code: str` (ex. `USD`, `EUR`), `rate_to_xpf: Decimal`, `valid_from: date`, `valid_until: date \| null`, `source: enum('manual','auto')`, `updated_by_user_id: UUID \| null`, `created_at` |
+| `CartItem` | `fx_rate_used: Decimal \| null`, `fx_source_currency: str \| null` (snapshot pour audit) |
+| `OrderLine` | `cost_amount_snapshot`, `cost_currency_snapshot`, `fx_rate_used`, `customs_rate_pct_snapshot`, `margin_rate_pct_snapshot`, `price_group_id_snapshot` (en plus de `tax_rate_id` déjà prévu) |
+
+### Formule mise à jour
+
+```python
+cost_in_xpf, fx_rate = convert_to_xpf(product.cost_amount, product.cost_currency, at_date=today)
+sale_price = cost_in_xpf × (1 + customs_rate_pct/100) × (1 + margin_rate_pct/100) × (1 + tax_rate.rate_pct/100)
+```
+
+Si `cost_currency == "XPF"`, `fx_rate_used = NULL` et pas d'appel de conversion.
+
+### Résolution du taux
+
+```python
+def convert_to_xpf(amount, from_currency, at_date=None) -> tuple[Decimal, Decimal]:
+    if from_currency == "XPF":
+        return amount, Decimal("1")
+    rate = CurrencyRate.get_active(code=from_currency, at=at_date or today)
+    if rate is None:
+        raise CurrencyRateMissing(from_currency)
+    return amount * rate.rate_to_xpf, rate.rate_to_xpf
+```
+
+### Invariants
+
+- Un `CurrencyRate` n'est jamais modifié rétroactivement : créer un nouveau taux avec `valid_from` et clôturer l'ancien via `valid_until`. Les `CartItem`/`OrderLine` gardent leur snapshot FX.
+- Pas de constante `USD_TO_XPF = 119` dans le code — toujours résolu depuis la BDD.
+- Devise absente → `calculate_sale_price` lève `CurrencyRateMissing` explicitement (pas de fallback silencieux à 1).
+- Seuil `SUPPLIER_SYNC_MIN_PRICE` documenté **en XPF** ; conversion appliquée avant comparaison dans `_meets_sync_thresholds`.
+
+### Devises supportées initiales
+
+XPF (référence), USD, EUR. Ajout d'autres devises = créer un `CurrencyRate`, pas de migration.
+
+### Jalons par phase
+
+| Phase | Livrable devises |
+|-------|------------------|
+| **1** | Modèle `CurrencyRate` + migration + seed initial USD→XPF et EUR→XPF ; helper `convert_to_xpf()` intégré à `calculate_sale_price()` et `_meets_sync_thresholds()` ; snapshots FX sur `CartItem` et `OrderLine` ; endpoint admin `PUT /admin/currency-rates/{code}` + `GET /admin/currency-rates` |
+| **3** | Préparation P4 : champ système `default_display_currency` (admin) |
+| **4** | Cron quotidien **optionnel** (`CURRENCY_AUTO_UPDATE_ENABLED`) avec source externe (ECB / exchangerate.host) ; alerte admin si dernier taux > 30 jours ; affichage multi-devises selon `user.preference.currency_pref` (XPF/USD/EUR) |
+
+---
+
+## Décision transverse : catalogue de spécifications filtrables
+
+**Contexte** : Icecat renvoie les spécifications techniques dans une structure JSONB hétérogène (`name` varie selon le produit et la langue : « Mémoire installée », « RAM », « System Memory »…). Une requête frontend « memory_gb ≥ 16 » ne peut pas pointer directement vers une clé Icecat fiable. Une couche de normalisation backend est nécessaire — le frontend ne devine rien, il consomme un endpoint de facettes.
+
+### Modèle de données
+
+| Source | Rôle |
+|--------|------|
+| `spec_definitions.yaml` (versionné dans le code) | Catalogue P1 : clé canonique + label_fr + type + unit + aliases Icecat + catégories applicables |
+| `product_spec` (table normalisée) | `id`, `product_id: UUID` (FK), `spec_key: str`, `value_text: str \| null`, `value_numeric: Decimal \| null`, `unit: str \| null` |
+| `Product.technical_specifications` (JSONB existant) | Conservé pour affichage fiche produit (liste complète, ordre d'origine, libellés bruts) |
+
+### Indices
+
+- `idx_product_spec_key_numeric` sur `(spec_key, value_numeric)` — filtres numériques.
+- `idx_product_spec_key_text` sur `(spec_key, value_text)` — filtres énumérés.
+- `idx_product_spec_product` sur `product_id` — fetch par produit.
+
+### Catalogue P1 — catégorie « Ordinateur/Serveur »
+
+10 specs canoniques :
+
+| Key | Type | Unit | Aliases Icecat (exemples) |
+|-----|------|------|---------------------------|
+| `cpu_brand` | enum | — | Marque du processeur, Processor Brand |
+| `cpu_family` | enum | — | Famille de processeur, Processor Family |
+| `cpu_cores` | numeric | — | Nombre de cœurs, Number of Cores |
+| `memory_gb` | numeric | GB | Mémoire installée, RAM, System Memory |
+| `storage_gb` | numeric | GB | Capacité du SSD, Capacité du HDD, Total Storage |
+| `storage_type` | enum | — | Type de disque, Storage Drive Type |
+| `screen_inches` | numeric | inch | Taille de l'écran, Display Size |
+| `gpu_brand` | enum | — | Marque carte graphique, Graphics Adapter Brand |
+| `os` | enum | — | Système d'exploitation, Operating System |
+| `form_factor` | enum | — | Type de châssis, Form Factor |
+
+### Projection
+
+À chaque enrichissement Icecat d'un produit (`enrich_product_with_icecat_task`) :
+
+1. Parse `technical_specifications` JSONB.
+2. Match insensitive de `name` contre les `aliases` du YAML.
+3. Normaliser la valeur :
+   - **numeric** : extraire la partie chiffrée (`"16 GB"` → `16`), convertir l'unit si nécessaire.
+   - **enum** : appliquer la fonction de normalisation par spec (`"Intel® Core™ i7-1260P"` → `i7`).
+4. Upsert ligne `product_spec(product_id, spec_key, value_numeric|value_text, unit)`.
+5. Specs non reconnues : ignorées au filtre mais conservées dans le JSONB pour la fiche produit.
+
+### Affichage public
+
+- Produit **non enrichi** (`is_enriched=False`) → **exclu** de la vitrine. Filtre `is_enriched=True` appliqué dans tous les endpoints catalogue publics : `POST /product/search`, `GET /product/featured`, `GET /products`, `GET /product/{id}` (404 si non enrichi).
+- Produit enrichi sans spec reconnue → affiché, mais non filtrable par spec.
+- Enrichissement enqueué **automatiquement** à la création d'un nouveau `is_supplier_managed=True` dans `SupplierSyncOrchestrator.upsert_product` (en plus du batch hebdo).
+
+### Re-projection
+
+Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur tous les produits enrichis. À déclencher après chaque ajout/modification d'alias.
+
+### Jalons par phase
+
+| Phase | Livrable specs |
+|-------|----------------|
+| **1** | Table `product_spec` + indices ; `spec_definitions.yaml` (10 specs Ordinateur/Serveur) ; projection au sein de `enrich_product_with_icecat_task` ; endpoint `GET /categories/{id}/spec-facets` ; `POST /product/search` interprète le payload `specs:` ; filtre `is_enriched=True` sur endpoints publics ; enqueue auto à la création d'un produit supplier_managed ; job `reproject_product_specs` |
+| **3** | Extension multi-catégories ; migration YAML → table DB `spec_definition` éditable via admin (UI) ; gestion alias par catégorie |
+| **5** | (Optionnel Z4) recherche sémantique IA sur la même couche normalisée |
+
+---
+
 ## Phase 0 — Stabilisation des bugs critiques
 
 **Objectif** : pouvoir déployer sereinement les phases suivantes sans dette qui se propage.
@@ -140,6 +261,10 @@ def resolve_tax_rate(product, territory="PF") -> TaxRate:
 - ✅ Demande de devis : `POST /cart/quote-request` avec persistance `QuoteRequest` + envoi email support.
 - ✅ Checkout : snapshot `OrderLine.tax_rate_id` ajouté.
 - ✅ Readiness/liveness : endpoints `/healthz/liveness` et `/healthz/ready` (DB + Redis).
+- 🔴 **Devises** : `convert_to_xpf` + modèle `CurrencyRate` + snapshots FX sur `CartItem`/`OrderLine` non implémentés — bloquant pour la justesse des prix de vente affichés.
+- 🔴 **Catalogue specs filtrables** : table `product_spec` + YAML + projection + endpoint facettes non implémentés — `ProductSearchRequest.specs` actuellement non interprété.
+- 🔴 **Filtre `is_enriched=True`** sur endpoints publics : non posé — à ajouter avant déploiement.
+- 🔴 **Enqueue auto enrichment** à la création d'un produit supplier_managed : non câblé (aujourd'hui dépend du batch hebdo).
 - 🟡 Migration/seed Phase 1 créés : à valider en environnement d'intégration (upgrade/downgrade + non-régression).
 - 🟡 Recherche avancée PostgreSQL (`tsvector`/GIN/trgm) : optimisation encore à finaliser.
 - 🟡 Documentation ops (variables d'environnement, check ARQ/outbox en prod) : à finaliser avant release.
@@ -197,17 +322,37 @@ def resolve_tax_rate(product, territory="PF") -> TaxRate:
    - Endpoint admin `POST /product/{id}/feature` + `DELETE`.
    - Endpoint public `GET /product/featured?limit=10`.
 
-5. **Demande de devis**
+5. **Devises**
+   - Migration : table `currency_rates` (`currency_code`, `rate_to_xpf`, `valid_from`, `valid_until`, `source`, `updated_by_user_id`).
+   - Migration : snapshots FX sur `CartItem` (`fx_rate_used`, `fx_source_currency`) et `OrderLine` (`cost_amount_snapshot`, `cost_currency_snapshot`, `fx_rate_used`, `customs_rate_pct_snapshot`, `margin_rate_pct_snapshot`, `price_group_id_snapshot`).
+   - Helper `convert_to_xpf(amount, currency, at_date)` dans `pricing.py`.
+   - Intégration dans `calculate_sale_price()` (conversion **avant** la formule douane × marge × TVA) et dans `_meets_sync_thresholds()` (`SUPPLIER_SYNC_MIN_PRICE` en XPF).
+   - Snapshot du `fx_rate_used` à la création de `CartItem` (et propagation au checkout dans `OrderLine`).
+   - Seed initial : `USD→XPF` et `EUR→XPF` (valeurs à figer manuellement avant déploiement).
+   - Endpoints admin : `GET /admin/currency-rates`, `PUT /admin/currency-rates/{code}` (crée un nouveau taux, clôture l'ancien).
+   - Garde-fou `calculate_sale_price` : `CurrencyRateMissing` si aucun taux actif trouvé pour la devise du produit.
+
+6. **Catalogue de specs filtrables**
+   - Migration : table `product_spec` (`product_id`, `spec_key`, `value_text`, `value_numeric`, `unit`) + 3 indices.
+   - Fichier `app/features/product/spec_definitions.yaml` avec 10 specs Ordinateur/Serveur (cf. décision transverse).
+   - Logique de projection JSONB → `product_spec` ajoutée dans `enrich_product_with_icecat_task` (et `batch_enrich_products_task`).
+   - Enqueue automatique de `trigger_product_enrichment` à la création d'un nouveau `is_supplier_managed=True` dans [supplier_sync_orchestrator.py](../../app/features/integrations/services/supplier_sync_orchestrator.py).
+   - Filtre `is_enriched=True` sur les endpoints publics catalogue (search, featured, list, fiche → 404 si non enrichi).
+   - Endpoint `GET /categories/{id}/spec-facets` (specs disponibles + valeurs + counts pour la catégorie).
+   - `POST /product/search` interprète `specs: {memory_gb_min: 16, cpu_family: ["i7","i9"]}` → JOIN `product_spec` avec filtres numériques/énumérés.
+   - Job ARQ `reproject_product_specs(category_id=None)` pour re-projeter après modification du YAML.
+
+7. **Demande de devis**
    - Endpoint `POST /cart/quote-request` (utilisateur connecté) :
      - Lit le panier actif.
      - Envoie un email via Mailgun à `EMAIL_SUPPORT` avec : détail panier (produits, qté, prix calculés), coordonnées client (email, phone, full_name), shipping_address optionnelle, notes.
      - Crée un `QuoteRequest` en BDD pour audit.
    - Pré-requis : bug B1 (email) corrigé en Phase 0.
 
-6. **Préparatifs déploiement**
+8. **Préparatifs déploiement**
    - Health-check profond `/healthz/ready` (DB + Redis).
    - Vérification que ARQ worker + outbox poller tournent en prod.
-   - Documentation des variables d'environnement (`MAILGUN_*`, `INGRAM_*`, `ICECAT_*`).
+   - Documentation des variables d'environnement (`MAILGUN_*`, `INGRAM_*`, `ICECAT_*`, `SUPPLIER_SYNC_MIN_PRICE` en XPF).
 
 ### Hors périmètre Phase 1
 
@@ -342,6 +487,18 @@ def resolve_tax_rate(product, territory="PF") -> TaxRate:
 
 5. **Bug B5 corrigé** (Phase 0) — confirmer que les endpoints `update_tracking_status` exigent bien admin/logistique.
 
+6. **Catalogue de specs — extension multi-catégories**
+   - Migration : table `spec_definition(id, key, label_i18n, type, unit, category_ids[], aliases[])` éditable via admin.
+   - Migration progressive du YAML `spec_definitions.yaml` vers la table (script one-shot + suppression du YAML).
+   - Endpoints admin `GET/POST/PUT/DELETE /admin/spec-definitions`.
+   - UI admin pour gérer specs + aliases par catégorie (incluant test de match contre un produit donné).
+   - Étendre le seed aux nouvelles catégories Ingram à syncer en P3 (à définir selon priorités produit).
+   - Re-projection automatique déclenchée par chaque modification de spec.
+
+7. **Devises — préparation P4**
+   - Champ système `default_display_currency` (admin, default `XPF`).
+   - Endpoint `GET /system/settings` exposant la devise par défaut au frontend (pour préparer le toggle multi-devises P4).
+
 ### Hors périmètre Phase 3
 
 - Regroupement de colis avancé, paiement en plusieurs fois, remboursement.
@@ -372,7 +529,16 @@ def resolve_tax_rate(product, territory="PF") -> TaxRate:
    - `POST /admin/shipping/tracking/{id}/deliver` → statut delivered.
    - Vue admin `GET /admin/shipping/pending-grouping` (trackings sans consolidation, prêts à grouper).
 
-3. **Remboursement**
+3. **Devises — automatisation et multi-affichage**
+   - Variable `CURRENCY_AUTO_UPDATE_ENABLED: bool = False` (opt-in).
+   - Cron quotidien ARQ qui appelle une source externe (ECB API ou exchangerate.host) et crée un nouveau `CurrencyRate` avec `source='auto'`.
+   - Politique : ne pas écraser un taux `source='manual'` récent (< 24h) sans confirmation admin.
+   - Alerte email admin si le dernier taux actif a > 30 jours.
+   - Champ `User.preference.currency_pref` actif : si renseigné, `calculate_sale_price` retourne le prix dans la devise demandée (conversion inverse XPF → devise au taux courant).
+   - Frontend reçoit la devise d'affichage avec chaque prix (`{amount, currency}` au lieu d'un Decimal nu).
+   - Garde-fou paiement : PayZen est facturé en XPF, l'affichage multi-devises est purement présentationnel — au checkout, le total final est figé en XPF.
+
+4. **Remboursement**
    - Méthode `refund(amount, reason)` sur :
      - `PayzenProvider` (API Payzen `cancelOrRefund`).
      - `ManualPaymentProvider` (chèque/virement : écriture comptable + log validation, pas d'API).
@@ -424,6 +590,8 @@ Phase 0 (bugs)
   └─→ Phase 2 (CB+OAuth)  → B1 corrigé requis pour les emails
 
 Phase 1 → Phase 2 (groupes activés sur le pricing posé en P1)
+Phase 1 → Phase 3 (specs YAML migrées vers table DB ; default_display_currency posé en P3)
+Phase 1 → Phase 4 (snapshots FX et CurrencyRate posés en P1, automatisation et multi-devises utilisateur en P4)
 Phase 2 → Phase 3 (les emails P2 servent aussi tracking P3)
 Phase 2 → Phase 3 (SupplierOrder P2 étendu par webhook Ingram P3)
 Phase 3 → Phase 4 (les hooks de transition statut sont étendus)
@@ -449,6 +617,11 @@ avant de démarrer l'item 8 de Phase 2.
 | Identification entreprise non-portable si extension hors PF | Champ générique `business_registration_number` (jamais `siret`) dès la Phase 2 |
 | Templates email manquants | Préparer les 4 templates (commande, payé, échec, livré) en Phase 2 pour ne pas bloquer le déploiement |
 | Données Icecat dépendantes de credentials Open vs Full | Vérifier que le périmètre P1 fonctionne en Open Icecat (gratuit) |
+| Prix de vente faux si conversion devise manquante (cost USD multiplié comme s'il était XPF) | Helper `convert_to_xpf` obligatoire dès P1 ; `CurrencyRateMissing` levée explicitement (pas de fallback silencieux) |
+| Taux manuel oublié (USD/XPF figé pendant des mois) | Notification admin si > 30 j (P4) ; en P1 documenter dans le runbook un check mensuel |
+| Filtre `is_enriched=True` exclut tout le catalogue si Icecat a peu de matches | Avant déploiement : mesurer le taux d'enrichissement sur le catalogue Ingram réel ; si < 80%, prévoir un fallback (afficher sans specs filtrables) ou élargir Icecat Full |
+| Aliases YAML incomplets → specs non projetées | Job `reproject_product_specs` idempotent + monitoring du % de produits enrichis qui ont au moins 5 specs projetées |
+| Bouclage projection × volume catalogue Ingram | Mesurer le temps de re-projection sur le catalogue cible avant déploiement ; si > 30 min, paralléliser par batch ARQ |
 
 ---
 
@@ -457,10 +630,10 @@ avant de démarrer l'item 8 de Phase 2.
 | Phase | Effort backend | Effort frontend (vitrine) | Total |
 |-------|----------------|---------------------------|-------|
 | 0 | S (3-5 j) | — | S |
-| 1 | L (3-4 sem) | M (2 sem vitrine) | L |
+| 1 | L+ (4-5 sem, incluant devises + specs filtrables) | M (2 sem vitrine) | L+ |
 | 2 | XL (5-7 sem) | L (3 sem) | XL |
-| 3 | M (2-3 sem) | M (1-2 sem) | M |
-| 4 | L (3-4 sem) | M (2 sem admin) | L |
+| 3 | M+ (3 sem, +extension specs DB + champ devise par défaut) | M (1-2 sem) | M+ |
+| 4 | L (3-4 sem, +cron forex et multi-devises utilisateur) | M (2 sem admin) | L |
 | 5 | XL (à découper en 5a-5e) | variable | XL |
 
 S = ≤1 sem, M = 1-3 sem, L = 3-6 sem, XL = >6 sem.
