@@ -16,6 +16,7 @@ from app.features.cart.models.cart import (
     CartUpdate,
 )
 from app.features.product.models.product import Product
+from app.features.product.services.pricing import CurrencyRateMissing, convert_to_xpf
 from app.utils.money import quantize_amount
 
 
@@ -174,6 +175,17 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
         quantity: int,
     ) -> CartItem:
         """Execute add or increment."""
+        cost_currency = getattr(product, "cost_currency", None) or "XPF"
+        fx_rate_used: Decimal | None = None
+        fx_source_currency: str | None = None
+        try:
+            _, rate = await convert_to_xpf(session, Decimal("1"), cost_currency)
+            if cost_currency != "XPF":
+                fx_rate_used = rate
+                fx_source_currency = cost_currency
+        except CurrencyRateMissing:
+            pass  # FX snapshot left null; does not block adding to cart
+
         existing_item = await self.get_by_cart_and_product(
             session=session,
             cart_id=cart_id,
@@ -183,6 +195,8 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
         if existing_item is not None:
             existing_item.quantity += quantity
             existing_item.unit_price = product.base_price
+            existing_item.fx_rate_used = fx_rate_used
+            existing_item.fx_source_currency = fx_source_currency
             session.add(existing_item)
             await session.commit()
             await session.refresh(existing_item)
@@ -193,6 +207,8 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
             product_id=product.id,
             quantity=quantity,
             unit_price=product.base_price,
+            fx_rate_used=fx_rate_used,
+            fx_source_currency=fx_source_currency,
         )
         session.add(item)
         await session.commit()

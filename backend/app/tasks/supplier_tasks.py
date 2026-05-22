@@ -9,7 +9,7 @@ import hashlib
 import json
 import logging
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, cast
 from uuid import uuid4
 
@@ -177,6 +177,8 @@ async def sync_supplier_inventory_task(
             batch_size = adapter.price_batch_size
             total_updated = 0
             errors = 0
+            # Cache FX rates within this sync run: currency_code → rate_to_xpf (None = missing)
+            _fx_rate_cache: dict[str, Decimal | None] = {}
 
             for i in range(0, len(skus), batch_size):
                 batch_skus = skus[i : i + batch_size]
@@ -208,20 +210,29 @@ async def sync_supplier_inventory_task(
                             # SUPPLIER_SYNC_MIN_PRICE is always compared in the
                             # same currency regardless of the supplier's invoice
                             # currency (USD, EUR, …).
+                            # Rate is cached per currency to avoid one DB query per SKU.
+                            src_currency = snapshot.supplier_price_currency
+                            if src_currency not in _fx_rate_cache:
+                                try:
+                                    _, rate = await convert_to_xpf(
+                                        session, Decimal("1"), src_currency
+                                    )
+                                    _fx_rate_cache[src_currency] = rate
+                                except CurrencyRateMissing:
+                                    logger.warning(
+                                        "No CurrencyRate for %s — "
+                                        "SUPPLIER_SYNC_MIN_PRICE check falls back to raw price for SKU %s",
+                                        src_currency,
+                                        sku,
+                                    )
+                                    _fx_rate_cache[src_currency] = None
+
+                            cached_rate = _fx_rate_cache[src_currency]
                             price_in_xpf: Decimal | None = None
-                            try:
-                                price_in_xpf, _ = await convert_to_xpf(
-                                    session,
-                                    snapshot.supplier_price,
-                                    snapshot.supplier_price_currency,
-                                )
-                            except CurrencyRateMissing:
-                                logger.warning(
-                                    "No CurrencyRate for %s — "
-                                    "SUPPLIER_SYNC_MIN_PRICE check falls back to raw price for SKU %s",
-                                    snapshot.supplier_price_currency,
-                                    sku,
-                                )
+                            if cached_rate is not None:
+                                price_in_xpf = (
+                                    snapshot.supplier_price * cached_rate
+                                ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
                             await crud_product.update(
                                 session=session,

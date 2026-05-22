@@ -5,12 +5,16 @@ Revises: e3b7a1c9d5f2
 Create Date: 2026-05-22 14:00:00.000000
 
 Adds two indexes on the products table:
-- ix_products_search_fts  : GIN on to_tsvector('simple', concat_ws(...))
+- ix_products_search_fts  : GIN on to_tsvector('simple', coalesce(...) || ' ' || ...)
                             Used by plainto_tsquery FTS queries.
 - ix_products_name_trgm   : GIN trgm on name
                             Speeds up ILIKE '%...%' fallback on name.
 
 Extensions required: pg_trgm (bundled with PostgreSQL contrib).
+
+Note: concat_ws() is STABLE (not IMMUTABLE) so PostgreSQL rejects it in index
+expressions. The `||` operator on text is IMMUTABLE — search_products() must use
+the same expression for the GIN index to be picked up.
 """
 
 from alembic import op
@@ -30,12 +34,10 @@ def upgrade() -> None:
         CREATE INDEX ix_products_search_fts ON products
         USING GIN (
             to_tsvector('simple',
-                concat_ws(' ',
-                    coalesce(name, ''),
-                    coalesce(description, ''),
-                    coalesce(manufacturer, ''),
-                    coalesce(vendor_part_number, '')
-                )
+                coalesce(name, '') || ' ' ||
+                coalesce(description, '') || ' ' ||
+                coalesce(manufacturer, '') || ' ' ||
+                coalesce(vendor_part_number, '')
             )
         )
         """

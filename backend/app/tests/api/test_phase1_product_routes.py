@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException
 
 from app.api.routes.product_phase1 import (
     feature_product,
@@ -12,6 +11,7 @@ from app.api.routes.product_phase1 import (
     search_products,
     unfeature_product,
 )
+from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import (
@@ -88,7 +88,7 @@ async def test_feature_product_returns_404_when_product_missing(
         AsyncMock(side_effect=RecordNotFoundError),
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await feature_product(
             product_id=uuid4(),
             payload=ProductFeatureRequest(featured_position=1),
@@ -97,6 +97,7 @@ async def test_feature_product_returns_404_when_product_missing(
         )
 
     assert exc_info.value.status_code == 404
+    assert exc_info.value.code == "product.not_found"
 
 
 @pytest.mark.anyio

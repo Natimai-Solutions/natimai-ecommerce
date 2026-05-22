@@ -101,7 +101,7 @@ async def convert_to_xpf(
     if from_currency == "XPF":
         return amount, Decimal("1")
 
-    reference_date = at_date or date.today()
+    reference_date: date = at_date if at_date is not None else date.today()
     statement = (
         select(CurrencyRate)
         .where(
@@ -110,7 +110,7 @@ async def convert_to_xpf(
             CurrencyRate.valid_from <= reference_date,
             (
                 col(CurrencyRate.valid_until).is_(None)
-                | (CurrencyRate.valid_until >= reference_date)
+                | (col(CurrencyRate.valid_until) >= reference_date)
             ),
         )
         .order_by(col(CurrencyRate.valid_from).desc())
@@ -163,7 +163,7 @@ async def resolve_tax_rate(
     2) Category.default_tax_rate_id
     3) Territory default tax code (TGC_NORMAL)
     """
-    reference_date = at_date or date.today()
+    reference_date: date = at_date if at_date is not None else date.today()
     product_tax_rate_id = getattr(product, "tax_rate_id", None)
     product_category_id = getattr(product, "category_id", None)
 
@@ -200,7 +200,7 @@ async def resolve_tax_rate(
             TaxRate.valid_from <= reference_date,
             (
                 col(TaxRate.valid_until).is_(None)
-                | (TaxRate.valid_until >= reference_date)
+                | (col(TaxRate.valid_until) >= reference_date)
             ),
         )
         .order_by(col(TaxRate.valid_from).desc())
@@ -212,9 +212,10 @@ async def resolve_tax_rate(
         if first_method is None or not callable(first_method):
             return None
 
-        fallback_rate = first_method()
-        if inspect.isawaitable(fallback_rate):
-            fallback_rate = await fallback_rate
+        raw = first_method()
+        if inspect.isawaitable(raw):
+            raw = await raw
+        fallback_rate: TaxRate | None = raw
     except Exception:
         return None
 

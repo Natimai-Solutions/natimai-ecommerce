@@ -2,9 +2,9 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-from fastapi import HTTPException
 
 from app.api.routes.internal_storage import download_via_token, upload_via_token
+from app.core.errors import AppError
 from app.features.attachment.storage.local import encode_token
 
 
@@ -73,9 +73,14 @@ async def test_upload_via_token_rejects_wrong_content_type(
         body=b"data",
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await upload_via_token(token=token, request=request)
     assert exc_info.value.status_code == 400
+    assert exc_info.value.code == "internal_storage.content_type.invalid"
+    assert exc_info.value.details == {
+        "expected": "application/pdf",
+        "received": "image/png",
+    }
 
 
 @pytest.mark.anyio
@@ -101,9 +106,11 @@ async def test_upload_via_token_rejects_too_large_file(
         body=big_payload,
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await upload_via_token(token=token, request=request)
     assert exc_info.value.status_code == 413
+    assert exc_info.value.code == "internal_storage.file.too_large"
+    assert exc_info.value.details == {"max_bytes": 10, "content_length": 100}
 
 
 @pytest.mark.anyio
@@ -142,9 +149,11 @@ async def test_upload_via_token_rejects_bad_signature(
         body=b"data",
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await upload_via_token(token="garbage.token", request=request)
     assert exc_info.value.status_code == 403
+    assert exc_info.value.code == "internal_storage.token.invalid"
+    assert exc_info.value.details == {"reason": "invalid signature"}
 
 
 @pytest.mark.anyio
@@ -166,6 +175,7 @@ async def test_internal_storage_route_disabled_for_s3(
         body=b"data",
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await upload_via_token(token=token, request=request)
     assert exc_info.value.status_code == 404
+    assert exc_info.value.code == "internal_storage.backend.unsupported"

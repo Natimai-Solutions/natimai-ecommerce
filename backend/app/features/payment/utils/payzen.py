@@ -13,9 +13,9 @@ import logging
 from typing import Any
 
 import httpx
-from fastapi import HTTPException
 
 from app.core.config import settings
+from app.core.errors import AppError
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +146,7 @@ async def create_payzen_form_token(
         dict containing formToken and other PayZen info
 
     Raises:
-        HTTPException on error
+        AppError on error
     """
     payload = {
         "amount": amount,
@@ -197,7 +197,16 @@ async def create_payzen_form_token(
             response = await client.post(
                 api_url, json=payload, headers=headers, timeout=30.0
             )
-            result = response.json()
+            try:
+                result = response.json()
+            except ValueError as e:
+                logger.error(f"Invalid JSON response from PayZen: {e}")
+                raise AppError(
+                    code="payment.provider.invalid_response",
+                    status_code=502,
+                    message="Invalid response from PayZen",
+                    details={"provider_code": "payzen", "reason": "invalid_json"},
+                ) from e
 
             logger.info(f"PayZen CreatePayment - Status: {response.status_code}")
             logger.debug(f"PayZen Response: {json.dumps(result, indent=2)}")
@@ -219,7 +228,15 @@ async def create_payzen_form_token(
                 else:
                     help_msg = detailed_msg or error_msg
 
-                raise HTTPException(500, help_msg)
+                raise AppError(
+                    code="payment.provider.gateway_error",
+                    status_code=502,
+                    message=help_msg or "PayZen gateway returned an error",
+                    details={
+                        "provider_code": "payzen",
+                        "error_code": str(error_code) if error_code else None,
+                    },
+                )
 
             response.raise_for_status()
 
@@ -235,16 +252,39 @@ async def create_payzen_form_token(
                 }
             else:
                 logger.error(f"Invalid PayZen response: {result}")
-                raise HTTPException(500, "Error generating formToken")
+                raise AppError(
+                    code="payment.provider.invalid_response",
+                    status_code=502,
+                    message="Error generating formToken",
+                    details={
+                        "provider_code": "payzen",
+                        "reason": "missing_form_token",
+                    },
+                )
 
     except httpx.RequestError as e:
         logger.error(f"Error during PayZen request: {e}")
-        raise HTTPException(500, "Communication error with PayZen")
+        raise AppError(
+            code="internal.unavailable",
+            status_code=503,
+            message="Communication error with PayZen",
+            details={"service": "payzen"},
+        ) from e
     except httpx.HTTPStatusError as e:
         logger.error(f"PayZen HTTP error: {e.response.status_code} - {e.response.text}")
-        raise HTTPException(500, f"PayZen error: {e.response.status_code}")
-    except HTTPException:
+        raise AppError(
+            code="internal.unavailable",
+            status_code=503,
+            message=f"PayZen error: {e.response.status_code}",
+            details={"service": "payzen", "status_code": e.response.status_code},
+        ) from e
+    except AppError:
         raise
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
-        raise HTTPException(500, "Internal server error")
+        raise AppError(
+            code="payment.provider.gateway_error",
+            status_code=500,
+            message="Internal server error during PayZen payment initiation",
+            details={"provider_code": "payzen", "reason": type(e).__name__},
+        ) from e

@@ -10,10 +10,11 @@ from __future__ import annotations
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.core.errors import AppError
 from app.features.product.models.currency_rate import (
     CurrencyRate,
     CurrencyRatePublic,
@@ -48,7 +49,7 @@ async def list_currency_rates(
             CurrencyRate.valid_from <= today,
             (
                 col(CurrencyRate.valid_until).is_(None)
-                | (CurrencyRate.valid_until >= today)
+                | (col(CurrencyRate.valid_until) >= today)
             ),
         )
 
@@ -80,7 +81,7 @@ async def get_active_currency_rate(
             CurrencyRate.valid_from <= today,
             (
                 col(CurrencyRate.valid_until).is_(None)
-                | (CurrencyRate.valid_until >= today)
+                | (col(CurrencyRate.valid_until) >= today)
             ),
         )
         .order_by(col(CurrencyRate.valid_from).desc())
@@ -89,9 +90,11 @@ async def get_active_currency_rate(
     result = await session.exec(statement)
     rate = result.first()
     if rate is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No active currency rate found for '{code.upper()}'",
+        raise AppError(
+            code="currency_rate.active.not_found",
+            status_code=404,
+            message=f"No active currency rate found for '{code.upper()}'",
+            details={"currency_code": code.upper()},
         )
     return CurrencyRatePublic.model_validate(rate)
 
@@ -112,9 +115,11 @@ async def upsert_currency_rate(
     """
     currency_code = code.upper()
     if currency_code == "XPF":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="XPF is the reference currency — no conversion rate needed.",
+        raise AppError(
+            code="currency_rate.reference_currency.unsupported",
+            status_code=400,
+            message="XPF is the reference currency — no conversion rate needed.",
+            details={"currency_code": currency_code},
         )
 
     # Close any open-ended rate that would overlap with the new valid_from

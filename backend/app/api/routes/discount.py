@@ -1,9 +1,8 @@
 import uuid
 
-from fastapi import HTTPException, status
-
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
+from app.core.errors import AppError
 from app.features.discount.crud import DiscountCrud, crud_discount
 from app.features.discount.models import (
     Discount,
@@ -63,9 +62,14 @@ async def validate_coupon(
     is_valid, message, discount = await crud_discount.validate_coupon(session, code)
 
     if not is_valid:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=message,
+        raise AppError(
+            code="discount.coupon.invalid",
+            status_code=400,
+            message=message,
+            details={
+                "coupon_code": code,
+                "reason": message,
+            },
         )
 
     return {
@@ -108,8 +112,10 @@ async def use_discount(
     """Execute use discount."""
     discount = await crud_discount.increment_usage(session, discount_id)
     if not discount:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Réduction non trouvée",
+        raise AppError(
+            code="discount.not_found",
+            status_code=404,
+            message="Réduction non trouvée",
+            details={"discount_id": str(discount_id)},
         )
     return DiscountPublic.model_validate(discount)

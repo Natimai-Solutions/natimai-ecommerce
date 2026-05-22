@@ -2,11 +2,12 @@ import uuid
 from collections.abc import Callable
 from typing import Any, cast
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends
 from sqlmodel import col, select
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
+from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.product.crud.product import (
     ProductCrud,
@@ -45,11 +46,21 @@ class ProductRouter(
             try:
                 record = await self.crud.read(session, id=id, user=current_user)
             except RecordNotFoundError:
-                raise HTTPException(status_code=404, detail="Product not found")
+                raise AppError(
+                    code="product.not_found",
+                    status_code=404,
+                    message="Product not found",
+                    details={"product_id": str(id), "reason": "record_not_found"},
+                )
 
             is_admin = current_user is not None and current_user.is_superuser
             if not is_admin and not record.is_enriched:
-                raise HTTPException(status_code=404, detail="Product not found")
+                raise AppError(
+                    code="product.not_found",
+                    status_code=404,
+                    message="Product not found",
+                    details={"product_id": str(id), "reason": "not_enriched"},
+                )
 
             return cast(ProductPublic, record)
 
@@ -62,7 +73,7 @@ class ProductRouter(
         async def read_multi(
             session: SessionDep,
             skip: int = 0,
-            limit: int = 1000,
+            limit: int = 100,
             order_by: str | None = None,
             include_archived: bool = False,
             current_user: CurrentUser | None = Depends(get_current_user_optional),

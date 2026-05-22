@@ -5,11 +5,12 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from fastapi import Depends, HTTPException, Query
+from fastapi import Depends, Query
 from sqlmodel import Field, SQLModel, col, select
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
+from app.core.errors import AppError
 from app.features.shipping.crud import crud_shipping_route
 from app.features.shipping.models.route import (
     ShippingRoute,
@@ -193,9 +194,11 @@ async def _load_active_routes(
 
     missing = [str(rid) for rid in distinct_ids if rid not in route_by_id]
     if missing:
-        raise HTTPException(
+        raise AppError(
+            code="shipping.route.unknown_or_inactive",
             status_code=400,
-            detail="Unknown or inactive shipping routes: " + ", ".join(missing),
+            message="Unknown or inactive shipping routes: " + ", ".join(missing),
+            details={"route_ids": missing},
         )
     return route_by_id
 
@@ -238,8 +241,11 @@ class ShippingRouteRouter(
         ):
             """Quote each provided route path with detailed segment costs."""
             if not payload.paths:
-                raise HTTPException(
-                    status_code=400, detail="At least one path is required"
+                raise AppError(
+                    code="shipping.route.path_required",
+                    status_code=400,
+                    message="At least one path is required",
+                    details={"field": "paths"},
                 )
 
             all_route_ids = [
@@ -248,10 +254,13 @@ class ShippingRouteRouter(
             route_by_id = await _load_active_routes(session, all_route_ids)
 
             quoted_paths: list[ShippingPathQuoteResponse] = []
-            for path in payload.paths:
+            for path_index, path in enumerate(payload.paths):
                 if not path.route_ids:
-                    raise HTTPException(
-                        status_code=400, detail="A path must contain at least one route"
+                    raise AppError(
+                        code="shipping.route.path_empty",
+                        status_code=400,
+                        message="A path must contain at least one route",
+                        details={"path_index": path_index},
                     )
                 ordered_routes = [route_by_id[rid] for rid in path.route_ids]
                 summary = calculate_shipping_for_routes(
@@ -381,8 +390,14 @@ class ShippingRouteRouter(
             )
 
             if not path:
-                raise HTTPException(
-                    status_code=404, detail="No route found between these places"
+                raise AppError(
+                    code="shipping.route.not_found",
+                    status_code=404,
+                    message="No route found between these places",
+                    details={
+                        "from_place_id": str(from_place_id),
+                        "to_place_id": str(to_place_id),
+                    },
                 )
 
             operators = [route.operator for route in path if route.operator]

@@ -7,11 +7,12 @@ from enum import Enum
 from time import perf_counter
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.core.config import settings
+from app.core.errors import AppError
 from app.core.observability import log_structured_event, observe_checkout_result
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
 from app.features.cart.crud.quote_request import crud_quote_request
@@ -57,7 +58,11 @@ from app.features.payment.models.payment_status import (
     PaymentStatusCreate,
 )
 from app.features.product.models.product import Product
-from app.features.product.services.pricing import calculate_sale_price, resolve_tax_rate
+from app.features.product.services.pricing import (
+    calculate_sale_price,
+    resolve_default_price_group,
+    resolve_tax_rate,
+)
 from app.features.shipping.crud import (
     crud_shipping_route,
     crud_shipping_route_tracking,
@@ -148,14 +153,21 @@ def _plan_checkout_fulfillment_segments(
     total_available = local_available + supplier_available
 
     if total_available < requested_quantity:
-        raise HTTPException(
+        raise AppError(
+            code="cart.stock.insufficient",
             status_code=409,
-            detail=(
+            message=(
                 f"Insufficient stock for product {product.id}: "
                 f"requested={requested_quantity}, "
                 f"local_available={local_available}, "
                 f"supplier_available={supplier_available}"
             ),
+            details={
+                "product_id": str(product.id),
+                "requested": str(requested_quantity),
+                "local_available": str(local_available),
+                "supplier_available": str(supplier_available),
+            },
         )
 
     local_to_reserve = min(local_available, requested_quantity)
@@ -283,11 +295,12 @@ async def _resolve_selected_checkout_routes(
         str(route_id) for route_id in ordered_route_ids if route_id not in route_by_id
     ]
     if missing_route_ids:
-        raise HTTPException(
+        raise AppError(
+            code="shipping.route.unknown_or_inactive",
             status_code=400,
-            detail=(
-                "Unknown or inactive shipping routes: " + ", ".join(missing_route_ids)
-            ),
+            message="Unknown or inactive shipping routes: "
+            + ", ".join(missing_route_ids),
+            details={"route_ids": missing_route_ids},
         )
 
     return [route_by_id[route_id] for route_id in ordered_route_ids]
@@ -725,13 +738,21 @@ async def _reserve_stock_for_checkout(
     for segment in segments:
         if segment.segment == FulfillmentSegment.LOCAL:
             if inventory is None:
-                raise HTTPException(
+                raise AppError(
+                    code="cart.stock.insufficient",
                     status_code=409,
-                    detail=(
+                    message=(
                         f"Insufficient local stock for product {product.id}: "
                         f"requested={quantity_decimal}, "
                         f"local_available={local_available}"
                     ),
+                    details={
+                        "product_id": str(product.id),
+                        "requested": str(quantity_decimal),
+                        "local_available": str(local_available),
+                        "supplier_available": str(supplier_available),
+                        "reason": "local_inventory_missing",
+                    },
                 )
 
             inventory.quantity -= segment.quantity
@@ -816,7 +837,12 @@ async def _get_active_product_or_404(
     """Get active product or 404."""
     product = await session.get(Product, product_id)
     if product is None or not product.is_active or not product.is_admin_active:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise AppError(
+            code="cart.product.not_found",
+            status_code=404,
+            message=f"Product '{product_id}' not found",
+            details={"product_id": str(product_id)},
+        )
 
     product.base_price = await calculate_sale_price(session, product)
     return product
@@ -880,7 +906,12 @@ async def update_cart_item_quantity(
         user_id=current_user.id,
     )
     if item is None:
-        raise HTTPException(status_code=404, detail="Cart item not found")
+        raise AppError(
+            code="cart.item.not_found",
+            status_code=404,
+            message=f"Cart item '{item_id}' not found",
+            details={"item_id": str(item_id)},
+        )
 
     await crud_cart_item.update_quantity(
         session=session,
@@ -891,7 +922,12 @@ async def update_cart_item_quantity(
 
     cart = await session.get(Cart, item.cart_id)
     if cart is None:
-        raise HTTPException(status_code=404, detail="Cart not found")
+        raise AppError(
+            code="cart.not_found",
+            status_code=404,
+            message=f"Cart '{item.cart_id}' not found",
+            details={"cart_id": str(item.cart_id)},
+        )
 
     items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart.id)
     return _build_cart_detail(cart, items)
@@ -910,14 +946,24 @@ async def remove_cart_item(
         user_id=current_user.id,
     )
     if item is None:
-        raise HTTPException(status_code=404, detail="Cart item not found")
+        raise AppError(
+            code="cart.item.not_found",
+            status_code=404,
+            message=f"Cart item '{item_id}' not found",
+            details={"item_id": str(item_id)},
+        )
 
     await crud_cart_item.deactivate_item(session=session, item=item)
     await crud_cart.sync_total(session=session, cart_id=item.cart_id)
 
     cart = await session.get(Cart, item.cart_id)
     if cart is None:
-        raise HTTPException(status_code=404, detail="Cart not found")
+        raise AppError(
+            code="cart.not_found",
+            status_code=404,
+            message=f"Cart '{item.cart_id}' not found",
+            details={"cart_id": str(item.cart_id)},
+        )
 
     items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart.id)
     return _build_cart_detail(cart, items)
@@ -1025,9 +1071,11 @@ async def create_quote_request(
     """Create a quote request from the active cart and notify support."""
     support_email = (settings.EMAIL_SUPPORT or "").strip()
     if not support_email:
-        raise HTTPException(
+        raise AppError(
+            code="cart.quote.unavailable",
             status_code=503,
-            detail="EMAIL_SUPPORT is not configured",
+            message="EMAIL_SUPPORT is not configured",
+            details={"setting": "EMAIL_SUPPORT"},
         )
 
     cart = await crud_cart.get_active_cart_by_user(
@@ -1035,11 +1083,21 @@ async def create_quote_request(
         user_id=current_user.id,
     )
     if cart is None:
-        raise HTTPException(status_code=400, detail="No active cart found")
+        raise AppError(
+            code="cart.active.not_found",
+            status_code=400,
+            message="No active cart found",
+            details={"user_id": str(current_user.id)},
+        )
 
     items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart.id)
     if not items:
-        raise HTTPException(status_code=400, detail="Cart is empty")
+        raise AppError(
+            code="cart.empty",
+            status_code=400,
+            message="Cart is empty",
+            details={"cart_id": str(cart.id)},
+        )
 
     item_snapshots: list[dict[str, str]] = []
     subtotal_amount = Decimal("0.00")
@@ -1132,11 +1190,21 @@ async def checkout_my_cart(
         user_id=current_user.id,
     )
     if cart is None:
-        raise HTTPException(status_code=400, detail="No active cart found")
+        raise AppError(
+            code="cart.active.not_found",
+            status_code=400,
+            message="No active cart found",
+            details={"user_id": str(current_user.id)},
+        )
 
     items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart.id)
     if not items:
-        raise HTTPException(status_code=400, detail="Cart is empty")
+        raise AppError(
+            code="cart.empty",
+            status_code=400,
+            message="Cart is empty",
+            details={"cart_id": str(cart.id)},
+        )
 
     products_by_id: dict[uuid.UUID, Product] = {}
     for item in items:
@@ -1192,9 +1260,20 @@ async def checkout_my_cart(
         payment_fee_amount=payload.payment_fee_amount,
     )
     if total_amount <= 0:
-        raise HTTPException(status_code=400, detail="Cart total must be > 0")
+        raise AppError(
+            code="cart.total.invalid",
+            status_code=400,
+            message="Cart total must be > 0",
+            details={
+                "cart_id": str(cart.id),
+                "total_amount": str(total_amount),
+                "currency": cart.currency,
+            },
+        )
 
     try:
+        price_group = await resolve_default_price_group(session)
+
         order_status = await _get_or_create_order_pending_status(session)
         order = await crud_order.create_draft(
             session=session,
@@ -1247,6 +1326,19 @@ async def checkout_my_cart(
                     tax_rate_id=(
                         resolved_tax_rate.id if resolved_tax_rate is not None else None
                     ),
+                    cost_amount_snapshot=getattr(product, "cost_amount", None),
+                    cost_currency_snapshot=getattr(product, "cost_currency", None)
+                    or "XPF",
+                    fx_rate_used=getattr(item, "fx_rate_used", None),
+                    customs_rate_pct_snapshot=getattr(
+                        product, "customs_rate_pct", None
+                    ),
+                    margin_rate_pct_snapshot=getattr(
+                        price_group,
+                        "margin_rate_pct",
+                        None,
+                    ),
+                    price_group_id_snapshot=getattr(price_group, "id", None),
                 ),
                 user=current_user,
             )
@@ -1356,19 +1448,19 @@ async def checkout_my_cart(
             message="Checkout completed",
         )
 
-    except HTTPException:
+    except AppError as exc:
         checkout_duration_ms = int((perf_counter() - checkout_started) * 1000)
         observe_checkout_result(
             success=False,
             duration_ms=checkout_duration_ms,
-            error_code="http_error",
+            error_code=exc.code,
         )
         log_structured_event(
             logger,
             level="warning",
             event="checkout_failed",
             user_id=current_user.id,
-            error_code="http_error",
+            error_code=exc.code,
             duration_ms=checkout_duration_ms,
         )
         await session.rollback()
@@ -1390,4 +1482,9 @@ async def checkout_my_cart(
             duration_ms=checkout_duration_ms,
         )
         await session.rollback()
-        raise HTTPException(status_code=500, detail="Checkout failed") from exc
+        raise AppError(
+            code="cart.checkout.failed",
+            status_code=500,
+            message="Checkout failed",
+            details={"reason": type(exc).__name__},
+        ) from exc

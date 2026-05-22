@@ -26,11 +26,12 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import SessionDep
+from app.core.errors import AppError
 
 router = APIRouter()
 
@@ -369,7 +370,7 @@ async def ai_product_search(
     session: SessionDep,
     ai_client: AIDep,
     redis: RedisDep,
-    conversation_id: UUID = None,
+    conversation_id: UUID | None = None,
 ) -> AIProductSearchResponse:
     """
     AI-powered natural language product search.
@@ -454,7 +455,12 @@ async def ai_product_search(
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+        raise AppError(
+            code="ai_search.search.failed",
+            status_code=500,
+            message=f"Search failed: {e}",
+            details={"query": query.query, "reason": type(e).__name__},
+        ) from e
 
 
 @router.get("/search/suggestions")
@@ -513,6 +519,9 @@ async def get_search_suggestions(session: SessionDep) -> dict[str, list[str]]:
         }
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to get suggestions: {str(e)}"
-        )
+        raise AppError(
+            code="ai_search.suggestions.failed",
+            status_code=500,
+            message=f"Failed to get suggestions: {e}",
+            details={"reason": type(e).__name__},
+        ) from e

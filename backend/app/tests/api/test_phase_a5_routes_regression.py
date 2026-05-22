@@ -5,13 +5,13 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 import app.api.routes.product as product_routes
 import app.api.routes.shipping.tracking as tracking_routes
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_user_optional
 from app.core.db import get_db
+from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.shipping.models.route_tracking import ShippingRouteTracking
 from app.features.user.crud.address import crud_address
@@ -36,10 +36,16 @@ def override_dependencies(current_user: SimpleNamespace) -> Generator[None, None
     async def _override_current_user() -> SimpleNamespace:
         return current_user
 
+    async def _override_current_user_optional() -> SimpleNamespace:
+        return current_user
+
     async def _override_get_db() -> AsyncGenerator[SimpleNamespace, None]:
         yield SimpleNamespace()
 
     app.dependency_overrides[get_current_user] = _override_current_user
+    app.dependency_overrides[get_current_user_optional] = (
+        _override_current_user_optional
+    )
     app.dependency_overrides[get_db] = _override_get_db
 
     yield
@@ -348,17 +354,24 @@ async def test_tracking_update_status_requires_superuser(
     )
 
     assert response.status_code == 403
-    assert "enough privileges" in response.json()["detail"]
+    payload = response.json()["error"]
+    assert payload["code"] == "auth.superuser.required"
+    assert "enough privileges" in payload["message"]
 
 
 @pytest.mark.asyncio
 async def test_read_multi_rejects_raw_filter_query_string(
     client: TestClient,
 ) -> None:
-    response = client.get("/api/v1/product/?filter=id%20is%20not%20null")
+    response = client.get(
+        "/api/v1/address/?filter=id%20is%20not%20null",
+        headers={"Authorization": "Bearer test-token"},
+    )
 
     assert response.status_code == 400
-    assert "Raw string filters" in response.json()["detail"]
+    payload = response.json()["error"]
+    assert payload["code"] == "resource.filter.unsupported"
+    assert "Raw string filters" in payload["message"]
 
 
 @pytest.mark.asyncio
@@ -375,7 +388,7 @@ async def test_product_router_create_permission_requires_superuser(
         permission_mock,
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await product_routes.router._check_auth(
             SimpleNamespace(),
             "create",
@@ -383,5 +396,6 @@ async def test_product_router_create_permission_requires_superuser(
         )
 
     assert exc_info.value.status_code == 403
-    assert "Superuser privileges required" in exc_info.value.detail
+    assert exc_info.value.code == "resource.superuser_required"
+    assert "Superuser privileges required" in exc_info.value.message
     permission_mock.assert_not_awaited()

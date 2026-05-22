@@ -39,6 +39,19 @@ def _build_alias_index() -> dict[str, dict[str, Any]]:
 _ALIAS_INDEX = _build_alias_index()
 
 
+def _spec_applies_to_category(spec_def: dict[str, Any], supplier_category: str) -> bool:
+    """Return True if spec_def applies to the given supplier category keyword.
+
+    Matching is partial and case-insensitive: "Ordinateur/Serveur" matches
+    both "ordinateur" and "serveur" entries in the YAML categories list.
+    """
+    categories = spec_def.get("categories")
+    if not categories:
+        return True
+    category_lower = supplier_category.lower()
+    return any(kw in category_lower for kw in categories)
+
+
 def _extract_first_decimal(text: str) -> Decimal | None:
     match = _DECIMAL_PATTERN.search(text)
     if match:
@@ -93,10 +106,14 @@ def _project_spec_value(
 
 def project_specs_from_payload(
     technical_specifications: list[dict[str, Any]],
+    *,
+    supplier_category: str | None = None,
 ) -> dict[str, tuple[str | None, Decimal | None, str | None]]:
     """Return {spec_key → (value_text, value_numeric, unit)} from raw Icecat payload.
 
     Skips unrecognized specs silently.
+    When supplier_category is given, specs whose YAML categories list does not
+    match the product category are skipped (e.g. screen_inches for a server).
     """
     results: dict[str, tuple[str | None, Decimal | None, str | None]] = {}
 
@@ -114,13 +131,19 @@ def project_specs_from_payload(
 
         spec_def = _ALIAS_INDEX.get(name_lower)
         if spec_def is None:
-            # Try partial match: check if name_lower contains any alias
+            # Partial match: only allow aliases of 4+ chars to avoid "os" → false positives
             for alias, candidate in _ALIAS_INDEX.items():
-                if alias in name_lower or name_lower in alias:
+                if len(alias) >= 4 and (alias in name_lower or name_lower in alias):
                     spec_def = candidate
                     break
 
         if spec_def is None:
+            continue
+
+        # Skip specs that don't apply to this product's category
+        if supplier_category and not _spec_applies_to_category(
+            spec_def, supplier_category
+        ):
             continue
 
         key = spec_def["key"]
@@ -141,7 +164,11 @@ async def upsert_product_specs(
 ) -> int:
     """Project Icecat payload into product_spec rows. Returns count of upserted rows."""
     specs_payload = product.technical_specifications or []
-    projected = project_specs_from_payload(specs_payload)
+    supplier_category = getattr(product, "supplier_category", None) or ""
+    projected = project_specs_from_payload(
+        specs_payload,
+        supplier_category=supplier_category or None,
+    )
 
     if not projected:
         return 0

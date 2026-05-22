@@ -1,7 +1,7 @@
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
 from pydantic import ValidationError
@@ -12,6 +12,7 @@ from app.core import security
 from app.core.cache import RedisCache
 from app.core.config import settings
 from app.core.db import get_db
+from app.core.errors import AppError
 from app.features.user.models.user import TokenPayload, User
 
 reusable_oauth2 = OAuth2PasswordBearer(
@@ -40,20 +41,34 @@ async def get_current_user(session: SessionDep, token: TokenDep) -> User:
         payload = security.decode_token(token)
         token_data = TokenPayload(**payload)
     except (InvalidTokenError, ValidationError):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Could not validate credentials",
+        raise AppError(
+            code="auth.credentials.invalid",
+            status_code=403,
+            message="Could not validate credentials",
+            details={"reason": "invalid_or_malformed_token"},
         )
     if token_data.type not in (None, "access"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Could not validate credentials",
+        raise AppError(
+            code="auth.credentials.invalid",
+            status_code=403,
+            message="Could not validate credentials",
+            details={"reason": "invalid_token_type", "token_type": token_data.type},
         )
     user = await session.get(User, token_data.sub)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise AppError(
+            code="auth.user.not_found",
+            status_code=404,
+            message="User not found",
+            details={"user_id": str(token_data.sub)},
+        )
     if not user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
+        raise AppError(
+            code="auth.user.inactive",
+            status_code=400,
+            message="Inactive user",
+            details={"user_id": str(user.id)},
+        )
     return user
 
 
@@ -63,7 +78,12 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 async def get_current_verified_user(current_user: CurrentUser) -> User:
     """Get current verified user."""
     if not current_user.is_verified:
-        raise HTTPException(status_code=400, detail="Unverified user")
+        raise AppError(
+            code="auth.user.unverified",
+            status_code=400,
+            message="Unverified user",
+            details={"user_id": str(current_user.id)},
+        )
     return current_user
 
 
@@ -78,7 +98,7 @@ async def get_current_user_optional(
         return None
     try:
         return await get_current_user(session, token)
-    except HTTPException:
+    except AppError:
         return None
 
 
@@ -88,8 +108,11 @@ CurrentUserOptional = Annotated[User | None, Depends(get_current_user_optional)]
 async def get_current_active_superuser(current_user: CurrentUser) -> User:
     """Get current active superuser."""
     if not current_user.is_superuser:
-        raise HTTPException(
-            status_code=403, detail="The user doesn't have enough privileges"
+        raise AppError(
+            code="auth.superuser.required",
+            status_code=403,
+            message="The user doesn't have enough privileges",
+            details={"user_id": str(current_user.id)},
         )
     return current_user
 

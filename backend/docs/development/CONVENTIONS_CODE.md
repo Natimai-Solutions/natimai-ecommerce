@@ -354,24 +354,50 @@ class PaymentNotDocumentValidatedError(RuntimeError):
   larges (`PaymentProviderError` → `UnknownPaymentProviderError`).
 - Une docstring d'une ligne suffit.
 
-### 5.2 Conversion en HTTPException dans les routes
+### 5.2 Conversion en AppError (routes et services exposés)
 
 ```python
+from app.core.errors import AppError
+
 try:
     result = await approve_manual_payment(session, ...)
 except PaymentNotManualError as e:
     await session.rollback()
-    raise HTTPException(400, str(e)) from e
+    raise AppError(
+        code="payment.not_manual",
+        status_code=400,
+        message=str(e),
+        details={"payment_id": str(payment_id), "provider_code": payment.provider_code},
+    ) from e
 except RecordNotFoundError as e:
-    raise HTTPException(404, f"Payment {payment_id} not found") from e
+    raise AppError(
+        code="payment.not_found",
+        status_code=404,
+        message=f"Payment {payment_id} not found",
+        details={"payment_id": str(payment_id)},
+    ) from e
 ```
 
 **Règles** :
+- Lever **AppError** (et non `HTTPException`) pour toutes les erreurs applicatives.
+- Respecter le contrat payload géré globalement :
+  `{ "error": { "code", "message", "details" } }`.
+- Le `code` est **stable**, en snake_case avec segments (`domain.subdomain.what`) et
+  doit être déclaré dans `docs/development/ERROR_CODES.md`.
+- `details` contient uniquement des primitives JSON-serializables utiles au front/log.
+- Les utilitaires et providers appelés par les routes (ex: paiement, IA, storage)
+  lèvent aussi `AppError` pour éviter des formats d'erreur hétérogènes.
 - Toujours `from e` pour préserver la stack trace.
 - `await session.rollback()` avant de re-raise quand on est dans un workflow
   qui a déjà commencé à muter la session.
 - Codes HTTP : `400` = input invalide, `403` = ownership, `404` = absent,
-  `500` = inattendu.
+  `409` = conflit métier, `500` = inattendu, `502/503` = dépendance externe.
+
+### 5.3 Cas spéciaux
+
+- Le format FastAPI natif est conservé pour la validation request (`422`).
+- Les exceptions inattendues non mappées sont gérées par le handler global
+  (`internal.server_error`) sans exposer de détail sensible.
 
 ---
 
@@ -413,6 +439,10 @@ async def test_<scenario>_<expected>(monkeypatch: pytest.MonkeyPatch) -> None:
 - `Mock()` pour `session.add` (sync).
 - Nom du test descriptif : `test_<sujet>_<action>_<résultat_attendu>`.
 - Préférer **monkeypatch sur l'instance/string path** (`monkeypatch.setattr(crud_payment, "method", AsyncMock(...))`) plutôt que sur la classe.
+- Quand un test appelle directement une fonction de route : `pytest.raises(AppError)`
+  + assertion sur `exc.code`.
+- Quand un test passe par `TestClient` : assertion sur `response.json()["error"]["code"]`
+  (pas sur `detail`).
 
 ### 6.3 Anti-patterns à éviter
 
@@ -549,7 +579,15 @@ try:
     await session.refresh(payment)
 except SomeKnownError as e:
     await session.rollback()
-    raise HTTPException(400, str(e)) from e
+    raise AppError(
+        code="domain.action.failed",
+        status_code=400,
+        message=str(e),
+        details={"reason": type(e).__name__},
+    ) from e
+except AppError:
+    await session.rollback()
+    raise
 except Exception:
     await session.rollback()
     raise

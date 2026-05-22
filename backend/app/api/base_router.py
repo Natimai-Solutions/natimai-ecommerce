@@ -3,10 +3,11 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from typing import Any, Generic, Protocol, TypeVar, cast
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlmodel import SQLModel
 
 from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
+from app.core.errors import AppError
 from app.features.base.crud import CrudBase, RecordNotFoundError
 from app.features.base.models import Message
 
@@ -81,6 +82,7 @@ class BaseRouter(
         **kwargs: Any,
     ) -> None:
         """Initialize the base router instance."""
+        self.resource_name = name.lower().replace(" ", "_")
         self.name = "".join(
             [
                 c.upper() if (i == 0 or name[i - 1] == "_" or name[i - 1] == " ") else c
@@ -139,23 +141,35 @@ class BaseRouter(
         superuser_required = getattr(self.auth, f"{permission}_superuser", False)
 
         if auth_required and current_user is None:
-            raise HTTPException(
-                status_code=403, detail=f"Authentication required on {self.name}"
+            raise AppError(
+                code="resource.authentication_required",
+                status_code=403,
+                message=f"Authentication required on {self.name}",
+                details={"resource": self.resource_name, "permission": permission},
             )
 
         if superuser_required and (
             current_user is None or not current_user.is_superuser
         ):
-            raise HTTPException(
+            raise AppError(
+                code="resource.superuser_required",
                 status_code=403,
-                detail=f"Superuser privileges required to {permission} on {self.name}",
+                message=f"Superuser privileges required to {permission} on {self.name}",
+                details={"resource": self.resource_name, "permission": permission},
             )
 
         if current_user and not await self.crud.check_user_permission(
             session, user=current_user, permission=permission
         ):
-            raise HTTPException(
-                status_code=403, detail=f"Not authorized to {permission} on {self.name}"
+            raise AppError(
+                code="resource.permission_denied",
+                status_code=403,
+                message=f"Not authorized to {permission} on {self.name}",
+                details={
+                    "resource": self.resource_name,
+                    "permission": permission,
+                    "user_id": str(current_user.id),
+                },
             )
 
     def generate_read_multi_endpoint(self) -> Callable[..., Any]:
@@ -164,7 +178,7 @@ class BaseRouter(
         async def read_multi(
             session: SessionDep,
             skip: int = 0,
-            limit: int = 1000,
+            limit: int = 100,
             filter: str | None = None,
             order_by: str | None = None,
             include_archived: bool = False,
@@ -173,9 +187,11 @@ class BaseRouter(
             """Read multi."""
             await self._check_auth(session, "read", current_user)
             if filter is not None:
-                raise HTTPException(
+                raise AppError(
+                    code="resource.filter.unsupported",
                     status_code=400,
-                    detail="Raw string filters are not supported on this endpoint",
+                    message="Raw string filters are not supported on this endpoint",
+                    details={"resource": self.resource_name, "filter": filter},
                 )
             result = await self.crud.read_multi(
                 session,
@@ -204,7 +220,12 @@ class BaseRouter(
             try:
                 record = await self.crud.read(session, id=id, user=current_user)
             except RecordNotFoundError:
-                raise HTTPException(status_code=404, detail=f"{self.name} not found")
+                raise AppError(
+                    code="resource.not_found",
+                    status_code=404,
+                    message=f"{self.name} not found",
+                    details={"resource": self.resource_name, "id": str(id)},
+                )
             return cast(PublicSchemaType, record)
 
         read.__name__ = f"get_one_{self.name}"

@@ -10,10 +10,11 @@ import logging
 from datetime import datetime, timezone
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, Path
 from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.core.errors import AppError
 from app.features.integrations.crud.supplier_sync import supplier_sync_log_crud
 from app.features.integrations.models.supplier_sync import SyncType
 from app.services.suppliers import (
@@ -34,10 +35,16 @@ def get_supplier_adapter(
 ) -> SupplierAdapter:
     """Get supplier adapter."""
     if not has_supplier(supplier_name):
-        raise HTTPException(
+        registered_suppliers = list(supplier_names())
+        raise AppError(
+            code="supplier.not_found",
             status_code=404,
-            detail=f"Unknown supplier '{supplier_name}'. "
-            f"Registered: {', '.join(supplier_names())}",
+            message=f"Unknown supplier '{supplier_name}'. "
+            f"Registered: {', '.join(registered_suppliers)}",
+            details={
+                "supplier_name": supplier_name,
+                "registered": registered_suppliers,
+            },
         )
     return get_adapter(supplier_name)
 
@@ -133,22 +140,34 @@ async def trigger_product_sync(
     **Required permissions:** Superuser only
     """
     if not adapter.is_sync_enabled():
-        raise HTTPException(
+        raise AppError(
+            code="supplier.sync.disabled",
             status_code=400,
-            detail=f"{adapter.display_name} synchronization is disabled in settings",
+            message=f"{adapter.display_name} synchronization is disabled in settings",
+            details={"supplier_name": adapter.name},
         )
     if not adapter.is_configured():
-        raise HTTPException(
-            status_code=500, detail=f"{adapter.display_name} credentials not configured"
+        raise AppError(
+            code="supplier.credentials.not_configured",
+            status_code=500,
+            message=f"{adapter.display_name} credentials not configured",
+            details={"supplier_name": adapter.name},
         )
 
     categories = request.categories or list(adapter.default_categories)
     try:
         job_id = await trigger_manual_sync(adapter.name, categories=categories)
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to queue product sync: {e}"
-        )
+        raise AppError(
+            code="supplier.sync.queue_failed",
+            status_code=500,
+            message=f"Failed to queue product sync: {e}",
+            details={
+                "supplier_name": adapter.name,
+                "sync_type": "product_catalog",
+                "reason": str(e),
+            },
+        ) from e
 
     return SyncResponse(
         job_id=job_id,
@@ -170,21 +189,33 @@ async def trigger_inventory_sync(
     **Required permissions:** Superuser only
     """
     if not adapter.is_sync_enabled():
-        raise HTTPException(
+        raise AppError(
+            code="supplier.sync.disabled",
             status_code=400,
-            detail=f"{adapter.display_name} synchronization is disabled in settings",
+            message=f"{adapter.display_name} synchronization is disabled in settings",
+            details={"supplier_name": adapter.name},
         )
     if not adapter.is_configured():
-        raise HTTPException(
-            status_code=500, detail=f"{adapter.display_name} credentials not configured"
+        raise AppError(
+            code="supplier.credentials.not_configured",
+            status_code=500,
+            message=f"{adapter.display_name} credentials not configured",
+            details={"supplier_name": adapter.name},
         )
 
     try:
         job_id = await trigger_inventory_refresh(adapter.name, skus=request.skus)
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to queue inventory refresh: {e}"
-        )
+        raise AppError(
+            code="supplier.sync.queue_failed",
+            status_code=500,
+            message=f"Failed to queue inventory refresh: {e}",
+            details={
+                "supplier_name": adapter.name,
+                "sync_type": "inventory",
+                "reason": str(e),
+            },
+        ) from e
 
     count = len(request.skus) if request.skus else "all stale"
     return SyncResponse(

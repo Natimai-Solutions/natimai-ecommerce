@@ -6,15 +6,29 @@ Provides endpoints for manual enrichment and monitoring.
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.api.deps import SessionDep, get_current_active_superuser
 from app.core.config import settings
+from app.core.errors import AppError
 from app.services.icecat_service import icecat_service
 from app.tasks.icecat_tasks import trigger_batch_enrichment, trigger_product_enrichment
 
 router = APIRouter()
+
+
+def _ensure_icecat_enabled() -> None:
+    """Raise a stable app error when Icecat integration is disabled."""
+    if settings.ICECAT_ENABLED:
+        return
+
+    raise AppError(
+        code="icecat.disabled",
+        status_code=400,
+        message="Icecat enrichment is disabled in settings",
+        details={"setting": "ICECAT_ENABLED"},
+    )
 
 
 class EnrichmentRequest(BaseModel):
@@ -67,10 +81,7 @@ async def enrich_product(
 
     **Required permissions:** Superuser only
     """
-    if not settings.ICECAT_ENABLED:
-        raise HTTPException(
-            status_code=400, detail="Icecat enrichment is disabled in settings"
-        )
+    _ensure_icecat_enabled()
 
     try:
         job_id = await trigger_product_enrichment(request.product_id)
@@ -83,9 +94,15 @@ async def enrich_product(
         )
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to queue enrichment job: {str(e)}"
-        )
+        raise AppError(
+            code="icecat.enrich.queue_failed",
+            status_code=500,
+            message=f"Failed to queue enrichment job: {e}",
+            details={
+                "product_id": request.product_id,
+                "reason": str(e),
+            },
+        ) from e
 
 
 @router.post("/enrich/batch", response_model=EnrichmentResponse)
@@ -102,10 +119,7 @@ async def batch_enrich_products(
 
     **Required permissions:** Superuser only
     """
-    if not settings.ICECAT_ENABLED:
-        raise HTTPException(
-            status_code=400, detail="Icecat enrichment is disabled in settings"
-        )
+    _ensure_icecat_enabled()
 
     try:
         job_id = await trigger_batch_enrichment(request.limit)
@@ -118,9 +132,15 @@ async def batch_enrich_products(
         )
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to queue batch enrichment job: {str(e)}"
-        )
+        raise AppError(
+            code="icecat.batch.queue_failed",
+            status_code=500,
+            message=f"Failed to queue batch enrichment job: {e}",
+            details={
+                "limit": request.limit,
+                "reason": str(e),
+            },
+        ) from e
 
 
 @router.post("/test", response_model=dict[str, Any])
@@ -136,10 +156,7 @@ async def test_icecat_enrichment(
 
     **Required permissions:** Superuser only
     """
-    if not settings.ICECAT_ENABLED:
-        raise HTTPException(
-            status_code=400, detail="Icecat enrichment is disabled in settings"
-        )
+    _ensure_icecat_enabled()
 
     try:
         enrichment_data = await icecat_service.enrich_product_with_icecat(
@@ -164,10 +181,18 @@ async def test_icecat_enrichment(
         }
 
     except Exception as e:
-        raise HTTPException(
+        raise AppError(
+            code="icecat.test.failed",
             status_code=500,
-            detail=f"Icecat API test failed: {str(e)}",
-        )
+            message=f"Icecat API test failed: {e}",
+            details={
+                "vendor_part_number": request.vendor_part_number,
+                "manufacturer": request.manufacturer,
+                "ean": request.ean,
+                "upc": request.upc,
+                "reason": str(e),
+            },
+        ) from e
 
 
 @router.get("/status")
@@ -203,10 +228,7 @@ async def search_by_upc(
 
     **Required permissions:** Superuser only
     """
-    if not settings.ICECAT_ENABLED:
-        raise HTTPException(
-            status_code=400, detail="Icecat enrichment is disabled in settings"
-        )
+    _ensure_icecat_enabled()
 
     try:
         product_data = await icecat_service.get_product_by_upc(upc)
@@ -236,10 +258,15 @@ async def search_by_upc(
         }
 
     except Exception as e:
-        raise HTTPException(
+        raise AppError(
+            code="icecat.search.upc.failed",
             status_code=500,
-            detail=f"UPC search failed: {str(e)}",
-        )
+            message=f"UPC search failed: {e}",
+            details={
+                "upc": upc,
+                "reason": str(e),
+            },
+        ) from e
 
 
 @router.get("/search/ean/{ean}", response_model=dict[str, Any])
@@ -254,10 +281,7 @@ async def search_by_ean(
 
     **Required permissions:** Superuser only
     """
-    if not settings.ICECAT_ENABLED:
-        raise HTTPException(
-            status_code=400, detail="Icecat enrichment is disabled in settings"
-        )
+    _ensure_icecat_enabled()
 
     try:
         product_data = await icecat_service.get_product_by_ean(ean)
@@ -287,7 +311,12 @@ async def search_by_ean(
         }
 
     except Exception as e:
-        raise HTTPException(
+        raise AppError(
+            code="icecat.search.ean.failed",
             status_code=500,
-            detail=f"EAN search failed: {str(e)}",
-        )
+            message=f"EAN search failed: {e}",
+            details={
+                "ean": ean,
+                "reason": str(e),
+            },
+        ) from e

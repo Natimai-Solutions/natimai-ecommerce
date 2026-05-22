@@ -3,9 +3,9 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from fastapi import HTTPException
 
 from app.api.routes import suppliers as suppliers_routes
+from app.core.errors import AppError
 from app.features.user.models.user import User
 from app.services.suppliers.base import (
     NormalizedPricing,
@@ -68,7 +68,7 @@ async def test_trigger_inventory_sync_requires_configured_supplier(
         trigger_inventory_refresh_mock,
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await suppliers_routes.trigger_inventory_sync(
             adapter=FakeAdapter(),
             request=suppliers_routes.InventoryRefreshRequest(skus=["SKU-1"]),
@@ -76,5 +76,7 @@ async def test_trigger_inventory_sync_requires_configured_supplier(
         )
 
     assert exc_info.value.status_code == 500
-    assert exc_info.value.detail == "Demo Supplier credentials not configured"
+    assert exc_info.value.code == "supplier.credentials.not_configured"
+    assert exc_info.value.message == "Demo Supplier credentials not configured"
+    assert exc_info.value.details == {"supplier_name": "demo_supplier"}
     trigger_inventory_refresh_mock.assert_not_awaited()

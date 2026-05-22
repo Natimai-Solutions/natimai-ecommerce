@@ -4,10 +4,10 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException
 
 from app.api.routes.cart import create_quote_request
 from app.core.config import settings
+from app.core.errors import AppError
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
 from app.features.cart.crud.quote_request import crud_quote_request
 from app.features.cart.models.quote_request import QuoteRequestSubmit
@@ -32,7 +32,7 @@ async def test_quote_request_requires_support_email(
 
     monkeypatch.setattr(settings, "EMAIL_SUPPORT", "")
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await create_quote_request(
             session=session,
             current_user=current_user,
@@ -40,6 +40,8 @@ async def test_quote_request_requires_support_email(
         )
 
     assert exc_info.value.status_code == 503
+    assert exc_info.value.code == "cart.quote.unavailable"
+    assert exc_info.value.details == {"setting": "EMAIL_SUPPORT"}
 
 
 @pytest.mark.anyio

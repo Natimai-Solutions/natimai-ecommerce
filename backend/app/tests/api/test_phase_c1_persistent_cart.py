@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException
 
 from app.api.routes.cart import (
     add_cart_item,
@@ -14,6 +13,7 @@ from app.api.routes.cart import (
     remove_cart_item,
     update_cart_item_quantity,
 )
+from app.core.errors import AppError
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
 from app.features.cart.models.cart import (
     CartItemAddRequest,
@@ -126,20 +126,22 @@ async def test_update_cart_item_quantity_returns_404_when_item_missing(
 ) -> None:
     session = AsyncMock()
     current_user = cast(User, SimpleNamespace(id=uuid4()))
+    item_id = uuid4()
 
     get_item_mock = AsyncMock(return_value=None)
     monkeypatch.setattr(crud_cart_item, "get_active_item_for_user", get_item_mock)
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await update_cart_item_quantity(
             session=session,
             current_user=current_user,
-            item_id=uuid4(),
+            item_id=item_id,
             payload=CartItemQuantityUpdateRequest(quantity=2),
         )
 
     assert exc_info.value.status_code == 404
-    assert exc_info.value.detail == "Cart item not found"
+    assert exc_info.value.code == "cart.item.not_found"
+    assert exc_info.value.details == {"item_id": str(item_id)}
 
 
 @pytest.mark.anyio

@@ -156,7 +156,16 @@ async def test_refresh_token_expired_is_revoked_and_rejected(
     )
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Refresh token expiré"
+    assert response.json() == {
+        "error": {
+            "code": "login.refresh_token.expired",
+            "message": "Refresh token expiré",
+            "details": {
+                "user_id": str(user_id),
+                "jti": old_jti,
+            },
+        }
+    }
 
     assert revoke_mock.await_args is not None
     revoke_kwargs = revoke_mock.await_args.kwargs
@@ -208,7 +217,16 @@ async def test_refresh_token_reuse_revokes_all_active_sessions(
     )
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Refresh token révoqué"
+    assert response.json() == {
+        "error": {
+            "code": "login.refresh_token.revoked",
+            "message": "Refresh token révoqué",
+            "details": {
+                "user_id": str(user_id),
+                "jti": old_jti,
+            },
+        }
+    }
 
     assert revoke_all_mock.await_args is not None
     revoke_all_kwargs = revoke_all_mock.await_args.kwargs

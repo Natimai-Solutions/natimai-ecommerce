@@ -1,10 +1,11 @@
 import uuid
 from decimal import Decimal
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query
 from sqlmodel import col, func, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import (
@@ -87,8 +88,11 @@ async def feature_product(
             user=_current_user,
         )
     except RecordNotFoundError:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
+        raise AppError(
+            code="product.not_found",
+            status_code=404,
+            message="Product not found",
+            details={"product_id": str(product_id)},
         )
 
     return ProductPublic.model_validate(product)
@@ -108,8 +112,11 @@ async def unfeature_product(
             user=_current_user,
         )
     except RecordNotFoundError:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
+        raise AppError(
+            code="product.not_found",
+            status_code=404,
+            message="Product not found",
+            details={"product_id": str(product_id)},
         )
 
     return ProductPublic.model_validate(product)
@@ -140,49 +147,56 @@ async def get_category_spec_facets(
     # enum facets: group by (spec_key, value_text)
     text_stmt = (
         select(
-            ProductSpec.spec_key,
-            ProductSpec.value_text,
-            func.count(ProductSpec.product_id).label("cnt"),
+            col(ProductSpec.spec_key),
+            col(ProductSpec.value_text),
+            func.count(col(ProductSpec.product_id)).label("cnt"),
         )
-        .join(Product, Product.id == ProductSpec.product_id)
+        .join(Product, col(Product.id) == col(ProductSpec.product_id))
         .where(
-            ProductSpec.spec_key.in_(all_keys),
+            col(ProductSpec.spec_key).in_(all_keys),
             col(ProductSpec.value_text).is_not(None),
-            Product.category_id == category_id,
+            col(Product.category_id) == category_id,
             col(Product.is_active).is_(True),
             col(Product.is_enriched).is_(True),
         )
-        .group_by(ProductSpec.spec_key, ProductSpec.value_text)
-        .order_by(ProductSpec.spec_key, col(func.count(ProductSpec.product_id)).desc())
+        .group_by(col(ProductSpec.spec_key), col(ProductSpec.value_text))
+        .order_by(
+            col(ProductSpec.spec_key),
+            func.count(col(ProductSpec.product_id)).desc(),
+        )
     )
 
     # numeric facets: group by (spec_key, value_numeric)
     numeric_stmt = (
         select(
-            ProductSpec.spec_key,
-            ProductSpec.value_numeric,
-            func.count(ProductSpec.product_id).label("cnt"),
+            col(ProductSpec.spec_key),
+            col(ProductSpec.value_numeric),
+            func.count(col(ProductSpec.product_id)).label("cnt"),
         )
-        .join(Product, Product.id == ProductSpec.product_id)
+        .join(Product, col(Product.id) == col(ProductSpec.product_id))
         .where(
-            ProductSpec.spec_key.in_(all_keys),
+            col(ProductSpec.spec_key).in_(all_keys),
             col(ProductSpec.value_numeric).is_not(None),
-            Product.category_id == category_id,
+            col(Product.category_id) == category_id,
             col(Product.is_active).is_(True),
             col(Product.is_enriched).is_(True),
         )
-        .group_by(ProductSpec.spec_key, ProductSpec.value_numeric)
-        .order_by(ProductSpec.spec_key, ProductSpec.value_numeric)
+        .group_by(col(ProductSpec.spec_key), col(ProductSpec.value_numeric))
+        .order_by(col(ProductSpec.spec_key), col(ProductSpec.value_numeric))
     )
 
     text_result = await session.exec(text_stmt)
     numeric_result = await session.exec(numeric_stmt)
 
-    # Aggregate into spec facets
+    # Aggregate into spec facets.
+    # Row access uses positional indices — mypy cannot infer named-tuple attributes
+    # from multi-column select() results with SQLModel's session.exec().
     facets_by_key: dict[str, SpecFacet] = {}
 
-    for row in text_result.all():
-        key = row.spec_key
+    for text_row in text_result.all():
+        key: str = text_row[0]  # spec_key
+        value_text: str | None = text_row[1]  # value_text
+        cnt_text: int = text_row[2]  # cnt
         if key not in facets_by_key and key in key_to_def:
             d = key_to_def[key]
             facets_by_key[key] = SpecFacet(
@@ -194,11 +208,13 @@ async def get_category_spec_facets(
             )
         if key in facets_by_key:
             facets_by_key[key].values.append(
-                SpecFacetValue(value_text=row.value_text, count=row.cnt)
+                SpecFacetValue(value_text=value_text, count=cnt_text)
             )
 
-    for row in numeric_result.all():
-        key = row.spec_key
+    for num_row in numeric_result.all():
+        key = num_row[0]  # spec_key
+        value_numeric_raw = num_row[1]  # value_numeric
+        cnt_num: int = num_row[2]  # cnt
         if key not in facets_by_key and key in key_to_def:
             d = key_to_def[key]
             facets_by_key[key] = SpecFacet(
@@ -211,7 +227,7 @@ async def get_category_spec_facets(
         if key in facets_by_key:
             facets_by_key[key].values.append(
                 SpecFacetValue(
-                    value_numeric=Decimal(str(row.value_numeric)), count=row.cnt
+                    value_numeric=Decimal(str(value_numeric_raw)), count=cnt_num
                 )
             )
 

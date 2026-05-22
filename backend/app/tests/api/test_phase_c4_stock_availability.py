@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException
 
 from app.api.routes.cart import _reserve_stock_for_checkout
+from app.core.errors import AppError
 from app.features.inventory.crud import crud_inventory, crud_stock_movement
 from app.features.product.models.product import Product
 from app.features.user.models.user import User
@@ -176,7 +176,7 @@ async def test_reserve_stock_raises_when_local_and_supplier_are_insufficient(
     )
     monkeypatch.setattr(crud_stock_movement, "create_draft", movement_mock)
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await _reserve_stock_for_checkout(
             session=session,
             order_id=uuid4(),
@@ -186,5 +186,6 @@ async def test_reserve_stock_raises_when_local_and_supplier_are_insufficient(
         )
 
     assert exc_info.value.status_code == 409
-    assert "Insufficient stock" in str(exc_info.value.detail)
+    assert exc_info.value.code == "cart.stock.insufficient"
+    assert exc_info.value.details["product_id"] == str(product.id)
     movement_mock.assert_not_awaited()

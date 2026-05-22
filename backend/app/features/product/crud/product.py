@@ -19,6 +19,7 @@ from app.features.product.models.product import (
     ProductUpdate,
 )
 from app.features.product.services.pricing import (
+    CurrencyRateMissing,
     calculate_sale_price,
     resolve_default_price_group,
 )
@@ -47,6 +48,8 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
                     product,
                     group=default_group,
                 )
+        except CurrencyRateMissing:
+            raise
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to apply runtime pricing: %s", exc)
 
@@ -440,17 +443,19 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         query_text = (q or "").strip()
         _ts_rank: Any | None = None
         if query_text:
-            # GIN FTS path — expression matches ix_products_search_fts index exactly.
-            search_doc = func.to_tsvector(
-                "simple",
-                func.concat_ws(
-                    " ",
-                    func.coalesce(col(Product.name), ""),
-                    func.coalesce(col(Product.description), ""),
-                    func.coalesce(col(Product.manufacturer), ""),
-                    func.coalesce(col(Product.vendor_part_number), ""),
-                ),
+            # GIN FTS path — expression matches ix_products_search_fts exactly.
+            # Uses `||` (IMMUTABLE) instead of concat_ws (STABLE) so the same
+            # expression can also be used in the index definition.
+            search_text = (
+                func.coalesce(col(Product.name), "")
+                .op("||")(" ")
+                .op("||")(func.coalesce(col(Product.description), ""))
+                .op("||")(" ")
+                .op("||")(func.coalesce(col(Product.manufacturer), ""))
+                .op("||")(" ")
+                .op("||")(func.coalesce(col(Product.vendor_part_number), ""))
             )
+            search_doc = func.to_tsvector("simple", search_text)
             ts_q = func.plainto_tsquery("simple", query_text)
             statement = statement.where(search_doc.op("@@")(ts_q))
             _ts_rank = func.ts_rank(search_doc, ts_q)

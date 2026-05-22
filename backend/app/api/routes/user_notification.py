@@ -1,9 +1,10 @@
 import uuid
 
-from fastapi import HTTPException, Query, status
+from fastapi import Query, status
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
+from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.user.crud.notification import (
     NotificationCrud,
@@ -78,7 +79,12 @@ async def get_user_notifications(
 ) -> NotificationsPublic:
     """Get all notifications for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="notification.not_owned",
+            status_code=403,
+            message="You cannot access another user's notifications",
+            details={"user_id": str(user_id)},
+        )
 
     notifications = await crud_notification.get_by_user_id(
         session=session,
@@ -101,7 +107,12 @@ async def get_user_unread_notifications_count(
 ) -> dict[str, object]:
     """Get count of unread notifications for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="notification.not_owned",
+            status_code=403,
+            message="You cannot access another user's notifications",
+            details={"user_id": str(user_id)},
+        )
 
     count = await crud_notification.count_by_user(
         session=session, user_id=user_id, unread_only=True
@@ -121,21 +132,36 @@ async def get_user_notification(
 ) -> NotificationPublic:
     """Get a specific notification for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="notification.not_owned",
+            status_code=403,
+            message="You cannot access another user's notifications",
+            details={"user_id": str(user_id)},
+        )
 
     user_notification = await crud_user_notification.get_by_user_and_notification(
         session=session, user_id=user_id, notification_id=notification_id
     )
     if not user_notification:
-        raise HTTPException(status_code=404, detail="Notification not found")
+        raise AppError(
+            code="notification.not_found",
+            status_code=404,
+            message=f"Notification '{notification_id}' not found",
+            details={"notification_id": str(notification_id)},
+        )
 
     try:
         notification = await crud_notification.read(
             session=session,
             id=notification_id,
         )
-    except RecordNotFoundError:
-        raise HTTPException(status_code=404, detail="Notification not found")
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="notification.not_found",
+            status_code=404,
+            message=f"Notification '{notification_id}' not found",
+            details={"notification_id": str(notification_id)},
+        ) from exc
 
     return NotificationPublic.model_validate(notification)
 
@@ -149,13 +175,23 @@ async def mark_notification_as_read(
 ) -> dict[str, str]:
     """Mark a notification as read for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="notification.not_owned",
+            status_code=403,
+            message="You cannot access another user's notifications",
+            details={"user_id": str(user_id)},
+        )
 
     user_notification = await crud_user_notification.get_by_user_and_notification(
         session=session, user_id=user_id, notification_id=notification_id
     )
     if not user_notification:
-        raise HTTPException(status_code=404, detail="Notification not found")
+        raise AppError(
+            code="notification.not_found",
+            status_code=404,
+            message=f"Notification '{notification_id}' not found",
+            details={"notification_id": str(notification_id)},
+        )
 
     if user_notification.is_read:
         return {"message": "Notification already marked as read"}
@@ -174,7 +210,12 @@ async def mark_all_notifications_as_read(
 ) -> dict[str, str]:
     """Mark all notifications as read for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="notification.not_owned",
+            status_code=403,
+            message="You cannot access another user's notifications",
+            details={"user_id": str(user_id)},
+        )
 
     count = await crud_user_notification.mark_all_as_read(
         session=session, user_id=user_id
@@ -194,13 +235,23 @@ async def delete_user_notification(
 ) -> None:
     """Delete a notification for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="notification.not_owned",
+            status_code=403,
+            message="You cannot access another user's notifications",
+            details={"user_id": str(user_id)},
+        )
 
     user_notification = await crud_user_notification.get_by_user_and_notification(
         session=session, user_id=user_id, notification_id=notification_id
     )
     if not user_notification:
-        raise HTTPException(status_code=404, detail="Notification not found")
+        raise AppError(
+            code="notification.not_found",
+            status_code=404,
+            message=f"Notification '{notification_id}' not found",
+            details={"notification_id": str(notification_id)},
+        )
 
     await crud_user_notification.delete(
         session=session,
@@ -222,7 +273,12 @@ async def create_user_notification(
 ) -> NotificationPublic:
     """Create a new notification for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="notification.not_owned",
+            status_code=403,
+            message="You cannot access another user's notifications",
+            details={"user_id": str(user_id)},
+        )
 
     # Create the notification
     notification = await crud_notification.create(

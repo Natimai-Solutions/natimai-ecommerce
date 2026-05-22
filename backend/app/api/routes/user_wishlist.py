@@ -1,9 +1,10 @@
 import uuid
 
-from fastapi import HTTPException, Query, status
+from fastapi import Query, status
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
+from app.core.errors import AppError
 from app.features.product.models.product import Product
 from app.features.user.crud.wishlist import (
     WishlistCrud,
@@ -96,7 +97,12 @@ async def _get_active_product_or_404(
     """Get active product or 404."""
     product = await session.get(Product, product_id)
     if product is None or not product.is_active or not product.is_admin_active:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise AppError(
+            code="wishlist.product.not_found",
+            status_code=404,
+            message=f"Product '{product_id}' not found",
+            details={"product_id": str(product_id)},
+        )
     return product
 
 
@@ -160,7 +166,15 @@ async def remove_product_from_my_wishlist(
         product_id=product_id,
     )
     if not removed:
-        raise HTTPException(status_code=404, detail="Product not found in wishlist")
+        raise AppError(
+            code="wishlist.product.not_in_wishlist",
+            status_code=404,
+            message=f"Product '{product_id}' not found in wishlist",
+            details={
+                "product_id": str(product_id),
+                "wishlist_id": str(wishlist.id),
+            },
+        )
 
     items = await crud_wishlist_item.get_by_wishlist_id(
         session=session, wishlist_id=wishlist.id
@@ -181,7 +195,12 @@ async def get_user_wishlists(
 ) -> WishlistsPublic:
     """Get all wishlists for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="wishlist.not_owned",
+            status_code=403,
+            message="You cannot access another user's wishlists",
+            details={"user_id": str(user_id)},
+        )
 
     wishlists = await crud_wishlist.get_by_user_id(
         session=session, user_id=user_id, skip=skip, limit=limit
@@ -203,7 +222,12 @@ async def create_user_wishlist(
 ) -> WishlistPublic:
     """Create a new wishlist for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="wishlist.not_owned",
+            status_code=403,
+            message="You cannot access another user's wishlists",
+            details={"user_id": str(user_id)},
+        )
 
     wishlist = await crud_wishlist.create_for_user(
         session=session,
@@ -223,13 +247,23 @@ async def get_user_wishlist(
 ) -> WishlistPublic:
     """Get a specific wishlist for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="wishlist.not_owned",
+            status_code=403,
+            message="You cannot access another user's wishlists",
+            details={"user_id": str(user_id)},
+        )
 
     wishlist = await crud_wishlist.get_user_wishlist_by_id(
         session=session, wishlist_id=wishlist_id, user_id=user_id
     )
     if not wishlist:
-        raise HTTPException(status_code=404, detail="Wishlist not found")
+        raise AppError(
+            code="wishlist.not_found",
+            status_code=404,
+            message=f"Wishlist '{wishlist_id}' not found",
+            details={"wishlist_id": str(wishlist_id)},
+        )
 
     return WishlistPublic.model_validate(wishlist)
 
