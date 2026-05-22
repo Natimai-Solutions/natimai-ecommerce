@@ -9,6 +9,7 @@ from app.outbox.consumer import execute_outbox_handler
 from app.tasks.icecat_tasks import (
     batch_enrich_products_task,
     enrich_product_with_icecat_task,
+    reproject_product_specs_task,
 )
 from app.tasks.supplier_tasks import (
     check_supplier_health_task,
@@ -69,6 +70,7 @@ class WorkerSettings:
         # Tâches Icecat
         enrich_product_with_icecat_task,
         batch_enrich_products_task,
+        reproject_product_specs_task,
         # ... tes autres handlers
     ]
 

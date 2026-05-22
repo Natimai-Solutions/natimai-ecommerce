@@ -27,7 +27,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlmodel import col, select
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
@@ -227,9 +227,7 @@ async def on_payment_captured_create_ingram_order(
             notes=f"Local order {order_id}",
         )
     except Exception as exc:
-        logger.error(
-            "Ingram PO creation failed for order %s: %s", order_id, exc
-        )
+        logger.error("Ingram PO creation failed for order %s: %s", order_id, exc)
         await _save_supplier_order(
             session,
             existing=existing,

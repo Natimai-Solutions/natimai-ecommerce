@@ -1,6 +1,8 @@
 import uuid
+from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, Query, status
+from sqlmodel import col, func, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.features.base.crud import RecordNotFoundError
@@ -13,6 +15,13 @@ from app.features.product.models.product import (
     ProductSearchResponse,
     ProductsPublic,
 )
+from app.features.product.models.product_spec import (
+    CategorySpecFacetsResponse,
+    ProductSpec,
+    SpecFacet,
+    SpecFacetValue,
+)
+from app.features.product.services.spec_projection import get_spec_definitions
 
 router = APIRouter(prefix="/product", tags=["product"])
 
@@ -78,7 +87,9 @@ async def feature_product(
             user=_current_user,
         )
     except RecordNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
+        )
 
     return ProductPublic.model_validate(product)
 
@@ -97,6 +108,115 @@ async def unfeature_product(
             user=_current_user,
         )
     except RecordNotFoundError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
+        )
 
     return ProductPublic.model_validate(product)
+
+
+@router.get("/categories/{category_id}/spec-facets", response_model=CategorySpecFacetsResponse)
+async def get_category_spec_facets(
+    category_id: uuid.UUID,
+    session: SessionDep,
+) -> CategorySpecFacetsResponse:
+    """Return available spec facets (with value counts) for a category.
+
+    Used by the storefront to build dynamic filter panels.
+    Only returns specs that have at least one value for active enriched products
+    in this category.
+    """
+    spec_defs = get_spec_definitions()
+
+    # All spec keys applicable to any category (we filter by presence in the data)
+    all_keys = [s["key"] for s in spec_defs]
+    key_to_def = {s["key"]: s for s in spec_defs}
+
+    # Fetch value distribution from product_specs for this category's enriched products
+    from app.features.product.models.product import Product
+
+    # enum facets: group by (spec_key, value_text)
+    text_stmt = (
+        select(
+            ProductSpec.spec_key,
+            ProductSpec.value_text,
+            func.count(ProductSpec.product_id).label("cnt"),
+        )
+        .join(Product, Product.id == ProductSpec.product_id)
+        .where(
+            ProductSpec.spec_key.in_(all_keys),
+            col(ProductSpec.value_text).is_not(None),
+            Product.category_id == category_id,
+            col(Product.is_active).is_(True),
+            col(Product.is_enriched).is_(True),
+        )
+        .group_by(ProductSpec.spec_key, ProductSpec.value_text)
+        .order_by(ProductSpec.spec_key, col(func.count(ProductSpec.product_id)).desc())
+    )
+
+    # numeric facets: group by (spec_key, value_numeric)
+    numeric_stmt = (
+        select(
+            ProductSpec.spec_key,
+            ProductSpec.value_numeric,
+            func.count(ProductSpec.product_id).label("cnt"),
+        )
+        .join(Product, Product.id == ProductSpec.product_id)
+        .where(
+            ProductSpec.spec_key.in_(all_keys),
+            col(ProductSpec.value_numeric).is_not(None),
+            Product.category_id == category_id,
+            col(Product.is_active).is_(True),
+            col(Product.is_enriched).is_(True),
+        )
+        .group_by(ProductSpec.spec_key, ProductSpec.value_numeric)
+        .order_by(ProductSpec.spec_key, ProductSpec.value_numeric)
+    )
+
+    text_result = await session.exec(text_stmt)
+    numeric_result = await session.exec(numeric_stmt)
+
+    # Aggregate into spec facets
+    facets_by_key: dict[str, SpecFacet] = {}
+
+    for row in text_result.all():
+        key = row.spec_key
+        if key not in facets_by_key and key in key_to_def:
+            d = key_to_def[key]
+            facets_by_key[key] = SpecFacet(
+                key=key,
+                label_fr=d["label_fr"],
+                type=d["type"],
+                unit=d.get("unit"),
+                values=[],
+            )
+        if key in facets_by_key:
+            facets_by_key[key].values.append(
+                SpecFacetValue(value_text=row.value_text, count=row.cnt)
+            )
+
+    for row in numeric_result.all():
+        key = row.spec_key
+        if key not in facets_by_key and key in key_to_def:
+            d = key_to_def[key]
+            facets_by_key[key] = SpecFacet(
+                key=key,
+                label_fr=d["label_fr"],
+                type=d["type"],
+                unit=d.get("unit"),
+                values=[],
+            )
+        if key in facets_by_key:
+            facets_by_key[key].values.append(
+                SpecFacetValue(value_numeric=Decimal(str(row.value_numeric)), count=row.cnt)
+            )
+
+    # Preserve YAML order
+    ordered_facets = [
+        facets_by_key[key] for key in all_keys if key in facets_by_key
+    ]
+
+    return CategorySpecFacetsResponse(
+        category_id=category_id,
+        specs=ordered_facets,
+    )

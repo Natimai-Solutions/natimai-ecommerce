@@ -14,18 +14,6 @@ from app.features.product.models.category import (
     CategoryPublic,
     CategoryUpdate,
 )
-from app.features.product.models.product import (
-    ProductFeatureRequest,
-    Product,
-    ProductBase,
-    ProductCreate,
-    ProductPublic,
-    ProductSearchFacets,
-    ProductSearchRequest,
-    ProductSearchResponse,
-    ProductsPublic,
-    ProductUpdate,
-)
 from app.features.product.models.price_group import (
     PriceGroup,
     PriceGroupBase,
@@ -33,6 +21,18 @@ from app.features.product.models.price_group import (
     PriceGroupPublic,
     PriceGroupsPublic,
     PriceGroupUpdate,
+)
+from app.features.product.models.product import (
+    Product,
+    ProductBase,
+    ProductCreate,
+    ProductFeatureRequest,
+    ProductPublic,
+    ProductSearchFacets,
+    ProductSearchRequest,
+    ProductSearchResponse,
+    ProductsPublic,
+    ProductUpdate,
 )
 from app.features.product.models.tax_rate import (
     TaxRate,

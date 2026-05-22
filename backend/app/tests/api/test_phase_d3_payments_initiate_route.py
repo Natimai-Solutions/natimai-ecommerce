@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException
 
 from app.api.routes.payments import PaymentsInitiateRequest, initiate_payment
+from app.core.errors import AppError
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.models.payment import Payment
 from app.features.payment.providers.base import InitiationRequest, InitiationResult
@@ -154,7 +154,7 @@ async def test_payments_initiate_returns_404_when_method_not_found(
         ),
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await initiate_payment(
             session=session,
             request=request,
@@ -162,6 +162,7 @@ async def test_payments_initiate_returns_404_when_method_not_found(
         )
 
     assert exc_info.value.status_code == 404
+    assert exc_info.value.code == "payment.method.not_found"
     create_payment_mock.assert_not_awaited()
 
 
@@ -212,7 +213,7 @@ async def test_payments_initiate_returns_400_when_provider_unsupported(
         ),
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await initiate_payment(
             session=session,
             request=request,
@@ -220,5 +221,6 @@ async def test_payments_initiate_returns_400_when_provider_unsupported(
         )
 
     assert exc_info.value.status_code == 400
-    assert "does not support payment initiation" in str(exc_info.value.detail)
+    assert exc_info.value.code == "payment.provider.unsupported_for_initiation"
+    assert "does not support payment initiation" in exc_info.value.message
     session.rollback.assert_awaited_once()

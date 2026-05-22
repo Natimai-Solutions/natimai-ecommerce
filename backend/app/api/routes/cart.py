@@ -38,6 +38,11 @@ from app.features.inventory.models.stock_movement import (
     MovementType,
     ReferenceType,
 )
+from app.features.notification.providers import (
+    NotificationMessage,
+    UnknownNotificationProviderError,
+    get_notification_provider,
+)
 from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_line_crud import crud_order_line
 from app.features.order.crud.order_status_crud import crud_order_status
@@ -53,11 +58,6 @@ from app.features.payment.models.payment_status import (
 )
 from app.features.product.models.product import Product
 from app.features.product.services.pricing import calculate_sale_price, resolve_tax_rate
-from app.features.notification.providers import (
-    NotificationMessage,
-    UnknownNotificationProviderError,
-    get_notification_provider,
-)
 from app.features.shipping.crud import (
     crud_shipping_route,
     crud_shipping_route_tracking,

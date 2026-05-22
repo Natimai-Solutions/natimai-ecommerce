@@ -9,7 +9,9 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 class PriceGroupBase(Base):
     """Represents price group base."""
 
-    code: str = Field(max_length=50, index=True, description="Unique pricing group code")
+    code: str = Field(
+        max_length=50, index=True, description="Unique pricing group code"
+    )
     label: str = Field(max_length=100, description="Display label for pricing group")
     margin_rate_pct: Decimal = Field(
         default=Decimal("0.00"),

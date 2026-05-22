@@ -1,5 +1,5 @@
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession

@@ -47,6 +47,42 @@ class OrderLineBase(Base):
         index=True,
         description="Snapshot du taux de taxe applique a la ligne",
     )
+    cost_amount_snapshot: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Snapshot du coût produit au moment de la commande",
+    )
+    cost_currency_snapshot: str | None = Field(
+        default=None,
+        max_length=8,
+        description="Devise du coût fournisseur au moment de la commande",
+    )
+    fx_rate_used: Decimal | None = Field(
+        default=None,
+        decimal_places=6,
+        max_digits=16,
+        description="Taux FX utilisé pour la conversion en XPF. Null si déjà en XPF.",
+    )
+    customs_rate_pct_snapshot: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=8,
+        decimal_places=2,
+        description="Snapshot du taux de douane appliqué",
+    )
+    margin_rate_pct_snapshot: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=8,
+        decimal_places=2,
+        description="Snapshot du taux de marge appliqué",
+    )
+    price_group_id_snapshot: uuid.UUID | None = Field(
+        default=None,
+        description="Snapshot de l'ID du groupe de prix appliqué",
+    )
 
 
 class OrderLineCreate(OrderLineBase, BaseCreate):

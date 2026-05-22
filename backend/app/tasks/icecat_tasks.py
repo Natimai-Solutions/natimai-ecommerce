@@ -126,13 +126,21 @@ async def enrich_product_with_icecat_task(
 
             # Update product in database
             if update_data:
-                await crud_product.update(
+                updated_product = await crud_product.update(
                     session, id=product_uuid, data=update_data, record=product
                 )
+
+                # Project normalized specs into product_spec table
+                from app.features.product.services.spec_projection import (
+                    upsert_product_specs,
+                )
+
+                specs_count = await upsert_product_specs(session, updated_product)
+
                 await session.commit()
 
                 logger.info(
-                    f"Successfully enriched product {product_id} with Icecat data"
+                    f"Successfully enriched product {product_id} with Icecat data ({specs_count} specs projected)"
                 )
                 return {
                     "status": "success",
@@ -140,6 +148,7 @@ async def enrich_product_with_icecat_task(
                     "enriched_fields": list(
                         update_data.dict(exclude_unset=True).keys()
                     ),
+                    "specs_projected": specs_count,
                 }
             else:
                 return {
@@ -263,6 +272,59 @@ async def trigger_product_enrichment(product_id: str) -> str:
         "enrich_product_with_icecat_task", product_id=product_id
     )
     return cast(str, job.job_id)
+
+
+async def reproject_product_specs_task(
+    _ctx: dict[str, Any], category_id: str | None = None
+) -> dict[str, Any]:
+    """Re-project spec_definitions.yaml onto all enriched products.
+
+    Run this after any alias modification in spec_definitions.yaml to rebuild
+    the product_spec table without re-fetching Icecat data.
+
+    Args:
+        category_id: Optional UUID string to limit re-projection to one category.
+    """
+    from app.features.product.models.product import Product
+    from app.features.product.services.spec_projection import upsert_product_specs
+
+    logger.info("Starting spec re-projection task (category_id=%s)", category_id)
+    stats = {"total": 0, "projected": 0, "errors": 0}
+
+    async with AsyncSession(engine) as session:
+        try:
+            query = (
+                select(Product)
+                .where(col(Product.is_enriched).is_(True))
+                .where(col(Product.is_active).is_(True))
+            )
+            if category_id:
+                import uuid as _uuid
+
+                query = query.where(Product.category_id == _uuid.UUID(category_id))
+
+            result = await session.exec(query)
+            products = list(result.all())
+            stats["total"] = len(products)
+
+            for product in products:
+                try:
+                    count = await upsert_product_specs(session, product)
+                    if count:
+                        stats["projected"] += 1
+                except Exception as exc:  # noqa: BLE001
+                    logger.error(
+                        "Error projecting specs for product %s: %s", product.id, exc
+                    )
+                    stats["errors"] += 1
+
+            await session.commit()
+            logger.info("Spec re-projection complete. Stats: %s", stats)
+            return {"status": "success", **stats}
+
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Error in spec re-projection task: %s", exc)
+            return {"status": "error", "message": str(exc), **stats}
 
 
 async def trigger_batch_enrichment(limit: int = 50) -> str:

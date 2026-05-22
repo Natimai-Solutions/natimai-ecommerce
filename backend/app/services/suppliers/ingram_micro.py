@@ -208,9 +208,7 @@ class IngramMicroService:
         ``lines`` items must contain ``ingramPartNumber`` and ``quantity``; ``unitPrice``
         is optional (Ingram falls back to the contracted price when omitted).
         """
-        numbered_lines = [
-            {"lineNumber": i + 1, **line} for i, line in enumerate(lines)
-        ]
+        numbered_lines = [{"lineNumber": i + 1, **line} for i, line in enumerate(lines)]
         body: dict[str, Any] = {
             "customerOrderNumber": customer_order_number[:35],
             "shipToInfo": ship_to,

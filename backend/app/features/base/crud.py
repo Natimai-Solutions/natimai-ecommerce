@@ -4,8 +4,8 @@ import datetime
 import functools
 import logging
 import uuid
-from decimal import Decimal
 from collections.abc import Awaitable, Callable
+from decimal import Decimal
 from hashlib import md5
 from typing import Any, Generic, ParamSpec, TypeVar, overload
 
@@ -261,7 +261,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                     item.isoformat()
                     if isinstance(item, datetime.datetime)
                     else str(item)
-                    if isinstance(item, (uuid.UUID, Decimal))
+                    if isinstance(item, uuid.UUID | Decimal)
                     else self._serialize_for_json(item)
                     if isinstance(item, dict)
                     else item

@@ -1,4 +1,13 @@
+import uuid
+from collections.abc import Callable
+from typing import Any, cast
+
+from fastapi import Depends, HTTPException
+from sqlmodel import col, select
+
 from app.api.base_router import BaseRouter
+from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
+from app.features.base.crud import RecordNotFoundError
 from app.features.product.crud.product import (
     ProductCrud,
     crud_product,
@@ -24,7 +33,65 @@ class ProductRouter(
 ):
     """Represents product router."""
 
-    pass
+    def generate_read_endpoint(self) -> Callable[..., Any]:
+        """Override: returns 404 for non-enriched products on public reads."""
+
+        async def read(
+            session: SessionDep,
+            id: uuid.UUID,
+            current_user: CurrentUser | None = Depends(get_current_user_optional),
+        ) -> ProductPublic:
+            await self._check_auth(session, "read", current_user)
+            try:
+                record = await self.crud.read(session, id=id, user=current_user)
+            except RecordNotFoundError:
+                raise HTTPException(status_code=404, detail="Product not found")
+
+            is_admin = current_user is not None and current_user.is_superuser
+            if not is_admin and not record.is_enriched:
+                raise HTTPException(status_code=404, detail="Product not found")
+
+            return cast(ProductPublic, record)
+
+        read.__name__ = "get_one_product"
+        return read
+
+    def generate_read_multi_endpoint(self) -> Callable[..., Any]:
+        """Override: filters to enriched products only for public listing."""
+
+        async def read_multi(
+            session: SessionDep,
+            skip: int = 0,
+            limit: int = 1000,
+            order_by: str | None = None,
+            include_archived: bool = False,
+            current_user: CurrentUser | None = Depends(get_current_user_optional),
+        ) -> Any:
+            await self._check_auth(session, "read", current_user)
+
+            is_admin = current_user is not None and current_user.is_superuser
+            statement = None
+            if not is_admin:
+                statement = select(Product).where(
+                    col(Product.is_active).is_(True),
+                    col(Product.is_admin_active).is_(True),
+                    col(Product.is_enriched).is_(True),
+                )
+
+            result = await self.crud.read_multi(
+                session,
+                statement=statement,
+                skip=skip,
+                limit=limit,
+                filter=None,
+                order_by=order_by,
+                include_archived=include_archived,
+                user=current_user,
+            )
+            return result
+
+        read_multi.__name__ = "get_multiple_products"
+        return read_multi
 
 
 class Auth:

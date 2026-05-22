@@ -353,8 +353,12 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             .where(
                 col(Product.is_active).is_(True),
                 col(Product.is_admin_active).is_(True),
+                col(Product.is_enriched).is_(True),
                 col(Product.is_featured).is_(True),
-                (col(Product.featured_until).is_(None) | (Product.featured_until >= now)),
+                (
+                    col(Product.featured_until).is_(None)
+                    | (Product.featured_until >= now)
+                ),
             )
             .order_by(
                 col(Product.featured_position).is_(None),
@@ -430,6 +434,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         statement = select(Product).where(
             col(Product.is_active).is_(True),
             col(Product.is_admin_active).is_(True),
+            col(Product.is_enriched).is_(True),
         )
 
         query_text = (q or "").strip()

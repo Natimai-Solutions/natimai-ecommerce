@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.routes.address import router as address_router
+from app.api.routes.admin_currency_rates import router as admin_currency_rates_router
 from app.api.routes.admin_payments import router as admin_payments_router
 from app.api.routes.analytics_product import router as analytics_product_router
 from app.api.routes.analytics_sale import router as analytics_sale_router
@@ -51,6 +52,7 @@ api_router.include_router(payment_router)
 api_router.include_router(payment_method_router)
 api_router.include_router(payments_router)
 api_router.include_router(admin_payments_router)
+api_router.include_router(admin_currency_rates_router)
 api_router.include_router(internal_storage_router)
 api_router.include_router(product_phase1_router)
 api_router.include_router(product_router)

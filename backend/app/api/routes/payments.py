@@ -3,11 +3,13 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentUser, SessionDep
+from app.core.config import settings
+from app.core.errors import AppError
 from app.features.attachment.service import (
     AttachmentValidationError,
     issue_upload_intent,
@@ -299,9 +301,8 @@ async def _publish_provider_webhook_received_event(
 
 async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
     """Execute payzen ipn."""
-    error = None
     raw_fields: dict[str, Any] = {}
-    fields: dict[str, object] = {}
+    fields: dict[str, Any] = {}
 
     try:
         form_data = await request.form()
@@ -315,40 +316,54 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
             fields.get("trans_status"),
             fields.get("amount"),
         )
-
     except Exception as e:
-        error = str(e)
-        logger.error(f"Error processing PayZen IPN: {error}")
-        return JSONResponse(
+        error_message = str(e)
+        logger.error(f"Error processing PayZen IPN: {error_message}")
+        raise AppError(
+            code="payment.webhook.invalid_signature",
             status_code=400,
-            content={"status": "error", "message": error},
+            message=error_message,
+            details={"provider_code": "payzen"},
+        ) from e
+
+    provider_order_reference_obj = fields.get("order_id")
+    provider_order_reference = (
+        str(provider_order_reference_obj) if provider_order_reference_obj else ""
+    )
+    if not provider_order_reference:
+        raise AppError(
+            code="payment.webhook.missing_order_id",
+            status_code=400,
+            message="Missing order_id in PayZen IPN",
+            details={"provider_code": "payzen"},
+        )
+
+    payment = await crud_payment.get_by_provider_reference(
+        session,
+        provider_code="payzen",
+        provider_reference=provider_order_reference,
+    )
+
+    if not payment:
+        try:
+            payment_uuid = uuid.UUID(provider_order_reference)
+            payment = await crud_payment.read(session, id=payment_uuid)
+        except (ValueError, AttributeError, RecordNotFoundError):
+            payment = None
+
+    if not payment:
+        logger.error(f"Payment not found for order_id: {provider_order_reference}")
+        raise AppError(
+            code="payment.webhook.payment_not_found",
+            status_code=400,
+            message=f"Payment not found: {provider_order_reference}",
+            details={
+                "provider_code": "payzen",
+                "provider_reference": provider_order_reference,
+            },
         )
 
     try:
-        provider_order_reference_obj = fields.get("order_id")
-        provider_order_reference = (
-            str(provider_order_reference_obj) if provider_order_reference_obj else ""
-        )
-        if not provider_order_reference:
-            raise ValueError("Missing order_id in PayZen IPN")
-
-        payment = await crud_payment.get_by_provider_reference(
-            session,
-            provider_code="payzen",
-            provider_reference=provider_order_reference,
-        )
-
-        if not payment:
-            try:
-                payment_uuid = uuid.UUID(provider_order_reference)
-                payment = await crud_payment.read(session, id=payment_uuid)
-            except (ValueError, AttributeError):
-                pass
-
-        if not payment:
-            logger.error(f"Payment not found for order_id: {provider_order_reference}")
-            raise ValueError(f"Payment not found: {provider_order_reference}")
-
         trans_status = _normalize_trans_status(fields.get("trans_status"))
         trans_id = _extract_trans_id(fields)
 
@@ -424,14 +439,13 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
             payment.id,
             trans_status,
         )
-
+    except AppError:
+        await session.rollback()
+        raise
     except Exception as e:
         logger.error(f"Error updating payment from IPN: {e}")
         await session.rollback()
-        return JSONResponse(
-            status_code=500,
-            content={"status": "error", "message": "Error processing payment"},
-        )
+        raise
 
     return JSONResponse(content={"status": "ok"})
 
@@ -519,14 +533,36 @@ async def initiate_payment(
             request.payment_method_id,
         )
     except PaymentMethodNotFoundError as e:
-        raise HTTPException(404, str(e)) from e
-    except (PaymentMethodInactiveError, PaymentMethodResolutionError) as e:
-        raise HTTPException(400, str(e)) from e
+        raise AppError(
+            code="payment.method.not_found",
+            status_code=404,
+            message=str(e),
+            details={"payment_method_id": str(request.payment_method_id)},
+        ) from e
+    except PaymentMethodInactiveError as e:
+        raise AppError(
+            code="payment.method.inactive",
+            status_code=400,
+            message=str(e),
+            details={"payment_method_id": str(request.payment_method_id)},
+        ) from e
+    except PaymentMethodResolutionError as e:
+        raise AppError(
+            code="payment.method.resolution_failed",
+            status_code=400,
+            message=str(e),
+            details={"payment_method_id": str(request.payment_method_id)},
+        ) from e
 
     try:
         provider = get_provider(provider_code)
     except UnknownPaymentProviderError as e:
-        raise HTTPException(400, str(e)) from e
+        raise AppError(
+            code="payment.provider.unknown",
+            status_code=400,
+            message=str(e),
+            details={"provider_code": provider_code},
+        ) from e
 
     payment_data = PaymentCreate(
         amount=request.amount,
@@ -605,9 +641,11 @@ async def initiate_payment(
             )
 
         else:
-            raise HTTPException(
-                400,
-                f"Provider '{provider_code}' does not support payment initiation",
+            raise AppError(
+                code="payment.provider.unsupported_for_initiation",
+                status_code=400,
+                message=f"Provider '{provider_code}' does not support payment initiation",
+                details={"provider_code": provider_code},
             )
 
         await session.commit()
@@ -624,16 +662,21 @@ async def initiate_payment(
             instructions=provider_result.instructions,
         )
 
-    except HTTPException:
+    except AppError:
         await session.rollback()
         raise
     except PaymentApiProviderResolutionError as e:
         await session.rollback()
-        raise HTTPException(400, str(e)) from e
+        raise AppError(
+            code="payment.provider.api_resolution_failed",
+            status_code=400,
+            message=str(e),
+            details={"provider_code": provider_code},
+        ) from e
     except Exception as e:
         await session.rollback()
         logger.error(f"Error initiating payment: {e}")
-        raise HTTPException(500, "Error initiating payment")
+        raise
 
 
 class UploadDocumentRequest(BaseModel):
@@ -685,17 +728,69 @@ async def _resolve_owned_document_payment(
     try:
         payment = await crud_payment.read(session, id=payment_id)
     except RecordNotFoundError as e:
-        raise HTTPException(404, f"Payment {payment_id} not found") from e
+        raise AppError(
+            code="payment.not_found",
+            status_code=404,
+            message=f"Payment {payment_id} not found",
+            details={"payment_id": str(payment_id)},
+        ) from e
 
     if payment.user_id != current_user.id:
-        raise HTTPException(403, "You cannot operate on this payment")
+        raise AppError(
+            code="payment.not_owned",
+            status_code=403,
+            message="You cannot operate on this payment",
+            details={"payment_id": str(payment_id)},
+        )
 
     if payment.provider_code not in DOCUMENT_PROVIDER_CODES:
-        raise HTTPException(
-            400,
-            f"Payment provider '{payment.provider_code}' is not document-validated",
+        raise AppError(
+            code="payment.not_document_validated",
+            status_code=400,
+            message=(
+                f"Payment provider '{payment.provider_code}' is not document-validated"
+            ),
+            details={
+                "payment_id": str(payment_id),
+                "provider_code": payment.provider_code,
+            },
         )
     return payment
+
+
+def _map_attachment_validation_error(
+    error: AttachmentValidationError,
+    *,
+    mimetype: str,
+) -> AppError:
+    """Map attachment validation exceptions to stable API error codes."""
+    message = str(error)
+
+    if "is not allowed" in message:
+        return AppError(
+            code="attachment.mimetype_unsupported",
+            status_code=400,
+            message=message,
+            details={
+                "mimetype": mimetype,
+                "allowed": ", ".join(settings.PAYMENT_ATTACHMENT_ALLOWED_MIME),
+            },
+        )
+
+    if "exceeds the limit" in message:
+        return AppError(
+            code="attachment.too_large",
+            status_code=400,
+            message=message,
+            details={"max_bytes": settings.PAYMENT_ATTACHMENT_MAX_BYTES},
+        )
+
+    return AppError(
+        code="attachment.validation_failed",
+        status_code=400,
+        message=message,
+        details={"reason": message},
+    )
 
 
 @router.post(
@@ -721,7 +816,7 @@ async def issue_document_upload_url(
             document_type=body.document_type,
         )
     except AttachmentValidationError as e:
-        raise HTTPException(400, str(e)) from e
+        raise _map_attachment_validation_error(e, mimetype=body.mimetype) from e
 
     return UploadDocumentResponse(
         payment_id=payment_id,
@@ -750,6 +845,17 @@ async def confirm_document_uploaded(
         session, payment_id=payment_id, current_user=current_user
     )
 
+    expected_prefix = f"payments/{payment.id}/"
+    if not body.file_key.startswith(expected_prefix):
+        raise AppError(
+            code="attachment.key_mismatch",
+            status_code=400,
+            message=(
+                f"Uploaded file key '{body.file_key}' does not belong to payment '{payment.id}'"
+            ),
+            details={"file_key": body.file_key},
+        )
+
     try:
         attachment = await register_uploaded_attachment(
             session,
@@ -762,7 +868,7 @@ async def confirm_document_uploaded(
         )
     except AttachmentValidationError as e:
         await session.rollback()
-        raise HTTPException(400, str(e)) from e
+        raise _map_attachment_validation_error(e, mimetype=body.mimetype) from e
 
     try:
         await mark_document_uploaded(
@@ -773,7 +879,15 @@ async def confirm_document_uploaded(
         )
     except PaymentNotDocumentValidatedError as e:
         await session.rollback()
-        raise HTTPException(400, str(e)) from e
+        raise AppError(
+            code="payment.not_document_validated",
+            status_code=400,
+            message=str(e),
+            details={
+                "payment_id": str(payment_id),
+                "provider_code": payment.provider_code,
+            },
+        ) from e
 
     await session.commit()
     await session.refresh(payment)

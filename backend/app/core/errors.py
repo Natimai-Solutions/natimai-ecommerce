@@ -57,7 +57,9 @@ async def record_not_found_handler(
         message=str(exc),
         details={},
     )
-    return JSONResponse(status_code=error.status_code, content=_app_error_payload(error))
+    return JSONResponse(
+        status_code=error.status_code, content=_app_error_payload(error)
+    )
 
 
 async def unexpected_exception_handler(

@@ -103,6 +103,17 @@ class CartItemBase(Base):
         decimal_places=2,
         description="Unit price snapshot in cart currency",
     )
+    fx_source_currency: str | None = Field(
+        default=None,
+        max_length=8,
+        description="Original supplier cost currency before XPF conversion",
+    )
+    fx_rate_used: Decimal | None = Field(
+        default=None,
+        decimal_places=6,
+        max_digits=16,
+        description="FX rate applied (1 fx_source_currency = fx_rate_used XPF). Null when cost was already in XPF.",
+    )
 
 
 class CartItemCreate(CartItemBase, BaseCreate):

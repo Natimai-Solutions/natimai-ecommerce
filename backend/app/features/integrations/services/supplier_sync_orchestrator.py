@@ -29,6 +29,7 @@ from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product, ProductCreate, ProductUpdate
 from app.services.suppliers import get_adapter
 from app.services.suppliers.base import NormalizedProductData, SupplierAdapter
+from app.tasks.icecat_tasks import trigger_product_enrichment
 
 logger = logging.getLogger(__name__)
 
@@ -232,11 +233,23 @@ class SupplierSyncOrchestrator:
                             continue
                         try:
                             result = await self.upsert_product(session, item)
-                            if result["action"] == "created":
+                            is_new = result["action"] == "created"
+                            if is_new:
                                 stats["new_products"] += 1
                             elif result["action"] == "updated":
                                 stats["updated_products"] += 1
                             await session.commit()
+                            if is_new:
+                                try:
+                                    await trigger_product_enrichment(
+                                        result["product_id"]
+                                    )
+                                except Exception as enrich_exc:  # noqa: BLE001
+                                    logger.warning(
+                                        "Failed to enqueue Icecat enrichment for new product %s: %s",
+                                        result["product_id"],
+                                        enrich_exc,
+                                    )
                         except Exception as e:  # noqa: BLE001
                             logger.error(
                                 "Error syncing product %s (%s): %s",

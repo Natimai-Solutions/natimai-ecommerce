@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException
 
 from app.api.routes.admin_payments import (
     PaymentApproveRequest,
@@ -13,6 +12,7 @@ from app.api.routes.admin_payments import (
     get_attachment_download_url,
     reject_payment,
 )
+from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_attachment import crud_payment_attachment
@@ -224,7 +224,7 @@ async def test_get_attachment_download_url_rejects_infected_attachment(
         crud_payment_attachment, "read", AsyncMock(return_value=attachment)
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await get_attachment_download_url(
             payment_id=payment.id,
             attachment_id=attachment.id,
@@ -232,6 +232,7 @@ async def test_get_attachment_download_url_rejects_infected_attachment(
             _admin=cast(Any, _make_admin()),
         )
     assert exc_info.value.status_code == 403
+    assert exc_info.value.code == "attachment.validation_failed"
 
 
 @pytest.mark.anyio
@@ -247,7 +248,7 @@ async def test_get_attachment_download_url_returns_404_for_wrong_payment(
         crud_payment_attachment, "read", AsyncMock(return_value=attachment)
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await get_attachment_download_url(
             payment_id=payment.id,
             attachment_id=attachment.id,
@@ -255,6 +256,7 @@ async def test_get_attachment_download_url_returns_404_for_wrong_payment(
             _admin=cast(Any, _make_admin()),
         )
     assert exc_info.value.status_code == 404
+    assert exc_info.value.code == "internal.record_not_found"
 
 
 @pytest.mark.anyio
@@ -271,7 +273,7 @@ async def test_get_attachment_download_url_returns_404_when_missing(
         AsyncMock(side_effect=RecordNotFoundError("nope")),
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await get_attachment_download_url(
             payment_id=payment.id,
             attachment_id=uuid4(),
@@ -279,3 +281,4 @@ async def test_get_attachment_download_url_returns_404_when_missing(
             _admin=cast(Any, _make_admin()),
         )
     assert exc_info.value.status_code == 404
+    assert exc_info.value.code == "internal.record_not_found"

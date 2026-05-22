@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException
 
 from app.api.routes.payments import (
     DocumentUploadedRequest,
@@ -15,6 +14,7 @@ from app.api.routes.payments import (
     initiate_payment,
     issue_document_upload_url,
 )
+from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.models.payment import Payment
@@ -141,7 +141,7 @@ async def test_issue_document_upload_url_rejects_non_owner(
     session = AsyncMock()
     monkeypatch.setattr(crud_payment, "read", AsyncMock(return_value=payment))
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await issue_document_upload_url(
             payment_id=payment.id,
             body=UploadDocumentRequest(filename="po.pdf", mimetype="application/pdf"),
@@ -150,6 +150,7 @@ async def test_issue_document_upload_url_rejects_non_owner(
         )
 
     assert exc_info.value.status_code == 403
+    assert exc_info.value.code == "payment.not_owned"
 
 
 @pytest.mark.anyio
@@ -162,7 +163,7 @@ async def test_issue_document_upload_url_rejects_non_document_provider(
     session = AsyncMock()
     monkeypatch.setattr(crud_payment, "read", AsyncMock(return_value=payment))
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await issue_document_upload_url(
             payment_id=payment.id,
             body=UploadDocumentRequest(filename="po.pdf", mimetype="application/pdf"),
@@ -171,6 +172,7 @@ async def test_issue_document_upload_url_rejects_non_document_provider(
         )
 
     assert exc_info.value.status_code == 400
+    assert exc_info.value.code == "payment.not_document_validated"
 
 
 @pytest.mark.anyio
@@ -182,7 +184,7 @@ async def test_issue_document_upload_url_returns_404_when_missing(
         crud_payment, "read", AsyncMock(side_effect=RecordNotFoundError("missing"))
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await issue_document_upload_url(
             payment_id=uuid4(),
             body=UploadDocumentRequest(filename="po.pdf", mimetype="application/pdf"),
@@ -191,6 +193,7 @@ async def test_issue_document_upload_url_returns_404_when_missing(
         )
 
     assert exc_info.value.status_code == 404
+    assert exc_info.value.code == "payment.not_found"
 
 
 @pytest.mark.anyio
@@ -224,7 +227,7 @@ async def test_confirm_document_uploaded_registers_attachment_and_marks_payment(
     response = await confirm_document_uploaded(
         payment_id=payment.id,
         body=DocumentUploadedRequest(
-            file_key="payments/abc/po.pdf",
+            file_key=f"payments/{payment.id}/purchase_order/po.pdf",
             filename="po.pdf",
             mimetype="application/pdf",
         ),

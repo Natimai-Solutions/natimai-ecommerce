@@ -3,11 +3,12 @@ from __future__ import annotations
 import logging
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.core.errors import AppError
 from app.features.attachment.service import issue_download_url
 from app.features.base.crud import RecordNotFoundError
 from app.features.payment.crud.payment import crud_payment
@@ -97,7 +98,12 @@ async def _get_payment_or_404(session: SessionDep, payment_id: uuid.UUID) -> Pay
     try:
         return await crud_payment.read(session, id=payment_id)
     except RecordNotFoundError as e:
-        raise HTTPException(404, f"Payment {payment_id} not found") from e
+        raise AppError(
+            code="payment.not_found",
+            status_code=404,
+            message=f"Payment {payment_id} not found",
+            details={"payment_id": str(payment_id)},
+        ) from e
 
 
 @router.get("/pending-validation", response_model=list[PaymentPendingValidationItem])
@@ -185,7 +191,15 @@ async def approve_payment(
             )
         except PaymentNotDocumentValidatedError as e:
             await session.rollback()
-            raise HTTPException(400, str(e)) from e
+            raise AppError(
+                code="payment.not_document_validated",
+                status_code=400,
+                message=str(e),
+                details={
+                    "payment_id": str(payment_id),
+                    "provider_code": payment.provider_code,
+                },
+            ) from e
     else:
         try:
             outcome = await approve_manual_payment(
@@ -197,7 +211,15 @@ async def approve_payment(
             )
         except PaymentNotManualError as e:
             await session.rollback()
-            raise HTTPException(400, str(e)) from e
+            raise AppError(
+                code="payment.not_manual",
+                status_code=400,
+                message=str(e),
+                details={
+                    "payment_id": str(payment_id),
+                    "provider_code": payment.provider_code,
+                },
+            ) from e
 
     await session.commit()
     await session.refresh(outcome.payment)
@@ -233,7 +255,15 @@ async def reject_payment(
             )
         except PaymentNotDocumentValidatedError as e:
             await session.rollback()
-            raise HTTPException(400, str(e)) from e
+            raise AppError(
+                code="payment.not_document_validated",
+                status_code=400,
+                message=str(e),
+                details={
+                    "payment_id": str(payment_id),
+                    "provider_code": payment.provider_code,
+                },
+            ) from e
     else:
         try:
             outcome = await reject_manual_payment(
@@ -244,7 +274,15 @@ async def reject_payment(
             )
         except PaymentNotManualError as e:
             await session.rollback()
-            raise HTTPException(400, str(e)) from e
+            raise AppError(
+                code="payment.not_manual",
+                status_code=400,
+                message=str(e),
+                details={
+                    "payment_id": str(payment_id),
+                    "provider_code": payment.provider_code,
+                },
+            ) from e
 
     await session.commit()
     await session.refresh(outcome.payment)
@@ -302,15 +340,30 @@ async def get_attachment_download_url(
     try:
         attachment = await crud_payment_attachment.read(session, id=attachment_id)
     except RecordNotFoundError as e:
-        raise HTTPException(404, f"Attachment {attachment_id} not found") from e
+        raise AppError(
+            code="internal.record_not_found",
+            status_code=404,
+            message=f"Attachment {attachment_id} not found",
+            details={"attachment_id": str(attachment_id)},
+        ) from e
 
     if attachment.payment_id != payment_id:
-        raise HTTPException(404, "Attachment does not belong to this payment")
+        raise AppError(
+            code="internal.record_not_found",
+            status_code=404,
+            message="Attachment does not belong to this payment",
+            details={
+                "attachment_id": str(attachment_id),
+                "payment_id": str(payment_id),
+            },
+        )
 
     if attachment.av_scanned and attachment.av_clean is False:
-        raise HTTPException(
-            403,
-            f"Attachment quarantined by antivirus: {attachment.av_signature}",
+        raise AppError(
+            code="attachment.validation_failed",
+            status_code=403,
+            message=f"Attachment quarantined by antivirus: {attachment.av_signature}",
+            details={"reason": "quarantined"},
         )
 
     presigned = issue_download_url(

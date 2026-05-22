@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import inspect
 from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.product.models.category import Category
+from app.features.product.models.currency_rate import CurrencyRate
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import Product
 from app.features.product.models.tax_rate import TaxRate
@@ -16,6 +17,17 @@ _MONEY_QUANT = Decimal("0.01")
 _DEFAULT_MARGIN_RATE_PCT = Decimal("30.00")
 _DEFAULT_TAX_CODE = "TGC_NORMAL"
 _DEFAULT_TERRITORY_CODE = "PF"
+
+
+class CurrencyRateMissing(Exception):
+    """Raised when no active CurrencyRate exists for a given currency."""
+
+    def __init__(self, currency_code: str) -> None:
+        self.currency_code = currency_code
+        super().__init__(
+            f"No active CurrencyRate found for '{currency_code}'. "
+            "Create one via PUT /admin/currency-rates/{code} before syncing products in this currency."
+        )
 
 
 def _as_decimal(value: object | None, *, default: Decimal = Decimal("0.00")) -> Decimal:
@@ -71,6 +83,45 @@ def _is_tax_rate_candidate_active(
         return False
 
     return True
+
+
+async def convert_to_xpf(
+    session: AsyncSession,
+    amount: Decimal,
+    from_currency: str,
+    *,
+    at_date: date | None = None,
+) -> tuple[Decimal, Decimal]:
+    """Convert an amount from `from_currency` to XPF.
+
+    Returns (amount_in_xpf, rate_used).
+    When from_currency is already XPF, returns (amount, Decimal("1")).
+    Raises CurrencyRateMissing if no active rate is found.
+    """
+    if from_currency == "XPF":
+        return amount, Decimal("1")
+
+    reference_date = at_date or date.today()
+    statement = (
+        select(CurrencyRate)
+        .where(
+            CurrencyRate.currency_code == from_currency,
+            col(CurrencyRate.is_active).is_(True),
+            CurrencyRate.valid_from <= reference_date,
+            (
+                col(CurrencyRate.valid_until).is_(None)
+                | (CurrencyRate.valid_until >= reference_date)
+            ),
+        )
+        .order_by(col(CurrencyRate.valid_from).desc())
+        .limit(1)
+    )
+    result = await session.exec(statement)
+    rate = result.first()
+    if rate is None:
+        raise CurrencyRateMissing(from_currency)
+
+    return _quantize_money(amount * rate.rate_to_xpf), rate.rate_to_xpf
 
 
 async def resolve_default_price_group(session: AsyncSession) -> PriceGroup | None:
@@ -147,7 +198,10 @@ async def resolve_tax_rate(
             TaxRate.territory_code == territory,
             col(TaxRate.is_active).is_(True),
             TaxRate.valid_from <= reference_date,
-            (col(TaxRate.valid_until).is_(None) | (TaxRate.valid_until >= reference_date)),
+            (
+                col(TaxRate.valid_until).is_(None)
+                | (TaxRate.valid_until >= reference_date)
+            ),
         )
         .order_by(col(TaxRate.valid_from).desc())
         .limit(1)
@@ -176,7 +230,11 @@ async def calculate_sale_price(
     group: PriceGroup | None = None,
     territory: str = _DEFAULT_TERRITORY_CODE,
 ) -> Decimal:
-    """Calculate product sale price for a pricing group."""
+    """Calculate product sale price for a pricing group.
+
+    Converts cost to XPF first (via active CurrencyRate) before applying
+    customs × margin × tax. Raises CurrencyRateMissing for unknown currencies.
+    """
     effective_group = group
     if effective_group is None:
         effective_group = await resolve_default_price_group(session)
@@ -185,17 +243,20 @@ async def calculate_sale_price(
         effective_group.margin_rate_pct if effective_group is not None else None,
         default=_DEFAULT_MARGIN_RATE_PCT,
     )
-    cost_amount = _as_decimal(
+    raw_cost = _as_decimal(
         getattr(product, "cost_amount", None),
         default=_as_decimal(getattr(product, "base_price", None)),
     )
+    cost_currency = getattr(product, "cost_currency", None) or "XPF"
     customs_rate_pct = _as_decimal(getattr(product, "customs_rate_pct", None))
+
+    cost_in_xpf, _fx_rate = await convert_to_xpf(session, raw_cost, cost_currency)
 
     tax_rate = await resolve_tax_rate(session, product, territory=territory)
     tax_rate_pct = _as_decimal(tax_rate.rate_pct if tax_rate is not None else None)
 
     sale_price = (
-        cost_amount
+        cost_in_xpf
         * (Decimal("1.00") + (customs_rate_pct / Decimal("100")))
         * (Decimal("1.00") + (margin_rate_pct / Decimal("100")))
         * (Decimal("1.00") + (tax_rate_pct / Decimal("100")))

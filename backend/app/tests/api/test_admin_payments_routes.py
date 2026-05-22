@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException
 
 from app.api.routes.admin_payments import (
     PaymentApproveRequest,
@@ -14,6 +13,7 @@ from app.api.routes.admin_payments import (
     list_pending_validation,
     reject_payment,
 )
+from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_status import crud_payment_status
@@ -175,7 +175,7 @@ async def test_approve_payment_rejects_non_manual_provider(
     payment = _make_payment(provider_code="payzen")
     monkeypatch.setattr(crud_payment, "read", AsyncMock(return_value=payment))
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await approve_payment(
             payment_id=payment.id,
             body=PaymentApproveRequest(),
@@ -184,6 +184,7 @@ async def test_approve_payment_rejects_non_manual_provider(
         )
 
     assert exc_info.value.status_code == 400
+    assert exc_info.value.code == "payment.not_manual"
     session.rollback.assert_awaited_once()
 
 
@@ -198,7 +199,7 @@ async def test_approve_payment_returns_404_when_missing(
         AsyncMock(side_effect=RecordNotFoundError("missing")),
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await approve_payment(
             payment_id=uuid4(),
             body=PaymentApproveRequest(),
@@ -207,6 +208,7 @@ async def test_approve_payment_returns_404_when_missing(
         )
 
     assert exc_info.value.status_code == 404
+    assert exc_info.value.code == "payment.not_found"
 
 
 @pytest.mark.anyio
