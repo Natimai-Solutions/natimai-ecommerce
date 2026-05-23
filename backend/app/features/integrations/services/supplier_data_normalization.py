@@ -7,7 +7,9 @@ Used to sanitize supplier price/stock payloads before persisting products.
 import re
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
-from typing import Any
+from typing import Any, Literal
+
+from pydantic import BaseModel
 
 DECIMAL_PRECISION = Decimal("0.01")
 DEFAULT_CURRENCY = "USD"
@@ -102,6 +104,67 @@ def normalize_supplier_snapshot(
         supplier_quantity=supplier_quantity,
         supplier_price_currency=supplier_currency,
     )
+
+
+class ProductFilterRule(BaseModel):
+    """Rule for filtering out non-product items (warranties, services, accessories).
+
+    Fields:
+    - ``supplier_subcategory`` / ``supplier_category``: exact match (case-insensitive)
+    - ``name_keyword``: substring match in product name (case-insensitive)
+    - ``unspsc_code``: exact match against UNSPSC codes found in technical_specifications
+
+    Actions:
+    - ``deactivate``: create/keep the product but set is_active=False
+    - ``skip``: do not create the product at all (ignored at Level 2 — treated as deactivate)
+
+    ``supplier``: when set, the rule only applies to that supplier name.
+    """
+
+    field: Literal["supplier_subcategory", "supplier_category", "name_keyword", "unspsc_code"]
+    values: list[str]
+    action: Literal["skip", "deactivate"] = "deactivate"
+    supplier: str | None = None
+
+
+def evaluate_product_filters(
+    *,
+    supplier_name: str,
+    supplier_subcategory: str | None = None,
+    supplier_category: str | None = None,
+    name: str | None = None,
+    unspsc_codes: list[str] | None = None,
+    rules: list[ProductFilterRule],
+) -> Literal["skip", "deactivate"] | None:
+    """Evaluate filter rules against a product's attributes.
+
+    Returns the most restrictive matching action, or None if no rule matches.
+    ``skip`` takes precedence over ``deactivate``.
+    """
+    matched_action: Literal["skip", "deactivate"] | None = None
+
+    for rule in rules:
+        if rule.supplier is not None and rule.supplier != supplier_name:
+            continue
+
+        matched = False
+
+        if rule.field == "supplier_subcategory" and supplier_subcategory:
+            matched = any(v.casefold() == supplier_subcategory.casefold() for v in rule.values)
+        elif rule.field == "supplier_category" and supplier_category:
+            matched = any(v.casefold() == supplier_category.casefold() for v in rule.values)
+        elif rule.field == "name_keyword" and name:
+            name_lower = name.casefold()
+            matched = any(v.casefold() in name_lower for v in rule.values)
+        elif rule.field == "unspsc_code" and unspsc_codes:
+            matched = any(v in unspsc_codes for v in rule.values)
+
+        if matched:
+            if rule.action == "skip":
+                return "skip"
+            matched_action = "deactivate"
+
+    return matched_action
 
 
 def meets_sync_thresholds(

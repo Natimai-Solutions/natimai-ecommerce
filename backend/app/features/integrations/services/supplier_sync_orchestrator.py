@@ -23,6 +23,7 @@ from app.features.integrations.crud.supplier_sync import supplier_product_mappin
 from app.features.integrations.models.supplier_sync import SupplierProductMapping
 from app.features.integrations.services.supplier_data_normalization import (
     DEFAULT_CURRENCY,
+    evaluate_product_filters,
     normalize_supplier_snapshot,
 )
 from app.features.product.crud.product import crud_product
@@ -169,11 +170,39 @@ class SupplierSyncOrchestrator:
         transaction committed by the caller.  Avoids mid-operation session expiry
         that would trigger a SQLAlchemy implicit lazy-load error in async mode.
         """
+        from app.core.config import settings
+
+        filter_action = evaluate_product_filters(
+            supplier_name=self.adapter.name,
+            supplier_subcategory=item.subcategory,
+            supplier_category=item.category,
+            name=item.name,
+            rules=settings.SUPPLIER_PRODUCT_FILTER_RULES,
+        )
+
+        if filter_action == "skip":
+            logger.debug(
+                "Skipping product %s (%s) — matched a 'skip' filter rule (subcategory=%s)",
+                item.supplier_sku,
+                self.adapter.name,
+                item.subcategory,
+            )
+            return {"action": "filtered", "product_id": ""}
+
         existing_product, _existing_mapping = await self._resolve_existing_product(
             session=session, item=item
         )
 
         product_data_dict = self._to_product_data(item)
+
+        if filter_action == "deactivate":
+            logger.debug(
+                "Deactivating product %s (%s) — matched a 'deactivate' filter rule (subcategory=%s)",
+                item.supplier_sku,
+                self.adapter.name,
+                item.subcategory,
+            )
+            product_data_dict["is_active"] = False
 
         if existing_product:
             product = await crud_product.update_draft(
@@ -213,6 +242,7 @@ class SupplierSyncOrchestrator:
             "new_products": 0,
             "updated_products": 0,
             "skipped_products": 0,
+            "filtered_products": 0,
             "errors": 0,
         }
 
@@ -233,7 +263,10 @@ class SupplierSyncOrchestrator:
                             continue
                         try:
                             result = await self.upsert_product(session, item)
-                            if result["action"] == "created":
+                            if result["action"] == "filtered":
+                                stats["filtered_products"] += 1
+                                continue
+                            elif result["action"] == "created":
                                 stats["new_products"] += 1
                             elif result["action"] == "updated":
                                 stats["updated_products"] += 1

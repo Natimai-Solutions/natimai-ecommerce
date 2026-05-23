@@ -7,22 +7,27 @@ RUN corepack enable && corepack prepare pnpm@10.0.0 --activate
 
 WORKDIR /workspace
 
-# Copy workspace manifests first for layer caching
+# Workspace manifests (all package.json needed for workspace resolution)
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
-COPY shared/api-types/package.json ./shared/api-types/
+COPY frontend/package.json        ./frontend/
+COPY admin-frontend/package.json  ./admin-frontend/
+COPY shared/api-types/package.json  ./shared/api-types/
 COPY shared/api-client/package.json ./shared/api-client/
-COPY shared/utils/package.json       ./shared/utils/
-COPY frontend/package.json           ./frontend/
+COPY shared/utils/package.json      ./shared/utils/
 
-RUN pnpm install --frozen-lockfile
-
-# Copy source
-COPY shared/ ./shared/
+# Full source only for what we're building
+COPY shared/   ./shared/
 COPY frontend/ ./frontend/
 
-# Build SSR
-WORKDIR /workspace/frontend
-RUN pnpm exec quasar build -m ssr
+# Install only frontend + workspace deps (skips admin's postinstall)
+RUN pnpm install --frozen-lockfile --filter "frontend..."
+
+# Build SSR (run from workspace root with explicit filter)
+RUN pnpm --filter frontend run build
+
+# Strip workspace:* deps from the generated SSR package.json
+# (their code is already bundled into the JS via ssr.noExternal)
+RUN node -e "const fs=require('fs');const p='/workspace/frontend/dist/ssr/package.json';const pkg=JSON.parse(fs.readFileSync(p,'utf8'));for(const k of Object.keys(pkg.dependencies||{})){if(String(pkg.dependencies[k]).startsWith('workspace:'))delete pkg.dependencies[k];}fs.writeFileSync(p,JSON.stringify(pkg,null,2));"
 
 # ── Production stage ────────────────────────────────────────────────────────────
 FROM node:22-alpine AS runner
@@ -30,10 +35,8 @@ FROM node:22-alpine AS runner
 ENV NODE_ENV=production
 WORKDIR /app
 
-# Copy SSR dist (includes its own package.json with prod deps)
 COPY --from=builder /workspace/frontend/dist/ssr ./
 
-# Install only prod dependencies declared by the SSR bundle
 RUN npm install --omit=dev --ignore-scripts
 
 EXPOSE 3000

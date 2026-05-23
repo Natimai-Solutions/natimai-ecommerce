@@ -3,6 +3,8 @@ import warnings
 from decimal import Decimal
 from typing import Annotated, Any, Literal
 
+from app.features.integrations.services.supplier_data_normalization import ProductFilterRule
+
 from pydantic import (
     AnyUrl,
     BeforeValidator,
@@ -145,6 +147,16 @@ class Settings(BaseSettings):
     # Set to 0 to disable filtering (default: show everything).
     SUPPLIER_SYNC_MIN_QUANTITY: Decimal = Decimal("0")
     SUPPLIER_SYNC_MIN_PRICE: Decimal = Decimal("0")
+
+    # Product category filter rules.
+    # Level 1 (import): supplier_subcategory / supplier_category / name_keyword
+    # Level 2 (post-enrichment): unspsc_code
+    # action: "deactivate" (keep in DB, is_active=False) or "skip" (don't import at all)
+    # Override via env var as JSON: SUPPLIER_PRODUCT_FILTER_RULES='[{"field":"supplier_subcategory","values":["Garantie Ordinateur"]}]'
+    SUPPLIER_PRODUCT_FILTER_RULES: list[ProductFilterRule] = [
+        ProductFilterRule(field="supplier_subcategory", values=["Garantie Ordinateur"]),
+        ProductFilterRule(field="unspsc_code", values=["81111812"]),
+    ]
 
     # Ingram Micro API Configuration
     INGRAM_CLIENT_ID: str | None = None

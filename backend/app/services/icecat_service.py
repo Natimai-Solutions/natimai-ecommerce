@@ -56,6 +56,10 @@ class IcecatService:
         params["UserName"] = self.username
         params["lang"] = self.language
 
+        # Full Icecat requires app_key as query parameter (Open Icecat uses Basic Auth only)
+        if not self.use_open_icecat and self.api_key:
+            params["app_key"] = self.api_key
+
         url = f"{self.base_url}{endpoint}"
 
         logger.debug(f"Making Icecat API request to: {url}")
@@ -70,12 +74,13 @@ class IcecatService:
                     return await response.json()
                 elif response.status == 403:
                     error_text = await response.text()
-                    logger.error(f"Icecat API Forbidden (403): {error_text}")
-                    if "app_key" in error_text.lower():
-                        logger.error(
-                            "You are trying to access Full Icecat which requires a paid subscription. "
-                            "Either get a Full Icecat subscription or ensure you're using Open Icecat compatible endpoints."
+                    if self.use_open_icecat and "app_key" in error_text.lower():
+                        # Product exists in Full Icecat only — not an error, just out of scope
+                        logger.debug(
+                            f"Product not available in Open Icecat (Full Icecat only): {url}"
                         )
+                    else:
+                        logger.error(f"Icecat API Forbidden (403): {error_text}")
                     raise Exception("Icecat API access denied: 403 Forbidden")
                 else:
                     error_text = await response.text()
@@ -332,9 +337,12 @@ class IcecatService:
             return product
 
         except Exception as e:
-            logger.error(
-                f"Failed to fetch Icecat product data for {brand} - {mpn}: {e}"
-            )
+            if "403" in str(e):
+                logger.debug(f"Product not in Icecat scope for {brand} - {mpn}: {e}")
+            else:
+                logger.error(
+                    f"Failed to fetch Icecat product data for {brand} - {mpn}: {e}"
+                )
             return None
 
     async def enrich_product_with_icecat(

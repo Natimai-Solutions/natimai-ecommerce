@@ -13,6 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import engine
 from app.features.integrations.models.icecat_sync import IcecatProductData
+from app.features.integrations.services.supplier_data_normalization import evaluate_product_filters
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import ProductUpdate
 from app.services.icecat_service import icecat_service
@@ -124,6 +125,27 @@ async def enrich_product_with_icecat_task(
             # Prepare update data
             update_data = update_product_with_icecat_data(enrichment_data)
 
+            # Level 2 filter: check UNSPSC codes returned by Icecat
+            from app.core.config import settings
+
+            unspsc_codes = [
+                spec["value"]
+                for spec in (enrichment_data.specifications or [])
+                if spec.get("name") == "Code UNSPSC" and spec.get("value")
+            ]
+            filter_action = evaluate_product_filters(
+                supplier_name=product.supplier_name or "",
+                unspsc_codes=unspsc_codes,
+                rules=settings.SUPPLIER_PRODUCT_FILTER_RULES,
+            )
+            if filter_action in ("skip", "deactivate"):
+                update_data.is_active = False
+                logger.info(
+                    "Product %s deactivated post-enrichment — UNSPSC codes %s matched a filter rule",
+                    product_id,
+                    unspsc_codes,
+                )
+
             # Update product in database
             if update_data:
                 updated_product = await crud_product.update(
@@ -229,6 +251,27 @@ async def batch_enrich_products_task(
 
                     # Prepare update data
                     update_data = update_product_with_icecat_data(enrichment_data)
+
+                    # Level 2 filter: check UNSPSC codes returned by Icecat
+                    from app.core.config import settings
+
+                    unspsc_codes = [
+                        spec["value"]
+                        for spec in (enrichment_data.specifications or [])
+                        if spec.get("name") == "Code UNSPSC" and spec.get("value")
+                    ]
+                    filter_action = evaluate_product_filters(
+                        supplier_name=product.supplier_name or "",
+                        unspsc_codes=unspsc_codes,
+                        rules=settings.SUPPLIER_PRODUCT_FILTER_RULES,
+                    )
+                    if filter_action in ("skip", "deactivate"):
+                        update_data.is_active = False
+                        logger.info(
+                            "Product %s deactivated post-enrichment — UNSPSC %s matched a filter rule",
+                            product.id,
+                            unspsc_codes,
+                        )
 
                     await crud_product.update(
                         session, id=product_id, data=update_data, record=product
