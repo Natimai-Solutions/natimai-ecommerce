@@ -30,7 +30,7 @@ services:
       - ./backend/pyproject.toml:/app/pyproject.toml:ro
     environment:
       - LOG_LEVEL=DEBUG
-    restart: "no"  # Pas de restart automatique en dev
+    restart: unless-stopped
 
   # Override du service Outbox Poller pour le développement
   outbox-poller:

@@ -7,7 +7,6 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from pydantic import computed_field
 from sqlalchemy import Column
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlmodel import Field, Relationship, SQLModel
@@ -25,25 +24,35 @@ class ShippingRouteTrackingBase(Base):
     Replaces TrackingEvent with order-centric tracking.
     """
 
-    order_id: uuid.UUID = Field(description="Order ID being tracked")
+    order_id: uuid.UUID = Field(
+        foreign_key="orders.id",
+        index=True,
+        description="Order ID being tracked",
+    )
     route_id: uuid.UUID = Field(
-        foreign_key="shipping_routes.id", description="Selected shipping route"
+        foreign_key="shipping_routes.id",
+        index=True,
+        description="Selected shipping route",
     )
 
     # Current status (relation to StatusDefinition)
     status_id: uuid.UUID = Field(
         foreign_key="status_definitions.id",
+        index=True,
         description="Current status (references StatusDefinition)",
     )
 
     address_id: uuid.UUID = Field(
-        foreign_key="addresses.id", description="Delivery address for this tracking"
+        foreign_key="addresses.id",
+        index=True,
+        description="Delivery address for this tracking",
     )
 
     # Consolidation link (optional)
     consolidation_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="shipping_route_tracking_consolidations.id",
+        index=True,
         description="Linked consolidation if grouped",
     )
 
@@ -107,22 +116,27 @@ class ShippingRouteTracking(ShippingRouteTrackingBase, table=True):
         }
     )
 
-    @computed_field
     @property
     def is_terminal(self) -> bool:
+        """Check whether terminal."""
         if self.consolidation and self.consolidation.status:
             consolidation_is_terminal = self.consolidation.status.is_terminal
             if consolidation_is_terminal is not None:
                 return consolidation_is_terminal
         if self.status:
             return self.status.is_terminal
+        return False
 
 
 class ShippingRouteTrackingCreate(ShippingRouteTrackingBase, BaseCreate):
+    """Represents shipping route tracking create."""
+
     pass
 
 
 class ShippingRouteTrackingUpdate(BaseUpdate):
+    """Represents shipping route tracking update."""
+
     status_id: uuid.UUID | None = None
     consolidation_id: uuid.UUID | None = None
     sequence_order: int | None = None
@@ -133,6 +147,8 @@ class ShippingRouteTrackingUpdate(BaseUpdate):
 
 
 class ShippingRouteTrackingPublic(ShippingRouteTrackingBase, BasePublic):
+    """Represents shipping route tracking public."""
+
     id: uuid.UUID
 
 
@@ -143,18 +159,24 @@ class ShippingRouteTrackingConsolidationBase(Base):
     """
 
     route_id: uuid.UUID = Field(
-        foreign_key="shipping_routes.id", description="Parent route"
+        foreign_key="shipping_routes.id",
+        index=True,
+        description="Parent route",
     )
 
     # Identification
     name: str = Field(max_length=200, description="Consolidation name")
     consolidation_code: str = Field(
-        max_length=100, unique=True, index=True, description="Unique consolidation code"
+        max_length=100,
+        unique=True,
+        description="Unique consolidation code",
     )
 
     # Status (overrides individual tracking status when consolidated)
     status_id: uuid.UUID = Field(
-        foreign_key="status_definitions.id", description="Consolidation status"
+        foreign_key="status_definitions.id",
+        index=True,
+        description="Consolidation status",
     )
 
     # Tracking
@@ -201,10 +223,14 @@ class ShippingRouteTrackingConsolidation(
 class ShippingRouteTrackingConsolidationCreate(
     ShippingRouteTrackingConsolidationBase, BaseCreate
 ):
+    """Represents shipping route tracking consolidation create."""
+
     pass
 
 
 class ShippingRouteTrackingConsolidationUpdate(BaseUpdate):
+    """Represents shipping route tracking consolidation update."""
+
     name: str | None = None
     status_id: uuid.UUID | None = None
     tracking_ref: str | None = None
@@ -215,11 +241,15 @@ class ShippingRouteTrackingConsolidationUpdate(BaseUpdate):
 class ShippingRouteTrackingConsolidationPublic(
     ShippingRouteTrackingConsolidationBase, BasePublic
 ):
+    """Represents shipping route tracking consolidation public."""
+
     id: uuid.UUID
 
 
 # Collections
 class ShippingRouteTrackingsPublic(SQLModel):
+    """Represents shipping route trackings public."""
+
     data: list[ShippingRouteTrackingPublic] = Field(
         default_factory=list,
         description="List of shipping route trackings",
@@ -231,6 +261,8 @@ class ShippingRouteTrackingsPublic(SQLModel):
 
 
 class ShippingRouteTrackingConsolidationsPublic(SQLModel):
+    """Represents shipping route tracking consolidations public."""
+
     data: list[ShippingRouteTrackingConsolidationPublic] = Field(
         default_factory=list,
         description="List of shipping route tracking consolidations",
@@ -249,17 +281,22 @@ class ShippingRouteTrackingLogsBase(Base):
     """
 
     tracking_id: uuid.UUID = Field(
-        foreign_key="shipping_route_trackings.id", description="Route tracking entry"
+        foreign_key="shipping_route_trackings.id",
+        index=True,
+        description="Route tracking entry",
     )
 
     # Status change details
     from_status_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="status_definitions.id",
+        index=True,
         description="Previous status (null for initial)",
     )
     to_status_id: uuid.UUID = Field(
-        foreign_key="status_definitions.id", description="New status"
+        foreign_key="status_definitions.id",
+        index=True,
+        description="New status",
     )
 
     # Change context
@@ -272,6 +309,7 @@ class ShippingRouteTrackingLogsBase(Base):
     consolidation_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="shipping_route_tracking_consolidations.id",
+        index=True,
         description="Consolidation that triggered change (if applicable)",
     )
 
@@ -327,19 +365,27 @@ class ShippingRouteTrackingLogs(ShippingRouteTrackingLogsBase, table=True):
 
 
 class ShippingRouteTrackingLogsCreate(ShippingRouteTrackingLogsBase, BaseCreate):
+    """Represents shipping route tracking logs create."""
+
     pass
 
 
 class ShippingRouteTrackingLogsUpdate(BaseUpdate):
+    """Represents shipping route tracking logs update."""
+
     reason: str | None = None
     changed_by: str | None = None
 
 
 class ShippingRouteTrackingLogsPublic(ShippingRouteTrackingLogsBase, BasePublic):
+    """Represents shipping route tracking logs public."""
+
     id: uuid.UUID
 
 
 class ShippingRouteTrackingLogsListPublic(SQLModel):
+    """Represents shipping route tracking logs list public."""
+
     data: list[ShippingRouteTrackingLogsPublic] = Field(
         default_factory=list,
         description="List of status change logs",

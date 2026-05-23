@@ -1,17 +1,16 @@
-"""
-Health Check Scheduler for Outbox System
+"""Outbox health-check scheduler service.
 
-Service dédié qui s'exécute en continu pour surveiller la cohérence
-entre les événements outbox et les jobs ARQ en production.
+This long-running service continuously verifies consistency between outbox
+events and ARQ jobs in production.
 
 Usage:
     python -m app.outbox.health_scheduler
 
-Environment Variables:
-    HEALTH_CHECK_INTERVAL: Intervalle en secondes (défaut: 300 = 5min)
-    STALE_THRESHOLD_MINUTES: Seuil pour considérer un job comme obsolète (défaut: 10min)
-    RECOVERY_ENABLED: Activer la récupération automatique (défaut: true)
-    LOG_LEVEL: Niveau de log (défaut: INFO)
+Environment variables:
+    HEALTH_CHECK_INTERVAL: Interval in seconds (default: 300, i.e. 5 minutes)
+    STALE_THRESHOLD_MINUTES: Threshold for stale jobs (default: 10 minutes)
+    RECOVERY_ENABLED: Enable automatic recovery (default: true)
+    LOG_LEVEL: Logging level (default: INFO)
 """
 
 import asyncio
@@ -19,7 +18,7 @@ import logging
 import os
 import signal
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TypedDict
 
 from app.outbox.health import health_checker
 
@@ -39,19 +38,25 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class SchedulerStats(TypedDict):
+    """Typed metrics snapshot maintained by the scheduler."""
+
+    total_checks: int
+    total_recoveries: int
+    last_check: str | None
+    last_recovery: str | None
+
+
 class HealthCheckScheduler:
-    """
-    Scheduler pour les vérifications de santé de l'outbox.
+    """Run periodic outbox health checks and optional recovery."""
 
-    Exécute périodiquement les vérifications et récupérations automatiques.
-    """
-
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the health check scheduler instance."""
         self.running = False
-        self.task = None
+        self.task: asyncio.Task[None] | None = None
 
-    async def start(self):
-        """Démarre le scheduler."""
+    async def start(self) -> None:
+        """Start the scheduler loop and wait until shutdown."""
         logger.debug("Starting Outbox Health Check Scheduler")
         logger.debug("Check interval: %d seconds", HEALTH_CHECK_INTERVAL)
         logger.debug("Recovery enabled: %s", RECOVERY_ENABLED)
@@ -65,16 +70,16 @@ class HealthCheckScheduler:
 
         await self.task
 
-    def _signal_handler(self, signum, frame):
-        """Gestionnaire de signaux pour un arrêt propre."""
+    def _signal_handler(self, signum: int, _frame: Any) -> None:
+        """Handle process signals and stop the scheduler gracefully."""
         logger.debug("Received signal %d, shutting down gracefully", signum)
         self.running = False
         if self.task:
             self.task.cancel()
 
-    async def _run_scheduler(self):
-        """Boucle principale du scheduler."""
-        stats = {
+    async def _run_scheduler(self) -> None:
+        """Run the periodic health-check loop."""
+        stats: SchedulerStats = {
             "total_checks": 0,
             "total_recoveries": 0,
             "last_check": None,
@@ -99,8 +104,8 @@ class HealthCheckScheduler:
                 logger.error("Unexpected error in scheduler: %s", str(e), exc_info=True)
                 await asyncio.sleep(30)  # Attendre avant de retry
 
-    async def _run_health_check(self, stats: dict[str, Any]):
-        """Exécute une vérification de santé complète."""
+    async def _run_health_check(self, stats: SchedulerStats) -> None:
+        """Execute one health-check cycle and trigger recovery when needed."""
         check_start = datetime.now(timezone.utc)
 
         try:
@@ -156,8 +161,8 @@ class HealthCheckScheduler:
             logger.error("Health check execution failed: %s", str(e), exc_info=True)
 
 
-async def main():
-    """Point d'entrée principal du service de health check."""
+async def main() -> None:
+    """Start the outbox health-check service entrypoint."""
     logger.debug("Outbox Health Check Service starting...")
 
     scheduler = HealthCheckScheduler()

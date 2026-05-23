@@ -26,8 +26,8 @@ from .payment_status import (
     PaymentStatus,
     PaymentStatusBase,
     PaymentStatusCreate,
-    PaymentStatusPublic,
     PaymentStatusesPublic,
+    PaymentStatusPublic,
     PaymentStatusUpdate,
 )
 

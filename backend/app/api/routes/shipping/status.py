@@ -1,3 +1,5 @@
+from typing import Any
+
 from app.api.base_router import BaseRouter
 from app.features.shipping.crud import (
     crud_status_definition,
@@ -24,9 +26,11 @@ class StatusDefinitionRouter(
         StatusDefinitionUpdate,
         StatusDefinitionPublic,
         StatusDefinitionsPublic,
-        type(crud_status_definition),
+        Any,
     ]
 ):
+    """Represents status definition router."""
+
     pass
 
 
@@ -37,13 +41,17 @@ class StatusTransitionRouter(
         StatusTransitionUpdate,
         StatusTransitionPublic,
         StatusTransitionsPublic,
-        type(crud_status_transition),
+        Any,
     ]
 ):
+    """Represents status transition router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = True
     create = True
     update = True

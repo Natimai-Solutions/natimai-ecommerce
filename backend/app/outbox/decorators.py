@@ -14,8 +14,13 @@ from app.outbox.registry import outbox_registry
 
 logger = logging.getLogger(__name__)
 
+Handler = Callable[..., Any]
 
-def outbox_handler(event_type: str, model_class: type[Any] = None):
+
+def outbox_handler(
+    event_type: str,
+    model_class: type[Any] | None = None,
+) -> Callable[[Handler], Handler]:
     """
     Decorator to register a function as an outbox event handler.
 
@@ -37,9 +42,12 @@ def outbox_handler(event_type: str, model_class: type[Any] = None):
         Callable: The decorated function
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Handler) -> Handler:
+        """Wrap and register a single-event handler."""
+
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            """Execute wrapper."""
             try:
                 logger.debug(f"Executing handler for event type: {event_type}")
                 result = await func(*args, **kwargs)
@@ -64,7 +72,10 @@ def outbox_handler(event_type: str, model_class: type[Any] = None):
     return decorator
 
 
-def bulk_outbox_handler(event_types: list[str], model_class: type[Any] = None):
+def bulk_outbox_handler(
+    event_types: list[str],
+    model_class: type[Any] | None = None,
+) -> Callable[[Handler], Handler]:
     """
     Decorator to register a function as a handler for multiple outbox event types.
 
@@ -85,9 +96,12 @@ def bulk_outbox_handler(event_types: list[str], model_class: type[Any] = None):
         Callable: The decorated function
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Handler) -> Handler:
+        """Wrap and register a multi-event handler."""
+
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            """Execute wrapper."""
             try:
                 logger.debug(f"Executing bulk handler for event types: {event_types}")
                 result = await func(*args, **kwargs)

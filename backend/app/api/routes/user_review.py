@@ -1,9 +1,11 @@
 import uuid
 
-from fastapi import HTTPException, Query, status
+from fastapi import Query, status
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
+from app.core.errors import AppError
+from app.features.base.crud import RecordNotFoundError
 from app.features.user.crud.review import ReviewCrud, crud_review
 from app.features.user.models.review import (
     Review,
@@ -31,10 +33,14 @@ class ReviewRouter(
         ReviewCrud,
     ]
 ):
+    """Represents review router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = True
     create = True
     update = True
@@ -67,7 +73,12 @@ async def get_user_reviews(
 ) -> ReviewsPublic:
     """Get all reviews for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="review.not_owned",
+            status_code=403,
+            message="You cannot access another user's reviews",
+            details={"user_id": str(user_id)},
+        )
 
     reviews = await crud_review.get_by_user_id(
         session=session, user_id=user_id, skip=skip, limit=limit
@@ -86,14 +97,30 @@ async def get_user_review(
 ) -> ReviewPublic:
     """Get a specific review for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="review.not_owned",
+            status_code=403,
+            message="You cannot access another user's reviews",
+            details={"user_id": str(user_id)},
+        )
 
-    review = await crud_review.get(session=session, id=review_id)
-    if not review:
-        raise HTTPException(status_code=404, detail="Review not found")
+    try:
+        review = await crud_review.read(session=session, id=review_id)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="review.not_found",
+            status_code=404,
+            message=f"Review '{review_id}' not found",
+            details={"review_id": str(review_id)},
+        ) from exc
 
     if review.user_id != user_id:
-        raise HTTPException(status_code=404, detail="Review not found")
+        raise AppError(
+            code="review.not_found",
+            status_code=404,
+            message=f"Review '{review_id}' not found",
+            details={"review_id": str(review_id)},
+        )
 
     return ReviewPublic.model_validate(review)
 
@@ -111,15 +138,26 @@ async def create_user_review(
 ) -> ReviewPublic:
     """Create a new review for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="review.not_owned",
+            status_code=403,
+            message="You cannot access another user's reviews",
+            details={"user_id": str(user_id)},
+        )
 
     # Check if user already has a review for this product
     existing_review = await crud_review.get_by_user_and_product(
         session=session, user_id=user_id, product_id=review_in.product_id
     )
     if existing_review:
-        raise HTTPException(
-            status_code=400, detail="User already has a review for this product"
+        raise AppError(
+            code="review.already_exists",
+            status_code=400,
+            message="User already has a review for this product",
+            details={
+                "user_id": str(user_id),
+                "product_id": str(review_in.product_id),
+            },
         )
 
     review = await crud_review.create_for_user(
@@ -138,16 +176,37 @@ async def update_user_review(
 ) -> ReviewPublic:
     """Update a specific review for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="review.not_owned",
+            status_code=403,
+            message="You cannot access another user's reviews",
+            details={"user_id": str(user_id)},
+        )
 
-    review = await crud_review.get(session=session, id=review_id)
-    if not review:
-        raise HTTPException(status_code=404, detail="Review not found")
+    try:
+        review = await crud_review.read(session=session, id=review_id)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="review.not_found",
+            status_code=404,
+            message=f"Review '{review_id}' not found",
+            details={"review_id": str(review_id)},
+        ) from exc
 
     if review.user_id != user_id:
-        raise HTTPException(status_code=404, detail="Review not found")
+        raise AppError(
+            code="review.not_found",
+            status_code=404,
+            message=f"Review '{review_id}' not found",
+            details={"review_id": str(review_id)},
+        )
 
-    review = await crud_review.update(session=session, record=review, data=review_in)
+    review = await crud_review.update(
+        session=session,
+        id=review_id,
+        record=review,
+        data=review_in,
+    )
     return ReviewPublic.model_validate(review)
 
 
@@ -162,16 +221,32 @@ async def delete_user_review(
 ) -> None:
     """Delete a specific review for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="review.not_owned",
+            status_code=403,
+            message="You cannot access another user's reviews",
+            details={"user_id": str(user_id)},
+        )
 
-    review = await crud_review.get(session=session, id=review_id)
-    if not review:
-        raise HTTPException(status_code=404, detail="Review not found")
+    try:
+        review = await crud_review.read(session=session, id=review_id)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="review.not_found",
+            status_code=404,
+            message=f"Review '{review_id}' not found",
+            details={"review_id": str(review_id)},
+        ) from exc
 
     if review.user_id != user_id:
-        raise HTTPException(status_code=404, detail="Review not found")
+        raise AppError(
+            code="review.not_found",
+            status_code=404,
+            message=f"Review '{review_id}' not found",
+            details={"review_id": str(review_id)},
+        )
 
-    await crud_review.remove(session=session, id=review_id)
+    await crud_review.delete(session=session, id=review_id, record=review)
 
 
 # Product-specific review routes
@@ -197,7 +272,7 @@ async def get_product_reviews(
 async def get_product_review_average(
     session: SessionDep,
     product_id: uuid.UUID,
-) -> dict:
+) -> dict[str, object]:
     """Get average rating for a specific product."""
     average_rating = await crud_review.get_average_rating_by_product(
         session=session, product_id=product_id
@@ -224,12 +299,25 @@ async def get_user_review_for_product(
 ) -> ReviewPublic:
     """Get a user's review for a specific product."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="review.not_owned",
+            status_code=403,
+            message="You cannot access another user's reviews",
+            details={"user_id": str(user_id)},
+        )
 
     review = await crud_review.get_by_user_and_product(
         session=session, user_id=user_id, product_id=product_id
     )
     if not review:
-        raise HTTPException(status_code=404, detail="Review not found")
+        raise AppError(
+            code="review.not_found",
+            status_code=404,
+            message="Review not found for this user and product",
+            details={
+                "user_id": str(user_id),
+                "product_id": str(product_id),
+            },
+        )
 
     return ReviewPublic.model_validate(review)

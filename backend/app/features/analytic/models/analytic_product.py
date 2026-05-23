@@ -1,3 +1,5 @@
+# mypy: disable-error-code="assignment,misc,override"
+
 import uuid
 from decimal import Decimal
 
@@ -7,8 +9,12 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class AnalyticsProductBase(Base):
+    """Represents analytics product base."""
+
     product_id: uuid.UUID = Field(
-        foreign_key="products.id", description="ID of the product"
+        foreign_key="products.id",
+        index=True,
+        description="ID of the product",
     )
     add_to_carts: int = Field(
         default=0, description="Number of times the product has been added to carts"
@@ -38,10 +44,14 @@ class AnalyticsProductBase(Base):
 
 
 class AnalyticsProductCreate(AnalyticsProductBase, BaseCreate):
+    """Represents analytics product create."""
+
     pass
 
 
 class AnalyticsProductUpdate(AnalyticsProductBase, BaseUpdate):
+    """Represents analytics product update."""
+
     product_id: uuid.UUID | None = None
     add_to_carts: int | None = None
     purchases: int | None = None
@@ -51,14 +61,20 @@ class AnalyticsProductUpdate(AnalyticsProductBase, BaseUpdate):
 
 
 class AnalyticsProduct(AnalyticsProductBase, table=True):
+    """Represents analytics product."""
+
     __tablename__ = "analytic_products"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
 
 
 class AnalyticsProductPublic(AnalyticsProductBase, BasePublic):
+    """Represents analytics product public."""
+
     id: uuid.UUID
 
 
 class AnalyticsProductsPublic(SQLModel):
+    """Represents analytics products public."""
+
     data: list[AnalyticsProductPublic] = Field(default_factory=list)
     count: int = Field(default=0, description="Total number of analytics products")

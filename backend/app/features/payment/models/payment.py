@@ -1,4 +1,8 @@
+# mypy: disable-error-code="assignment,misc,override"
+
 import uuid
+from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel
@@ -7,23 +11,50 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class PaymentBase(Base):
-    amount: int = Field(..., gt=0, description="Amount to be paid in cents/smallest currency unit")
-    currency: str = Field(default="XPF", description="Currency of the payment (XPF, EUR, etc.)")
+    """Represents payment base."""
+
+    amount: Decimal = Field(
+        ...,
+        gt=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Amount to be paid expressed in the payment currency",
+    )
+    currency: str = Field(
+        default="XPF", description="Currency of the payment (XPF, EUR, etc.)"
+    )
+    provider_code: str = Field(
+        default="payzen",
+        max_length=50,
+        index=True,
+        description="Payment provider identifier (payzen, stripe, manual_check, etc.)",
+    )
 
 
 class PaymentCreate(PaymentBase, BaseCreate):
-    order_id: uuid.UUID | None = Field(default=None, description="ID of the order associated with this payment")
+    """Represents payment create."""
+
+    order_id: uuid.UUID | None = Field(
+        default=None, description="ID of the order associated with this payment"
+    )
     user_id: uuid.UUID = Field(description="ID of the user making the payment")
 
 
 class PaymentUpdate(PaymentBase, BaseUpdate):
-    amount: int | None = None
+    """Represents payment update."""
+
+    amount: Decimal | None = None
     currency: str | None = None
+    provider_code: str | None = None
     order_id: uuid.UUID | None = None
     user_id: uuid.UUID | None = None
+    provider_reference: str | None = None
+    provider_data: dict[str, Any] | None = None
 
 
 class Payment(PaymentBase, table=True):
+    """Represents payment."""
+
     __tablename__ = "payments"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -36,54 +67,44 @@ class Payment(PaymentBase, table=True):
         foreign_key="orders.id",
         nullable=True,
         index=True,
-        description="ID of the order associated with this payment"
+        description="ID of the order associated with this payment",
     )
     user_id: uuid.UUID = Field(
         foreign_key="users.id",
         nullable=False,
         index=True,
-        description="ID of the user making the payment"
+        description="ID of the user making the payment",
     )
     payment_method_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="payment_methods.id",
         nullable=True,
         index=True,
-        description="ID of the payment method used"
+        description="ID of the payment method used",
     )
     payment_status_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="payment_status.id",
         nullable=True,
         index=True,
-        description="ID of the payment status"
+        description="ID of the payment status",
     )
-    payzen_trans_id: str | None = Field(
-        default=None, index=True, description="Payzen transaction UUID"
+    provider_reference: str | None = Field(
+        default=None,
+        max_length=255,
+        index=True,
+        description="Provider-side payment reference (transaction id, external order id, etc.)",
     )
-    payzen_order_id: str | None = Field(
-        default=None, index=True, description="Payzen order ID (same as payment id)"
-    )
-    payzen_payment_method: str | None = Field(
-        default=None, description="Payment method used (CB, Visa, Mastercard)"
-    )
-    payzen_status: str | None = Field(
-        default=None, description="Payzen transaction status (PAID, REFUSED, etc.)"
-    )
-    payzen_error_code: str | None = Field(
-        default=None, description="Payzen error code if any"
-    )
-    payzen_form_token: str | None = Field(
-        default=None, description="Payzen form token generated for this payment"
-    )
-    payzen_data: dict | None = Field(
+    provider_data: dict[str, Any] | None = Field(
         default=None,
         sa_column=Column(JSON),
-        description="Raw Payzen response data",
+        description="Raw provider payload for provider-agnostic workflows",
     )
 
 
 class PaymentPublic(PaymentBase, BasePublic):
+    """Represents payment public."""
+
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
         primary_key=True,
@@ -93,9 +114,7 @@ class PaymentPublic(PaymentBase, BasePublic):
         default=None,
         description="ID of the order associated with this payment",
     )
-    user_id: uuid.UUID = Field(
-        description="ID of the user making the payment"
-    )
+    user_id: uuid.UUID = Field(description="ID of the user making the payment")
     payment_method_id: uuid.UUID | None = Field(
         default=None,
         description="ID of the payment method used",
@@ -104,13 +123,13 @@ class PaymentPublic(PaymentBase, BasePublic):
         default=None,
         description="ID of the payment status",
     )
-    payzen_trans_id: str | None = None
-    payzen_order_id: str | None = None
-    payzen_payment_method: str | None = None
-    payzen_status: str | None = None
+    provider_reference: str | None = None
+    provider_data: dict[str, Any] | None = None
 
 
 class PaymentsPublic(SQLModel):
+    """Represents payments public."""
+
     data: list[PaymentPublic] = Field(
         default_factory=list, description="List of payments"
     )

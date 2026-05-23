@@ -1,3 +1,5 @@
+from typing import Any
+
 from app.api.base_router import BaseRouter
 from app.features.place.crud import crud_place
 from app.features.place.models import (
@@ -16,13 +18,17 @@ class PlaceRouter(
         PlaceUpdate,
         PlacePublic,
         PlacesPublic,
-        type(crud_place),
+        Any,
     ]
 ):
+    """Represents place router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = True
     create = True
     update = True

@@ -1,6 +1,6 @@
 import uuid
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -8,6 +8,8 @@ from app.features.user.models.review import Review, ReviewCreate, ReviewUpdate
 
 
 class ReviewCrud(CrudBase[Review, ReviewCreate, ReviewUpdate]):
+    """Represents review crud."""
+
     async def get_by_user_id(
         self,
         session: AsyncSession,
@@ -21,15 +23,15 @@ class ReviewCrud(CrudBase[Review, ReviewCreate, ReviewUpdate]):
             select(self.model)
             .where(
                 self.model.user_id == user_id,
-                self.model.is_admin_active.is_(True),
-                self.model.is_active.is_(True),
+                col(self.model.is_admin_active).is_(True),
+                col(self.model.is_active).is_(True),
             )
             .offset(skip)
             .limit(limit)
-            .order_by(self.model.created_at.desc())
+            .order_by(col(self.model.created_at).desc())
         )
         exec_result = await session.exec(statement)
-        return exec_result.all()
+        return list(exec_result.all())
 
     async def get_by_product_id(
         self,
@@ -44,15 +46,15 @@ class ReviewCrud(CrudBase[Review, ReviewCreate, ReviewUpdate]):
             select(self.model)
             .where(
                 self.model.product_id == product_id,
-                self.model.is_admin_active.is_(True),
-                self.model.is_active.is_(True),
+                col(self.model.is_admin_active).is_(True),
+                col(self.model.is_active).is_(True),
             )
             .offset(skip)
             .limit(limit)
-            .order_by(self.model.created_at.desc())
+            .order_by(col(self.model.created_at).desc())
         )
         exec_result = await session.exec(statement)
-        return exec_result.all()
+        return list(exec_result.all())
 
     async def get_by_user_and_product(
         self, session: AsyncSession, *, user_id: uuid.UUID, product_id: uuid.UUID
@@ -61,8 +63,8 @@ class ReviewCrud(CrudBase[Review, ReviewCreate, ReviewUpdate]):
         statement = select(self.model).where(
             self.model.user_id == user_id,
             self.model.product_id == product_id,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
         return exec_result.first()
@@ -92,8 +94,8 @@ class ReviewCrud(CrudBase[Review, ReviewCreate, ReviewUpdate]):
         """Count reviews for a user."""
         statement = select(self.model).where(
             self.model.user_id == user_id,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
         return len(exec_result.all())
@@ -104,8 +106,8 @@ class ReviewCrud(CrudBase[Review, ReviewCreate, ReviewUpdate]):
         """Count reviews for a product."""
         statement = select(self.model).where(
             self.model.product_id == product_id,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
         return len(exec_result.all())
@@ -116,8 +118,8 @@ class ReviewCrud(CrudBase[Review, ReviewCreate, ReviewUpdate]):
         """Get average rating for a product."""
         statement = select(self.model.rating).where(
             self.model.product_id == product_id,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
         ratings = exec_result.all()

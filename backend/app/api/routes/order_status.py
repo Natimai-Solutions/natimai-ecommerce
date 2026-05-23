@@ -6,8 +6,8 @@ from app.features.order.crud.order_status_crud import (
 from app.features.order.models.order_status import (
     OrderStatus,
     OrderStatusCreate,
-    OrderStatusPublic,
     OrderStatusesPublic,
+    OrderStatusPublic,
     OrderStatusUpdate,
 )
 
@@ -22,10 +22,14 @@ class OrderStatusRouter(
         OrderStatusCrud,
     ]
 ):
+    """Represents order status router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = False  # Lecture publique des statuts
     create = True  # Création réservée aux admins
     update = True  # Modification réservée aux admins

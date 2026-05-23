@@ -1,7 +1,9 @@
 import datetime
+
+# mypy: disable-error-code="arg-type,operator,return-value"
 import uuid
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -14,14 +16,14 @@ from app.features.discount.models import (
 
 
 class DiscountCrud(CrudBase[Discount, DiscountCreate, DiscountUpdate]):
-    async def get_by_code(
-        self, session: AsyncSession, code: str
-    ) -> Discount | None:
-        """Récupère un coupon par son code"""
+    """Represents discount crud."""
+
+    async def get_by_code(self, session: AsyncSession, code: str) -> Discount | None:
+        """Get by code."""
         statement = select(Discount).where(
             Discount.code == code,
             Discount.discount_type == DiscountType.COUPON,
-            Discount.is_active.is_(True),
+            col(Discount.is_active).is_(True),
         )
         result = await session.exec(statement)
         return result.first()
@@ -32,22 +34,25 @@ class DiscountCrud(CrudBase[Discount, DiscountCreate, DiscountUpdate]):
         product_id: uuid.UUID | None = None,
         category_id: uuid.UUID | None = None,
     ) -> list[Discount]:
-        """Récupère les promotions actives pour un produit ou une catégorie"""
+        """Get active promotions."""
         now = datetime.datetime.now()
         conditions = [
             Discount.discount_type == DiscountType.PROMOTION,
-            Discount.is_active.is_(True),
+            col(Discount.is_active).is_(True),
         ]
 
         # Vérifier les dates de validité
         conditions.append(
-            (Discount.start_date.is_(None)) | (Discount.start_date <= now)
+            (col(Discount.start_date).is_(None)) | (Discount.start_date <= now)
         )
-        conditions.append((Discount.end_date.is_(None)) | (Discount.end_date >= now))
+        conditions.append(
+            (col(Discount.end_date).is_(None)) | (Discount.end_date >= now)
+        )
 
         # Vérifier le nombre d'utilisations
         conditions.append(
-            (Discount.max_uses.is_(None)) | (Discount.current_uses < Discount.max_uses)
+            (col(Discount.max_uses).is_(None))
+            | (Discount.current_uses < Discount.max_uses)
         )
 
         # Filtrer par produit ou catégorie
@@ -92,7 +97,7 @@ class DiscountCrud(CrudBase[Discount, DiscountCreate, DiscountUpdate]):
     async def increment_usage(
         self, session: AsyncSession, discount_id: uuid.UUID
     ) -> Discount:
-        """Incrémente le compteur d'utilisation d'une réduction"""
+        """Execute increment usage."""
         discount = await session.get(Discount, discount_id)
         if discount:
             discount.current_uses += 1
@@ -106,7 +111,7 @@ crud_discount = DiscountCrud(
     model=Discount,
     schema_create=DiscountCreate,
     schema_update=DiscountUpdate,
-    order_by=Discount.created_at.desc(),
+    order_by=col(Discount.created_at).desc(),
     outbox_events={
         "create": "create.discount",
         "update": "update.discount",

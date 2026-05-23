@@ -18,8 +18,8 @@ from app.features.order.models.order_status import (
     OrderStatus,
     OrderStatusBase,
     OrderStatusCreate,
-    OrderStatusPublic,
     OrderStatusesPublic,
+    OrderStatusPublic,
     OrderStatusUpdate,
 )
 

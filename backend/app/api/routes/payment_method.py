@@ -22,11 +22,18 @@ class PaymentMethodRouter(
         PaymentMethodCrud,
     ]
 ):
+    """Represents payment method router."""
+
     pass
 
 
 class Auth:
-    read = False
+    """Represents auth."""
+
+    read: bool = False
+    create: bool = True
+    update: bool = True
+    delete: bool = True
 
 
 router = PaymentMethodRouter(

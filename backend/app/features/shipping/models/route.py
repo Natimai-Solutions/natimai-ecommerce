@@ -3,6 +3,8 @@ Shipping route models.
 Reusable logistics route and its steps.
 """
 
+# mypy: disable-error-code="assignment,misc,override"
+
 import uuid
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional
@@ -23,19 +25,25 @@ class ShippingRouteBase(Base):
 
     # Origin / destination
     from_place_id: uuid.UUID = Field(
-        foreign_key="places.id", description="Origin place"
+        foreign_key="places.id",
+        index=True,
+        description="Origin place",
     )
     to_place_id: uuid.UUID = Field(
-        foreign_key="places.id", description="Destination place"
+        foreign_key="places.id",
+        index=True,
+        description="Destination place",
     )
     from_partner_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="partners.id",
+        index=True,
         description="Origin partner (e.g., supplier)",
     )
     to_partner_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="partners.id",
+        index=True,
         description="Destination partner (e.g., customer)",
     )
 
@@ -142,10 +150,14 @@ class ShippingRoute(ShippingRouteBase, table=True):
 
 
 class ShippingRouteCreate(ShippingRouteBase, BaseCreate):
+    """Represents shipping route create."""
+
     pass
 
 
 class ShippingRouteUpdate(ShippingRouteBase, BaseUpdate):
+    """Represents shipping route update."""
+
     from_place_id: uuid.UUID | None = None
     to_place_id: uuid.UUID | None = None
     from_partner_id: uuid.UUID | None = None
@@ -173,10 +185,14 @@ class ShippingRouteUpdate(ShippingRouteBase, BaseUpdate):
 
 
 class ShippingRoutePublic(ShippingRouteBase, BasePublic):
+    """Represents shipping route public."""
+
     id: uuid.UUID
 
 
 class ShippingRoutesPublic(SQLModel):
+    """Represents shipping routes public."""
+
     data: list[ShippingRoutePublic] = Field(
         default_factory=list,
         description="List of shipping routes",

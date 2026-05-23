@@ -1,5 +1,6 @@
 import secrets
 import warnings
+from decimal import Decimal
 from typing import Annotated, Any, Literal
 
 from pydantic import (
@@ -16,6 +17,7 @@ from typing_extensions import Self
 
 
 def parse_cors(v: Any) -> list[str] | str:
+    """Parse cors."""
     if isinstance(v, str) and not v.startswith("["):
         return [i.strip() for i in v.split(",")]
     elif isinstance(v, list | str):
@@ -24,6 +26,8 @@ def parse_cors(v: Any) -> list[str] | str:
 
 
 class Settings(BaseSettings):
+    """Represents settings."""
+
     model_config = SettingsConfigDict(
         # Use top level .env file (one level above ./backend/)
         env_file="../.env",
@@ -41,13 +45,14 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _check_secret_key(self) -> Self:
+        """Check secret key."""
         if not self.SECRET_KEY:
             # Generate a random key only if not provided (for development)
             self.SECRET_KEY = secrets.token_urlsafe(32)
             warnings.warn(
                 "SECRET_KEY not set in environment. Using a random key. "
                 "This will invalidate tokens on restart!",
-                stacklevel=1
+                stacklevel=1,
             )
         return self
 
@@ -58,6 +63,7 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def all_cors_origins(self) -> list[str]:
+        """Execute all cors origins."""
         return [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [
             self.FRONTEND_HOST
         ]
@@ -74,7 +80,8 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> PostgresDsn:
-        return MultiHostUrl.build(
+        """Execute SQLALCHEMY DATABASE URI."""
+        return MultiHostUrl.build(  # type: ignore[return-value]
             scheme="postgresql+psycopg",
             username=self.POSTGRES_USER,
             password=self.POSTGRES_PASSWORD,
@@ -94,6 +101,7 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def REDIS_URL(self) -> str:
+        """Execute REDIS URL."""
         if self.REDIS_USER and self.REDIS_PASSWORD:
             return (
                 f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_SERVER}:{self.REDIS_PORT}"
@@ -107,6 +115,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _set_default_emails_from(self) -> Self:
+        """Set default emails from."""
         if not self.EMAILS_FROM_NAME:
             self.EMAILS_FROM_NAME = self.PROJECT_NAME
         return self
@@ -116,6 +125,7 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def emails_enabled(self) -> bool:
+        """Execute emails enabled."""
         return bool(self.EMAILS_API_URL and self.EMAILS_API_KEY)
 
     # TODO: update type to EmailStr when sqlmodel supports it
@@ -130,6 +140,12 @@ class Settings(BaseSettings):
     OPENAI_ORG_ID: str | None = None
     OPENAI_API_KEY: str | None = None
 
+    # Supplier sync eligibility thresholds — products below either threshold
+    # are created/updated with is_active=False and hidden from the storefront.
+    # Set to 0 to disable filtering (default: show everything).
+    SUPPLIER_SYNC_MIN_QUANTITY: Decimal = Decimal("0")
+    SUPPLIER_SYNC_MIN_PRICE: Decimal = Decimal("0")
+
     # Ingram Micro API Configuration
     INGRAM_CLIENT_ID: str | None = None
     INGRAM_CLIENT_SECRET: str | None = None
@@ -141,6 +157,17 @@ class Settings(BaseSettings):
         "Ordinateur/Serveur",
     ]
     INGRAM_SYNC_INTERVAL_HOURS: int = 6  # Synchronisation toutes les 6 heures
+
+    # Ingram Micro — automatic purchase order creation on payment.captured
+    # Enable only after INGRAM_SHIP_TO_* fields are configured.
+    INGRAM_ORDER_CREATION_ENABLED: bool = False
+    INGRAM_SHIP_TO_CONTACT: str | None = None
+    INGRAM_SHIP_TO_COMPANY_NAME: str | None = None
+    INGRAM_SHIP_TO_ADDRESS_LINE1: str | None = None
+    INGRAM_SHIP_TO_CITY: str | None = None
+    INGRAM_SHIP_TO_POSTAL_CODE: str | None = None
+    INGRAM_SHIP_TO_COUNTRY_CODE: str = "PF"
+    INGRAM_SHIP_TO_PHONE: str | None = None
 
     # Icecat API Configuration
     ICECAT_USERNAME: str | None = None
@@ -154,6 +181,46 @@ class Settings(BaseSettings):
     S3_ACCESS_KEY_ID: str | None = None
     S3_SECRET_KEY_ID: str | None = None
     S3_BUCKET_NAME: str | None = None
+    S3_REGION: str = "us-east-1"
+
+    # File storage backend selection for payment attachments
+    FILE_STORAGE_BACKEND: Literal["s3", "local"] = "local"
+    FILE_STORAGE_LOCAL_ROOT: str = "/tmp/fastapi_ecommerce_storage"
+    FILE_STORAGE_PRESIGNED_TTL_SECONDS: int = 300
+
+    # Payment attachment validation
+    PAYMENT_ATTACHMENT_MAX_BYTES: int = 10 * 1024 * 1024  # 10 MB
+    PAYMENT_ATTACHMENT_ALLOWED_MIME: list[str] = [
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+    ]
+
+    # Payment event notifications
+    PAYMENT_NOTIFICATIONS_EMAIL_ENABLED: bool = True
+    PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER: str = "noop"
+    PAYMENT_NOTIFICATIONS_SLACK_ENABLED: bool = False
+    PAYMENT_NOTIFICATIONS_SLACK_PROVIDER: str = "slack_webhook"
+    PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL: HttpUrl | None = None
+
+    # Mailgun notification provider
+    MAILGUN_API_BASE_URL: str = "https://api.mailgun.net/v3"
+    MAILGUN_DOMAIN: str | None = None
+    MAILGUN_API_KEY: str | None = None
+    MAILGUN_FROM_EMAIL: str | None = None
+    MAILGUN_FROM_NAME: str | None = None
+    MAILGUN_TIMEOUT_SECONDS: int = 10
+
+    # Group-based permissions (RBAC)
+    # Set to True in Phase 2 after security groups are seeded and assigned.
+    # When False, all authenticated users pass permission checks (current behavior).
+    ENABLE_GROUP_PERMISSIONS: bool = False
+
+    # ClamAV antivirus
+    CLAMAV_ENABLED: bool = False
+    CLAMAV_HOST: str = "clamav"
+    CLAMAV_PORT: int = 3310
+    CLAMAV_TIMEOUT_SECONDS: int = 30
 
     # PayZen Configuration
     PAYZEN_SITE_ID: str | None = None
@@ -173,11 +240,16 @@ class Settings(BaseSettings):
         """Compute the PayZen IPN URL based on backend configuration."""
         if self.PAYZEN_IPN_URL:
             return self.PAYZEN_IPN_URL
-        # Default to API endpoint + payment/payzen/ipn
-        backend_url = str(self.BACKEND_CORS_ORIGINS[0]) if self.BACKEND_CORS_ORIGINS else "http://localhost:8000"
-        return f"{backend_url}{self.API_V1_STR}/payment/payzen/ipn"
+        # Default to API endpoint + generic payments webhook
+        backend_url = (
+            str(self.BACKEND_CORS_ORIGINS[0])
+            if self.BACKEND_CORS_ORIGINS
+            else "http://localhost:8000"
+        )
+        return f"{backend_url}{self.API_V1_STR}/payments/webhooks/payzen"
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
+        """Check default secret."""
         if value == "changethis":
             message = (
                 f'The value of {var_name} is "changethis", '
@@ -190,6 +262,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _enforce_non_default_secrets(self) -> Self:
+        """Execute enforce non default secrets."""
         self._check_default_secret("SECRET_KEY", self.SECRET_KEY)
         self._check_default_secret("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD)
         self._check_default_secret(
@@ -199,4 +272,4 @@ class Settings(BaseSettings):
         return self
 
 
-settings = Settings()  # type: ignore
+settings = Settings()

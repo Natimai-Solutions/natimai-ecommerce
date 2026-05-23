@@ -32,9 +32,24 @@ services:
       retries: 5
       start_period: 30s
 
+  # Antivirus engine used to scan payment attachments (purchase orders, etc.)
+  clamav:
+    image: clamav/clamav:stable
+    ports:
+      - "3310:3310"
+    volumes:
+      - clamav_data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdscan", "--ping", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
   # Service API FastAPI
   api:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
     command: ["api"]
@@ -44,6 +59,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      clamav:
         condition: service_healthy
     env_file:
       - .env
@@ -57,6 +74,9 @@ services:
       - REDIS_URL=redis://redis:6379
       - WORKERS=4
       - LOG_LEVEL=INFO
+      - CLAMAV_ENABLED=true
+      - CLAMAV_HOST=clamav
+      - CLAMAV_PORT=3310
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/utils/health-check"]
       interval: 30s
@@ -66,7 +86,7 @@ services:
 
   # Service ARQ Worker
   arq-worker:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
     command: ["worker"]
@@ -86,6 +106,9 @@ services:
       - POSTGRES_DB=fastapi_ecommerce
       - REDIS_URL=redis://redis:6379
       - LOG_LEVEL=INFO
+      - CLAMAV_ENABLED=true
+      - CLAMAV_HOST=clamav
+      - CLAMAV_PORT=3310
     restart: unless-stopped
 
   # Service Outbox Poller
@@ -130,6 +153,30 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=fastapi_ecommerce
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  admin-frontend:
+    build:
+      context: .
+      dockerfile: admin-frontend/Dockerfile
+    ports:
+      - "8081:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
   adminer:
     image: adminer
     environment:
@@ -139,3 +186,4 @@ services:
 volumes:
   postgres_data:
   redis_data:  # Ajouter volume pour Redis
+  clamav_data:  # Cache pour les signatures virales ClamAV

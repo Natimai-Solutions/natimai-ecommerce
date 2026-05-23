@@ -1,6 +1,4 @@
-import uuid
-
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -12,13 +10,13 @@ from app.features.order.models.order_status import (
 
 
 class OrderStatusCrud(CrudBase[OrderStatus, OrderStatusCreate, OrderStatusUpdate]):
-    async def get_by_name(
-        self, session: AsyncSession, name: str
-    ) -> OrderStatus | None:
-        """Récupère un statut par son nom"""
+    """Represents order status crud."""
+
+    async def get_by_name(self, session: AsyncSession, name: str) -> OrderStatus | None:
+        """Get by name."""
         statement = select(OrderStatus).where(
             OrderStatus.name == name,
-            OrderStatus.is_active.is_(True),
+            col(OrderStatus.is_active).is_(True),
         )
         result = await session.exec(statement)
         return result.first()
@@ -28,7 +26,7 @@ crud_order_status = OrderStatusCrud(
     model=OrderStatus,
     schema_create=OrderStatusCreate,
     schema_update=OrderStatusUpdate,
-    order_by=OrderStatus.created_at.desc(),
+    order_by=col(OrderStatus.created_at).desc(),
     outbox_events={
         "create": "create.order_status",
         "update": "update.order_status",

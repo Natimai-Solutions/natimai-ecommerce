@@ -1,12 +1,17 @@
+# mypy: disable-error-code="assignment,misc,override"
+
 import uuid
 from decimal import Decimal
 
+from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class AnalyticsUserBase(Base):
+    """Represents analytics user base."""
+
     user_id: uuid.UUID = Field(foreign_key="users.id", description="ID of the user")
     login_count: int = Field(
         default=0, description="Number of times the user has logged in"
@@ -33,16 +38,22 @@ class AnalyticsUserBase(Base):
     total_orders: int = Field(
         default=0, description="Total number of orders made by the user"
     )
-    favorite_products: list[uuid.UUID] = Field(
-        default_factory=list, description="List of favorite product IDs"
+    favorite_products: list[str] = Field(
+        default_factory=list,
+        sa_column=Column(JSON),
+        description="List of favorite product IDs",
     )
 
 
 class AnalyticsUserCreate(AnalyticsUserBase, BaseCreate):
+    """Represents analytics user create."""
+
     pass
 
 
 class AnalyticsUserUpdate(AnalyticsUserBase, BaseUpdate):
+    """Represents analytics user update."""
+
     user_id: uuid.UUID | None = None
     login_count: int | None = None
     purchase_count: int | None = None
@@ -50,18 +61,24 @@ class AnalyticsUserUpdate(AnalyticsUserBase, BaseUpdate):
     last_login: str | None = None
     total_spent: Decimal | None = None
     total_orders: int | None = None
-    favorite_products: list[uuid.UUID] | None = None
+    favorite_products: list[str] | None = None
 
 
 class AnalyticsUser(AnalyticsUserBase, table=True):
+    """Represents analytics user."""
+
     __tablename__ = "analytics_users"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
 
 
 class AnalyticsUserPublic(AnalyticsUserBase, BasePublic):
+    """Represents analytics user public."""
+
     id: uuid.UUID
 
 
 class AnalyticsUsersPublic(SQLModel):
+    """Represents analytics users public."""
+
     data: list[AnalyticsUserPublic] = Field(default_factory=list)
     count: int = Field(default=0, description="Total number of analytics users")

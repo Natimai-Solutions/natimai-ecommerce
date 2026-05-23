@@ -5,14 +5,24 @@ Test de sérialisation JSON pour les UUID et datetime
 import datetime
 import uuid
 
-from app.features.base.crud import CRUDBase
+from sqlmodel import SQLModel
+
+from app.features.base.crud import CrudBase
 
 
-def test_json_serialization():
+class _DummyModel(SQLModel):
+    pass
+
+
+def test_json_serialization() -> None:
     """Test que la sérialisation JSON gère correctement UUID et datetime"""
 
     # Créer une instance du CRUD pour accéder à la méthode
-    crud = CRUDBase(None, None, None)
+    crud = CrudBase(
+        model=_DummyModel,
+        schema_create=_DummyModel,
+        schema_update=_DummyModel,
+    )
 
     # Data avec UUID et datetime
     test_data = {

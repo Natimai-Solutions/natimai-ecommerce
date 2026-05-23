@@ -12,7 +12,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.arq_pool import get_arq_pool
@@ -32,7 +32,7 @@ class OutboxHealthChecker:
     - Stale jobs in Redis without corresponding outbox events
     """
 
-    def __init__(self, stale_threshold_minutes: int = 10):
+    def __init__(self, stale_threshold_minutes: int = 10) -> None:
         """
         Initialize health checker.
 
@@ -49,7 +49,7 @@ class OutboxHealthChecker:
             Dict with health check results and stats
         """
         try:
-            arq_pool = await get_arq_pool()
+            arq_pool = await get_arq_pool()  # type: ignore[no-untyped-call]
 
             # Get all pending/running ARQ jobs with outbox prefix
             redis_client = arq_pool._redis
@@ -72,7 +72,7 @@ class OutboxHealthChecker:
             async with AsyncSession(engine) as session:
                 stmt = (
                     select(OutboxEvent)
-                    .where(OutboxEvent.status.in_(["RUNNING", "DONE"]))
+                    .where(col(OutboxEvent.status).in_(["RUNNING", "DONE"]))
                     .where(
                         OutboxEvent.updated_at
                         > datetime.now(timezone.utc) - self.stale_threshold
@@ -192,7 +192,7 @@ class OutboxHealthChecker:
 health_checker = OutboxHealthChecker()
 
 
-async def run_health_check():
+async def run_health_check() -> dict[str, Any]:
     """
     Run a complete health check and recovery.
 

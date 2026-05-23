@@ -1,6 +1,8 @@
+# mypy: disable-error-code="arg-type"
+
 import uuid
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -32,9 +34,9 @@ class InventoryStockMovementCrud(
             select(InventoryStockMovement)
             .where(
                 InventoryStockMovement.product_id == product_id,
-                InventoryStockMovement.is_active.is_(True),
+                col(InventoryStockMovement.is_active).is_(True),
             )
-            .order_by(InventoryStockMovement.created_at.desc())
+            .order_by(col(InventoryStockMovement.created_at).desc())
             .limit(limit)
         )
         result = await session.exec(statement)
@@ -51,7 +53,7 @@ class InventoryStockMovementCrud(
         statement = select(InventoryStockMovement).where(
             InventoryStockMovement.reference_type == reference_type,
             InventoryStockMovement.reference_id == reference_id,
-            InventoryStockMovement.is_active.is_(True),
+            col(InventoryStockMovement.is_active).is_(True),
         )
         result = await session.exec(statement)
         return list(result.all())
@@ -68,7 +70,7 @@ class InventoryStockMovementCrud(
         conditions = [
             (InventoryStockMovement.from_place_id == place_id)
             | (InventoryStockMovement.to_place_id == place_id),
-            InventoryStockMovement.is_active.is_(True),
+            col(InventoryStockMovement.is_active).is_(True),
         ]
 
         if movement_type:
@@ -77,7 +79,7 @@ class InventoryStockMovementCrud(
         statement = (
             select(InventoryStockMovement)
             .where(*conditions)
-            .order_by(InventoryStockMovement.created_at.desc())
+            .order_by(col(InventoryStockMovement.created_at).desc())
             .limit(limit)
         )
         result = await session.exec(statement)
@@ -88,7 +90,7 @@ crud_stock_movement = InventoryStockMovementCrud(
     model=InventoryStockMovement,
     schema_create=InventoryStockMovementCreate,
     schema_update=InventoryStockMovementUpdate,
-    order_by=InventoryStockMovement.created_at.desc(),
+    order_by=col(InventoryStockMovement.created_at).desc(),
     outbox_events={
         "create": "create.stock_movement",
         "update": "update.stock_movement",

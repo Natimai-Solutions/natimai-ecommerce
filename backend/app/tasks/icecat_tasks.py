@@ -5,9 +5,10 @@ Handles background jobs for enriching products with Icecat data (images, specifi
 
 import datetime
 import logging
-from typing import Any
+from typing import Any, cast
+from uuid import UUID
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import engine
@@ -18,7 +19,10 @@ from app.services.icecat_service import icecat_service
 
 logger = logging.getLogger(__name__)
 
-def update_product_with_icecat_data(icecat_product_data: IcecatProductData) -> ProductUpdate:
+
+def update_product_with_icecat_data(
+    icecat_product_data: IcecatProductData,
+) -> ProductUpdate:
     """
     Create a ProductUpdate object from IcecatProductData
 
@@ -35,18 +39,18 @@ def update_product_with_icecat_data(icecat_product_data: IcecatProductData) -> P
     if icecat_product_data.long_description:
         update_data.long_description = icecat_product_data.long_description
 
-    #if icecat_product_data.specifications:
-    #    update_data.technical_specifications = icecat_product_data.specifications
+    if icecat_product_data.specifications:
+        update_data.technical_specifications = icecat_product_data.specifications
 
-    # if icecat_product_data.features:
-    #    update_data.features = icecat_product_data.features
+    if icecat_product_data.features:
+        update_data.features = icecat_product_data.features
 
-    # if icecat_product_data.images:
-    #    update_data.icecat_images = icecat_product_data.images
+    if icecat_product_data.images:
+        update_data.icecat_images = icecat_product_data.images
 
     if icecat_product_data.release_date:
         update_data.release_date = icecat_product_data.release_date
-    
+
     if icecat_product_data.end_of_life_date:
         update_data.end_of_life_date = icecat_product_data.end_of_life_date
 
@@ -55,14 +59,15 @@ def update_product_with_icecat_data(icecat_product_data: IcecatProductData) -> P
 
     if icecat_product_data.icecat_id:
         update_data.enrichment_supplier_id = icecat_product_data.icecat_id
-    
+
     update_data.is_enriched = True
     update_data.last_enrichment_sync = datetime.datetime.now(tz=datetime.timezone.utc)
 
     return update_data
 
+
 async def enrich_product_with_icecat_task(
-    ctx: dict[str, Any], product_id: str
+    _ctx: dict[str, Any], product_id: str
 ) -> dict[str, Any]:
     """
     Background task to enrich a single product with Icecat data
@@ -77,10 +82,16 @@ async def enrich_product_with_icecat_task(
 
     logger.info(f"Starting Icecat enrichment for product ID: {product_id}")
 
+    try:
+        product_uuid = UUID(product_id)
+    except ValueError:
+        logger.error("Invalid product ID: %s", product_id)
+        return {"status": "error", "message": "Invalid product ID"}
+
     async with AsyncSession(engine) as session:
         try:
             # Get product from database
-            product = await crud_product.read(session, id=product_id)
+            product = await crud_product.read(session, id=product_uuid)
 
             if not product:
                 logger.error(f"Product not found: {product_id}")
@@ -97,7 +108,9 @@ async def enrich_product_with_icecat_task(
                 }
 
             # Get Icecat enrichment data
-            enrichment_data: IcecatProductData | None = await icecat_service.enrich_product_with_icecat(
+            enrichment_data: (
+                IcecatProductData | None
+            ) = await icecat_service.enrich_product_with_icecat(
                 vendor_part_number=product.vendor_part_number,
                 manufacturer=product.manufacturer,
                 ean=product.ean if hasattr(product, "ean") else None,
@@ -113,18 +126,29 @@ async def enrich_product_with_icecat_task(
 
             # Update product in database
             if update_data:
-                await crud_product.update(
-                    session, id=product_id, data=update_data, record=product
+                updated_product = await crud_product.update(
+                    session, id=product_uuid, data=update_data, record=product
                 )
+
+                # Project normalized specs into product_spec table
+                from app.features.product.services.spec_projection import (
+                    upsert_product_specs,
+                )
+
+                specs_count = await upsert_product_specs(session, updated_product)
+
                 await session.commit()
 
                 logger.info(
-                    f"Successfully enriched product {product_id} with Icecat data"
+                    f"Successfully enriched product {product_id} with Icecat data ({specs_count} specs projected)"
                 )
                 return {
                     "status": "success",
                     "product_id": product_id,
-                    "enriched_fields": list(update_data.dict(exclude_unset=True).keys()),
+                    "enriched_fields": list(
+                        update_data.dict(exclude_unset=True).keys()
+                    ),
+                    "specs_projected": specs_count,
                 }
             else:
                 return {
@@ -139,7 +163,7 @@ async def enrich_product_with_icecat_task(
 
 
 async def batch_enrich_products_task(
-    ctx: dict[str, Any], limit: int = 50
+    _ctx: dict[str, Any], limit: int = 50
 ) -> dict[str, Any]:
     """
     Background task to batch enrich products with Icecat data
@@ -171,13 +195,13 @@ async def batch_enrich_products_task(
             # - Have vendor part number and manufacturer
             query = (
                 select(Product)
-                .where(Product.is_supplier_managed == True)
+                .where(col(Product.is_supplier_managed).is_(True))
                 .where(
-                    (Product.is_enriched == False)
-                    | (Product.is_enriched == None)
+                    col(Product.is_enriched).is_(False)
+                    | col(Product.is_enriched).is_(None)
                 )
-                .where(Product.vendor_part_number != None)
-                .where(Product.manufacturer != None)
+                .where(col(Product.vendor_part_number).is_not(None))
+                .where(col(Product.manufacturer).is_not(None))
                 .limit(limit)
             )
 
@@ -189,7 +213,7 @@ async def batch_enrich_products_task(
             for product in products:
                 stats["total_processed"] += 1
                 await session.refresh(product)
-                product_id = str(product.id)
+                product_id = product.id
 
                 try:
                     # Get Icecat enrichment data
@@ -242,12 +266,65 @@ async def trigger_product_enrichment(product_id: str) -> str:
     """
     from app.core.arq_pool import get_arq_pool
 
-    arq_pool = await get_arq_pool()
+    arq_pool = await get_arq_pool()  # type: ignore[no-untyped-call]
 
     job = await arq_pool.enqueue_job(
         "enrich_product_with_icecat_task", product_id=product_id
     )
-    return job.job_id
+    return cast(str, job.job_id)
+
+
+async def reproject_product_specs_task(
+    _ctx: dict[str, Any], category_id: str | None = None
+) -> dict[str, Any]:
+    """Re-project spec_definitions.yaml onto all enriched products.
+
+    Run this after any alias modification in spec_definitions.yaml to rebuild
+    the product_spec table without re-fetching Icecat data.
+
+    Args:
+        category_id: Optional UUID string to limit re-projection to one category.
+    """
+    from app.features.product.models.product import Product
+    from app.features.product.services.spec_projection import upsert_product_specs
+
+    logger.info("Starting spec re-projection task (category_id=%s)", category_id)
+    stats = {"total": 0, "projected": 0, "errors": 0}
+
+    async with AsyncSession(engine) as session:
+        try:
+            query = (
+                select(Product)
+                .where(col(Product.is_enriched).is_(True))
+                .where(col(Product.is_active).is_(True))
+            )
+            if category_id:
+                import uuid as _uuid
+
+                query = query.where(Product.category_id == _uuid.UUID(category_id))
+
+            result = await session.exec(query)
+            products = list(result.all())
+            stats["total"] = len(products)
+
+            for product in products:
+                try:
+                    count = await upsert_product_specs(session, product)
+                    if count:
+                        stats["projected"] += 1
+                except Exception as exc:  # noqa: BLE001
+                    logger.error(
+                        "Error projecting specs for product %s: %s", product.id, exc
+                    )
+                    stats["errors"] += 1
+
+            await session.commit()
+            logger.info("Spec re-projection complete. Stats: %s", stats)
+            return {"status": "success", **stats}
+
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Error in spec re-projection task: %s", exc)
+            return {"status": "error", "message": str(exc), **stats}
 
 
 async def trigger_batch_enrichment(limit: int = 50) -> str:
@@ -262,7 +339,7 @@ async def trigger_batch_enrichment(limit: int = 50) -> str:
     """
     from app.core.arq_pool import get_arq_pool
 
-    arq_pool = await get_arq_pool()
+    arq_pool = await get_arq_pool()  # type: ignore[no-untyped-call]
 
     job = await arq_pool.enqueue_job("batch_enrich_products_task", limit=limit)
-    return job.job_id
+    return cast(str, job.job_id)

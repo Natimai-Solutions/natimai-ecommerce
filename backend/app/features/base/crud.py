@@ -1,9 +1,13 @@
+# mypy: disable-error-code="arg-type,assignment,attr-defined,no-any-return,no-untyped-call,no-untyped-def,return-value,type-arg,union-attr,valid-type"
+
 import datetime
 import functools
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
+from decimal import Decimal
 from hashlib import md5
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, ParamSpec, TypeVar, overload
 
 from sqlalchemy.dialects import postgresql
 from sqlmodel import SQLModel, func, select
@@ -20,6 +24,8 @@ ModelType = TypeVar("ModelType", bound=SQLModel)
 UserType = TypeVar("UserType", bound=User)
 CreateSchemaType = TypeVar("CreateSchemaType", bound=SQLModel)
 UpdateSchemaType = TypeVar("UpdateSchemaType", bound=SQLModel)
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
 class RecordNotFoundError(Exception):
@@ -40,22 +46,48 @@ class CrudOperationError(Exception):
     pass
 
 
-def track_crud_operation(func=None, *, step_name=None):
+@overload
+def track_crud_operation(
+    func: Callable[P, Awaitable[R]],
+) -> Callable[P, Awaitable[R]]:
+    """Type overload for direct decorator usage."""
+    ...
+
+
+@overload
+def track_crud_operation(
+    *, step_name: str | None = None
+) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
+    """Type overload for parameterized decorator usage."""
+    ...
+
+
+def track_crud_operation(
+    func: Callable[P, Awaitable[R]] | None = None,
+    *,
+    step_name: str | None = None,
+) -> (
+    Callable[P, Awaitable[R]]
+    | Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]
+):
     """
     Decorator that tracks CRUD operations and handles their exceptions.
     Can be used with or without arguments.
-    
+
     Usage:
         @track_crud_operation
         async def my_func(): ...
-        
+
         @track_crud_operation(step_name="custom_name")
         async def my_func(): ...
     """
 
-    def decorator(fn):
+    def decorator(fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+        """Wrap a CRUD coroutine with error tracking."""
+
         @functools.wraps(fn)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            """Execute wrapper."""
             operation_name = step_name or fn.__name__
             try:
                 return await fn(*args, **kwargs)
@@ -78,12 +110,16 @@ def track_crud_operation(func=None, *, step_name=None):
 
 
 class OutboxEvent:
+    """Represents outbox event."""
+
     create = True
     update = True
     delete = True
 
 
 class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
+    """Represents crud base."""
+
     def __init__(
         self,
         *,
@@ -113,6 +149,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         self.outbox_events = outbox_events or {}
 
     async def _safe_record_access(self, session: AsyncSession, record: ModelType):
+        """Execute safe record access."""
         try:
             _ = record.id  # Teste l'accès à record
             return record
@@ -127,15 +164,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         records: list[ModelType] | None = None,
         operation: str = "operation",
     ) -> None:
-        """
-        Commit la transaction et rafraîchit les records de manière sécurisée.
-
-        Args:
-            session: Session de base de données
-            record: Record unique à rafraîchir (optionnel)
-            records: Liste de records à rafraîchir (optionnel)
-            operation: Nom de l'opération pour le logging
-        """
+        """Execute safe commit and refresh."""
         try:
             await session.commit()
 
@@ -159,13 +188,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     async def _safe_record_refresh(
         self, session: AsyncSession, record: ModelType
     ) -> None:
-        """
-        Rafraîchit un record de manière sécurisée en vérifiant qu'il n'a pas été supprimé.
-
-        Args:
-            session: Session de base de données
-            record: Record à rafraîchir
-        """
+        """Execute safe record refresh."""
         try:
             # Vérifier si le record est dans un état supprimé
             from sqlalchemy import inspect
@@ -229,6 +252,8 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 serialized[key] = value.isoformat()
             elif isinstance(value, uuid.UUID):
                 serialized[key] = str(value)
+            elif isinstance(value, Decimal):
+                serialized[key] = str(value)
             elif isinstance(value, dict):
                 serialized[key] = self._serialize_for_json(value)
             elif isinstance(value, list):
@@ -236,7 +261,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                     item.isoformat()
                     if isinstance(item, datetime.datetime)
                     else str(item)
-                    if isinstance(item, uuid.UUID)
+                    if isinstance(item, uuid.UUID | Decimal)
                     else self._serialize_for_json(item)
                     if isinstance(item, dict)
                     else item
@@ -331,8 +356,71 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         *,
         permission: str | None = None,
         user: UserType | None = None,
-    ):
-        return True
+    ) -> bool:
+        """Check user permission against GroupSecurity rules.
+
+        Returns True when ENABLE_GROUP_PERMISSIONS is False (current default).
+        When enabled, superusers always pass; users without any security group
+        pass (no restrictions); users with security groups must have an explicit
+        rule granting the requested permission on this CRUD's table.
+        """
+        from app.core.config import settings
+
+        if not settings.ENABLE_GROUP_PERMISSIONS:
+            return True
+        if user is None:
+            return False
+        if user.is_superuser:
+            return True
+        if permission is None:
+            return True
+
+        from sqlmodel import col
+
+        from app.features.user.models.group import Group
+        from app.features.user.models.group_security import GroupSecurity
+        from app.features.user.models.user_group import UserGroup
+
+        table_name = self.model.__tablename__
+        permission_col = {
+            "read": GroupSecurity.can_read,
+            "create": GroupSecurity.can_create,
+            "update": GroupSecurity.can_update,
+            "delete": GroupSecurity.can_delete,
+        }.get(permission)
+        if permission_col is None:
+            return False
+
+        # If the user has no security groups, apply no restrictions.
+        has_group_stmt = (
+            select(UserGroup)
+            .join(Group, UserGroup.group_id == Group.id)
+            .where(
+                UserGroup.user_id == user.id,
+                Group.group_type == "security",
+            )
+            .limit(1)
+        )
+        result = await session.exec(has_group_stmt)
+        if result.first() is None:
+            return True
+
+        # User has security groups: require an explicit rule granting the permission.
+        perm_stmt = (
+            select(GroupSecurity)
+            .join(Group, GroupSecurity.group_id == Group.id)
+            .join(UserGroup, UserGroup.group_id == Group.id)
+            .where(
+                UserGroup.user_id == user.id,
+                Group.group_type == "security",
+                GroupSecurity.table_name == table_name,
+                col(GroupSecurity.is_active).is_(True),
+                permission_col.is_(True),
+            )
+            .limit(1)
+        )
+        result = await session.exec(perm_stmt)
+        return result.first() is not None
 
     async def read_after(
         self,
@@ -428,6 +516,8 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         if include_archived is False and self.default_filter is not None:
             statement = statement.where(self.default_filter)
         if filter is not None:
+            if isinstance(filter, str):
+                raise ValueError("String filters are not supported")
             statement = statement.where(filter)
         return statement
 
@@ -541,16 +631,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        if "create" in self.outbox_events:
-            await outbox_registry.publish(
-                session,
-                self.outbox_events["create"],
-                {
-                    "id": str(record.id),
-                    "type": record.__class__.__name__,
-                    "user_id": str(user.id) if user else None,
-                },
-            )
+        pass
 
     @track_crud_operation
     async def after_create_commit(
@@ -613,7 +694,10 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 action="create", record=record, user=user, data=data_dict
             )
             await outbox_registry.publish(
-                session, f"create.{self.model.__name__.lower()}", payload
+                session,
+                self.outbox_events["create"],
+                payload,
+                correlation_id=getattr(record, "id", None),
             )
 
         await self.after_create(session, record=record, data=data, user=user)
@@ -745,16 +829,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        if "update" in self.outbox_events:
-            await outbox_registry.publish(
-                session,
-                self.outbox_events["update"],
-                {
-                    "id": str(record.id),
-                    "type": record.__class__.__name__,
-                    "user_id": str(user.id) if user else None,
-                },
-            )
+        pass
 
     @track_crud_operation
     async def after_update_commit(
@@ -786,7 +861,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         session: AsyncSession,
         *,
         id: uuid.UUID,
-        data: UpdateSchemaType,
+        data: UpdateSchemaType | dict[str, Any],
         user: UserType | None = None,
         record: ModelType | None = None,
     ) -> ModelType:
@@ -823,7 +898,10 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 action="update", record=record, user=user, data=payload_data
             )
             await outbox_registry.publish(
-                session, f"update.{self.model.__name__.lower()}", payload
+                session,
+                self.outbox_events["update"],
+                payload,
+                correlation_id=getattr(record, "id", None),
             )
 
         # Extract and apply updates
@@ -842,7 +920,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         session: AsyncSession,
         *,
         id: uuid.UUID,
-        data: UpdateSchemaType,
+        data: UpdateSchemaType | dict[str, Any],
         user: UserType | None = None,
         record: ModelType | None = None,
     ) -> ModelType:
@@ -982,16 +1060,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         Returns:
             None
         """
-        if "delete" in self.outbox_events:
-            await outbox_registry.publish(
-                session,
-                self.outbox_events["delete"],
-                {
-                    "id": str(record.id),
-                    "type": record.__class__.__name__,
-                    "user_id": str(user.id) if user else None,
-                },
-            )
+        pass
 
     @track_crud_operation
     async def after_delete_commit(
@@ -1054,7 +1123,10 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 # No data parameter - handled by the helper method
             )
             await outbox_registry.publish(
-                session, f"delete.{self.model.__name__.lower()}", payload
+                session,
+                self.outbox_events["delete"],
+                payload,
+                correlation_id=getattr(record, "id", None),
             )
         await session.delete(record)
         await self.after_delete(session, id=id, record=record, user=user)

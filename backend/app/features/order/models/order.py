@@ -1,18 +1,23 @@
 import uuid
 from decimal import Decimal
+from typing import Any
 
-from sqlmodel import Field, SQLModel
+from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class OrderBase(Base):
+    """Represents order base."""
+
     user_id: uuid.UUID = Field(
         foreign_key="users.id",
+        index=True,
         description="ID de l'utilisateur qui a passé la commande",
     )
     order_status_id: uuid.UUID = Field(
         foreign_key="order_statuses.id",
+        index=True,
         description="ID du statut de la commande",
     )
     total_amount: Decimal = Field(
@@ -22,10 +27,46 @@ class OrderBase(Base):
         decimal_places=2,
         description="Montant total de la commande",
     )
+    subtotal_amount: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Sous-total des lignes au checkout",
+    )
+    shipping_fee_amount: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Frais de livraison figes au checkout",
+    )
+    payment_fee_amount: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Frais de paiement figes au checkout",
+    )
+    total_fees_amount: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Total des frais figes au checkout",
+    )
     shipping_address: str | None = Field(
         default=None,
         max_length=500,
         description="Adresse de livraison",
+    )
+    shipping_cost_breakdown: dict[str, Any] | None = Field(
+        default=None,
+        sa_column=Column(JSON),
+        description=(
+            "Snapshot detaille des couts de livraison par troncon au checkout "
+            "(routes selectionnees, forfait/poids/valeur, ETA, empreinte carbone)"
+        ),
     )
     notes: str | None = Field(
         default=None,
@@ -35,18 +76,29 @@ class OrderBase(Base):
 
 
 class OrderCreate(OrderBase, BaseCreate):
+    """Represents order create."""
+
     pass
 
 
 class OrderUpdate(BaseUpdate):
+    """Represents order update."""
+
     user_id: uuid.UUID | None = None
     order_status_id: uuid.UUID | None = None
     total_amount: Decimal | None = None
+    subtotal_amount: Decimal | None = None
+    shipping_fee_amount: Decimal | None = None
+    payment_fee_amount: Decimal | None = None
+    total_fees_amount: Decimal | None = None
     shipping_address: str | None = None
+    shipping_cost_breakdown: dict[str, Any] | None = None
     notes: str | None = None
 
 
 class Order(OrderBase, table=True):
+    """Represents order."""
+
     __tablename__ = "orders"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -57,10 +109,14 @@ class Order(OrderBase, table=True):
 
 
 class OrderPublic(OrderBase, BasePublic):
+    """Represents order public."""
+
     id: uuid.UUID
 
 
 class OrdersPublic(SQLModel):
+    """Represents orders public."""
+
     data: list[OrderPublic] = Field(
         default_factory=list,
         description="Liste des commandes",

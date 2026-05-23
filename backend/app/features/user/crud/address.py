@@ -1,6 +1,6 @@
 import uuid
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -8,6 +8,8 @@ from app.features.user.models.address import Address, AddressCreate, AddressUpda
 
 
 class AddressCrud(CrudBase[Address, AddressCreate, AddressUpdate]):
+    """Represents address crud."""
+
     async def get_by_user_id(
         self,
         session: AsyncSession,
@@ -16,30 +18,32 @@ class AddressCrud(CrudBase[Address, AddressCreate, AddressUpdate]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[Address]:
+        """Get by user id."""
         statement = (
             select(self.model)
             .where(
                 self.model.user_id == user_id,
-                self.model.is_admin_active.is_(True),
-                self.model.is_active.is_(True),
+                col(self.model.is_admin_active).is_(True),
+                col(self.model.is_active).is_(True),
             )
             .offset(skip)
             .limit(limit)
         )
         exec_result = await session.exec(statement)
-        return exec_result.all()
+        return list(exec_result.all())
 
     async def get_by_user_and_type(
         self, session: AsyncSession, *, user_id: uuid.UUID, address_type: str
     ) -> list[Address]:
+        """Get by user and type."""
         statement = select(self.model).where(
             self.model.user_id == user_id,
             self.model.type == address_type,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
-        return exec_result.all()
+        return list(exec_result.all())
 
     async def create_for_user(
         self,
@@ -63,10 +67,11 @@ class AddressCrud(CrudBase[Address, AddressCreate, AddressUpdate]):
         return record
 
     async def count_by_user(self, session: AsyncSession, *, user_id: uuid.UUID) -> int:
+        """Execute count by user."""
         statement = select(self.model).where(
             self.model.user_id == user_id,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
         return len(exec_result.all())

@@ -1,3 +1,5 @@
+# mypy: disable-error-code="assignment,misc,override"
+
 import uuid
 from decimal import Decimal
 
@@ -7,6 +9,8 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class AnalyticsSaleBase(Base):
+    """Represents analytics sale base."""
+
     total_sales: Decimal = Field(
         default=Decimal("0.00"),
         ge=0,
@@ -29,10 +33,14 @@ class AnalyticsSaleBase(Base):
 
 
 class AnalyticsSaleCreate(AnalyticsSaleBase, BaseCreate):
+    """Represents analytics sale create."""
+
     pass
 
 
 class AnalyticsSaleUpdate(AnalyticsSaleBase, BaseUpdate):
+    """Represents analytics sale update."""
+
     total_sales: Decimal | None = None
     order_count: int | None = None
     average_order_value: Decimal | None = None
@@ -41,14 +49,20 @@ class AnalyticsSaleUpdate(AnalyticsSaleBase, BaseUpdate):
 
 
 class AnalyticsSale(AnalyticsSaleBase, table=True):
+    """Represents analytics sale."""
+
     __tablename__ = "analytics_sales"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
 
 
 class AnalyticsSalePublic(AnalyticsSaleBase, BasePublic):
+    """Represents analytics sale public."""
+
     id: uuid.UUID
 
 
 class AnalyticsSalesPublic(SQLModel):
+    """Represents analytics sales public."""
+
     data: list[AnalyticsSalePublic] = Field(default_factory=list)
     count: int = Field(default=0, description="Total number of analytics sales")

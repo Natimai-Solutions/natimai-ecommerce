@@ -9,13 +9,13 @@ OutboxRegistry during application startup.
 
 import importlib
 import logging
-import os
+import sys
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
-def load_handlers():
+def load_handlers() -> None:
     """
     Auto-discovery and loading of all handlers in /app/handlers.
 
@@ -84,7 +84,7 @@ def load_handlers():
     )
 
 
-def reload_handlers():
+def reload_handlers() -> None:
     """
     Reload all handler modules.
 
@@ -109,9 +109,9 @@ def reload_handlers():
         module_name = f"app.handlers.{file_path.stem}"
 
         try:
-            if module_name in os.sys.modules:
+            if module_name in sys.modules:
                 logger.debug("Reloading module: %s", module_name)
-                importlib.reload(os.sys.modules[module_name])
+                importlib.reload(sys.modules[module_name])
             else:
                 logger.debug("Loading new module: %s", module_name)
                 importlib.import_module(module_name)

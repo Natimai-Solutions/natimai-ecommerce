@@ -1,9 +1,9 @@
 from app.api.base_router import BaseRouter
 from app.features.inventory.crud import InventoryCrud, crud_inventory
 from app.features.inventory.models import (
+    InventoriesPublic,
     Inventory,
     InventoryCreate,
-    InventoriesPublic,
     InventoryPublic,
     InventoryUpdate,
 )
@@ -19,10 +19,14 @@ class InventoryRouter(
         InventoryCrud,
     ]
 ):
+    """Represents inventory router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = True  # Admin only - gestion stock
     create = True  # Admin only
     update = True  # Admin only

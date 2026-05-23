@@ -1,6 +1,6 @@
 import uuid
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -8,6 +8,8 @@ from app.features.order.models.order import Order, OrderCreate, OrderUpdate
 
 
 class OrderCrud(CrudBase[Order, OrderCreate, OrderUpdate]):
+    """Represents order crud."""
+
     async def get_by_user(
         self,
         session: AsyncSession,
@@ -15,16 +17,16 @@ class OrderCrud(CrudBase[Order, OrderCreate, OrderUpdate]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[Order]:
-        """Récupère les commandes d'un utilisateur"""
+        """Get by user."""
         statement = (
             select(Order)
             .where(
                 Order.user_id == user_id,
-                Order.is_active.is_(True),
+                col(Order.is_active).is_(True),
             )
             .offset(skip)
             .limit(limit)
-            .order_by(Order.created_at.desc())
+            .order_by(col(Order.created_at).desc())
         )
         result = await session.exec(statement)
         return list(result.all())
@@ -36,16 +38,16 @@ class OrderCrud(CrudBase[Order, OrderCreate, OrderUpdate]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[Order]:
-        """Récupère les commandes par statut"""
+        """Get by status."""
         statement = (
             select(Order)
             .where(
                 Order.order_status_id == order_status_id,
-                Order.is_active.is_(True),
+                col(Order.is_active).is_(True),
             )
             .offset(skip)
             .limit(limit)
-            .order_by(Order.created_at.desc())
+            .order_by(col(Order.created_at).desc())
         )
         result = await session.exec(statement)
         return list(result.all())
@@ -55,7 +57,7 @@ crud_order = OrderCrud(
     model=Order,
     schema_create=OrderCreate,
     schema_update=OrderUpdate,
-    order_by=Order.created_at.desc(),
+    order_by=col(Order.created_at).desc(),
     outbox_events={
         "create": "create.order",
         "update": "update.order",

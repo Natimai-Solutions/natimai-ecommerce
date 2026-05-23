@@ -22,15 +22,21 @@ class DeliveryTaskBase(Base):
     Simple final delivery task (home or pickup).
     """
 
-    order_id: uuid.UUID = Field(description="Order ID to deliver")
+    order_id: uuid.UUID = Field(
+        foreign_key="orders.id",
+        index=True,
+        description="Order ID to deliver",
+    )
     place_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="places.id",
+        index=True,
         description="Delivery place",
     )
     address_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="addresses.id",
+        index=True,
         description="Delivery address for this task",
     )
 
@@ -74,10 +80,14 @@ class DeliveryTask(DeliveryTaskBase, table=True):
 
 
 class DeliveryTaskCreate(DeliveryTaskBase, BaseCreate):
+    """Represents delivery task create."""
+
     pass
 
 
 class DeliveryTaskUpdate(BaseUpdate):
+    """Represents delivery task update."""
+
     delivery_type: str | None = None
     assignee: str | None = None
     status_code: str | None = None
@@ -86,10 +96,14 @@ class DeliveryTaskUpdate(BaseUpdate):
 
 
 class DeliveryTaskPublic(DeliveryTaskBase, BasePublic):
+    """Represents delivery task public."""
+
     id: uuid.UUID
 
 
 class DeliveryTasksPublic(SQLModel):
+    """Represents delivery tasks public."""
+
     data: list[DeliveryTaskPublic] = Field(
         default_factory=list,
         description="List of delivery tasks",

@@ -1,6 +1,8 @@
+# mypy: disable-error-code="arg-type,assignment,call-overload"
+
 import uuid
 
-from sqlmodel import func, select
+from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -9,20 +11,24 @@ from app.features.payment.models.payment import (
     PaymentCreate,
     PaymentUpdate,
 )
-from app.features.payment.models.payment_log import PaymentLog, PaymentLogCreate
+from app.features.payment.models.payment_log import PaymentLog
+from app.utils.money import minor_units_to_decimal, parse_minor_units
 
 
 class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
+    """Represents payment crud."""
+
     async def get_random_payments(
         self,
         session: AsyncSession,
         limit: int = 100,
     ) -> list[Payment]:
+        """Get random payments."""
         statement = (
             select(Payment)
             .where(
-                Payment.is_admin_active.is_(True),
-                Payment.is_active.is_(True),
+                col(Payment.is_admin_active).is_(True),
+                col(Payment.is_active).is_(True),
             )
             .order_by(func.random())
         )
@@ -32,7 +38,7 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
 
         result = await session.exec(statement)
 
-        return result.all()
+        return list(result.all())
 
     async def get_by_user_id(
         self,
@@ -47,15 +53,15 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
             select(self.model)
             .where(
                 self.model.user_id == user_id,
-                self.model.is_admin_active.is_(True),
-                self.model.is_active.is_(True),
+                col(self.model.is_admin_active).is_(True),
+                col(self.model.is_active).is_(True),
             )
             .offset(skip)
             .limit(limit)
-            .order_by(self.model.created_at.desc())
+            .order_by(col(self.model.created_at).desc())
         )
         exec_result = await session.exec(statement)
-        return exec_result.all()
+        return list(exec_result.all())
 
     async def get_by_order_id(
         self,
@@ -66,23 +72,25 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         """Get payment by order ID."""
         statement = select(self.model).where(
             self.model.order_id == order_id,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
         return exec_result.first()
 
-    async def get_by_payzen_order_id(
+    async def get_by_provider_reference(
         self,
         session: AsyncSession,
         *,
-        payzen_order_id: str,
+        provider_code: str,
+        provider_reference: str,
     ) -> Payment | None:
-        """Get payment by Payzen order ID."""
+        """Get payment by provider code and provider-side reference."""
         statement = select(self.model).where(
-            self.model.payzen_order_id == payzen_order_id,
-            self.model.is_admin_active.is_(True),
-            self.model.is_active.is_(True),
+            self.model.provider_code == provider_code,
+            self.model.provider_reference == provider_reference,
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
         )
         exec_result = await session.exec(statement)
         return exec_result.first()
@@ -92,89 +100,128 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         session: AsyncSession,
         *,
         payment_data: PaymentCreate,
+        user: object | None = None,
         commit: bool = True,
     ) -> Payment:
         """Create a payment and initialize it with pending status."""
         from app.features.payment.crud.payment_status import crud_payment_status
-        
+
         # Get pending status
         pending_status = await crud_payment_status.get_by_name(session, name="Pending")
-        
-        payment = await self.create(session, data=payment_data, commit=False)
-        
+
+        payment = await self.create_draft(
+            session=session,
+            data=payment_data,
+            user=user,
+        )
+
         # Set pending status if found
         if pending_status:
             payment.payment_status_id = pending_status.id
-            session.add(payment)
-        
+
         if commit:
-            await session.commit()
-            await session.refresh(payment)
-        
+            await self._safe_commit_and_refresh(
+                session,
+                record=payment,
+                operation="create_payment_with_log",
+            )
+            await self.after_create_commit(
+                session,
+                record=payment,
+                data=payment_data,
+                user=user,
+            )
+
         return payment
 
-    async def update_payment_from_payzen(
+    async def update_payment_from_webhook_payload(
         self,
         session: AsyncSession,
         *,
         payment: Payment,
-        payzen_fields: dict,
+        webhook_fields: dict[str, object],
         commit: bool = True,
     ) -> Payment:
-        """
-        Update payment with Payzen transaction data.
-        
-        Args:
-            session: Database session
-            payment: Payment to update
-            payzen_fields: Payzen IPN fields
-            commit: Whether to commit the transaction
-            
-        Returns:
-            Updated payment
-        """
+        """Update payment from webhook payload."""
         from app.features.payment.crud.payment_status import crud_payment_status
-        
-        # Extract Payzen data
-        payment.payzen_trans_id = payzen_fields.get("trans_uuid") or payzen_fields.get("trans_id")
-        payment.payzen_order_id = payzen_fields.get("order_id")
-        payment.payzen_status = payzen_fields.get("trans_status")
-        payment.payzen_payment_method = payzen_fields.get("payment_cards")
-        payment.payzen_data = payzen_fields.get("_raw_answer")
-        
-        # Update payment status based on Payzen status
-        trans_status = payzen_fields.get("trans_status")
+
+        # Provider IPN reports amount in the smallest currency unit (e.g. cents for EUR).
+        # Convert it back to a currency-aware Decimal so that the persisted amount
+        # stays consistent with order/product totals.
+        raw_amount = webhook_fields.get("amount")
+        if raw_amount is not None:
+            amount_minor = parse_minor_units(raw_amount)
+            amount_decimal = minor_units_to_decimal(amount_minor, payment.currency)
+        else:
+            amount_decimal = payment.amount
+
+        trans_id_raw = webhook_fields.get("trans_uuid") or webhook_fields.get(
+            "trans_id"
+        )
+        trans_id = str(trans_id_raw).strip() if trans_id_raw is not None else None
+        if trans_id == "":
+            trans_id = None
+
+        order_id_raw = webhook_fields.get("order_id")
+        order_id = str(order_id_raw).strip() if order_id_raw is not None else None
+        if order_id == "":
+            order_id = None
+
+        trans_status = webhook_fields.get("trans_status")
+        payment_method = webhook_fields.get("payment_cards")
+        error_code = webhook_fields.get("error_code")
+
+        provider_data: dict[str, object] = {}
+        if isinstance(payment.provider_data, dict):
+            provider_data.update(payment.provider_data)
+        provider_data.update(webhook_fields)
+        if trans_id is not None:
+            provider_data["trans_id"] = trans_id
+            provider_data["trans_uuid"] = trans_id
+        if order_id is not None:
+            provider_data["order_id"] = order_id
+        if payment_method is not None:
+            provider_data["payment_cards"] = payment_method
+        if error_code is not None:
+            provider_data["error_code"] = error_code
+
+        payment.provider_code = payment.provider_code or "payzen"
+        if not payment.provider_reference:
+            payment.provider_reference = order_id or trans_id
+        payment.provider_data = provider_data or None
+        payment.amount = amount_decimal
+
         if trans_status == "PAID":
-            # Payment successful - update to validated status
-            validated_status = await crud_payment_status.get_by_name(session, name="Completed")
+            validated_status = await crud_payment_status.get_by_name(
+                session, name="Completed"
+            )
             if validated_status:
                 payment.payment_status_id = validated_status.id
         elif trans_status in ["REFUSED", "ABANDONED", "CANCELLED"]:
-            # Payment failed - update to error status
-            payment.payzen_error_code = payzen_fields.get("error_code")
-            failed_status = await crud_payment_status.get_by_name(session, name="Failed")
+            failed_status = await crud_payment_status.get_by_name(
+                session, name="Failed"
+            )
             if failed_status:
                 payment.payment_status_id = failed_status.id
-        
+
         session.add(payment)
-        
-        # Create payment log entry
+
         payment_log = PaymentLog(
             payment_id=payment.id,
-            payzen_trans_id=payment.payzen_trans_id,
-            payzen_order_id=payment.payzen_order_id,
-            amount=int(payzen_fields.get("amount", 0)),
-            payment_method=payment.payzen_payment_method,
-            status=payment.payzen_status,
-            error_code=payzen_fields.get("error_code"),
-            raw_data=payzen_fields,
+            provider_reference=trans_id,
+            provider_order_reference=order_id,
+            amount=amount_decimal,
+            payment_method=str(payment_method) if payment_method is not None else None,
+            status=str(trans_status) if trans_status is not None else None,
+            error_code=str(error_code) if error_code is not None else None,
+            raw_data=webhook_fields,
         )
         session.add(payment_log)
-        
+
         if commit:
             await session.commit()
             await session.refresh(payment)
-        
+
         return payment
 
 

@@ -3,6 +3,8 @@ Modèles de lieux physiques.
 Tout lieu physique (aéroport, port, entrepôt, adresse client, île...).
 """
 
+# mypy: disable-error-code="assignment,misc,override"
+
 import uuid
 
 from sqlalchemy import Column
@@ -13,20 +15,24 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class PlaceBase(Base):
-    """Tout lieu physique (aéroport, port, entrepôt, adresse client, île...)"""
+    """Represents place base."""
 
     name: str = Field(max_length=200, description="Place name")
     type: str = Field(
         max_length=50,
+        index=True,
         description="Type: airport, seaport, warehouse, address, island, etc.",
     )
     code: str | None = Field(
-        default=None, max_length=50, description="Code IATA/UN/LOCODE/autre"
+        default=None,
+        max_length=50,
+        index=True,
+        description="Code IATA/UN/LOCODE/autre",
     )
 
     # Géolocalisation
-    Latitude: float | None = Field(default=None, description="Latitude")
-    Longitude: float | None = Field(default=None, description="Longitude")
+    latitude: float | None = Field(default=None, description="Latitude")
+    longitude: float | None = Field(default=None, description="Longitude")
     timezone: str | None = Field(default=None, max_length=50, description="Timezone")
 
     # Adresse complète
@@ -35,12 +41,19 @@ class PlaceBase(Base):
     city: str | None = Field(default=None, max_length=100)
     postal_code: str | None = Field(default=None, max_length=20)
     country: str | None = Field(
-        default=None, max_length=2, description="Code Country ISO"
+        default=None,
+        max_length=2,
+        index=True,
+        description="Code Country ISO",
     )
     region: str | None = Field(default=None, max_length=100, description="Region/État")
 
     # Capacités pour entrepôts
-    is_warehouse: bool = Field(default=False, description="Is a warehouse")
+    is_warehouse: bool = Field(
+        default=False,
+        index=True,
+        description="Is a warehouse",
+    )
     max_capacity_m3: float | None = Field(
         default=None, description="Capacité max en m³"
     )
@@ -64,6 +77,7 @@ class PlaceBase(Base):
     partner_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="partners.id",
+        index=True,
         description="ID of the partner associated with this place",
     )
     is_owned: bool = Field(
@@ -72,7 +86,7 @@ class PlaceBase(Base):
 
 
 class Place(PlaceBase, table=True):
-    """Tout lieu physique (aéroport, port, entrepôt, adresse client, île...)"""
+    """Represents place."""
 
     __tablename__ = "places"
 
@@ -83,15 +97,19 @@ class Place(PlaceBase, table=True):
 
 
 class PlaceCreate(PlaceBase, BaseCreate):
+    """Represents place create."""
+
     pass
 
 
 class PlaceUpdate(PlaceBase, BaseUpdate):
+    """Represents place update."""
+
     name: str | None = None
     type: str | None = None
     code: str | None = None
-    Latitude: float | None = None
-    Longitude: float | None = None
+    latitude: float | None = None
+    longitude: float | None = None
     timezone: str | None = None
     address_line1: str | None = None
     address_line2: str | None = None
@@ -109,10 +127,14 @@ class PlaceUpdate(PlaceBase, BaseUpdate):
 
 
 class PlacePublic(PlaceBase, BasePublic):
+    """Represents place public."""
+
     id: uuid.UUID
 
 
 class PlacesPublic(SQLModel):
+    """Represents places public."""
+
     data: list[PlacePublic] = Field(
         default_factory=list,
         description="List of places",

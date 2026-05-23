@@ -18,17 +18,20 @@ Example usage in your main router:
     app.include_router(ai_search_router, prefix="/api/v1/ai-search", tags=["AI Search"])
 """
 
+# mypy: disable-error-code="arg-type,assignment,no-any-return,no-untyped-def,type-arg"
+
 import json
 import pickle
 from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import SessionDep
+from app.core.errors import AppError
 
 router = APIRouter()
 
@@ -43,6 +46,8 @@ RedisDep = Any  # Replace with actual Redis client type
 
 # TODO: Import actual product models and replace these placeholders
 class ProductPublic(BaseModel):
+    """Represents product public."""
+
     id: UUID
     name: str
     description: str | None = None
@@ -51,6 +56,8 @@ class ProductPublic(BaseModel):
 
 
 class Product(BaseModel):
+    """Represents product."""
+
     id: UUID
     name: str
     description: str | None = None
@@ -60,7 +67,10 @@ class Product(BaseModel):
 
 
 class MockCrudProduct:
+    """Represents mock crud product."""
+
     async def get_multi(self, session: AsyncSession, limit: int = 100):
+        """Get multi."""
         return []  # Replace with actual CRUD implementation
 
 
@@ -101,91 +111,10 @@ class AIProductSearchResponse(BaseModel):
     ai_message: str = Field(description="AI assistant response")
 
 
-@router.post("/search", response_model=AIProductSearchResponse)
-async def ai_product_search(
-    query: ProductSearchQuery,
-    session: SessionDep,
-    conversation_id: UUID | None = None,
-) -> AIProductSearchResponse:
-    """
-    AI-powered natural language product search.
-
-    Examples:
-    - "Show me wireless headphones under $100"
-    - "I need a comfortable office chair"
-    - "Find electronics on sale"
-    """
-
-    if conversation_id is None:
-        conversation_id = uuid4()
-
-    try:
-        # Simple search implementation (replace with AI logic)
-        search_terms = query.query.lower().split()
-
-        # Mock search results
-        mock_products = [
-            ProductPublic(
-                id=uuid4(),
-                name="Example Product",
-                description="This is a sample product",
-                base_price=99.99,
-                category_id=uuid4(),
-            )
-        ]
-
-        results = ProductSearchResult(
-            products=mock_products,
-            total_count=1,
-            search_explanation=f"Found products matching '{query.query}'",
-            suggestions=["Try more specific terms", "Browse categories"],
-        )
-
-        return AIProductSearchResponse(
-            id=conversation_id,
-            query=query.query,
-            results=results,
-            ai_message=f"I found some products for your search: {query.query}",
-        )
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
-
-
 @router.get("/health")
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "service": "AI Product Search Agent"}
-
-
-class ProductSearchQuery(BaseModel):
-    """Model for product search queries."""
-
-    query: str = Field(description="Natural language search query")
-    category: str | None = Field(default=None, description="Optional category filter")
-    min_price: float | None = Field(default=None, description="Minimum price filter")
-    max_price: float | None = Field(default=None, description="Maximum price filter")
-    limit: int = Field(default=10, description="Maximum number of results")
-
-
-class ProductSearchResult(BaseModel):
-    """Model for product search results."""
-
-    products: list[ProductPublic] = Field(description="List of matching products")
-    total_count: int = Field(description="Total number of matching products")
-    search_explanation: str = Field(description="AI explanation of the search results")
-    suggestions: list[str] = Field(
-        default_factory=list, description="Search suggestions"
-    )
-
-
-class AIProductSearchResponse(BaseModel):
-    """Response model for AI product search."""
-
-    id: UUID = Field(description="Conversation ID")
-    query: str = Field(description="Original search query")
-    results: ProductSearchResult = Field(description="Search results")
-    ai_message: str = Field(description="AI assistant response")
 
 
 async def get_product_context(session: AsyncSession) -> str:
@@ -222,7 +151,7 @@ Database Context:
 Search Capabilities:
 - Product name matching
 - Description search
-- Category filtering  
+- Category filtering
 - Price range filtering
 - Fuzzy matching for typos
 """
@@ -236,7 +165,7 @@ async def parse_search_intent(
     """Use AI to parse user search intent into structured parameters."""
 
     system_prompt = f"""
-You are a product search assistant for an e-commerce platform. 
+You are a product search assistant for an e-commerce platform.
 Analyze the user's natural language query and extract search parameters.
 
 {context}
@@ -244,7 +173,7 @@ Analyze the user's natural language query and extract search parameters.
 Extract from the user query:
 1. Main search terms (product name, features, etc.)
 2. Category if mentioned
-3. Price range if mentioned  
+3. Price range if mentioned
 4. Any other relevant filters
 
 Respond with a JSON object containing:
@@ -363,7 +292,7 @@ async def generate_search_explanation(
     results_summary = f"""
 Found {len(products)} products matching your search.
 Search Intent: {search_intent.get("intent", "General search")}
-Filters applied: 
+Filters applied:
 - Search terms: {", ".join(search_intent.get("search_terms", []))}
 - Category: {search_intent.get("category", "Any")}
 - Price range: {search_intent.get("min_price", "No min")} - {search_intent.get("max_price", "No max")}
@@ -373,12 +302,15 @@ Top Results:
 
     for i, product in enumerate(products[:5]):  # Show top 5
         results_summary += f"{i + 1}. {product.name} - ${product.base_price}"
-        if product.category:
-            results_summary += f" (Category: {product.category.name})"
+        category_name = (
+            product.category.get("name") if isinstance(product.category, dict) else None
+        )
+        if category_name:
+            results_summary += f" (Category: {category_name})"
         results_summary += "\n"
 
     system_prompt = """
-You are a helpful e-commerce search assistant. 
+You are a helpful e-commerce search assistant.
 Analyze the search results and provide:
 1. A friendly explanation of what was found
 2. Helpful suggestions for refining the search
@@ -438,7 +370,7 @@ async def ai_product_search(
     session: SessionDep,
     ai_client: AIDep,
     redis: RedisDep,
-    conversation_id: UUID = None,
+    conversation_id: UUID | None = None,
 ) -> AIProductSearchResponse:
     """
     AI-powered natural language product search.
@@ -523,13 +455,16 @@ async def ai_product_search(
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+        raise AppError(
+            code="ai_search.search.failed",
+            status_code=500,
+            message=f"Search failed: {e}",
+            details={"query": query.query, "reason": type(e).__name__},
+        ) from e
 
 
 @router.get("/search/suggestions")
-async def get_search_suggestions(
-    session: SessionDep, category: str | None = None
-) -> dict[str, list[str]]:
+async def get_search_suggestions(session: SessionDep) -> dict[str, list[str]]:
     """
     Get search suggestions based on available products and categories.
     """
@@ -572,7 +507,7 @@ async def get_search_suggestions(
         filtered_words = [w for w in common_words if w not in stopwords and len(w) > 2]
 
         return {
-            "categories": sorted(list(categories)),
+            "categories": sorted(categories),
             "popular_terms": sorted(filtered_words)[:20],
             "example_queries": [
                 f"Find {list(categories)[0] if categories else 'products'} under $50",
@@ -584,6 +519,9 @@ async def get_search_suggestions(
         }
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to get suggestions: {str(e)}"
-        )
+        raise AppError(
+            code="ai_search.suggestions.failed",
+            status_code=500,
+            message=f"Failed to get suggestions: {e}",
+            details={"reason": type(e).__name__},
+        ) from e

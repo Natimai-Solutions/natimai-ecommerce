@@ -2,6 +2,7 @@ import uuid
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
+from app.core.errors import AppError
 from app.features.order.crud.order_line_crud import OrderLineCrud, crud_order_line
 from app.features.order.models.order_line import (
     OrderLine,
@@ -22,10 +23,14 @@ class OrderLineRouter(
         OrderLineCrud,
     ]
 ):
+    """Represents order line router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = True  # Authentification requise pour lire
     create = True  # Authentification requise pour créer
     update = True  # Authentification requise pour modifier
@@ -48,12 +53,10 @@ router = OrderLineRouter(
 @router.get("/order/{order_id}", response_model=list[OrderLinePublic])
 async def get_order_lines(
     session: SessionDep,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
     order_id: uuid.UUID,
 ) -> list[OrderLinePublic]:
-    """
-    Récupérer toutes les lignes d'une commande.
-    """
+    """Get order lines."""
     lines = await crud_order_line.get_by_order(session=session, order_id=order_id)
     return [OrderLinePublic.model_validate(line) for line in lines]
 
@@ -66,15 +69,13 @@ async def get_product_order_lines(
     skip: int = 0,
     limit: int = 100,
 ) -> list[OrderLinePublic]:
-    """
-    Récupérer les lignes de commande pour un produit (admin uniquement).
-    """
+    """Get product order lines."""
     if not current_user.is_superuser:
-        from fastapi import HTTPException, status
-
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Accès réservé aux administrateurs",
+        raise AppError(
+            code="order.admin_required",
+            status_code=403,
+            message="Admin privileges required to access product order lines",
+            details={"resource": "order_line.product"},
         )
 
     lines = await crud_order_line.get_by_product(
@@ -86,12 +87,10 @@ async def get_product_order_lines(
 @router.get("/order/{order_id}/total", response_model=dict)
 async def calculate_order_total(
     session: SessionDep,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
     order_id: uuid.UUID,
-) -> dict:
-    """
-    Calculer le total d'une commande à partir de ses lignes.
-    """
+) -> dict[str, object]:
+    """Calculate order total."""
     total = await crud_order_line.calculate_order_total(
         session=session, order_id=order_id
     )

@@ -4,6 +4,7 @@ Quick test to verify the data handling fix works with both SQLModel objects and 
 
 import os
 import sys
+from typing import cast
 
 # Add the app to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -32,7 +33,7 @@ class TestUpdateSchema(SQLModel):
     value: int | None = None
 
 
-def test_data_extraction():
+def test_data_extraction() -> bool:
     """Test that _extract_data_dict works with both SQLModel and dict"""
 
     print("🧪 Testing data extraction methods...")
@@ -79,7 +80,7 @@ def test_data_extraction():
         return False
 
 
-def test_payload_building():
+def test_payload_building() -> bool:
     """Test that _build_outbox_payload works correctly"""
 
     print("\n🧪 Testing payload building...")
@@ -97,7 +98,7 @@ def test_payload_building():
             name = "test"
             value = 42
 
-        record = MockRecord()
+        record = cast(TestModel, MockRecord())
 
         # Test with dictionary data
         data = {"name": "updated", "value": 99}

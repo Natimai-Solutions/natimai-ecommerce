@@ -19,10 +19,14 @@ class CategoryRouter(
         CategoryCrud,
     ]
 ):
+    """Represents category router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = False  # Lecture publique des catégories
     create = True  # Création réservée aux admins
     update = True  # Modification réservée aux admins

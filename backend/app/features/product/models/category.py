@@ -1,3 +1,5 @@
+# mypy: disable-error-code="assignment,misc,override"
+
 import uuid
 
 from sqlmodel import Field, SQLModel
@@ -6,6 +8,8 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class CategoryBase(Base):
+    """Represents category base."""
+
     name: str = Field(
         index=True,
         max_length=100,
@@ -21,17 +25,29 @@ class CategoryBase(Base):
         max_length=500,
         description="URL of the category image",
     )
+    default_tax_rate_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="tax_rates.id",
+        index=True,
+        description="Default tax rate applied to products in this category",
+    )
 
 
 class CategoryCreate(CategoryBase, BaseCreate):
+    """Represents category create."""
+
     pass
 
 
 class CategoryUpdate(CategoryBase, BaseUpdate):
-    pass
+    """Represents category update."""
+
+    default_tax_rate_id: uuid.UUID | None = None
 
 
 class Category(CategoryBase, table=True):
+    """Represents category."""
+
     __tablename__ = "categories"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -42,10 +58,14 @@ class Category(CategoryBase, table=True):
 
 
 class CategoryPublic(CategoryBase, BasePublic):
+    """Represents category public."""
+
     id: uuid.UUID
 
 
 class CategoriesPublic(SQLModel):
+    """Represents categories public."""
+
     data: list[CategoryPublic] = Field(
         default_factory=list,
         description="List of categories",

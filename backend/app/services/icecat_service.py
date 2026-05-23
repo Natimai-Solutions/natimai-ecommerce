@@ -4,6 +4,8 @@ Handles product specifications, images, and technical details retrieval.
 Documentation: https://iceclog.com/manual-for-icecat-json-product-requests/
 """
 
+# mypy: disable-error-code="arg-type,no-any-return,no-untyped-call,no-untyped-def,type-arg"
+
 import logging
 from typing import Any
 
@@ -21,8 +23,9 @@ class IcecatService:
     def __init__(self):
         # Use Open Icecat API (free tier)
         # For Full Icecat, use: https://live.icecat.biz/api
+        """Initialize the icecat service instance."""
         self.base_url = "https://live.icecat.biz/api"
-        self.use_open_icecat = getattr(settings, 'ICECAT_USE_OPEN', True)
+        self.use_open_icecat = getattr(settings, "ICECAT_USE_OPEN", True)
         self.username = settings.ICECAT_USERNAME
         self.api_key = settings.ICECAT_API_KEY
         self.language = settings.ICECAT_LANGUAGE or "fr"
@@ -49,7 +52,7 @@ class IcecatService:
         # Add mandatory parameters - UserName and lang are ALWAYS required
         if params is None:
             params = {}
-        
+
         params["UserName"] = self.username
         params["lang"] = self.language
 
@@ -67,15 +70,13 @@ class IcecatService:
                     return await response.json()
                 elif response.status == 403:
                     error_text = await response.text()
-                    logger.error(
-                        f"Icecat API Forbidden (403): {error_text}"
-                    )
+                    logger.error(f"Icecat API Forbidden (403): {error_text}")
                     if "app_key" in error_text.lower():
                         logger.error(
                             "You are trying to access Full Icecat which requires a paid subscription. "
                             "Either get a Full Icecat subscription or ensure you're using Open Icecat compatible endpoints."
                         )
-                    raise Exception(f"Icecat API access denied: 403 Forbidden")
+                    raise Exception("Icecat API access denied: 403 Forbidden")
                 else:
                     error_text = await response.text()
                     logger.error(
@@ -84,24 +85,28 @@ class IcecatService:
                     raise Exception(f"Icecat API request failed: {response.status}")
 
     def _extract_product_data(
-        self, data: dict[str, Any], ean: str | None = None, brand: str | None = None, mpn: str | None = None
+        self,
+        data: dict[str, Any],
+        ean: str | None = None,
+        brand: str | None = None,
+        mpn: str | None = None,
     ) -> IcecatProductData:
         """
         Extract and structure product data from Icecat API response
-        
+
         Args:
             data: Raw data from Icecat API response
             ean: EAN code (if searching by EAN)
             brand: Brand name (if searching by brand+MPN)
             mpn: Manufacturer part number (if searching by brand+MPN)
-            
+
         Returns:
             Structured IcecatProductData object
         """
 
         if not data:
             raise ValueError("No data provided to extract product information.")
-        
+
         product_data = data.get("GeneralInfo", {})
         specs_data = data.get("FeaturesGroups", [])
 
@@ -123,7 +128,7 @@ class IcecatService:
             for img in data["Gallery"]:
                 # Each image in Gallery has multiple resolutions
                 image_entry = {}
-                
+
                 # High resolution (3000x3000 typically)
                 if "HighPic" in img:
                     image_entry["high"] = {
@@ -132,7 +137,7 @@ class IcecatService:
                         "width": img.get("HighPicWidth", ""),
                         "height": img.get("HighPicHeight", ""),
                     }
-                
+
                 # Medium resolution (500x500)
                 if "Pic500x500" in img:
                     image_entry["medium"] = {
@@ -141,7 +146,7 @@ class IcecatService:
                         "width": img.get("Pic500x500Width", "500"),
                         "height": img.get("Pic500x500Height", "500"),
                     }
-                
+
                 # Low resolution (200x200)
                 if "LowPic" in img:
                     image_entry["low"] = {
@@ -150,22 +155,22 @@ class IcecatService:
                         "width": img.get("LowPicWidth", "200"),
                         "height": img.get("LowPicHeight", "200"),
                     }
-                
+
                 # Thumbnail
                 if "ThumbPic" in img:
                     image_entry["thumb"] = {
                         "url": img["ThumbPic"],
                         "size": img.get("ThumbPicSize", ""),
                     }
-                
+
                 if image_entry:
                     images.append(image_entry)
-        
+
         # Fallback to single image from GeneralInfo if no Gallery
         if not images and "Image" in product_data:
             img = product_data["Image"]
             image_entry = {}
-            
+
             # Check if it's a dict with resolutions or just a string URL
             if isinstance(img, dict):
                 if "HighPic" in img:
@@ -197,16 +202,14 @@ class IcecatService:
             else:
                 # Old format: just a URL string
                 image_entry["url"] = img
-            
+
             if image_entry:
                 images.append(image_entry)
 
         # Extract specifications
         specifications = []
         for group in specs_data:
-            group_name = (
-                group.get("FeatureGroup", {}).get("Name", {}).get("Value", "")
-            )
+            group_name = group.get("FeatureGroup", {}).get("Name", {}).get("Value", "")
             for feature in group.get("Features", []):
                 feature_info = feature.get("Feature", {})
                 specifications.append(
@@ -239,7 +242,9 @@ class IcecatService:
             release_date=product_data.get("ReleaseDate", None),
             end_of_life_date=product_data.get("EndOfLifeDate", None),
             brand_logo_url=product_data.get("BrandLogo", None),
-            image_url=images[0]["medium"]["url"] if images and "medium" in images[0] else None,
+            image_url=images[0]["medium"]["url"]
+            if images and "medium" in images[0]
+            else None,
         )
 
     async def get_product_by_ean(self, ean: str) -> IcecatProductData | None:
@@ -366,7 +371,7 @@ class IcecatService:
             icecat_data = await self.get_product_by_brand_mpn(
                 manufacturer, vendor_part_number
             )
-        
+
         if icecat_data:
             return icecat_data
         else:

@@ -1,11 +1,12 @@
 import uuid
+from typing import Any
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends
 
 from app.api.base_router import BaseRouter, Routes
 from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
+from app.core.errors import AppError
 from app.features.user.crud.group import crud_group
-from app.features.user.crud.group_security import crud_group_security
 from app.features.user.crud.user_group import crud_user_group
 from app.features.user.models.group import (
     Group,
@@ -13,13 +14,6 @@ from app.features.user.models.group import (
     GroupPublic,
     GroupsPublic,
     GroupUpdate,
-)
-from app.features.user.models.group_security import (
-    GroupSecurity,
-    GroupSecurityCreate,
-    GroupSecurityPublic,
-    GroupSecuritiesPublic,
-    GroupSecurityUpdate,
 )
 from app.features.user.models.user_group import (
     UserGroupCreate,
@@ -35,7 +29,7 @@ class GroupRouter(
         GroupUpdate,
         GroupPublic,
         GroupsPublic,
-        type[crud_group],
+        Any,
     ]
 ):
     """Router for Group endpoints"""
@@ -53,7 +47,12 @@ async def get_groups_by_type(
 ) -> GroupsPublic:
     """Get all groups of a specific type"""
     if current_user is None:
-        raise HTTPException(status_code=403, detail="Authentication required")
+        raise AppError(
+            code="group.authentication_required",
+            status_code=403,
+            message="Authentication required",
+            details={"resource": "group.by_type"},
+        )
 
     groups = await crud_group.get_by_type(
         session,
@@ -72,7 +71,12 @@ async def get_pricing_groups(
 ) -> GroupsPublic:
     """Get all pricing/discount groups"""
     if current_user is None:
-        raise HTTPException(status_code=403, detail="Authentication required")
+        raise AppError(
+            code="group.authentication_required",
+            status_code=403,
+            message="Authentication required",
+            details={"resource": "group.pricing"},
+        )
 
     groups = await crud_group.get_pricing_groups(
         session,
@@ -90,7 +94,12 @@ async def add_user_to_group(
 ) -> UserGroupPublic:
     """Add a user to a group"""
     if not current_user.is_superuser:
-        raise HTTPException(status_code=403, detail="Admin access required")
+        raise AppError(
+            code="group.admin_required",
+            status_code=403,
+            message="Admin access required",
+            details={"resource": "group.users.add"},
+        )
 
     try:
         result = await crud_user_group.add_user_to_group(
@@ -100,7 +109,16 @@ async def add_user_to_group(
         )
         return UserGroupPublic.model_validate(result)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise AppError(
+            code="group.user_membership.invalid",
+            status_code=400,
+            message=str(e),
+            details={
+                "group_id": str(group_id),
+                "user_id": str(user_group.user_id),
+                "reason": str(e),
+            },
+        ) from e
 
 
 async def remove_user_from_group(
@@ -108,10 +126,15 @@ async def remove_user_from_group(
     group_id: uuid.UUID,
     user_id: uuid.UUID,
     current_user: CurrentUser,
-) -> dict:
+) -> dict[str, str]:
     """Remove a user from a group"""
     if not current_user.is_superuser:
-        raise HTTPException(status_code=403, detail="Admin access required")
+        raise AppError(
+            code="group.admin_required",
+            status_code=403,
+            message="Admin access required",
+            details={"resource": "group.users.remove"},
+        )
 
     removed = await crud_user_group.remove_user_from_group(
         session,
@@ -120,9 +143,14 @@ async def remove_user_from_group(
     )
 
     if not removed:
-        raise HTTPException(
+        raise AppError(
+            code="group.user_not_in_group",
             status_code=404,
-            detail=f"User {user_id} not found in group {group_id}",
+            message=f"User {user_id} not found in group {group_id}",
+            details={
+                "group_id": str(group_id),
+                "user_id": str(user_id),
+            },
         )
 
     return {"message": "User removed from group successfully"}
@@ -131,7 +159,7 @@ async def remove_user_from_group(
 async def get_group_users(
     session: SessionDep,
     group_id: uuid.UUID,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
 ) -> UserGroupsPublic:
     """Get all users in a specific group"""
     user_groups = await crud_user_group.get_group_users(
@@ -149,7 +177,12 @@ async def get_user_groups(
     """Get all groups a user belongs to"""
     # Only allow users to see their own groups unless admin
     if not current_user.is_superuser and current_user.id != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="group.not_owned",
+            status_code=403,
+            message="You cannot access another user's groups",
+            details={"user_id": str(user_id)},
+        )
 
     user_groups = await crud_user_group.get_user_groups(
         session,
@@ -210,6 +243,8 @@ routes_user_groups = [
 
 # Authentication configuration
 class Auth:
+    """Represents auth."""
+
     read = True  # Authentication required for read
     create = True  # Authentication required for create
     update = True  # Authentication required for update

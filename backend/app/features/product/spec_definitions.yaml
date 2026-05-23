@@ -1,0 +1,201 @@
+# Catalogue de specs filtrables Phase 1 — catégorie Ordinateur/Serveur
+# Format :
+#   key         : identifiant canonique, utilisé dans product_spec.spec_key et les filtres API
+#   label_fr    : libellé affiché en français côté vitrine/admin
+#   type        : "numeric" | "enum"
+#   unit        : unité pour les numériques (optionnel)
+#   categories  : liste de slug/mots-clés de catégories Ingram applicables (insensible à la casse)
+#   aliases     : noms Icecat reconnus pour cette spec (insensible à la casse, correspondance partielle)
+
+specs:
+  - key: cpu_brand
+    label_fr: "Marque du processeur"
+    type: enum
+    categories:
+      - ordinateur
+      - laptop
+      - portable
+      - serveur
+      - workstation
+      - desktop
+      - notebook
+    aliases:
+      - "marque du processeur"
+      - "processor brand"
+      - "cpu brand"
+      - "processor manufacturer"
+      - "marque processeur"
+
+  - key: cpu_family
+    label_fr: "Famille de processeur"
+    type: enum
+    categories:
+      - ordinateur
+      - laptop
+      - portable
+      - serveur
+      - workstation
+      - desktop
+      - notebook
+    aliases:
+      - "famille de processeur"
+      - "processor family"
+      - "cpu family"
+      - "processor series"
+      - "famille processeur"
+      - "gamme processeur"
+
+  - key: cpu_cores
+    label_fr: "Nombre de cœurs"
+    type: numeric
+    categories:
+      - ordinateur
+      - laptop
+      - portable
+      - serveur
+      - workstation
+      - desktop
+      - notebook
+    aliases:
+      - "nombre de cœurs"
+      - "number of cores"
+      - "nombre de coeurs"
+      - "cores"
+      - "cpu cores"
+      - "processor cores"
+
+  - key: memory_gb
+    label_fr: "Mémoire RAM (Go)"
+    type: numeric
+    unit: GB
+    categories:
+      - ordinateur
+      - laptop
+      - portable
+      - serveur
+      - workstation
+      - desktop
+      - notebook
+    aliases:
+      - "mémoire installée"
+      - "ram"
+      - "system memory"
+      - "memory"
+      - "mémoire vive"
+      - "installed memory"
+      - "mémoire ram"
+      - "capacité mémoire"
+      - "memory capacity"
+
+  - key: storage_gb
+    label_fr: "Stockage (Go)"
+    type: numeric
+    unit: GB
+    categories:
+      - ordinateur
+      - laptop
+      - portable
+      - serveur
+      - workstation
+      - desktop
+      - notebook
+    aliases:
+      - "capacité du ssd"
+      - "capacité du hdd"
+      - "total storage"
+      - "storage capacity"
+      - "capacité de stockage"
+      - "disk capacity"
+      - "drive capacity"
+      - "capacité disque"
+      - "espace disque"
+
+  - key: storage_type
+    label_fr: "Type de stockage"
+    type: enum
+    categories:
+      - ordinateur
+      - laptop
+      - portable
+      - serveur
+      - workstation
+      - desktop
+      - notebook
+    aliases:
+      - "type de disque"
+      - "storage drive type"
+      - "type de stockage"
+      - "drive type"
+      - "storage type"
+      - "type stockage"
+
+  - key: screen_inches
+    label_fr: "Taille d'écran (pouces)"
+    type: numeric
+    unit: inch
+    categories:
+      - laptop
+      - portable
+      - notebook
+      - moniteur
+      - ecran
+      - display
+    aliases:
+      - "taille de l'écran"
+      - "display size"
+      - "screen size"
+      - "taille écran"
+      - "diagonal"
+      - "diagonale"
+      - "screen diagonal"
+
+  - key: gpu_brand
+    label_fr: "Marque carte graphique"
+    type: enum
+    categories:
+      - ordinateur
+      - laptop
+      - portable
+      - serveur
+      - workstation
+      - desktop
+      - notebook
+    aliases:
+      - "marque carte graphique"
+      - "graphics adapter brand"
+      - "gpu brand"
+      - "graphics card brand"
+      - "fabricant carte graphique"
+
+  - key: os
+    label_fr: "Système d'exploitation"
+    type: enum
+    categories:
+      - ordinateur
+      - laptop
+      - portable
+      - workstation
+      - desktop
+      - notebook
+    aliases:
+      - "système d'exploitation"
+      - "operating system"
+      - "os"
+      - "système d exploitation"
+      - "système exploitation"
+
+  - key: form_factor
+    label_fr: "Facteur de forme"
+    type: enum
+    categories:
+      - ordinateur
+      - serveur
+      - workstation
+      - desktop
+    aliases:
+      - "type de châssis"
+      - "form factor"
+      - "facteur de forme"
+      - "chassis type"
+      - "format"
+      - "type boîtier"

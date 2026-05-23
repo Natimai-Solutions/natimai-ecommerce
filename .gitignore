@@ -24,12 +24,23 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+*.ruff_cache/
+*.mypy_cache/
 
 # Virtual environments
 venv/
 ENV/
 env/
 .venv
+
+# Node.js / pnpm / Quasar
+node_modules/
+.pnpm-store/
+.pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.quasar/
 
 # Testing
 .pytest_cache/
@@ -45,6 +56,7 @@ htmlcov/
 *.swo
 *~
 .DS_Store
+.claude
 
 # Jupyter Notebook
 .ipynb_checkpoints

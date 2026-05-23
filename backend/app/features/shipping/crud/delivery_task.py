@@ -2,10 +2,12 @@
 CRUD for delivery tasks and packages.
 """
 
+# mypy: disable-error-code="arg-type,attr-defined"
+
 import uuid
 from datetime import datetime
 
-from sqlmodel import and_, select
+from sqlmodel import and_, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
@@ -17,6 +19,8 @@ from app.features.shipping.models.delivery_task import (
 
 
 class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUpdate]):
+    """Represents delivery task crud."""
+
     async def get_tasks_for_order(
         self,
         session: AsyncSession,
@@ -29,14 +33,14 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
             .where(
                 and_(
                     DeliveryTask.order_id == order_id,
-                    DeliveryTask.is_active.is_(True),
+                    col(DeliveryTask.is_active).is_(True),
                 )
             )
-            .order_by(DeliveryTask.created_at.asc())
+            .order_by(col(DeliveryTask.created_at).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_tasks_by_status(
         self,
@@ -48,7 +52,7 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
 
         conditions = [
             DeliveryTask.status_code == status_code,
-            DeliveryTask.is_active.is_(True),
+            col(DeliveryTask.is_active).is_(True),
         ]
 
         if assignee:
@@ -57,11 +61,11 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         statement = (
             select(DeliveryTask)
             .where(and_(*conditions))
-            .order_by(DeliveryTask.scheduled_at.asc())
+            .order_by(col(DeliveryTask.scheduled_at).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_tasks_by_delivery_type(
         self,
@@ -69,11 +73,11 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         delivery_type: str,
         status_code: str | None = None,
     ) -> list[DeliveryTask]:
-        """Récupère les tâches par type de livraison"""
+        """Get tasks by delivery type."""
 
         conditions = [
             DeliveryTask.delivery_type == delivery_type,
-            DeliveryTask.is_active.is_(True),
+            col(DeliveryTask.is_active).is_(True),
         ]
 
         if status_code:
@@ -82,11 +86,11 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         statement = (
             select(DeliveryTask)
             .where(and_(*conditions))
-            .order_by(DeliveryTask.scheduled_at.asc())
+            .order_by(col(DeliveryTask.scheduled_at).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_tasks_by_place(
         self,
@@ -94,11 +98,11 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         address_place_id: uuid.UUID,
         status_code: str | None = None,
     ) -> list[DeliveryTask]:
-        """Récupère les tâches pour un lieu donné"""
+        """Get tasks by place."""
 
         conditions = [
             DeliveryTask.address_place_id == address_place_id,
-            DeliveryTask.is_active.is_(True),
+            col(DeliveryTask.is_active).is_(True),
         ]
 
         if status_code:
@@ -107,11 +111,11 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         statement = (
             select(DeliveryTask)
             .where(and_(*conditions))
-            .order_by(DeliveryTask.scheduled_at.asc())
+            .order_by(col(DeliveryTask.scheduled_at).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_tasks_by_window(
         self,
@@ -120,12 +124,12 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         end_datetime: datetime,
         assignee: str | None = None,
     ) -> list[DeliveryTask]:
-        """Récupère les tâches dans une fenêtre temporelle"""
+        """Get tasks by window."""
 
         conditions = [
             DeliveryTask.window_start >= start_datetime,
             DeliveryTask.window_end <= end_datetime,
-            DeliveryTask.is_active.is_(True),
+            col(DeliveryTask.is_active).is_(True),
         ]
 
         if assignee:
@@ -134,22 +138,24 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         statement = (
             select(DeliveryTask)
             .where(and_(*conditions))
-            .order_by(DeliveryTask.window_start.asc())
+            .order_by(col(DeliveryTask.window_start).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def get_pending_tasks(
         self,
         session: AsyncSession,
         assignee: str | None = None,
     ) -> list[DeliveryTask]:
-        """Récupère les tâches en attente"""
+        """Get pending tasks."""
 
         conditions = [
-            DeliveryTask.status_code.in_(["pending", "assigned", "out_for_delivery"]),
-            DeliveryTask.is_active.is_(True),
+            col(DeliveryTask.status_code).in_(
+                ["pending", "assigned", "out_for_delivery"]
+            ),
+            col(DeliveryTask.is_active).is_(True),
         ]
 
         if assignee:
@@ -158,11 +164,11 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         statement = (
             select(DeliveryTask)
             .where(and_(*conditions))
-            .order_by(DeliveryTask.scheduled_at.asc())
+            .order_by(col(DeliveryTask.scheduled_at).asc())
         )
 
         result = await session.exec(statement)
-        return result.all()
+        return list(result.all())
 
     async def assign_task(
         self,
@@ -185,7 +191,9 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         if delivery_service:
             update_data["delivery_service"] = delivery_service
 
-        updated_task = await self.update(session, record=task, data=update_data)
+        updated_task = await self.update(
+            session, id=task.id, record=task, data=update_data
+        )
 
         return updated_task
 
@@ -197,7 +205,7 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         signature_name: str | None = None,
         photo_url: str | None = None,
     ) -> DeliveryTask | None:
-        """Marque une livraison comme terminée"""
+        """Execute complete delivery."""
 
         task = await self.read(session, id=task_id)
         if not task:
@@ -217,7 +225,9 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
         if photo_url:
             update_data["photo_url"] = photo_url
 
-        updated_task = await self.update(session, record=task, data=update_data)
+        updated_task = await self.update(
+            session, id=task.id, record=task, data=update_data
+        )
 
         return updated_task
 
@@ -227,7 +237,7 @@ crud_delivery_task = DeliveryTaskCrud(
     schema_create=DeliveryTaskCreate,
     schema_update=DeliveryTaskUpdate,
     default_filter=and_(
-        DeliveryTask.is_active.is_(True),
+        col(DeliveryTask.is_active).is_(True),
     ),
-    order_by=DeliveryTask.scheduled_at.asc(),
+    order_by=col(DeliveryTask.scheduled_at).asc(),
 )

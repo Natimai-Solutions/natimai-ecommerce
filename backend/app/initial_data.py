@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sys
 
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -42,6 +43,7 @@ async def init_db(session: AsyncSession) -> None:
 
 
 async def init() -> None:
+    """Initialize application resources."""
     async with AsyncSession(engine) as session:
         await init_db(session)
         await api_initial_data(session)
@@ -49,10 +51,13 @@ async def init() -> None:
 
 
 async def main() -> None:
+    """Run the main entry point."""
     logger.debug("Creating initial data")
     await init()
     logger.debug("Initial data created")
 
 
 if __name__ == "__main__":
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(main())

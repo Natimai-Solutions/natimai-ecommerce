@@ -1,7 +1,4 @@
-import uuid
-from typing import Any
-
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase, track_crud_operation
@@ -31,7 +28,7 @@ class GroupCrud(CrudBase[Group, GroupCreate, GroupUpdate]):
         """
         statement = select(Group).where(
             Group.name == name,
-            Group.is_active.is_(True),
+            col(Group.is_active).is_(True),
         )
         result = await session.exec(statement)
         return result.first()
@@ -61,9 +58,9 @@ class GroupCrud(CrudBase[Group, GroupCreate, GroupUpdate]):
             select(Group)
             .where(
                 Group.group_type == group_type,
-                Group.is_active.is_(True),
+                col(Group.is_active).is_(True),
             )
-            .order_by(Group.priority.desc(), Group.name)
+            .order_by(col(Group.priority).desc(), col(Group.name))
             .offset(skip)
             .limit(limit)
         )
@@ -92,10 +89,10 @@ class GroupCrud(CrudBase[Group, GroupCreate, GroupUpdate]):
         statement = (
             select(Group)
             .where(
-                Group.discount_percentage.is_not(None),
-                Group.is_active.is_(True),
+                col(Group.discount_percentage).is_not(None),
+                col(Group.is_active).is_(True),
             )
-            .order_by(Group.priority.desc(), Group.discount_percentage.desc())
+            .order_by(col(Group.priority).desc(), col(Group.discount_percentage).desc())
             .offset(skip)
             .limit(limit)
         )
@@ -131,7 +128,7 @@ crud_group = GroupCrud(
     model=Group,
     schema_create=GroupCreate,
     schema_update=GroupUpdate,
-    order_by=Group.priority.desc(),
+    order_by=col(Group.priority).desc(),
     outbox_events={
         "create": "create.group",
         "update": "update.group",

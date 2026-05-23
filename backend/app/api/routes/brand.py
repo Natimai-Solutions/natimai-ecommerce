@@ -19,10 +19,14 @@ class BrandRouter(
         BrandCrud,
     ]
 ):
+    """Represents brand router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = False  # Lecture publique des marques
     create = True  # Création réservée aux admins
     update = True  # Modification réservée aux admins

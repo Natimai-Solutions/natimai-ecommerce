@@ -1,9 +1,11 @@
 import uuid
 
-from fastapi import HTTPException, Query, status
+from fastapi import Query, status
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
+from app.core.errors import AppError
+from app.features.base.crud import RecordNotFoundError
 from app.features.user.crud.address import AddressCrud, crud_address
 from app.features.user.models.address import (
     Address,
@@ -31,10 +33,14 @@ class AddressRouter(
         AddressCrud,
     ]
 ):
+    """Represents address router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = True
     create = True
     update = True
@@ -67,7 +73,12 @@ async def get_user_addresses(
 ) -> AddressesPublic:
     """Get all addresses for a specific user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="address.not_owned",
+            status_code=403,
+            message="You cannot access another user's addresses",
+            details={"user_id": str(user_id)},
+        )
 
     addresses = await crud_address.get_by_user_id(
         session=session, user_id=user_id, skip=skip, limit=limit
@@ -86,14 +97,30 @@ async def get_user_address(
 ) -> AddressPublic:
     """Get a specific address for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="address.not_owned",
+            status_code=403,
+            message="You cannot access another user's addresses",
+            details={"user_id": str(user_id)},
+        )
 
-    address = await crud_address.get(session=session, id=address_id)
-    if not address:
-        raise HTTPException(status_code=404, detail="Address not found")
+    try:
+        address = await crud_address.read(session=session, id=address_id)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="address.not_found",
+            status_code=404,
+            message=f"Address '{address_id}' not found",
+            details={"address_id": str(address_id)},
+        ) from exc
 
     if address.user_id != user_id:
-        raise HTTPException(status_code=404, detail="Address not found")
+        raise AppError(
+            code="address.not_found",
+            status_code=404,
+            message=f"Address '{address_id}' not found",
+            details={"address_id": str(address_id)},
+        )
 
     return AddressPublic.model_validate(address)
 
@@ -111,7 +138,12 @@ async def create_user_address(
 ) -> AddressPublic:
     """Create a new address for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="address.not_owned",
+            status_code=403,
+            message="You cannot access another user's addresses",
+            details={"user_id": str(user_id)},
+        )
 
     address = await crud_address.create_for_user(
         session=session, data=address_in, user_id=user_id
@@ -129,17 +161,33 @@ async def update_user_address(
 ) -> AddressPublic:
     """Update a specific address for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="address.not_owned",
+            status_code=403,
+            message="You cannot access another user's addresses",
+            details={"user_id": str(user_id)},
+        )
 
-    address = await crud_address.get(session=session, id=address_id)
-    if not address:
-        raise HTTPException(status_code=404, detail="Address not found")
+    try:
+        address = await crud_address.read(session=session, id=address_id)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="address.not_found",
+            status_code=404,
+            message=f"Address '{address_id}' not found",
+            details={"address_id": str(address_id)},
+        ) from exc
 
     if address.user_id != user_id:
-        raise HTTPException(status_code=404, detail="Address not found")
+        raise AppError(
+            code="address.not_found",
+            status_code=404,
+            message=f"Address '{address_id}' not found",
+            details={"address_id": str(address_id)},
+        )
 
     address = await crud_address.update(
-        session=session, record=address, data=address_in
+        session=session, id=address_id, record=address, data=address_in
     )
     return AddressPublic.model_validate(address)
 
@@ -155,16 +203,32 @@ async def delete_user_address(
 ) -> None:
     """Delete a specific address for a user."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="address.not_owned",
+            status_code=403,
+            message="You cannot access another user's addresses",
+            details={"user_id": str(user_id)},
+        )
 
-    address = await crud_address.get(session=session, id=address_id)
-    if not address:
-        raise HTTPException(status_code=404, detail="Address not found")
+    try:
+        address = await crud_address.read(session=session, id=address_id)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="address.not_found",
+            status_code=404,
+            message=f"Address '{address_id}' not found",
+            details={"address_id": str(address_id)},
+        ) from exc
 
     if address.user_id != user_id:
-        raise HTTPException(status_code=404, detail="Address not found")
+        raise AppError(
+            code="address.not_found",
+            status_code=404,
+            message=f"Address '{address_id}' not found",
+            details={"address_id": str(address_id)},
+        )
 
-    await crud_address.remove(session=session, id=address_id)
+    await crud_address.delete(session=session, id=address_id, record=address)
 
 
 @router.get(
@@ -179,13 +243,26 @@ async def get_user_addresses_by_type(
 ) -> list[AddressPublic]:
     """Get addresses for a user filtered by type."""
     if not _check_permission(current_user.id, user_id, current_user.is_superuser):
-        raise HTTPException(status_code=403, detail="Not authorized")
+        raise AppError(
+            code="address.not_owned",
+            status_code=403,
+            message="You cannot access another user's addresses",
+            details={"user_id": str(user_id)},
+        )
 
     allowed_types = {"billing", "shipping", "other"}
     if address_type not in allowed_types:
-        raise HTTPException(
+        ordered_allowed = sorted(allowed_types)
+        raise AppError(
+            code="address.type.invalid",
             status_code=400,
-            detail=f"Invalid address type. Must be one of: {', '.join(allowed_types)}",
+            message=(
+                "Invalid address type. Must be one of: " + ", ".join(ordered_allowed)
+            ),
+            details={
+                "address_type": address_type,
+                "allowed": ordered_allowed,
+            },
         )
 
     addresses = await crud_address.get_by_user_and_type(

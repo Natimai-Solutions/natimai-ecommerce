@@ -1,15 +1,15 @@
 import uuid
-
-from fastapi import HTTPException
+from typing import Any
 
 from app.api.base_router import BaseRouter, Routes
 from app.api.deps import CurrentUser, SessionDep
+from app.core.errors import AppError
 from app.features.user.crud.group_security import crud_group_security
 from app.features.user.models.group_security import (
+    GroupSecuritiesPublic,
     GroupSecurity,
     GroupSecurityCreate,
     GroupSecurityPublic,
-    GroupSecuritiesPublic,
     GroupSecurityUpdate,
 )
 
@@ -21,7 +21,7 @@ class GroupSecurityRouter(
         GroupSecurityUpdate,
         GroupSecurityPublic,
         GroupSecuritiesPublic,
-        type[crud_group_security],
+        Any,
     ]
 ):
     """Router for GroupSecurity endpoints"""
@@ -37,7 +37,12 @@ async def get_group_permissions(
 ) -> GroupSecuritiesPublic:
     """Get all security rules for a specific group"""
     if not current_user.is_superuser:
-        raise HTTPException(status_code=403, detail="Admin access required")
+        raise AppError(
+            code="group_security.admin_required",
+            status_code=403,
+            message="Admin access required",
+            details={"resource": "group_security.group_permissions"},
+        )
 
     rules = await crud_group_security.get_group_permissions(
         session,
@@ -53,7 +58,12 @@ async def get_table_permissions(
 ) -> GroupSecuritiesPublic:
     """Get all security rules for a specific table"""
     if not current_user.is_superuser:
-        raise HTTPException(status_code=403, detail="Admin access required")
+        raise AppError(
+            code="group_security.admin_required",
+            status_code=403,
+            message="Admin access required",
+            details={"resource": "group_security.table_permissions"},
+        )
 
     rules = await crud_group_security.get_table_permissions(
         session,
@@ -68,10 +78,15 @@ async def check_permission(
     table_name: str,
     permission: str,
     current_user: CurrentUser,
-) -> dict:
+) -> dict[str, str | bool]:
     """Check if a group has a specific permission on a table"""
     if not current_user.is_superuser:
-        raise HTTPException(status_code=403, detail="Admin access required")
+        raise AppError(
+            code="group_security.admin_required",
+            status_code=403,
+            message="Admin access required",
+            details={"resource": "group_security.permission_check"},
+        )
 
     has_permission = await crud_group_security.check_permission(
         session,
@@ -115,6 +130,8 @@ routes_after_security = [
 
 # Authentication configuration - Admin only
 class Auth:
+    """Represents auth."""
+
     read = True
     create = True
     update = True

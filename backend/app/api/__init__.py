@@ -1,34 +1,39 @@
 from fastapi import APIRouter
 
-api_router = APIRouter()
-
 from app.api.routes.address import router as address_router
-from app.api.routes.brand import router as brand_router
-from app.api.routes.category import router as category_router
+from app.api.routes.admin_currency_rates import router as admin_currency_rates_router
+from app.api.routes.admin_payments import router as admin_payments_router
 from app.api.routes.analytics_product import router as analytics_product_router
 from app.api.routes.analytics_sale import router as analytics_sale_router
 from app.api.routes.analytics_user import router as analytics_user_router
+from app.api.routes.brand import router as brand_router
+from app.api.routes.cart import router as cart_router
+from app.api.routes.category import router as category_router
 from app.api.routes.discount import router as discount_router
 from app.api.routes.group import router as group_router
 from app.api.routes.group_security import router as group_security_router
+from app.api.routes.health import router as health_router
 from app.api.routes.icecat import router as icecat_router
-from app.api.routes.ingram_micro import router as ingram_micro_router
+from app.api.routes.internal_storage import router as internal_storage_router
 from app.api.routes.inventory import router as inventory_router
 from app.api.routes.login import router as login_router
 from app.api.routes.order import router as order_router
 from app.api.routes.order_line import router as order_line_router
 from app.api.routes.order_status import router as order_status_router
 from app.api.routes.partner import router as partner_router
+from app.api.routes.payment import router as payment_router
 from app.api.routes.payment_method import (
     router as payment_method_router,
 )
-from app.api.routes.payzen import router as payzen_router
+from app.api.routes.payments import router as payments_router
 from app.api.routes.place import router as place_router
 from app.api.routes.product import (
     router as product_router,
 )
+from app.api.routes.product_phase1 import router as product_phase1_router
 from app.api.routes.shipping import shipping_router
 from app.api.routes.stock_movement import router as stock_movement_router
+from app.api.routes.suppliers import router as suppliers_router
 from app.api.routes.user_notification import (
     router as user_notification_router,
 )
@@ -38,13 +43,21 @@ from app.api.routes.user_review import (
 from app.api.routes.user_wishlist import router as user_wishlist_router
 from app.api.routes.utils import router as utils_router
 
-# api_router.include_router(payment_router, prefix="/payment", tags=["payment"])
+api_router = APIRouter()
+
 api_router.include_router(login_router, tags=["login"])
 api_router.include_router(partner_router)
 api_router.include_router(place_router)
+api_router.include_router(payment_router)
 api_router.include_router(payment_method_router)
+api_router.include_router(payments_router)
+api_router.include_router(admin_payments_router)
+api_router.include_router(admin_currency_rates_router)
+api_router.include_router(internal_storage_router)
+api_router.include_router(product_phase1_router)
 api_router.include_router(product_router)
 api_router.include_router(discount_router)
+api_router.include_router(cart_router)
 
 # Product related routes
 api_router.include_router(category_router)
@@ -58,21 +71,18 @@ api_router.include_router(order_status_router)
 api_router.include_router(order_router)
 api_router.include_router(order_line_router)
 
-# api_router.include_router(payment_router, prefix="/payment", tags=["payment"])
 api_router.include_router(address_router)
 api_router.include_router(user_review_router)
 api_router.include_router(user_notification_router)
 api_router.include_router(user_wishlist_router)
 api_router.include_router(utils_router, prefix="/utils")
-
-# Payzen payment integration
-api_router.include_router(payzen_router)
+api_router.include_router(health_router)
 
 # Shipping routes
 api_router.include_router(shipping_router)
 
-# Ingram Micro integration routes
-api_router.include_router(ingram_micro_router, prefix="/ingram", tags=["ingram-micro"])
+# Supplier (distributor) integration routes
+api_router.include_router(suppliers_router)
 
 # Icecat product enrichment routes
 api_router.include_router(icecat_router, prefix="/icecat", tags=["icecat"])

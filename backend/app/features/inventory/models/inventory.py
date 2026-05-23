@@ -7,6 +7,8 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class InventoryBase(Base):
+    """Represents inventory base."""
+
     quantity: Decimal = Field(
         default=Decimal("0.00"),
         ge=0,
@@ -16,11 +18,13 @@ class InventoryBase(Base):
     )
     product_id: uuid.UUID = Field(
         foreign_key="products.id",
+        index=True,
         description="ID of the product associated with this inventory",
     )
     place_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="places.id",
+        index=True,
         description="ID of the place where the inventory is located",
     )
     compute_from_movements: bool = Field(
@@ -30,10 +34,14 @@ class InventoryBase(Base):
 
 
 class InventoryCreate(InventoryBase, BaseCreate):
+    """Represents inventory create."""
+
     pass
 
 
 class InventoryUpdate(BaseUpdate):
+    """Represents inventory update."""
+
     quantity: Decimal | None = None
     product_id: uuid.UUID | None = None
     place_id: uuid.UUID | None = None
@@ -41,8 +49,10 @@ class InventoryUpdate(BaseUpdate):
 
 
 class Inventory(InventoryBase, table=True):
+    """Represents inventory."""
+
     __tablename__ = "inventories"
-    __table_args__ = {UniqueConstraint("product_id", "place_id")}
+    __table_args__ = (UniqueConstraint("product_id", "place_id"),)
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
         primary_key=True,
@@ -52,10 +62,14 @@ class Inventory(InventoryBase, table=True):
 
 
 class InventoryPublic(InventoryBase, BasePublic):
+    """Represents inventory public."""
+
     id: uuid.UUID
 
 
 class InventoriesPublic(SQLModel):
+    """Represents inventories public."""
+
     data: list[InventoryPublic] = Field(
         default_factory=list,
         description="List of inventories",

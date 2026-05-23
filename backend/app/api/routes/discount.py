@@ -1,9 +1,8 @@
 import uuid
 
-from fastapi import HTTPException, status
-
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
+from app.core.errors import AppError
 from app.features.discount.crud import DiscountCrud, crud_discount
 from app.features.discount.models import (
     Discount,
@@ -24,10 +23,14 @@ class DiscountRouter(
         DiscountCrud,
     ]
 ):
+    """Represents discount router."""
+
     pass
 
 
 class Auth:
+    """Represents auth."""
+
     read = False  # Lecture publique pour valider les coupons
     create = True  # Création réservée aux admins
     update = True  # Modification réservée aux admins
@@ -51,7 +54,7 @@ router = DiscountRouter(
 async def validate_coupon(
     session: SessionDep,
     code: str,
-) -> dict:
+) -> dict[str, object]:
     """
     Valider un code coupon.
     Retourne les informations du coupon si valide.
@@ -59,9 +62,14 @@ async def validate_coupon(
     is_valid, message, discount = await crud_discount.validate_coupon(session, code)
 
     if not is_valid:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=message,
+        raise AppError(
+            code="discount.coupon.invalid",
+            status_code=400,
+            message=message,
+            details={
+                "coupon_code": code,
+                "reason": message,
+            },
         )
 
     return {
@@ -76,9 +84,7 @@ async def get_product_promotions(
     session: SessionDep,
     product_id: uuid.UUID,
 ) -> list[DiscountPublic]:
-    """
-    Récupérer les promotions actives pour un produit spécifique.
-    """
+    """Get product promotions."""
     promotions = await crud_discount.get_active_promotions(
         session=session, product_id=product_id
     )
@@ -90,9 +96,7 @@ async def get_category_promotions(
     session: SessionDep,
     category_id: uuid.UUID,
 ) -> list[DiscountPublic]:
-    """
-    Récupérer les promotions actives pour une catégorie.
-    """
+    """Get category promotions."""
     promotions = await crud_discount.get_active_promotions(
         session=session, category_id=category_id
     )
@@ -103,15 +107,15 @@ async def get_category_promotions(
 async def use_discount(
     session: SessionDep,
     discount_id: uuid.UUID,
-    current_user: CurrentUser,
+    _current_user: CurrentUser,
 ) -> DiscountPublic:
-    """
-    Incrémenter le compteur d'utilisation d'une réduction.
-    """
+    """Execute use discount."""
     discount = await crud_discount.increment_usage(session, discount_id)
     if not discount:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Réduction non trouvée",
+        raise AppError(
+            code="discount.not_found",
+            status_code=404,
+            message="Réduction non trouvée",
+            details={"discount_id": str(discount_id)},
         )
     return DiscountPublic.model_validate(discount)

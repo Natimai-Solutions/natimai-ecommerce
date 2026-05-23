@@ -4,7 +4,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import track_crud_operation
-from app.features.user.models.user_group import UserGroup, UserGroupCreate
+from app.features.user.models.user_group import UserGroup
 
 
 class UserGroupCrud:

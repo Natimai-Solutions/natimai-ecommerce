@@ -3,6 +3,8 @@ Configurable status models.
 Flexible status and transition system.
 """
 
+# mypy: disable-error-code="assignment,misc,override"
+
 import uuid
 
 from sqlalchemy import Column
@@ -17,10 +19,12 @@ class StatusDefinitionBase(Base):
 
     entity: str = Field(
         max_length=50,
+        index=True,
         description="Entity type: route, consolidation, delivery_task",
     )
     code: str = Field(
         max_length=50,
+        index=True,
         description="Status code: draft, ready, dispatched, in_transit, arrived, closed",
     )
     name: str = Field(max_length=100, description="Display name of status")
@@ -56,29 +60,35 @@ class StatusDefinition(StatusDefinitionBase, table=True):
 
 
 class StatusDefinitionCreate(StatusDefinitionBase, BaseCreate):
+    """Represents status definition create."""
+
     pass
 
 
 class StatusDefinitionUpdate(StatusDefinitionBase, BaseUpdate):
-    entity: str | None = None
-    code: str | None = None
-    name: str | None = None
+    """Represents status definition update."""
+
+    entity: str | None = None  # type: ignore[assignment]
+    code: str | None = None  # type: ignore[assignment]
+    name: str | None = None  # type: ignore[assignment]
     description: str | None = None
     rank: int | None = None
-    is_terminal: bool | None = None
-    is_error: bool | None = None
+    is_terminal: bool | None = None  # type: ignore[assignment]
+    is_error: bool | None = None  # type: ignore[assignment]
     ui_color: str | None = None
     ui_icon: str | None = None
 
 
 class StatusDefinitionPublic(StatusDefinitionBase, BasePublic):
+    """Represents status definition public."""
+
     id: uuid.UUID
 
 
 class StatusTransitionBase(Base):
     """Allowed transitions between statuses (guards are coded in service)"""
 
-    entity: str = Field(max_length=50, description="Entity type")
+    entity: str = Field(max_length=50, index=True, description="Entity type")
     from_code: str = Field(max_length=50, description="Source status")
     to_code: str = Field(max_length=50, description="Target status")
     guard_name: str | None = Field(
@@ -105,24 +115,32 @@ class StatusTransition(StatusTransitionBase, table=True):
 
 
 class StatusTransitionCreate(StatusTransitionBase, BaseCreate):
+    """Represents status transition create."""
+
     pass
 
 
 class StatusTransitionUpdate(StatusTransitionBase, BaseUpdate):
-    entity: str | None = None
-    from_code: str | None = None
-    to_code: str | None = None
+    """Represents status transition update."""
+
+    entity: str | None = None  # type: ignore[assignment]
+    from_code: str | None = None  # type: ignore[assignment]
+    to_code: str | None = None  # type: ignore[assignment]
     guard_name: str | None = None
-    auto_advance: bool | None = None
-    requires_confirmation: bool | None = None
-    requires_scan: bool | None = None
+    auto_advance: bool | None = None  # type: ignore[assignment]
+    requires_confirmation: bool | None = None  # type: ignore[assignment]
+    requires_scan: bool | None = None  # type: ignore[assignment]
 
 
 class StatusTransitionPublic(StatusTransitionBase, BasePublic):
+    """Represents status transition public."""
+
     id: uuid.UUID
 
 
 class StatusDefinitionsPublic(SQLModel):
+    """Represents status definitions public."""
+
     data: list[StatusDefinitionPublic] = Field(
         default_factory=list,
         description="List of status definitions",
@@ -134,6 +152,8 @@ class StatusDefinitionsPublic(SQLModel):
 
 
 class StatusTransitionsPublic(SQLModel):
+    """Represents status transitions public."""
+
     data: list[StatusTransitionPublic] = Field(
         default_factory=list,
         description="List of status transitions",

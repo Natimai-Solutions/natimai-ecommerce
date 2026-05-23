@@ -2,6 +2,19 @@
 
 Ce fichier `docker compose.override.yml` configure automatiquement l'environnement de développement avec les fonctionnalités suivantes :
 
+## 📚 Documentation de développement (à finaliser)
+
+La documentation de travail est disponible dans `backend/docs/development/`.
+
+Documents où il reste explicitement du travail à faire :
+
+- [CAHIER_DES_CHARGES_ROUTAGE_MULTI_FOURNISSEURS.md](backend/docs/development/CAHIER_DES_CHARGES_ROUTAGE_MULTI_FOURNISSEURS.md) (statut: à implémenter)
+- [PLAN_REFONTE_PAIEMENTS.md](backend/docs/development/PLAN_REFONTE_PAIEMENTS.md) (section "Reste à faire", phase Stripe/PayPal non terminée)
+- [PLAN_DEPLOIEMENT_PAR_PHASE.md](backend/docs/development/PLAN_DEPLOIEMENT_PAR_PHASE.md) (roadmap par phases avec éléments à livrer)
+- [PLAN_VERIFICATION_FONCTIONNEMENT.md](backend/docs/development/PLAN_VERIFICATION_FONCTIONNEMENT.md) (checklist de vérification avec items non cochés)
+- [CHECKLIST_PREPROD_ROLLBACK_E4.md](backend/docs/development/CHECKLIST_PREPROD_ROLLBACK_E4.md) (checklist pre-prod/rollback à compléter)
+- [TEST_COVERAGE_GAPS.md](backend/docs/development/TEST_COVERAGE_GAPS.md) (backlog de tests restant)
+
 ## ✨ Fonctionnalités de Développement
 
 ### 🔄 Hot Reload

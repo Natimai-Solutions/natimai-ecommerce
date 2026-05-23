@@ -31,6 +31,9 @@ dependencies = [
     "disutils>=1.4.32.post2",
     "aiohttp>=3.8.0",  # Pour les appels API REST Ingram Micro
     "openai>=1.0.0",
+    "boto3>=1.34.0",  # S3 file storage for payment attachments
+    "clamd>=1.0.2",  # ClamAV antivirus scanner for uploaded documents
+    "pyyaml>=6.0.0",  # Lecture de spec_definitions.yaml pour les specs filtrables
 ]
 
 [tool.uv]

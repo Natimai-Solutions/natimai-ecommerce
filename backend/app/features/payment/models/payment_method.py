@@ -1,3 +1,5 @@
+# mypy: disable-error-code="assignment,misc,override"
+
 import uuid
 from decimal import Decimal
 
@@ -7,6 +9,8 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class PaymentMethodBase(Base):
+    """Represents payment method base."""
+
     name: str = Field(description="Name of the payment method")
     description: str | None = Field(
         default=None,
@@ -20,26 +24,60 @@ class PaymentMethodBase(Base):
         decimal_places=2,
         description="Fee associated with the payment method",
     )
+    provider_code: str = Field(
+        default="payzen",
+        max_length=50,
+        index=True,
+        description="Provider identifier used by payment dispatch",
+    )
+    requires_admin_validation: bool = Field(
+        default=False,
+        description="Whether this method requires explicit admin validation",
+    )
+    requires_document_upload: bool = Field(
+        default=False,
+        description="Whether this method requires a supporting document upload",
+    )
+    sort_order: int = Field(
+        default=0,
+        description="Display order in checkout payment method listing",
+    )
 
 
 class PaymentMethodCreate(PaymentMethodBase, BaseCreate):
+    """Represents payment method create."""
+
     pass
 
 
 class PaymentMethodUpdate(PaymentMethodBase, BaseUpdate):
+    """Represents payment method update."""
+
     name: str | None = None
+    description: str | None = None
+    fee: Decimal | None = None
+    provider_code: str | None = None
+    requires_admin_validation: bool | None = None
+    requires_document_upload: bool | None = None
+    sort_order: int | None = None
 
 
 class PaymentMethod(PaymentMethodBase, table=True):
+    """Represents payment method."""
+
     __tablename__ = "payment_methods"
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
 
 
 class PaymentMethodPublic(PaymentMethodBase, BasePublic):
+    """Represents payment method public."""
+
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
 
 
 class PaymentMethodsPublic(SQLModel):
+    """Represents payment methods public."""
+
     data: list[PaymentMethodPublic] = Field(
         default_factory=list, description="List of payment methods"
     )

@@ -9,14 +9,14 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class DiscountType(str, Enum):
-    """Type de réduction"""
+    """Represents discount type."""
 
     COUPON = "coupon"  # Code à saisir
     PROMOTION = "promotion"  # Automatique
 
 
 class DiscountTarget(str, Enum):
-    """Cible de la réduction"""
+    """Represents discount target."""
 
     PRODUCT = "product"  # Produit spécifique
     CATEGORY = "category"  # Catégorie de produits
@@ -24,6 +24,8 @@ class DiscountTarget(str, Enum):
 
 
 class DiscountBase(Base):
+    """Represents discount base."""
+
     name: str = Field(
         description="Nom de la réduction",
         max_length=100,
@@ -55,11 +57,13 @@ class DiscountBase(Base):
     product_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="products.id",
+        index=True,
         description="ID du produit ciblé (si target=PRODUCT)",
     )
     category_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="categories.id",
+        index=True,
         description="ID de la catégorie ciblée (si target=CATEGORY)",
     )
     start_date: datetime.datetime | None = Field(
@@ -83,10 +87,14 @@ class DiscountBase(Base):
 
 
 class DiscountCreate(DiscountBase, BaseCreate):
+    """Represents discount create."""
+
     pass
 
 
 class DiscountUpdate(BaseUpdate):
+    """Represents discount update."""
+
     name: str | None = None
     description: str | None = None
     discount_type: DiscountType | None = None
@@ -102,6 +110,8 @@ class DiscountUpdate(BaseUpdate):
 
 
 class Discount(DiscountBase, table=True):
+    """Represents discount."""
+
     __tablename__ = "discounts"
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -112,10 +122,14 @@ class Discount(DiscountBase, table=True):
 
 
 class DiscountPublic(DiscountBase, BasePublic):
+    """Represents discount public."""
+
     id: uuid.UUID
 
 
 class DiscountsPublic(SQLModel):
+    """Represents discounts public."""
+
     data: list[DiscountPublic] = Field(
         default_factory=list,
         description="Liste des réductions",
