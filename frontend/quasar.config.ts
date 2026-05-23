@@ -88,6 +88,16 @@ export default defineConfig((ctx) => {
           ...(viteConf.server.fs.allow ?? []),
           path.resolve(__dirname, '..'),
         ]
+        // Bundle workspace packages into SSR build (avoids workspace:* refs in dist/ssr/package.json)
+        viteConf.ssr = viteConf.ssr ?? {}
+        const existingNoExternal = viteConf.ssr.noExternal
+        const noExternalList = Array.isArray(existingNoExternal) ? existingNoExternal : []
+        viteConf.ssr.noExternal = [
+          ...noExternalList,
+          '@app/api-client',
+          '@app/api-types',
+          '@app/utils',
+        ]
       },
       // viteVuePluginOptions: {},
 
@@ -108,7 +118,7 @@ export default defineConfig((ctx) => {
         ['vite-plugin-checker', {
           vueTsc: true,
           eslint: {
-            lintCommand: 'eslint -c ./eslint.config.js "./src*/**/*.{ts,js,mjs,cjs,vue}"',
+            lintCommand: 'eslint -c ./eslint.config.js "./src/**/*.{ts,js,mjs,cjs,vue}"',
             useFlatConfig: true
           }
         }, { server: false }]

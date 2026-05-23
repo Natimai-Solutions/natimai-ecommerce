@@ -7,22 +7,23 @@ RUN corepack enable && corepack prepare pnpm@10.0.0 --activate
 
 WORKDIR /workspace
 
-# Copy workspace manifests first for layer caching
+# Workspace manifests (all package.json needed for workspace resolution)
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY frontend/package.json        ./frontend/
+COPY admin-frontend/package.json  ./admin-frontend/
 COPY shared/api-types/package.json  ./shared/api-types/
 COPY shared/api-client/package.json ./shared/api-client/
 COPY shared/utils/package.json      ./shared/utils/
-COPY admin-frontend/package.json    ./admin-frontend/
 
-RUN pnpm install --frozen-lockfile
-
-# Copy source
-COPY shared/       ./shared/
+# Full source only for what we're building
+COPY shared/         ./shared/
 COPY admin-frontend/ ./admin-frontend/
 
-# Build SPA
-WORKDIR /workspace/admin-frontend
-RUN pnpm exec quasar build -m spa
+# Install only admin + workspace deps (skips frontend's postinstall)
+RUN pnpm install --frozen-lockfile --filter "admin..."
+
+# Build SPA (run from workspace root with explicit filter)
+RUN pnpm --filter admin run build
 
 # ── Production stage ────────────────────────────────────────────────────────────
 FROM nginx:1.27-alpine AS runner

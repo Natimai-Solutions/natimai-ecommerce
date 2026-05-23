@@ -3,6 +3,7 @@
     <q-img
       :src="product.image_url ?? product.supplier_image_url ?? placeholderImg"
       :ratio="4 / 3"
+      fit="cover"
       loading="lazy"
     >
       <template #error>
