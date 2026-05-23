@@ -1,6 +1,6 @@
 <template>
-  <q-layout view="lHh Lpr lFf">
-    <q-header elevated>
+  <q-layout view="hHh lpR fFf">
+    <q-header elevated class="bg-white text-dark">
       <q-toolbar>
         <q-btn
           flat
@@ -8,34 +8,64 @@
           round
           icon="menu"
           aria-label="Menu"
-          @click="toggleLeftDrawer"
+          class="lt-md"
+          @click="toggleDrawer"
         />
 
-        <q-toolbar-title>
-          Quasar App
+        <q-toolbar-title shrink>
+          <router-link to="/" class="text-dark text-weight-bold no-underline">
+            Natimai
+          </router-link>
         </q-toolbar-title>
 
-        <div>Quasar v{{ $q.version }}</div>
+        <!-- Navigation principale (desktop) -->
+        <div class="gt-sm q-ml-md row items-center q-gutter-sm">
+          <q-btn
+            flat
+            dense
+            no-caps
+            label="Catalogue"
+            :to="{ name: 'catalogue' }"
+            :class="{ 'text-primary': $route.name === 'catalogue' }"
+          />
+        </div>
+
+        <q-space />
+
+        <!-- Barre de recherche rapide (desktop) -->
+        <q-input
+          v-model="quickSearch"
+          dense
+          outlined
+          rounded
+          placeholder="Rechercher…"
+          class="gt-sm quick-search-input"
+          @keyup.enter="goToSearch"
+        >
+          <template #append>
+            <q-icon name="search" class="cursor-pointer" @click="goToSearch" />
+          </template>
+        </q-input>
+
+        <q-space />
+
+        <!-- Icône panier -->
+        <q-btn flat round icon="shopping_cart" :to="{ name: 'cart' }">
+          <q-badge v-if="cartCount > 0" color="primary" floating>
+            {{ cartCount }}
+          </q-badge>
+        </q-btn>
       </q-toolbar>
     </q-header>
 
-    <q-drawer
-      v-model="leftDrawerOpen"
-      show-if-above
-      bordered
-    >
+    <!-- Drawer mobile -->
+    <q-drawer v-model="drawerOpen" bordered overlay>
       <q-list>
-        <q-item-label
-          header
-        >
-          Essential Links
-        </q-item-label>
-
-        <EssentialLink
-          v-for="link in linksList"
-          :key="link.title"
-          v-bind="link"
-        />
+        <q-item-label header>Navigation</q-item-label>
+        <q-item clickable :to="{ name: 'catalogue' }" @click="drawerOpen = false">
+          <q-item-section avatar><q-icon name="grid_view" /></q-item-section>
+          <q-item-section>Catalogue</q-item-section>
+        </q-item>
       </q-list>
     </q-drawer>
 
@@ -46,57 +76,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import EssentialLink, { type EssentialLinkProps } from 'components/EssentialLink.vue';
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 
-const linksList: EssentialLinkProps[] = [
-  {
-    title: 'Docs',
-    caption: 'quasar.dev',
-    icon: 'school',
-    link: 'https://quasar.dev'
-  },
-  {
-    title: 'Github',
-    caption: 'github.com/quasarframework',
-    icon: 'code',
-    link: 'https://github.com/quasarframework'
-  },
-  {
-    title: 'Discord Chat Channel',
-    caption: 'chat.quasar.dev',
-    icon: 'chat',
-    link: 'https://chat.quasar.dev'
-  },
-  {
-    title: 'Forum',
-    caption: 'forum.quasar.dev',
-    icon: 'record_voice_over',
-    link: 'https://forum.quasar.dev'
-  },
-  {
-    title: 'Twitter',
-    caption: '@quasarframework',
-    icon: 'rss_feed',
-    link: 'https://twitter.quasar.dev'
-  },
-  {
-    title: 'Facebook',
-    caption: '@QuasarFramework',
-    icon: 'public',
-    link: 'https://facebook.quasar.dev'
-  },
-  {
-    title: 'Quasar Awesome',
-    caption: 'Community Quasar projects',
-    icon: 'favorite',
-    link: 'https://awesome.quasar.dev'
-  }
-];
+const router = useRouter()
+const drawerOpen = ref(false)
+const quickSearch = ref('')
+const cartCount = ref(0) // TODO: brancher sur le store panier
 
-const leftDrawerOpen = ref(false);
+function toggleDrawer() {
+  drawerOpen.value = !drawerOpen.value
+}
 
-function toggleLeftDrawer () {
-  leftDrawerOpen.value = !leftDrawerOpen.value;
+function goToSearch() {
+  if (!quickSearch.value.trim()) return
+  void router.push({ name: 'catalogue', query: { q: quickSearch.value.trim() } })
+  quickSearch.value = ''
 }
 </script>
+
+<style scoped lang="scss">
+.no-underline {
+  text-decoration: none;
+}
+.quick-search-input {
+  max-width: 320px;
+}
+</style>

@@ -3,6 +3,7 @@
 
 import { defineConfig } from '#q-app/wrappers';
 import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
 export default defineConfig((ctx) => {
   return {
@@ -44,8 +45,16 @@ export default defineConfig((ctx) => {
 
       typescript: {
         strict: true,
-        vueShim: true
-        // extendTsConfig (tsConfig) {}
+        vueShim: true,
+        extendTsConfig (tsConfig) {
+          tsConfig.compilerOptions ??= {}
+          tsConfig.compilerOptions.paths ??= {}
+          Object.assign(tsConfig.compilerOptions.paths, {
+            '@app/api-client': ['../../shared/api-client/src/index.ts'],
+            '@app/api-types': ['../../shared/api-types/src/index.ts'],
+            '@app/utils': ['../../shared/utils/src/index.ts'],
+          })
+        }
       },
 
       vueRouterMode: 'hash', // available values: 'hash', 'history'
@@ -64,7 +73,22 @@ export default defineConfig((ctx) => {
       // polyfillModulePreload: true,
       // distDir
 
-      // extendViteConf (viteConf) {},
+      extendViteConf (viteConf) {
+        viteConf.resolve = viteConf.resolve ?? {}
+        viteConf.resolve.alias = {
+          ...(viteConf.resolve.alias as Record<string, string> | undefined ?? {}),
+          '@app/api-client': path.resolve(__dirname, '../shared/api-client/src/index.ts'),
+          '@app/api-types': path.resolve(__dirname, '../shared/api-types/src/index.ts'),
+          '@app/utils': path.resolve(__dirname, '../shared/utils/src/index.ts'),
+        }
+        // Allow Vite to serve pnpm hoisted packages outside the frontend root
+        viteConf.server = viteConf.server ?? {}
+        viteConf.server.fs = viteConf.server.fs ?? {}
+        viteConf.server.fs.allow = [
+          ...(viteConf.server.fs.allow ?? []),
+          path.resolve(__dirname, '..'),
+        ]
+      },
       // viteVuePluginOptions: {},
 
       vitePlugins: [

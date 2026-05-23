@@ -12,9 +12,13 @@
     "test": "echo \"No test specified\" && exit 0",
     "dev": "quasar dev",
     "build": "quasar build",
+    "typecheck": "vue-tsc --noEmit",
     "postinstall": "quasar prepare"
   },
   "dependencies": {
+    "@app/api-client": "workspace:*",
+    "@app/api-types": "workspace:*",
+    "@app/utils": "workspace:*",
     "vue-i18n": "^11.3.0",
     "pinia": "^3.0.1",
     "@quasar/extras": "^1.16.4",
