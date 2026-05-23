@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "paths": {
+      "@app/api-types": ["./shared/api-types/src/index.ts"],
+      "@app/api-client": ["./shared/api-client/src/index.ts"],
+      "@app/utils": ["./shared/utils/src/index.ts"]
+    }
+  }
+}
