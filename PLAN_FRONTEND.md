@@ -259,9 +259,25 @@ On **n'extrait pas** de composants UI partagés tant qu'on n'a pas dupliqué le 
 
 En alignement avec [PLAN_DEPLOIEMENT_PAR_PHASE.md](backend/docs/development/PLAN_DEPLOIEMENT_PAR_PHASE.md) :
 
-1. **Phase 0 / 1** : setup monorepo + `shared/api-types` + `shared/utils` (pricing, XPF) + démarrage `frontend/` (vitrine catalogue + panier + checkout).
-2. **Phase 2 / 3** : `shared/api-client` consolidé + démarrage `admin-frontend/` (gestion produits, commandes, utilisateurs).
+1. **Phase 0 / 1** : setup monorepo + `shared/api-types` + `shared/utils` (pricing, XPF) + démarrage `frontend/` (vitrine catalogue + panier + checkout) + **`admin-frontend/` lite**.
+2. **Phase 2 / 3** : `shared/api-client` consolidé + extension `admin-frontend/` (gestion commandes, utilisateurs, édition produits complète).
 3. **Phase 4 / 5** : extraction éventuelle de `shared/ui` si duplication avérée, i18n complet EN.
+
+### `admin-frontend` lite — périmètre Phase 0/1
+
+Objectif : permettre à l'équipe interne de masquer rapidement un produit problématique (stock incohérent, fiche Icecat erronée, pricing à vérifier) sans attendre la version complète. Surface minimale, pas de gestion CRUD complète.
+
+**Inclus :**
+- Page de connexion (JWT, réutilise l'auth backend existante)
+- Une seule page applicative : liste paginée des produits
+  - Vignette image principale (~48×48)
+  - SKU + nom
+  - Toggle `is_active` (appel `PATCH /products/{id}`)
+  - Filtre texte simple + filtre actif/inactif
+
+**Exclu (reporté Phase 2/3) :** création/édition produit, gestion utilisateurs, commandes, stocks, prix, médias.
+
+**Dépendance backend :** vérifier la présence du champ `is_active` sur `Product` et de l'endpoint `PATCH /products/{id}` (à ajouter si absent).
 
 ---
 

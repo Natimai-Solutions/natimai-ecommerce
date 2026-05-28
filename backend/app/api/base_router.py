@@ -246,6 +246,8 @@ class BaseRouter(
             return cast(PublicSchemaType, created)
 
         create.__name__ = f"create_{self.name}"
+        if self.schema_create is not None:
+            create.__annotations__["data"] = self.schema_create
         return create
 
     def generate_update_endpoint(self) -> Callable[..., Any]:
@@ -265,6 +267,8 @@ class BaseRouter(
             return cast(PublicSchemaType, updated)
 
         update.__name__ = f"update_{self.name}"
+        if self.schema_update is not None:
+            update.__annotations__["data"] = self.schema_update
         return update
 
     def generate_delete_endpoint(self) -> Callable[..., Any]:

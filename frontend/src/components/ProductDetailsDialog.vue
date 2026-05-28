@@ -1,0 +1,232 @@
+<template>
+  <q-dialog v-model="open">
+    <q-card class="product-details">
+      <q-card-section class="row items-center q-pb-none">
+        <div class="text-h6 ellipsis">{{ product.name }}</div>
+        <q-space />
+        <q-btn v-close-popup icon="close" flat round dense aria-label="Fermer" />
+      </q-card-section>
+
+      <q-card-section class="row q-col-gutter-md">
+        <!-- Images -->
+        <div class="col-12 col-sm-5">
+          <q-img
+            :src="mainImage ?? placeholderImg"
+            :ratio="1"
+            fit="contain"
+            class="rounded-borders bg-grey-1"
+          >
+            <template #error>
+              <div class="absolute-full flex flex-center bg-grey-2">
+                <q-icon name="image_not_supported" size="3rem" color="grey-5" />
+              </div>
+            </template>
+          </q-img>
+          <div v-if="gallery.length > 1" class="row q-gutter-xs q-mt-sm">
+            <q-img
+              v-for="(url, i) in gallery"
+              :key="i"
+              :src="url"
+              :ratio="1"
+              width="52px"
+              fit="contain"
+              class="cursor-pointer rounded-borders bg-grey-1 gallery-thumb"
+              :class="{ 'gallery-thumb--active': url === mainImage }"
+              @click="selectedImage = url"
+            />
+          </div>
+        </div>
+
+        <!-- Infos principales -->
+        <div class="col-12 col-sm-7">
+          <div class="text-caption text-grey-6">
+            {{ product.manufacturer ?? product.supplier_name ?? '—' }}
+          </div>
+          <div v-if="product.vendor_part_number" class="text-caption text-grey-5">
+            Réf. {{ product.vendor_part_number }}
+          </div>
+          <div v-if="product.ean" class="text-caption text-grey-5">
+            EAN {{ product.ean }}
+          </div>
+
+          <div class="text-h5 text-weight-bold text-primary q-mt-md">
+            {{ displayPrice }}
+          </div>
+          <div v-if="product.base_price === '0.00'" class="text-caption text-grey-6">
+            Prix sur devis
+          </div>
+
+          <div
+            class="text-body2 q-mt-sm"
+            :class="isOutOfStock ? 'text-grey-6' : 'text-positive'"
+          >
+            <q-icon name="inventory_2" size="16px" class="q-mr-xs" />
+            <span v-if="isOutOfStock">Sur commande</span>
+            <span v-else>{{ stockQuantity }} en stock fournisseur</span>
+          </div>
+
+          <div
+            v-if="safeDescription"
+            class="text-body2 q-mt-md product-description"
+            v-html="safeDescription"
+          ></div>
+        </div>
+      </q-card-section>
+
+      <!-- Points clés -->
+      <q-card-section v-if="features.length > 0" class="q-pt-none">
+        <div class="text-subtitle2 q-mb-xs">Points clés</div>
+        <ul class="q-pl-md q-my-none">
+          <li v-for="(feat, i) in features" :key="i" class="text-body2">{{ feat }}</li>
+        </ul>
+      </q-card-section>
+
+      <!-- Spécifications techniques -->
+      <q-card-section v-if="specGroups.length > 0" class="q-pt-none">
+        <div class="text-subtitle2 q-mb-sm">Caractéristiques techniques</div>
+        <div v-for="grp in specGroups" :key="grp.group" class="q-mb-md">
+          <div v-if="grp.group" class="text-caption text-grey-7 q-mb-xs">
+            {{ grp.group }}
+          </div>
+          <q-markup-table flat dense bordered wrap-cells>
+            <tbody>
+              <tr v-for="(spec, i) in grp.specs" :key="i">
+                <td class="text-grey-8" style="width: 45%">{{ spec.name }}</td>
+                <td>{{ spec.value }}{{ spec.unit ? ' ' + spec.unit : '' }}</td>
+              </tr>
+            </tbody>
+          </q-markup-table>
+        </div>
+      </q-card-section>
+
+      <q-card-actions align="right">
+        <q-btn flat label="Fermer" color="grey-7" v-close-popup />
+        <q-btn
+          unelevated
+          color="primary"
+          icon="add_shopping_cart"
+          label="Ajouter au panier"
+          :disable="isOutOfStock"
+          @click="emit('add-to-cart', product)"
+        />
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+</template>
+
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import DOMPurify from 'dompurify'
+import type { components } from '@app/api-types'
+import { formatXpf } from '@app/utils'
+
+type ProductPublic = components['schemas']['ProductPublic']
+
+const props = defineProps<{ product: ProductPublic }>()
+const emit = defineEmits<{ 'add-to-cart': [product: ProductPublic] }>()
+const open = defineModel<boolean>({ default: false })
+
+const placeholderImg = '/icons/placeholder-product.svg'
+
+const isOutOfStock = computed(() => parseFloat(props.product.supplier_quantity) <= 0)
+
+const stockQuantity = computed(() =>
+  Math.max(0, Math.round(parseFloat(props.product.supplier_quantity))),
+)
+
+const displayPrice = computed(() => {
+  const price = parseFloat(props.product.base_price)
+  if (price === 0) return '—'
+  return formatXpf(price)
+})
+
+const safeDescription = computed(() => {
+  const raw = props.product.long_description ?? props.product.description ?? ''
+  return raw ? DOMPurify.sanitize(raw) : ''
+})
+
+const features = computed(() =>
+  (props.product.features ?? []).map((f) => String(f).trim()).filter(Boolean),
+)
+
+type Spec = { name: string; value: string; unit: string }
+
+function toStr(v: unknown): string {
+  return typeof v === 'string' || typeof v === 'number' ? String(v).trim() : ''
+}
+
+const specGroups = computed<{ group: string; specs: Spec[] }[]>(() => {
+  const groups = new Map<string, Spec[]>()
+  for (const raw of props.product.technical_specifications ?? []) {
+    const name = toStr(raw['name']) || toStr(raw['label']) || toStr(raw['feature'])
+    const value = toStr(raw['value']) || toStr(raw['presentation_value'])
+    if (!name || !value) continue
+    const group = toStr(raw['group'])
+    const unit = toStr(raw['unit'])
+    const arr = groups.get(group) ?? []
+    arr.push({ name, value, unit })
+    groups.set(group, arr)
+  }
+  return [...groups.entries()].map(([group, specs]) => ({ group, specs }))
+})
+
+function pickUrl(obj: unknown): string | null {
+  if (typeof obj === 'string') return obj
+  if (obj && typeof obj === 'object' && 'url' in obj) {
+    const u = (obj as Record<string, unknown>)['url']
+    return typeof u === 'string' ? u : null
+  }
+  return null
+}
+
+const gallery = computed<string[]>(() => {
+  const urls: string[] = []
+  const main = props.product.image_url ?? props.product.supplier_image_url
+  if (main) urls.push(main)
+  for (const raw of props.product.icecat_images ?? []) {
+    const url =
+      pickUrl(raw['medium']) ??
+      pickUrl(raw['low']) ??
+      pickUrl(raw['high']) ??
+      pickUrl(raw['thumb']) ??
+      pickUrl(raw)
+    if (url && !urls.includes(url)) urls.push(url)
+  }
+  return urls
+})
+
+const selectedImage = ref<string | null>(null)
+const mainImage = computed(() => selectedImage.value ?? gallery.value[0] ?? null)
+</script>
+
+<style scoped lang="scss">
+.product-details {
+  width: 820px;
+  max-width: 92vw;
+}
+
+.gallery-thumb {
+  border: 1px solid transparent;
+
+  &--active {
+    border-color: var(--q-primary);
+  }
+}
+
+.product-description {
+  :deep(p) {
+    margin: 0 0 0.5em;
+  }
+
+  :deep(ul),
+  :deep(ol) {
+    margin: 0 0 0.5em;
+    padding-left: 1.2em;
+  }
+
+  :deep(img) {
+    max-width: 100%;
+    height: auto;
+  }
+}
+</style>
