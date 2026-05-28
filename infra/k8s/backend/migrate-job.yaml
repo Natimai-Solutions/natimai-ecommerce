@@ -10,7 +10,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: migrate
-          image: ghcr.io/GITHUB_OWNER/REPO_NAME/backend:latest
+          image: ghcr.io/GITHUB_OWNER/REPO_NAME/api:latest
           command: ["migrate"]
           envFrom:
             - secretRef:

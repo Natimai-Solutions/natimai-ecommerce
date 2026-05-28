@@ -1,4 +1,4 @@
-# Replace YOURDOMAIN.COM with your actual domain before applying.
+# YOURDOMAIN.COM is replaced at deploy time by the DOMAIN GitHub Secret.
 # Requires nginx-ingress and cert-manager installed on the cluster.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
