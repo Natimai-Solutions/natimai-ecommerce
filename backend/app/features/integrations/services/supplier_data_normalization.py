@@ -121,7 +121,9 @@ class ProductFilterRule(BaseModel):
     ``supplier``: when set, the rule only applies to that supplier name.
     """
 
-    field: Literal["supplier_subcategory", "supplier_category", "name_keyword", "unspsc_code"]
+    field: Literal[
+        "supplier_subcategory", "supplier_category", "name_keyword", "unspsc_code"
+    ]
     values: list[str]
     action: Literal["skip", "deactivate"] = "deactivate"
     supplier: str | None = None
@@ -150,9 +152,13 @@ def evaluate_product_filters(
         matched = False
 
         if rule.field == "supplier_subcategory" and supplier_subcategory:
-            matched = any(v.casefold() == supplier_subcategory.casefold() for v in rule.values)
+            matched = any(
+                v.casefold() == supplier_subcategory.casefold() for v in rule.values
+            )
         elif rule.field == "supplier_category" and supplier_category:
-            matched = any(v.casefold() == supplier_category.casefold() for v in rule.values)
+            matched = any(
+                v.casefold() == supplier_category.casefold() for v in rule.values
+            )
         elif rule.field == "name_keyword" and name:
             name_lower = name.casefold()
             matched = any(v.casefold() in name_lower for v in rule.values)

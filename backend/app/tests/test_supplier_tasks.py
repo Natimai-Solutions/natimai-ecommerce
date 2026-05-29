@@ -1,8 +1,10 @@
-import pytest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import pytest
+
 import app.tasks.supplier_tasks as supplier_tasks
+from app.features.product.crud.product import crud_product
 
 
 class FakeAdapter:
@@ -106,7 +108,7 @@ async def test_sync_supplier_inventory_task_skips_admin_inactive_products(
     monkeypatch.setattr(supplier_tasks, "get_adapter", lambda _name: adapter)
     monkeypatch.setattr(supplier_tasks, "AsyncSession", _FakeAsyncSession)
     monkeypatch.setattr(
-        supplier_tasks.crud_product,
+        crud_product,
         "get_by_supplier_sku",
         AsyncMock(
             return_value=SimpleNamespace(
@@ -115,7 +117,7 @@ async def test_sync_supplier_inventory_task_skips_admin_inactive_products(
             )
         ),
     )
-    monkeypatch.setattr(supplier_tasks.crud_product, "update", update_mock)
+    monkeypatch.setattr(crud_product, "update", update_mock)
 
     result = await supplier_tasks.sync_supplier_inventory_task(
         _ctx={},

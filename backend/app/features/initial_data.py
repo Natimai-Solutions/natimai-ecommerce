@@ -21,9 +21,11 @@ from app.features.payment.providers.manual import (
     MANUAL_STATUS_COMPLETED,
     MANUAL_STATUS_FAILED,
 )
+from app.features.place.models import Place
 from app.features.product.models.currency_rate import CurrencyRate, CurrencyRateSource
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.tax_rate import TaxRate
+from app.features.shipping.models.route import ShippingRoute
 
 DEFAULT_PAYMENT_STATUSES: tuple[tuple[str, str], ...] = (
     ("Pending", "Payment initiated, awaiting provider action"),
@@ -187,15 +189,15 @@ async def _seed_tax_rates(session: AsyncSession) -> None:
 
 
 async def _seed_currency_rates(session: AsyncSession) -> None:
-    """Seed baseline FX rates used by pricing conversion (cost → XPF)."""
+    """Seed baseline FX rates used by pricing conversion (cost → reference currency)."""
     rates = (
         {
             "currency_code": "EUR",
-            "rate_to_xpf": Decimal("119.332"),
+            "rate_to_reference": Decimal("119.332"),
         },
         {
             "currency_code": "USD",
-            "rate_to_xpf": Decimal("100.000"),
+            "rate_to_reference": Decimal("100.000"),
         },
     )
 
@@ -211,12 +213,96 @@ async def _seed_currency_rates(session: AsyncSession) -> None:
         session.add(
             CurrencyRate(
                 currency_code=rate["currency_code"],
-                rate_to_xpf=rate["rate_to_xpf"],
+                rate_to_reference=rate["rate_to_reference"],
                 valid_from=date.today(),
                 valid_until=None,
                 source=CurrencyRateSource.manual,
                 is_active=True,
                 is_admin_active=True,
+            )
+        )
+
+
+async def _seed_france_papeete_import_corridor(session: AsyncSession) -> None:
+    """Seed the France → Papeete import corridor (Phase 1 — single corridor).
+
+    Creates two places and two import routes (rapide/avion + economique/bateau)
+    with indicative Phase-1 tariffs. Rates can be updated from the admin UI.
+    Identified by stable ``code`` / ``service_level`` values for idempotency.
+    """
+    # --- Origin: suppliers warehouse in France ---
+    fr_result = await session.exec(select(Place).where(Place.code == "FR_SUPPLIERS"))
+    fr_place = fr_result.first()
+    if fr_place is None:
+        fr_place = Place(
+            name="Entrepôt fournisseurs (France)",
+            type="warehouse",
+            code="FR_SUPPLIERS",
+            country="FR",
+            is_warehouse=True,
+        )
+        session.add(fr_place)
+
+    # --- Destination: Papeete customs warehouse ---
+    ppt_result = await session.exec(
+        select(Place).where(Place.code == "PPT_CUSTOMS_WAREHOUSE")
+    )
+    ppt_place = ppt_result.first()
+    if ppt_place is None:
+        ppt_place = Place(
+            name="Entrepôt douanier Papeete",
+            type="warehouse",
+            code="PPT_CUSTOMS_WAREHOUSE",
+            country="PF",
+            city="Papeete",
+            is_warehouse=True,
+            customs_clearance=True,
+        )
+        session.add(ppt_place)
+
+    # --- Rapide (avion) ---
+    air_result = await session.exec(
+        select(ShippingRoute).where(ShippingRoute.service_level == "rapide")
+    )
+    if air_result.first() is None:
+        session.add(
+            ShippingRoute(
+                name="France → Papeete (avion)",
+                from_place_id=fr_place.id,
+                to_place_id=ppt_place.id,
+                mode="air",
+                service_level="rapide",
+                customer_label="Rapide (avion ~5-7 j)",
+                is_default_import=True,
+                price_per_kg=Decimal("700.00"),  # indicatif ≈ 5.87 EUR/kg
+                base_price=Decimal("0.00"),
+                eta_days=7,
+                priority=10,
+                status_code="active",
+                route_metadata={"dim_factor_kg_per_m3": "167"},
+            )
+        )
+
+    # --- Économique (bateau) ---
+    sea_result = await session.exec(
+        select(ShippingRoute).where(ShippingRoute.service_level == "economique")
+    )
+    if sea_result.first() is None:
+        session.add(
+            ShippingRoute(
+                name="France → Papeete (bateau)",
+                from_place_id=fr_place.id,
+                to_place_id=ppt_place.id,
+                mode="sea",
+                service_level="economique",
+                customer_label="Économique (bateau ~35 j)",
+                is_default_import=False,
+                price_per_kg=Decimal("180.00"),  # indicatif ≈ 1.51 EUR/kg
+                base_price=Decimal("0.00"),
+                eta_days=35,
+                priority=20,
+                status_code="active",
+                route_metadata={"dim_factor_kg_per_m3": "1000"},
             )
         )
 
@@ -228,3 +314,4 @@ async def initial_data(session: AsyncSession) -> None:
     await _seed_price_groups(session)
     await _seed_tax_rates(session)
     await _seed_currency_rates(session)
+    await _seed_france_papeete_import_corridor(session)

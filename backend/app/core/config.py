@@ -3,8 +3,6 @@ import warnings
 from decimal import Decimal
 from typing import Annotated, Any, Literal
 
-from app.features.integrations.services.supplier_data_normalization import ProductFilterRule
-
 from pydantic import (
     AnyUrl,
     BeforeValidator,
@@ -16,6 +14,10 @@ from pydantic import (
 from pydantic_core import MultiHostUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing_extensions import Self
+
+from app.features.integrations.services.supplier_data_normalization import (
+    ProductFilterRule,
+)
 
 
 def parse_cors(v: Any) -> list[str] | str:
@@ -242,6 +244,13 @@ class Settings(BaseSettings):
     PAYZEN_PUBLIC_KEY_PROD: str | None = None
     PAYZEN_MODE: Literal["TEST", "PRODUCTION"] = "TEST"
     PAYZEN_API_ENDPOINT: str = "https://api.osb.pf"
+    # Reference (pivot) currency: the currency in which costs are normalized,
+    # prices are computed and orders are billed. One per deployment. Override
+    # per territory via the environment, never hardcode it in the code.
+    REFERENCE_CURRENCY: str = "XPF"
+    # Insurance rate applied on cost_in_reference before customs (CIF basis).
+    # Expressed as a percentage (e.g. 1.0 = 1 %). Default 0 = no insurance.
+    INSURANCE_RATE_PCT: float = 0.0
     PAYZEN_CURRENCY: str = "XPF"  # Default currency for French Polynesia
     PAYZEN_IPN_URL: str | None = None  # Will be computed based on backend URL
     PAYZEN_RETURN_URL: str | None = None  # Frontend URL to return after payment

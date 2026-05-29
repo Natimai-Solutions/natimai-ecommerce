@@ -1,22 +1,42 @@
 from __future__ import annotations
 
 import inspect
+from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.features.product.models.category import Category
 from app.features.product.models.currency_rate import CurrencyRate
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import Product
 from app.features.product.models.tax_rate import TaxRate
+from app.features.shipping.models.route import ShippingRoute
+from app.features.shipping.services.pricing import (
+    _route_metadata_to_dict,
+    resolve_billable_weight,
+)
 
 _MONEY_QUANT = Decimal("0.01")
 _DEFAULT_MARGIN_RATE_PCT = Decimal("30.00")
 _DEFAULT_TAX_CODE = "TGC_NORMAL"
 _DEFAULT_TERRITORY_CODE = "PF"
+
+
+@dataclass(frozen=True)
+class ShippingModePrice:
+    """Price breakdown for one import service level (used by calculate_price_by_mode)."""
+
+    route_id: str
+    service_level: str | None
+    customer_label: str | None
+    freight: Decimal
+    sale_price: Decimal
+    eta_days: int | None
+    carbon_footprint_kg_co2e: float | None
 
 
 class CurrencyRateMissing(Exception):
@@ -85,20 +105,20 @@ def _is_tax_rate_candidate_active(
     return True
 
 
-async def convert_to_xpf(
+async def convert_to_reference_currency(
     session: AsyncSession,
     amount: Decimal,
     from_currency: str,
     *,
     at_date: date | None = None,
 ) -> tuple[Decimal, Decimal]:
-    """Convert an amount from `from_currency` to XPF.
+    """Convert an amount from `from_currency` to the reference currency.
 
-    Returns (amount_in_xpf, rate_used).
-    When from_currency is already XPF, returns (amount, Decimal("1")).
+    Returns (amount_in_reference, rate_used).
+    When from_currency is already the reference currency, returns (amount, Decimal("1")).
     Raises CurrencyRateMissing if no active rate is found.
     """
-    if from_currency == "XPF":
+    if from_currency == settings.REFERENCE_CURRENCY:
         return amount, Decimal("1")
 
     reference_date: date = at_date if at_date is not None else date.today()
@@ -121,7 +141,7 @@ async def convert_to_xpf(
     if rate is None:
         raise CurrencyRateMissing(from_currency)
 
-    return _quantize_money(amount * rate.rate_to_xpf), rate.rate_to_xpf
+    return _quantize_money(amount * rate.rate_to_reference), rate.rate_to_reference
 
 
 async def resolve_default_price_group(session: AsyncSession) -> PriceGroup | None:
@@ -224,17 +244,45 @@ async def resolve_tax_rate(
     return None
 
 
+def _compute_volume_m3(product: Product) -> Decimal | None:
+    """Return product volume in m³ from dimensions in cm, or None if any dim is missing."""
+    length = getattr(product, "dimensions_length", None)
+    width = getattr(product, "dimensions_width", None)
+    height = getattr(product, "dimensions_height", None)
+    if any(v is None for v in (length, width, height)):
+        return None
+    try:
+        return (
+            Decimal(str(length))
+            * Decimal(str(width))
+            * Decimal(str(height))
+            / Decimal("1000000")
+        )
+    except Exception:
+        return None
+
+
 async def calculate_sale_price(
     session: AsyncSession,
     product: Product,
     *,
     group: PriceGroup | None = None,
     territory: str = _DEFAULT_TERRITORY_CODE,
+    import_route: ShippingRoute | None = None,
 ) -> Decimal:
-    """Calculate product sale price for a pricing group.
+    """Calculate product sale price using the CAF customs base.
 
-    Converts cost to XPF first (via active CurrencyRate) before applying
-    customs × margin × tax. Raises CurrencyRateMissing for unknown currencies.
+    Formula:
+        caf       = cost_in_reference + freight_variable + insurance
+        landed    = caf × (1 + customs_rate_pct / 100)
+        sale_price = landed × (1 + margin_rate_pct / 100) × (1 + tax_rate_pct / 100)
+
+    ``import_route``: the import leg (e.g. France → Papeete). When provided,
+    its variable freight (price_per_kg × billable_weight) enters the CAF base.
+    When None the freight component is zero (backward-compatible, useful for
+    admin previews where no route has been chosen yet).
+
+    Raises CurrencyRateMissing for unknown cost currencies.
     """
     effective_group = group
     if effective_group is None:
@@ -248,19 +296,95 @@ async def calculate_sale_price(
         getattr(product, "cost_amount", None),
         default=_as_decimal(getattr(product, "base_price", None)),
     )
-    cost_currency = getattr(product, "cost_currency", None) or "XPF"
+    cost_currency = (
+        getattr(product, "cost_currency", None) or settings.REFERENCE_CURRENCY
+    )
     customs_rate_pct = _as_decimal(getattr(product, "customs_rate_pct", None))
 
-    cost_in_xpf, _fx_rate = await convert_to_xpf(session, raw_cost, cost_currency)
+    cost_in_reference, _fx_rate = await convert_to_reference_currency(
+        session, raw_cost, cost_currency
+    )
+
+    # Variable freight from import route (price_per_kg × billable_weight).
+    # The fixed base_price/handling fee is NOT included here: it belongs to
+    # the shipment level (per-order), not the unit price.
+    freight_variable = Decimal("0")
+    if import_route is not None:
+        weight_kg = _as_decimal(getattr(product, "weight", None))
+        volume_m3 = _compute_volume_m3(product)
+        route_meta = _route_metadata_to_dict(import_route)
+        billable_weight_kg = resolve_billable_weight(
+            weight_kg,
+            volume_m3,
+            metadata=route_meta,
+            mode=getattr(import_route, "mode", None),
+        )
+        freight_variable = _as_decimal(import_route.price_per_kg) * billable_weight_kg
+
+    # Insurance on cost only (not on freight, to avoid circularity).
+    insurance_rate = Decimal(str(settings.INSURANCE_RATE_PCT)) / Decimal("100")
+    insurance = cost_in_reference * insurance_rate
+
+    caf = cost_in_reference + freight_variable + insurance
 
     tax_rate = await resolve_tax_rate(session, product, territory=territory)
     tax_rate_pct = _as_decimal(tax_rate.rate_pct if tax_rate is not None else None)
 
     sale_price = (
-        cost_in_xpf
+        caf
         * (Decimal("1.00") + (customs_rate_pct / Decimal("100")))
         * (Decimal("1.00") + (margin_rate_pct / Decimal("100")))
         * (Decimal("1.00") + (tax_rate_pct / Decimal("100")))
     )
 
     return _quantize_money(sale_price)
+
+
+async def calculate_price_by_mode(
+    session: AsyncSession,
+    product: Product,
+    import_routes: list[ShippingRoute],
+    *,
+    group: PriceGroup | None = None,
+    territory: str = _DEFAULT_TERRITORY_CODE,
+) -> list[ShippingModePrice]:
+    """Return a price breakdown for every import route.
+
+    Each entry maps to one route (identified by ``service_level`` when set,
+    otherwise by ``route_id``). The caller uses this list to build the
+    ``shipping_modes`` payload returned in the product API response.
+    The frontend can switch service levels locally without a refetch.
+    """
+    results: list[ShippingModePrice] = []
+    for route in import_routes:
+        weight_kg = _as_decimal(getattr(product, "weight", None))
+        volume_m3 = _compute_volume_m3(product)
+        route_meta = _route_metadata_to_dict(route)
+        billable_weight_kg = resolve_billable_weight(
+            weight_kg,
+            volume_m3,
+            metadata=route_meta,
+            mode=getattr(route, "mode", None),
+        )
+        freight = _quantize_money(_as_decimal(route.price_per_kg) * billable_weight_kg)
+        sale_price = await calculate_sale_price(
+            session,
+            product,
+            group=group,
+            territory=territory,
+            import_route=route,
+        )
+        results.append(
+            ShippingModePrice(
+                route_id=str(route.id),
+                service_level=getattr(route, "service_level", None),
+                customer_label=getattr(route, "customer_label", None),
+                freight=freight,
+                sale_price=sale_price,
+                eta_days=getattr(route, "eta_days", None),
+                carbon_footprint_kg_co2e=getattr(
+                    route, "carbon_footprint_kg_co2e", None
+                ),
+            )
+        )
+    return results

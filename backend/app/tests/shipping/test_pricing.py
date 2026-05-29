@@ -7,6 +7,7 @@ from uuid import uuid4
 from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.services.pricing import (
     calculate_shipping_for_routes,
+    resolve_billable_weight,
     serialize_shipping_cost_summary,
 )
 
@@ -19,12 +20,14 @@ def _route(
     eta_days: int | None = None,
     carbon: float | None = None,
     name: str | None = None,
+    mode: str | None = None,
 ) -> ShippingRoute:
     return cast(
         ShippingRoute,
         SimpleNamespace(
             id=uuid4(),
             name=name,
+            mode=mode,
             base_price=Decimal(base_price),
             price_per_kg=Decimal(price_per_kg),
             route_metadata=route_metadata,
@@ -156,6 +159,107 @@ def test_calculate_shipping_applies_tariff_inside_effective_window() -> None:
 
     assert summary.total_fee == Decimal("1100")
     assert summary.breakdown[0].pricing_effective is True
+
+
+# ---------------------------------------------------------------------------
+# resolve_billable_weight
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_billable_weight_uses_actual_when_no_volume() -> None:
+    result = resolve_billable_weight(
+        Decimal("5"),
+        None,
+        metadata={},
+        mode="air",
+    )
+    assert result == Decimal("5")
+
+
+def test_resolve_billable_weight_uses_actual_when_billing_basis_actual_weight() -> None:
+    result = resolve_billable_weight(
+        Decimal("5"),
+        Decimal("0.10"),
+        metadata={"billing_basis": "actual_weight"},
+        mode="air",
+    )
+    assert result == Decimal("5")
+
+
+def test_resolve_billable_weight_air_uses_volumetric_when_heavier() -> None:
+    # 0.10 m³ × 167 kg/m³ = 16.7 kg > 5 kg actual
+    result = resolve_billable_weight(
+        Decimal("5"),
+        Decimal("0.10"),
+        metadata={},
+        mode="air",
+    )
+    assert result == Decimal("5") or result > Decimal("5")
+    assert result == Decimal("0.10") * Decimal("167")
+
+
+def test_resolve_billable_weight_uses_actual_when_heavier_than_volumetric() -> None:
+    # 0.001 m³ × 167 = 0.167 kg < 10 kg actual
+    result = resolve_billable_weight(
+        Decimal("10"),
+        Decimal("0.001"),
+        metadata={},
+        mode="air",
+    )
+    assert result == Decimal("10")
+
+
+def test_resolve_billable_weight_respects_custom_dim_factor() -> None:
+    # custom factor 200 kg/m³, 0.05 m³ × 200 = 10 kg > 3 kg actual
+    result = resolve_billable_weight(
+        Decimal("3"),
+        Decimal("0.05"),
+        metadata={"dim_factor_kg_per_m3": "200"},
+        mode="air",
+    )
+    assert result == Decimal("0.05") * Decimal("200")
+
+
+def test_resolve_billable_weight_sea_default_factor() -> None:
+    # sea default 1000 kg/m³, 0.05 m³ × 1000 = 50 kg > 5 kg actual
+    result = resolve_billable_weight(
+        Decimal("5"),
+        Decimal("0.05"),
+        metadata={},
+        mode="sea",
+    )
+    assert result == Decimal("0.05") * Decimal("1000")
+
+
+def test_calculate_shipping_uses_volumetric_weight_when_heavier() -> None:
+    # 0.10 m³ × 167 (air default) = 16.7 kg — heavier than 2 kg actual.
+    # Route: 500/kg → fee = 500 × 16.7 = 8350
+    air_route = _route(base_price="0", price_per_kg="500", mode="air")
+
+    summary = calculate_shipping_for_routes(
+        routes=[air_route],
+        total_weight_kg=Decimal("2"),
+        total_volume_m3=Decimal("0.10"),
+        declared_value=Decimal("0"),
+        currency="XPF",
+    )
+
+    assert summary.total_fee == Decimal("8350")
+    assert summary.breakdown[0].billable_weight == Decimal("16.7")
+
+
+def test_calculate_shipping_falls_back_to_actual_when_no_volume() -> None:
+    route = _route(base_price="0", price_per_kg="500")
+
+    summary = calculate_shipping_for_routes(
+        routes=[route],
+        total_weight_kg=Decimal("2"),
+        total_volume_m3=None,
+        declared_value=Decimal("0"),
+        currency="XPF",
+    )
+
+    assert summary.total_fee == Decimal("1000")
 
 
 def test_serialize_shipping_cost_summary_is_json_safe() -> None:

@@ -29,7 +29,10 @@ from app.features.integrations.services.supplier_sync_orchestrator import (
 )
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product, ProductUpdate
-from app.features.product.services.pricing import CurrencyRateMissing, convert_to_xpf
+from app.features.product.services.pricing import (
+    CurrencyRateMissing,
+    convert_to_reference_currency,
+)
 from app.services.suppliers import all_adapters, get_adapter, has_supplier
 
 logger = logging.getLogger(__name__)
@@ -179,7 +182,7 @@ async def sync_supplier_inventory_task(
             batch_size = adapter.price_batch_size
             total_updated = 0
             errors = 0
-            # Cache FX rates within this sync run: currency_code → rate_to_xpf (None = missing)
+            # Cache FX rates within this sync run: currency_code → rate_to_reference (None = missing)
             _fx_rate_cache: dict[str, Decimal | None] = {}
 
             for i in range(0, len(skus), batch_size):
@@ -216,15 +219,15 @@ async def sync_supplier_inventory_task(
                                 raw_currency=data.currency or "USD",
                             )
 
-                            # Convert supplier price to XPF so that
-                            # SUPPLIER_SYNC_MIN_PRICE is always compared in the
-                            # same currency regardless of the supplier's invoice
-                            # currency (USD, EUR, …).
+                            # Convert supplier price to the reference currency
+                            # so that SUPPLIER_SYNC_MIN_PRICE is always compared
+                            # in the same currency regardless of the supplier's
+                            # invoice currency (USD, EUR, …).
                             # Rate is cached per currency to avoid one DB query per SKU.
                             src_currency = snapshot.supplier_price_currency
                             if src_currency not in _fx_rate_cache:
                                 try:
-                                    _, rate = await convert_to_xpf(
+                                    _, rate = await convert_to_reference_currency(
                                         session, Decimal("1"), src_currency
                                     )
                                     _fx_rate_cache[src_currency] = rate

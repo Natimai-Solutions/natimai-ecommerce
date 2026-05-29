@@ -4120,10 +4120,10 @@ export interface components {
              */
             currency_code: string;
             /**
-             * Rate To Xpf
-             * @description Conversion rate: 1 unit of currency_code = rate_to_xpf XPF
+             * Rate To Reference
+             * @description Conversion rate: 1 unit of currency_code = rate_to_reference units of the reference currency
              */
-            rate_to_xpf: string;
+            rate_to_reference: string;
             /**
              * Valid From
              * Format: date
@@ -4162,10 +4162,10 @@ export interface components {
          */
         CurrencyRateUpsertRequest: {
             /**
-             * Rate To Xpf
+             * Rate To Reference
              * @description New conversion rate
              */
-            rate_to_xpf: number | string;
+            rate_to_reference: number | string;
             /**
              * Valid From
              * Format: date

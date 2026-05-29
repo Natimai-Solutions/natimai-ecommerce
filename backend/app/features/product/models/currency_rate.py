@@ -21,11 +21,14 @@ class CurrencyRateBase(Base):
         index=True,
         description="ISO currency code (ex: USD, EUR)",
     )
-    rate_to_xpf: Decimal = Field(
+    rate_to_reference: Decimal = Field(
         gt=0,
         decimal_places=6,
         max_digits=16,
-        description="Conversion rate: 1 unit of currency_code = rate_to_xpf XPF",
+        description=(
+            "Conversion rate: 1 unit of currency_code = rate_to_reference "
+            "units of the reference currency"
+        ),
     )
     valid_from: date = Field(description="Start date of validity")
     valid_until: date | None = Field(default=None, description="Optional end date")
@@ -76,7 +79,7 @@ class CurrencyRatesPublic(SQLModel):
 class CurrencyRateUpsertRequest(SQLModel):
     """Request body for admin PUT /admin/currency-rates/{code}."""
 
-    rate_to_xpf: Decimal = Field(
+    rate_to_reference: Decimal = Field(
         gt=0,
         decimal_places=6,
         max_digits=16,

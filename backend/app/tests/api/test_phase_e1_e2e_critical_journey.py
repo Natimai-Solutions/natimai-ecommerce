@@ -60,6 +60,14 @@ class E1State:
     session: InMemorySession | None = None
 
 
+class _EmptyExecResult:
+    def first(self) -> None:
+        return None
+
+    def all(self) -> list[Any]:
+        return []
+
+
 class InMemorySession:
     def __init__(self, state: E1State) -> None:
         self._state = state
@@ -68,6 +76,13 @@ class InMemorySession:
         if model is User and str(record_id) == str(self._state.user.id):
             return self._state.user
         return None
+
+    async def exec(self, _statement: Any) -> _EmptyExecResult:
+        # Pricing/tax helpers (resolve_default_price_group, resolve_tax_rate)
+        # issue session.exec() directly during checkout. The journey assertions
+        # don't depend on their results, so an empty result is sufficient:
+        # price_group and tax_rate gracefully default to None.
+        return _EmptyExecResult()
 
     def add(self, _record: Any) -> None:
         return

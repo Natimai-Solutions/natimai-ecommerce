@@ -73,7 +73,10 @@
           <div class="text-h4 text-weight-bold text-primary q-mt-md">
             {{ displayPrice }}
           </div>
-          <div v-if="product.base_price === '0.00'" class="text-caption text-grey-6">
+          <div
+            v-if="!selectedMode && product.base_price === '0.00'"
+            class="text-caption text-grey-6"
+          >
             Prix sur devis
           </div>
 
@@ -85,6 +88,33 @@
             <span v-if="isOutOfStock">Sur commande</span>
             <span v-else>{{ stockQuantity }} en stock fournisseur</span>
           </div>
+
+          <!-- Mode de livraison import -->
+          <template v-if="shippingLoading || shippingModes.length > 0">
+            <div class="text-caption text-grey-7 q-mb-xs q-mt-md">Mode de livraison</div>
+            <q-skeleton v-if="shippingLoading" type="QInput" />
+            <template v-else>
+              <q-select
+                v-model="selectedModeKey"
+                :options="shippingModeOptions"
+                option-value="value"
+                option-label="label"
+                emit-value
+                map-options
+                outlined
+                dense
+                @update:model-value="onShippingModeChange"
+              >
+                <template #prepend><q-icon name="local_shipping" /></template>
+              </q-select>
+              <div v-if="selectedMode" class="text-caption text-grey-7 q-mt-xs">
+                Fret import&nbsp;: {{ formatXpf(parseFloat(selectedMode.freight)) }}
+                <span v-if="selectedMode.eta_days">
+                  &nbsp;·&nbsp;{{ selectedMode.eta_days }}&nbsp;j
+                </span>
+              </div>
+            </template>
+          </template>
 
           <div
             v-if="safeDescription"
@@ -140,7 +170,11 @@ import { computed, onMounted, onServerPrefetch, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { components } from '@app/api-types'
 import { formatXpf } from '@app/utils'
-import { getProductById } from 'src/api/products'
+import {
+  getProductById,
+  getProductShippingModes,
+  type ShippingModePricePublic,
+} from 'src/api/products'
 import { getProductRouteByIdAndName, slugifyProductName } from 'src/utils/productRoute'
 
 type ProductPublic = components['schemas']['ProductPublic']
@@ -155,6 +189,11 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const selectedImage = ref<string | null>(null)
 
+const SHIPPING_MODE_STORAGE_KEY = 'shipping_mode_preference'
+const shippingModes = ref<ShippingModePricePublic[]>([])
+const selectedModeKey = ref<string | null>(null)
+const shippingLoading = ref(false)
+
 const isOutOfStock = computed(() => {
   if (!product.value) return true
   return parseFloat(product.value.supplier_quantity) <= 0
@@ -165,7 +204,24 @@ const stockQuantity = computed(() => {
   return Math.max(0, Math.round(parseFloat(product.value.supplier_quantity)))
 })
 
+const selectedMode = computed(
+  () => shippingModes.value.find((m) => m.service_level === selectedModeKey.value) ?? null,
+)
+
+const shippingModeOptions = computed(() =>
+  shippingModes.value
+    .filter((m) => m.service_level !== null)
+    .map((m) => ({
+      label: m.customer_label ?? m.service_level ?? m.route_id,
+      value: m.service_level as string,
+    })),
+)
+
 const displayPrice = computed(() => {
+  if (selectedMode.value) {
+    const price = parseFloat(selectedMode.value.sale_price)
+    return price > 0 ? formatXpf(price) : '—'
+  }
   if (!product.value) return '—'
   const price = parseFloat(product.value.base_price)
   if (price === 0) return '—'
@@ -285,6 +341,8 @@ async function loadProduct() {
   loading.value = true
   error.value = null
   selectedImage.value = null
+  shippingModes.value = []
+  selectedModeKey.value = null
 
   const routeId = typeof route.params.id === 'string' ? route.params.id : null
   if (!routeId) {
@@ -297,6 +355,11 @@ async function loadProduct() {
   try {
     const data = await getProductById(routeId)
     product.value = data
+
+    // Shipping modes are interactive/client-only — skip on SSR
+    if (typeof window !== 'undefined') {
+      void loadShippingModes(routeId)
+    }
 
     const expectedSlug = slugifyProductName(data.name)
     const currentSlug = typeof route.params.slug === 'string' ? route.params.slug : ''
@@ -330,6 +393,28 @@ function onAddToCart() {
   if (!product.value) return
   // TODO: brancher sur le store panier
   console.log('add to cart', product.value.id)
+}
+
+async function loadShippingModes(productId: string): Promise<void> {
+  shippingLoading.value = true
+  try {
+    const data = await getProductShippingModes(productId)
+    shippingModes.value = data.shipping_modes
+    const saved = localStorage.getItem(SHIPPING_MODE_STORAGE_KEY)
+    const available = data.shipping_modes.map((m) => m.service_level)
+    selectedModeKey.value =
+      saved !== null && available.includes(saved) ? saved : data.default_mode
+  } catch {
+    shippingModes.value = []
+    selectedModeKey.value = null
+  } finally {
+    shippingLoading.value = false
+  }
+}
+
+function onShippingModeChange(modeKey: string | null): void {
+  selectedModeKey.value = modeKey
+  if (modeKey) localStorage.setItem(SHIPPING_MODE_STORAGE_KEY, modeKey)
 }
 
 onServerPrefetch(loadProduct)

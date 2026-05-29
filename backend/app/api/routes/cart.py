@@ -1328,7 +1328,7 @@ async def checkout_my_cart(
                     ),
                     cost_amount_snapshot=getattr(product, "cost_amount", None),
                     cost_currency_snapshot=getattr(product, "cost_currency", None)
-                    or "XPF",
+                    or settings.REFERENCE_CURRENCY,
                     fx_rate_used=getattr(item, "fx_rate_used", None),
                     customs_rate_pct_snapshot=getattr(
                         product, "customs_rate_pct", None

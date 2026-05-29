@@ -52,7 +52,10 @@
           <div class="text-h5 text-weight-bold text-primary q-mt-md">
             {{ displayPrice }}
           </div>
-          <div v-if="product.base_price === '0.00'" class="text-caption text-grey-6">
+          <div
+            v-if="!selectedMode && product.base_price === '0.00'"
+            class="text-caption text-grey-6"
+          >
             Prix sur devis
           </div>
 
@@ -64,6 +67,33 @@
             <span v-if="isOutOfStock">Sur commande</span>
             <span v-else>{{ stockQuantity }} en stock fournisseur</span>
           </div>
+
+          <!-- Mode de livraison import -->
+          <template v-if="shippingLoading || shippingModes.length > 0">
+            <div class="text-caption text-grey-7 q-mb-xs q-mt-md">Mode de livraison</div>
+            <q-skeleton v-if="shippingLoading" type="QInput" />
+            <template v-else>
+              <q-select
+                v-model="selectedModeKey"
+                :options="shippingModeOptions"
+                option-value="value"
+                option-label="label"
+                emit-value
+                map-options
+                outlined
+                dense
+                @update:model-value="onShippingModeChange"
+              >
+                <template #prepend><q-icon name="local_shipping" /></template>
+              </q-select>
+              <div v-if="selectedMode" class="text-caption text-grey-7 q-mt-xs">
+                Fret import&nbsp;: {{ formatXpf(parseFloat(selectedMode.freight)) }}
+                <span v-if="selectedMode.eta_days">
+                  &nbsp;·&nbsp;{{ selectedMode.eta_days }}&nbsp;j
+                </span>
+              </div>
+            </template>
+          </template>
 
           <div
             v-if="safeDescription"
@@ -123,18 +153,72 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import DOMPurify from 'isomorphic-dompurify'
 import type { components } from '@app/api-types'
 import { formatXpf } from '@app/utils'
+import {
+  getProductShippingModes,
+  type ShippingModePricePublic,
+} from 'src/api/products'
 import { getProductRoute } from 'src/utils/productRoute'
 
 type ProductPublic = components['schemas']['ProductPublic']
+
+const SHIPPING_MODE_STORAGE_KEY = 'shipping_mode_preference'
 
 const props = defineProps<{ product: ProductPublic }>()
 const emit = defineEmits<{ 'add-to-cart': [product: ProductPublic] }>()
 const open = defineModel<boolean>({ default: false })
 const productRoute = computed(() => getProductRoute(props.product))
+
+const shippingModes = ref<ShippingModePricePublic[]>([])
+const selectedModeKey = ref<string | null>(null)
+const shippingLoading = ref(false)
+
+watch(open, async (isOpen) => {
+  if (isOpen) {
+    await loadShippingModes()
+  } else {
+    shippingModes.value = []
+    selectedModeKey.value = null
+  }
+})
+
+async function loadShippingModes(): Promise<void> {
+  shippingLoading.value = true
+  try {
+    const data = await getProductShippingModes(props.product.id)
+    shippingModes.value = data.shipping_modes
+    const saved = localStorage.getItem(SHIPPING_MODE_STORAGE_KEY)
+    const available = data.shipping_modes.map((m) => m.service_level)
+    selectedModeKey.value =
+      saved !== null && available.includes(saved) ? saved : data.default_mode
+  } catch {
+    shippingModes.value = []
+    selectedModeKey.value = null
+  } finally {
+    shippingLoading.value = false
+  }
+}
+
+function onShippingModeChange(modeKey: string | null): void {
+  selectedModeKey.value = modeKey
+  if (modeKey) localStorage.setItem(SHIPPING_MODE_STORAGE_KEY, modeKey)
+}
+
+const selectedMode = computed(
+  () => shippingModes.value.find((m) => m.service_level === selectedModeKey.value) ?? null,
+)
+
+const shippingModeOptions = computed(() =>
+  shippingModes.value
+    .filter((m) => m.service_level !== null)
+    .map((m) => ({
+      label: m.customer_label ?? m.service_level ?? m.route_id,
+      value: m.service_level as string,
+    })),
+)
 
 const placeholderImg = '/icons/placeholder-product.svg'
 
@@ -145,6 +229,10 @@ const stockQuantity = computed(() =>
 )
 
 const displayPrice = computed(() => {
+  if (selectedMode.value) {
+    const price = parseFloat(selectedMode.value.sale_price)
+    return price > 0 ? formatXpf(price) : '—'
+  }
   const price = parseFloat(props.product.base_price)
   if (price === 0) return '—'
   return formatXpf(price)

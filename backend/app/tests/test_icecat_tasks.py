@@ -5,6 +5,8 @@ from uuid import uuid4
 import pytest
 
 import app.tasks.icecat_tasks as icecat_tasks
+from app.features.product.crud.product import crud_product
+from app.services.icecat_service import icecat_service
 
 
 @pytest.fixture
@@ -41,7 +43,7 @@ async def test_enrich_product_with_icecat_task_skips_admin_inactive(
 
     monkeypatch.setattr(icecat_tasks, "AsyncSession", _FakeAsyncSession)
     monkeypatch.setattr(
-        icecat_tasks.crud_product,
+        crud_product,
         "read",
         AsyncMock(
             return_value=SimpleNamespace(
@@ -53,7 +55,7 @@ async def test_enrich_product_with_icecat_task_skips_admin_inactive(
         ),
     )
     monkeypatch.setattr(
-        icecat_tasks.icecat_service,
+        icecat_service,
         "enrich_product_with_icecat",
         enrich_mock,
     )
@@ -128,11 +130,11 @@ async def test_batch_enrich_products_task_skips_admin_inactive(
 
     monkeypatch.setattr(icecat_tasks, "AsyncSession", _FakeAsyncSession)
     monkeypatch.setattr(
-        icecat_tasks.icecat_service,
+        icecat_service,
         "enrich_product_with_icecat",
         enrich_mock,
     )
-    monkeypatch.setattr(icecat_tasks.crud_product, "update", AsyncMock())
+    monkeypatch.setattr(crud_product, "update", AsyncMock())
 
     result = await icecat_tasks.batch_enrich_products_task(_ctx={}, limit=10)
 

@@ -13,6 +13,12 @@ from app.utils.money import quantize_amount
 _LB_PER_KG = Decimal("2.2046226218")
 _SUPPORTED_WEIGHT_UNITS = {"kg", "lb"}
 
+# Default dimensional-weight factors (kg/m³) by transport mode.
+# Standard IATA for air; W/M (1 cbm = 1000 kg) for sea/road.
+# Override per-route via route_metadata["dim_factor_kg_per_m3"].
+_DEFAULT_DIM_FACTOR_AIR = Decimal("167")
+_DEFAULT_DIM_FACTOR_SEA = Decimal("1000")
+
 
 @dataclass(frozen=True)
 class RouteShippingCostBreakdown:
@@ -167,15 +173,59 @@ def _is_pricing_window_effective(
     return True
 
 
+def resolve_billable_weight(
+    weight_kg: Decimal,
+    volume_m3: Decimal | None,
+    *,
+    metadata: dict[str, Any],
+    mode: str | None = None,
+) -> Decimal:
+    """Return the billable weight for a single route (kg basis, before unit conversion).
+
+    Strategy is driven by ``route_metadata["billing_basis"]``:
+    - ``volumetric_max`` (default when volume is available): max(actual, volumetric).
+    - ``actual_weight``  : always use actual weight regardless of volume.
+
+    When ``volume_m3`` is None (missing or incomplete product dimensions) the
+    function always falls back to the actual weight.
+
+    The dimensional factor ``dim_factor_kg_per_m3`` is read from ``route_metadata``
+    and defaults to 167 (air) or 1000 (sea/other) based on the route ``mode``.
+    """
+    actual = max(weight_kg, Decimal("0"))
+
+    billing_basis = str(metadata.get("billing_basis", "volumetric_max")).strip().lower()
+    if billing_basis == "actual_weight" or volume_m3 is None:
+        return actual
+
+    default_factor = (
+        _DEFAULT_DIM_FACTOR_AIR
+        if (mode or "").lower() == "air"
+        else _DEFAULT_DIM_FACTOR_SEA
+    )
+    dim_factor = _to_decimal(
+        metadata.get("dim_factor_kg_per_m3"), default=default_factor
+    )
+    volumetric = volume_m3 * dim_factor
+    return max(actual, volumetric)
+
+
 def calculate_shipping_for_routes(
     *,
     routes: list[ShippingRoute],
     total_weight_kg: Decimal,
     declared_value: Decimal,
     currency: str,
+    total_volume_m3: Decimal | None = None,
     as_of: datetime | None = None,
 ) -> ShippingCostSummary:
-    """Calculate shipping for routes."""
+    """Calculate shipping for routes.
+
+    ``total_volume_m3`` is the consolidated shipment volume (sum of product
+    volumes). When provided together with ``dim_factor_kg_per_m3`` in
+    ``route_metadata``, the billable weight is max(actual, volumetric).
+    Omit (or pass None) to fall back to actual weight only.
+    """
     normalized_weight_kg = max(total_weight_kg, Decimal("0"))
     normalized_declared_value = max(declared_value, Decimal("0"))
     effective_at = as_of or datetime.now(timezone.utc)
@@ -194,7 +244,13 @@ def calculate_shipping_for_routes(
 
         fixed_fee = _to_decimal(route.base_price)
         price_per_weight_unit = _to_decimal(route.price_per_kg)
-        billable_weight = _convert_weight_from_kg(normalized_weight_kg, weight_unit)
+        billable_weight_kg = resolve_billable_weight(
+            normalized_weight_kg,
+            total_volume_m3,
+            metadata=metadata,
+            mode=getattr(route, "mode", None),
+        )
+        billable_weight = _convert_weight_from_kg(billable_weight_kg, weight_unit)
         weight_fee = price_per_weight_unit * billable_weight
 
         value_rate = (

@@ -13,7 +13,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import engine
 from app.features.integrations.models.icecat_sync import IcecatProductData
-from app.features.integrations.services.supplier_data_normalization import evaluate_product_filters
+from app.features.integrations.services.supplier_data_normalization import (
+    evaluate_product_filters,
+)
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import ProductUpdate
 from app.services.icecat_service import icecat_service
@@ -60,6 +62,18 @@ def update_product_with_icecat_data(
 
     if icecat_product_data.icecat_id:
         update_data.enrichment_supplier_id = icecat_product_data.icecat_id
+
+    if icecat_product_data.weight_kg is not None:
+        update_data.weight = icecat_product_data.weight_kg
+
+    if icecat_product_data.dimensions_length_cm is not None:
+        update_data.dimensions_length = icecat_product_data.dimensions_length_cm
+
+    if icecat_product_data.dimensions_width_cm is not None:
+        update_data.dimensions_width = icecat_product_data.dimensions_width_cm
+
+    if icecat_product_data.dimensions_height_cm is not None:
+        update_data.dimensions_height = icecat_product_data.dimensions_height_cm
 
     update_data.is_enriched = True
     update_data.last_enrichment_sync = datetime.datetime.now(tz=datetime.timezone.utc)

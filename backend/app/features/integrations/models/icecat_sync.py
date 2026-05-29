@@ -35,3 +35,16 @@ class IcecatProductData(BaseModel):
     brand_logo_url: str | None = Field(
         default=None, description="URL of the brand logo"
     )
+    weight_kg: float | None = Field(
+        default=None,
+        description="Product weight in kg (from Icecat ProductSizeAndWeight)",
+    )
+    dimensions_length_cm: float | None = Field(
+        default=None, description="Product depth/length in cm"
+    )
+    dimensions_width_cm: float | None = Field(
+        default=None, description="Product width in cm"
+    )
+    dimensions_height_cm: float | None = Field(
+        default=None, description="Product height in cm"
+    )
