@@ -204,7 +204,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, onServerPrefetch, ref } from 'vue'
+import { useMeta } from 'quasar'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductsStore } from 'src/stores/products'
 import ProductCard from 'src/components/ProductCard.vue'
@@ -215,6 +216,16 @@ type ProductPublic = components['schemas']['ProductPublic']
 const store = useProductsStore()
 const route = useRoute()
 const router = useRouter()
+
+useMeta(() => ({
+  title: 'Catalogue | Natimai',
+  meta: {
+    description: {
+      name: 'description',
+      content: 'Explorez notre catalogue de produits avec filtres par catégorie, fabricant et prix.',
+    },
+  },
+}))
 
 const searchQuery = ref<string>('')
 const selectedCategory = ref<string | null>(null)
@@ -305,7 +316,7 @@ function initFromQuery() {
   if (typeof mfr === 'string') selectedManufacturer.value = mfr
 }
 
-onMounted(async () => {
+async function loadCatalogueData() {
   initFromQuery()
   await store.loadCategories()
   await store.applyFilters({
@@ -313,6 +324,12 @@ onMounted(async () => {
     category_id: selectedCategory.value,
     manufacturer: selectedManufacturer.value,
   })
+}
+
+onServerPrefetch(loadCatalogueData)
+
+onMounted(async () => {
+  await loadCatalogueData()
 })
 </script>
 

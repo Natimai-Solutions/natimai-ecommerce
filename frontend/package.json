@@ -23,6 +23,7 @@
     "compression": "^1.7.5",
     "dompurify": "^3.4.7",
     "express": "^4.21.2",
+    "isomorphic-dompurify": "^3.15.0",
     "pinia": "^3.0.1",
     "quasar": "^2.16.0",
     "vue": "^3.5.22",

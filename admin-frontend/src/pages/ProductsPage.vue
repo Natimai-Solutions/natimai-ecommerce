@@ -78,7 +78,7 @@
       <template #body-cell-active="props">
         <q-td :props="props" align="center">
           <q-toggle
-            :model-value="props.row.is_active"
+            :model-value="props.row.is_admin_active"
             color="positive"
             :disable="store.togglingIds.has(props.row.id)"
             @update:model-value="store.toggleActive(props.row)"
@@ -123,7 +123,7 @@ const columns: QTableColumn[] = [
   { name: 'image', label: '', field: 'image_url', align: 'left' },
   { name: 'sku', label: 'SKU', field: (row) => row.supplier_sku || row.vendor_part_number || '—', align: 'left' },
   { name: 'name', label: 'Nom', field: 'name', align: 'left', style: 'max-width: 480px' },
-  { name: 'active', label: 'Actif', field: 'is_active', align: 'center' },
+  { name: 'active', label: 'Actif admin', field: 'is_admin_active', align: 'center' },
 ]
 
 const totalPages = computed(() => Math.max(1, Math.ceil(store.totalCount / store.pageSize)))

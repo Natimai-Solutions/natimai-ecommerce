@@ -60,6 +60,14 @@
         @click="showDetails = true"
       />
       <q-btn
+        flat
+        dense
+        color="grey-7"
+        icon="open_in_new"
+        aria-label="Fiche produit"
+        :to="productRoute"
+      />
+      <q-btn
         unelevated
         color="primary"
         icon="add_shopping_cart"
@@ -83,6 +91,7 @@ import { computed, ref } from 'vue'
 import type { components } from '@app/api-types'
 import { formatXpf } from '@app/utils'
 import ProductDetailsDialog from 'src/components/ProductDetailsDialog.vue'
+import { getProductRoute } from 'src/utils/productRoute'
 
 type ProductPublic = components['schemas']['ProductPublic']
 
@@ -91,6 +100,7 @@ const emit = defineEmits<{ 'add-to-cart': [product: ProductPublic] }>()
 
 const placeholderImg = '/icons/placeholder-product.svg'
 const showDetails = ref(false)
+const productRoute = computed(() => getProductRoute(props.product))
 
 const isOutOfStock = computed(() => parseFloat(props.product.supplier_quantity) <= 0)
 

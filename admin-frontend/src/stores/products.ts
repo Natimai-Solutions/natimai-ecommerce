@@ -46,11 +46,11 @@ export const useProductsStore = defineStore('products', () => {
   }
 
   async function toggleActive(product: ProductPublic) {
-    const next = !product.is_active
+    const next = !product.is_admin_active
     togglingIds.value.add(product.id)
     try {
-      await api.put(`/product/${product.id}`, { is_active: next })
-      product.is_active = next
+      await api.put(`/product/${product.id}`, { is_admin_active: next })
+      product.is_admin_active = next
     } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : 'Échec de mise à jour'
     } finally {

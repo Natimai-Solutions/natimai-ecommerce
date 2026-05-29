@@ -102,6 +102,14 @@
       <q-card-actions align="right">
         <q-btn flat label="Fermer" color="grey-7" v-close-popup />
         <q-btn
+          flat
+          color="primary"
+          icon="open_in_new"
+          label="Voir la fiche"
+          :to="productRoute"
+          @click="open = false"
+        />
+        <q-btn
           unelevated
           color="primary"
           icon="add_shopping_cart"
@@ -116,15 +124,17 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import DOMPurify from 'dompurify'
+import DOMPurify from 'isomorphic-dompurify'
 import type { components } from '@app/api-types'
 import { formatXpf } from '@app/utils'
+import { getProductRoute } from 'src/utils/productRoute'
 
 type ProductPublic = components['schemas']['ProductPublic']
 
 const props = defineProps<{ product: ProductPublic }>()
 const emit = defineEmits<{ 'add-to-cart': [product: ProductPublic] }>()
 const open = defineModel<boolean>({ default: false })
+const productRoute = computed(() => getProductRoute(props.product))
 
 const placeholderImg = '/icons/placeholder-product.svg'
 

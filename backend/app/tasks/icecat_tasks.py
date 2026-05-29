@@ -98,6 +98,16 @@ async def enrich_product_with_icecat_task(
                 logger.error(f"Product not found: {product_id}")
                 return {"status": "error", "message": "Product not found"}
 
+            if not getattr(product, "is_admin_active", True):
+                logger.info(
+                    "Skipping Icecat enrichment for product %s: is_admin_active=False",
+                    product_id,
+                )
+                return {
+                    "status": "skipped",
+                    "message": "Product is admin inactive",
+                }
+
             # Skip if product doesn't have vendor part number
             if not product.vendor_part_number or not product.manufacturer:
                 logger.warning(
@@ -218,6 +228,7 @@ async def batch_enrich_products_task(
             query = (
                 select(Product)
                 .where(col(Product.is_supplier_managed).is_(True))
+                .where(col(Product.is_admin_active).is_(True))
                 .where(
                     col(Product.is_enriched).is_(False)
                     | col(Product.is_enriched).is_(None)
@@ -236,6 +247,14 @@ async def batch_enrich_products_task(
                 stats["total_processed"] += 1
                 await session.refresh(product)
                 product_id = product.id
+
+                if not getattr(product, "is_admin_active", True):
+                    stats["skipped"] += 1
+                    logger.info(
+                        "Skipping Icecat enrichment for product %s: is_admin_active=False",
+                        product_id,
+                    )
+                    continue
 
                 try:
                     # Get Icecat enrichment data

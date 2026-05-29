@@ -158,11 +158,13 @@ async def sync_supplier_inventory_task(
                 one_hour_ago = _now() - timedelta(hours=1)
                 # include_archived=True so we can also refresh (and potentially
                 # re-activate) products previously marked is_active=False.
+                # Admin-disabled products remain excluded from supplier inventory sync.
                 result = await crud_product.read_multi(
                     session,
                     filter=and_(
                         Product.supplier_name == supplier_name,
                         col(Product.is_supplier_managed).is_(True),
+                        col(Product.is_admin_active).is_(True),
                         or_(
                             col(Product.last_supplier_sync) <= one_hour_ago,
                             col(Product.last_supplier_sync).is_(None),
@@ -197,6 +199,14 @@ async def sync_supplier_inventory_task(
                                     "Product with SKU %s not found for %s",
                                     sku,
                                     supplier_name,
+                                )
+                                continue
+
+                            if not getattr(product, "is_admin_active", True):
+                                logger.info(
+                                    "Skipping inventory sync for product %s (%s): is_admin_active=False",
+                                    product.id,
+                                    sku,
                                 )
                                 continue
 
