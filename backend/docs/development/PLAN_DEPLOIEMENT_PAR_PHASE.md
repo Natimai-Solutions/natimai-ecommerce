@@ -25,6 +25,8 @@ sale_price = cost × (1 + customs_rate_pct/100) × (1 + margin_rate_pct/100) × 
 # tax_rate résolu : product.tax_rate → category.default_tax_rate → TaxRate(code="TGC_NORMAL", territory="PF")
 ```
 
+> ⚠️ **Amendée** par la section *Décision transverse : fret import & assiette douane (CAF)* ci-dessous : la douane porte sur la valeur CAF (coût + assurance + **fret import**), pas sur le coût seul. La formule ci-dessus reste valable une fois `cost` remplacé par la CAF.
+
 - Anonymes / non connectés → groupe `default=True` (typiquement « Particulier »).
 - Snapshot figé dans `CartItem.unit_price` (déjà existant) puis `OrderLine.unit_price` au checkout : la commande n'est pas affectée par un changement de marge ultérieur.
 - Sync Ingram met à jour `cost_amount`, pas `base_price`.
@@ -145,6 +147,98 @@ XPF (référence), USD, EUR. Ajout d'autres devises = créer un `CurrencyRate`, 
 | **1** | Modèle `CurrencyRate` + migration + seed initial USD→XPF et EUR→XPF ; helper `convert_to_xpf()` intégré à `calculate_sale_price()` et `_meets_sync_thresholds()` ; snapshots FX sur `CartItem` et `OrderLine` ; endpoint admin `PUT /admin/currency-rates/{code}` + `GET /admin/currency-rates` |
 | **3** | Préparation P4 : champ système `default_display_currency` (admin) |
 | **4** | Cron quotidien **optionnel** (`CURRENCY_AUTO_UPDATE_ENABLED`) avec source externe (ECB / exchangerate.host) ; alerte admin si dernier taux > 30 jours ; affichage multi-devises selon `user.preference.currency_pref` (XPF/USD/EUR) |
+
+---
+
+## Décision transverse : fret import & assiette douane (CAF)
+
+**Contexte** : en Polynésie française, les droits de douane portent sur la **valeur CAF** (Coût + Assurance + **Fret**), pas sur le coût seul. Le fret du tronçon *origine → entrepôt de dédouanement (Papeete)* fait donc partie de l'assiette taxable. Comme ce fret dépend du mode de transport (avion = rapide, bateau = économique/écologique), **le prix de vente d'un produit dépend du mode de transport import choisi**. La formule de la section *tarification par groupe* est corrigée en conséquence.
+
+### Deux familles de tronçons
+
+| | Tronçon **import** (origine → entrepôt Papeete) | Tronçon **distribution** (entrepôt → client) |
+|---|---|---|
+| Frontière | route dont `to_place.customs_clearance = True` | après dédouanement, intérieur PF |
+| Dans l'assiette douane (CAF) ? | **Oui** | Non |
+| Où dans le prix ? | **Inclus dans le prix produit affiché** | Frais séparés ajoutés au panier |
+| Choix client | niveau de service (rapide/éco/économique) | mode de livraison île/domicile |
+
+### Formule corrigée
+
+```python
+caf        = cost_in_xpf + fret_import_variable(route) + assurance
+landed     = caf × (1 + customs_rate_pct/100)
+sale_price = landed × (1 + margin_rate_pct/100) × (1 + tax_rate.rate_pct/100)
+```
+
+- `fret_import_variable` = **part variable uniquement** : `route.price_per_kg × billable_weight` (voir *Poids taxable* ci-dessous). Le forfait par envoi (`route.base_price`) et le handling restent des frais d'expédition au niveau du panier (non attribuables à l'unité).
+- `assurance` = `insurance_rate_pct × cost_in_xpf` (config globale, défaut 0 → n'empêche pas de démarrer).
+- L'ancienne formule (douane sur coût seul) est **caduque** ; `calculate_sale_price()` et `shared/utils/src/pricing.ts` sont à reprendre.
+
+### Poids taxable : poids réel vs volume (poids volumétrique)
+
+Le fret se facture sur le **plus cher** du poids réel et du poids volumétrique (standard transport). S'applique à tout le calcul de fret (`calculate_shipping_for_routes`), import comme distribution.
+
+```python
+volume_m3            = (length_cm × width_cm × height_cm) / 1_000_000   # None si une dim manque
+volumetric_weight_kg = volume_m3 × dim_factor_kg_per_m3                 # 0 si volume indisponible
+billable_weight_kg   = max(actual_weight_kg, volumetric_weight_kg)
+fee                  = route.price_per_kg × billable_weight_kg
+```
+
+- **Facteur dépendant du mode**, jamais en dur : `route_metadata.dim_factor_kg_per_m3` (le JSON `route_metadata` porte déjà `value_rate`/`min_total`/`max_total`/`weight_unit`). Fallback sur un défaut par mode en config — avion ≈ 167 kg/m³, mer/LCL ≈ 1000 kg/m³.
+- **Fallback** : dimensions absentes ou incomplètes (il faut les 3) → `volumetric_weight = 0` → on retombe sur le poids réel.
+- **Stratégie enfichable** : `route_metadata.billing_basis` ∈ `volumetric_max` (défaut si dims présentes) | `actual_weight` | (formule future). `calculate_shipping_for_routes` reste *strategy-driven* : nouvelle formule = nouvelle stratégie, sans toucher aux appelants.
+- **Attribution** : prix unitaire (CAF) → `billable_weight` calculé **par produit**. Forfait panier (envoi consolidé) → ne pas sommer les billables unitaires ; sommer poids et volumes séparément puis `max(Σpoids, Σvolume × facteur)`.
+- Le champ `billable_weight` de `RouteShippingCostBreakdown` (aujourd'hui = poids converti) prend son vrai sens.
+- **Prérequis enrichissement** : peupler `Product.dimensions_length/width/height` + `weight` à l'enrichissement Icecat (aujourd'hui seules les dims d'**images** sont mappées dans `icecat_service.py`). Fallback poids réel si Icecat ne fournit pas les dimensions physiques.
+
+### Le choix client = UN niveau de service, appliqué à tous les corridors
+
+Point clé pour éviter l'explosion de complexité multi-fournisseurs : **le client choisit un seul *niveau de service*** (rapide / économique / écologique), **jamais une route par fournisseur**. Le système résout, pour chaque corridor, la route import correspondant à ce niveau.
+
+- Panier mono-fournisseur (cas courant France→Papeete) → 1 corridor → cas simple.
+- Panier multi-fournisseurs (France + US + Asie) → **toujours un seul choix client** ; en coulisses N expéditions distinctes, gérées par la machinerie consolidation / `sequence_order` existante. Invisible pour le client.
+- Chaque produit embarque déjà le fret de **son** corridor pour chaque niveau → le recalcul client (dropdown) reste trivial : on indexe le même `service_level` pour tous les produits du panier.
+- Corridor sans le niveau demandé (ex. pas d'avion) → fallback vers le niveau disponible le plus proche, avec ETA réel affiché.
+
+Résolution du niveau effectif : param requête → `User.preferred_shipping_mode` → défaut système (`rapide`).
+
+### Recalcul côté client
+
+Le backend renvoie, par produit, un tableau indexé par niveau de service :
+
+```jsonc
+"shipping_modes": {
+  "rapide":     { "freight": 3750, "sale_price": 165900, "eta_days": 5,  "carbon": 12.4 },
+  "economique": { "freight": 750,  "sale_price": 161100, "eta_days": 35, "carbon": 1.1 }
+},
+"default_mode": "rapide"
+```
+
+Le dropdown bascule **en local** via `shared/utils/src/pricing.ts` (étendu pour la CAF), **sans refetch**. Le backend reste autoritaire : recalcul + snapshot au panier/checkout.
+
+### Modèle de données
+
+| Entité | Champs à ajouter |
+|--------|------------------|
+| `ShippingRoute` | `customer_label: str \| null` (libellé dropdown), `is_default_import: bool`, `service_level: str` (clé stable cross-corridor : `rapide`/`economique`/`ecologique`) |
+| `ShippingRoute.route_metadata` (JSON existant) | `dim_factor_kg_per_m3`, `billing_basis` (poids taxable) — **pas de migration** |
+| `Product` (champs existants) | peupler `dimensions_length/width/height` + `weight` à l'enrichissement (volume = L×l×h) |
+| `User` (ou `UserPreference`) | `preferred_shipping_mode: str \| null` (niveau de service) |
+| Config système | `insurance_rate_pct: Decimal` (défaut 0) |
+| `CartItem` / `OrderLine` | snapshot `service_level` + `import_route_id` + `fret_import_snapshot` (assiette douane figée pour audit) |
+
+- Identification import : **pas de flag dédié** — une route est « import » si `to_place.customs_clearance = True` (`Place` l'a déjà).
+- **Mapping produit → corridor** (évolution multi-fournisseurs) : un produit doit savoir de quel corridor il dépend. Aujourd'hui `Product.supplier_name` est un texte libre — prévoir un FK `Product.supplier_partner_id` (ou table `supplier_name → from_place_id`) reliant le produit à un `Partner`/`Place` d'origine. **Reporté Phase 3** (cf. jalons).
+
+### Jalons par phase
+
+| Phase | Livrable fret import |
+|-------|----------------------|
+| **1** | CAF dans `calculate_sale_price()` (part variable + assurance) ; **poids taxable** (max poids/volume) dans `calculate_shipping_for_routes` + `dim_factor_kg_per_m3`/`billing_basis` lus depuis `route_metadata` ; capture des **dimensions physiques** à l'enrichissement Icecat (+ fallback poids) ; champs `customer_label` + `is_default_import` + `service_level` sur `ShippingRoute` + migration ; **corridor unique France→Papeete** seedé ; payload `shipping_modes` + `default_mode` sur la fiche produit ; `pricing.ts` étendu CAF ; dropdown front + persistance du choix (`localStorage` anonyme) ; `preferred_shipping_mode` lu s'il est présent |
+| **2** | `preferred_shipping_mode` éditable dans les préférences utilisateur (cf. item *Préférences utilisateur* P2) ; snapshot `service_level` / `import_route_id` / `fret_import_snapshot` figé sur `OrderLine` au checkout |
+| **3** | **Mapping multi-fournisseurs** : `Product.supplier_partner_id` (ou table de correspondance) ; corridors multiples (US, Asie…) ; résolution `service_level → route` par corridor + fallback nearest-tier ; cohérent avec la refonte route auto-sélection (B8) |
 
 ---
 
@@ -269,6 +363,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 - ✅ **Seed CurrencyRate** USD/EUR automatique via `initial_data.py` (plus de config manuelle nécessaire au premier déploiement).
 - ✅ **`meets_sync_thresholds` — conversion XPF** : `supplier_tasks.py` appelle `convert_to_xpf()` avant le check ; `meets_sync_thresholds()` reçoit `price_in_xpf` (fallback sur prix brut si `CurrencyRateMissing`). `SUPPLIER_SYNC_MIN_PRICE` est désormais interprété en XPF quelle que soit la devise fournisseur.
 - ✅ **Documentation ops** : [OPS_ENV_ET_CHECKS.md](OPS_ENV_ET_CHECKS.md) — variables d'environnement par catégorie, checklist premier déploiement, checks ARQ/outbox/taux FX en prod.
+- 🟡 **Fret import / CAF** : reprise de `calculate_sale_price()` (douane sur CAF = coût + assurance + fret import) + champs `service_level`/`customer_label`/`is_default_import` sur `ShippingRoute` + payload `shipping_modes` + dropdown front. ⚠️ La formule pricing livrée le 22/05 (douane sur coût seul) est à corriger. Cf. *Décision transverse : fret import & assiette douane (CAF)*.
 - 🟡 Migration/seed Phase 1 : à valider en environnement d'intégration (upgrade/downgrade + non-régression).
 
 ### Périmètre fonctionnel
@@ -288,6 +383,18 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - Service `app/features/product/services/pricing.py::calculate_sale_price(product, group)`.
    - Adapter [supplier_tasks.py:194-211](../../app/tasks/supplier_tasks.py#L194-L211) : stocker `cost_amount` au lieu d'écraser `base_price`. Calculer `base_price` côté présentation.
    - Snapshot pricing dans `CartItem` (déjà) — pas de modification immédiate côté `OrderLine`.
+
+1bis. **Fret import & assiette douane (CAF)** — cf. *Décision transverse : fret import & assiette douane (CAF)*.
+   - Migration : `customer_label`, `is_default_import`, `service_level` sur `shipping_routes` ; config `insurance_rate_pct`.
+   - Refonte `calculate_sale_price()` : assiette CAF = `cost_in_xpf + price_per_kg(route)×billable_weight + assurance`, douane appliquée sur la CAF (et non sur le coût seul).
+   - **Poids taxable** : helper `resolve_billable_weight(weight_kg, volume_m3, route)` = `max(poids, volume × dim_factor)` ; `dim_factor_kg_per_m3` + `billing_basis` lus depuis `route_metadata` (fallback défaut par mode en config) ; intégration dans `calculate_shipping_for_routes` (étendu pour accepter le volume) ; fallback poids réel si dimensions absentes/incomplètes.
+   - **Enrichissement** : mapper les dimensions physiques + poids Icecat vers `Product.dimensions_*`/`weight` dans `icecat_service.py` (aujourd'hui seules les dims d'images sont mappées).
+   - Fonction `calculate_price_by_mode(product, group, import_routes)` → tableau `{ service_level: { freight, sale_price, eta_days, carbon } }`.
+   - Seed du **corridor unique France→Papeete** : routes import avion/bateau avec `service_level` + `customer_label` + `is_default_import`.
+   - Fiche produit : exposer `shipping_modes` + `default_mode`.
+   - `shared/utils/src/pricing.ts` : étendre `PricingInput` (`freightXpf`, `insuranceXpf`) → `afterCustoms = (cost + freight + insurance) × (1 + customs%)`.
+   - Frontend : dropdown niveau de service (recalcul **local**, pas de refetch) + persistance `localStorage` (anonyme) / `preferred_shipping_mode` (connecté).
+   - Mise à jour des tests pricing produit pour la CAF.
 
 2. **TVA / TGC**
    - Migration : modèle `TaxRate` (`code`, `label`, `rate_pct`, `territory_code`, `valid_from`, `valid_until`).
@@ -593,6 +700,7 @@ Phase 0 (bugs)
 
 Phase 1 → Phase 2 (groupes activés sur le pricing posé en P1)
 Phase 1 → Phase 3 (specs YAML migrées vers table DB ; default_display_currency posé en P3)
+Phase 1 → Phase 3 (corridor import unique posé en P1 ; mapping multi-fournisseurs + corridors multiples en P3, avec B8)
 Phase 1 → Phase 4 (snapshots FX et CurrencyRate posés en P1, automatisation et multi-devises utilisateur en P4)
 Phase 2 → Phase 3 (les emails P2 servent aussi tracking P3)
 Phase 2 → Phase 3 (SupplierOrder P2 étendu par webhook Ingram P3)
@@ -614,6 +722,8 @@ avant de démarrer l'item 8 de Phase 2.
 | Auto-sélection routes shipping non globalement optimale (B8) | Acceptable pour Phase 1-2 (devis manuel) ; à corriger avant Phase 3 |
 | OAuth : conflit email password/social | Décider en Phase 2 : refus + message vs liaison après validation par email |
 | Sync Ingram = écrasement du `cost_amount` côté pricing | Vérifier qu'aucune logique métier ne s'appuie sur le `base_price` pré-Phase 1 |
+| Prix dépendant du mode de transport import (couplage pricing × logistique) | Choix client = **un seul niveau de service** appliqué à tous les corridors (jamais une route par fournisseur) ; corridor unique en P1, mapping multi-fournisseurs reporté P3 ; backend autoritaire au panier |
+| Dimensions physiques absentes d'Icecat → poids volumétrique non calculable (fret sous-estimé sur produits volumineux/légers) | Fallback poids réel (jamais de blocage) ; mesurer la couverture dimensions sur le catalogue réel ; saisie/override admin possible pour les cas critiques |
 | Migrations alembic destructrices sur `Product` (B9 + ajouts cost_amount, customs_rate, JSONB specs) | Une seule migration de fond début Phase 1, plutôt que plusieurs accumulées |
 | Hypothèse « PF only » figée dans le code (TVA, marges, libellés) | Taux stockés dans `TaxRate.territory_code`, jamais en constante ; résolution centralisée dans `resolve_tax_rate()` |
 | Identification entreprise non-portable si extension hors PF | Champ générique `business_registration_number` (jamais `siret`) dès la Phase 2 |
