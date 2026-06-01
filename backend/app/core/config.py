@@ -160,6 +160,16 @@ class Settings(BaseSettings):
         ProductFilterRule(field="unspsc_code", values=["81111812"]),
     ]
 
+    # Subcategory allowlist (curation). When non-empty, ONLY products whose
+    # supplier_subcategory matches (case-insensitive) are kept active; everything
+    # else is deactivated on the next sync (hidden from the storefront, kept in
+    # DB). Empty = no allowlist filtering (keep everything). Tune via env var:
+    # SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST='["Ordinateur de Bureau/Tour","Ordinateur Portable"]'
+    SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST: list[str] = [
+        "Ordinateur de Bureau/Tour",
+        "Ordinateur Portable"
+    ]
+
     # Ingram Micro API Configuration
     INGRAM_CLIENT_ID: str | None = None
     INGRAM_CLIENT_SECRET: str | None = None
@@ -189,6 +199,18 @@ class Settings(BaseSettings):
     ICECAT_LANGUAGE: str = "fr"  # Default language
     ICECAT_ENABLED: bool = True  # Enable/disable Icecat enrichment
     ICECAT_USE_OPEN: bool = True  # Use Open Icecat (free) instead of Full Icecat (paid)
+    # Recurring batch enrichment: drains the backlog of un-enriched products so
+    # the storefront (which only shows is_enriched=True) fills up over time,
+    # independently of whether a product sync created new products.
+    # Interval in hours (0 = disable the cron). Each run processes up to
+    # ICECAT_BATCH_ENRICH_LIMIT products and re-enqueues itself while a full
+    # batch is found, so the backlog drains within minutes rather than per-tick.
+    ICECAT_ENRICHMENT_CRON_INTERVAL_HOURS: int = 1
+    ICECAT_BATCH_ENRICH_LIMIT: int = 50
+    # Products that returned no Icecat match (or errored) are stamped and not
+    # retried until this cooldown elapses — avoids hammering Icecat every run
+    # with the same un-matchable SKUs and guarantees the batch loop terminates.
+    ICECAT_ENRICHMENT_RETRY_COOLDOWN_DAYS: int = 7
 
     # S3
     S3_ENDPOINT_URL: str | None = None

@@ -102,6 +102,9 @@ async def test_batch_enrich_products_task_skips_admin_inactive(
         async def exec(self, _query: object) -> _ExecResult:
             return _ExecResult([admin_inactive_product, admin_active_product])
 
+        async def execute(self, _stmt: object) -> None:
+            return None
+
         async def refresh(self, _product: object) -> None:
             return None
 
@@ -144,3 +147,73 @@ async def test_batch_enrich_products_task_skips_admin_inactive(
     assert result["enriched"] == 0
     assert result["errors"] == 0
     assert enrich_mock.await_count == 1
+    # Batch under-filled (2 < 10) → no self re-enqueue.
+    assert "requeued" not in result
+
+
+@pytest.mark.anyio
+async def test_batch_enrich_stamps_not_found_and_requeues_when_full(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A full batch stamps each not_found attempt and re-enqueues itself."""
+    products = [
+        SimpleNamespace(
+            id=uuid4(),
+            is_admin_active=True,
+            vendor_part_number=f"SKU-{i}",
+            manufacturer="Brand",
+            ean=None,
+            supplier_name="Supplier",
+        )
+        for i in range(2)
+    ]
+
+    execute_calls: list[object] = []
+
+    class _ExecResult:
+        def all(self) -> list[SimpleNamespace]:
+            return products
+
+    class _FakeSession:
+        async def exec(self, _query: object) -> _ExecResult:
+            return _ExecResult()
+
+        async def execute(self, stmt: object) -> None:
+            execute_calls.append(stmt)
+
+        async def refresh(self, _product: object) -> None:
+            return None
+
+        async def commit(self) -> None:
+            return None
+
+        async def rollback(self) -> None:
+            return None
+
+    class _FakeAsyncSession:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            self._session = _FakeSession()
+
+        async def __aenter__(self) -> _FakeSession:
+            return self._session
+
+        async def __aexit__(self, *_args: object) -> bool:
+            return False
+
+    monkeypatch.setattr(icecat_tasks, "AsyncSession", _FakeAsyncSession)
+    monkeypatch.setattr(
+        icecat_service,
+        "enrich_product_with_icecat",
+        AsyncMock(return_value=None),
+    )
+    requeue_mock = AsyncMock(return_value="job-next")
+    monkeypatch.setattr(icecat_tasks, "trigger_batch_enrichment", requeue_mock)
+
+    result = await icecat_tasks.batch_enrich_products_task(_ctx={}, limit=2)
+
+    assert result["not_found"] == 2
+    # Each not_found product was stamped via a direct UPDATE.
+    assert len(execute_calls) == 2
+    # Full batch (2 >= 2) → re-enqueued exactly once.
+    assert result["requeued"] == 1
+    requeue_mock.assert_awaited_once_with(limit=2)

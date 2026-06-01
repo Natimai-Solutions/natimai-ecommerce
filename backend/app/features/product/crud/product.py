@@ -138,7 +138,11 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
     @staticmethod
     def _build_search_facets(products: list[Product]) -> dict[str, dict[str, int]]:
         """Build lightweight facets from filtered products."""
-        manufacturers: dict[str, int] = {}
+        # Group manufacturers case-insensitively so "HP Inc." and "HP INC." map
+        # to a single facet. Key on casefold; keep the first-seen spelling as the
+        # display label exposed to the storefront.
+        manufacturer_counts: dict[str, int] = {}
+        manufacturer_labels: dict[str, str] = {}
         categories: dict[str, int] = {}
         price_ranges = {
             "0-49999": 0,
@@ -148,7 +152,9 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
 
         for product in products:
             manufacturer = (product.manufacturer or "unknown").strip() or "unknown"
-            manufacturers[manufacturer] = manufacturers.get(manufacturer, 0) + 1
+            mfr_key = manufacturer.casefold()
+            manufacturer_counts[mfr_key] = manufacturer_counts.get(mfr_key, 0) + 1
+            manufacturer_labels.setdefault(mfr_key, manufacturer)
 
             category_key = str(product.category_id) if product.category_id else "none"
             categories[category_key] = categories.get(category_key, 0) + 1
@@ -159,6 +165,11 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
                 price_ranges["50000-99999"] += 1
             else:
                 price_ranges["100000+"] += 1
+
+        manufacturers = {
+            manufacturer_labels[key]: count
+            for key, count in manufacturer_counts.items()
+        }
 
         return {
             "manufacturers": manufacturers,

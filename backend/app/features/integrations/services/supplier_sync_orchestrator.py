@@ -178,6 +178,7 @@ class SupplierSyncOrchestrator:
             supplier_category=item.category,
             name=item.name,
             rules=settings.SUPPLIER_PRODUCT_FILTER_RULES,
+            subcategory_allowlist=settings.SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST,
         )
 
         if filter_action == "skip":

@@ -365,7 +365,13 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 
 **Objectif** : un site consultable, un panier, et un bouton « Demander un devis » qui envoie un email à l'admin. Pas de paiement en ligne.
 
-**Statut** : 🟡 En cours (backend + correction CAF/fret import complets le 28/05/2026 ; validation d'intégration + régénération `schema.ts` restantes)
+**Statut** : ✅ Réalisée (01/06/2026) — backend + CAF/fret import complets ; validation d'intégration (migration/seed) OK testée ; `schema.ts` régénéré ; vitrine minimale OK testée.
+
+**Polish post-P1 (01/06/2026)** : 2 quick wins livrés sur le catalogue —
+- **Curation par sous-catégorie** : `SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST` (config, seedée `["Ordinateur de Bureau/Tour", "Ordinateur Portable"]`, surchargeable par env) intégrée à `evaluate_product_filters` (action `deactivate` pour purger l'existant au prochain sync ; les règles `skip` priment). Réduit la pollution (garanties, accessoires) sans toucher au code à chaque ajustement.
+- **Facette fabricant insensible à la casse** : `_build_search_facets` regroupe désormais sur `casefold` (« HP Inc. » / « HP INC. » → une seule entrée), libellé = première graphie vue.
+
+> ⚠️ Reste à traiter en **Phase 2** (cf. item *Taxonomie interne & facettes specs*) : dropdown Catégorie vide et filtre par spec (CPU…) inopérants — cause racine : les produits fournisseurs ne sont jamais rattachés à une `Category` interne (`category_id = None`), alors que les facettes catégorie ET le panneau `spec-facets` en dépendent.
 
 ### Avancement backend (22/05/2026)
 
@@ -426,7 +432,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 
 2. **Persistance Icecat (corrigé en Phase 0)**
    - ✅ Livré : colonnes `technical_specifications`, `features`, `icecat_images` sur `products` + activation du mapping dans [icecat_tasks.py](../../app/tasks/icecat_tasks.py).
-   - Action résiduelle Phase 1 : activer le cron Icecat hebdomadaire (re-sync release/EOL).
+   - ✅ **Cron Icecat récurrent activé (01/06/2026)** : `WorkerSettings.cron_jobs` inclut désormais `icecat_batch_enrichment` (toutes les `ICECAT_ENRICHMENT_CRON_INTERVAL_HOURS`=1 h) qui draine le backlog de produits non-enrichis **indépendamment** des syncs fournisseur. `batch_enrich_products_task` **se ré-enqueue** tant qu'un batch plein est trouvé (drainage en minutes), avec **cooldown** `ICECAT_ENRICHMENT_RETRY_COOLDOWN_DAYS`=7 sur les SKU `not_found`/erreur (stamp `last_enrichment_sync`, tri `nullsfirst`) pour ne pas marteler Icecat ni boucler à l'infini. Projection `product_spec` désormais aussi effectuée dans le batch (auparavant seul le single-produit la faisait). Cause du symptôme « peu d'articles affichés » : avant, l'enrichissement n'était déclenché qu'en effet de bord d'un sync créant de *nouveaux* produits (50 max, sans reprise), donc le backlog ne se vidait jamais.
 
 3. **Recherche**
    - Migration : `tsvector` PostgreSQL sur `name || description || manufacturer || vendor_part_number` + index GIN.
@@ -568,6 +574,20 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - Validation end-to-end : initiate → form-token → IPN → outbox → order status.
    - Tests de charge légers sur l'IPN.
    - Page de retour client (frontend) qui poll `GET /payments/{id}` jusqu'à statut terminal.
+
+10. **Taxonomie interne & facettes specs** *(remonté du polish P1 — cf. statut Phase 1)*
+
+   **Problème** : les produits fournisseurs ne portent que `supplier_category`/`supplier_subcategory` (texte libre Ingram) ; `Product.category_id` reste `None`. Or trois fonctionnalités vitrine en dépendent : la facette catégorie (`_build_search_facets` groupe sur `category_id`), le filtre `category_id` de `POST /product/search`, et tout le panneau `GET /product/categories/{id}/spec-facets` (donc le filtre par CPU/RAM/etc.). Résultat actuel : **dropdown Catégorie vide** et **filtres specs inopérants** côté vitrine, alors que le moteur `POST /search` sait déjà filtrer `specs` en interne.
+
+   - **Mapping sous-catégorie → `Category` interne** : table ou règle de correspondance `supplier_subcategory (texte) → Category.id`. Deux options à trancher :
+     - (a) mapping explicite éditable en admin (`SupplierCategoryMapping`), robuste mais plus lourd ;
+     - (b) auto-création/`get_or_create` d'une `Category` par `supplier_subcategory` distinct rencontré au sync, avec fusion/renommage admin a posteriori.
+   - **Backfill** : peupler `category_id` sur les produits déjà synchronisés (script one-shot ARQ) en réutilisant le même mapping.
+   - **Sync** : renseigner `category_id` dans `SupplierSyncOrchestrator._to_product_data` (aujourd'hui absent).
+   - **`Category.default_tax_rate_id`** : profiter du mapping pour rattacher chaque catégorie au bon `TaxRate` (alimentaire → `TGC_REDUIT`, etc.), ce que la Phase 1 prévoyait déjà manuellement.
+   - **Facettes specs débloquées** : une fois `category_id` peuplé, `spec-facets` renvoie les valeurs réelles → construire le panneau de filtres dynamiques côté vitrine (CPU, RAM, stockage…), en s'appuyant sur la projection `product_spec` déjà livrée en P1.
+   - **Frontend** : alimenter le dropdown Catégorie depuis les catégories réellement peuplées + panneau de filtres specs par catégorie sélectionnée.
+   - **Cohérence P3** : ce socle prépare l'extension specs multi-catégories prévue en Phase 3 (migration YAML → table `spec_definition` éditable) — garder le mapping et le catalogue de specs alignés sur les mêmes `Category`.
 
 ### Hors périmètre Phase 2
 
