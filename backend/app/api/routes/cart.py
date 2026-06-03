@@ -28,6 +28,8 @@ from app.features.cart.models.cart import (
     CheckoutShippingPreference,
 )
 from app.features.cart.models.quote_request import (
+    GuestQuoteRequestResponse,
+    GuestQuoteRequestSubmit,
     QuoteRequestCreate,
     QuoteRequestResponse,
     QuoteRequestSubmit,
@@ -1030,6 +1032,50 @@ def _format_quote_support_email(
     return subject, "\n".join(lines)
 
 
+def _format_guest_quote_support_email(
+    *,
+    customer_email: str,
+    customer_name: str | None,
+    customer_phone: str | None,
+    currency: str,
+    item_snapshots: list[dict[str, str]],
+    subtotal_amount: Decimal,
+    shipping_address: str | None,
+    notes: str | None,
+) -> tuple[str, str]:
+    """Build subject and body for guest quote request emails."""
+    subject = f"[Guest Quote Request] email={customer_email} items={len(item_snapshots)}"
+
+    lines = [
+        "New guest quote request",
+        "",
+        f"email: {customer_email}",
+        f"full_name: {customer_name or 'n/a'}",
+        f"phone: {customer_phone or 'n/a'}",
+        f"shipping_address: {shipping_address or 'n/a'}",
+        f"notes: {notes or 'n/a'}",
+        "",
+        "Cart:",
+    ]
+
+    for item in item_snapshots:
+        lines.append(
+            "- "
+            f"{item['product_name']} "
+            f"(qty={item['quantity']}, unit={item['unit_price']} {currency}, "
+            f"line_total={item['line_total']} {currency})"
+        )
+
+    lines.extend(
+        [
+            "",
+            f"subtotal: {subtotal_amount} {currency}",
+        ]
+    )
+
+    return subject, "\n".join(lines)
+
+
 async def _send_quote_support_email(
     *,
     recipient: str,
@@ -1169,6 +1215,91 @@ async def create_quote_request(
             "Quote request created and support notified"
             if email_delivered
             else "Quote request created but support email failed"
+        ),
+    )
+
+
+@router.post(
+    "/guest-quote-request",
+    response_model=GuestQuoteRequestResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_guest_quote_request(
+    payload: GuestQuoteRequestSubmit,
+) -> GuestQuoteRequestResponse:
+    """Send a quote request email for a guest cart without authentication."""
+    support_email = (settings.EMAIL_SUPPORT or "").strip()
+    if not support_email:
+        raise AppError(
+            code="cart.quote.unavailable",
+            status_code=503,
+            message="EMAIL_SUPPORT is not configured",
+            details={"setting": "EMAIL_SUPPORT"},
+        )
+
+    customer_email = payload.customer_email.strip().lower()
+    if not customer_email or "@" not in customer_email:
+        raise AppError(
+            code="cart.quote.invalid_email",
+            status_code=400,
+            message="customer_email is invalid",
+            details={"field": "customer_email"},
+        )
+
+    if not payload.items:
+        raise AppError(
+            code="cart.empty",
+            status_code=400,
+            message="Cart is empty",
+            details={"reason": "guest_payload_items_empty"},
+        )
+
+    currency = (payload.currency or "XPF").strip().upper() or "XPF"
+
+    item_snapshots: list[dict[str, str]] = []
+    subtotal_amount = Decimal("0.00")
+    for item in payload.items:
+        unit_price = quantize_amount(item.unit_price, currency)
+        line_total = quantize_amount(unit_price * item.quantity, currency)
+        subtotal_amount += line_total
+        item_snapshots.append(
+            {
+                "product_id": str(item.product_id) if item.product_id else "n/a",
+                "product_name": item.product_name,
+                "quantity": str(item.quantity),
+                "unit_price": str(unit_price),
+                "line_total": str(line_total),
+            }
+        )
+
+    subject, email_body = _format_guest_quote_support_email(
+        customer_email=customer_email,
+        customer_name=payload.customer_name,
+        customer_phone=payload.customer_phone,
+        currency=currency,
+        item_snapshots=item_snapshots,
+        subtotal_amount=subtotal_amount,
+        shipping_address=payload.shipping_address,
+        notes=payload.notes,
+    )
+
+    email_delivered = await _send_quote_support_email(
+        recipient=support_email,
+        subject=subject,
+        text=email_body,
+        metadata={
+            "event_type": "quote.requested.guest",
+            "customer_email": customer_email,
+            "item_count": len(item_snapshots),
+        },
+    )
+
+    return GuestQuoteRequestResponse(
+        email_delivered=email_delivered,
+        message=(
+            "Guest quote request sent to support"
+            if email_delivered
+            else "Guest quote request received but support email failed"
         ),
     )
 

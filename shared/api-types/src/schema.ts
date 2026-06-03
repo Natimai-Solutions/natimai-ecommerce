@@ -906,6 +906,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cart/guest-quote-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Guest Quote Request
+         * @description Send a quote request email for a guest cart without authentication.
+         */
+        post: operations["cart-create_guest_quote_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cart/checkout": {
         parameters: {
             query?: never;
@@ -5440,6 +5460,55 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * GuestQuoteRequestItem
+         * @description Represents a guest quote request line item.
+         */
+        GuestQuoteRequestItem: {
+            /** Product Id */
+            product_id?: string | null;
+            /** Product Name */
+            product_name: string;
+            /** Quantity */
+            quantity: number;
+            /** Unit Price */
+            unit_price: number | string;
+            /** Line Total */
+            line_total: number | string;
+        };
+        /**
+         * GuestQuoteRequestResponse
+         * @description Represents guest quote request response.
+         */
+        GuestQuoteRequestResponse: {
+            /** Email Delivered */
+            email_delivered: boolean;
+            /** Message */
+            message: string;
+        };
+        /**
+         * GuestQuoteRequestSubmit
+         * @description Represents guest quote request submit payload.
+         */
+        GuestQuoteRequestSubmit: {
+            /** Customer Email */
+            customer_email: string;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Customer Phone */
+            customer_phone?: string | null;
+            /** Shipping Address */
+            shipping_address?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Currency
+             * @default XPF
+             */
+            currency: string;
+            /** Items */
+            items?: components["schemas"]["GuestQuoteRequestItem"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -12796,6 +12865,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuoteRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "cart-create_guest_quote_request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuestQuoteRequestSubmit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestQuoteRequestResponse"];
                 };
             };
             /** @description Validation Error */

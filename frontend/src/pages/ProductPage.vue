@@ -159,6 +159,18 @@
           @click="onAddToCart"
         />
       </q-card-actions>
+
+      <q-banner
+        v-if="cartFeedback"
+        :class="cartFeedback.ok ? 'bg-green-1 text-green-9' : 'bg-orange-1 text-orange-10'"
+        class="q-mx-lg q-mb-lg"
+        rounded
+      >
+        <template #avatar>
+          <q-icon :name="cartFeedback.ok ? 'check_circle' : 'warning_amber'" />
+        </template>
+        {{ cartFeedback.message }}
+      </q-banner>
     </q-card>
   </q-page>
 </template>
@@ -175,6 +187,7 @@ import {
   getProductShippingModes,
   type ShippingModePricePublic,
 } from 'src/api/products'
+import { useCartStore } from 'src/stores/cart'
 import { getProductRouteByIdAndName, slugifyProductName } from 'src/utils/productRoute'
 
 type ProductPublic = components['schemas']['ProductPublic']
@@ -182,11 +195,13 @@ type Spec = { name: string; value: string; unit: string }
 
 const route = useRoute()
 const router = useRouter()
+const cartStore = useCartStore()
 
 const placeholderImg = '/icons/placeholder-product.svg'
 const product = ref<ProductPublic | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
+const cartFeedback = ref<{ ok: boolean; message: string } | null>(null)
 const selectedImage = ref<string | null>(null)
 
 const SHIPPING_MODE_STORAGE_KEY = 'shipping_mode_preference'
@@ -389,10 +404,23 @@ async function loadProduct() {
   }
 }
 
-function onAddToCart() {
+async function onAddToCart() {
   if (!product.value) return
-  // TODO: brancher sur le store panier
-  console.log('add to cart', product.value.id)
+
+  cartFeedback.value = null
+  const ok = await cartStore.addItem(product.value.id, 1, product.value)
+  if (ok) {
+    cartFeedback.value = {
+      ok: true,
+      message: `${product.value.name} ajoute au panier.`,
+    }
+    return
+  }
+
+  cartFeedback.value = {
+    ok: false,
+    message: cartStore.error ?? 'Impossible d\'ajouter cet article au panier.',
+  }
 }
 
 async function loadShippingModes(productId: string): Promise<void> {

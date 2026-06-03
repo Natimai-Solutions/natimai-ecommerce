@@ -6,24 +6,6 @@
         <q-card flat bordered class="q-pa-md">
           <div class="text-subtitle2 q-mb-sm">Filtres</div>
 
-          <!-- Catégorie -->
-          <div class="q-mb-md">
-            <div class="text-caption text-grey-7 q-mb-xs">Catégorie</div>
-            <q-select
-              v-model="selectedCategory"
-              :options="categoryOptions"
-              option-value="value"
-              option-label="label"
-              emit-value
-              map-options
-              clearable
-              dense
-              outlined
-              placeholder="Toutes"
-              @update:model-value="onCategoryChange"
-            />
-          </div>
-
           <!-- Fabricant -->
           <div v-if="manufacturerOptions.length > 0" class="q-mb-md">
             <div class="text-caption text-grey-7 q-mb-xs">Fabricant</div>
@@ -136,6 +118,18 @@
           </div>
         </div>
 
+        <q-banner
+          v-if="cartFeedback"
+          :class="cartFeedback.ok ? 'bg-green-1 text-green-9' : 'bg-orange-1 text-orange-10'"
+          class="q-mb-md"
+          rounded
+        >
+          <template #avatar>
+            <q-icon :name="cartFeedback.ok ? 'check_circle' : 'warning_amber'" />
+          </template>
+          {{ cartFeedback.message }}
+        </q-banner>
+
         <!-- État chargement -->
         <div v-if="store.loading" class="row q-col-gutter-md">
           <div
@@ -208,12 +202,14 @@ import { computed, onMounted, onServerPrefetch, ref } from 'vue'
 import { useMeta } from 'quasar'
 import { useRoute, useRouter } from 'vue-router'
 import { useProductsStore } from 'src/stores/products'
+import { useCartStore } from 'src/stores/cart'
 import ProductCard from 'src/components/ProductCard.vue'
 import type { components } from '@app/api-types'
 
 type ProductPublic = components['schemas']['ProductPublic']
 
 const store = useProductsStore()
+const cartStore = useCartStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -222,26 +218,22 @@ useMeta(() => ({
   meta: {
     description: {
       name: 'description',
-      content: 'Explorez notre catalogue de produits avec filtres par catégorie, fabricant et prix.',
+      content: 'Explorez notre catalogue de produits avec filtres par fabricant et prix.',
     },
   },
 }))
 
 const searchQuery = ref<string>('')
-const selectedCategory = ref<string | null>(null)
 const selectedManufacturer = ref<string | null>(null)
 const inStockOnly = ref(false)
 const priceMin = ref<number | null>(null)
 const priceMax = ref<number | null>(null)
+const cartFeedback = ref<{ ok: boolean; message: string } | null>(null)
 
 const currentPage = computed({
   get: () => store.currentPage,
   set: (v) => { store.currentPage = v },
 })
-
-const categoryOptions = computed(() => [
-  ...store.categories.map((c) => ({ label: c.name, value: c.id })),
-])
 
 const manufacturerOptions = computed(() => {
   const mfrs = store.facets?.manufacturers ?? {}
@@ -252,11 +244,6 @@ const manufacturerOptions = computed(() => {
 
 async function onSearch() {
   await store.applyFilters({ q: searchQuery.value || null })
-  syncQueryParams()
-}
-
-async function onCategoryChange(val: string | null) {
-  await store.applyFilters({ category_id: val })
   syncQueryParams()
 }
 
@@ -278,14 +265,12 @@ async function onPriceChange() {
 
 async function resetFilters() {
   searchQuery.value = ''
-  selectedCategory.value = null
   selectedManufacturer.value = null
   inStockOnly.value = false
   priceMin.value = null
   priceMax.value = null
   await store.applyFilters({
     q: null,
-    category_id: null,
     manufacturer: null,
     in_stock: null,
     price_min: null,
@@ -297,31 +282,39 @@ async function resetFilters() {
 function syncQueryParams() {
   const query: Record<string, string> = {}
   if (searchQuery.value) query['q'] = searchQuery.value
-  if (selectedCategory.value) query['cat'] = selectedCategory.value
   if (selectedManufacturer.value) query['mfr'] = selectedManufacturer.value
   void router.replace({ query })
 }
 
-function onAddToCart(product: ProductPublic) {
-  // TODO: implémenter le panier
-  console.log('add to cart', product.id)
+async function onAddToCart(product: ProductPublic) {
+  cartFeedback.value = null
+  const ok = await cartStore.addItem(product.id, 1, product)
+
+  if (ok) {
+    cartFeedback.value = {
+      ok: true,
+      message: `${product.name} ajoute au panier.`,
+    }
+    return
+  }
+
+  cartFeedback.value = {
+    ok: false,
+    message: cartStore.error ?? 'Impossible d\'ajouter cet article au panier.',
+  }
 }
 
 function initFromQuery() {
   const q = route.query['q']
-  const cat = route.query['cat']
   const mfr = route.query['mfr']
   if (typeof q === 'string') searchQuery.value = q
-  if (typeof cat === 'string') selectedCategory.value = cat
   if (typeof mfr === 'string') selectedManufacturer.value = mfr
 }
 
 async function loadCatalogueData() {
   initFromQuery()
-  await store.loadCategories()
   await store.applyFilters({
     q: searchQuery.value || null,
-    category_id: selectedCategory.value,
     manufacturer: selectedManufacturer.value,
   })
 }
