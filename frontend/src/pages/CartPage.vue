@@ -262,24 +262,24 @@ async function loadCart() {
   await cartStore.loadCart()
 }
 
-async function increaseQuantity(itemId: string, currentQuantity: number) {
-  await cartStore.updateItemQuantity(itemId, currentQuantity + 1)
+function increaseQuantity(itemId: string, currentQuantity: number) {
+  cartStore.updateItemQuantity(itemId, currentQuantity + 1)
 }
 
-async function decreaseQuantity(itemId: string, currentQuantity: number) {
+function decreaseQuantity(itemId: string, currentQuantity: number) {
   if (currentQuantity <= 1) {
-    await cartStore.removeItem(itemId)
+    cartStore.removeItem(itemId)
     return
   }
-  await cartStore.updateItemQuantity(itemId, currentQuantity - 1)
+  cartStore.updateItemQuantity(itemId, currentQuantity - 1)
 }
 
-async function removeItem(itemId: string) {
-  await cartStore.removeItem(itemId)
+function removeItem(itemId: string) {
+  cartStore.removeItem(itemId)
 }
 
-async function clearCart() {
-  await cartStore.clearCart()
+function clearCart() {
+  cartStore.clearCart()
 }
 
 async function sendQuote() {
