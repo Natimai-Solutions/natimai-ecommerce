@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from email.utils import parseaddr
 from typing import Any
 
 import httpx
@@ -17,27 +18,50 @@ class MailgunNotificationProvider(NotificationProvider):
 
     code = "mailgun"
 
-    def _build_from(self) -> str | None:
-        """Build from."""
-        from_email = settings.MAILGUN_FROM_EMAIL or settings.EMAILS_FROM_EMAIL
-        if not from_email:
+    def _normalized_api_key(self) -> str | None:
+        """Return normalized Mailgun private key if configured."""
+        raw = (settings.MAILGUN_API_KEY or "").strip()
+        return raw or None
+
+    def _resolve_from_identity(self) -> tuple[str, str] | None:
+        """Return sender display name + email, accepting plain or display format."""
+        raw_from = (
+            settings.MAILGUN_FROM_EMAIL or settings.EMAILS_FROM_EMAIL or ""
+        ).strip()
+        if not raw_from:
             return None
 
-        from_name = (
+        parsed_name, parsed_email = parseaddr(raw_from)
+        sender_email = (parsed_email or raw_from).strip()
+        if "@" not in sender_email:
+            return None
+
+        sender_name = (
             settings.MAILGUN_FROM_NAME
+            or parsed_name
             or settings.EMAILS_FROM_NAME
             or settings.PROJECT_NAME
         )
+        return sender_name, sender_email
+
+    def _build_from(self) -> str | None:
+        """Build from."""
+        resolved = self._resolve_from_identity()
+        if resolved is None:
+            return None
+
+        from_name, from_email = resolved
         return f"{from_name} <{from_email}>"
 
     def _configuration_error(self) -> str | None:
         """Execute configuration error."""
-        if not settings.MAILGUN_API_KEY:
+        api_key = self._normalized_api_key()
+        if not api_key:
             return "MAILGUN_API_KEY is not configured"
         if not settings.MAILGUN_DOMAIN:
             return "MAILGUN_DOMAIN is not configured"
-        if not self._build_from():
-            return "MAILGUN_FROM_EMAIL/EMAILS_FROM_EMAIL is not configured"
+        if not self._resolve_from_identity():
+            return "MAILGUN_FROM_EMAIL/EMAILS_FROM_EMAIL is not configured or invalid"
         return None
 
     async def send(self, message: NotificationMessage) -> NotificationResult:
@@ -58,6 +82,14 @@ class MailgunNotificationProvider(NotificationProvider):
                 error="Missing sender identity",
             )
 
+        api_key = self._normalized_api_key()
+        if api_key is None:
+            return NotificationResult(
+                provider_code=self.code,
+                delivered=False,
+                error="MAILGUN_API_KEY is not configured",
+            )
+
         url = (
             f"{settings.MAILGUN_API_BASE_URL.rstrip('/')}/"
             f"{settings.MAILGUN_DOMAIN}/messages"
@@ -68,6 +100,8 @@ class MailgunNotificationProvider(NotificationProvider):
             "subject": message.subject or "Notification",
             "text": message.text,
         }
+        if message.html:
+            data["html"] = message.html
 
         metadata: dict[str, Any] = message.metadata or {}
         event_type = metadata.get("event_type")
@@ -80,7 +114,7 @@ class MailgunNotificationProvider(NotificationProvider):
             ) as client:
                 response = await client.post(
                     url,
-                    auth=("api", settings.MAILGUN_API_KEY or ""),
+                    auth=("api", api_key),
                     data=data,
                 )
             response.raise_for_status()
@@ -95,6 +129,19 @@ class MailgunNotificationProvider(NotificationProvider):
                 provider_code=self.code,
                 delivered=True,
                 external_id=external_id,
+            )
+        except httpx.HTTPStatusError as exc:
+            hint = ""
+            if exc.response.status_code == 401:
+                hint = (
+                    " (check MAILGUN_API_KEY, MAILGUN_DOMAIN and "
+                    "MAILGUN_API_BASE_URL region; classic private keys usually "
+                    "start with 'key-')"
+                )
+            return NotificationResult(
+                provider_code=self.code,
+                delivered=False,
+                error=f"{exc}{hint}",
             )
         except Exception as exc:
             return NotificationResult(

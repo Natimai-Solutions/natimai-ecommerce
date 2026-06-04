@@ -217,6 +217,8 @@ export const useCartStore = defineStore('cart', () => {
           product_id: entry.item.product_id,
           product_name:
             entry.product?.name ?? `Produit ${entry.item.product_id.slice(0, 8)}`,
+          product_image_url:
+            entry.product?.image_url ?? entry.product?.supplier_image_url ?? null,
           quantity: entry.item.quantity,
           unit_price: entry.item.unit_price,
           line_total: entry.item.line_total,

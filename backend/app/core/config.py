@@ -167,7 +167,7 @@ class Settings(BaseSettings):
     # SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST='["Ordinateur de Bureau/Tour","Ordinateur Portable"]'
     SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST: list[str] = [
         "Ordinateur de Bureau/Tour",
-        "Ordinateur Portable"
+        "Ordinateur Portable",
     ]
 
     # Ingram Micro API Configuration

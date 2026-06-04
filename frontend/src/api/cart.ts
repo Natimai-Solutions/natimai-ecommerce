@@ -10,6 +10,7 @@ type QuoteRequestResponse = components['schemas']['QuoteRequestResponse']
 export interface GuestQuoteRequestItem {
   product_id?: string | null
   product_name: string
+  product_image_url?: string | null
   quantity: number
   unit_price: string
   line_total: string

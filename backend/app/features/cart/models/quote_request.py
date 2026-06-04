@@ -74,6 +74,7 @@ class GuestQuoteRequestItem(SQLModel):
 
     product_id: uuid.UUID | None = None
     product_name: str = Field(max_length=255)
+    product_image_url: str | None = Field(default=None, max_length=500)
     quantity: int = Field(ge=1)
     unit_price: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
     line_total: Decimal = Field(ge=0, max_digits=12, decimal_places=2)

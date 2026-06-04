@@ -219,10 +219,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { formatXpf } from '@app/utils'
 import { useCartStore } from 'src/stores/cart'
 
 const cartStore = useCartStore()
+const router = useRouter()
 
 const customerEmail = ref('')
 const shippingAddress = ref('')
@@ -283,14 +285,26 @@ function clearCart() {
 }
 
 async function sendQuote() {
+  const normalizedEmail = customerEmail.value.trim().toLowerCase()
   const payload = {
-    customer_email: customerEmail.value.trim(),
+    customer_email: normalizedEmail,
     shipping_address: shippingAddress.value.trim() || null,
     notes: notes.value.trim() || null,
   }
   const response = await cartStore.sendQuoteByEmail(payload)
-  if (response?.email_delivered) {
+  if (!response) {
+    return
+  }
+
+  if (response.email_delivered) {
+    cartStore.clearCart()
+    customerEmail.value = ''
+    shippingAddress.value = ''
     notes.value = ''
+    await router.push({
+      name: 'cart-quote-confirmation',
+      query: { email: normalizedEmail },
+    })
   }
 }
 

@@ -25,6 +25,7 @@ class NotificationMessage:
     channel: str
     recipient: str
     text: str
+    html: str | None = None
     subject: str | None = None
     metadata: dict[str, Any] | None = None
 
