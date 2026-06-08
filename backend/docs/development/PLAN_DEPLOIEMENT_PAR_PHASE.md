@@ -344,7 +344,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 | B4 | `filter: str` du BaseRouter passé brut à SQLAlchemy `.where()` | [base_router.py](../../app/api/base_router.py) + [crud.py](../../app/features/base/crud.py) | 🟠 Audit sécurité | ✅ Corrigé |
 | B5 | Endpoints tracking/consolidation sans gating admin | [tracking.py](../../app/api/routes/shipping/tracking.py) | 🟠 | ✅ Corrigé |
 | B6 | Création produit ouverte à tout user authentifié au lieu de superuser | [product.py](../../app/api/routes/product.py) | 🟠 | ✅ Corrigé |
-| B7 | `CheckoutMetricsStore` in-memory incompatible multi-replicas | [observability.py:137](../../app/core/observability.py#L137) | 🟡 | ⏸ Reporté Phase 2 |
+| B7 | `CheckoutMetricsStore` in-memory incompatible multi-replicas | [observability.py:137](../../app/core/observability.py#L137) | 🟡 | ⏳ Phase 2 (en attente) |
 | B8 | Auto-sélection routes shipping greedy par segment ≠ optimum global | [cart.py:271-305](../../app/api/routes/cart.py#L271-L305) | 🟡 | ⏸ Reporté Phase 3 |
 | B9 | Mapping `last_supplier_sync` String/Datetime à harmoniser dans la migration | alembic | 🟡 | ⏸ Reporté (suivi migration) |
 
@@ -499,6 +499,10 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 
 **Objectif** : commande + paiement en ligne CB de bout en bout, gestion des comptes pros/revendeurs/public avec marges distinctes, login social.
 
+**Statut** : 🔄 En cours (08/06/2026) — 5 items sur 10 livrés.
+
+**Chaîne Alembic** : `a3b1c7e2d9f5` → `b4c2d8e1f5a6` (user_preference) → `c5e3f9a2b7d1` (group_upgrade_request) — head actuel : `c5e3f9a2b7d1`.
+
 ### Périmètre fonctionnel
 
 - Inscription / connexion classique + OAuth Google + Microsoft.
@@ -511,30 +515,32 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 
 ### Travaux backend
 
-1. **TVA / TGC — admin CRUD**
-   - `GET /admin/tax-rates` (liste avec filtres `territory_code`, `valid`).
-   - `POST /admin/tax-rates` (créer un nouveau taux, ne remplace pas l'ancien).
-   - `PUT /admin/tax-rates/{id}` (modifier `label` ou fixer `valid_until` pour clôturer).
-   - `PUT /admin/products/{id}/tax-rate` et `PUT /admin/categories/{id}/tax-rate`.
-   - Garde-fou : interdire la modification de `rate_pct` sur un taux existant (créer un nouveau avec `valid_from` à la place).
+1. ✅ **TVA / TGC — admin CRUD** *(livré 08/06/2026)*
+   - ✅ `GET /admin/tax-rates` (liste avec filtres `territory_code`, `valid`).
+   - ✅ `POST /admin/tax-rates` (créer un nouveau taux, ne remplace pas l'ancien).
+   - ✅ `PUT /admin/tax-rates/{id}` (modifier `label` ou fixer `valid_until` pour clôturer).
+   - ✅ `PUT /admin/products/{id}/tax-rate` et `PUT /admin/categories/{id}/tax-rate`.
+   - ✅ Garde-fou : `rate_pct` immutable sur un taux existant — modification bloquée avec `tax_rate.invalid_valid_until` (400).
+   - Fichier : [app/api/routes/admin_tax_rates.py](../../app/api/routes/admin_tax_rates.py)
 
-2. **Groupes pricing actifs**
-   - Activation des 4 `PriceGroup`.
-   - Endpoint admin `POST /admin/users/{id}/assign-price-group` + workflow de **validation admin systématique** (pas d'auto-validation) :
-     - User soumet une demande (`POST /users/me/upgrade-group` avec `business_registration_number` + attestation libre + groupe cible).
-     - Status `PENDING` → admin valide ou rejette via `/admin/group-upgrade-requests/{id}/approve|reject`.
-     - À l'approbation, `User.price_group_id` est mis à jour.
-     - Le champ d'identification entreprise reste générique (`business_registration_number`) pour porter aussi bien le numéro TAHITI que d'autres formats si on étend ailleurs.
-   - Endpoint public `GET /product/{id}` calcule le prix selon le groupe du `current_user` (anonyme = groupe `default=True`).
+2. ✅ **Groupes pricing actifs** *(livré 08/06/2026)*
+   - ✅ Modèle `GroupUpgradeRequest` + migration `c5e3f9a2b7d1` (`status: PENDING/APPROVED/REJECTED`, `business_registration_number`, `attestation_notes`, `admin_comment`, `reviewed_by_id`).
+   - ✅ `POST /users/me/upgrade-group` (bloque doublon PENDING, exige `requires_validation=True`).
+   - ✅ `GET /users/me/upgrade-group` (liste propres demandes).
+   - ✅ `GET /admin/group-upgrade-requests` (filtres `pending_only`, `user_id`).
+   - ✅ `POST /admin/group-upgrade-requests/{id}/approve` → met à jour `User.price_group_id`.
+   - ✅ `POST /admin/group-upgrade-requests/{id}/reject` (avec commentaire).
+   - ✅ `POST /admin/users/{user_id}/assign-price-group` (affectation directe).
+   - Fichier : [app/api/routes/group_upgrade.py](../../app/api/routes/group_upgrade.py)
 
-3. **RBAC — activation des permissions par groupe**
+3. ⏳ **RBAC — activation des permissions par groupe**
    - Seed des groupes de sécurité initiaux : `support`, `logistics_admin`, `payment_admin` (chacun avec `group_type='security'`).
    - Pour chaque groupe, créer les règles `GroupSecurity` par table (ex. `payment_admin` : can_read + can_update sur `payments`).
    - Passer `ENABLE_GROUP_PERMISSIONS=true` en prod **après** avoir vérifié que le superuser et les users existants fonctionnent correctement (le superuser bypass est inconditionnel ; les users sans groupe de sécurité ne sont pas restreints).
    - Assigner les groups de sécurité aux membres de l'équipe admin concernés.
    - Note : `CrudBase.check_user_permission()` est déjà implémenté et contrôlé par ce flag.
 
-4. **OAuth Google + Microsoft**
+4. ⏳ **OAuth Google + Microsoft**
    - Lib : `authlib` (recommandé, supporte les deux providers).
    - Config : `GOOGLE_CLIENT_ID/SECRET`, `MICROSOFT_CLIENT_ID/SECRET/TENANT`.
    - Modèle `UserOAuthLink(user_id, provider, provider_user_id, email_at_link, created_at)`.
@@ -543,23 +549,28 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
      - `GET /auth/{provider}/callback` → échange code, récupère email/profile, lie ou crée le `User`, émet JWT comme login classique.
    - Email = clé de jonction par défaut ; si conflit (email déjà pris par compte password), exiger confirmation manuelle.
 
-5. **Préférences utilisateur**
-   - Modèle `UserPreference(user_id, notification_email_enabled, notification_shipping_steps, default_shipping_preference, locale, currency_pref)`.
-   - Endpoints `GET/PUT /users/me/preferences`.
-   - Au checkout : si `shipping_preference` absent de `CheckoutRequest`, fallback sur `user.preference.default_shipping_preference` (`fastest|cheapest|eco_friendly`).
+5. ✅ **Préférences utilisateur** *(livré 08/06/2026)*
+   - ✅ Modèle `UserPreference` + migration `b4c2d8e1f5a6` (`notification_email_enabled`, `notification_shipping_steps`, `default_shipping_preference`, `locale`, `currency_pref`, `preferred_shipping_mode`).
+   - ✅ CRUD `get_preference_for_user` / `upsert_preference_for_user` (upsert, caller commit).
+   - ✅ `GET /users/me/preferences` (renvoie défauts si pas encore de ligne).
+   - ✅ `PUT /users/me/preferences` (validation enum-like : `default_shipping_preference` ∈ `{fastest,cheapest,eco_friendly}`, etc.).
+   - ✅ Câblage `preferred_shipping_mode` dans `GET /product/{id}/shipping-modes` : priorité user preference > `is_default_import` > première route.
+   - Fichiers : [app/features/user/models/user_preference.py](../../app/features/user/models/user_preference.py) · [app/api/routes/user_preferences.py](../../app/api/routes/user_preferences.py)
 
-6. **Email notifications commande/paiement**
-   - Handlers outbox :
-     - `order.created` (publish dans `checkout_my_cart` après commit) → email client « Commande reçue ».
-     - `payment.captured` (déjà publié) → email client « Paiement validé ».
-     - `payment.rejected` (déjà publié) → email client « Paiement échoué ».
-   - Réutiliser l'infra [payment/services/notifications.py](../../app/features/payment/services/notifications.py) **avec bug B1 corrigé** : résoudre `user_id` → `user.email` avant l'appel Mailgun.
-   - Templates HTML simples (Jinja2) avec branding minimal.
+6. ✅ **Email notifications commande/paiement** *(livré 08/06/2026)*
+   - ✅ `order.created` publié dans `checkout_my_cart` (avant `session.commit()`, outbox pattern).
+   - ✅ Handler `on_order_created` → email « Commande reçue » (text + HTML Jinja2) au client.
+   - ✅ Handler `on_payment_captured_customer` → email « Paiement validé » (text + HTML Jinja2, bouton vert) au client.
+   - ✅ Handler `on_payment_rejected_customer` → email « Paiement échoué » (text + HTML Jinja2, motif affiché) au client.
+   - ✅ `notifications.py` mis à jour : `_collect_email_targets` n'inclut plus `user_id` (client notifié uniquement par les handlers dédiés ci-dessus ; admin/support reçoivent le message technique sans doublon).
+   - Templates compilés au chargement du module (Jinja2 inline, pas de fichiers séparés).
+   - Auto-découverte par `outbox/loader.py` au démarrage, aucune registration manuelle.
+   - Fichier : [app/handlers/order.py](../../app/handlers/order.py)
 
-7. **Adresses validées**
+7. ⏳ **Adresses validées**
    - Workflow `Address.is_validated` (déjà partiellement présent) — exposer endpoints pour valider/lister/supprimer.
 
-8. **Commande automatique chez Ingram Micro (SUPPLIER_DIRECT)**
+8. ⏳ **Commande automatique chez Ingram Micro (SUPPLIER_DIRECT)**
    - **Déclencheur** : handler outbox sur `payment.captured` — pas sur `create.order` (évite de commander si le paiement échoue). Pour les paiements différés (BC, chèque), la commande Ingram est émise à la validation admin.
    - **Modèle** `SupplierOrder` (nouveau) : `local_order_id`, `supplier_name`, `supplier_order_id` (PO Ingram), `status`, `estimated_delivery`, `raw_response JSONB`, `created_at`, `last_sync_at`.
    - **Méthode** `IngramMicroService.create_purchase_order(order, lines)` :
@@ -568,26 +579,24 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
      - Stocke la réponse dans `SupplierOrder`.
    - **Retry** : 3 tentatives avec backoff exponentiel (ARQ) ; en cas d'échec définitif, alerte email admin + statut `SupplierOrder.status = "failed"`.
    - **Endpoint admin** `GET /admin/supplier-orders` (liste + filtres `status`, `supplier_name`) + `POST /admin/supplier-orders/{id}/retry` (relance manuelle).
-   - **Point d'attention** : la doc Ingram pour la création d'ordre (endpoint `POST /resellers/v6/orders` ou équivalent, format payload, gestion du PO number, auth webhook retour) doit être obtenue **avant** de démarrer ce chantier. Le stock est déjà décrémenter au checkout — le risque n'est pas la double-réservation mais la commande Ingram manquée.
+   - **Point d'attention** : la doc Ingram pour la création d'ordre (endpoint `POST /resellers/v6/orders` ou équivalent, format payload, gestion du PO number, auth webhook retour) doit être obtenue **avant** de démarrer ce chantier. Le stock est déjà décrémenté au checkout — le risque n'est pas la double-réservation mais la commande Ingram manquée.
 
-9. **Paiement CB en production**
+9. ⏳ **Paiement CB en production**
    - Validation end-to-end : initiate → form-token → IPN → outbox → order status.
    - Tests de charge légers sur l'IPN.
    - Page de retour client (frontend) qui poll `GET /payments/{id}` jusqu'à statut terminal.
 
-10. **Taxonomie interne & facettes specs** *(remonté du polish P1 — cf. statut Phase 1)*
+10. ✅ **Taxonomie interne & facettes specs** *(livré 08/06/2026 — remonté du polish P1)*
 
-   **Problème** : les produits fournisseurs ne portent que `supplier_category`/`supplier_subcategory` (texte libre Ingram) ; `Product.category_id` reste `None`. Or trois fonctionnalités vitrine en dépendent : la facette catégorie (`_build_search_facets` groupe sur `category_id`), le filtre `category_id` de `POST /product/search`, et tout le panneau `GET /product/categories/{id}/spec-facets` (donc le filtre par CPU/RAM/etc.). Résultat actuel : **dropdown Catégorie vide** et **filtres specs inopérants** côté vitrine, alors que le moteur `POST /search` sait déjà filtrer `specs` en interne.
+   ✅ **Problème résolu** : `Product.category_id` restait `None` pour tous les produits fournisseurs, bloquant dropdown Catégorie et filtres specs côté vitrine.
 
-   - **Mapping sous-catégorie → `Category` interne** : table ou règle de correspondance `supplier_subcategory (texte) → Category.id`. Deux options à trancher :
-     - (a) mapping explicite éditable en admin (`SupplierCategoryMapping`), robuste mais plus lourd ;
-     - (b) auto-création/`get_or_create` d'une `Category` par `supplier_subcategory` distinct rencontré au sync, avec fusion/renommage admin a posteriori.
-   - **Backfill** : peupler `category_id` sur les produits déjà synchronisés (script one-shot ARQ) en réutilisant le même mapping.
-   - **Sync** : renseigner `category_id` dans `SupplierSyncOrchestrator._to_product_data` (aujourd'hui absent).
-   - **`Category.default_tax_rate_id`** : profiter du mapping pour rattacher chaque catégorie au bon `TaxRate` (alimentaire → `TGC_REDUIT`, etc.), ce que la Phase 1 prévoyait déjà manuellement.
-   - **Facettes specs débloquées** : une fois `category_id` peuplé, `spec-facets` renvoie les valeurs réelles → construire le panneau de filtres dynamiques côté vitrine (CPU, RAM, stockage…), en s'appuyant sur la projection `product_spec` déjà livrée en P1.
-   - **Frontend** : alimenter le dropdown Catégorie depuis les catégories réellement peuplées + panneau de filtres specs par catégorie sélectionnée.
-   - **Cohérence P3** : ce socle prépare l'extension specs multi-catégories prévue en Phase 3 (migration YAML → table `spec_definition` éditable) — garder le mapping et le catalogue de specs alignés sur les mêmes `Category`.
+   - ✅ `get_or_create_by_name(session, *, name)` sur `crud_category` : lookup insensible à la casse (`ILIKE`), crée la `Category` si absente, `is_active=True`, retourne `(category, created: bool)`.
+   - ✅ Câblage dans `SupplierSyncOrchestrator.upsert_product` : `category_id` renseigné depuis `item.subcategory` à chaque sync.
+   - ✅ Task ARQ `backfill_product_categories_task(batch_size=200)` : sélectionne les produits `supplier_subcategory IS NOT NULL AND category_id IS NULL`, traite par batch, commit par batch, idempotent.
+   - ✅ `POST /suppliers/admin/backfill-product-categories` (superuser) : déclenche le backfill inline pour maintenance.
+   - Résolution adoptée : option (b) — `get_or_create` par `supplier_subcategory`, fusion/renommage admin a posteriori.
+   - Cohérence P3 : ce socle prépare l'extension specs multi-catégories (migration YAML → table `spec_definition` éditable).
+   - Fichiers : [app/features/product/crud/category.py](../../app/features/product/crud/category.py) · [app/features/integrations/services/supplier_sync_orchestrator.py](../../app/features/integrations/services/supplier_sync_orchestrator.py) · [app/tasks/supplier_tasks.py](../../app/tasks/supplier_tasks.py)
 
 ### Hors périmètre Phase 2
 

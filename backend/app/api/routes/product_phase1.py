@@ -28,6 +28,8 @@ from app.features.product.services.pricing import (
 )
 from app.features.product.services.spec_projection import get_spec_definitions
 from app.features.shipping.models.route import ShippingRoute
+from app.features.user.crud.user_preference import get_preference_for_user
+from app.features.user.models.user import User
 
 router = APIRouter(prefix="/product", tags=["product"])
 
@@ -116,12 +118,23 @@ async def get_product_shipping_modes(
         session, product, import_routes, group=group
     )
 
-    default_route = next((r for r in import_routes if r.is_default_import), None)
-    default_mode: str | None = (
-        default_route.service_level
-        if default_route is not None
-        else (mode_prices[0].service_level if mode_prices else None)
-    )
+    # Resolve default_mode: user preference > is_default_import route > first route
+    available_levels = {m.service_level for m in mode_prices if m.service_level}
+    user_pref_mode: str | None = None
+    if isinstance(current_user, User):
+        pref = await get_preference_for_user(session, user_id=current_user.id)
+        if pref and pref.preferred_shipping_mode in available_levels:
+            user_pref_mode = pref.preferred_shipping_mode
+
+    if user_pref_mode:
+        default_mode: str | None = user_pref_mode
+    else:
+        default_route = next((r for r in import_routes if r.is_default_import), None)
+        default_mode = (
+            default_route.service_level
+            if default_route is not None
+            else (mode_prices[0].service_level if mode_prices else None)
+        )
 
     return ProductShippingModesResponse(
         product_id=product_id,

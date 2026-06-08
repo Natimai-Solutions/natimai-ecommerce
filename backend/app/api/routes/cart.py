@@ -85,7 +85,10 @@ from app.features.shipping.services import (
 from app.features.user.crud.address import crud_address
 from app.features.user.models.address import Address, AddressCreate
 from app.features.user.models.user import User
+from app.outbox.registry import outbox_registry
 from app.utils.money import quantize_amount
+
+EVENT_ORDER_CREATED = "order.created"
 
 _PENDING_ORDER_STATUS = "Pending"
 _PENDING_PAYMENT_STATUS = "Pending"
@@ -1685,6 +1688,20 @@ async def checkout_my_cart(
         for item in items:
             item.is_active = False
             session.add(item)
+
+        await outbox_registry.publish(
+            session=session,
+            event_type=EVENT_ORDER_CREATED,
+            payload={
+                "order_id": str(order.id),
+                "user_id": str(current_user.id),
+                "payment_id": str(payment.id),
+                "total_amount": str(total_amount),
+                "currency": cart.currency,
+                "item_count": len(items),
+            },
+            correlation_id=order.id,
+        )
 
         await session.commit()
 

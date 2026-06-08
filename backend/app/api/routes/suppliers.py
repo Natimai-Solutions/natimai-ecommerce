@@ -23,7 +23,11 @@ from app.services.suppliers import (
     has_supplier,
     supplier_names,
 )
-from app.tasks.supplier_tasks import trigger_inventory_refresh, trigger_manual_sync
+from app.tasks.supplier_tasks import (
+    backfill_product_categories_task,
+    trigger_inventory_refresh,
+    trigger_manual_sync,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -291,3 +295,17 @@ async def get_supplier_categories(
     **Required permissions:** Superuser only
     """
     return list(adapter.default_categories)
+
+
+@router.post("/admin/backfill-product-categories")
+async def trigger_category_backfill(
+    _current_user: CurrentSuperUser,
+    batch_size: int = 200,
+) -> dict[str, Any]:
+    """Trigger a one-shot backfill: populate Product.category_id from supplier_subcategory.
+
+    Safe to re-run (idempotent). Runs inline (blocking) — use for maintenance windows.
+    **Required permissions:** Superuser only
+    """
+    stats = await backfill_product_categories_task({}, batch_size=batch_size)
+    return {"status": "completed", **stats}

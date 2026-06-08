@@ -455,3 +455,62 @@ async def trigger_inventory_refresh(
         payload_key=skus,
         job_kwargs={"supplier_name": supplier_name, "skus": skus},
     )
+
+
+# -- category backfill -------------------------------------------------------
+
+
+async def backfill_product_categories_task(
+    _ctx: dict[str, Any],
+    batch_size: int = 200,
+    **_kwargs: Any,
+) -> dict[str, int]:
+    """ARQ task: populate Product.category_id for products that have a
+    supplier_subcategory but no category_id yet.
+
+    Safe to run multiple times (idempotent). Commits per batch so a failure
+    mid-run preserves already-processed rows.
+    """
+    from sqlmodel import col, select
+
+    from app.features.product.crud.category import crud_category
+    from app.features.product.models.product import Product
+
+    stats = {"updated": 0, "categories_created": 0, "errors": 0}
+
+    async with AsyncSession(engine) as session:
+        while True:
+            stmt = (
+                select(Product)
+                .where(
+                    col(Product.supplier_subcategory).is_not(None),
+                    col(Product.category_id).is_(None),
+                    col(Product.is_active).is_(True),
+                )
+                .limit(batch_size)
+            )
+            result = await session.exec(stmt)
+            batch = list(result.all())
+            if not batch:
+                break
+
+            for product in batch:
+                try:
+                    category, created = await crud_category.get_or_create_by_name(
+                        session, name=product.supplier_subcategory
+                    )
+                    if created:
+                        stats["categories_created"] += 1
+                    product.category_id = category.id
+                    session.add(product)
+                    stats["updated"] += 1
+                except Exception as e:  # noqa: BLE001
+                    logger.error(
+                        "Error backfilling category for product %s: %s", product.id, e
+                    )
+                    stats["errors"] += 1
+
+            await session.commit()
+
+    logger.info("Category backfill completed: %s", stats)
+    return stats

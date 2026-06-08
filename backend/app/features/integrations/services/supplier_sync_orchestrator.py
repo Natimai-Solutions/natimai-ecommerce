@@ -196,6 +196,15 @@ class SupplierSyncOrchestrator:
 
         product_data_dict = self._to_product_data(item)
 
+        # Resolve internal category from supplier_subcategory (get_or_create)
+        if item.subcategory:
+            from app.features.product.crud.category import crud_category
+
+            category, _created = await crud_category.get_or_create_by_name(
+                session, name=item.subcategory
+            )
+            product_data_dict["category_id"] = category.id
+
         if filter_action == "deactivate":
             logger.debug(
                 "Deactivating product %s (%s) — matched a 'deactivate' filter rule (subcategory=%s)",

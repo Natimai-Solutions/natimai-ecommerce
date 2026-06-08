@@ -41,7 +41,9 @@ from app.features.user.models.notification import Notification, UserNotification
 from app.features.user.models.refresh_token import UserRefreshToken
 from app.features.user.models.review import Review
 from app.features.user.models.user import User
+from app.features.user.models.group_upgrade_request import GroupUpgradeRequest
 from app.features.user.models.user_group import UserGroup
+from app.features.user.models.user_preference import UserPreference
 from app.features.user.models.wishlist import Wishlist, WishlistItem
 
 __all__ = [
@@ -84,8 +86,10 @@ __all__ = [
     "SupplierProductMapping",
     "SupplierSyncLog",
     "User",
+    "GroupUpgradeRequest",
     "UserGroup",
     "UserNotification",
+    "UserPreference",
     "UserRefreshToken",
     "Wishlist",
     "WishlistItem",
