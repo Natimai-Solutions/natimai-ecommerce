@@ -4,6 +4,9 @@ from app.api.routes.address import router as address_router
 from app.api.routes.admin_currency_rates import router as admin_currency_rates_router
 from app.api.routes.admin_tax_rates import router as admin_tax_rates_router
 from app.api.routes.admin_payments import router as admin_payments_router
+from app.api.routes.admin_supplier_orders import (
+    router as admin_supplier_orders_router,
+)
 from app.api.routes.analytics_product import router as analytics_product_router
 from app.api.routes.analytics_sale import router as analytics_sale_router
 from app.api.routes.analytics_user import router as analytics_user_router
@@ -42,6 +45,7 @@ from app.api.routes.user_review import (
     router as user_review_router,
 )
 from app.api.routes.group_upgrade import router as group_upgrade_router
+from app.api.routes.oauth import router as oauth_router
 from app.api.routes.user_preferences import router as user_preferences_router
 from app.api.routes.user_wishlist import router as user_wishlist_router
 from app.api.routes.utils import router as utils_router
@@ -49,6 +53,7 @@ from app.api.routes.utils import router as utils_router
 api_router = APIRouter()
 
 api_router.include_router(login_router, tags=["login"])
+api_router.include_router(oauth_router)
 api_router.include_router(partner_router)
 api_router.include_router(place_router)
 api_router.include_router(payment_router)
@@ -57,6 +62,7 @@ api_router.include_router(payments_router)
 api_router.include_router(admin_payments_router)
 api_router.include_router(admin_currency_rates_router)
 api_router.include_router(admin_tax_rates_router)
+api_router.include_router(admin_supplier_orders_router)
 api_router.include_router(internal_storage_router)
 api_router.include_router(product_phase1_router)
 api_router.include_router(product_router)

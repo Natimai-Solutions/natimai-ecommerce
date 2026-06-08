@@ -1,9 +1,11 @@
 import uuid
 
 from fastapi import Query, status
+from pydantic import field_validator
+from sqlmodel import SQLModel
 
 from app.api.base_router import BaseRouter
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentSuperUser, CurrentUser, SessionDep
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.user.crud.address import AddressCrud, crud_address
@@ -13,7 +15,42 @@ from app.features.user.models.address import (
     AddressesPublic,
     AddressPublic,
     AddressUpdate,
+    validate_address_type,
 )
+
+
+class AddressMeCreate(SQLModel):
+    """Self-service create payload (user_id is derived from current user)."""
+
+    street: str
+    city: str
+    state: str | None = None
+    postal_code: str
+    country: str
+    type: str
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        return validate_address_type(v)
+
+
+class AddressMeUpdate(SQLModel):
+    """Self-service update payload (ownership and validation are server-managed)."""
+
+    street: str | None = None
+    city: str | None = None
+    state: str | None = None
+    postal_code: str | None = None
+    country: str | None = None
+    type: str | None = None
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, v: str | None) -> str | None:
+        if v is not None:
+            return validate_address_type(v)
+        return v
 
 
 def _check_permission(
@@ -60,7 +97,157 @@ router = AddressRouter(
 )
 
 
-# User-specific address routes
+# ---------------------------------------------------------------------------
+# /users/me/addresses — self-service endpoints
+#
+# IMPORTANT: these MUST be declared before the /users/{user_id}/... routes
+# below. Starlette matches routes in registration order; if the parametrized
+# {user_id} routes came first, a request to /users/me/addresses would bind
+# user_id="me", failing UUID validation with a 422 and making the self-service
+# endpoints unreachable.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/users/me/addresses", response_model=AddressesPublic)
+async def get_my_addresses(
+    session: SessionDep,
+    current_user: CurrentUser,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, le=100, ge=1),
+) -> AddressesPublic:
+    """List all addresses belonging to the authenticated user."""
+    addresses = await crud_address.get_by_user_id(
+        session=session, user_id=current_user.id, skip=skip, limit=limit
+    )
+    count = await crud_address.count_by_user(session=session, user_id=current_user.id)
+    return AddressesPublic(data=addresses, count=count)
+
+
+@router.post(
+    "/users/me/addresses",
+    response_model=AddressPublic,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_my_address(
+    session: SessionDep,
+    current_user: CurrentUser,
+    address_in: AddressMeCreate,
+) -> AddressPublic:
+    """Create a new address for the authenticated user."""
+    payload = AddressCreate(
+        **address_in.model_dump(),
+        user_id=current_user.id,
+    )
+    address = await crud_address.create_for_user(
+        session=session,
+        data=payload,
+        user_id=current_user.id,
+        current_user=current_user.id,
+    )
+    return AddressPublic.model_validate(address)
+
+
+@router.get("/users/me/addresses/{address_id}", response_model=AddressPublic)
+async def get_my_address(
+    session: SessionDep,
+    current_user: CurrentUser,
+    address_id: uuid.UUID,
+) -> AddressPublic:
+    """Get a specific address belonging to the authenticated user."""
+    try:
+        address = await crud_address.read(session=session, id=address_id)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="address.not_found",
+            status_code=404,
+            message=f"Address '{address_id}' not found",
+            details={"address_id": str(address_id)},
+        ) from exc
+
+    if address.user_id != current_user.id:
+        raise AppError(
+            code="address.not_found",
+            status_code=404,
+            message=f"Address '{address_id}' not found",
+            details={"address_id": str(address_id)},
+        )
+    return AddressPublic.model_validate(address)
+
+
+@router.patch("/users/me/addresses/{address_id}", response_model=AddressPublic)
+async def update_my_address(
+    session: SessionDep,
+    current_user: CurrentUser,
+    address_id: uuid.UUID,
+    address_in: AddressMeUpdate,
+) -> AddressPublic:
+    """Update a specific address belonging to the authenticated user.
+
+    is_validated cannot be modified here — use the admin validate endpoint.
+    """
+    try:
+        address = await crud_address.read(session=session, id=address_id)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="address.not_found",
+            status_code=404,
+            message=f"Address '{address_id}' not found",
+            details={"address_id": str(address_id)},
+        ) from exc
+
+    if address.user_id != current_user.id:
+        raise AppError(
+            code="address.not_found",
+            status_code=404,
+            message=f"Address '{address_id}' not found",
+            details={"address_id": str(address_id)},
+        )
+
+    update_payload = AddressUpdate(**address_in.model_dump(exclude_unset=True))
+    address = await crud_address.update(
+        session=session,
+        id=address_id,
+        record=address,
+        data=update_payload,
+        user=current_user,
+    )
+    return AddressPublic.model_validate(address)
+
+
+@router.delete(
+    "/users/me/addresses/{address_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_my_address(
+    session: SessionDep,
+    current_user: CurrentUser,
+    address_id: uuid.UUID,
+) -> None:
+    """Delete a specific address belonging to the authenticated user."""
+    try:
+        address = await crud_address.read(session=session, id=address_id)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="address.not_found",
+            status_code=404,
+            message=f"Address '{address_id}' not found",
+            details={"address_id": str(address_id)},
+        ) from exc
+
+    if address.user_id != current_user.id:
+        raise AppError(
+            code="address.not_found",
+            status_code=404,
+            message=f"Address '{address_id}' not found",
+            details={"address_id": str(address_id)},
+        )
+    await crud_address.delete(session=session, id=address_id, record=address)
+
+
+# ---------------------------------------------------------------------------
+# Admin / user-scoped address routes (/users/{user_id}/...)
+# ---------------------------------------------------------------------------
+
+
 @router.get("/users/{user_id}/addresses", response_model=AddressesPublic)
 async def get_user_addresses(
     session: SessionDep,
@@ -186,8 +373,13 @@ async def update_user_address(
             details={"address_id": str(address_id)},
         )
 
+    update_dict = address_in.model_dump(exclude_unset=True)
+    update_dict.pop("user_id", None)
     address = await crud_address.update(
-        session=session, id=address_id, record=address, data=address_in
+        session=session,
+        id=address_id,
+        record=address,
+        data=AddressUpdate(**update_dict),
     )
     return AddressPublic.model_validate(address)
 
@@ -229,6 +421,42 @@ async def delete_user_address(
         )
 
     await crud_address.delete(session=session, id=address_id, record=address)
+
+
+# ---------------------------------------------------------------------------
+# Admin endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/admin/addresses/{address_id}/validate",
+    response_model=AddressPublic,
+)
+async def admin_validate_address(
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+    address_id: uuid.UUID,
+) -> AddressPublic:
+    """Mark an address as validated (admin only).
+
+    Once validated, the address can be selected at checkout.
+    Re-validating an already-validated address is idempotent.
+    """
+    try:
+        address = await crud_address.read(session=session, id=address_id)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="address.not_found",
+            status_code=404,
+            message=f"Address '{address_id}' not found",
+            details={"address_id": str(address_id)},
+        ) from exc
+
+    if address.is_validated:
+        return AddressPublic.model_validate(address)
+
+    address = await crud_address.validate_address(session=session, address=address)
+    return AddressPublic.model_validate(address)
 
 
 @router.get(

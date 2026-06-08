@@ -45,13 +45,11 @@ async def test_send_payment_event_notifications_uses_configured_email_provider(
         lambda _provider_code: _FakeProvider(),
     )
 
-    customer_id = uuid.uuid4()
     admin_id = uuid.uuid4()
-    customer = _user("customer@example.com", uid=customer_id)
     admin = _user("admin@example.com", uid=admin_id)
 
     session = AsyncMock()
-    session.get = AsyncMock(side_effect=[customer, admin])
+    session.get = AsyncMock(return_value=admin)
 
     await send_payment_event_notifications(
         session=session,
@@ -60,12 +58,13 @@ async def test_send_payment_event_notifications_uses_configured_email_provider(
             "payment_id": "pay_1",
             "order_id": "ord_1",
             "provider_code": "payzen",
-            "user_id": str(customer_id),
+            "user_id": str(uuid.uuid4()),
             "admin_user_id": str(admin_id),
         },
     )
 
-    assert sorted(sent_recipients) == ["admin@example.com", "customer@example.com"]
+    # user_id is intentionally ignored by technical notifications.
+    assert sent_recipients == ["admin@example.com"]
 
 
 @pytest.mark.anyio
@@ -152,6 +151,7 @@ async def test_send_payment_event_notifications_fallbacks_to_noop_provider(
             "order_id": "ord_2",
             "provider_code": "payzen",
             "user_id": str(customer_id),
+            "admin_user_id": str(customer_id),
         },
     )
 

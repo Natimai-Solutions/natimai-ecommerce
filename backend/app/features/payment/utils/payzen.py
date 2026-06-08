@@ -244,7 +244,7 @@ async def create_payzen_form_token(
             if "answer" in result and "formToken" in result["answer"]:
                 return {
                     "form_token": result["answer"]["formToken"],
-                    "server_url": "https://static.osb.pf",
+                    "server_url": settings.PAYZEN_STATIC_URL,
                     "public_key": settings.PAYZEN_PUBLIC_KEY_TEST
                     if settings.PAYZEN_MODE == "TEST"
                     else settings.PAYZEN_PUBLIC_KEY_PROD,

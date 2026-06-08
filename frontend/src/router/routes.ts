@@ -26,6 +26,16 @@ const routes: RouteRecordRaw[] = [
         name: 'cart-quote-confirmation',
         component: () => import('pages/CartQuoteConfirmationPage.vue'),
       },
+      {
+        path: 'checkout',
+        name: 'checkout',
+        component: () => import('pages/CheckoutPage.vue'),
+      },
+      {
+        path: 'paiement/retour',
+        name: 'payment-return',
+        component: () => import('pages/PaymentReturnPage.vue'),
+      },
     ],
   },
 

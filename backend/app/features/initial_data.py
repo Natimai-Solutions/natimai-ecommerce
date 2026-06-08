@@ -26,6 +26,8 @@ from app.features.product.models.currency_rate import CurrencyRate, CurrencyRate
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.tax_rate import TaxRate
 from app.features.shipping.models.route import ShippingRoute
+from app.features.user.models.group import Group
+from app.features.user.models.group_security import GroupSecurity
 
 DEFAULT_PAYMENT_STATUSES: tuple[tuple[str, str], ...] = (
     ("Pending", "Payment initiated, awaiting provider action"),
@@ -307,6 +309,122 @@ async def _seed_france_papeete_import_corridor(session: AsyncSession) -> None:
         )
 
 
+_SECURITY_GROUPS: tuple[dict, ...] = (
+    {
+        "name": "support",
+        "description": (
+            "Service client — lecture des commandes, paiements et comptes utilisateurs."
+        ),
+        "group_type": "security",
+        "priority": 10,
+        "rules": [
+            {"table_name": "users", "can_read": True},
+            {"table_name": "orders", "can_read": True},
+            {"table_name": "order_lines", "can_read": True},
+            {"table_name": "payments", "can_read": True},
+            {"table_name": "payment_logs", "can_read": True},
+        ],
+    },
+    {
+        "name": "logistics_admin",
+        "description": (
+            "Logistique — gestion des expéditions, suivis et consolidations."
+        ),
+        "group_type": "security",
+        "priority": 20,
+        "rules": [
+            {
+                "table_name": "shipping_route_trackings",
+                "can_read": True,
+                "can_update": True,
+            },
+            {
+                "table_name": "shipping_route_tracking_consolidations",
+                "can_read": True,
+                "can_update": True,
+            },
+            {
+                "table_name": "delivery_tasks",
+                "can_read": True,
+                "can_update": True,
+            },
+        ],
+    },
+    {
+        "name": "payment_admin",
+        "description": (
+            "Administration paiements — validation et gestion des paiements clients."
+        ),
+        "group_type": "security",
+        "priority": 30,
+        "rules": [
+            {
+                "table_name": "payments",
+                "can_read": True,
+                "can_update": True,
+            },
+            {
+                "table_name": "payment_validations",
+                "can_read": True,
+                "can_update": True,
+            },
+            {
+                "table_name": "payment_attachments",
+                "can_read": True,
+                "can_update": True,
+            },
+        ],
+    },
+)
+
+
+async def _seed_security_groups(session: AsyncSession) -> None:
+    """Seed RBAC security groups and their table-level permissions.
+
+    Idempotent: skips groups/rules that already exist.
+    ENABLE_GROUP_PERMISSIONS must be set to True manually in prod
+    after verifying that the superuser and existing users still work.
+    """
+    for spec in _SECURITY_GROUPS:
+        existing = await session.exec(
+            select(Group).where(Group.name == spec["name"])
+        )
+        group = existing.first()
+        if group is None:
+            group = Group(
+                name=spec["name"],
+                description=spec["description"],
+                group_type=spec["group_type"],
+                priority=spec["priority"],
+                is_active=True,
+                is_admin_active=True,
+            )
+            session.add(group)
+            await session.flush()
+
+        for rule in spec["rules"]:
+            existing_rule = await session.exec(
+                select(GroupSecurity).where(
+                    GroupSecurity.group_id == group.id,
+                    GroupSecurity.table_name == rule["table_name"],
+                )
+            )
+            if existing_rule.first() is not None:
+                continue
+            session.add(
+                GroupSecurity(
+                    group_id=group.id,
+                    table_name=rule["table_name"],
+                    can_read=rule.get("can_read", False),
+                    can_create=rule.get("can_create", False),
+                    can_update=rule.get("can_update", False),
+                    can_delete=rule.get("can_delete", False),
+                    is_active=True,
+                    is_admin_active=True,
+                )
+            )
+
+
 async def initial_data(session: AsyncSession) -> None:
     """Execute initial data."""
     await _seed_payment_statuses(session)
@@ -315,3 +433,4 @@ async def initial_data(session: AsyncSession) -> None:
     await _seed_tax_rates(session)
     await _seed_currency_rates(session)
     await _seed_france_papeete_import_corridor(session)
+    await _seed_security_groups(session)

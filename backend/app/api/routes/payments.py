@@ -64,6 +64,9 @@ _WEBHOOK_RECEIVED_EVENT = "payment.webhook_received"
 
 _PAYMENT_STATUS_COMPLETED = "Completed"
 _PAYMENT_STATUS_FAILED = "Failed"
+_TERMINAL_PAYMENT_STATUS_NAMES: frozenset[str] = frozenset(
+    {_PAYMENT_STATUS_COMPLETED, _PAYMENT_STATUS_FAILED}
+)
 # Order status names live in app.handlers.payment now — they are derived
 # from the outbox event types this module publishes (payment.captured /
 # payment.rejected).
@@ -898,6 +901,64 @@ async def confirm_document_uploaded(
         attachment_id=attachment.id,
         payment_status_id=payment.payment_status_id,
         av_scan="queued",
+    )
+
+
+class PaymentStatusResponse(BaseModel):
+    """Lightweight payment status for frontend polling."""
+
+    payment_id: uuid.UUID
+    status_name: str | None = None
+    is_terminal: bool = False
+    provider_code: str | None = None
+    amount: Decimal
+    currency: str
+    order_id: uuid.UUID | None = None
+
+
+@router.get("/me/{payment_id}", response_model=PaymentStatusResponse)
+async def get_my_payment_status(
+    payment_id: uuid.UUID,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> PaymentStatusResponse:
+    """Return the current status of a payment belonging to the authenticated user.
+
+    Designed for frontend polling after a Payzen SmartForm submission.
+    Returns immediately with the latest DB state — no blocking wait.
+    """
+    try:
+        payment = await crud_payment.read(session, id=payment_id)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="payment.not_found",
+            status_code=404,
+            message=f"Payment {payment_id} not found",
+            details={"payment_id": str(payment_id)},
+        ) from exc
+
+    if payment.user_id != current_user.id:
+        raise AppError(
+            code="payment.not_owned",
+            status_code=403,
+            message="You cannot access this payment",
+            details={"payment_id": str(payment_id)},
+        )
+
+    status_name: str | None = None
+    if payment.payment_status_id is not None:
+        status_record = await session.get(PaymentStatus, payment.payment_status_id)
+        if status_record is not None:
+            status_name = status_record.name
+
+    return PaymentStatusResponse(
+        payment_id=payment.id,
+        status_name=status_name,
+        is_terminal=status_name in _TERMINAL_PAYMENT_STATUS_NAMES,
+        provider_code=payment.provider_code,
+        amount=payment.amount,
+        currency=payment.currency,
+        order_id=payment.order_id,
     )
 
 

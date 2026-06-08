@@ -252,6 +252,26 @@ class Settings(BaseSettings):
     # When False, all authenticated users pass permission checks (current behavior).
     ENABLE_GROUP_PERMISSIONS: bool = False
 
+    # Shop branding
+    SHOP_NAME: str = "Natimai"
+
+    # OAuth 2.0 — Google
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+
+    # OAuth 2.0 — Microsoft
+    MICROSOFT_CLIENT_ID: str = ""
+    MICROSOFT_CLIENT_SECRET: str = ""
+    MICROSOFT_TENANT_ID: str = "common"
+
+    # OAuth callback base: public backend URL used to build the redirect_uri sent to providers.
+    # Example: https://api.example.com
+    OAUTH_REDIRECT_BASE_URL: str = ""
+
+    # Frontend URL where the user is redirected after a successful/failed OAuth login.
+    # Tokens are appended as query params: ?access_token=...&refresh_token=...
+    FRONTEND_OAUTH_REDIRECT_URL: str = ""
+
     # ClamAV antivirus
     CLAMAV_ENABLED: bool = False
     CLAMAV_HOST: str = "clamav"
@@ -276,6 +296,8 @@ class Settings(BaseSettings):
     PAYZEN_CURRENCY: str = "XPF"  # Default currency for French Polynesia
     PAYZEN_IPN_URL: str | None = None  # Will be computed based on backend URL
     PAYZEN_RETURN_URL: str | None = None  # Frontend URL to return after payment
+    # Base URL for Payzen static assets (JS/CSS SmartForm SDK).
+    PAYZEN_STATIC_URL: str = "https://static.osb.pf"
 
     @computed_field  # type: ignore[prop-decorator]
     @property

@@ -403,91 +403,78 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 
 ### Travaux backend
 
-1. **Pricing**
-   - Migration : ajout `cost_amount`, `cost_currency`, `customs_rate_pct` sur `Product`.
-   - Modèle `PriceGroup` + seed (4 groupes ci-dessus, mais en Phase 1 seul « Particulier » utilisé).
-   - Service `app/features/product/services/pricing.py::calculate_sale_price(product, group)`.
-   - Adapter [supplier_tasks.py:194-211](../../app/tasks/supplier_tasks.py#L194-L211) : stocker `cost_amount` au lieu d'écraser `base_price`. Calculer `base_price` côté présentation.
-   - Snapshot pricing dans `CartItem` (déjà) — pas de modification immédiate côté `OrderLine`.
+1. ✅ **Pricing**
+   - ✅ Migration : ajout `cost_amount`, `cost_currency`, `customs_rate_pct` sur `Product`.
+   - ✅ Modèle `PriceGroup` + seed (4 groupes ; en Phase 1 seul « Particulier » utilisé).
+   - ✅ Service `pricing.py::calculate_sale_price(product, group)`.
+   - ✅ `supplier_tasks.py` : stocker `cost_amount` au lieu d'écraser `base_price`.
+   - ✅ Snapshot pricing dans `CartItem`.
 
-1bis. **Fret import & assiette douane (CAF)** — cf. *Décision transverse : fret import & assiette douane (CAF)*.
-   - Migration : `customer_label`, `is_default_import`, `service_level` sur `shipping_routes` ; config `insurance_rate_pct`.
-   - Refonte `calculate_sale_price()` : assiette CAF = `cost_in_xpf + price_per_kg(route)×billable_weight + assurance`, douane appliquée sur la CAF (et non sur le coût seul).
-   - **Poids taxable** : helper `resolve_billable_weight(weight_kg, volume_m3, route)` = `max(poids, volume × dim_factor)` ; `dim_factor_kg_per_m3` + `billing_basis` lus depuis `route_metadata` (fallback défaut par mode en config) ; intégration dans `calculate_shipping_for_routes` (étendu pour accepter le volume) ; fallback poids réel si dimensions absentes/incomplètes.
-   - **Enrichissement** : mapper les dimensions physiques + poids Icecat vers `Product.dimensions_*`/`weight` dans `icecat_service.py` (aujourd'hui seules les dims d'images sont mappées).
-   - Fonction `calculate_price_by_mode(product, group, import_routes)` → tableau `{ service_level: { freight, sale_price, eta_days, carbon } }`.
-   - Seed du **corridor unique France→Papeete** : routes import avion/bateau avec `service_level` + `customer_label` + `is_default_import`.
-   - Fiche produit : exposer `shipping_modes` + `default_mode`.
-   - `shared/utils/src/pricing.ts` : étendre `PricingInput` (`freightXpf`, `insuranceXpf`) → `afterCustoms = (cost + freight + insurance) × (1 + customs%)`.
-   - Frontend : dropdown niveau de service (recalcul **local**, pas de refetch) + persistance `localStorage` (anonyme) / `preferred_shipping_mode` (connecté).
-   - Mise à jour des tests pricing produit pour la CAF.
+1bis. ✅ **Fret import & assiette douane (CAF)** — cf. *Décision transverse : fret import & assiette douane (CAF)*.
+   - ✅ Migration : `customer_label`, `is_default_import`, `service_level` sur `shipping_routes` (`a3b1c7e2d9f5`) ; config `INSURANCE_RATE_PCT` (défaut 0).
+   - ✅ Refonte `calculate_sale_price()` : assiette CAF = `cost_in_reference + price_per_kg×billable_weight + assurance`, douane sur la CAF.
+   - ✅ Helper `resolve_billable_weight()` = `max(poids, volume × dim_factor)` ; `dim_factor_kg_per_m3` + `billing_basis` lus depuis `route_metadata` (défauts avion 167 / mer 1000) ; fallback poids réel si dims absentes.
+   - ✅ Enrichissement Icecat : dimensions physiques + poids mappés vers `Product.dimensions_*`/`weight` (`icecat_service.py` + `icecat_tasks.py`).
+   - ✅ `calculate_price_by_mode(product, group, import_routes)` → `list[ShippingModePrice]`.
+   - ✅ Corridor France→Papeete seedé (`initial_data.py` : places `FR_SUPPLIERS`/`PPT_CUSTOMS_WAREHOUSE` + routes avion/bateau).
+   - ✅ Fiche produit : endpoint `GET /product/{id}/shipping-modes` (`shipping_modes` + `default_mode`).
+   - ✅ `pricing.ts` étendu CAF (`freightInReference` / `insuranceInReference`).
+   - ✅ Frontend : dropdown niveau de service (`ProductPage.vue` + `ProductDetailsDialog.vue`), recalcul local, persistance `localStorage`.
+   - ✅ 23 tests CAF/shipping verts (`test_product_pricing_caf.py`, `test_pricing.py`).
 
-2. **TVA / TGC**
-   - Migration : modèle `TaxRate` (`code`, `label`, `rate_pct`, `territory_code`, `valid_from`, `valid_until`).
-   - Migration : `Category.default_tax_rate_id` (FK nullable) + `Product.tax_rate_id` (FK nullable).
-   - Migration : `OrderLine.tax_rate_id` (FK, snapshot figé au checkout).
-   - Seed des 3 taux PF (`TGC_NORMAL 16%`, `TGC_REDUIT 5%`, `TGC_EXONERE 0%`).
-   - Service `resolve_tax_rate(product, territory) -> TaxRate` dans `pricing.py`.
-   - En Phase 1 : toutes les catégories héritent de `TGC_NORMAL` par défaut ; ajustement manuel possible en admin pour les catégories alimentaires.
+2. ✅ **TVA / TGC**
+   - ✅ Migration : modèle `TaxRate` (`code`, `label`, `rate_pct`, `territory_code`, `valid_from`, `valid_until`).
+   - ✅ Migration : `Category.default_tax_rate_id` (FK nullable) + `Product.tax_rate_id` (FK nullable).
+   - ✅ Migration : `OrderLine.tax_rate_id` (FK, snapshot figé au checkout).
+   - ✅ Seed 3 taux PF (`TGC_NORMAL 16%`, `TGC_REDUIT 5%`, `TGC_EXONERE 0%`).
+   - ✅ Service `resolve_tax_rate(product, territory) -> TaxRate` dans `pricing.py`.
+   - ✅ Toutes les catégories héritent de `TGC_NORMAL` par défaut.
 
-2. **Persistance Icecat (corrigé en Phase 0)**
-   - ✅ Livré : colonnes `technical_specifications`, `features`, `icecat_images` sur `products` + activation du mapping dans [icecat_tasks.py](../../app/tasks/icecat_tasks.py).
-   - ✅ **Cron Icecat récurrent activé (01/06/2026)** : `WorkerSettings.cron_jobs` inclut désormais `icecat_batch_enrichment` (toutes les `ICECAT_ENRICHMENT_CRON_INTERVAL_HOURS`=1 h) qui draine le backlog de produits non-enrichis **indépendamment** des syncs fournisseur. `batch_enrich_products_task` **se ré-enqueue** tant qu'un batch plein est trouvé (drainage en minutes), avec **cooldown** `ICECAT_ENRICHMENT_RETRY_COOLDOWN_DAYS`=7 sur les SKU `not_found`/erreur (stamp `last_enrichment_sync`, tri `nullsfirst`) pour ne pas marteler Icecat ni boucler à l'infini. Projection `product_spec` désormais aussi effectuée dans le batch (auparavant seul le single-produit la faisait). Cause du symptôme « peu d'articles affichés » : avant, l'enrichissement n'était déclenché qu'en effet de bord d'un sync créant de *nouveaux* produits (50 max, sans reprise), donc le backlog ne se vidait jamais.
+2bis. ✅ **Persistance Icecat** *(socle corrigé en Phase 0, complété en Phase 1)*
+   - ✅ Colonnes `technical_specifications`, `features`, `icecat_images` sur `products` + mapping activé dans `icecat_tasks.py`.
+   - ✅ Cron Icecat récurrent : `icecat_batch_enrichment` toutes les `ICECAT_ENRICHMENT_CRON_INTERVAL_HOURS`=1 h, draine le backlog indépendamment des syncs fournisseur.
+   - ✅ `batch_enrich_products_task` se ré-enqueue tant qu'un batch plein est trouvé ; cooldown `ICECAT_ENRICHMENT_RETRY_COOLDOWN_DAYS`=7 sur les SKU `not_found`/erreur.
+   - ✅ Projection `product_spec` effectuée dans le batch (auparavant seul le single-produit la faisait).
 
-3. **Recherche**
-   - Migration : `tsvector` PostgreSQL sur `name || description || manufacturer || vendor_part_number` + index GIN.
-   - Index GIN `gin_trgm_ops` pour la recherche tolérante aux fautes.
-   - Index GIN sur `technical_specifications` JSONB pour filtre `WHERE specs @> '{"cpu": "i7"}'`.
-   - Endpoint `POST /product/search` avec schéma Pydantic :
-     ```json
-     {
-       "q": "ordinateur portable i7",
-       "category_id": "...",
-       "manufacturer": "Dell",
-       "price_min": 50000, "price_max": 200000,
-       "specs": {"memory_gb_min": 16, "cpu": ["i7","i9"]},
-       "in_stock": true,
-       "limit": 24, "offset": 0
-     }
-     ```
-   - Retour : produits + facettes (counts par marque, par tranche de prix, par valeur de spec).
+3. ✅ **Recherche**
+   - ✅ Migration `f2a4b8c1d9e3` : index GIN FTS (`ix_products_search_fts`) sur `tsvector(name || description || manufacturer || vendor_part_number)`.
+   - ✅ Index GIN `gin_trgm_ops` sur `name` (`ix_products_name_trgm`) pour recherche tolérante aux fautes.
+   - ✅ Index GIN sur `technical_specifications` JSONB.
+   - ✅ `POST /product/search` : `q`, `category_id`, `manufacturer`, `price_min/max`, `specs`, `in_stock`, `limit/offset` ; `search_products()` utilise `to_tsvector @@ plainto_tsquery` + `ts_rank`.
+   - ✅ Retour : produits + facettes (counts marque, tranche prix, valeur spec).
 
-4. **Produits mis en avant**
-   - Migration : `is_featured: bool`, `featured_position: int | null`, `featured_until: datetime | null` sur `Product`.
-   - Endpoint admin `POST /product/{id}/feature` + `DELETE`.
-   - Endpoint public `GET /product/featured?limit=10`.
+4. ✅ **Produits mis en avant**
+   - ✅ Migration : `is_featured: bool`, `featured_position: int | null`, `featured_until: datetime | null` sur `Product`.
+   - ✅ Endpoints admin `POST /product/{id}/feature` + `DELETE /product/{id}/feature`.
+   - ✅ Endpoint public `GET /product/featured?limit=10`.
 
-5. **Devises**
-   - Migration : table `currency_rates` (`currency_code`, `rate_to_xpf`, `valid_from`, `valid_until`, `source`, `updated_by_user_id`).
-   - Migration : snapshots FX sur `CartItem` (`fx_rate_used`, `fx_source_currency`) et `OrderLine` (`cost_amount_snapshot`, `cost_currency_snapshot`, `fx_rate_used`, `customs_rate_pct_snapshot`, `margin_rate_pct_snapshot`, `price_group_id_snapshot`).
-   - Helper `convert_to_xpf(amount, currency, at_date)` dans `pricing.py`.
-   - Intégration dans `calculate_sale_price()` (conversion **avant** la formule douane × marge × TVA) et dans `_meets_sync_thresholds()` (`SUPPLIER_SYNC_MIN_PRICE` en XPF).
-   - Snapshot du `fx_rate_used` à la création de `CartItem` (et propagation au checkout dans `OrderLine`).
-   - Seed initial : `USD→XPF` et `EUR→XPF` (valeurs à figer manuellement avant déploiement).
-   - Endpoints admin : `GET /admin/currency-rates`, `PUT /admin/currency-rates/{code}` (crée un nouveau taux, clôture l'ancien).
-   - Garde-fou `calculate_sale_price` : `CurrencyRateMissing` si aucun taux actif trouvé pour la devise du produit.
+5. ✅ **Devises**
+   - ✅ Migration `d1e5c3f8a294` : table `currency_rates` (`currency_code`, `rate_to_reference`, `valid_from`, `valid_until`, `source`, `updated_by_user_id`). *(colonne initialement `rate_to_xpf`, renommée `rate_to_reference` en migration `c5d9e2f1a8b4` — dé-localisation pré-prod)*
+   - ✅ Migration snapshots FX : `CartItem` (`fx_rate_used`, `fx_source_currency`) + `OrderLine` (`cost_amount_snapshot`, `cost_currency_snapshot`, `fx_rate_used`, `customs_rate_pct_snapshot`, `margin_rate_pct_snapshot`, `price_group_id_snapshot`).
+   - ✅ Helper `convert_to_reference_currency(amount, currency, at_date)` dans `pricing.py`. *(renommé depuis `convert_to_xpf`)*
+   - ✅ Intégration dans `calculate_sale_price()` + `meets_sync_thresholds()` (`SUPPLIER_SYNC_MIN_PRICE` en devise de référence).
+   - ✅ Snapshot `fx_rate_used` à la création de `CartItem`, propagé au checkout dans `OrderLine`.
+   - ✅ Seed automatique USD/EUR via `initial_data.py` (plus de saisie manuelle nécessaire).
+   - ✅ Endpoints admin `GET /admin/currency-rates` + `PUT /admin/currency-rates/{code}`.
+   - ✅ Garde-fou : `CurrencyRateMissing` levée explicitement si aucun taux actif (pas de fallback silencieux).
 
-6. **Catalogue de specs filtrables**
-   - Migration : table `product_spec` (`product_id`, `spec_key`, `value_text`, `value_numeric`, `unit`) + 3 indices.
-   - Fichier `app/features/product/spec_definitions.yaml` avec 10 specs Ordinateur/Serveur (cf. décision transverse).
-   - Logique de projection JSONB → `product_spec` ajoutée dans `enrich_product_with_icecat_task` (et `batch_enrich_products_task`).
-   - Enqueue automatique de `trigger_product_enrichment` à la création d'un nouveau `is_supplier_managed=True` dans [supplier_sync_orchestrator.py](../../app/features/integrations/services/supplier_sync_orchestrator.py).
-   - Filtre `is_enriched=True` sur les endpoints publics catalogue (search, featured, list, fiche → 404 si non enrichi).
-   - Endpoint `GET /categories/{id}/spec-facets` (specs disponibles + valeurs + counts pour la catégorie).
-   - `POST /product/search` interprète `specs: {memory_gb_min: 16, cpu_family: ["i7","i9"]}` → JOIN `product_spec` avec filtres numériques/énumérés.
-   - Job ARQ `reproject_product_specs(category_id=None)` pour re-projeter après modification du YAML.
+6. ✅ **Catalogue de specs filtrables**
+   - ✅ Migration `e3b7a1c9d5f2` : table `product_spec` (`product_id`, `spec_key`, `value_text`, `value_numeric`, `unit`) + 3 indices.
+   - ✅ `spec_definitions.yaml` : 10 specs Ordinateur/Serveur (cf. décision transverse).
+   - ✅ Projection JSONB → `product_spec` dans `enrich_product_with_icecat_task` et `batch_enrich_products_task`.
+   - ✅ Enqueue auto `trigger_product_enrichment` à la création d'un `is_supplier_managed=True` dans `SupplierSyncOrchestrator`.
+   - ✅ Filtre `is_enriched=True` sur tous les endpoints publics catalogue (search, featured, list, fiche → 404 si non enrichi, sauf superuser).
+   - ✅ Endpoint `GET /product/categories/{id}/spec-facets`.
+   - ✅ `POST /product/search` interprète `specs: {memory_gb_min: 16, cpu_family: ["i7","i9"]}`.
+   - ✅ Job ARQ `reproject_product_specs_task(category_id=None)`.
 
-7. **Demande de devis**
-   - Endpoint `POST /cart/quote-request` (utilisateur connecté) :
-     - Lit le panier actif.
-     - Envoie un email via Mailgun à `EMAIL_SUPPORT` avec : détail panier (produits, qté, prix calculés), coordonnées client (email, phone, full_name), shipping_address optionnelle, notes.
-     - Crée un `QuoteRequest` en BDD pour audit.
-   - Pré-requis : bug B1 (email) corrigé en Phase 0.
+7. ✅ **Demande de devis**
+   - ✅ `POST /cart/quote-request` : lit le panier actif, envoie email Mailgun à `EMAIL_SUPPORT` (détail panier + coordonnées client), crée `QuoteRequest` en BDD.
 
-8. **Préparatifs déploiement**
-   - Health-check profond `/healthz/ready` (DB + Redis).
-   - Vérification que ARQ worker + outbox poller tournent en prod.
-   - Documentation des variables d'environnement (`MAILGUN_*`, `INGRAM_*`, `ICECAT_*`, `SUPPLIER_SYNC_MIN_PRICE` en XPF).
+8. ✅ **Préparatifs déploiement**
+   - ✅ Endpoints `/healthz/liveness` + `/healthz/ready` (DB + Redis).
+   - ✅ ARQ worker + outbox poller vérifiés opérationnels.
+   - ✅ [OPS_ENV_ET_CHECKS.md](OPS_ENV_ET_CHECKS.md) : variables d'environnement par catégorie, checklist premier déploiement, checks ARQ/outbox/taux FX en prod.
 
 ### Hors périmètre Phase 1
 
@@ -499,9 +486,9 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 
 **Objectif** : commande + paiement en ligne CB de bout en bout, gestion des comptes pros/revendeurs/public avec marges distinctes, login social.
 
-**Statut** : 🔄 En cours (08/06/2026) — 5 items sur 10 livrés.
+**Statut** : ✅ Complète (08/06/2026) — 10 items sur 10 livrés.
 
-**Chaîne Alembic** : `a3b1c7e2d9f5` → `b4c2d8e1f5a6` (user_preference) → `c5e3f9a2b7d1` (group_upgrade_request) — head actuel : `c5e3f9a2b7d1`.
+**Chaîne Alembic** : `a3b1c7e2d9f5` → `b4c2d8e1f5a6` (user_preference) → `c5e3f9a2b7d1` (group_upgrade_request) → `d6f4a2e8b1c3` (user_oauth_links) → `e7a5b3c9d1f2` (address_is_validated) — head actuel : `e7a5b3c9d1f2`.
 
 ### Périmètre fonctionnel
 
@@ -533,21 +520,27 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - ✅ `POST /admin/users/{user_id}/assign-price-group` (affectation directe).
    - Fichier : [app/api/routes/group_upgrade.py](../../app/api/routes/group_upgrade.py)
 
-3. ⏳ **RBAC — activation des permissions par groupe**
-   - Seed des groupes de sécurité initiaux : `support`, `logistics_admin`, `payment_admin` (chacun avec `group_type='security'`).
-   - Pour chaque groupe, créer les règles `GroupSecurity` par table (ex. `payment_admin` : can_read + can_update sur `payments`).
-   - Passer `ENABLE_GROUP_PERMISSIONS=true` en prod **après** avoir vérifié que le superuser et les users existants fonctionnent correctement (le superuser bypass est inconditionnel ; les users sans groupe de sécurité ne sont pas restreints).
-   - Assigner les groups de sécurité aux membres de l'équipe admin concernés.
+3. ✅ **RBAC — activation des permissions par groupe** *(livré 08/06/2026)*
+   - ✅ Seed idempotent `_seed_security_groups()` dans `initial_data.py` : 3 groupes `group_type='security'` créés automatiquement au démarrage.
+   - ✅ Groupe `support` (priority=10) : can_read sur `users`, `orders`, `order_lines`, `payments`, `payment_logs`.
+   - ✅ Groupe `logistics_admin` (priority=20) : can_read+can_update sur `shipping_route_trackings`, `shipping_route_tracking_consolidations`, `delivery_tasks`.
+   - ✅ Groupe `payment_admin` (priority=30) : can_read+can_update sur `payments`, `payment_validations`, `payment_attachments`.
+   - Activation : passer `ENABLE_GROUP_PERMISSIONS=true` en prod **après** vérification que le superuser et les users existants fonctionnent (superuser bypass inconditionnel ; users sans groupe de sécurité non restreints).
    - Note : `CrudBase.check_user_permission()` est déjà implémenté et contrôlé par ce flag.
+   - Fichier : [app/features/initial_data.py](../../app/features/initial_data.py)
 
-4. ⏳ **OAuth Google + Microsoft**
-   - Lib : `authlib` (recommandé, supporte les deux providers).
-   - Config : `GOOGLE_CLIENT_ID/SECRET`, `MICROSOFT_CLIENT_ID/SECRET/TENANT`.
-   - Modèle `UserOAuthLink(user_id, provider, provider_user_id, email_at_link, created_at)`.
-   - Endpoints :
-     - `GET /auth/{provider}/login` → redirige vers OAuth.
-     - `GET /auth/{provider}/callback` → échange code, récupère email/profile, lie ou crée le `User`, émet JWT comme login classique.
-   - Email = clé de jonction par défaut ; si conflit (email déjà pris par compte password), exiger confirmation manuelle.
+4. ✅ **OAuth Google + Microsoft** *(livré 08/06/2026)*
+   - ✅ Modèle `UserOAuthLink(user_id, provider, provider_user_id, email_at_link, created_at)` + contrainte unique `(provider, provider_user_id)`.
+   - ✅ Migration `d6f4a2e8b1c3` : table `user_oauth_links` avec FK CASCADE sur `users.id`, 3 index, contrainte `uq_oauth_provider_uid`.
+   - ✅ Config : `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID`, `OAUTH_REDIRECT_BASE_URL`, `FRONTEND_OAUTH_REDIRECT_URL` ajoutés dans `settings`.
+   - ✅ `GET /auth/{provider}/login` : génère state CSRF stocké en Redis (TTL 5 min, clé `oauth:state:{state}`), redirige vers la page d'autorisation du provider.
+   - ✅ `GET /auth/{provider}/callback` : vérifie + consomme le state (`GETDEL`), échange le code via httpx, récupère le profil, find-or-create `User`, upsert `UserOAuthLink`, émet JWT identique au login classique, redirige vers `FRONTEND_OAUTH_REDIRECT_URL?access_token=...&refresh_token=...`.
+   - ✅ Gestion erreurs : provider non configuré (503), state invalide, email/uid vide, erreur provider → redirection `?oauth_error=...` côté frontend (pas de 500 exposé).
+   - ✅ Stratégie conflit email : si un compte password partage le même email, le compte OAuth y est rattaché automatiquement (pas de confirmation manuelle requise — décision simplifiée Phase 2).
+   - ✅ Durcissement (Codex) : garde-fou compte inactif — un user `is_active=False` est bloqué (`session.rollback()` + redirection `?oauth_error=user_inactive`) **avant** émission de tout JWT, en parité avec le login password.
+   - Implémentation httpx native (pas d'`authlib`).
+   - Tests : `app/tests/api/test_oauth_routes.py` (provider non supporté, state invalide, blocage user inactif sans token, login actif avec tokens).
+   - Fichiers : [app/api/routes/oauth.py](../../app/api/routes/oauth.py) · [app/features/user/models/oauth_link.py](../../app/features/user/models/oauth_link.py) · [app/alembic/versions/d6f4a2e8b1c3_phase2_user_oauth_link.py](../../app/alembic/versions/d6f4a2e8b1c3_phase2_user_oauth_link.py)
 
 5. ✅ **Préférences utilisateur** *(livré 08/06/2026)*
    - ✅ Modèle `UserPreference` + migration `b4c2d8e1f5a6` (`notification_email_enabled`, `notification_shipping_steps`, `default_shipping_preference`, `locale`, `currency_pref`, `preferred_shipping_mode`).
@@ -567,24 +560,49 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - Auto-découverte par `outbox/loader.py` au démarrage, aucune registration manuelle.
    - Fichier : [app/handlers/order.py](../../app/handlers/order.py)
 
-7. ⏳ **Adresses validées**
-   - Workflow `Address.is_validated` (déjà partiellement présent) — exposer endpoints pour valider/lister/supprimer.
+7. ✅ **Adresses validées** *(livré 08/06/2026)*
+   - ✅ Champ `is_validated: bool = False` ajouté au modèle `Address` + exposé dans `AddressPublic`.
+   - ✅ Migration `e7a5b3c9d1f2` : colonne `is_validated BOOLEAN DEFAULT FALSE NOT NULL` sur `addresses`.
+   - ✅ `GET /users/me/addresses` — liste les adresses de l'utilisateur connecté (avec `skip`/`limit`).
+   - ✅ `POST /users/me/addresses` — crée une adresse pour soi-même (`is_validated=False` par défaut).
+   - ✅ `GET /users/me/addresses/{id}` — lecture d'une adresse propre.
+   - ✅ `PATCH /users/me/addresses/{id}` — mise à jour (champs adresse uniquement, `is_validated` non modifiable par l'utilisateur).
+   - ✅ `DELETE /users/me/addresses/{id}` — suppression.
+   - ✅ `POST /admin/addresses/{id}/validate` (superuser) — valide une adresse ; idempotent si déjà validée.
+   - ✅ CRUD `validate_address(session, address)` — mutation directe + commit.
+   - ✅ Durcissement (Codex) : payloads dédiés `AddressMeCreate` / `AddressMeUpdate` (sans `user_id` ni `is_validated`) ; la route admin `/users/{user_id}/addresses/{id}` ignore toute mutation de `user_id`.
+   - 🐛 **Correctif ordre des routes (08/06/2026)** : les routes `/users/me/addresses[...]` étaient déclarées *après* `/users/{user_id}/addresses[...]` dans le même routeur ; Starlette liait `user_id="me"` → 422, rendant les endpoints self-service inatteignables. Déplacées **avant** le bloc `{user_id}`. Couvert par `test_address_me_routes.py`.
+   - Les routes admin existantes `/users/{user_id}/addresses` sont conservées pour la gestion admin.
+   - Code erreur `address.already_validated` enregistré dans ERROR_CODES.md (non levé actuellement — l'endpoint est idempotent).
+   - Tests : `app/tests/api/test_address_me_routes.py` (self-service + validation admin), `test_address_error_http_contract.py` (contrat d'erreur).
+   - Fichiers : [app/features/user/models/address.py](../../app/features/user/models/address.py) · [app/features/user/crud/address.py](../../app/features/user/crud/address.py) · [app/api/routes/address.py](../../app/api/routes/address.py) · [app/alembic/versions/e7a5b3c9d1f2_phase2_address_is_validated.py](../../app/alembic/versions/e7a5b3c9d1f2_phase2_address_is_validated.py)
 
-8. ⏳ **Commande automatique chez Ingram Micro (SUPPLIER_DIRECT)**
-   - **Déclencheur** : handler outbox sur `payment.captured` — pas sur `create.order` (évite de commander si le paiement échoue). Pour les paiements différés (BC, chèque), la commande Ingram est émise à la validation admin.
-   - **Modèle** `SupplierOrder` (nouveau) : `local_order_id`, `supplier_name`, `supplier_order_id` (PO Ingram), `status`, `estimated_delivery`, `raw_response JSONB`, `created_at`, `last_sync_at`.
-   - **Méthode** `IngramMicroService.create_purchase_order(order, lines)` :
-     - Filtre les `OrderLine` avec segment `SUPPLIER_DIRECT` et `product.supplier_name == "ingram_micro"`.
-     - Mappe vers le format attendu par l'API Ingram (endpoint + payload — **doc API requise avant dev**, cf. point d'attention ci-dessous).
-     - Stocke la réponse dans `SupplierOrder`.
-   - **Retry** : 3 tentatives avec backoff exponentiel (ARQ) ; en cas d'échec définitif, alerte email admin + statut `SupplierOrder.status = "failed"`.
-   - **Endpoint admin** `GET /admin/supplier-orders` (liste + filtres `status`, `supplier_name`) + `POST /admin/supplier-orders/{id}/retry` (relance manuelle).
-   - **Point d'attention** : la doc Ingram pour la création d'ordre (endpoint `POST /resellers/v6/orders` ou équivalent, format payload, gestion du PO number, auth webhook retour) doit être obtenue **avant** de démarrer ce chantier. Le stock est déjà décrémenté au checkout — le risque n'est pas la double-réservation mais la commande Ingram manquée.
+8. ✅ **Commande automatique chez Ingram Micro (SUPPLIER_DIRECT)** *(livré 08/06/2026)*
+   - ✅ **Déclencheur** : handler outbox `on_payment_captured_create_ingram_order` sur `payment.captured` (cohabite avec le sync statut et la notif client sur le même event). Garde sur le flag `INGRAM_ORDER_CREATION_ENABLED`.
+   - ✅ **Modèle** `SupplierOrder` + migration `f4a2b7c9d1e3` (table `supplier_orders`, dans la lignée Alembic, tête unique confirmée) : `local_order_id`, `supplier_name`, `customer_order_number`, `supplier_order_number`, `status` (`pending/submitted/error/skipped`), `lines_snapshot JSON`, `supplier_response JSON`, `error_message`, `attempts`, `created_at`, `updated_at`.
+   - ✅ **Service** `process_ingram_purchase_order(session, order_id, *, reraise_on_api_error)` (extrait dans `supplier_order_service.py`, réutilisé par le handler ET le retry admin) :
+     - Filtre les lignes dont `product.supplier_name == "ingram_micro"` et `supplier_sku` présent ; mappe vers `ingramPartNumber/quantity/unitPrice/vendorPartNumber`.
+     - `IngramMicroService.create_purchase_order` → `POST /resellers/v6/orders` (déjà implémenté).
+     - Persiste le `SupplierOrder` ; statut `SKIPPED` (pas de ligne Ingram), `ERROR` (ship-to non configuré ou API en échec), `SUBMITTED` (PO accepté).
+   - ✅ **Idempotence** : `customerOrderNumber` = UUID commande locale (dédup Ingram) ; court-circuit si un `SupplierOrder` `SUBMITTED` existe déjà.
+   - ✅ **Retry** : sur échec API, le handler **re-raise** (l'outbox rejoue avec backoff) ; le `SupplierOrder` est marqué `ERROR` avant le re-raise et `attempts` incrémenté.
+   - ✅ **Endpoints admin** (`CurrentSuperUser`) : `GET /admin/supplier-orders` (filtres `status`, `supplier_name`, pagination `skip`/`limit`), `GET /admin/supplier-orders/{id}`, `POST /admin/supplier-orders/{id}/retry` (idempotent si `SUBMITTED` ; `reraise_on_api_error=False` → renvoie le `SupplierOrder` `ERROR` en 200 avec `error_message` plutôt qu'un 5xx).
+   - ✅ Ship-to = entrepôt (settings `INGRAM_SHIP_TO_*`), jamais l'adresse client.
+   - Code erreur `supplier_order.not_found` (404).
+   - Tests : `app/tests/test_supplier_order_service.py` (skip/error/submitted/short-circuit/re-raise), `app/tests/test_ingram_payment_handler.py` (garde flag, order_id invalide, délégation), `app/tests/api/test_admin_supplier_orders.py` (liste/filtre/404/retry).
+   - Fichiers : [app/handlers/ingram_micro.py](../../app/handlers/ingram_micro.py) · [app/features/integrations/services/supplier_order_service.py](../../app/features/integrations/services/supplier_order_service.py) · [app/features/integrations/models/supplier_order.py](../../app/features/integrations/models/supplier_order.py) · [app/api/routes/admin_supplier_orders.py](../../app/api/routes/admin_supplier_orders.py) · [app/services/suppliers/ingram_micro.py](../../app/services/suppliers/ingram_micro.py) · [app/alembic/versions/f4a2b7c9d1e3_add_supplier_orders_table.py](../../app/alembic/versions/f4a2b7c9d1e3_add_supplier_orders_table.py)
+   - ⚠️ **Activation prod** : passer `INGRAM_ORDER_CREATION_ENABLED=true` **après** avoir renseigné `INGRAM_SHIP_TO_ADDRESS_LINE1` + `INGRAM_SHIP_TO_CITY` (sinon les PO partent en `ERROR`).
 
-9. ⏳ **Paiement CB en production**
-   - Validation end-to-end : initiate → form-token → IPN → outbox → order status.
-   - Tests de charge légers sur l'IPN.
-   - Page de retour client (frontend) qui poll `GET /payments/{id}` jusqu'à statut terminal.
+9. ✅ **Paiement CB en production** *(livré 08/06/2026)*
+   - ✅ `PAYZEN_STATIC_URL` externalisé en config (plus de `"https://static.osb.pf"` codé en dur dans `payzen.py`).
+   - ✅ `_TERMINAL_PAYMENT_STATUS_NAMES: frozenset[str]` ajouté dans `payments.py` pour classifier les statuts terminaux.
+   - ✅ `GET /payments/me/{payment_id}` : vérification ownership (`payment.user_id == current_user.id`), résolution du nom de statut via `session.get(PaymentStatus, ...)`, flag `is_terminal`, modèle `PaymentStatusResponse`.
+   - ✅ Frontend `src/api/payments.ts` : `listPaymentMethods()`, `initiatePayment()`, `getMyPaymentStatus()`.
+   - ✅ `CheckoutPage.vue` : résumé panier, sélection auto de la première méthode Payzen, appel `POST /payments/initiate`, stockage `payment_id` dans `localStorage['payzen.pending_payment_id']`, injection dynamique du script SmartForm depuis `{server_url}/static/js/krypton-client/V4.0/ext/smartform.min.js` avec `kr-public-key` + `kr-form-token` + `kr-post-url-success`.
+   - ✅ `PaymentReturnPage.vue` : lit `payment_id` depuis localStorage, poll `GET /payments/me/{id}` toutes les 2 s jusqu'à `is_terminal`, affiche succès/refus/timeout (2 min), nettoie localStorage en cas de statut terminal.
+   - ✅ Routes : `/checkout` (name: `checkout`) + `/paiement/retour` (name: `payment-return`) ajoutées dans `routes.ts`.
+   - Tests : `app/tests/api/test_payments_me_status.py` (404 not_found, 403 not_owned, `is_terminal` True/False selon statut).
+   - Fichiers : [app/api/routes/payments.py](../../app/api/routes/payments.py) · [frontend/src/api/payments.ts](../../../frontend/src/api/payments.ts) · [frontend/src/pages/CheckoutPage.vue](../../../frontend/src/pages/CheckoutPage.vue) · [frontend/src/pages/PaymentReturnPage.vue](../../../frontend/src/pages/PaymentReturnPage.vue) · [frontend/src/router/routes.ts](../../../frontend/src/router/routes.ts)
 
 10. ✅ **Taxonomie interne & facettes specs** *(livré 08/06/2026 — remonté du polish P1)*
 

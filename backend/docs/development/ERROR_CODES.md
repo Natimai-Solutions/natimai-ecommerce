@@ -153,11 +153,12 @@ async def record_not_found_handler(_req: Request, exc: RecordNotFoundError) -> J
 
 ### Domaine `address`
 
-| Code                   | HTTP | Déclencheur                                   | `details` exposés            |
-|------------------------|------|-----------------------------------------------|------------------------------|
-| `address.not_found`    | 404  | Adresse introuvable                            | `address_id`                 |
-| `address.not_owned`    | 403  | Accès à des adresses d'un autre utilisateur    | `user_id`                    |
-| `address.type.invalid` | 400  | Type d'adresse invalide                        | `address_type`, `allowed`    |
+| Code                        | HTTP | Déclencheur                                            | `details` exposés            |
+|-----------------------------|------|--------------------------------------------------------|------------------------------|
+| `address.not_found`         | 404  | Adresse introuvable                                    | `address_id`                 |
+| `address.not_owned`         | 403  | Accès à des adresses d'un autre utilisateur            | `user_id`                    |
+| `address.type.invalid`      | 400  | Type d'adresse invalide                                | `address_type`, `allowed`    |
+| `address.already_validated` | 400  | Tentative de validation d'une adresse déjà validée     | `address_id`                 |
 
 ### Domaine `notification`
 
@@ -279,6 +280,12 @@ async def record_not_found_handler(_req: Request, exc: RecordNotFoundError) -> J
 | Code                   | HTTP | Déclencheur                   | `details` exposés |
 |------------------------|------|-------------------------------|-------------------|
 | `category.not_found`   | 404  | Catégorie introuvable          | `category_id`     |
+
+### Domaine `supplier_order`
+
+| Code                       | HTTP | Déclencheur                                            | `details` exposés    |
+|----------------------------|------|--------------------------------------------------------|----------------------|
+| `supplier_order.not_found` | 404  | Commande fournisseur introuvable (détail / retry admin) | `supplier_order_id`  |
 
 ### Domaine `product`
 

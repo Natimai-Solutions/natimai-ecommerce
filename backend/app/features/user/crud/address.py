@@ -66,6 +66,19 @@ class AddressCrud(CrudBase[Address, AddressCreate, AddressUpdate]):
         await session.refresh(record)
         return record
 
+    async def validate_address(
+        self,
+        session: AsyncSession,
+        *,
+        address: Address,
+    ) -> Address:
+        """Mark an address as admin-validated."""
+        address.is_validated = True
+        session.add(address)
+        await session.commit()
+        await session.refresh(address)
+        return address
+
     async def count_by_user(self, session: AsyncSession, *, user_id: uuid.UUID) -> int:
         """Execute count by user."""
         statement = select(self.model).where(
