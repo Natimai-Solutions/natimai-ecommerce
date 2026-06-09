@@ -80,6 +80,10 @@ async def test_payments_initiate_dispatches_by_payment_method(
         "app.api.routes.payments.initiate_api_payment",
         _fake_initiate_api_payment,
     )
+    monkeypatch.setattr(
+        "app.api.routes.payments.check_payment_method_eligible",
+        AsyncMock(return_value=True),
+    )
 
     request = PaymentsInitiateRequest(
         payment_method_id=uuid4(),
@@ -95,6 +99,7 @@ async def test_payments_initiate_dispatches_by_payment_method(
             id=uuid4(),
             email="client@example.com",
             full_name="Jane Doe",
+            price_group_id=None,
         ),
     )
 
@@ -197,6 +202,10 @@ async def test_payments_initiate_returns_400_when_provider_unsupported(
         "app.api.routes.payments.get_provider",
         lambda provider_code: object(),
     )
+    monkeypatch.setattr(
+        "app.api.routes.payments.check_payment_method_eligible",
+        AsyncMock(return_value=True),
+    )
 
     request = PaymentsInitiateRequest(
         payment_method_id=uuid4(),
@@ -210,6 +219,7 @@ async def test_payments_initiate_returns_400_when_provider_unsupported(
             id=uuid4(),
             email="client@example.com",
             full_name="",
+            price_group_id=None,
         ),
     )
 

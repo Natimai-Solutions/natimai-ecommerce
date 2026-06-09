@@ -81,9 +81,11 @@ onUnmounted(() => {
 
 function startPolling(paymentId: string) {
   // Kick off first check immediately
-  checkStatus(paymentId)
+  void checkStatus(paymentId)
 
-  intervalId = setInterval(() => checkStatus(paymentId), POLL_INTERVAL_MS)
+  intervalId = setInterval(() => {
+    void checkStatus(paymentId)
+  }, POLL_INTERVAL_MS)
 
   timeoutId = setTimeout(() => {
     stopPolling()

@@ -95,7 +95,6 @@ _tpl_text = Template(_TEXT_ORDER_CREATED)
 _tpl_html = Template(_HTML_ORDER_CREATED)
 
 
-
 async def _send_order_email(
     session: AsyncSession,
     *,
@@ -126,7 +125,9 @@ async def _send_order_email(
         return
 
     try:
-        provider = get_notification_provider(settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER)
+        provider = get_notification_provider(
+            settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER
+        )
     except UnknownNotificationProviderError:
         provider = get_notification_provider("noop")
 
@@ -281,9 +282,7 @@ async def _resolve_user_from_payload(
 
 
 @outbox_handler(EVENT_ORDER_CREATED)
-async def on_order_created(
-    session: AsyncSession, payload: dict[str, Any]
-) -> None:
+async def on_order_created(session: AsyncSession, payload: dict[str, Any]) -> None:
     """Send 'Commande reçue' email to the customer after checkout."""
     logger.info(
         "Order created: order_id=%s user_id=%s",

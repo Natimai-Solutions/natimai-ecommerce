@@ -20,8 +20,8 @@ from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, CurrentUser, SessionDep
 from app.core.errors import AppError
-from app.features.product.models.price_group import PriceGroup
 from app.features.base.models import Message
+from app.features.product.models.price_group import PriceGroup
 from app.features.user.models.group_upgrade_request import (
     GroupUpgradeRequest,
     GroupUpgradeRequestCreate,
@@ -165,7 +165,9 @@ async def list_my_upgrade_requests(
 async def list_upgrade_requests_admin(
     session: SessionDep,
     _current_user: CurrentSuperUser,
-    pending_only: bool = Query(default=True, description="Filter to PENDING requests only"),
+    pending_only: bool = Query(
+        default=True, description="Filter to PENDING requests only"
+    ),
     user_id: uuid.UUID | None = Query(default=None),
 ) -> GroupUpgradeRequestsPublic:
     """List group upgrade requests (admin view)."""

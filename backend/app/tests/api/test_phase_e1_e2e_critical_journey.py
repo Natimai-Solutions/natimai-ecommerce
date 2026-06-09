@@ -87,6 +87,11 @@ class InMemorySession:
     def add(self, _record: Any) -> None:
         return
 
+    async def flush(self) -> None:
+        # outbox_registry.publish() flushes to obtain the event id; the journey
+        # does not inspect outbox rows, so a no-op is sufficient.
+        return
+
     async def commit(self) -> None:
         return
 

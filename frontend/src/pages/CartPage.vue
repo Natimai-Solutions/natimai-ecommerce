@@ -27,18 +27,6 @@
       </template>
     </q-banner>
 
-    <q-banner
-      v-if="cartStore.quoteMessage"
-      :class="cartStore.quoteEmailDelivered ? 'bg-green-1 text-green-9' : 'bg-orange-1 text-orange-10'"
-      class="q-mb-md"
-      rounded
-    >
-      <template #avatar>
-        <q-icon :name="cartStore.quoteEmailDelivered ? 'check_circle' : 'warning_amber'" />
-      </template>
-      {{ cartStore.quoteMessage }}
-    </q-banner>
-
     <div class="row q-col-gutter-lg">
       <div class="col-12 col-lg-8">
         <q-card v-if="cartStore.loading" flat bordered>
@@ -144,7 +132,7 @@
 
       <div class="col-12 col-lg-4">
         <q-card flat bordered class="q-pa-md summary-card">
-          <div class="text-h6 q-mb-sm">Demande de devis</div>
+          <div class="text-h6 q-mb-sm">Commander</div>
 
           <div class="row justify-between text-body2 q-mb-xs">
             <span>Articles</span>
@@ -157,49 +145,14 @@
 
           <q-separator class="q-my-md" />
 
-          <q-input
-            v-model="customerEmail"
-            type="email"
-            outlined
-            dense
-            label="Email client *"
-            placeholder="client@exemple.com"
-            :error="customerEmail.trim().length > 0 && !isCustomerEmailValid"
-            error-message="Veuillez renseigner un email valide"
-            class="q-mb-sm"
-          />
-
-          <q-input
-            v-model="shippingAddress"
-            type="textarea"
-            autogrow
-            outlined
-            dense
-            label="Adresse de livraison (optionnel)"
-            placeholder="Ex: 12 rue des Fleurs, Papeete, PF"
-            class="q-mb-sm"
-          />
-
-          <q-input
-            v-model="notes"
-            type="textarea"
-            autogrow
-            outlined
-            dense
-            label="Notes (optionnel)"
-            placeholder="Informations complémentaires pour votre demande"
-            class="q-mb-md"
-          />
-
           <q-btn
             unelevated
-            color="primary"
-            icon="send"
-            label="Envoyer le panier par email"
+            color="positive"
+            icon="credit_card"
+            label="Payer par carte bancaire"
             class="full-width q-mb-sm"
-            :loading="cartStore.quoteSubmitting"
-            :disable="!canSendQuote"
-            @click="sendQuote"
+            :disable="cartStore.items.length === 0 || cartStore.mutating"
+            @click="goToCheckout"
           />
 
           <q-btn
@@ -218,7 +171,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { formatXpf } from '@app/utils'
 import { useCartStore } from 'src/stores/cart'
@@ -226,22 +179,7 @@ import { useCartStore } from 'src/stores/cart'
 const cartStore = useCartStore()
 const router = useRouter()
 
-const customerEmail = ref('')
-const shippingAddress = ref('')
-const notes = ref('')
 const placeholderImg = '/icons/placeholder-product.svg'
-
-const isCustomerEmailValid = computed(() =>
-  /^(?:[^\s@]+)@(?:[^\s@]+)\.[^\s@]+$/.test(customerEmail.value.trim()),
-)
-
-const canSendQuote = computed(
-  () =>
-    isCustomerEmailValid.value &&
-    cartStore.items.length > 0 &&
-    !cartStore.quoteSubmitting &&
-    !cartStore.mutating,
-)
 
 function parseMoney(raw: string): number {
   const value = Number.parseFloat(raw)
@@ -284,28 +222,8 @@ function clearCart() {
   cartStore.clearCart()
 }
 
-async function sendQuote() {
-  const normalizedEmail = customerEmail.value.trim().toLowerCase()
-  const payload = {
-    customer_email: normalizedEmail,
-    shipping_address: shippingAddress.value.trim() || null,
-    notes: notes.value.trim() || null,
-  }
-  const response = await cartStore.sendQuoteByEmail(payload)
-  if (!response) {
-    return
-  }
-
-  if (response.email_delivered) {
-    cartStore.clearCart()
-    customerEmail.value = ''
-    shippingAddress.value = ''
-    notes.value = ''
-    await router.push({
-      name: 'cart-quote-confirmation',
-      query: { email: normalizedEmail },
-    })
-  }
+function goToCheckout() {
+  void router.push({ name: 'checkout' })
 }
 
 onMounted(async () => {

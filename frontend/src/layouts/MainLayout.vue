@@ -38,6 +38,26 @@
             {{ cartCount }}
           </q-badge>
         </q-btn>
+
+        <!-- Connexion / déconnexion -->
+        <q-btn
+          v-if="!authStore.isAuthenticated"
+          flat
+          dense
+          no-caps
+          icon="login"
+          label="Connexion"
+          :to="{ name: 'login' }"
+        />
+        <q-btn
+          v-else
+          flat
+          dense
+          no-caps
+          icon="logout"
+          label="Déconnexion"
+          @click="onLogout"
+        />
       </q-toolbar>
     </q-header>
 
@@ -67,14 +87,23 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useCartStore } from 'src/stores/cart'
+import { useAuthStore } from 'src/stores/auth'
 
 const drawerOpen = ref(false)
 const cartStore = useCartStore()
+const authStore = useAuthStore()
+const router = useRouter()
 const cartCount = computed(() => cartStore.totalItems)
 
 function toggleDrawer() {
   drawerOpen.value = !drawerOpen.value
+}
+
+function onLogout() {
+  authStore.logout()
+  void router.push({ name: 'catalogue' })
 }
 
 onMounted(() => {

@@ -78,6 +78,22 @@
                 Veuillez contacter notre équipe.
               </q-banner>
 
+              <!-- Authentication required: a CB payment is tied to a user account -->
+              <template v-else-if="!isAuthenticated">
+                <q-banner class="bg-blue-1 text-blue-10 q-mb-md" rounded>
+                  <template #avatar><q-icon name="lock" /></template>
+                  Vous devez être connecté pour payer par carte bancaire.
+                </q-banner>
+                <q-btn
+                  color="primary"
+                  icon="login"
+                  label="Se connecter"
+                  size="lg"
+                  class="full-width"
+                  :to="{ name: 'login', query: { redirect: '/checkout' } }"
+                />
+              </template>
+
               <!-- Initiate button (before form is loaded) -->
               <template v-else-if="!formToken">
                 <div class="text-body2 text-grey-8 q-mb-md">
@@ -112,8 +128,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { formatXpf } from '@app/utils'
 import { useCartStore } from 'src/stores/cart'
+import { useAuthStore } from 'src/stores/auth'
 import {
   initiatePayment,
+  listMyPaymentMethods,
   listPaymentMethods,
   type PaymentMethod,
 } from 'src/api/payments'
@@ -121,12 +139,15 @@ import {
 const PENDING_PAYMENT_KEY = 'payzen.pending_payment_id'
 
 const cartStore = useCartStore()
+const authStore = useAuthStore()
 
 const loadingMethods = ref(true)
 const payzenMethod = ref<PaymentMethod | null>(null)
 const initiating = ref(false)
 const formToken = ref<string | null>(null)
 const errorMessage = ref<string | null>(null)
+// CB payment is tied to a user account (POST /payments/initiate requires auth).
+const isAuthenticated = computed(() => authStore.isAuthenticated)
 
 const cartEmpty = computed(() => cartStore.items.length === 0)
 
@@ -138,7 +159,13 @@ function formatMoney(raw: string): string {
 onMounted(async () => {
   await cartStore.loadCart()
   try {
-    const methods = await listPaymentMethods()
+    // Authenticated users get the eligibility-filtered list (price group +
+    // max_amount vs cart total); guests fall back to the public catalogue so the
+    // "Se connecter" prompt can still render. The server re-checks eligibility
+    // at POST /payments/initiate regardless.
+    const methods = isAuthenticated.value
+      ? await listMyPaymentMethods(cartStore.totalAmount)
+      : await listPaymentMethods()
     payzenMethod.value =
       methods
         .filter((m) => m.provider_code === 'payzen' && !m.requires_document_upload)
@@ -152,6 +179,10 @@ onMounted(async () => {
 
 async function startPayment() {
   if (!payzenMethod.value) return
+  if (!isAuthenticated.value) {
+    errorMessage.value = 'Vous devez être connecté pour payer par carte bancaire.'
+    return
+  }
 
   initiating.value = true
   errorMessage.value = null

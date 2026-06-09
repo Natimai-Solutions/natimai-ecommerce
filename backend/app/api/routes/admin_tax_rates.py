@@ -72,7 +72,9 @@ async def _get_active_tax_rate(session: SessionDep, tax_rate_id: uuid.UUID) -> T
 async def list_tax_rates(
     session: SessionDep,
     _current_user: CurrentSuperUser,
-    territory_code: str | None = Query(default=None, description="Filter by territory (ex: PF)"),
+    territory_code: str | None = Query(
+        default=None, description="Filter by territory (ex: PF)"
+    ),
     valid: bool | None = Query(
         default=None, description="true → active today, false → already expired"
     ),
@@ -95,7 +97,9 @@ async def list_tax_rates(
             col(TaxRate.valid_until) < today,
         )
 
-    stmt = stmt.order_by(col(TaxRate.territory_code).asc(), col(TaxRate.valid_from).desc())
+    stmt = stmt.order_by(
+        col(TaxRate.territory_code).asc(), col(TaxRate.valid_from).desc()
+    )
     result = await session.exec(stmt)
     rates = list(result.all())
     return TaxRatesPublic(
@@ -109,7 +113,9 @@ async def list_tax_rates(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/tax-rates", response_model=TaxRatePublic, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/tax-rates", response_model=TaxRatePublic, status_code=status.HTTP_201_CREATED
+)
 async def create_tax_rate(
     payload: TaxRateCreate,
     session: SessionDep,

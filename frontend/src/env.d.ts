@@ -5,12 +5,14 @@ declare namespace NodeJS {
     VUE_ROUTER_BASE: string | undefined;
     VITE_API_URL: string;
     VITE_PUBLIC_SITE_URL: string | undefined;
+    VITE_OAUTH_ENABLED: string | undefined;
   }
 }
 
 interface ImportMetaEnv {
   readonly VITE_API_URL: string;
   readonly VITE_PUBLIC_SITE_URL: string | undefined;
+  readonly VITE_OAUTH_ENABLED: string | undefined;
 }
 
 interface ImportMeta {

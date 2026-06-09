@@ -59,6 +59,10 @@ class SupplierOrder(SQLModel, table=True):
     )
     error_message: str | None = Field(default=None)
     attempts: int = Field(default=0)
+    estimated_delivery: datetime | None = Field(
+        default=None,
+        description="Delivery estimate returned by the supplier webhook",
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
     )
@@ -79,6 +83,7 @@ class SupplierOrderPublic(SQLModel):
     supplier_status_label: str | None
     error_message: str | None
     attempts: int
+    estimated_delivery: datetime | None
     created_at: datetime
     updated_at: datetime
 

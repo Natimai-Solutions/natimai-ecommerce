@@ -42,6 +42,13 @@ class PaymentMethodBase(Base):
         default=0,
         description="Display order in checkout payment method listing",
     )
+    max_amount: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Maximum transaction amount (NULL = no limit)",
+    )
 
 
 class PaymentMethodCreate(PaymentMethodBase, BaseCreate):
@@ -60,6 +67,7 @@ class PaymentMethodUpdate(PaymentMethodBase, BaseUpdate):
     requires_admin_validation: bool | None = None
     requires_document_upload: bool | None = None
     sort_order: int | None = None
+    max_amount: Decimal | None = None
 
 
 class PaymentMethod(PaymentMethodBase, table=True):

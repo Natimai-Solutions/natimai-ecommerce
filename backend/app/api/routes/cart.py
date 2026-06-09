@@ -1025,8 +1025,8 @@ def _build_quote_email_html(
     summary_rows = "".join(
         (
             "<tr>"
-            f"<td style=\"padding:4px 0;color:#64748b;font-size:13px;\">{escape(label)}</td>"
-            f"<td style=\"padding:4px 0;color:#0f172a;font-size:13px;font-weight:600;\">{escape(value)}</td>"
+            f'<td style="padding:4px 0;color:#64748b;font-size:13px;">{escape(label)}</td>'
+            f'<td style="padding:4px 0;color:#0f172a;font-size:13px;font-weight:600;">{escape(value)}</td>'
             "</tr>"
         )
         for label, value in summary_lines
@@ -1044,26 +1044,26 @@ def _build_quote_email_html(
         image_url = _snapshot_text_value(item, "image_url", fallback="")
         if image_url:
             image_cell = (
-                f"<img src=\"{escape(image_url, quote=True)}\" alt=\"\" "
-                "width=\"56\" height=\"56\" "
-                "style=\"display:block;width:56px;height:56px;border-radius:10px;"
-                "object-fit:contain;background:#f8fafc;border:1px solid #e2e8f0;\"/>"
+                f'<img src="{escape(image_url, quote=True)}" alt="" '
+                'width="56" height="56" '
+                'style="display:block;width:56px;height:56px;border-radius:10px;'
+                'object-fit:contain;background:#f8fafc;border:1px solid #e2e8f0;"/>'
             )
         else:
             image_cell = (
-                "<div style=\"width:56px;height:56px;border-radius:10px;"
-                "background:#f1f5f9;border:1px solid #e2e8f0;\"></div>"
+                '<div style="width:56px;height:56px;border-radius:10px;'
+                'background:#f1f5f9;border:1px solid #e2e8f0;"></div>'
             )
 
         item_rows.append(
             "<tr>"
-            f"<td style=\"padding:10px 8px;border-bottom:1px solid #e2e8f0;\">{image_cell}</td>"
-            "<td style=\"padding:10px 8px;border-bottom:1px solid #e2e8f0;\">"
-            f"<div style=\"font-size:14px;font-weight:700;color:#0f172a;\">{product_name}</div>"
-            f"<div style=\"font-size:12px;color:#64748b;margin-top:4px;\">Quantite: {quantity}</div>"
+            f'<td style="padding:10px 8px;border-bottom:1px solid #e2e8f0;">{image_cell}</td>'
+            '<td style="padding:10px 8px;border-bottom:1px solid #e2e8f0;">'
+            f'<div style="font-size:14px;font-weight:700;color:#0f172a;">{product_name}</div>'
+            f'<div style="font-size:12px;color:#64748b;margin-top:4px;">Quantite: {quantity}</div>'
             "</td>"
-            f"<td style=\"padding:10px 8px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:13px;color:#334155;\">{unit_price} {currency_label}</td>"
-            f"<td style=\"padding:10px 8px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:13px;font-weight:700;color:#0f172a;\">{line_total} {currency_label}</td>"
+            f'<td style="padding:10px 8px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:13px;color:#334155;">{unit_price} {currency_label}</td>'
+            f'<td style="padding:10px 8px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:13px;font-weight:700;color:#0f172a;">{line_total} {currency_label}</td>'
             "</tr>"
         )
 
@@ -1072,33 +1072,33 @@ def _build_quote_email_html(
 
     return (
         "<!doctype html>"
-        "<html><body style=\"margin:0;padding:24px;background:#f8fafc;"
-        "font-family:Arial,Helvetica,sans-serif;color:#0f172a;\">"
-        "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;\">"
-        "<tr><td style=\"padding:24px 24px 10px 24px;\">"
-        f"<h1 style=\"margin:0;font-size:24px;line-height:1.25;\">{escape(title)}</h1>"
-        f"<p style=\"margin:8px 0 0 0;color:#475569;font-size:14px;\">{escape(subtitle)}</p>"
+        '<html><body style="margin:0;padding:24px;background:#f8fafc;'
+        'font-family:Arial,Helvetica,sans-serif;color:#0f172a;">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;">'
+        '<tr><td style="padding:24px 24px 10px 24px;">'
+        f'<h1 style="margin:0;font-size:24px;line-height:1.25;">{escape(title)}</h1>'
+        f'<p style="margin:8px 0 0 0;color:#475569;font-size:14px;">{escape(subtitle)}</p>'
         "</td></tr>"
-        "<tr><td style=\"padding:8px 24px 16px 24px;\">"
-        "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">"
+        '<tr><td style="padding:8px 24px 16px 24px;">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
         f"{summary_rows}"
         "</table>"
         "</td></tr>"
-        "<tr><td style=\"padding:0 24px 24px 24px;\">"
-        "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;\">"
+        '<tr><td style="padding:0 24px 24px 24px;">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
         "<thead>"
         "<tr>"
-        "<th style=\"text-align:left;padding:10px 8px;background:#f1f5f9;color:#334155;font-size:12px;\">Image</th>"
-        "<th style=\"text-align:left;padding:10px 8px;background:#f1f5f9;color:#334155;font-size:12px;\">Produit</th>"
-        "<th style=\"text-align:right;padding:10px 8px;background:#f1f5f9;color:#334155;font-size:12px;\">Prix unitaire</th>"
-        "<th style=\"text-align:right;padding:10px 8px;background:#f1f5f9;color:#334155;font-size:12px;\">Total ligne</th>"
+        '<th style="text-align:left;padding:10px 8px;background:#f1f5f9;color:#334155;font-size:12px;">Image</th>'
+        '<th style="text-align:left;padding:10px 8px;background:#f1f5f9;color:#334155;font-size:12px;">Produit</th>'
+        '<th style="text-align:right;padding:10px 8px;background:#f1f5f9;color:#334155;font-size:12px;">Prix unitaire</th>'
+        '<th style="text-align:right;padding:10px 8px;background:#f1f5f9;color:#334155;font-size:12px;">Total ligne</th>'
         "</tr>"
         "</thead>"
         "<tbody>"
         f"{items_html}"
         "<tr>"
-        "<td colspan=\"3\" style=\"padding:14px 8px;text-align:right;font-size:13px;color:#334155;font-weight:700;\">Total panier</td>"
-        f"<td style=\"padding:14px 8px;text-align:right;font-size:14px;color:#0f172a;font-weight:800;\">{subtotal_label} {currency_label}</td>"
+        '<td colspan="3" style="padding:14px 8px;text-align:right;font-size:13px;color:#334155;font-weight:700;">Total panier</td>'
+        f'<td style="padding:14px 8px;text-align:right;font-size:14px;color:#0f172a;font-weight:800;">{subtotal_label} {currency_label}</td>'
         "</tr>"
         "</tbody></table>"
         "</td></tr></table></body></html>"

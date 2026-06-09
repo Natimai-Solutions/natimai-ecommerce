@@ -49,6 +49,7 @@ def _make_user(user_id: Any = None) -> Any:
         id=user_id or uuid4(),
         email="client@example.com",
         full_name="Jane Doe",
+        price_group_id=None,
     )
 
 
@@ -73,6 +74,10 @@ async def test_payments_initiate_dispatches_po_provider(
     register_mock = AsyncMock(return_value=payment)
     monkeypatch.setattr(
         "app.api.routes.payments.register_document_intent", register_mock
+    )
+    monkeypatch.setattr(
+        "app.api.routes.payments.check_payment_method_eligible",
+        AsyncMock(return_value=True),
     )
 
     request = PaymentsInitiateRequest(

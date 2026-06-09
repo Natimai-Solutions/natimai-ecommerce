@@ -7,7 +7,7 @@ on:
 
 jobs:
   backend:
-    name: Backend — lint & typecheck
+    name: Backend — lint, typecheck & tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,12 +28,20 @@ jobs:
         working-directory: backend
         run: uv run ruff check .
 
+      - name: Ruff format check
+        working-directory: backend
+        run: uv run ruff format --check .
+
       - name: mypy
         working-directory: backend
         run: uv run mypy app/
 
+      - name: pytest
+        working-directory: backend
+        run: uv run pytest
+
   frontend:
-    name: Frontend — typecheck
+    name: Frontend — lint & typecheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -49,6 +57,12 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Lint frontend
+        run: pnpm --filter frontend run lint
+
+      - name: Lint admin
+        run: pnpm --filter admin run lint
 
       - name: Typecheck frontend
         run: pnpm --filter frontend run typecheck

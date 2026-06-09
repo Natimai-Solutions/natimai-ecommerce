@@ -1,6 +1,7 @@
 """Spec projection: normalize Icecat technical_specifications into product_spec rows.
 
-Reads spec_definitions.yaml once at import time (small file, ~20 entries).
+Phase 1: reads spec_definitions.yaml once at import time (YAML fallback).
+Phase 3: reads SpecDefinition rows from the DB when a session is available.
 Called after each Icecat enrichment and by the reproject ARQ job.
 """
 
@@ -22,21 +23,50 @@ from app.features.product.models.product_spec import ProductSpec
 _YAML_PATH = Path(__file__).parent.parent / "spec_definitions.yaml"
 _DECIMAL_PATTERN = re.compile(r"[-+]?\d*\.?\d+")
 
-# Loaded once at module import
+# YAML fallback — loaded once at module import. Used when no DB session is
+# available (sync code, tests) and as the baseline before DB specs are seeded.
 with _YAML_PATH.open(encoding="utf-8") as _f:
     _RAW_DEFS: list[dict[str, Any]] = yaml.safe_load(_f)["specs"]
 
 
-def _build_alias_index() -> dict[str, dict[str, Any]]:
+def _build_alias_index_from_defs(
+    defs: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
     """Build {normalized_alias → spec_def} index for O(1) matching."""
     index: dict[str, dict[str, Any]] = {}
-    for spec in _RAW_DEFS:
+    for spec in defs:
         for alias in spec.get("aliases", []):
             index[alias.strip().lower()] = spec
     return index
 
 
-_ALIAS_INDEX = _build_alias_index()
+# YAML-backed fallback index (used when no session provided)
+_ALIAS_INDEX = _build_alias_index_from_defs(_RAW_DEFS)
+
+
+async def _load_defs_from_db(session: AsyncSession) -> list[dict[str, Any]] | None:
+    """Load active spec definitions from the DB. Returns None on error."""
+    try:
+        from app.features.product.models.spec_definition import SpecDefinition
+
+        stmt = select(SpecDefinition).where(SpecDefinition.is_active == True)  # noqa: E712
+        result = await session.exec(stmt)
+        rows = result.all()
+        if not rows:
+            return None
+        return [
+            {
+                "key": r.key,
+                "label_fr": r.label_fr,
+                "type": r.type,
+                "unit": r.unit,
+                "categories": list(r.categories or []),
+                "aliases": list(r.aliases or []),
+            }
+            for r in rows
+        ]
+    except Exception:
+        return None
 
 
 def _spec_applies_to_category(spec_def: dict[str, Any], supplier_category: str) -> bool:
@@ -108,13 +138,15 @@ def project_specs_from_payload(
     technical_specifications: list[dict[str, Any]],
     *,
     supplier_category: str | None = None,
+    alias_index: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, tuple[str | None, Decimal | None, str | None]]:
     """Return {spec_key → (value_text, value_numeric, unit)} from raw Icecat payload.
 
-    Skips unrecognized specs silently.
-    When supplier_category is given, specs whose YAML categories list does not
-    match the product category are skipped (e.g. screen_inches for a server).
+    alias_index: override the YAML-backed default index (used when DB
+    definitions have been loaded for the current request).
     """
+    active_index = alias_index if alias_index is not None else _ALIAS_INDEX
+
     results: dict[str, tuple[str | None, Decimal | None, str | None]] = {}
 
     for item in technical_specifications:
@@ -129,10 +161,10 @@ def project_specs_from_payload(
         if not name_lower or not value_str:
             continue
 
-        spec_def = _ALIAS_INDEX.get(name_lower)
+        spec_def = active_index.get(name_lower)
         if spec_def is None:
             # Partial match: only allow aliases of 4+ chars to avoid "os" → false positives
-            for alias, candidate in _ALIAS_INDEX.items():
+            for alias, candidate in active_index.items():
                 if len(alias) >= 4 and (alias in name_lower or name_lower in alias):
                     spec_def = candidate
                     break
@@ -165,10 +197,21 @@ async def upsert_product_specs(
     """Project Icecat payload into product_spec rows. Returns count of upserted rows."""
     specs_payload = product.technical_specifications or []
     supplier_category = getattr(product, "supplier_category", None) or ""
-    projected = project_specs_from_payload(
-        specs_payload,
-        supplier_category=supplier_category or None,
-    )
+
+    # Prefer DB definitions (editable via admin); fall back to YAML on error.
+    db_defs = await _load_defs_from_db(session)
+    if db_defs:
+        alias_index = _build_alias_index_from_defs(db_defs)
+        projected = project_specs_from_payload(
+            specs_payload,
+            supplier_category=supplier_category or None,
+            alias_index=alias_index,
+        )
+    else:
+        projected = project_specs_from_payload(
+            specs_payload,
+            supplier_category=supplier_category or None,
+        )
 
     if not projected:
         return 0
@@ -204,5 +247,25 @@ async def upsert_product_specs(
 
 
 def get_spec_definitions() -> list[dict[str, Any]]:
-    """Return the raw spec definitions list (for facet endpoints)."""
+    """Return the YAML-backed spec definitions list (sync fallback)."""
     return _RAW_DEFS
+
+
+async def get_effective_spec_definitions(
+    session: AsyncSession,
+    *,
+    category_keyword: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return the active spec definitions, DB-first with YAML fallback.
+
+    Used by facet endpoints so that admin edits (label, activation, category
+    scoping) are reflected. Inactive specs are already excluded by the DB query.
+    When ``category_keyword`` is provided, only specs applicable to that
+    category are returned (specs with no category restriction always apply).
+    """
+    defs = await _load_defs_from_db(session)
+    if not defs:
+        defs = _RAW_DEFS
+    if category_keyword:
+        defs = [d for d in defs if _spec_applies_to_category(d, category_keyword)]
+    return defs

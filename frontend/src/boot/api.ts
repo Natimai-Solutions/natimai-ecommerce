@@ -17,6 +17,34 @@ export function hasAuthToken(): boolean {
   return getFromStorage(ACCESS_KEYS) !== null
 }
 
+const ACCESS_KEY = 'frontend.access_token'
+const REFRESH_KEY = 'frontend.refresh_token'
+
+/** Storefront token storage (scoped to the `frontend.*` keys). */
+export const tokenStorage = {
+  getAccess(): string | null {
+    if (typeof window === 'undefined') return null
+    return localStorage.getItem(ACCESS_KEY)
+  },
+  setAccess(token: string): void {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(ACCESS_KEY, token)
+  },
+  getRefresh(): string | null {
+    if (typeof window === 'undefined') return null
+    return localStorage.getItem(REFRESH_KEY)
+  },
+  setRefresh(token: string): void {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(REFRESH_KEY, token)
+  },
+  clear(): void {
+    if (typeof window === 'undefined') return
+    localStorage.removeItem(ACCESS_KEY)
+    localStorage.removeItem(REFRESH_KEY)
+  },
+}
+
 export const api: AxiosInstance = createApiClient({
   baseUrl: import.meta.env.VITE_API_URL,
   getAccessToken: () => getFromStorage(ACCESS_KEYS),

@@ -28,6 +28,7 @@ from app.features.shipping.models.route_tracking import (
     ShippingRouteTrackingUpdate,
 )
 from app.features.shipping.models.status import StatusDefinition
+from app.outbox.registry import outbox_registry
 
 _SUPPLIER_DELAY_STATUS_CODES = {
     "supplier_delay",
@@ -358,6 +359,35 @@ class ShippingRouteTrackingRouter(
                     changed_by=str(current_user.id),
                     reason=request.reason,
                 )
+
+                # Resolve the new status code to include in the outbox payload
+                status_defs = await crud_status_definition.get_by_entity(
+                    session=session, entity="route_tracking"
+                )
+                status_by_id = {s.id: s for s in status_defs}
+                new_status_def = status_by_id.get(updated_tracking.status_id)
+                new_status_code = new_status_def.code if new_status_def else None
+
+                await outbox_registry.publish(
+                    session=session,
+                    event_type="tracking.status_changed",
+                    payload={
+                        "tracking_id": str(updated_tracking.id),
+                        "order_id": str(updated_tracking.order_id),
+                        "status_code": new_status_code,
+                        "status_name": new_status_def.name if new_status_def else None,
+                        "tracking_ref": updated_tracking.tracking_ref,
+                        "estimated_delivery": (
+                            updated_tracking.estimated_delivery.isoformat()
+                            if updated_tracking.estimated_delivery
+                            else None
+                        ),
+                        "reason": request.reason,
+                        "changed_by": str(current_user.id),
+                    },
+                    correlation_id=updated_tracking.id,
+                )
+
                 return ShippingRouteTrackingPublic.model_validate(updated_tracking)
 
             except RecordNotFoundError as exc:

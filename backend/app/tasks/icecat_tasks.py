@@ -473,6 +473,17 @@ async def reproject_product_specs_task(
             return {"status": "error", "message": str(exc), **stats}
 
 
+async def enqueue_reproject_product_specs(category_id: str | None = None) -> str:
+    """Enqueue a spec re-projection job. Returns the ARQ job id."""
+    from app.core.arq_pool import get_arq_pool
+
+    arq_pool = await get_arq_pool()  # type: ignore[no-untyped-call]
+    job = await arq_pool.enqueue_job(
+        "reproject_product_specs_task", category_id=category_id
+    )
+    return cast(str, job.job_id)
+
+
 async def trigger_batch_enrichment(limit: int = 50) -> str:
     """
     Trigger batch Icecat enrichment

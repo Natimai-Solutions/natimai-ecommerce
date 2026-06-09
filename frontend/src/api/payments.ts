@@ -50,6 +50,18 @@ export async function listPaymentMethods(): Promise<PaymentMethod[]> {
   return response.data.data
 }
 
+/**
+ * Payment methods eligible for the authenticated user, filtered by their price
+ * group and (optionally) the current cart total against each method's
+ * `max_amount`. Requires authentication. Returns a bare array.
+ */
+export async function listMyPaymentMethods(cartTotal?: number): Promise<PaymentMethod[]> {
+  const response = await api.get<PaymentMethod[]>('/payments/me/methods', {
+    params: cartTotal != null ? { cart_total: cartTotal } : {},
+  })
+  return response.data
+}
+
 export async function initiatePayment(
   data: InitiatePaymentRequest,
 ): Promise<InitiatePaymentResponse> {

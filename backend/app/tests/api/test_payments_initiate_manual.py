@@ -66,6 +66,10 @@ async def test_payments_initiate_dispatches_manual_check(
         "app.api.routes.payments.register_manual_intent",
         _fake_register_intent,
     )
+    monkeypatch.setattr(
+        "app.api.routes.payments.check_payment_method_eligible",
+        AsyncMock(return_value=True),
+    )
 
     request = PaymentsInitiateRequest(
         payment_method_id=uuid4(),
@@ -79,6 +83,7 @@ async def test_payments_initiate_dispatches_manual_check(
             id=payment.user_id,
             email="client@example.com",
             full_name="Jane Doe",
+            price_group_id=None,
         ),
     )
 
@@ -134,6 +139,10 @@ async def test_payments_initiate_dispatches_manual_transfer(
         "app.api.routes.payments.register_manual_intent",
         AsyncMock(return_value=payment),
     )
+    monkeypatch.setattr(
+        "app.api.routes.payments.check_payment_method_eligible",
+        AsyncMock(return_value=True),
+    )
 
     request = PaymentsInitiateRequest(
         payment_method_id=uuid4(),
@@ -142,7 +151,12 @@ async def test_payments_initiate_dispatches_manual_transfer(
     )
     current_user = cast(
         Any,
-        SimpleNamespace(id=payment.user_id, email="c@example.com", full_name=""),
+        SimpleNamespace(
+            id=payment.user_id,
+            email="c@example.com",
+            full_name="",
+            price_group_id=None,
+        ),
     )
 
     response = await initiate_payment(

@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -309,7 +310,7 @@ async def _seed_france_papeete_import_corridor(session: AsyncSession) -> None:
         )
 
 
-_SECURITY_GROUPS: tuple[dict, ...] = (
+_SECURITY_GROUPS: tuple[dict[str, Any], ...] = (
     {
         "name": "support",
         "description": (
@@ -386,9 +387,7 @@ async def _seed_security_groups(session: AsyncSession) -> None:
     after verifying that the superuser and existing users still work.
     """
     for spec in _SECURITY_GROUPS:
-        existing = await session.exec(
-            select(Group).where(Group.name == spec["name"])
-        )
+        existing = await session.exec(select(Group).where(Group.name == spec["name"]))
         group = existing.first()
         if group is None:
             group = Group(

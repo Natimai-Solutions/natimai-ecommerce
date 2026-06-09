@@ -192,6 +192,9 @@ class Settings(BaseSettings):
     INGRAM_SHIP_TO_POSTAL_CODE: str | None = None
     INGRAM_SHIP_TO_COUNTRY_CODE: str = "PF"
     INGRAM_SHIP_TO_PHONE: str | None = None
+    # Shared secret used to authenticate inbound Ingram webhook calls.
+    # Ingram sends this token in the Authorization: Bearer <token> header.
+    INGRAM_WEBHOOK_SECRET: str | None = None
 
     # Icecat API Configuration
     ICECAT_USERNAME: str | None = None

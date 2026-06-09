@@ -627,6 +627,10 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 
 **Objectif** : couvrir tous les modes de paiement (chèque, virement, BC) avec contrôle d'éligibilité par groupe, et notifier le client des étapes de livraison.
 
+**Statut** : ✅ Complète (08/06/2026) — 7 items sur 7 livrés.
+
+**Chaîne Alembic** : `e7a5b3c9d1f2` → `a8b4c2f1e6d9` (payment_eligibility) → `b9c5d3e2f7a1` (supplier_order_webhook) → `c1d6e4f3a8b2` (spec_definitions) → `d2e7f5a4b9c3` (system_settings) — head actuel : `d2e7f5a4b9c3`.
+
 ### Périmètre fonctionnel
 
 - Modes de paiement chèque / virement / BC (déjà câblés providers).
@@ -637,43 +641,51 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 
 ### Travaux backend
 
-1. **Éligibilité PaymentMethod ↔ PriceGroup**
-   - Migration : table `payment_method_eligibility(payment_method_id, price_group_id)` (many-to-many).
-   - Champ `max_amount: Decimal | null` sur `PaymentMethod`.
-   - Endpoint admin pour configurer.
-   - Endpoint `GET /users/me/payment-methods` → filtré par éligibilité du groupe du user + montant du panier courant.
-   - Garde-fou dans `POST /payments/initiate` : vérifier éligibilité avant d'initier.
+1. ✅ **Éligibilité PaymentMethod ↔ PriceGroup** *(livré 08/06/2026)*
+   - ✅ Migration `a8b4c2f1e6d9` : table `payment_method_eligibility(payment_method_id, price_group_id)` + champ `max_amount` sur `payment_methods`.
+   - ✅ Modèle `PaymentMethodEligibility` + service `eligibility.py` (`get_eligible_payment_methods`, `check_payment_method_eligible`).
+   - ✅ Sémantique open-default : aucune ligne → méthode disponible à tous les groupes ; au moins une ligne → restreint aux groupes listés.
+   - ✅ Endpoint `GET /payments/me/methods` (auth) filtré par groupe + `cart_total` vs `max_amount` ; le frontend checkout l'utilise pour les clients connectés (fallback public pour les invités).
+   - ✅ Garde-fou dans `POST /payments/initiate` : résolution de méthode d'abord (404 `not_found` / 400 `inactive`), puis `payment.method.not_eligible` (403) si non éligible.
+   - ✅ Admin : `GET/POST/DELETE /admin/payment-methods/{id}/groups/{group_id}`.
+   - Fichiers : [app/features/payment/models/payment_method_eligibility.py](../../app/features/payment/models/payment_method_eligibility.py) · [app/features/payment/services/eligibility.py](../../app/features/payment/services/eligibility.py) · [app/api/routes/admin_payment_eligibility.py](../../app/api/routes/admin_payment_eligibility.py)
 
-2. **Notifications tracking**
-   - Handlers outbox sur transitions de `StatusDefinition` (cf. [status.py](../../app/api/routes/shipping/status.py)) :
-     - Statut `shipped` → publish `tracking.shipped` → email client (si préférence active).
-     - Statut `delivered` → publish `tracking.delivered` → email client.
-   - Hook dans `update_tracking_status` ([tracking.py:326-356](../../app/api/routes/shipping/tracking.py#L326-L356)).
-   - Respect de `user.preference.notification_shipping_steps`.
+2. ✅ **Notifications tracking** *(livré 08/06/2026)*
+   - ✅ `POST /{tracking_id}/update-status` publie `tracking.status_changed` (outbox) avec `{tracking_id, order_id, status_code, status_name, tracking_ref, estimated_delivery}`.
+   - ✅ Handler `on_tracking_status_changed` dans `handlers/shipping.py` : détecte codes `shipped` / `delivered`, charge le user via l'order, vérifie `UserPreference.notification_shipping_steps`, envoie l'email.
+   - ✅ Templates Jinja2 inline pour « expédiée » (bleu) et « livrée » (vert).
+   - Fichier : [app/handlers/shipping.py](../../app/handlers/shipping.py)
 
-3. **Endpoint client de tracking**
-   - `GET /orders/me/{order_id}/tracking` (déjà partiellement : `get_order_tracking` mais à filtrer par `current_user`).
-   - Expose `tracking_ref`, `estimated_delivery`, `current_status`, segments, scénarios d'exception.
+3. ✅ **Endpoint client de tracking** *(livré 08/06/2026)*
+   - ✅ `GET /orders/me/{order_id}/tracking` : vérifie ownership (`order.user_id == current_user.id`), retourne `CustomerOrderTrackingResponse` (trackings, statut global, scénarios d'exception, consolidations).
+   - Réutilise `_derive_order_overall_status` / `_derive_order_exception_scenarios` existants.
+   - Fichier : [app/api/routes/orders_me.py](../../app/api/routes/orders_me.py)
 
-4. **Webhook Ingram — suivi statut commande fournisseur**
-   - Endpoint `POST /webhooks/ingram/order-status` (auth par signature ou token Ingram).
-   - Met à jour `SupplierOrder.status` + `estimated_delivery` à chaque callback.
-   - Publish outbox `supplier_order.shipped` → alimente le tracking interne (transition vers statut `shipped` sur la consolidation concernée).
-   - Pré-requis : doc Ingram webhook obtenue en Phase 2.
+4. ✅ **Webhook Ingram — suivi statut commande fournisseur** *(livré 08/06/2026)*
+   - ✅ Migration `b9c5d3e2f7a1` : colonne `estimated_delivery TIMESTAMP WITH TIME ZONE` sur `supplier_orders`.
+   - ✅ Config `INGRAM_WEBHOOK_SECRET` (Bearer token auth).
+   - ✅ `POST /webhooks/ingram/order-status` : valide le token, trouve `SupplierOrder` par `supplier_order_number` ou `customer_order_number`, met à jour `supplier_status_label` + `estimated_delivery`, publie `supplier_order.shipped` si statut shipped.
+   - ✅ Handler `on_supplier_order_shipped` : tente d'avancer les trackings de la commande vers le statut `shipped` (best-effort, log warning si transition invalide).
+   - Fichiers : [app/api/routes/webhooks.py](../../app/api/routes/webhooks.py) · [app/handlers/supplier_order.py](../../app/handlers/supplier_order.py)
 
-5. **Bug B5 corrigé** (Phase 0) — confirmer que les endpoints `update_tracking_status` exigent bien admin/logistique.
+5. ✅ **B5 confirmé** (Phase 0) — `update_tracking_status` exige `CurrentSuperUser`.
 
-6. **Catalogue de specs — extension multi-catégories**
-   - Migration : table `spec_definition(id, key, label_i18n, type, unit, category_ids[], aliases[])` éditable via admin.
-   - Migration progressive du YAML `spec_definitions.yaml` vers la table (script one-shot + suppression du YAML).
-   - Endpoints admin `GET/POST/PUT/DELETE /admin/spec-definitions`.
-   - UI admin pour gérer specs + aliases par catégorie (incluant test de match contre un produit donné).
-   - Étendre le seed aux nouvelles catégories Ingram à syncer en P3 (à définir selon priorités produit).
-   - Re-projection automatique déclenchée par chaque modification de spec.
+6. ✅ **Catalogue de specs — extension multi-catégories** *(livré 08/06/2026)*
+   - ✅ Migration `c1d6e4f3a8b2` : table `spec_definitions(id, key, label_fr, type, unit, categories JSON, aliases JSON, is_active)` + seed des 10 specs YAML Phase 1.
+   - ✅ Modèle `SpecDefinition` + `SpecDefinitionPublic/Create/Update`.
+   - ✅ `upsert_product_specs` charge d'abord les defs DB (fallback YAML si DB vide ou erreur).
+   - ✅ `project_specs_from_payload` accepte `alias_index` / `raw_defs` en surcharge.
+   - ✅ `enqueue_reproject_product_specs(category_id)` ajouté dans `icecat_tasks.py`.
+   - ✅ Endpoints admin `GET/POST/PUT/DELETE /admin/spec-definitions` + re-projection automatique en background.
+   - Soft-delete (`is_active=False`) préserve l'historique.
+   - Fichiers : [app/features/product/models/spec_definition.py](../../app/features/product/models/spec_definition.py) · [app/api/routes/admin_spec_definitions.py](../../app/api/routes/admin_spec_definitions.py)
 
-7. **Devises — préparation P4**
-   - Champ système `default_display_currency` (admin, default `XPF`).
-   - Endpoint `GET /system/settings` exposant la devise par défaut au frontend (pour préparer le toggle multi-devises P4).
+7. ✅ **Devises — préparation P4** *(livré 08/06/2026)*
+   - ✅ Migration `d2e7f5a4b9c3` : table `system_settings(id, key, value, description, updated_at)` + seed `default_display_currency = "XPF"`.
+   - ✅ Modèle `SystemSetting` + routes :
+     - `GET /system/settings` (public, whitelist `default_display_currency`) → prépare le toggle multi-devises P4.
+     - `GET/PUT /admin/system-settings[/{key}]` (superuser) → upsert complet.
+   - Fichiers : [app/features/system/models/system_setting.py](../../app/features/system/models/system_setting.py) · [app/api/routes/system_settings.py](../../app/api/routes/system_settings.py)
 
 ### Hors périmètre Phase 3
 

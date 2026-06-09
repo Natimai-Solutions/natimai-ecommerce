@@ -26,7 +26,9 @@ from app.features.product.services.pricing import (
     calculate_price_by_mode,
     resolve_default_price_group,
 )
-from app.features.product.services.spec_projection import get_spec_definitions
+from app.features.product.services.spec_projection import (
+    get_effective_spec_definitions,
+)
 from app.features.shipping.models.route import ShippingRoute
 from app.features.user.crud.user_preference import get_preference_for_user
 from app.features.user.models.user import User
@@ -262,7 +264,9 @@ async def get_category_spec_facets(
     Only returns specs that have at least one value for active enriched products
     in this category.
     """
-    spec_defs = get_spec_definitions()
+    # DB-first definitions (admin edits to labels/units + activation are honoured);
+    # inactive specs are excluded by the DB query, falling back to YAML if unseeded.
+    spec_defs = await get_effective_spec_definitions(session)
 
     # All spec keys applicable to any category (we filter by presence in the data)
     all_keys = [s["key"] for s in spec_defs]

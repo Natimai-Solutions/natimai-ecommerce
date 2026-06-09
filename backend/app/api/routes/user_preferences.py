@@ -7,11 +7,11 @@ from app.features.user.crud.user_preference import (
     upsert_preference_for_user,
 )
 from app.features.user.models.user_preference import (
-    UserPreferencePublic,
-    UserPreferenceUpdate,
     _VALID_LOCALES,
     _VALID_SHIPPING_MODES,
     _VALID_SHIPPING_PREFERENCES,
+    UserPreferencePublic,
+    UserPreferenceUpdate,
 )
 
 router = APIRouter(prefix="/users/me/preferences", tags=["user"])
@@ -54,7 +54,11 @@ def _validate_update(data: UserPreferenceUpdate) -> None:
             code="user.preference.invalid",
             status_code=400,
             message="Invalid locale",
-            details={"field": "locale", "value": data.locale, "allowed": sorted(_VALID_LOCALES)},
+            details={
+                "field": "locale",
+                "value": data.locale,
+                "allowed": sorted(_VALID_LOCALES),
+            },
         )
     if data.currency_pref is not None and data.currency_pref not in _VALID_CURRENCIES:
         raise AppError(

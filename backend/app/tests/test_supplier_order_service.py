@@ -30,7 +30,9 @@ def _session() -> MagicMock:
 @pytest.fixture(autouse=True)
 def _isolate_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
     # Default: no pre-existing supplier order, ship-to configured.
-    monkeypatch.setattr(svc, "get_existing_supplier_order", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        svc, "get_existing_supplier_order", AsyncMock(return_value=None)
+    )
     monkeypatch.setattr(
         svc,
         "build_ship_to",

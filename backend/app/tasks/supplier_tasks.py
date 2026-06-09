@@ -496,6 +496,8 @@ async def backfill_product_categories_task(
 
             for product in batch:
                 try:
+                    if not product.supplier_subcategory:
+                        continue
                     category, created = await crud_category.get_or_create_by_name(
                         session, name=product.supplier_subcategory
                     )

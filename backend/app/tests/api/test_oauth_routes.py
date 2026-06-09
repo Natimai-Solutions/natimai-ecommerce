@@ -82,9 +82,7 @@ def test_callback_inactive_user_is_blocked_and_issues_no_token(
     monkeypatch.setattr(
         oauth_module, "_exchange_code", AsyncMock(return_value={"access_token": "tok"})
     )
-    monkeypatch.setattr(
-        oauth_module, "_fetch_user_info", AsyncMock(return_value={})
-    )
+    monkeypatch.setattr(oauth_module, "_fetch_user_info", AsyncMock(return_value={}))
     monkeypatch.setattr(
         oauth_module,
         "_extract_user_info",
@@ -95,7 +93,8 @@ def test_callback_inactive_user_is_blocked_and_issues_no_token(
     )
     create_token_spy = AsyncMock()
     monkeypatch.setattr(
-        oauth_module.crud_user_refresh_token, "create_for_user", create_token_spy
+        "app.api.routes.oauth.crud_user_refresh_token.create_for_user",
+        create_token_spy,
     )
 
     response = client.get(
@@ -119,9 +118,7 @@ def test_callback_active_user_redirects_with_tokens(
     monkeypatch.setattr(
         oauth_module, "_exchange_code", AsyncMock(return_value={"access_token": "tok"})
     )
-    monkeypatch.setattr(
-        oauth_module, "_fetch_user_info", AsyncMock(return_value={})
-    )
+    monkeypatch.setattr(oauth_module, "_fetch_user_info", AsyncMock(return_value={}))
     monkeypatch.setattr(
         oauth_module,
         "_extract_user_info",
@@ -131,7 +128,7 @@ def test_callback_active_user_redirects_with_tokens(
         oauth_module, "_find_or_create_user", AsyncMock(return_value=active_user)
     )
     monkeypatch.setattr(
-        oauth_module.crud_user_refresh_token, "create_for_user", AsyncMock()
+        "app.api.routes.oauth.crud_user_refresh_token.create_for_user", AsyncMock()
     )
 
     response = client.get(

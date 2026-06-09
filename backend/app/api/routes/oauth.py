@@ -22,7 +22,7 @@ import logging
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlencode
 
 import httpx
@@ -96,7 +96,11 @@ def _check_configured(provider: str) -> None:
 
 def _callback_url(request: Request, provider: str) -> str:
     """Build the redirect_uri sent to the OAuth provider."""
-    base = settings.OAUTH_REDIRECT_BASE_URL.rstrip("/") if settings.OAUTH_REDIRECT_BASE_URL else str(request.base_url).rstrip("/")
+    base = (
+        settings.OAUTH_REDIRECT_BASE_URL.rstrip("/")
+        if settings.OAUTH_REDIRECT_BASE_URL
+        else str(request.base_url).rstrip("/")
+    )
     return f"{base}{settings.API_V1_STR}/auth/{provider}/callback"
 
 
@@ -166,7 +170,7 @@ async def _exchange_code(
             message="Impossible d'obtenir le token OAuth auprès du fournisseur.",
             details={"provider": provider},
         )
-    return resp.json()
+    return cast("dict[str, Any]", resp.json())
 
 
 async def _fetch_user_info(provider: str, access_token: str) -> dict[str, Any]:
@@ -192,7 +196,7 @@ async def _fetch_user_info(provider: str, access_token: str) -> dict[str, Any]:
             message="Impossible de récupérer les informations utilisateur auprès du fournisseur.",
             details={"provider": provider},
         )
-    return resp.json()
+    return cast("dict[str, Any]", resp.json())
 
 
 def _extract_user_info(provider: str, info: dict[str, Any]) -> tuple[str, str, str]:
@@ -205,10 +209,7 @@ def _extract_user_info(provider: str, info: dict[str, Any]) -> tuple[str, str, s
         # Microsoft Graph
         provider_uid = info.get("id", "")
         email = (
-            info.get("mail")
-            or info.get("userPrincipalName")
-            or info.get("email")
-            or ""
+            info.get("mail") or info.get("userPrincipalName") or info.get("email") or ""
         )
         full_name = info.get("displayName", "")
     return str(provider_uid), str(email).lower().strip(), str(full_name)
@@ -218,7 +219,9 @@ def _build_token_bundle(user_id: uuid.UUID) -> tuple[str, str, str, datetime]:
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     refresh_jti = str(uuid.uuid4())
-    access_tok = security.create_access_token(user_id, expires_delta=access_token_expires)
+    access_tok = security.create_access_token(
+        user_id, expires_delta=access_token_expires
+    )
     refresh_tok = security.create_refresh_token(
         user_id, expires_delta=refresh_token_expires, jti=refresh_jti
     )
@@ -239,7 +242,12 @@ def _frontend_error_redirect(error: str) -> RedirectResponse:
 
 
 async def _find_or_create_user(
-    session: AsyncSession, *, provider: str, provider_uid: str, email: str, full_name: str
+    session: AsyncSession,
+    *,
+    provider: str,
+    provider_uid: str,
+    email: str,
+    full_name: str,
 ) -> User:
     """Find or create a local User for the given OAuth identity.
 
@@ -274,7 +282,9 @@ async def _find_or_create_user(
             is_active=True,
             is_verified=True,
         )
-        user = await crud_user.create_draft(session=session, data=user_create, user=None)
+        user = await crud_user.create_draft(
+            session=session, data=user_create, user=None
+        )
         await session.flush()
 
     # Create/update OAuth link
@@ -349,7 +359,9 @@ async def oauth_callback(
 
     try:
         redirect_uri = _callback_url(request, provider)
-        token_data = await _exchange_code(provider, code=code, redirect_uri=redirect_uri)
+        token_data = await _exchange_code(
+            provider, code=code, redirect_uri=redirect_uri
+        )
         access_token_provider = token_data.get("access_token", "")
         user_info = await _fetch_user_info(provider, access_token_provider)
         provider_uid, email, full_name = _extract_user_info(provider, user_info)
@@ -372,7 +384,9 @@ async def oauth_callback(
             full_name=full_name,
         )
     except Exception:
-        logger.exception("Error creating/linking OAuth user: provider=%s email=%s", provider, email)
+        logger.exception(
+            "Error creating/linking OAuth user: provider=%s email=%s", provider, email
+        )
         await session.rollback()
         return _frontend_error_redirect("server_error")
 
@@ -388,7 +402,9 @@ async def oauth_callback(
         await session.rollback()
         return _frontend_error_redirect("user_inactive")
 
-    access_tok, refresh_tok, refresh_jti, refresh_expires_at = _build_token_bundle(user.id)
+    access_tok, refresh_tok, refresh_jti, refresh_expires_at = _build_token_bundle(
+        user.id
+    )
     # create_for_user internally calls CrudBase.create which commits the transaction,
     # flushing the pending user + oauth_link writes alongside the refresh token.
     await crud_user_refresh_token.create_for_user(

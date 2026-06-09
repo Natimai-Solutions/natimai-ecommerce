@@ -23,7 +23,9 @@ class CategoryCrud(CrudBase[Category, CategoryCreate, CategoryUpdate]):
         result = await session.exec(statement)
         return result.first()
 
-    async def get_by_name_ilike(self, session: AsyncSession, name: str) -> Category | None:
+    async def get_by_name_ilike(
+        self, session: AsyncSession, name: str
+    ) -> Category | None:
         """Case-insensitive lookup by name."""
         statement = select(Category).where(
             col(Category.name).ilike(name),

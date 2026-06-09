@@ -243,12 +243,32 @@ async def test_tracking_update_status_passes_harmonized_signature(
         update_status_mock,
     )
 
+    # Phase 3: the route resolves the new status code and publishes a
+    # tracking.status_changed outbox event. Stub both collaborators (string
+    # targets keep mypy's implicit-reexport check happy).
+    status_def = SimpleNamespace(id=new_status_id, code="shipped", name="Expédié")
+    monkeypatch.setattr(
+        "app.api.routes.shipping.tracking.crud_status_definition.get_by_entity",
+        AsyncMock(return_value=[status_def]),
+    )
+    publish_mock = AsyncMock()
+    monkeypatch.setattr(
+        "app.api.routes.shipping.tracking.outbox_registry.publish", publish_mock
+    )
+
     response = client.post(
         f"/api/v1/shipping/tracking/{tracking_id}/update-status",
         json={"new_status_id": str(new_status_id), "reason": "manual fix"},
     )
 
     assert response.status_code == 200
+
+    # The outbox event carries the resolved status code and correlation id.
+    assert publish_mock.await_args is not None
+    publish_kwargs = publish_mock.await_args.kwargs
+    assert publish_kwargs["event_type"] == "tracking.status_changed"
+    assert publish_kwargs["payload"]["status_code"] == "shipped"
+    assert publish_kwargs["correlation_id"] == tracking_id
 
     assert update_status_mock.await_args is not None
     update_kwargs = update_status_mock.await_args.kwargs

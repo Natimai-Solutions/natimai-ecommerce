@@ -39,6 +39,10 @@ from app.features.payment.services.document_payment import (
 from app.features.payment.services.document_payment import (
     register_intent as register_document_intent,
 )
+from app.features.payment.services.eligibility import (
+    check_payment_method_eligible,
+    get_eligible_payment_methods,
+)
 from app.features.payment.services.manual_payment import (
     register_intent as register_manual_intent,
 )
@@ -530,6 +534,8 @@ async def initiate_payment(
     current_user: CurrentUser,
 ) -> PaymentsInitiateResponse:
     """Execute initiate payment."""
+    # Resolve the method first so an unknown/inactive method yields a precise
+    # 404/400 rather than being masked by the eligibility guard below.
     try:
         provider_code = await resolve_provider_code_for_payment_method(
             session,
@@ -556,6 +562,22 @@ async def initiate_payment(
             message=str(e),
             details={"payment_method_id": str(request.payment_method_id)},
         ) from e
+
+    # Group eligibility check: verify the method is available to the user's price group
+    # and that the amount does not exceed max_amount.
+    eligible = await check_payment_method_eligible(
+        session,
+        payment_method_id=request.payment_method_id,
+        price_group_id=current_user.price_group_id,
+        amount=request.amount,
+    )
+    if not eligible:
+        raise AppError(
+            code="payment.method.not_eligible",
+            status_code=403,
+            message="This payment method is not available for your account or order amount",
+            details={"payment_method_id": str(request.payment_method_id)},
+        )
 
     try:
         provider = get_provider(provider_code)
@@ -960,6 +982,27 @@ async def get_my_payment_status(
         currency=payment.currency,
         order_id=payment.order_id,
     )
+
+
+@router.get("/me/methods", response_model=list[dict[str, Any]])
+async def list_my_payment_methods(
+    session: SessionDep,
+    current_user: CurrentUser,
+    cart_total: Decimal | None = None,
+) -> list[dict[str, Any]]:
+    """Return active payment methods available for the authenticated user.
+
+    Filters by the user's price group and optional cart_total (max_amount check).
+    Methods with no eligibility restriction are always included.
+    """
+    from app.features.payment.models.payment_method import PaymentMethodPublic
+
+    methods = await get_eligible_payment_methods(
+        session,
+        price_group_id=current_user.price_group_id,
+        cart_total=cart_total,
+    )
+    return [PaymentMethodPublic.model_validate(m).model_dump() for m in methods]
 
 
 @router.post("/webhooks/{provider_code}")
