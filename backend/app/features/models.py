@@ -19,6 +19,9 @@ from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_attachment import PaymentAttachment
 from app.features.payment.models.payment_log import PaymentLog
 from app.features.payment.models.payment_method import PaymentMethod
+from app.features.payment.models.payment_method_eligibility import (
+    PaymentMethodEligibility,
+)
 from app.features.payment.models.payment_status import PaymentStatus
 from app.features.payment.models.payment_validation import PaymentValidation
 from app.features.place.models import Place
@@ -26,6 +29,7 @@ from app.features.product.models.brand import Brand
 from app.features.product.models.category import Category
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import Product
+from app.features.product.models.spec_definition import SpecDefinition
 from app.features.product.models.tax_rate import TaxRate
 from app.features.shipping.models.delivery_task import DeliveryTask
 from app.features.shipping.models.route import ShippingRoute
@@ -34,14 +38,18 @@ from app.features.shipping.models.route_tracking import (
     ShippingRouteTrackingLogs,
 )
 from app.features.shipping.models.status import StatusDefinition, StatusTransition
+from app.features.system.models.system_setting import SystemSetting
 from app.features.user.models.address import Address
 from app.features.user.models.group import Group
 from app.features.user.models.group_security import GroupSecurity
+from app.features.user.models.group_upgrade_request import GroupUpgradeRequest
 from app.features.user.models.notification import Notification, UserNotification
+from app.features.user.models.oauth_link import UserOAuthLink
 from app.features.user.models.refresh_token import UserRefreshToken
 from app.features.user.models.review import Review
 from app.features.user.models.user import User
 from app.features.user.models.user_group import UserGroup
+from app.features.user.models.user_preference import UserPreference
 from app.features.user.models.wishlist import Wishlist, WishlistItem
 
 __all__ = [
@@ -84,10 +92,16 @@ __all__ = [
     "SupplierProductMapping",
     "SupplierSyncLog",
     "User",
+    "GroupUpgradeRequest",
+    "UserOAuthLink",
     "UserGroup",
     "UserNotification",
+    "UserPreference",
     "UserRefreshToken",
     "Wishlist",
     "WishlistItem",
     "QuoteRequest",
+    "PaymentMethodEligibility",
+    "SpecDefinition",
+    "SystemSetting",
 ]

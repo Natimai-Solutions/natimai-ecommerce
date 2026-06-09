@@ -1,10 +1,10 @@
 import uuid
 from decimal import Decimal
 
-from fastapi import APIRouter, Query
-from sqlmodel import col, func, select
+from fastapi import APIRouter, Depends, Query
+from sqlmodel import SQLModel, col, func, select
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentSuperUser, SessionDep, get_current_user_optional
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.product.crud.product import crud_product
@@ -22,9 +22,138 @@ from app.features.product.models.product_spec import (
     SpecFacet,
     SpecFacetValue,
 )
-from app.features.product.services.spec_projection import get_spec_definitions
+from app.features.product.services.pricing import (
+    calculate_price_by_mode,
+    resolve_default_price_group,
+)
+from app.features.product.services.spec_projection import (
+    get_effective_spec_definitions,
+)
+from app.features.shipping.models.route import ShippingRoute
+from app.features.user.crud.user_preference import get_preference_for_user
+from app.features.user.models.user import User
 
 router = APIRouter(prefix="/product", tags=["product"])
+
+
+# ---------------------------------------------------------------------------
+# Shipping-modes response models
+# ---------------------------------------------------------------------------
+
+
+class ShippingModePricePublic(SQLModel):
+    """Per-service-level price breakdown returned by the shipping-modes endpoint."""
+
+    route_id: str
+    service_level: str | None
+    customer_label: str | None
+    freight: Decimal
+    sale_price: Decimal
+    eta_days: int | None
+    carbon_footprint_kg_co2e: float | None
+
+
+class ProductShippingModesResponse(SQLModel):
+    """Shipping-modes payload for a product detail page."""
+
+    product_id: uuid.UUID
+    shipping_modes: list[ShippingModePricePublic]
+    default_mode: str | None
+
+
+@router.get("/{product_id}/shipping-modes", response_model=ProductShippingModesResponse)
+async def get_product_shipping_modes(
+    product_id: uuid.UUID,
+    session: SessionDep,
+    current_user: object = Depends(get_current_user_optional),
+) -> ProductShippingModesResponse:
+    """Return per-service-level pricing for a product.
+
+    The response contains one entry per active import route (service_level != null),
+    sorted by priority then by is_default_import. The frontend uses this list to
+    build the shipping-mode dropdown and switch sale prices locally without a
+    refetch. The backend recalculates at checkout (authoritative).
+
+    - Anonymous / no preference: use ``default_mode`` to pre-select.
+    - Logged-in: client stores preference in ``localStorage`` or user profile.
+    """
+    try:
+        product = await crud_product.read(session, id=product_id, user=current_user)
+    except RecordNotFoundError:
+        raise AppError(
+            code="product.not_found",
+            status_code=404,
+            message="Product not found",
+            details={"product_id": str(product_id)},
+        )
+
+    is_admin = getattr(current_user, "is_superuser", False)
+    if not is_admin and not product.is_enriched:
+        raise AppError(
+            code="product.not_found",
+            status_code=404,
+            message="Product not found",
+            details={"product_id": str(product_id), "reason": "not_enriched"},
+        )
+
+    # Load import routes ordered by priority asc (highest priority first = lowest number)
+    route_stmt = (
+        select(ShippingRoute)
+        .where(col(ShippingRoute.service_level).is_not(None))
+        .order_by(
+            col(ShippingRoute.priority).asc(),
+            col(ShippingRoute.is_default_import).desc(),
+        )
+    )
+    route_result = await session.exec(route_stmt)
+    import_routes = list(route_result.all())
+
+    if not import_routes:
+        return ProductShippingModesResponse(
+            product_id=product_id,
+            shipping_modes=[],
+            default_mode=None,
+        )
+
+    group = await resolve_default_price_group(session)
+    mode_prices = await calculate_price_by_mode(
+        session, product, import_routes, group=group
+    )
+
+    # Resolve default_mode: user preference > is_default_import route > first route
+    available_levels = {m.service_level for m in mode_prices if m.service_level}
+    user_pref_mode: str | None = None
+    if isinstance(current_user, User):
+        pref = await get_preference_for_user(session, user_id=current_user.id)
+        if pref and pref.preferred_shipping_mode in available_levels:
+            user_pref_mode = pref.preferred_shipping_mode
+
+    if user_pref_mode:
+        default_mode: str | None = user_pref_mode
+    else:
+        default_route = next((r for r in import_routes if r.is_default_import), None)
+        default_mode = (
+            default_route.service_level
+            if default_route is not None
+            else (mode_prices[0].service_level if mode_prices else None)
+        )
+
+    return ProductShippingModesResponse(
+        product_id=product_id,
+        shipping_modes=[
+            ShippingModePricePublic(
+                route_id=m.route_id,
+                service_level=m.service_level,
+                customer_label=m.customer_label,
+                freight=m.freight,
+                sale_price=m.sale_price,
+                eta_days=m.eta_days,
+                carbon_footprint_kg_co2e=m.carbon_footprint_kg_co2e,
+            )
+            for m in mode_prices
+        ],
+        default_mode=default_mode,
+    )
 
 
 @router.post("/search", response_model=ProductSearchResponse)
@@ -135,7 +264,9 @@ async def get_category_spec_facets(
     Only returns specs that have at least one value for active enriched products
     in this category.
     """
-    spec_defs = get_spec_definitions()
+    # DB-first definitions (admin edits to labels/units + activation are honoured);
+    # inactive specs are excluded by the DB query, falling back to YAML if unseeded.
+    spec_defs = await get_effective_spec_definitions(session)
 
     # All spec keys applicable to any category (we filter by presence in the data)
     all_keys = [s["key"] for s in spec_defs]

@@ -70,6 +70,9 @@ class Address(AddressBase, table=True):
     user_id: uuid.UUID = Field(
         foreign_key="users.id", nullable=False, index=True, description="ID of the user"
     )
+    is_validated: bool = Field(
+        default=False, description="Whether the address has been verified by an admin"
+    )
 
 
 class AddressPublic(AddressBase, BasePublic):
@@ -77,6 +80,7 @@ class AddressPublic(AddressBase, BasePublic):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     user_id: uuid.UUID = Field(description="ID of the user")
+    is_validated: bool = False
 
 
 class AddressesPublic(SQLModel):

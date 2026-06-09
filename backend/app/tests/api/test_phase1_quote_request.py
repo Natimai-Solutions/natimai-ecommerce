@@ -6,7 +6,10 @@ from uuid import uuid4
 
 import pytest
 
-from app.api.routes.cart import create_quote_request
+from app.api.routes.cart import (
+    _format_guest_quote_support_email,
+    create_quote_request,
+)
 from app.core.config import settings
 from app.core.errors import AppError
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
@@ -116,3 +119,31 @@ async def test_quote_request_persists_and_notifies_support(
     assert response.quote_request_id == quote_request.id
     assert response.email_delivered is True
     assert "support notified" in response.message
+
+
+def test_guest_quote_email_html_contains_image_line_items() -> None:
+    subject, text_body, html_body = _format_guest_quote_support_email(
+        customer_email="client@example.com",
+        customer_name="Client Test",
+        customer_phone="000000",
+        currency="XPF",
+        item_snapshots=[
+            {
+                "product_id": "prod_1",
+                "product_name": "Laptop Test",
+                "image_url": "https://cdn.example.com/laptop.png",
+                "quantity": "2",
+                "unit_price": "1000.00",
+                "line_total": "2000.00",
+            }
+        ],
+        subtotal_amount=Decimal("2000.00"),
+        shipping_address="Papeete",
+        notes="Urgent",
+    )
+
+    assert subject.startswith("[Guest Quote Request]")
+    assert "Laptop Test" in text_body
+    assert "<img" in html_body
+    assert "Laptop Test" in html_body
+    assert "2000.00 XPF" in html_body

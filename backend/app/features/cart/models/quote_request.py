@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import JSON, Column
@@ -66,3 +67,33 @@ class QuoteRequestSubmit(SQLModel):
 
     shipping_address: str | None = Field(default=None, max_length=500)
     notes: str | None = Field(default=None, max_length=1000)
+
+
+class GuestQuoteRequestItem(SQLModel):
+    """Represents a guest quote request line item."""
+
+    product_id: uuid.UUID | None = None
+    product_name: str = Field(max_length=255)
+    product_image_url: str | None = Field(default=None, max_length=500)
+    quantity: int = Field(ge=1)
+    unit_price: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
+    line_total: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
+
+
+class GuestQuoteRequestSubmit(SQLModel):
+    """Represents guest quote request submit payload."""
+
+    customer_email: str = Field(max_length=255)
+    customer_name: str | None = Field(default=None, max_length=255)
+    customer_phone: str | None = Field(default=None, max_length=255)
+    shipping_address: str | None = Field(default=None, max_length=500)
+    notes: str | None = Field(default=None, max_length=1000)
+    currency: str = Field(default="XPF", max_length=8)
+    items: list[GuestQuoteRequestItem] = Field(default_factory=list)
+
+
+class GuestQuoteRequestResponse(SQLModel):
+    """Represents guest quote request response."""
+
+    email_delivered: bool
+    message: str

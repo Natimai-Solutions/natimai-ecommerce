@@ -8,12 +8,17 @@ import logging
 from typing import Any, cast
 from uuid import UUID
 
+from arq import cron
+from sqlalchemy import update as sa_update
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.core.db import engine
 from app.features.integrations.models.icecat_sync import IcecatProductData
-from app.features.integrations.services.supplier_data_normalization import evaluate_product_filters
+from app.features.integrations.services.supplier_data_normalization import (
+    evaluate_product_filters,
+)
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import ProductUpdate
 from app.services.icecat_service import icecat_service
@@ -61,6 +66,18 @@ def update_product_with_icecat_data(
     if icecat_product_data.icecat_id:
         update_data.enrichment_supplier_id = icecat_product_data.icecat_id
 
+    if icecat_product_data.weight_kg is not None:
+        update_data.weight = icecat_product_data.weight_kg
+
+    if icecat_product_data.dimensions_length_cm is not None:
+        update_data.dimensions_length = icecat_product_data.dimensions_length_cm
+
+    if icecat_product_data.dimensions_width_cm is not None:
+        update_data.dimensions_width = icecat_product_data.dimensions_width_cm
+
+    if icecat_product_data.dimensions_height_cm is not None:
+        update_data.dimensions_height = icecat_product_data.dimensions_height_cm
+
     update_data.is_enriched = True
     update_data.last_enrichment_sync = datetime.datetime.now(tz=datetime.timezone.utc)
 
@@ -98,6 +115,16 @@ async def enrich_product_with_icecat_task(
                 logger.error(f"Product not found: {product_id}")
                 return {"status": "error", "message": "Product not found"}
 
+            if not getattr(product, "is_admin_active", True):
+                logger.info(
+                    "Skipping Icecat enrichment for product %s: is_admin_active=False",
+                    product_id,
+                )
+                return {
+                    "status": "skipped",
+                    "message": "Product is admin inactive",
+                }
+
             # Skip if product doesn't have vendor part number
             if not product.vendor_part_number or not product.manufacturer:
                 logger.warning(
@@ -126,8 +153,6 @@ async def enrich_product_with_icecat_task(
             update_data = update_product_with_icecat_data(enrichment_data)
 
             # Level 2 filter: check UNSPSC codes returned by Icecat
-            from app.core.config import settings
-
             unspsc_codes = [
                 spec["value"]
                 for spec in (enrichment_data.specifications or [])
@@ -184,6 +209,25 @@ async def enrich_product_with_icecat_task(
             return {"status": "error", "message": str(e)}
 
 
+async def _stamp_enrichment_attempt(session: AsyncSession, product_id: UUID) -> None:
+    """Record an enrichment attempt timestamp without marking the product enriched.
+
+    Used for ``not_found`` / error outcomes so the product drops out of the
+    batch candidate set for ``ICECAT_ENRICHMENT_RETRY_COOLDOWN_DAYS`` instead of
+    being re-fetched (and re-queried against Icecat) on every run. Uses a direct
+    UPDATE so it works even after a rolled-back session.
+    """
+    from app.features.product.models.product import Product
+
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    await session.execute(
+        sa_update(Product)
+        .where(col(Product.id) == product_id)
+        .values(last_enrichment_sync=now)
+    )
+    await session.commit()
+
+
 async def batch_enrich_products_task(
     _ctx: dict[str, Any], limit: int = 50
 ) -> dict[str, Any]:
@@ -215,15 +259,27 @@ async def batch_enrich_products_task(
             # - Have supplier managed flag
             # - Not yet enriched with Icecat
             # - Have vendor part number and manufacturer
+            # - Not attempted within the retry cooldown (so un-matchable SKUs
+            #   don't get re-queried against Icecat every run). Never-attempted
+            #   products (last_enrichment_sync IS NULL) are prioritised first.
+            cooldown_cutoff = datetime.datetime.now(
+                tz=datetime.timezone.utc
+            ) - datetime.timedelta(days=settings.ICECAT_ENRICHMENT_RETRY_COOLDOWN_DAYS)
             query = (
                 select(Product)
                 .where(col(Product.is_supplier_managed).is_(True))
+                .where(col(Product.is_admin_active).is_(True))
                 .where(
                     col(Product.is_enriched).is_(False)
                     | col(Product.is_enriched).is_(None)
                 )
                 .where(col(Product.vendor_part_number).is_not(None))
                 .where(col(Product.manufacturer).is_not(None))
+                .where(
+                    col(Product.last_enrichment_sync).is_(None)
+                    | (col(Product.last_enrichment_sync) < cooldown_cutoff)
+                )
+                .order_by(col(Product.last_enrichment_sync).asc().nullsfirst())
                 .limit(limit)
             )
 
@@ -237,6 +293,14 @@ async def batch_enrich_products_task(
                 await session.refresh(product)
                 product_id = product.id
 
+                if not getattr(product, "is_admin_active", True):
+                    stats["skipped"] += 1
+                    logger.info(
+                        "Skipping Icecat enrichment for product %s: is_admin_active=False",
+                        product_id,
+                    )
+                    continue
+
                 try:
                     # Get Icecat enrichment data
                     enrichment_data = await icecat_service.enrich_product_with_icecat(
@@ -247,14 +311,15 @@ async def batch_enrich_products_task(
 
                     if not enrichment_data:
                         stats["not_found"] += 1
+                        # Stamp the attempt so this un-matchable SKU isn't
+                        # re-queried against Icecat until the cooldown elapses.
+                        await _stamp_enrichment_attempt(session, product_id)
                         continue
 
                     # Prepare update data
                     update_data = update_product_with_icecat_data(enrichment_data)
 
                     # Level 2 filter: check UNSPSC codes returned by Icecat
-                    from app.core.config import settings
-
                     unspsc_codes = [
                         spec["value"]
                         for spec in (enrichment_data.specifications or [])
@@ -273,9 +338,17 @@ async def batch_enrich_products_task(
                             unspsc_codes,
                         )
 
-                    await crud_product.update(
+                    updated_product = await crud_product.update(
                         session, id=product_id, data=update_data, record=product
                     )
+
+                    # Project normalized specs into product_spec table so spec
+                    # facets (CPU/RAM/…) work for batch-enriched products too.
+                    from app.features.product.services.spec_projection import (
+                        upsert_product_specs,
+                    )
+
+                    await upsert_product_specs(session, updated_product)
 
                     stats["enriched"] += 1
 
@@ -288,8 +361,38 @@ async def batch_enrich_products_task(
                     )
                     stats["errors"] += 1
                     await session.rollback()
+                    # Back off this product for the cooldown window so a
+                    # persistent error doesn't get retried every run.
+                    try:
+                        await _stamp_enrichment_attempt(session, product_id)
+                    except Exception as stamp_exc:  # noqa: BLE001
+                        logger.warning(
+                            "Failed to stamp enrichment attempt for %s: %s",
+                            product_id,
+                            stamp_exc,
+                        )
 
             logger.info(f"Batch Icecat enrichment completed. Stats: {stats}")
+
+            # Re-enqueue while a full batch was found: every fetched product is
+            # now either enriched or stamped (cooldown), so the eligible set
+            # shrinks by `limit` each run and the loop is bounded. This drains
+            # the backlog in minutes instead of one batch per cron tick.
+            if len(products) >= limit:
+                try:
+                    next_job = await trigger_batch_enrichment(limit=limit)
+                    stats["requeued"] = 1
+                    logger.info(
+                        "Re-enqueued batch Icecat enrichment (job %s) — more "
+                        "products remain",
+                        next_job,
+                    )
+                except Exception as enqueue_exc:  # noqa: BLE001
+                    logger.warning(
+                        "Failed to re-enqueue batch Icecat enrichment: %s",
+                        enqueue_exc,
+                    )
+
             return stats
 
         except Exception as e:
@@ -370,6 +473,17 @@ async def reproject_product_specs_task(
             return {"status": "error", "message": str(exc), **stats}
 
 
+async def enqueue_reproject_product_specs(category_id: str | None = None) -> str:
+    """Enqueue a spec re-projection job. Returns the ARQ job id."""
+    from app.core.arq_pool import get_arq_pool
+
+    arq_pool = await get_arq_pool()  # type: ignore[no-untyped-call]
+    job = await arq_pool.enqueue_job(
+        "reproject_product_specs_task", category_id=category_id
+    )
+    return cast(str, job.job_id)
+
+
 async def trigger_batch_enrichment(limit: int = 50) -> str:
     """
     Trigger batch Icecat enrichment
@@ -386,3 +500,38 @@ async def trigger_batch_enrichment(limit: int = 50) -> str:
 
     job = await arq_pool.enqueue_job("batch_enrich_products_task", limit=limit)
     return cast(str, job.job_id)
+
+
+# -- cron scheduling ----------------------------------------------------------
+# arq's ``cron()`` cannot pass arguments to the scheduled coroutine, so we wrap
+# the batch task to inject the configured limit.
+
+
+async def scheduled_batch_enrich_task(_ctx: dict[str, Any]) -> dict[str, Any]:
+    """Cron entrypoint for recurring batch enrichment (reads limit from config)."""
+    return await batch_enrich_products_task(
+        _ctx, limit=settings.ICECAT_BATCH_ENRICH_LIMIT
+    )
+
+
+def get_enrichment_cron_jobs() -> list[Any]:
+    """Build the recurring Icecat batch-enrichment cron job.
+
+    Runs every ``ICECAT_ENRICHMENT_CRON_INTERVAL_HOURS`` hours to drain the
+    backlog of un-enriched products independently of supplier syncs. Returns an
+    empty list when enrichment is disabled or the interval is non-positive.
+    """
+    if not settings.ICECAT_ENABLED:
+        return []
+    interval = int(settings.ICECAT_ENRICHMENT_CRON_INTERVAL_HOURS)
+    if interval <= 0:
+        return []
+    return [
+        cron(
+            scheduled_batch_enrich_task,  # type: ignore[arg-type]
+            hour=set(range(0, 24, interval)),
+            minute=15,
+            second=0,
+            name="icecat_batch_enrichment",
+        )
+    ]

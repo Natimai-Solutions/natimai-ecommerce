@@ -94,6 +94,38 @@ async def test_mailgun_provider_returns_error_when_not_configured(
 
 
 @pytest.mark.anyio
+async def test_mailgun_provider_accepts_non_prefixed_api_key_format(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "MAILGUN_API_KEY", "token-without-key-prefix")
+    monkeypatch.setattr(settings, "MAILGUN_DOMAIN", "mg.example.com")
+    monkeypatch.setattr(settings, "MAILGUN_FROM_EMAIL", "sender@example.com")
+    monkeypatch.setattr(settings, "EMAILS_FROM_EMAIL", None)
+
+    provider = MailgunNotificationProvider()
+    assert provider._configuration_error() is None
+
+
+@pytest.mark.anyio
+async def test_mailgun_provider_accepts_display_name_from_email(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "MAILGUN_API_KEY", "key-invalid-but-shaped")
+    monkeypatch.setattr(settings, "MAILGUN_DOMAIN", "mg.example.com")
+    monkeypatch.setattr(
+        settings,
+        "MAILGUN_FROM_EMAIL",
+        "Natimai Solutions <sender@example.com>",
+    )
+    monkeypatch.setattr(settings, "MAILGUN_FROM_NAME", None)
+
+    provider = MailgunNotificationProvider()
+    from_value = provider._build_from()
+
+    assert from_value == "Natimai Solutions <sender@example.com>"
+
+
+@pytest.mark.anyio
 async def test_slack_provider_returns_error_when_webhook_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

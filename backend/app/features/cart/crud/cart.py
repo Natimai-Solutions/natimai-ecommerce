@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.features.base.crud import CrudBase, RecordNotFoundError
 from app.features.cart.models.cart import (
     Cart,
@@ -16,7 +17,10 @@ from app.features.cart.models.cart import (
     CartUpdate,
 )
 from app.features.product.models.product import Product
-from app.features.product.services.pricing import CurrencyRateMissing, convert_to_xpf
+from app.features.product.services.pricing import (
+    CurrencyRateMissing,
+    convert_to_reference_currency,
+)
 from app.utils.money import quantize_amount
 
 
@@ -175,12 +179,16 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
         quantity: int,
     ) -> CartItem:
         """Execute add or increment."""
-        cost_currency = getattr(product, "cost_currency", None) or "XPF"
+        cost_currency = (
+            getattr(product, "cost_currency", None) or settings.REFERENCE_CURRENCY
+        )
         fx_rate_used: Decimal | None = None
         fx_source_currency: str | None = None
         try:
-            _, rate = await convert_to_xpf(session, Decimal("1"), cost_currency)
-            if cost_currency != "XPF":
+            _, rate = await convert_to_reference_currency(
+                session, Decimal("1"), cost_currency
+            )
+            if cost_currency != settings.REFERENCE_CURRENCY:
                 fx_rate_used = rate
                 fx_source_currency = cost_currency
         except CurrencyRateMissing:

@@ -3,7 +3,14 @@ from pathlib import Path
 
 def test_e4_preprod_rollback_document_exists_and_contains_core_sections() -> None:
     backend_root = Path(__file__).resolve().parents[2]
-    doc_path = backend_root / "CHECKLIST_PREPROD_ROLLBACK_E4.md"
+    # Archived under docs/development/done/ once the E4 phase shipped.
+    doc_path = (
+        backend_root
+        / "docs"
+        / "development"
+        / "done"
+        / "CHECKLIST_PREPROD_ROLLBACK_E4.md"
+    )
 
     assert doc_path.exists(), "E4 document is missing"
 

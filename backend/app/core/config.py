@@ -3,8 +3,6 @@ import warnings
 from decimal import Decimal
 from typing import Annotated, Any, Literal
 
-from app.features.integrations.services.supplier_data_normalization import ProductFilterRule
-
 from pydantic import (
     AnyUrl,
     BeforeValidator,
@@ -16,6 +14,10 @@ from pydantic import (
 from pydantic_core import MultiHostUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing_extensions import Self
+
+from app.features.integrations.services.supplier_data_normalization import (
+    ProductFilterRule,
+)
 
 
 def parse_cors(v: Any) -> list[str] | str:
@@ -158,6 +160,16 @@ class Settings(BaseSettings):
         ProductFilterRule(field="unspsc_code", values=["81111812"]),
     ]
 
+    # Subcategory allowlist (curation). When non-empty, ONLY products whose
+    # supplier_subcategory matches (case-insensitive) are kept active; everything
+    # else is deactivated on the next sync (hidden from the storefront, kept in
+    # DB). Empty = no allowlist filtering (keep everything). Tune via env var:
+    # SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST='["Ordinateur de Bureau/Tour","Ordinateur Portable"]'
+    SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST: list[str] = [
+        "Ordinateur de Bureau/Tour",
+        "Ordinateur Portable",
+    ]
+
     # Ingram Micro API Configuration
     INGRAM_CLIENT_ID: str | None = None
     INGRAM_CLIENT_SECRET: str | None = None
@@ -180,6 +192,9 @@ class Settings(BaseSettings):
     INGRAM_SHIP_TO_POSTAL_CODE: str | None = None
     INGRAM_SHIP_TO_COUNTRY_CODE: str = "PF"
     INGRAM_SHIP_TO_PHONE: str | None = None
+    # Shared secret used to authenticate inbound Ingram webhook calls.
+    # Ingram sends this token in the Authorization: Bearer <token> header.
+    INGRAM_WEBHOOK_SECRET: str | None = None
 
     # Icecat API Configuration
     ICECAT_USERNAME: str | None = None
@@ -187,6 +202,18 @@ class Settings(BaseSettings):
     ICECAT_LANGUAGE: str = "fr"  # Default language
     ICECAT_ENABLED: bool = True  # Enable/disable Icecat enrichment
     ICECAT_USE_OPEN: bool = True  # Use Open Icecat (free) instead of Full Icecat (paid)
+    # Recurring batch enrichment: drains the backlog of un-enriched products so
+    # the storefront (which only shows is_enriched=True) fills up over time,
+    # independently of whether a product sync created new products.
+    # Interval in hours (0 = disable the cron). Each run processes up to
+    # ICECAT_BATCH_ENRICH_LIMIT products and re-enqueues itself while a full
+    # batch is found, so the backlog drains within minutes rather than per-tick.
+    ICECAT_ENRICHMENT_CRON_INTERVAL_HOURS: int = 1
+    ICECAT_BATCH_ENRICH_LIMIT: int = 50
+    # Products that returned no Icecat match (or errored) are stamped and not
+    # retried until this cooldown elapses — avoids hammering Icecat every run
+    # with the same un-matchable SKUs and guarantees the batch loop terminates.
+    ICECAT_ENRICHMENT_RETRY_COOLDOWN_DAYS: int = 7
 
     # S3
     S3_ENDPOINT_URL: str | None = None
@@ -228,6 +255,26 @@ class Settings(BaseSettings):
     # When False, all authenticated users pass permission checks (current behavior).
     ENABLE_GROUP_PERMISSIONS: bool = False
 
+    # Shop branding
+    SHOP_NAME: str = "Natimai"
+
+    # OAuth 2.0 — Google
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+
+    # OAuth 2.0 — Microsoft
+    MICROSOFT_CLIENT_ID: str = ""
+    MICROSOFT_CLIENT_SECRET: str = ""
+    MICROSOFT_TENANT_ID: str = "common"
+
+    # OAuth callback base: public backend URL used to build the redirect_uri sent to providers.
+    # Example: https://api.example.com
+    OAUTH_REDIRECT_BASE_URL: str = ""
+
+    # Frontend URL where the user is redirected after a successful/failed OAuth login.
+    # Tokens are appended as query params: ?access_token=...&refresh_token=...
+    FRONTEND_OAUTH_REDIRECT_URL: str = ""
+
     # ClamAV antivirus
     CLAMAV_ENABLED: bool = False
     CLAMAV_HOST: str = "clamav"
@@ -242,9 +289,18 @@ class Settings(BaseSettings):
     PAYZEN_PUBLIC_KEY_PROD: str | None = None
     PAYZEN_MODE: Literal["TEST", "PRODUCTION"] = "TEST"
     PAYZEN_API_ENDPOINT: str = "https://api.osb.pf"
+    # Reference (pivot) currency: the currency in which costs are normalized,
+    # prices are computed and orders are billed. One per deployment. Override
+    # per territory via the environment, never hardcode it in the code.
+    REFERENCE_CURRENCY: str = "XPF"
+    # Insurance rate applied on cost_in_reference before customs (CIF basis).
+    # Expressed as a percentage (e.g. 1.0 = 1 %). Default 0 = no insurance.
+    INSURANCE_RATE_PCT: float = 0.0
     PAYZEN_CURRENCY: str = "XPF"  # Default currency for French Polynesia
     PAYZEN_IPN_URL: str | None = None  # Will be computed based on backend URL
     PAYZEN_RETURN_URL: str | None = None  # Frontend URL to return after payment
+    # Base URL for Payzen static assets (JS/CSS SmartForm SDK).
+    PAYZEN_STATIC_URL: str = "https://static.osb.pf"
 
     @computed_field  # type: ignore[prop-decorator]
     @property

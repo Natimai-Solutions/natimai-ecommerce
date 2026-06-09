@@ -29,7 +29,10 @@ from app.features.integrations.services.supplier_sync_orchestrator import (
 )
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product, ProductUpdate
-from app.features.product.services.pricing import CurrencyRateMissing, convert_to_xpf
+from app.features.product.services.pricing import (
+    CurrencyRateMissing,
+    convert_to_reference_currency,
+)
 from app.services.suppliers import all_adapters, get_adapter, has_supplier
 
 logger = logging.getLogger(__name__)
@@ -158,11 +161,13 @@ async def sync_supplier_inventory_task(
                 one_hour_ago = _now() - timedelta(hours=1)
                 # include_archived=True so we can also refresh (and potentially
                 # re-activate) products previously marked is_active=False.
+                # Admin-disabled products remain excluded from supplier inventory sync.
                 result = await crud_product.read_multi(
                     session,
                     filter=and_(
                         Product.supplier_name == supplier_name,
                         col(Product.is_supplier_managed).is_(True),
+                        col(Product.is_admin_active).is_(True),
                         or_(
                             col(Product.last_supplier_sync) <= one_hour_ago,
                             col(Product.last_supplier_sync).is_(None),
@@ -177,7 +182,7 @@ async def sync_supplier_inventory_task(
             batch_size = adapter.price_batch_size
             total_updated = 0
             errors = 0
-            # Cache FX rates within this sync run: currency_code → rate_to_xpf (None = missing)
+            # Cache FX rates within this sync run: currency_code → rate_to_reference (None = missing)
             _fx_rate_cache: dict[str, Decimal | None] = {}
 
             for i in range(0, len(skus), batch_size):
@@ -200,21 +205,29 @@ async def sync_supplier_inventory_task(
                                 )
                                 continue
 
+                            if not getattr(product, "is_admin_active", True):
+                                logger.info(
+                                    "Skipping inventory sync for product %s (%s): is_admin_active=False",
+                                    product.id,
+                                    sku,
+                                )
+                                continue
+
                             snapshot = normalize_supplier_snapshot(
                                 raw_price=data.price or 0,
                                 raw_quantity=data.quantity or 0,
                                 raw_currency=data.currency or "USD",
                             )
 
-                            # Convert supplier price to XPF so that
-                            # SUPPLIER_SYNC_MIN_PRICE is always compared in the
-                            # same currency regardless of the supplier's invoice
-                            # currency (USD, EUR, …).
+                            # Convert supplier price to the reference currency
+                            # so that SUPPLIER_SYNC_MIN_PRICE is always compared
+                            # in the same currency regardless of the supplier's
+                            # invoice currency (USD, EUR, …).
                             # Rate is cached per currency to avoid one DB query per SKU.
                             src_currency = snapshot.supplier_price_currency
                             if src_currency not in _fx_rate_cache:
                                 try:
-                                    _, rate = await convert_to_xpf(
+                                    _, rate = await convert_to_reference_currency(
                                         session, Decimal("1"), src_currency
                                     )
                                     _fx_rate_cache[src_currency] = rate
@@ -442,3 +455,64 @@ async def trigger_inventory_refresh(
         payload_key=skus,
         job_kwargs={"supplier_name": supplier_name, "skus": skus},
     )
+
+
+# -- category backfill -------------------------------------------------------
+
+
+async def backfill_product_categories_task(
+    _ctx: dict[str, Any],
+    batch_size: int = 200,
+    **_kwargs: Any,
+) -> dict[str, int]:
+    """ARQ task: populate Product.category_id for products that have a
+    supplier_subcategory but no category_id yet.
+
+    Safe to run multiple times (idempotent). Commits per batch so a failure
+    mid-run preserves already-processed rows.
+    """
+    from sqlmodel import col, select
+
+    from app.features.product.crud.category import crud_category
+    from app.features.product.models.product import Product
+
+    stats = {"updated": 0, "categories_created": 0, "errors": 0}
+
+    async with AsyncSession(engine) as session:
+        while True:
+            stmt = (
+                select(Product)
+                .where(
+                    col(Product.supplier_subcategory).is_not(None),
+                    col(Product.category_id).is_(None),
+                    col(Product.is_active).is_(True),
+                )
+                .limit(batch_size)
+            )
+            result = await session.exec(stmt)
+            batch = list(result.all())
+            if not batch:
+                break
+
+            for product in batch:
+                try:
+                    if not product.supplier_subcategory:
+                        continue
+                    category, created = await crud_category.get_or_create_by_name(
+                        session, name=product.supplier_subcategory
+                    )
+                    if created:
+                        stats["categories_created"] += 1
+                    product.category_id = category.id
+                    session.add(product)
+                    stats["updated"] += 1
+                except Exception as e:  # noqa: BLE001
+                    logger.error(
+                        "Error backfilling category for product %s: %s", product.id, e
+                    )
+                    stats["errors"] += 1
+
+            await session.commit()
+
+    logger.info("Category backfill completed: %s", stats)
+    return stats

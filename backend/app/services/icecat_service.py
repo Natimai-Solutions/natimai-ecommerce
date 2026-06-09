@@ -232,6 +232,27 @@ class IcecatService:
             for bullet in data["BulletPoints"]:
                 features.append(bullet.get("Value", ""))
 
+        # Physical dimensions from ProductSizeAndWeight (mm → cm, g → kg).
+        # Falls back to None when the field is absent or not parseable.
+        size_weight = product_data.get("ProductSizeAndWeight") or {}
+
+        def _safe_float(value: Any) -> float | None:
+            try:
+                return float(value) if value not in (None, "", 0) else None
+            except (TypeError, ValueError):
+                return None
+
+        raw_weight_g = _safe_float(size_weight.get("Weight"))
+        weight_kg = raw_weight_g / 1000.0 if raw_weight_g is not None else None
+
+        raw_depth_mm = _safe_float(size_weight.get("Depth"))
+        raw_width_mm = _safe_float(size_weight.get("Width"))
+        raw_height_mm = _safe_float(size_weight.get("Height"))
+
+        length_cm = raw_depth_mm / 10.0 if raw_depth_mm is not None else None
+        width_cm = raw_width_mm / 10.0 if raw_width_mm is not None else None
+        height_cm = raw_height_mm / 10.0 if raw_height_mm is not None else None
+
         return IcecatProductData(
             icecat_id=str(product_data.get("IcecatId", None)),
             ean=ean,
@@ -250,6 +271,10 @@ class IcecatService:
             image_url=images[0]["medium"]["url"]
             if images and "medium" in images[0]
             else None,
+            weight_kg=weight_kg,
+            dimensions_length_cm=length_cm,
+            dimensions_width_cm=width_cm,
+            dimensions_height_cm=height_cm,
         )
 
     async def get_product_by_ean(self, ean: str) -> IcecatProductData | None:

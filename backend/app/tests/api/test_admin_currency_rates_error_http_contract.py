@@ -59,7 +59,7 @@ def test_upsert_currency_rate_reference_currency_returns_error_payload(
     response = client.put(
         "/api/v1/admin/currency-rates/XPF",
         json={
-            "rate_to_xpf": "123.456000",
+            "rate_to_reference": "123.456000",
             "valid_from": "2026-01-01",
         },
     )

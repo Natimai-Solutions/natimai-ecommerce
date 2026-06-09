@@ -35,7 +35,7 @@ export function createApiClient(options: ApiClientOptions): AxiosInstance {
         if (refreshToken && options.setAccessToken) {
           try {
             const { data } = await axios.post<{ access_token: string }>(
-              `${options.baseUrl}/api/v1/auth/refresh`,
+              `${options.baseUrl}/api/v1/login/refresh-token`,
               { refresh_token: refreshToken },
             )
             options.setAccessToken(data.access_token)

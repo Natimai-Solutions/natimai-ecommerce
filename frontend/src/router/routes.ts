@@ -11,6 +11,41 @@ const routes: RouteRecordRaw[] = [
         name: 'catalogue',
         component: () => import('pages/CataloguePage.vue'),
       },
+      {
+        path: 'produit/:id/:slug?',
+        name: 'product-detail',
+        component: () => import('pages/ProductPage.vue'),
+      },
+      {
+        path: 'panier',
+        name: 'cart',
+        component: () => import('pages/CartPage.vue'),
+      },
+      {
+        path: 'panier/confirmation',
+        name: 'cart-quote-confirmation',
+        component: () => import('pages/CartQuoteConfirmationPage.vue'),
+      },
+      {
+        path: 'connexion',
+        name: 'login',
+        component: () => import('pages/LoginPage.vue'),
+      },
+      {
+        path: 'oauth/callback',
+        name: 'oauth-callback',
+        component: () => import('pages/OAuthCallbackPage.vue'),
+      },
+      {
+        path: 'checkout',
+        name: 'checkout',
+        component: () => import('pages/CheckoutPage.vue'),
+      },
+      {
+        path: 'paiement/retour',
+        name: 'payment-return',
+        component: () => import('pages/PaymentReturnPage.vue'),
+      },
     ],
   },
 

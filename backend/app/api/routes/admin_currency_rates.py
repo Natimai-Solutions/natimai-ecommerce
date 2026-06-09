@@ -14,6 +14,7 @@ from fastapi import APIRouter, Query, status
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.core.config import settings
 from app.core.errors import AppError
 from app.features.product.models.currency_rate import (
     CurrencyRate,
@@ -114,11 +115,14 @@ async def upsert_currency_rate(
     valid_until on the previous open-ended rate so history is preserved.
     """
     currency_code = code.upper()
-    if currency_code == "XPF":
+    if currency_code == settings.REFERENCE_CURRENCY:
         raise AppError(
             code="currency_rate.reference_currency.unsupported",
             status_code=400,
-            message="XPF is the reference currency — no conversion rate needed.",
+            message=(
+                f"{settings.REFERENCE_CURRENCY} is the reference currency "
+                "— no conversion rate needed."
+            ),
             details={"currency_code": currency_code},
         )
 
@@ -138,7 +142,7 @@ async def upsert_currency_rate(
     new_rate = CurrencyRate(
         id=uuid.uuid4(),
         currency_code=currency_code,
-        rate_to_xpf=payload.rate_to_xpf,
+        rate_to_reference=payload.rate_to_reference,
         valid_from=payload.valid_from,
         valid_until=None,
         source=CurrencyRateSource.manual,

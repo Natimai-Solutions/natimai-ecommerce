@@ -523,6 +523,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product/{product_id}/shipping-modes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Product Shipping Modes
+         * @description Return per-service-level pricing for a product.
+         *
+         *     The response contains one entry per active import route (service_level != null),
+         *     sorted by priority then by is_default_import. The frontend uses this list to
+         *     build the shipping-mode dropdown and switch sale prices locally without a
+         *     refetch. The backend recalculates at checkout (authoritative).
+         *
+         *     - Anonymous / no preference: use ``default_mode`` to pre-select.
+         *     - Logged-in: client stores preference in ``localStorage`` or user profile.
+         */
+        get: operations["product-get_product_shipping_modes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/product/search": {
         parameters: {
             query?: never;
@@ -872,6 +900,26 @@ export interface paths {
          * @description Create a quote request from the active cart and notify support.
          */
         post: operations["cart-create_quote_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/guest-quote-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Guest Quote Request
+         * @description Send a quote request email for a guest cart without authentication.
+         */
+        post: operations["cart-create_guest_quote_request"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3468,6 +3516,65 @@ export interface components {
             count: number;
         };
         /**
+         * AnalyticsProductCreate
+         * @description Represents analytics product create.
+         */
+        AnalyticsProductCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Product Id
+             * Format: uuid
+             * @description ID of the product
+             */
+            product_id: string;
+            /**
+             * Add To Carts
+             * @description Number of times the product has been added to carts
+             * @default 0
+             */
+            add_to_carts: number;
+            /**
+             * Purchases
+             * @description Number of times the product has been purchased
+             * @default 0
+             */
+            purchases: number;
+            /**
+             * Conversion Rate
+             * @description Conversion rate of the product (purchases / add_to_carts) in percentage
+             * @default 0.00
+             */
+            conversion_rate: number | string;
+            /**
+             * Average Rating
+             * @description Average rating of the product (0-5)
+             */
+            average_rating?: number | string | null;
+            /**
+             * Review Count
+             * @description Number of reviews for the product
+             * @default 0
+             */
+            review_count: number;
+        };
+        /**
          * AnalyticsProductPublic
          * @description Represents analytics product public.
          */
@@ -3532,6 +3639,42 @@ export interface components {
             id: string;
         };
         /**
+         * AnalyticsProductUpdate
+         * @description Represents analytics product update.
+         */
+        AnalyticsProductUpdate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /** Product Id */
+            product_id?: string | null;
+            /** Add To Carts */
+            add_to_carts?: number | null;
+            /** Purchases */
+            purchases?: number | null;
+            /** Conversion Rate */
+            conversion_rate?: number | null;
+            /** Average Rating */
+            average_rating?: number | null;
+            /** Review Count */
+            review_count?: number | null;
+        };
+        /**
          * AnalyticsProductsPublic
          * @description Represents analytics products public.
          */
@@ -3544,6 +3687,59 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * AnalyticsSaleCreate
+         * @description Represents analytics sale create.
+         */
+        AnalyticsSaleCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Total Sales
+             * @description Total sales amount
+             * @default 0.00
+             */
+            total_sales: number | string;
+            /**
+             * Order Count
+             * @description Number of orders made
+             * @default 0
+             */
+            order_count: number;
+            /**
+             * Average Order Value
+             * @description Average value of orders
+             * @default 0.00
+             */
+            average_order_value: number | string;
+            /**
+             * Unique Customers
+             * @description Number of unique customers
+             * @default 0
+             */
+            unique_customers: number;
+            /**
+             * Top Selling Product Id
+             * @description ID of the top selling product
+             */
+            top_selling_product_id: string | null;
         };
         /**
          * AnalyticsSalePublic
@@ -3604,6 +3800,40 @@ export interface components {
             id: string;
         };
         /**
+         * AnalyticsSaleUpdate
+         * @description Represents analytics sale update.
+         */
+        AnalyticsSaleUpdate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /** Total Sales */
+            total_sales?: number | string | null;
+            /** Order Count */
+            order_count?: number | null;
+            /** Average Order Value */
+            average_order_value?: number | string | null;
+            /** Unique Customers */
+            unique_customers?: number | null;
+            /** Top Selling Product Id */
+            top_selling_product_id?: string | null;
+        };
+        /**
          * AnalyticsSalesPublic
          * @description Represents analytics sales public.
          */
@@ -3616,6 +3846,75 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * AnalyticsUserCreate
+         * @description Represents analytics user create.
+         */
+        AnalyticsUserCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             * @description ID of the user
+             */
+            user_id: string;
+            /**
+             * Login Count
+             * @description Number of times the user has logged in
+             * @default 0
+             */
+            login_count: number;
+            /**
+             * Purchase Count
+             * @description Number of purchases made by the user
+             * @default 0
+             */
+            purchase_count: number;
+            /**
+             * Average Order Value
+             * @description Average order value for the user
+             */
+            average_order_value?: number | string | null;
+            /**
+             * Last Login
+             * @description Timestamp of the last login by the user
+             */
+            last_login?: string | null;
+            /**
+             * Total Spent
+             * @description Total amount spent by the user
+             * @default 0.00
+             */
+            total_spent: number | string;
+            /**
+             * Total Orders
+             * @description Total number of orders made by the user
+             * @default 0
+             */
+            total_orders: number;
+            /**
+             * Favorite Products
+             * @description List of favorite product IDs
+             */
+            favorite_products?: string[];
         };
         /**
          * AnalyticsUserPublic
@@ -3692,6 +3991,46 @@ export interface components {
             id: string;
         };
         /**
+         * AnalyticsUserUpdate
+         * @description Represents analytics user update.
+         */
+        AnalyticsUserUpdate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /** User Id */
+            user_id?: string | null;
+            /** Login Count */
+            login_count?: number | null;
+            /** Purchase Count */
+            purchase_count?: number | null;
+            /** Average Order Value */
+            average_order_value?: number | string | null;
+            /** Last Login */
+            last_login?: string | null;
+            /** Total Spent */
+            total_spent?: number | string | null;
+            /** Total Orders */
+            total_orders?: number | null;
+            /** Favorite Products */
+            favorite_products?: string[] | null;
+        };
+        /**
          * AnalyticsUsersPublic
          * @description Represents analytics users public.
          */
@@ -3746,6 +4085,45 @@ export interface components {
             client_secret?: string | null;
         };
         /**
+         * BrandCreate
+         * @description Represents brand create.
+         */
+        BrandCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Name
+             * @description Name of the brand
+             */
+            name: string;
+            /**
+             * Description
+             * @description Description of the brand
+             */
+            description?: string | null;
+            /**
+             * Image Url
+             * @description URL of the brand image
+             */
+            image_url?: string | null;
+        };
+        /**
          * BrandPublic
          * @description Represents brand public.
          */
@@ -3788,6 +4166,36 @@ export interface components {
              * Format: uuid
              */
             id: string;
+        };
+        /**
+         * BrandUpdate
+         * @description Represents brand update.
+         */
+        BrandUpdate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Image Url */
+            image_url?: string | null;
         };
         /**
          * BrandsPublic
@@ -3899,6 +4307,50 @@ export interface components {
             count: number;
         };
         /**
+         * CategoryCreate
+         * @description Represents category create.
+         */
+        CategoryCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Name
+             * @description Name of the category
+             */
+            name: string;
+            /**
+             * Description
+             * @description Description of the category
+             */
+            description?: string | null;
+            /**
+             * Image Url
+             * @description URL of the category image
+             */
+            image_url?: string | null;
+            /**
+             * Default Tax Rate Id
+             * @description Default tax rate applied to products in this category
+             */
+            default_tax_rate_id?: string | null;
+        };
+        /**
          * CategoryPublic
          * @description Represents category public.
          */
@@ -3959,6 +4411,47 @@ export interface components {
             category_id: string;
             /** Specs */
             specs?: components["schemas"]["SpecFacet"][];
+        };
+        /**
+         * CategoryUpdate
+         * @description Represents category update.
+         */
+        CategoryUpdate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Name
+             * @description Name of the category
+             */
+            name: string;
+            /**
+             * Description
+             * @description Description of the category
+             */
+            description?: string | null;
+            /**
+             * Image Url
+             * @description URL of the category image
+             */
+            image_url?: string | null;
+            /** Default Tax Rate Id */
+            default_tax_rate_id?: string | null;
         };
         /**
          * CheckoutObservabilityMetrics
@@ -4120,10 +4613,10 @@ export interface components {
              */
             currency_code: string;
             /**
-             * Rate To Xpf
-             * @description Conversion rate: 1 unit of currency_code = rate_to_xpf XPF
+             * Rate To Reference
+             * @description Conversion rate: 1 unit of currency_code = rate_to_reference units of the reference currency
              */
-            rate_to_xpf: string;
+            rate_to_reference: string;
             /**
              * Valid From
              * Format: date
@@ -4162,10 +4655,10 @@ export interface components {
          */
         CurrencyRateUpsertRequest: {
             /**
-             * Rate To Xpf
+             * Rate To Reference
              * @description New conversion rate
              */
-            rate_to_xpf: number | string;
+            rate_to_reference: number | string;
             /**
              * Valid From
              * Format: date
@@ -4185,6 +4678,77 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * DeliveryTaskCreate
+         * @description Represents delivery task create.
+         */
+        DeliveryTaskCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Order Id
+             * Format: uuid
+             * @description Order ID to deliver
+             */
+            order_id: string;
+            /**
+             * Place Id
+             * @description Delivery place
+             */
+            place_id?: string | null;
+            /**
+             * Address Id
+             * @description Delivery address for this task
+             */
+            address_id?: string | null;
+            /**
+             * Delivery Type
+             * @description Type: home_delivery, pickup_point
+             */
+            delivery_type: string;
+            /**
+             * Assignee
+             * @description Assigned delivery person
+             */
+            assignee?: string | null;
+            /**
+             * Status Code
+             * @description Task status
+             * @default pending
+             */
+            status_code: string | null;
+            /**
+             * Scheduled At
+             * @description Scheduled delivery date and time
+             */
+            scheduled_at?: string | null;
+            /**
+             * Delivered At
+             * @description Delivery completed at
+             */
+            delivered_at?: string | null;
+            /**
+             * Notes
+             * @description Notes
+             */
+            notes?: string | null;
         };
         /**
          * DeliveryTaskPublic
@@ -4263,6 +4827,24 @@ export interface components {
             id: string;
         };
         /**
+         * DeliveryTaskUpdate
+         * @description Represents delivery task update.
+         */
+        DeliveryTaskUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Delivery Type */
+            delivery_type?: string | null;
+            /** Assignee */
+            assignee?: string | null;
+            /** Status Code */
+            status_code?: string | null;
+            /** Delivered At */
+            delivered_at?: string | null;
+            /** Notes */
+            notes?: string | null;
+        };
+        /**
          * DeliveryTasksPublic
          * @description Represents delivery tasks public.
          */
@@ -4278,6 +4860,85 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * DiscountCreate
+         * @description Represents discount create.
+         */
+        DiscountCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Name
+             * @description Nom de la réduction
+             */
+            name: string;
+            /**
+             * Description
+             * @description Description de la réduction
+             */
+            description?: string | null;
+            /** @description Type de réduction (coupon ou promotion) */
+            discount_type: components["schemas"]["DiscountType"];
+            /**
+             * Code
+             * @description Code du coupon (uniquement pour les coupons)
+             */
+            code?: string | null;
+            /**
+             * Percentage
+             * @description Pourcentage de réduction (0.01-100.00)
+             */
+            percentage: number | string;
+            /** @description Cible de la réduction */
+            target: components["schemas"]["DiscountTarget"];
+            /**
+             * Product Id
+             * @description ID du produit ciblé (si target=PRODUCT)
+             */
+            product_id?: string | null;
+            /**
+             * Category Id
+             * @description ID de la catégorie ciblée (si target=CATEGORY)
+             */
+            category_id?: string | null;
+            /**
+             * Start Date
+             * @description Date de début de validité
+             */
+            start_date?: string | null;
+            /**
+             * End Date
+             * @description Date de fin de validité
+             */
+            end_date?: string | null;
+            /**
+             * Max Uses
+             * @description Nombre maximum d'utilisations (None = illimité)
+             */
+            max_uses?: number | null;
+            /**
+             * Current Uses
+             * @description Nombre d'utilisations actuelles
+             * @default 0
+             */
+            current_uses: number;
         };
         /**
          * DiscountPublic
@@ -4376,6 +5037,36 @@ export interface components {
          */
         DiscountType: "coupon" | "promotion";
         /**
+         * DiscountUpdate
+         * @description Represents discount update.
+         */
+        DiscountUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            discount_type?: components["schemas"]["DiscountType"] | null;
+            /** Code */
+            code?: string | null;
+            /** Percentage */
+            percentage?: number | string | null;
+            target?: components["schemas"]["DiscountTarget"] | null;
+            /** Product Id */
+            product_id?: string | null;
+            /** Category Id */
+            category_id?: string | null;
+            /** Start Date */
+            start_date?: string | null;
+            /** End Date */
+            end_date?: string | null;
+            /** Max Uses */
+            max_uses?: number | null;
+            /** Current Uses */
+            current_uses?: number | null;
+        };
+        /**
          * DiscountsPublic
          * @description Represents discounts public.
          */
@@ -4471,6 +5162,56 @@ export interface components {
             timestamp: string;
         };
         /**
+         * GroupCreate
+         * @description Schema for creating a new group
+         */
+        GroupCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Name
+             * @description Unique name of the group
+             */
+            name: string;
+            /**
+             * Description
+             * @description Description of the group purpose
+             */
+            description?: string | null;
+            /**
+             * Group Type
+             * @description Type of group: 'security', 'pricing', 'discount', 'general'
+             */
+            group_type: string;
+            /**
+             * Discount Percentage
+             * @description Default discount percentage for pricing groups (0-100)
+             */
+            discount_percentage?: number | null;
+            /**
+             * Priority
+             * @description Priority level for group evaluation (higher = more priority)
+             * @default 0
+             */
+            priority: number;
+        };
+        /**
          * GroupPublic
          * @description Public schema for group exposure via API
          */
@@ -4543,6 +5284,65 @@ export interface components {
             count: number;
         };
         /**
+         * GroupSecurityCreate
+         * @description Schema for creating a new group security rule
+         */
+        GroupSecurityCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Group Id
+             * Format: uuid
+             * @description Group ID this security rule applies to
+             */
+            group_id: string;
+            /**
+             * Table Name
+             * @description Name of the database table this rule applies to
+             */
+            table_name: string;
+            /**
+             * Can Read
+             * @description Permission to read/view records
+             * @default true
+             */
+            can_read: boolean;
+            /**
+             * Can Create
+             * @description Permission to create new records
+             * @default false
+             */
+            can_create: boolean;
+            /**
+             * Can Update
+             * @description Permission to update existing records
+             * @default false
+             */
+            can_update: boolean;
+            /**
+             * Can Delete
+             * @description Permission to delete records
+             * @default false
+             */
+            can_delete: boolean;
+        };
+        /**
          * GroupSecurityPublic
          * @description Public schema for group security rule exposure via API
          */
@@ -4607,6 +5407,44 @@ export interface components {
             id: string;
         };
         /**
+         * GroupSecurityUpdate
+         * @description Schema for updating a group security rule - all fields optional
+         */
+        GroupSecurityUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Group Id */
+            group_id?: string | null;
+            /** Table Name */
+            table_name?: string | null;
+            /** Can Read */
+            can_read?: boolean | null;
+            /** Can Create */
+            can_create?: boolean | null;
+            /** Can Update */
+            can_update?: boolean | null;
+            /** Can Delete */
+            can_delete?: boolean | null;
+        };
+        /**
+         * GroupUpdate
+         * @description Schema for updating a group - all fields optional
+         */
+        GroupUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Group Type */
+            group_type?: string | null;
+            /** Discount Percentage */
+            discount_percentage?: number | null;
+            /** Priority */
+            priority?: number | null;
+        };
+        /**
          * GroupsPublic
          * @description Paginated list of groups
          */
@@ -4622,6 +5460,55 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * GuestQuoteRequestItem
+         * @description Represents a guest quote request line item.
+         */
+        GuestQuoteRequestItem: {
+            /** Product Id */
+            product_id?: string | null;
+            /** Product Name */
+            product_name: string;
+            /** Quantity */
+            quantity: number;
+            /** Unit Price */
+            unit_price: number | string;
+            /** Line Total */
+            line_total: number | string;
+        };
+        /**
+         * GuestQuoteRequestResponse
+         * @description Represents guest quote request response.
+         */
+        GuestQuoteRequestResponse: {
+            /** Email Delivered */
+            email_delivered: boolean;
+            /** Message */
+            message: string;
+        };
+        /**
+         * GuestQuoteRequestSubmit
+         * @description Represents guest quote request submit payload.
+         */
+        GuestQuoteRequestSubmit: {
+            /** Customer Email */
+            customer_email: string;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Customer Phone */
+            customer_phone?: string | null;
+            /** Shipping Address */
+            shipping_address?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Currency
+             * @default XPF
+             */
+            currency: string;
+            /** Items */
+            items?: components["schemas"]["GuestQuoteRequestItem"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -4666,6 +5553,53 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * InventoryCreate
+         * @description Represents inventory create.
+         */
+        InventoryCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Quantity
+             * @description Quantity available in the inventory
+             * @default 0.00
+             */
+            quantity: number | string;
+            /**
+             * Product Id
+             * Format: uuid
+             * @description ID of the product associated with this inventory
+             */
+            product_id: string;
+            /**
+             * Place Id
+             * @description ID of the place where the inventory is located
+             */
+            place_id?: string | null;
+            /**
+             * Compute From Movements
+             * @description Whether the inventory quantity is computed from movements
+             * @default true
+             */
+            compute_from_movements: boolean;
         };
         /**
          * InventoryPublic
@@ -4729,6 +5663,91 @@ export interface components {
              * @description Specific SKUs to refresh (defaults to all stale products)
              */
             skus?: string[] | null;
+        };
+        /**
+         * InventoryStockMovementCreate
+         * @description Schema for creating a new inventory stock movement.
+         */
+        InventoryStockMovementCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Movement Type
+             * @description Movement type (incoming, outgoing, transfer, adjustment)
+             */
+            movement_type: string;
+            /**
+             * Reference Type
+             * @description Reference type (order, manual, system, correction)
+             */
+            reference_type: string;
+            /**
+             * Reference Id
+             * @description Reference ID (order, manual entry, etc.)
+             */
+            reference_id?: string | null;
+            /**
+             * From Place Id
+             * @description Departure place ID
+             */
+            from_place_id?: string | null;
+            /**
+             * To Place Id
+             * @description Arrival place ID
+             */
+            to_place_id?: string | null;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Quantity
+             * @description Quantity moved
+             */
+            quantity: number | string;
+            /**
+             * Unit Cost
+             * @description Unit cost at time of movement
+             */
+            unit_cost?: number | string | null;
+            /**
+             * Reason
+             * @description Reason for the movement
+             */
+            reason?: string | null;
+            /**
+             * Notes
+             * @description Additional notes
+             */
+            notes?: string | null;
+            /**
+             * Status
+             * @description Movement status (pending, completed, cancelled, failed)
+             * @default pending
+             */
+            status: string;
+            /**
+             * Processed At
+             * @description When the movement was processed
+             */
+            processed_at?: string | null;
         };
         /**
          * InventoryStockMovementPublic
@@ -4808,6 +5827,59 @@ export interface components {
             id: string;
         };
         /**
+         * InventoryStockMovementUpdate
+         * @description Schema for updating an inventory stock movement.
+         */
+        InventoryStockMovementUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /**
+             * Movement Type
+             * @description Movement type
+             */
+            movement_type?: string | null;
+            /**
+             * Reference Type
+             * @description Reference type
+             */
+            reference_type?: string | null;
+            /** Reference Id */
+            reference_id?: string | null;
+            /** From Place Id */
+            from_place_id?: string | null;
+            /** To Place Id */
+            to_place_id?: string | null;
+            /** Product Id */
+            product_id?: string | null;
+            /**
+             * Quantity
+             * @description Quantity moved
+             */
+            quantity?: number | string | null;
+            /**
+             * Unit Cost
+             * @description Unit cost
+             */
+            unit_cost?: number | string | null;
+            /**
+             * Reason
+             * @description Reason
+             */
+            reason?: string | null;
+            /**
+             * Notes
+             * @description Notes
+             */
+            notes?: string | null;
+            /**
+             * Status
+             * @description Movement status
+             */
+            status?: string | null;
+            /** Processed At */
+            processed_at?: string | null;
+        };
+        /**
          * InventoryStockMovementsPublic
          * @description Schema for multiple inventory stock movements response.
          */
@@ -4823,6 +5895,22 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * InventoryUpdate
+         * @description Represents inventory update.
+         */
+        InventoryUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Quantity */
+            quantity?: number | string | null;
+            /** Product Id */
+            product_id?: string | null;
+            /** Place Id */
+            place_id?: string | null;
+            /** Compute From Movements */
+            compute_from_movements?: boolean | null;
         };
         /**
          * LivenessResponse
@@ -4995,6 +6083,48 @@ export interface components {
             id?: string;
         };
         /**
+         * NotificationUpdate
+         * @description Represents notification update.
+         */
+        NotificationUpdate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Content */
+            content?: string | null;
+            /** Type */
+            type?: string | null;
+            /** Priority */
+            priority?: number | null;
+            /** Order Id */
+            order_id?: string | null;
+            /** Product Id */
+            product_id?: string | null;
+            /** Payment Id */
+            payment_id?: string | null;
+            /** Action Url */
+            action_url?: string | null;
+            /** Action Label */
+            action_label?: string | null;
+        };
+        /**
          * NotificationsPublic
          * @description Represents notifications public.
          */
@@ -5024,6 +6154,181 @@ export interface components {
             commerce: components["schemas"]["CommerceObservabilityMetrics"];
             outbox_jobs: components["schemas"]["OutboxObservabilityMetrics"];
             checkout: components["schemas"]["CheckoutObservabilityMetrics"];
+        };
+        /**
+         * OrderCreate
+         * @description Represents order create.
+         */
+        OrderCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             * @description ID de l'utilisateur qui a passé la commande
+             */
+            user_id: string;
+            /**
+             * Order Status Id
+             * Format: uuid
+             * @description ID du statut de la commande
+             */
+            order_status_id: string;
+            /**
+             * Total Amount
+             * @description Montant total de la commande
+             * @default 0.00
+             */
+            total_amount: number | string;
+            /**
+             * Subtotal Amount
+             * @description Sous-total des lignes au checkout
+             * @default 0.00
+             */
+            subtotal_amount: number | string;
+            /**
+             * Shipping Fee Amount
+             * @description Frais de livraison figes au checkout
+             * @default 0.00
+             */
+            shipping_fee_amount: number | string;
+            /**
+             * Payment Fee Amount
+             * @description Frais de paiement figes au checkout
+             * @default 0.00
+             */
+            payment_fee_amount: number | string;
+            /**
+             * Total Fees Amount
+             * @description Total des frais figes au checkout
+             * @default 0.00
+             */
+            total_fees_amount: number | string;
+            /**
+             * Shipping Address
+             * @description Adresse de livraison
+             */
+            shipping_address?: string | null;
+            /**
+             * Shipping Cost Breakdown
+             * @description Snapshot detaille des couts de livraison par troncon au checkout (routes selectionnees, forfait/poids/valeur, ETA, empreinte carbone)
+             */
+            shipping_cost_breakdown?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Notes
+             * @description Notes sur la commande
+             */
+            notes?: string | null;
+        };
+        /**
+         * OrderLineCreate
+         * @description Represents order line create.
+         */
+        OrderLineCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Order Id
+             * Format: uuid
+             * @description ID de la commande
+             */
+            order_id: string;
+            /**
+             * Product Id
+             * Format: uuid
+             * @description ID du produit
+             */
+            product_id: string;
+            /**
+             * Quantity
+             * @description Quantité du produit
+             */
+            quantity: number;
+            /**
+             * Unit Price
+             * @description Prix unitaire au moment de la commande
+             */
+            unit_price: number | string;
+            /**
+             * Discount Amount
+             * @description Montant de la réduction appliquée
+             * @default 0.00
+             */
+            discount_amount: number | string;
+            /**
+             * Notes
+             * @description Notes sur cette ligne de commande
+             */
+            notes?: string | null;
+            /**
+             * Tax Rate Id
+             * @description Snapshot du taux de taxe applique a la ligne
+             */
+            tax_rate_id?: string | null;
+            /**
+             * Cost Amount Snapshot
+             * @description Snapshot du coût produit au moment de la commande
+             */
+            cost_amount_snapshot?: number | string | null;
+            /**
+             * Cost Currency Snapshot
+             * @description Devise du coût fournisseur au moment de la commande
+             */
+            cost_currency_snapshot?: string | null;
+            /**
+             * Fx Rate Used
+             * @description Taux FX utilisé pour la conversion en XPF. Null si déjà en XPF.
+             */
+            fx_rate_used?: number | string | null;
+            /**
+             * Customs Rate Pct Snapshot
+             * @description Snapshot du taux de douane appliqué
+             */
+            customs_rate_pct_snapshot?: number | string | null;
+            /**
+             * Margin Rate Pct Snapshot
+             * @description Snapshot du taux de marge appliqué
+             */
+            margin_rate_pct_snapshot?: number | string | null;
+            /**
+             * Price Group Id Snapshot
+             * @description Snapshot de l'ID du groupe de prix appliqué
+             */
+            price_group_id_snapshot?: string | null;
         };
         /**
          * OrderLinePublic
@@ -5121,6 +6426,28 @@ export interface components {
              * Format: uuid
              */
             id: string;
+        };
+        /**
+         * OrderLineUpdate
+         * @description Represents order line update.
+         */
+        OrderLineUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Order Id */
+            order_id?: string | null;
+            /** Product Id */
+            product_id?: string | null;
+            /** Quantity */
+            quantity?: number | null;
+            /** Unit Price */
+            unit_price?: number | string | null;
+            /** Discount Amount */
+            discount_amount?: number | string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Tax Rate Id */
+            tax_rate_id?: string | null;
         };
         /**
          * OrderLinesPublic
@@ -5228,6 +6555,35 @@ export interface components {
             id: string;
         };
         /**
+         * OrderStatusCreate
+         * @description Represents order status create.
+         */
+        OrderStatusCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Name
+             * @description Nom du statut (ex: 'En attente', 'Expédiée')
+             */
+            name: string;
+        };
+        /**
          * OrderStatusPublic
          * @description Represents order status public.
          */
@@ -5260,6 +6616,16 @@ export interface components {
              * Format: uuid
              */
             id: string;
+        };
+        /**
+         * OrderStatusUpdate
+         * @description Represents order status update.
+         */
+        OrderStatusUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
         };
         /**
          * OrderStatusesPublic
@@ -5378,6 +6744,64 @@ export interface components {
             oldest_pending_age_minutes: number | null;
         };
         /**
+         * PartnerCreate
+         * @description Represents partner create.
+         */
+        PartnerCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Name
+             * @description Nom de l'acteur
+             */
+            name: string;
+            /**
+             * Phone
+             * @description Phone
+             */
+            phone?: string | null;
+            /**
+             * Email
+             * @description Email
+             */
+            email?: string | null;
+            /** Address Line1 */
+            address_line1?: string | null;
+            /** Address Line2 */
+            address_line2?: string | null;
+            /** City */
+            city?: string | null;
+            /** Postal Code */
+            postal_code?: string | null;
+            /**
+             * Country
+             * @description Code Country ISO
+             */
+            country?: string | null;
+            /**
+             * Is Supplier
+             * @description Is a supplier
+             * @default false
+             */
+            is_supplier: boolean;
+        };
+        /**
          * PartnerPublic
          * @description Represents partner public.
          */
@@ -5439,6 +6863,50 @@ export interface components {
              * Format: uuid
              */
             id: string;
+        };
+        /**
+         * PartnerUpdate
+         * @description Represents partner update.
+         */
+        PartnerUpdate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Address Line1 */
+            address_line1?: string | null;
+            /** Address Line2 */
+            address_line2?: string | null;
+            /** City */
+            city?: string | null;
+            /** Postal Code */
+            postal_code?: string | null;
+            /** Country */
+            country?: string | null;
+            /** Is Supplier */
+            is_supplier?: boolean | null;
+            /** Is Customer */
+            is_customer?: boolean | null;
         };
         /**
          * PartnersPublic
@@ -5553,6 +7021,122 @@ export interface components {
             id?: string;
         };
         /**
+         * PaymentCreate
+         * @description Represents payment create.
+         */
+        PaymentCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Amount
+             * @description Amount to be paid expressed in the payment currency
+             */
+            amount: number | string;
+            /**
+             * Currency
+             * @description Currency of the payment (XPF, EUR, etc.)
+             * @default XPF
+             */
+            currency: string;
+            /**
+             * Provider Code
+             * @description Payment provider identifier (payzen, stripe, manual_check, etc.)
+             * @default payzen
+             */
+            provider_code: string;
+            /**
+             * Order Id
+             * @description ID of the order associated with this payment
+             */
+            order_id?: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             * @description ID of the user making the payment
+             */
+            user_id: string;
+        };
+        /**
+         * PaymentMethodCreate
+         * @description Represents payment method create.
+         */
+        PaymentMethodCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Name
+             * @description Name of the payment method
+             */
+            name: string;
+            /**
+             * Description
+             * @description Description of the payment method
+             */
+            description?: string | null;
+            /**
+             * Fee
+             * @description Fee associated with the payment method
+             * @default 0.00
+             */
+            fee: number | string;
+            /**
+             * Provider Code
+             * @description Provider identifier used by payment dispatch
+             * @default payzen
+             */
+            provider_code: string;
+            /**
+             * Requires Admin Validation
+             * @description Whether this method requires explicit admin validation
+             * @default false
+             */
+            requires_admin_validation: boolean;
+            /**
+             * Requires Document Upload
+             * @description Whether this method requires a supporting document upload
+             * @default false
+             */
+            requires_document_upload: boolean;
+            /**
+             * Sort Order
+             * @description Display order in checkout payment method listing
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /**
          * PaymentMethodPublic
          * @description Represents payment method public.
          */
@@ -5620,6 +7204,44 @@ export interface components {
              * Format: uuid
              */
             id?: string;
+        };
+        /**
+         * PaymentMethodUpdate
+         * @description Represents payment method update.
+         */
+        PaymentMethodUpdate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Fee */
+            fee?: number | string | null;
+            /** Provider Code */
+            provider_code?: string | null;
+            /** Requires Admin Validation */
+            requires_admin_validation?: boolean | null;
+            /** Requires Document Upload */
+            requires_document_upload?: boolean | null;
+            /** Sort Order */
+            sort_order?: number | null;
         };
         /**
          * PaymentMethodsPublic
@@ -5748,6 +7370,46 @@ export interface components {
              * @description Reason for rejection (mandatory for audit)
              */
             reason: string;
+        };
+        /**
+         * PaymentUpdate
+         * @description Represents payment update.
+         */
+        PaymentUpdate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /** Amount */
+            amount?: number | string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Provider Code */
+            provider_code?: string | null;
+            /** Order Id */
+            order_id?: string | null;
+            /** User Id */
+            user_id?: string | null;
+            /** Provider Reference */
+            provider_reference?: string | null;
+            /** Provider Data */
+            provider_data?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * PaymentValidationPublic
@@ -5903,6 +7565,128 @@ export interface components {
             count: number;
         };
         /**
+         * PlaceCreate
+         * @description Represents place create.
+         */
+        PlaceCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Name
+             * @description Place name
+             */
+            name: string;
+            /**
+             * Type
+             * @description Type: airport, seaport, warehouse, address, island, etc.
+             */
+            type: string;
+            /**
+             * Code
+             * @description Code IATA/UN/LOCODE/autre
+             */
+            code?: string | null;
+            /**
+             * Latitude
+             * @description Latitude
+             */
+            latitude?: number | null;
+            /**
+             * Longitude
+             * @description Longitude
+             */
+            longitude?: number | null;
+            /**
+             * Timezone
+             * @description Timezone
+             */
+            timezone?: string | null;
+            /** Address Line1 */
+            address_line1?: string | null;
+            /** Address Line2 */
+            address_line2?: string | null;
+            /** City */
+            city?: string | null;
+            /** Postal Code */
+            postal_code?: string | null;
+            /**
+             * Country
+             * @description Code Country ISO
+             */
+            country?: string | null;
+            /**
+             * Region
+             * @description Region/État
+             */
+            region?: string | null;
+            /**
+             * Is Warehouse
+             * @description Is a warehouse
+             * @default false
+             */
+            is_warehouse: boolean;
+            /**
+             * Max Capacity M3
+             * @description Capacité max en m³
+             */
+            max_capacity_m3?: number | null;
+            /**
+             * Current Capacity M3
+             * @description Capacité actuelle en m³
+             */
+            current_capacity_m3?: number | null;
+            /**
+             * Customs Clearance
+             * @description Dédouanement disponible
+             * @default false
+             */
+            customs_clearance: boolean;
+            /**
+             * Consolidation Service
+             * @description Consolidation service
+             * @default false
+             */
+            consolidation_service: boolean;
+            /**
+             * Repackaging Service
+             * @description Repackaging service
+             * @default false
+             */
+            repackaging_service: boolean;
+            /**
+             * Operating Hours
+             * @description Operating hours
+             */
+            operating_hours?: string | null;
+            /**
+             * Partner Id
+             * @description ID of the partner associated with this place
+             */
+            partner_id?: string | null;
+            /**
+             * Is Owned
+             * @description Indicates if the place is owned by the company
+             * @default false
+             */
+            is_owned: boolean;
+        };
+        /**
          * PlacePublic
          * @description Represents place public.
          */
@@ -6030,6 +7814,79 @@ export interface components {
             id: string;
         };
         /**
+         * PlaceUpdate
+         * @description Represents place update.
+         */
+        PlaceUpdate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Type */
+            type?: string | null;
+            /** Code */
+            code?: string | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Longitude */
+            longitude?: number | null;
+            /** Timezone */
+            timezone?: string | null;
+            /** Address Line1 */
+            address_line1?: string | null;
+            /** Address Line2 */
+            address_line2?: string | null;
+            /** City */
+            city?: string | null;
+            /** Postal Code */
+            postal_code?: string | null;
+            /** Country */
+            country?: string | null;
+            /** Region */
+            region?: string | null;
+            /** Is Warehouse */
+            is_warehouse?: boolean | null;
+            /** Max Capacity M3 */
+            max_capacity_m3?: number | null;
+            /** Current Capacity M3 */
+            current_capacity_m3?: number | null;
+            /** Customs Clearance */
+            customs_clearance?: boolean | null;
+            /** Consolidation Service */
+            consolidation_service?: boolean | null;
+            /** Repackaging Service */
+            repackaging_service?: boolean | null;
+            /** Operating Hours */
+            operating_hours?: string | null;
+            /**
+             * Partner Id
+             * @description ID of the partner associated with this place
+             */
+            partner_id?: string | null;
+            /**
+             * Is Owned
+             * @description Indicates if the place is owned by the company
+             * @default false
+             */
+            is_owned: boolean;
+        };
+        /**
          * PlacesPublic
          * @description Represents places public.
          */
@@ -6045,6 +7902,244 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * ProductCreate
+         * @description Represents product create.
+         */
+        ProductCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Name
+             * @description Name of the product
+             */
+            name: string;
+            /**
+             * Description
+             * @description Description of the product
+             */
+            description?: string | null;
+            /**
+             * Long Description
+             * @description Long description of the product
+             */
+            long_description?: string | null;
+            /**
+             * Base Price
+             * @description Base price of the product (can be 0 for products without pricing)
+             * @default 0.00
+             */
+            base_price: number | string;
+            /**
+             * Cost Amount
+             * @description Product cost amount used to compute selling price
+             * @default 0.00
+             */
+            cost_amount: number | string;
+            /**
+             * Cost Currency
+             * @description Currency of the product cost amount
+             * @default XPF
+             */
+            cost_currency: string;
+            /**
+             * Customs Rate Pct
+             * @description Customs rate percentage applied before margin
+             * @default 0.00
+             */
+            customs_rate_pct: number | string;
+            /**
+             * Has Variants
+             * @description Indicates if the product has variants
+             * @default false
+             */
+            has_variants: boolean;
+            /**
+             * Supplier Sku
+             * @description Supplier/vendor SKU identifier
+             */
+            supplier_sku?: string | null;
+            /**
+             * Vendor Part Number
+             * @description Manufacturer part number
+             */
+            vendor_part_number?: string | null;
+            /**
+             * Manufacturer
+             * @description Product manufacturer
+             */
+            manufacturer?: string | null;
+            /**
+             * Supplier Name
+             * @description Name of the supplier/vendor (Ingram Micro, Tech Data, etc.)
+             */
+            supplier_name?: string | null;
+            /**
+             * Supplier Category
+             * @description Supplier's product category
+             */
+            supplier_category?: string | null;
+            /**
+             * Supplier Subcategory
+             * @description Supplier's product subcategory
+             */
+            supplier_subcategory?: string | null;
+            /**
+             * Weight
+             * @description Product weight in kg
+             */
+            weight?: number | null;
+            /**
+             * Dimensions Length
+             * @description Product length in cm
+             */
+            dimensions_length?: number | null;
+            /**
+             * Dimensions Width
+             * @description Product width in cm
+             */
+            dimensions_width?: number | null;
+            /**
+             * Dimensions Height
+             * @description Product height in cm
+             */
+            dimensions_height?: number | null;
+            /**
+             * Supplier Image Url
+             * @description Product image URL from supplier
+             */
+            supplier_image_url?: string | null;
+            /**
+             * Supplier Spec Url
+             * @description Product specification URL from supplier
+             */
+            supplier_spec_url?: string | null;
+            /**
+             * Supplier Quantity
+             * @description Available quantity from supplier
+             * @default 0.00
+             */
+            supplier_quantity: number | string;
+            /**
+             * Supplier Price
+             * @description Price from supplier
+             * @default 0.00
+             */
+            supplier_price: number | string;
+            /**
+             * Supplier Price Currency
+             * @description Currency of the supplier price (e.g., USD, EUR)
+             */
+            supplier_price_currency?: string | null;
+            /**
+             * Last Supplier Sync
+             * @description Last synchronization timestamp with supplier
+             */
+            last_supplier_sync?: string | null;
+            /**
+             * Is Supplier Managed
+             * @description Indicates if this product is managed by a supplier
+             * @default false
+             */
+            is_supplier_managed: boolean;
+            /**
+             * Last Enrichment Sync
+             * @description Last synchronization timestamp for enrichment data
+             */
+            last_enrichment_sync?: string | null;
+            /**
+             * Is Enriched
+             * @description Indicates if the product has been enriched with external data
+             * @default false
+             */
+            is_enriched: boolean;
+            /**
+             * Enrichment Supplier Id
+             * @description Identifier of the enrichment data supplier
+             */
+            enrichment_supplier_id?: string | null;
+            /**
+             * Upc
+             * @description Universal Product Code (UPC) of the product
+             */
+            upc?: string | null;
+            /**
+             * Ean
+             * @description European Article Number (EAN) of the product
+             */
+            ean?: string | null;
+            /**
+             * Image Url
+             * @description Main image URL of the product
+             */
+            image_url?: string | null;
+            /**
+             * Release Date
+             * @description Release date of the product
+             */
+            release_date?: string | null;
+            /**
+             * End Of Life Date
+             * @description End of life date of the product
+             */
+            end_of_life_date?: string | null;
+            /**
+             * Tax Rate Id
+             * @description Tax rate applied to this product
+             */
+            tax_rate_id?: string | null;
+            /**
+             * Is Featured
+             * @description Whether the product is highlighted in featured listings
+             * @default false
+             */
+            is_featured: boolean;
+            /**
+             * Featured Position
+             * @description Optional ordering position for featured listings
+             */
+            featured_position?: number | null;
+            /**
+             * Featured Until
+             * @description Optional expiration date for featured visibility
+             */
+            featured_until?: string | null;
+            /**
+             * Technical Specifications
+             * @description Technical specifications extracted from Icecat
+             */
+            technical_specifications?: {
+                [key: string]: unknown;
+            }[] | null;
+            /**
+             * Features
+             * @description Feature bullet points extracted from Icecat
+             */
+            features?: string[] | null;
+            /**
+             * Icecat Images
+             * @description Icecat gallery metadata for the product
+             */
+            icecat_images?: {
+                [key: string]: unknown;
+            }[] | null;
         };
         /**
          * ProductFeatureRequest
@@ -6324,6 +8419,168 @@ export interface components {
              */
             count: number;
             facets?: components["schemas"]["ProductSearchFacets"];
+        };
+        /**
+         * ProductShippingModesResponse
+         * @description Shipping-modes payload for a product detail page.
+         */
+        ProductShippingModesResponse: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Shipping Modes */
+            shipping_modes: components["schemas"]["ShippingModePricePublic"][];
+            /** Default Mode */
+            default_mode: string | null;
+        };
+        /**
+         * ProductUpdate
+         * @description Represents product update.
+         */
+        ProductUpdate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /**
+             * Long Description
+             * @description Long description of the product
+             */
+            long_description?: string | null;
+            /** Base Price */
+            base_price?: number | string | null;
+            /** Cost Amount */
+            cost_amount?: number | string | null;
+            /** Cost Currency */
+            cost_currency?: string | null;
+            /** Customs Rate Pct */
+            customs_rate_pct?: number | string | null;
+            /** Has Variants */
+            has_variants?: boolean | null;
+            /** Supplier Sku */
+            supplier_sku?: string | null;
+            /** Vendor Part Number */
+            vendor_part_number?: string | null;
+            /** Manufacturer */
+            manufacturer?: string | null;
+            /** Supplier Name */
+            supplier_name?: string | null;
+            /** Supplier Category */
+            supplier_category?: string | null;
+            /** Supplier Subcategory */
+            supplier_subcategory?: string | null;
+            /** Weight */
+            weight?: number | null;
+            /** Dimensions Length */
+            dimensions_length?: number | null;
+            /** Dimensions Width */
+            dimensions_width?: number | null;
+            /** Dimensions Height */
+            dimensions_height?: number | null;
+            /** Supplier Image Url */
+            supplier_image_url?: string | null;
+            /** Supplier Spec Url */
+            supplier_spec_url?: string | null;
+            /**
+             * Supplier Quantity
+             * @description Available quantity from supplier
+             * @default 0.00
+             */
+            supplier_quantity: number | string;
+            /**
+             * Supplier Price
+             * @description Price from supplier
+             * @default 0.00
+             */
+            supplier_price: number | string;
+            /**
+             * Supplier Price Currency
+             * @description Currency of the supplier price (e.g., USD, EUR)
+             */
+            supplier_price_currency?: string | null;
+            /** Last Supplier Sync */
+            last_supplier_sync?: string | null;
+            /** Is Supplier Managed */
+            is_supplier_managed?: boolean | null;
+            /**
+             * Last Enrichment Sync
+             * @description Last synchronization timestamp for enrichment data
+             */
+            last_enrichment_sync?: string | null;
+            /**
+             * Is Enriched
+             * @description Indicates if the product has been enriched with external data
+             * @default false
+             */
+            is_enriched: boolean;
+            /**
+             * Enrichment Supplier Id
+             * @description Identifier of the enrichment data supplier
+             */
+            enrichment_supplier_id?: string | null;
+            /**
+             * Upc
+             * @description Universal Product Code (UPC) of the product
+             */
+            upc?: string | null;
+            /**
+             * Ean
+             * @description European Article Number (EAN) of the product
+             */
+            ean?: string | null;
+            /**
+             * Image Url
+             * @description Main image URL of the product
+             */
+            image_url?: string | null;
+            /**
+             * Release Date
+             * @description Release date of the product
+             */
+            release_date?: string | null;
+            /**
+             * End Of Life Date
+             * @description End of life date of the product
+             */
+            end_of_life_date?: string | null;
+            /** Tax Rate Id */
+            tax_rate_id?: string | null;
+            /** Is Featured */
+            is_featured?: boolean | null;
+            /** Featured Position */
+            featured_position?: number | null;
+            /** Featured Until */
+            featured_until?: string | null;
+            /** Technical Specifications */
+            technical_specifications?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Features */
+            features?: string[] | null;
+            /** Icecat Images */
+            icecat_images?: {
+                [key: string]: unknown;
+            }[] | null;
         };
         /**
          * ProductsPublic
@@ -6631,8 +8888,26 @@ export interface components {
                 [key: string]: unknown;
             }[];
         };
-        /** SQLModel */
-        SQLModel: Record<string, never>;
+        /**
+         * ShippingModePricePublic
+         * @description Per-service-level price breakdown returned by the shipping-modes endpoint.
+         */
+        ShippingModePricePublic: {
+            /** Route Id */
+            route_id: string;
+            /** Service Level */
+            service_level: string | null;
+            /** Customer Label */
+            customer_label: string | null;
+            /** Freight */
+            freight: string;
+            /** Sale Price */
+            sale_price: string;
+            /** Eta Days */
+            eta_days: number | null;
+            /** Carbon Footprint Kg Co2E */
+            carbon_footprint_kg_co2e: number | null;
+        };
         /**
          * ShippingPathQuoteResponse
          * @description Quoted cost and metadata for one candidate shipping path.
@@ -6715,6 +8990,172 @@ export interface components {
         ShippingQuoteResponse: {
             /** Paths */
             paths?: components["schemas"]["ShippingPathQuoteResponse"][];
+        };
+        /**
+         * ShippingRouteCreate
+         * @description Represents shipping route create.
+         */
+        ShippingRouteCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * From Place Id
+             * Format: uuid
+             * @description Origin place
+             */
+            from_place_id: string;
+            /**
+             * To Place Id
+             * Format: uuid
+             * @description Destination place
+             */
+            to_place_id: string;
+            /**
+             * From Partner Id
+             * @description Origin partner (e.g., supplier)
+             */
+            from_partner_id?: string | null;
+            /**
+             * To Partner Id
+             * @description Destination partner (e.g., customer)
+             */
+            to_partner_id?: string | null;
+            /**
+             * Name
+             * @description Route name
+             */
+            name: string;
+            /**
+             * Description
+             * @description Route description
+             */
+            description?: string | null;
+            /**
+             * Is To Customer
+             * @description Route to final customer
+             * @default false
+             */
+            is_to_customer: boolean;
+            /**
+             * Allow Consolidation
+             * @description Allows package consolidation
+             * @default true
+             */
+            allow_consolidation: boolean;
+            /**
+             * Mode
+             * @description Mode: air, sea, road, pickup
+             */
+            mode: string;
+            /**
+             * Operator
+             * @description Operator (Air France, Ship X)
+             */
+            operator?: string | null;
+            /**
+             * Operator Ref
+             * @description Flight/BL/booking reference
+             */
+            operator_ref?: string | null;
+            /**
+             * Base Price
+             * @description Base price
+             */
+            base_price?: number | string | null;
+            /**
+             * Price Per Kg
+             * @description Price per kg
+             */
+            price_per_kg?: number | string | null;
+            /**
+             * Carbon Footprint Kg Co2E
+             * @description Carbon footprint kg CO2e
+             */
+            carbon_footprint_kg_co2e?: number | null;
+            /**
+             * Eta Days
+             * @description Estimated delay in days
+             */
+            eta_days?: number | null;
+            /**
+             * Max Weight Kg
+             * @description Maximum weight allowed
+             */
+            max_weight_kg?: number | null;
+            /**
+             * Max Volume M3
+             * @description Maximum volume allowed
+             */
+            max_volume_m3?: number | null;
+            /**
+             * Max Dimensions M
+             * @description Max dimensions {length, width, height}
+             */
+            max_dimensions_m?: string | null;
+            /**
+             * Service Level
+             * @description Cross-corridor service-level key for import routes: rapide | economique | ecologique. Null = not an import route.
+             */
+            service_level?: string | null;
+            /**
+             * Customer Label
+             * @description Dropdown label shown to the customer (e.g. 'Rapide (avion)')
+             */
+            customer_label?: string | null;
+            /**
+             * Is Default Import
+             * @description Pre-selected import route for anonymous / preference-less users
+             * @default false
+             */
+            is_default_import: boolean;
+            /**
+             * Status Code
+             * @description Current status
+             * @default draft
+             */
+            status_code: string | null;
+            /**
+             * Priority
+             * @description Display priority
+             * @default 0
+             */
+            priority: number;
+            /**
+             * Frequency Days
+             * @description Frequency in days
+             */
+            frequency_days?: number | null;
+            /**
+             * Departure Time
+             * @description Departure time (HH:MM)
+             */
+            departure_time?: string | null;
+            /**
+             * Notes
+             * @description Free notes
+             */
+            notes?: string | null;
+            /**
+             * Route Metadata
+             * @description Flexible metadata
+             */
+            route_metadata?: string | null;
         };
         /**
          * ShippingRoutePublic
@@ -6834,6 +9275,22 @@ export interface components {
              */
             max_dimensions_m?: string | null;
             /**
+             * Service Level
+             * @description Cross-corridor service-level key for import routes: rapide | economique | ecologique. Null = not an import route.
+             */
+            service_level?: string | null;
+            /**
+             * Customer Label
+             * @description Dropdown label shown to the customer (e.g. 'Rapide (avion)')
+             */
+            customer_label?: string | null;
+            /**
+             * Is Default Import
+             * @description Pre-selected import route for anonymous / preference-less users
+             * @default false
+             */
+            is_default_import: boolean;
+            /**
              * Status Code
              * @description Current status
              * @default draft
@@ -6870,6 +9327,68 @@ export interface components {
              * Format: uuid
              */
             id: string;
+        };
+        /**
+         * ShippingRouteTrackingConsolidationCreate
+         * @description Represents shipping route tracking consolidation create.
+         */
+        ShippingRouteTrackingConsolidationCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Route Id
+             * Format: uuid
+             * @description Parent route
+             */
+            route_id: string;
+            /**
+             * Name
+             * @description Consolidation name
+             */
+            name: string;
+            /**
+             * Consolidation Code
+             * @description Unique consolidation code
+             */
+            consolidation_code: string;
+            /**
+             * Status Id
+             * Format: uuid
+             * @description Consolidation status
+             */
+            status_id: string;
+            /**
+             * Tracking Ref
+             * @description Carrier tracking reference
+             */
+            tracking_ref?: string | null;
+            /**
+             * Total Orders
+             * @description Total number of orders
+             * @default 0
+             */
+            total_orders: number;
+            /**
+             * Notes
+             * @description Consolidation notes
+             */
+            notes?: string | null;
         };
         /**
          * ShippingRouteTrackingConsolidationPublic
@@ -6939,6 +9458,24 @@ export interface components {
             id: string;
         };
         /**
+         * ShippingRouteTrackingConsolidationUpdate
+         * @description Represents shipping route tracking consolidation update.
+         */
+        ShippingRouteTrackingConsolidationUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Status Id */
+            status_id?: string | null;
+            /** Tracking Ref */
+            tracking_ref?: string | null;
+            /** Total Orders */
+            total_orders?: number | null;
+            /** Notes */
+            notes?: string | null;
+        };
+        /**
          * ShippingRouteTrackingConsolidationsPublic
          * @description Represents shipping route tracking consolidations public.
          */
@@ -6954,6 +9491,91 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * ShippingRouteTrackingCreate
+         * @description Represents shipping route tracking create.
+         */
+        ShippingRouteTrackingCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Order Id
+             * Format: uuid
+             * @description Order ID being tracked
+             */
+            order_id: string;
+            /**
+             * Route Id
+             * Format: uuid
+             * @description Selected shipping route
+             */
+            route_id: string;
+            /**
+             * Status Id
+             * Format: uuid
+             * @description Current status (references StatusDefinition)
+             */
+            status_id: string;
+            /**
+             * Address Id
+             * Format: uuid
+             * @description Delivery address for this tracking
+             */
+            address_id: string;
+            /**
+             * Consolidation Id
+             * @description Linked consolidation if grouped
+             */
+            consolidation_id?: string | null;
+            /**
+             * Selected At
+             * Format: date-time
+             * @description When route was selected by customer
+             */
+            selected_at: string;
+            /**
+             * Sequence Order
+             * @description Order of this route in multi-hop journey (1=first, 2=second, etc.)
+             * @default 1
+             */
+            sequence_order: number;
+            /**
+             * Last Status Update
+             * @description Last status update timestamp
+             */
+            last_status_update?: string | null;
+            /**
+             * Tracking Ref
+             * @description Carrier tracking reference
+             */
+            tracking_ref?: string | null;
+            /**
+             * Estimated Delivery
+             * @description Estimated delivery date
+             */
+            estimated_delivery?: string | null;
+            /**
+             * Notes
+             * @description Tracking notes
+             */
+            notes?: string | null;
         };
         /**
          * ShippingRouteTrackingLogsPublic
@@ -7129,6 +9751,28 @@ export interface components {
             id: string;
         };
         /**
+         * ShippingRouteTrackingUpdate
+         * @description Represents shipping route tracking update.
+         */
+        ShippingRouteTrackingUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Status Id */
+            status_id?: string | null;
+            /** Consolidation Id */
+            consolidation_id?: string | null;
+            /** Sequence Order */
+            sequence_order?: number | null;
+            /** Last Status Update */
+            last_status_update?: string | null;
+            /** Tracking Ref */
+            tracking_ref?: string | null;
+            /** Estimated Delivery */
+            estimated_delivery?: string | null;
+            /** Notes */
+            notes?: string | null;
+        };
+        /**
          * ShippingRouteTrackingsPublic
          * @description Represents shipping route trackings public.
          */
@@ -7144,6 +9788,84 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * ShippingRouteUpdate
+         * @description Represents shipping route update.
+         */
+        ShippingRouteUpdate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /** From Place Id */
+            from_place_id?: string | null;
+            /** To Place Id */
+            to_place_id?: string | null;
+            /** From Partner Id */
+            from_partner_id?: string | null;
+            /** To Partner Id */
+            to_partner_id?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Is To Customer */
+            is_to_customer?: boolean | null;
+            /** Allow Consolidation */
+            allow_consolidation?: boolean | null;
+            /** Mode */
+            mode?: string | null;
+            /** Operator */
+            operator?: string | null;
+            /** Operator Ref */
+            operator_ref?: string | null;
+            /** Base Price */
+            base_price?: number | string | null;
+            /** Price Per Kg */
+            price_per_kg?: number | string | null;
+            /** Carbon Footprint Kg Co2E */
+            carbon_footprint_kg_co2e?: number | null;
+            /** Eta Days */
+            eta_days?: number | null;
+            /** Max Weight Kg */
+            max_weight_kg?: number | null;
+            /** Max Volume M3 */
+            max_volume_m3?: number | null;
+            /** Max Dimensions M */
+            max_dimensions_m?: string | null;
+            /** Service Level */
+            service_level?: string | null;
+            /** Customer Label */
+            customer_label?: string | null;
+            /** Is Default Import */
+            is_default_import?: boolean | null;
+            /** Status Code */
+            status_code?: string | null;
+            /** Priority */
+            priority?: number | null;
+            /** Frequency Days */
+            frequency_days?: number | null;
+            /** Departure Time */
+            departure_time?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Route Metadata */
+            route_metadata?: string | null;
         };
         /**
          * ShippingRoutesPublic
@@ -7246,6 +9968,78 @@ export interface components {
             count: number;
         };
         /**
+         * StatusDefinitionCreate
+         * @description Represents status definition create.
+         */
+        StatusDefinitionCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Entity
+             * @description Entity type: route, consolidation, delivery_task
+             */
+            entity: string;
+            /**
+             * Code
+             * @description Status code: draft, ready, dispatched, in_transit, arrived, closed
+             */
+            code: string;
+            /**
+             * Name
+             * @description Display name of status
+             */
+            name: string;
+            /**
+             * Description
+             * @description Status description
+             */
+            description?: string | null;
+            /**
+             * Sequence Order
+             * @description Display order
+             * @default 0
+             */
+            sequence_order: number;
+            /**
+             * Is Terminal
+             * @description Terminal status (end of process)
+             * @default false
+             */
+            is_terminal: boolean;
+            /**
+             * Is Error
+             * @description Indicates an error or exception state
+             * @default false
+             */
+            is_error: boolean;
+            /**
+             * Ui Color
+             * @description Color for interface
+             */
+            ui_color?: string | null;
+            /**
+             * Ui Icon
+             * @description Icon for interface
+             */
+            ui_icon?: string | null;
+        };
+        /**
          * StatusDefinitionPublic
          * @description Represents status definition public.
          */
@@ -7323,6 +10117,54 @@ export interface components {
             id: string;
         };
         /**
+         * StatusDefinitionUpdate
+         * @description Represents status definition update.
+         */
+        StatusDefinitionUpdate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /** Entity */
+            entity?: string | null;
+            /** Code */
+            code?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /**
+             * Sequence Order
+             * @description Display order
+             * @default 0
+             */
+            sequence_order: number;
+            /** Is Terminal */
+            is_terminal?: boolean | null;
+            /** Is Error */
+            is_error?: boolean | null;
+            /** Ui Color */
+            ui_color?: string | null;
+            /** Ui Icon */
+            ui_icon?: string | null;
+            /** Rank */
+            rank?: number | null;
+        };
+        /**
          * StatusDefinitionsPublic
          * @description Represents status definitions public.
          */
@@ -7338,6 +10180,68 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * StatusTransitionCreate
+         * @description Represents status transition create.
+         */
+        StatusTransitionCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Entity
+             * @description Entity type
+             */
+            entity: string;
+            /**
+             * From Code
+             * @description Source status
+             */
+            from_code: string;
+            /**
+             * To Code
+             * @description Target status
+             */
+            to_code: string;
+            /**
+             * Guard Name
+             * @description Business guard name
+             */
+            guard_name?: string | null;
+            /**
+             * Auto Advance
+             * @description Automatic transition
+             * @default false
+             */
+            auto_advance: boolean;
+            /**
+             * Requires Confirmation
+             * @description Requires confirmation
+             * @default false
+             */
+            requires_confirmation: boolean;
+            /**
+             * Requires Scan
+             * @description Requires scan
+             * @default false
+             */
+            requires_scan: boolean;
         };
         /**
          * StatusTransitionPublic
@@ -7405,6 +10309,44 @@ export interface components {
              * Format: uuid
              */
             id: string;
+        };
+        /**
+         * StatusTransitionUpdate
+         * @description Represents status transition update.
+         */
+        StatusTransitionUpdate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /** Entity */
+            entity?: string | null;
+            /** From Code */
+            from_code?: string | null;
+            /** To Code */
+            to_code?: string | null;
+            /** Guard Name */
+            guard_name?: string | null;
+            /** Auto Advance */
+            auto_advance?: boolean | null;
+            /** Requires Confirmation */
+            requires_confirmation?: boolean | null;
+            /** Requires Scan */
+            requires_scan?: boolean | null;
         };
         /**
          * StatusTransitionsPublic
@@ -7854,6 +10796,36 @@ export interface components {
             user_id: string;
         };
         /**
+         * WishlistUpdate
+         * @description Represents wishlist update.
+         */
+        WishlistUpdate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Is Public */
+            is_public?: boolean | null;
+        };
+        /**
          * WishlistsPublic
          * @description Represents wishlists public.
          */
@@ -7982,14 +10954,16 @@ export interface operations {
     };
     "partner-create_Partner": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartnerCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -8044,16 +11018,18 @@ export interface operations {
     };
     "partner-update_Partner": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartnerUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -8143,14 +11119,16 @@ export interface operations {
     };
     "place-create_Place": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaceCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -8205,16 +11183,18 @@ export interface operations {
     };
     "place-update_Place": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaceUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -8304,14 +11284,16 @@ export interface operations {
     };
     "payment-create_Payment": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -8366,16 +11348,18 @@ export interface operations {
     };
     "payment-update_Payment": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -8465,14 +11449,16 @@ export interface operations {
     };
     "payment-create_Payment_Method": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentMethodCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -8527,16 +11513,18 @@ export interface operations {
     };
     "payment-update_Payment_Method": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentMethodUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -9069,6 +12057,37 @@ export interface operations {
             };
         };
     };
+    "product-get_product_shipping_modes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductShippingModesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "product-search_products": {
         parameters: {
             query?: never;
@@ -9237,6 +12256,8 @@ export interface operations {
                 limit?: number;
                 order_by?: string | null;
                 include_archived?: boolean;
+                status?: string | null;
+                search?: string | null;
             };
             header?: never;
             path?: never;
@@ -9266,14 +12287,16 @@ export interface operations {
     };
     "product-create_Product": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -9328,16 +12351,18 @@ export interface operations {
     };
     "product-update_Product": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -9427,14 +12452,16 @@ export interface operations {
     };
     "discount-create_Discount": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscountCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -9489,16 +12516,18 @@ export interface operations {
     };
     "discount-update_Discount": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscountUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -9849,6 +12878,39 @@ export interface operations {
             };
         };
     };
+    "cart-create_guest_quote_request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuestQuoteRequestSubmit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestQuoteRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "cart-checkout_my_cart": {
         parameters: {
             query?: never;
@@ -9919,14 +12981,16 @@ export interface operations {
     };
     "category-create_Category": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -9981,16 +13045,18 @@ export interface operations {
     };
     "category-update_Category": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -10080,14 +13146,16 @@ export interface operations {
     };
     "brand-create_Brand": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrandCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -10142,16 +13210,18 @@ export interface operations {
     };
     "brand-update_Brand": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrandUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -10241,14 +13311,16 @@ export interface operations {
     };
     "group-create_Group": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -10303,16 +13375,18 @@ export interface operations {
     };
     "group-update_Group": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -10597,14 +13671,16 @@ export interface operations {
     };
     "group-security-create_Group_Security": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupSecurityCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -10659,16 +13735,18 @@ export interface operations {
     };
     "group-security-update_Group_Security": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupSecurityUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -10853,14 +13931,16 @@ export interface operations {
     };
     "order-status-create_Order-status": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderStatusCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -10915,16 +13995,18 @@ export interface operations {
     };
     "order-status-update_Order-status": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderStatusUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -11014,14 +14096,16 @@ export interface operations {
     };
     "order-create_Order": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -11245,14 +14329,16 @@ export interface operations {
     };
     "order-line-create_Order-line": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderLineCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -11307,16 +14393,18 @@ export interface operations {
     };
     "order-line-update_Order-line": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderLineUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -11504,14 +14592,16 @@ export interface operations {
     };
     "address-create_Address": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddressCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -11566,16 +14656,18 @@ export interface operations {
     };
     "address-update_Address": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddressUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -11866,14 +14958,16 @@ export interface operations {
     };
     "review-create_Review": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -11928,16 +15022,18 @@ export interface operations {
     };
     "review-update_Review": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -12297,14 +15393,16 @@ export interface operations {
     };
     "notification-create_Notification": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -12359,16 +15457,18 @@ export interface operations {
     };
     "notification-update_Notification": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -12913,14 +16013,16 @@ export interface operations {
     };
     "wishlist-create_Wishlist": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WishlistCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -12975,16 +16077,18 @@ export interface operations {
     };
     "wishlist-update_Wishlist": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WishlistUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -13154,14 +16258,16 @@ export interface operations {
     };
     "shipping-create_Route": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShippingRouteCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -13216,16 +16322,18 @@ export interface operations {
     };
     "shipping-update_Route": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShippingRouteUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -13465,14 +16573,16 @@ export interface operations {
     };
     "shipping-create_Status_Definition": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatusDefinitionCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -13527,16 +16637,18 @@ export interface operations {
     };
     "shipping-update_Status_Definition": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatusDefinitionUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -13626,14 +16738,16 @@ export interface operations {
     };
     "shipping-create_Status_Transition": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatusTransitionCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -13688,16 +16802,18 @@ export interface operations {
     };
     "shipping-update_Status_Transition": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatusTransitionUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -13787,14 +16903,16 @@ export interface operations {
     };
     "shipping-create_Delivery_Task": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryTaskCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -13849,16 +16967,18 @@ export interface operations {
     };
     "shipping-update_Delivery_Task": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryTaskUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -13948,14 +17068,16 @@ export interface operations {
     };
     "shipping-create_Tracking": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShippingRouteTrackingCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -14010,16 +17132,18 @@ export interface operations {
     };
     "shipping-update_Tracking": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShippingRouteTrackingUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -14271,14 +17395,16 @@ export interface operations {
     };
     "shipping-create_Consolidation": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShippingRouteTrackingConsolidationCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -14333,16 +17459,18 @@ export interface operations {
     };
     "shipping-update_Consolidation": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShippingRouteTrackingConsolidationUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -14844,14 +17972,16 @@ export interface operations {
     };
     "analytics-create_Analytics-user": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalyticsUserCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -14906,16 +18036,18 @@ export interface operations {
     };
     "analytics-update_Analytics-user": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalyticsUserUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -15005,14 +18137,16 @@ export interface operations {
     };
     "analytics-create_Analytics-sale": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalyticsSaleCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -15067,16 +18201,18 @@ export interface operations {
     };
     "analytics-update_Analytics-sale": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalyticsSaleUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -15166,14 +18302,16 @@ export interface operations {
     };
     "analytics-create_Analytics-product": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalyticsProductCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -15228,16 +18366,18 @@ export interface operations {
     };
     "analytics-update_Analytics-product": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalyticsProductUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -15327,14 +18467,16 @@ export interface operations {
     };
     "inventory-create_Inventory": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -15389,16 +18531,18 @@ export interface operations {
     };
     "inventory-update_Inventory": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -15488,14 +18632,16 @@ export interface operations {
     };
     "inventory-create_Stock-movement": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryStockMovementCreate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -15550,16 +18696,18 @@ export interface operations {
     };
     "inventory-update_Stock-movement": {
         parameters: {
-            query: {
-                data: components["schemas"]["SQLModel"];
-            };
+            query?: never;
             header?: never;
             path: {
                 id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryStockMovementUpdate"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

@@ -115,7 +115,10 @@ async def _collect_email_targets(
     """Execute collect email targets."""
     targets: list[str] = []
 
-    for key in ("user_id", "admin_user_id"):
+    # user_id is intentionally excluded: customer-facing payment emails
+    # are sent by app.handlers.order (on_payment_captured / on_payment_rejected)
+    # so that they can use proper Jinja2 HTML templates.
+    for key in ("admin_user_id",):
         email = await _resolve_user_email(session, payload.get(key))
         if email and email not in targets:
             targets.append(email)

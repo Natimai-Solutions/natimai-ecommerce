@@ -121,7 +121,9 @@ class ProductFilterRule(BaseModel):
     ``supplier``: when set, the rule only applies to that supplier name.
     """
 
-    field: Literal["supplier_subcategory", "supplier_category", "name_keyword", "unspsc_code"]
+    field: Literal[
+        "supplier_subcategory", "supplier_category", "name_keyword", "unspsc_code"
+    ]
     values: list[str]
     action: Literal["skip", "deactivate"] = "deactivate"
     supplier: str | None = None
@@ -135,13 +137,30 @@ def evaluate_product_filters(
     name: str | None = None,
     unspsc_codes: list[str] | None = None,
     rules: list[ProductFilterRule],
+    subcategory_allowlist: list[str] | None = None,
 ) -> Literal["skip", "deactivate"] | None:
     """Evaluate filter rules against a product's attributes.
 
     Returns the most restrictive matching action, or None if no rule matches.
     ``skip`` takes precedence over ``deactivate``.
+
+    ``subcategory_allowlist`` (when non-empty) restricts the catalog to the
+    listed ``supplier_subcategory`` values (case-insensitive). Any product whose
+    subcategory is not in the allowlist — including products with no subcategory
+    — is ``deactivate``d. This is a curation lever (level 1, import time): it
+    uses ``deactivate`` rather than ``skip`` so that products already imported
+    under other subcategories get hidden from the storefront on the next sync.
+    Explicit ``skip`` rules still take precedence.
     """
     matched_action: Literal["skip", "deactivate"] | None = None
+
+    if subcategory_allowlist:
+        in_allowlist = bool(supplier_subcategory) and any(
+            v.casefold() == supplier_subcategory.casefold()  # type: ignore[union-attr]
+            for v in subcategory_allowlist
+        )
+        if not in_allowlist:
+            matched_action = "deactivate"
 
     for rule in rules:
         if rule.supplier is not None and rule.supplier != supplier_name:
@@ -150,9 +169,13 @@ def evaluate_product_filters(
         matched = False
 
         if rule.field == "supplier_subcategory" and supplier_subcategory:
-            matched = any(v.casefold() == supplier_subcategory.casefold() for v in rule.values)
+            matched = any(
+                v.casefold() == supplier_subcategory.casefold() for v in rule.values
+            )
         elif rule.field == "supplier_category" and supplier_category:
-            matched = any(v.casefold() == supplier_category.casefold() for v in rule.values)
+            matched = any(
+                v.casefold() == supplier_category.casefold() for v in rule.values
+            )
         elif rule.field == "name_keyword" and name:
             name_lower = name.casefold()
             matched = any(v.casefold() in name_lower for v in rule.values)

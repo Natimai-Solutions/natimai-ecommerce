@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: ghcr.io/GITHUB_OWNER/REPO_NAME/backend:latest
+          image: ghcr.io/GITHUB_OWNER/REPO_NAME/api:latest
           command: ["api"]
           ports:
             - containerPort: 8000
@@ -28,7 +28,11 @@ spec:
             - name: WORKERS
               value: "2"
             - name: CLAMAV_ENABLED
-              value: "false"
+              value: "true"
+            - name: CLAMAV_HOST
+              value: "clamav"
+            - name: CLAMAV_PORT
+              value: "3310"
           resources:
             requests:
               memory: 256Mi
@@ -66,7 +70,7 @@ spec:
     spec:
       containers:
         - name: worker
-          image: ghcr.io/GITHUB_OWNER/REPO_NAME/backend:latest
+          image: ghcr.io/GITHUB_OWNER/REPO_NAME/api:latest
           command: ["worker"]
           envFrom:
             - secretRef:
@@ -99,7 +103,7 @@ spec:
     spec:
       containers:
         - name: poller
-          image: ghcr.io/GITHUB_OWNER/REPO_NAME/backend:latest
+          image: ghcr.io/GITHUB_OWNER/REPO_NAME/api:latest
           command: ["poller", "--mode", "continuous", "--interval", "5"]
           envFrom:
             - secretRef:

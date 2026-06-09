@@ -36,8 +36,8 @@ dependencies = [
     "pyyaml>=6.0.0",  # Lecture de spec_definitions.yaml pour les specs filtrables
 ]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest<8.0.0,>=7.4.3",
     "mypy<2.0.0,>=1.8.0",
     "ruff<1.0.0,>=0.2.2",

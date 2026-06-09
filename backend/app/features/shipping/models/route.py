@@ -93,6 +93,26 @@ class ShippingRouteBase(Base):
         description="Max dimensions {length, width, height}",
     )
 
+    # Import-route identification (France → Papeete leg that enters CAF customs base)
+    service_level: str | None = Field(
+        default=None,
+        max_length=50,
+        index=True,
+        description=(
+            "Cross-corridor service-level key for import routes: "
+            "rapide | economique | ecologique. Null = not an import route."
+        ),
+    )
+    customer_label: str | None = Field(
+        default=None,
+        max_length=100,
+        description="Dropdown label shown to the customer (e.g. 'Rapide (avion)')",
+    )
+    is_default_import: bool = Field(
+        default=False,
+        description="Pre-selected import route for anonymous / preference-less users",
+    )
+
     # Status and management
     status_code: str | None = Field(
         default="draft", max_length=50, description="Current status"
@@ -176,6 +196,9 @@ class ShippingRouteUpdate(ShippingRouteBase, BaseUpdate):
     max_weight_kg: float | None = None
     max_volume_m3: float | None = None
     max_dimensions_m: str | None = None
+    service_level: str | None = None
+    customer_label: str | None = None
+    is_default_import: bool | None = None
     status_code: str | None = None
     priority: int | None = None
     frequency_days: int | None = None

@@ -76,6 +76,8 @@ class ProductRouter(
             limit: int = 100,
             order_by: str | None = None,
             include_archived: bool = False,
+            status: str | None = None,
+            search: str | None = None,
             current_user: CurrentUser | None = Depends(get_current_user_optional),
         ) -> Any:
             await self._check_auth(session, "read", current_user)
@@ -88,6 +90,28 @@ class ProductRouter(
                     col(Product.is_admin_active).is_(True),
                     col(Product.is_enriched).is_(True),
                 )
+            else:
+                conditions: list[Any] = []
+                if status == "active":
+                    conditions.append(col(Product.is_active).is_(True))
+                elif status == "enriched":
+                    conditions.append(col(Product.is_enriched).is_(True))
+                elif status == "inactive":
+                    conditions.append(col(Product.is_active).is_(False))
+                term = (search or "").strip()
+                if term:
+                    pattern = f"%{term}%"
+                    conditions.append(
+                        col(Product.name).ilike(pattern)
+                        | col(Product.supplier_sku).ilike(pattern)
+                        | col(Product.vendor_part_number).ilike(pattern)
+                    )
+                if conditions:
+                    statement = (
+                        select(Product)
+                        .where(*conditions)
+                        .order_by(col(Product.created_at))
+                    )
 
             result = await self.crud.read_multi(
                 session,

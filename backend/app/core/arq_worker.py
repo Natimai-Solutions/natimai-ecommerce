@@ -9,7 +9,9 @@ from app.outbox.consumer import execute_outbox_handler
 from app.tasks.icecat_tasks import (
     batch_enrich_products_task,
     enrich_product_with_icecat_task,
+    get_enrichment_cron_jobs,
     reproject_product_specs_task,
+    scheduled_batch_enrich_task,
 )
 from app.tasks.supplier_tasks import (
     check_supplier_health_task,
@@ -70,12 +72,14 @@ class WorkerSettings:
         # Tâches Icecat
         enrich_product_with_icecat_task,
         batch_enrich_products_task,
+        scheduled_batch_enrich_task,
         reproject_product_specs_task,
         # ... tes autres handlers
     ]
 
-    # Cron jobs pour la synchronisation planifiée (un jeu par fournisseur enregistré)
-    cron_jobs = get_supplier_sync_cron_jobs()
+    # Cron jobs : synchronisation fournisseurs (un jeu par fournisseur enregistré)
+    # + enrichissement Icecat récurrent (drainage du backlog non-enrichi).
+    cron_jobs = get_supplier_sync_cron_jobs() + get_enrichment_cron_jobs()
 
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)
     # pas besoin de cron job ici

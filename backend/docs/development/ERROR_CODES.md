@@ -153,11 +153,12 @@ async def record_not_found_handler(_req: Request, exc: RecordNotFoundError) -> J
 
 ### Domaine `address`
 
-| Code                   | HTTP | Déclencheur                                   | `details` exposés            |
-|------------------------|------|-----------------------------------------------|------------------------------|
-| `address.not_found`    | 404  | Adresse introuvable                            | `address_id`                 |
-| `address.not_owned`    | 403  | Accès à des adresses d'un autre utilisateur    | `user_id`                    |
-| `address.type.invalid` | 400  | Type d'adresse invalide                        | `address_type`, `allowed`    |
+| Code                        | HTTP | Déclencheur                                            | `details` exposés            |
+|-----------------------------|------|--------------------------------------------------------|------------------------------|
+| `address.not_found`         | 404  | Adresse introuvable                                    | `address_id`                 |
+| `address.not_owned`         | 403  | Accès à des adresses d'un autre utilisateur            | `user_id`                    |
+| `address.type.invalid`      | 400  | Type d'adresse invalide                                | `address_type`, `allowed`    |
+| `address.already_validated` | 400  | Tentative de validation d'une adresse déjà validée     | `address_id`                 |
 
 ### Domaine `notification`
 
@@ -256,6 +257,35 @@ async def record_not_found_handler(_req: Request, exc: RecordNotFoundError) -> J
 |---------------------------------------------|------|--------------------------------------------------------------|-------------------|
 | `currency_rate.active.not_found`            | 404  | Aucun taux actif trouvé pour une devise demandée             | `currency_code`   |
 | `currency_rate.reference_currency.unsupported` | 400 | Tentative d'upsert sur la devise de référence XPF           | `currency_code`   |
+
+### Domaine `user`
+
+| Code                       | HTTP | Déclencheur                                                     | `details` exposés                            |
+|----------------------------|------|-----------------------------------------------------------------|----------------------------------------------|
+| `user.preference.invalid`  | 400  | Valeur invalide pour un champ de préférence (locale, mode…)    | `field`, `value`, `allowed`                  |
+| `user.upgrade_request.not_found` | 404 | Demande d'upgrade de groupe introuvable                  | `request_id`                                 |
+| `user.upgrade_request.duplicate` | 409 | Demande déjà en attente pour ce groupe                   | `user_id`, `price_group_id`                  |
+| `user.upgrade_request.wrong_status` | 400 | Approbation/rejet d'une demande déjà traitée          | `request_id`, `status`                       |
+| `user.upgrade_request.not_required` | 400 | Groupe cible ne requiert pas de validation            | `price_group_id`                             |
+
+### Domaine `tax_rate`
+
+| Code                          | HTTP | Déclencheur                                               | `details` exposés                            |
+|-------------------------------|------|-----------------------------------------------------------|----------------------------------------------|
+| `tax_rate.not_found`          | 404  | TaxRate introuvable ou inactif                           | `tax_rate_id`                                |
+| `tax_rate.invalid_valid_until`| 400  | `valid_until` antérieur à `valid_from`                   | `tax_rate_id`, `valid_from`, `valid_until`   |
+
+### Domaine `category`
+
+| Code                   | HTTP | Déclencheur                   | `details` exposés |
+|------------------------|------|-------------------------------|-------------------|
+| `category.not_found`   | 404  | Catégorie introuvable          | `category_id`     |
+
+### Domaine `supplier_order`
+
+| Code                       | HTTP | Déclencheur                                            | `details` exposés    |
+|----------------------------|------|--------------------------------------------------------|----------------------|
+| `supplier_order.not_found` | 404  | Commande fournisseur introuvable (détail / retry admin) | `supplier_order_id`  |
 
 ### Domaine `product`
 
@@ -512,6 +542,16 @@ export function translateApiError(
     },
     "reference_currency": {
       "unsupported": "XPF est la devise de référence : aucun taux de conversion n'est requis."
+    }
+  },
+  "user": {
+    "preference": {
+      "invalid": "Valeur invalide pour la préférence {{field}} : {{value}}. Valeurs acceptées : {{allowed}}."
+    },
+    "upgrade_request": {
+      "not_found": "Demande d'upgrade de groupe introuvable.",
+      "duplicate": "Une demande est déjà en attente pour ce groupe.",
+      "wrong_status": "Cette demande a déjà été traitée."
     }
   },
   "product": {

@@ -35,7 +35,6 @@ async def test_upsert_product_does_not_overwrite_manual_product(
         supplier_sku="SKU-001",
     )
     created_product = SimpleNamespace(id=uuid.uuid4())
-    updated_mapping = SimpleNamespace(id=uuid.uuid4())
 
     item = NormalizedProductData(
         supplier_sku="SKU-001",
@@ -49,9 +48,8 @@ async def test_upsert_product_does_not_overwrite_manual_product(
 
     get_mapping_mock = AsyncMock(return_value=mapping)
     get_supplier_product_mock = AsyncMock(return_value=None)
-    update_product_mock = AsyncMock()
-    create_product_mock = AsyncMock(return_value=created_product)
-    upsert_mapping_mock = AsyncMock(return_value=updated_mapping)
+    update_draft_mock = AsyncMock()
+    create_draft_mock = AsyncMock(return_value=created_product)
 
     session.get = AsyncMock(return_value=manual_product)
 
@@ -65,18 +63,16 @@ async def test_upsert_product_does_not_overwrite_manual_product(
         "get_by_supplier_sku",
         get_supplier_product_mock,
     )
-    monkeypatch.setattr(crud_product, "update", update_product_mock)
-    monkeypatch.setattr(crud_product, "create", create_product_mock)
-    monkeypatch.setattr(
-        supplier_product_mapping_crud,
-        "upsert_mapping_for_sku",
-        upsert_mapping_mock,
-    )
+    monkeypatch.setattr(crud_product, "update_draft", update_draft_mock)
+    monkeypatch.setattr(crud_product, "create_draft", create_draft_mock)
 
     result = await orchestrator.upsert_product(session=session, item=item)
 
-    update_product_mock.assert_not_awaited()
-    create_product_mock.assert_awaited_once()
-    upsert_mapping_mock.assert_awaited_once()
+    # A manual product (is_supplier_managed=False) is resolved by
+    # _resolve_existing_product as "no managed product" → the orchestrator
+    # creates a new supplier-managed product instead of overwriting the
+    # manual one. update_draft must never run on the manual record.
+    update_draft_mock.assert_not_awaited()
+    create_draft_mock.assert_awaited_once()
     assert result["action"] == "created"
     assert result["product_id"] == str(created_product.id)

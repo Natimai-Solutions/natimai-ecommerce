@@ -39,6 +39,10 @@ from app.features.payment.services.document_payment import (
 from app.features.payment.services.document_payment import (
     register_intent as register_document_intent,
 )
+from app.features.payment.services.eligibility import (
+    check_payment_method_eligible,
+    get_eligible_payment_methods,
+)
 from app.features.payment.services.manual_payment import (
     register_intent as register_manual_intent,
 )
@@ -64,6 +68,9 @@ _WEBHOOK_RECEIVED_EVENT = "payment.webhook_received"
 
 _PAYMENT_STATUS_COMPLETED = "Completed"
 _PAYMENT_STATUS_FAILED = "Failed"
+_TERMINAL_PAYMENT_STATUS_NAMES: frozenset[str] = frozenset(
+    {_PAYMENT_STATUS_COMPLETED, _PAYMENT_STATUS_FAILED}
+)
 # Order status names live in app.handlers.payment now — they are derived
 # from the outbox event types this module publishes (payment.captured /
 # payment.rejected).
@@ -527,6 +534,8 @@ async def initiate_payment(
     current_user: CurrentUser,
 ) -> PaymentsInitiateResponse:
     """Execute initiate payment."""
+    # Resolve the method first so an unknown/inactive method yields a precise
+    # 404/400 rather than being masked by the eligibility guard below.
     try:
         provider_code = await resolve_provider_code_for_payment_method(
             session,
@@ -553,6 +562,22 @@ async def initiate_payment(
             message=str(e),
             details={"payment_method_id": str(request.payment_method_id)},
         ) from e
+
+    # Group eligibility check: verify the method is available to the user's price group
+    # and that the amount does not exceed max_amount.
+    eligible = await check_payment_method_eligible(
+        session,
+        payment_method_id=request.payment_method_id,
+        price_group_id=current_user.price_group_id,
+        amount=request.amount,
+    )
+    if not eligible:
+        raise AppError(
+            code="payment.method.not_eligible",
+            status_code=403,
+            message="This payment method is not available for your account or order amount",
+            details={"payment_method_id": str(request.payment_method_id)},
+        )
 
     try:
         provider = get_provider(provider_code)
@@ -899,6 +924,85 @@ async def confirm_document_uploaded(
         payment_status_id=payment.payment_status_id,
         av_scan="queued",
     )
+
+
+class PaymentStatusResponse(BaseModel):
+    """Lightweight payment status for frontend polling."""
+
+    payment_id: uuid.UUID
+    status_name: str | None = None
+    is_terminal: bool = False
+    provider_code: str | None = None
+    amount: Decimal
+    currency: str
+    order_id: uuid.UUID | None = None
+
+
+@router.get("/me/{payment_id}", response_model=PaymentStatusResponse)
+async def get_my_payment_status(
+    payment_id: uuid.UUID,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> PaymentStatusResponse:
+    """Return the current status of a payment belonging to the authenticated user.
+
+    Designed for frontend polling after a Payzen SmartForm submission.
+    Returns immediately with the latest DB state — no blocking wait.
+    """
+    try:
+        payment = await crud_payment.read(session, id=payment_id)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="payment.not_found",
+            status_code=404,
+            message=f"Payment {payment_id} not found",
+            details={"payment_id": str(payment_id)},
+        ) from exc
+
+    if payment.user_id != current_user.id:
+        raise AppError(
+            code="payment.not_owned",
+            status_code=403,
+            message="You cannot access this payment",
+            details={"payment_id": str(payment_id)},
+        )
+
+    status_name: str | None = None
+    if payment.payment_status_id is not None:
+        status_record = await session.get(PaymentStatus, payment.payment_status_id)
+        if status_record is not None:
+            status_name = status_record.name
+
+    return PaymentStatusResponse(
+        payment_id=payment.id,
+        status_name=status_name,
+        is_terminal=status_name in _TERMINAL_PAYMENT_STATUS_NAMES,
+        provider_code=payment.provider_code,
+        amount=payment.amount,
+        currency=payment.currency,
+        order_id=payment.order_id,
+    )
+
+
+@router.get("/me/methods", response_model=list[dict[str, Any]])
+async def list_my_payment_methods(
+    session: SessionDep,
+    current_user: CurrentUser,
+    cart_total: Decimal | None = None,
+) -> list[dict[str, Any]]:
+    """Return active payment methods available for the authenticated user.
+
+    Filters by the user's price group and optional cart_total (max_amount check).
+    Methods with no eligibility restriction are always included.
+    """
+    from app.features.payment.models.payment_method import PaymentMethodPublic
+
+    methods = await get_eligible_payment_methods(
+        session,
+        price_group_id=current_user.price_group_id,
+        cart_total=cart_total,
+    )
+    return [PaymentMethodPublic.model_validate(m).model_dump() for m in methods]
 
 
 @router.post("/webhooks/{provider_code}")
