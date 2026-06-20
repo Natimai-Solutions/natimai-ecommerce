@@ -19,6 +19,7 @@ from app.api.routes.shipping.tracking import (
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.order.crud.order_crud import crud_order
+from app.features.order.models.order import OrderPublic
 from app.features.shipping.crud import (
     crud_shipping_route_tracking,
     crud_shipping_route_tracking_consolidation,
@@ -44,6 +45,24 @@ class CustomerOrderTrackingResponse(SQLModel):
     consolidations: list[ShippingRouteTrackingConsolidationPublic] = Field(
         default_factory=list
     )
+
+
+@router.get(
+    "/me",
+    response_model=list[OrderPublic],
+    summary="List my orders",
+)
+async def list_my_orders(
+    session: SessionDep,
+    current_user: CurrentUser,
+    skip: int = 0,
+    limit: int = 100,
+) -> list[OrderPublic]:
+    """List the authenticated user's orders (most recent first)."""
+    orders = await crud_order.get_by_user(
+        session=session, user_id=current_user.id, skip=skip, limit=limit
+    )
+    return [OrderPublic.model_validate(order) for order in orders]
 
 
 @router.get(

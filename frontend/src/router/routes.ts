@@ -37,6 +37,16 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/OAuthCallbackPage.vue'),
       },
       {
+        path: 'mon-compte',
+        name: 'account',
+        component: () => import('pages/MyAccountPage.vue'),
+      },
+      {
+        path: 'mon-compte/commandes/:id',
+        name: 'order-tracking',
+        component: () => import('pages/OrderTrackingPage.vue'),
+      },
+      {
         path: 'checkout',
         name: 'checkout',
         component: () => import('pages/CheckoutPage.vue'),

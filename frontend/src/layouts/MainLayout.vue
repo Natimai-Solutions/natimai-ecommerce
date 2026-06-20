@@ -39,6 +39,18 @@
           </q-badge>
         </q-btn>
 
+        <!-- Mon compte (connecté uniquement) -->
+        <q-btn
+          v-if="authStore.isAuthenticated"
+          flat
+          dense
+          no-caps
+          icon="person"
+          label="Mon compte"
+          :to="{ name: 'account' }"
+          :class="{ 'text-primary': $route.name === 'account' }"
+        />
+
         <!-- Connexion / déconnexion -->
         <q-btn
           v-if="!authStore.isAuthenticated"
@@ -75,6 +87,15 @@
           <q-item-section side>
             <q-badge v-if="cartCount > 0" color="primary">{{ cartCount }}</q-badge>
           </q-item-section>
+        </q-item>
+        <q-item
+          v-if="authStore.isAuthenticated"
+          clickable
+          :to="{ name: 'account' }"
+          @click="drawerOpen = false"
+        >
+          <q-item-section avatar><q-icon name="person" /></q-item-section>
+          <q-item-section>Mon compte</q-item-section>
         </q-item>
       </q-list>
     </q-drawer>

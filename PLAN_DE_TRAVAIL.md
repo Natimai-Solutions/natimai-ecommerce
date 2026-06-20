@@ -528,14 +528,23 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 | Feature | Backend | Vitrine (`frontend`) | Admin (`admin-frontend`) |
 |---------|---------|----------------------|--------------------------|
 | Inscription / login + OAuth Google/MS | ✅ | ✅ `LoginPage.vue` + `OAuthCallbackPage.vue` | ✅ `LoginPage.vue` (admin) |
-| Profil + préférences utilisateur | ✅ `/users/me/preferences` | 🔲 page préférences | — |
-| Adresses self-service + validation | ✅ | 🔲 page compte / adresses | 🔲 validation des adresses |
+| Profil + préférences utilisateur | ✅ `/users/me/preferences` | ✅ `MyAccountPage.vue` (onglet Préférences) | — |
+| Adresses self-service + validation | ✅ | ✅ `MyAccountPage.vue` (onglet Adresses, CRUD) | 🔲 validation des adresses |
 | Demande d'upgrade de groupe | ✅ | 🔲 formulaire upgrade (justificatif) | 🔲 écran validation des demandes |
 | TVA / TGC — admin CRUD | ✅ `/admin/tax-rates` | — | 🔲 écran taux |
 | Paiement CB (Payzen) | ✅ | ✅ `CheckoutPage.vue` + `PaymentReturnPage.vue` | — |
 | Emails commande / paiement | ✅ | — (transactionnel) | — |
 | Commande auto Ingram (SUPPLIER_DIRECT) | ✅ | — | 🔲 écran `supplier-orders` + retry |
 | Taxonomie / catégories internes | ✅ | ⏳ dropdown catégorie | 🔲 fusion / renommage catégories |
+
+### Avancement vitrine (19/06/2026)
+
+- ✅ **Espace « Mon compte »** (`MyAccountPage.vue`, route `/mon-compte` name `account`, entrée nav toolbar + drawer visible si connecté ; redirection `login?redirect=/mon-compte` si anonyme).
+  - ✅ Onglet **Préférences** : `GET/PUT /users/me/preferences` — toggles notifications (email, suivi expédition) + selects niveau de service import, préférence livraison, langue, devise. Bannières succès/erreur (Quasar `Notify` non activé dans ce projet).
+  - ✅ Onglet **Adresses** : CRUD `/users/me/addresses` (liste cartes + badge `is_validated`, dialog création/édition, confirmation suppression).
+  - Modules API : [frontend/src/api/account.ts](frontend/src/api/account.ts) · [frontend/src/api/addresses.ts](frontend/src/api/addresses.ts). Typecheck (`vue-tsc`) + lint verts.
+- 🔲 **Reste vitrine P2** : formulaire **demande d'upgrade de groupe** (nécessite un endpoint public de liste des `PriceGroup` + lecture du groupe courant — ajouts backend à prévoir).
+- 🔲 **Reste vitrine P3** : page **suivi de commande** (`OrderTrackingPage.vue` → `GET /orders/me/{id}/tracking`).
 
 ### Périmètre fonctionnel
 
@@ -684,7 +693,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 |---------|---------|----------------------|--------------------------|
 | Éligibilité paiement ↔ groupe | ✅ | ✅ méthodes filtrées au checkout | 🔲 écran éligibilité (`/admin/payment-methods/{id}/groups`) |
 | Notifications tracking (expédié / livré) | ✅ | — (email) | — |
-| Suivi de commande client | ✅ `/orders/me/{id}/tracking` | 🔲 page suivi de commande | — |
+| Suivi de commande client | ✅ `/orders/me/{id}/tracking` + `GET /orders/me` | ✅ `MyAccountPage.vue` (onglet Commandes) + `OrderTrackingPage.vue` | — |
 | Webhook Ingram — statut fournisseur | ✅ | — | 🔲 visible via écran `supplier-orders` (backlog P2) |
 | **Catalogue specs éditable (multi-cat.)** | ✅ `/admin/spec-definitions` | — | 🔲 **écran CRUD specs + alias** |
 | Devises — display setting | ✅ `/system/settings` | 🔲 toggle devise (→ P4) | 🔲 écran `system-settings` |
@@ -753,7 +762,14 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 > - Écran « Éligibilité paiement » : matrice méthode × groupe + `max_amount` (`/admin/payment-methods/{id}/groups`).
 > - Écran « System settings » : édition `default_display_currency` (prépare le toggle multi-devises P4).
 >
-> Côté **vitrine** : page `OrderTrackingPage.vue` consommant `GET /orders/me/{id}/tracking`.
+> Côté **vitrine** : ✅ livré (cf. *Avancement vitrine* ci-dessous).
+
+### Avancement vitrine (20/06/2026)
+
+- ✅ **Suivi de commande client** :
+  - Backend : ajout `GET /orders/me` (liste des commandes du client connecté, tri `created_at` desc, scope JWT) — complète le namespace `/orders/me` aux côtés de `/orders/me/{id}/tracking`. Tests : [app/tests/api/test_orders_me_routes.py](backend/app/tests/api/test_orders_me_routes.py) (scope user + liste vide).
+  - Vitrine : onglet **Commandes** dans `MyAccountPage.vue` (liste + bouton « Suivre ») et page **`OrderTrackingPage.vue`** (route `/mon-compte/commandes/:id` name `order-tracking`) consommant `GET /orders/me/{id}/tracking` : statut global mappé en libellés FR, scénarios d'exception (`supplier_delay`/`parcel_split`/`segment_failure`), timeline des tronçons (`q-timeline`), envois consolidés. Gestion 403/404.
+  - Module API : [frontend/src/api/orders.ts](frontend/src/api/orders.ts). Typecheck (`vue-tsc`) + lint verts.
 
 ### Hors périmètre Phase 3
 
