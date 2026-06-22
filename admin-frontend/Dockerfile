@@ -31,6 +31,6 @@ FROM nginx:1.27-alpine AS runner
 COPY --from=builder /workspace/admin-frontend/dist/spa /usr/share/nginx/html
 COPY admin-frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+EXPOSE 3001
 
 CMD ["nginx", "-g", "daemon off;"]

@@ -883,6 +883,36 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 
 ---
 
+## Chantier admin-frontend (transverse)
+
+Les Phases 0–3 ont livré les **endpoints admin** mais l'`admin-frontend` ne comptait que `LoginPage` + `ProductsPage`. Ce chantier construit les écrans back-office qui pilotent ces endpoints. Convention reprise du storefront : `api` axios (`src/boot/api`), stores Pinia, `q-table` pour les listes, bannières inline (Quasar `Notify`/`Dialog` non activés), guard d'auth global déjà en place.
+
+### Backlog par écran
+
+| # | Écran | Endpoints | Phase | État |
+|---|-------|-----------|-------|------|
+| A1 | **Taux TVA/TGC** | `GET/POST/PUT /admin/tax-rates` | 2 | ✅ livré (20/06/2026) |
+| A2 | **Taux de change** | `GET /admin/currency-rates`, `PUT /admin/currency-rates/{code}` | 1/4 | ✅ livré (20/06/2026) |
+| A3 | **Catalogue de specs** | `GET/POST/PUT/DELETE /admin/spec-definitions` | 3 | ✅ livré (20/06/2026) |
+| A4 | **Commandes fournisseurs** | `GET /admin/supplier-orders[/{id}]`, `POST .../{id}/retry` | 2 | ✅ livré (20/06/2026) |
+| A5 | **System settings** | `GET /admin/system-settings`, `PUT .../{key}` | 3 | ✅ livré (20/06/2026) |
+| A6 | **Demandes d'upgrade de groupe** | `GET /admin/group-upgrade-requests`, `POST .../{id}/approve\|reject` | 2 | ✅ livré (20/06/2026) |
+| A7 | **Éligibilité paiement** | `GET/POST/DELETE /admin/payment-methods/{id}/groups`, `GET /payment_method`, `GET /admin/price-groups` *(nouveau)* | 3 | ✅ livré (20/06/2026) |
+| A8 | Toggle « mis en avant » sur `ProductsPage` | `POST/DELETE /product/{id}/feature` | 1 | 🔲 à faire |
+| A9 | Affectation directe de groupe à un user | `POST /admin/users/{id}/assign-price-group` + recherche user | 2 | 🔲 à faire (UX recherche user) |
+| A10 | Validation des adresses | *manque un endpoint listant les adresses à valider* | 2 | ⛔ bloqué (ajout backend requis) |
+| A11 | Consultation des `QuoteRequest` | *manque un endpoint admin de listing des devis* | 1 | ⛔ bloqué (ajout backend requis) |
+| A12 | Fusion / renommage de catégories | *manque un endpoint de merge* | 2 | ⛔ bloqué (ajout backend requis) |
+
+### Avancement (20/06/2026)
+
+- ✅ **Shell admin** : `AdminLayout.vue` doté d'un `q-drawer` de navigation (sections Catalogue / Tarification / Commandes / Clients / Système) ; routes ajoutées dans `admin-frontend/src/router/routes.ts`.
+- ✅ **Backend** : `GET /admin/price-groups` (superuser, lecture seule) ajouté dans [admin_payment_eligibility.py](backend/app/api/routes/admin_payment_eligibility.py) — débloque A7 (et préparera A9). Test : [test_admin_price_groups.py](backend/app/tests/api/test_admin_price_groups.py).
+- ✅ **Écrans A1→A7** livrés (cf. tableau). Modules API dédiés sous `admin-frontend/src/api/`.
+- 🔲 Restent A8 (featured), A9 (assign group — UX recherche user), et A10–A12 (ajouts backend requis).
+
+---
+
 ## Dépendances inter-phases
 
 ```

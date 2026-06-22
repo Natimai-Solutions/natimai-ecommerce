@@ -12,6 +12,19 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: '', redirect: '/products' },
       { path: 'products', component: () => import('pages/ProductsPage.vue') },
+      { path: 'tax-rates', component: () => import('pages/TaxRatesPage.vue') },
+      { path: 'currency-rates', component: () => import('pages/CurrencyRatesPage.vue') },
+      { path: 'spec-definitions', component: () => import('pages/SpecDefinitionsPage.vue') },
+      { path: 'supplier-orders', component: () => import('pages/SupplierOrdersPage.vue') },
+      { path: 'system-settings', component: () => import('pages/SystemSettingsPage.vue') },
+      {
+        path: 'group-upgrade-requests',
+        component: () => import('pages/GroupUpgradeRequestsPage.vue'),
+      },
+      {
+        path: 'payment-eligibility',
+        component: () => import('pages/PaymentEligibilityPage.vue'),
+      },
     ],
   },
 
