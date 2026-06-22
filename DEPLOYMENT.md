@@ -372,3 +372,88 @@ Then verify health and supplier sync as described in
 | `CLAMAV_ENABLED` | `false` | `true` (if ClamAV deployed) |
 | `INGRAM_ORDER_CREATION_ENABLED` | `false` | `true` (after ship‑to set) |
 ```
+
+---
+
+## 9. Reverse proxy (Caddy) — déploiement docker‑compose
+
+Le déploiement docker‑compose n'expose par défaut que des ports « bruts »
+(`8000`, `3000`, `3001`) sans TLS. Pour la production, un reverse proxy **Caddy**
+([`infra/caddy/Caddyfile`](infra/caddy/Caddyfile) +
+[`docker-compose.proxy.yml`](docker-compose.proxy.yml)) fournit un point d'entrée
+unique sur `80`/`443`, la **terminaison TLS Let's Encrypt automatique** et le
+routage par sous‑domaine.
+
+> Le déploiement Kubernetes (`infra/k8s/`, [`infra/DEPLOY.md`](infra/DEPLOY.md))
+> reste une alternative avec nginx‑ingress + cert‑manager. Cette section couvre la
+> voie **docker‑compose**.
+
+### Routage
+
+| Hôte | Service | Port interne |
+|------|---------|--------------|
+| `${DOMAIN}` (domaine nu) | vitrine `frontend` (SSR) | 3000 |
+| `www.${DOMAIN}` | redirection 301 → domaine nu | — |
+| `api.${DOMAIN}` | `api` (FastAPI) | 8000 |
+| `admin.${DOMAIN}` | `admin-frontend` (nginx) | 80 |
+
+### Prérequis
+
+1. **DNS** — enregistrements A/AAAA pour le domaine nu, `www`, `api` et `admin`
+   pointant vers l'IP publique du serveur. Ports `80` et `443` ouverts (HTTP‑01).
+2. **`.env` racine** — `DOMAIN=natimai.solutions` et `ACME_EMAIL=<contact>`.
+3. **Cohérence des URLs publiques** (cf. §3.1, §3.4, §4) :
+   - `FRONTEND_HOST=https://natimai.solutions`
+   - `BACKEND_CORS_ORIGINS=https://natimai.solutions,https://admin.natimai.solutions`
+   - `OAUTH_REDIRECT_BASE_URL=https://api.natimai.solutions` (si OAuth activé)
+   - `FRONTEND_OAUTH_REDIRECT_URL=https://natimai.solutions/oauth/callback`
+4. **Frontends rebuildés** avec l'URL API publique (baked at build time) :
+   `frontend/.env` et `admin-frontend/.env` → `VITE_API_URL=https://api.natimai.solutions`
+   (le client ajoute `/api/v1`). Sans ça, le navigateur appellera `localhost:8000`.
+
+### Démarrage
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.proxy.yml up -d --build
+```
+
+- Caddy demande et renouvelle les certificats automatiquement (Let's Encrypt).
+- Le tag `!reset` retire l'exposition directe des ports des services applicatifs
+  (Caddy devient l'unique ingress) → **Docker Compose ≥ 2.24** requis.
+- Le volume `caddy_data` **doit être persisté** (il contient les certificats) pour
+  éviter d'atteindre le rate‑limit ACME lors des redéploiements.
+
+### Isolation réseau & exposition des ports
+
+Le montage `prod` + `proxy` durcit l'exposition à deux niveaux :
+
+- **Aucun port publié sur l'hôte sauf `80`/`443`** (Caddy). Les ports applicatifs
+  (`8000`, `3000`, `3001`) et data (`5432`, `6379`, `3310`, `8080`) sont retirés via
+  le tag `!reset` — ils ne sont accessibles que sur les réseaux Docker internes.
+- **Cloisonnement réseau** (défini dans `docker-compose.prod.yml`) :
+
+  | Réseau | `internal` | Services | Rôle |
+  |--------|-----------|----------|------|
+  | `default` | non (gateway) | caddy, frontend, admin-frontend, clamav, + compute | routage HTTP + egress Internet |
+  | `dbnet` | **oui** | postgres, redis (+ api, workers, migrate, health-checker, adminer en pont) | tier data, **sans accès Internet** |
+
+  Conséquences : `postgres`/`redis` sont sur `dbnet` **uniquement** → ni Caddy ni les
+  frontends ne peuvent les joindre, et ils n'ont **aucun egress** (réseau `internal`).
+  L'`api` et les workers sont sur les deux réseaux (egress via `default`, base via
+  `dbnet`). ClamAV reste sur `default` car `freshclam` télécharge ses signatures
+  depuis Internet. Adminer n'est plus exposé (`:8080` retiré) — y accéder via un
+  tunnel SSH ou `docker compose exec`.
+
+### Vérification
+
+```bash
+docker compose logs -f caddy           # obtention des certificats
+curl -I https://api.natimai.solutions/api/v1/healthz/liveness
+curl -I https://natimai.solutions      # vitrine
+curl -I https://admin.natimai.solutions
+```
+
+> Mise au point sans exposer la prod : tester d'abord avec l'environnement de
+> **staging** Let's Encrypt (certs non fiables mais sans rate‑limit) en ajoutant
+> `acme_ca https://acme-staging-v02.api.letsencrypt.org/directory` dans le bloc
+> global du `Caddyfile`, puis repasser en production une fois le routage validé.

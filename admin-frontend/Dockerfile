@@ -31,6 +31,8 @@ FROM nginx:1.27-alpine AS runner
 COPY --from=builder /workspace/admin-frontend/dist/spa /usr/share/nginx/html
 COPY admin-frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 3001
+# nginx écoute sur 80 (cf. nginx.conf). En dev, docker-compose publie 3001:80 ;
+# en prod, le reverse proxy (Caddy) atteint le conteneur sur admin-frontend:80.
+EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]

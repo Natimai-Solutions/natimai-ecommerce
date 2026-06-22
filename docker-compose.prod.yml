@@ -9,6 +9,7 @@ services:
       - LOG_LEVEL=INFO
       - RELOAD=false
     restart: unless-stopped
+    networks: [default, dbnet] # egress via default, accès base via dbnet
     deploy:
       resources:
         limits:
@@ -25,6 +26,7 @@ services:
       - ENVIRONMENT=production
       - LOG_LEVEL=INFO
     restart: unless-stopped
+    networks: [default, dbnet]
     deploy:
       resources:
         limits:
@@ -42,6 +44,7 @@ services:
       - LOG_LEVEL=INFO
       - POLL_INTERVAL=5  # Plus fréquent en prod
     restart: unless-stopped
+    networks: [default, dbnet]
     deploy:
       resources:
         limits:
@@ -68,7 +71,8 @@ services:
       - RECOVERY_ENABLED=true
     command: ["python", "-m", "app.outbox.health_scheduler"]
     restart: unless-stopped
-    
+    networks: [default, dbnet]
+
     # Ressources limitées - service de monitoring léger
     deploy:
       resources:
@@ -103,6 +107,8 @@ services:
 
   # Services de base (production tuning)
   postgres:
+    ports: !reset [] # aucune exposition hôte en prod
+    networks: [dbnet] # réseau interne uniquement (pas d'egress, injoignable par le proxy/fronts)
     environment:
       - POSTGRES_LOG_STATEMENT=none  # Moins verbeux en prod
     volumes:
@@ -114,6 +120,8 @@ services:
           cpus: '1.0'
 
   redis:
+    ports: !reset []
+    networks: [dbnet]
     deploy:
       resources:
         limits:
@@ -122,8 +130,27 @@ services:
     volumes:
       - redis_data_prod:/data
 
+  # Migration Alembic (one-shot) — accès base via dbnet.
+  migrate:
+    networks: [default, dbnet]
+
+  # ClamAV reste sur `default` : freshclam doit joindre Internet (signatures virales).
+  clamav:
+    ports: !reset []
+
+  # Adminer : plus d'accès direct :8080 (tunnel SSH / `docker compose exec` si besoin).
+  adminer:
+    ports: !reset []
+    networks: [dbnet]
+
 volumes:
   postgres_data_prod:
     driver: local
   redis_data_prod:
     driver: local
+
+networks:
+  # Tier data : réseau sans gateway → aucun accès Internet pour postgres/redis,
+  # et injoignable depuis le réseau `default` (proxy Caddy, frontends).
+  dbnet:
+    internal: true
