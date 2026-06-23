@@ -123,7 +123,7 @@ function toggleDrawer() {
 }
 
 function onLogout() {
-  authStore.logout()
+  void authStore.logout()
   void router.push({ name: 'catalogue' })
 }
 

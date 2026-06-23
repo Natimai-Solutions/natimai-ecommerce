@@ -21,8 +21,16 @@ export default defineRouter((/* { store, ssrContext } */) => {
     history: createHistory(process.env.VUE_ROUTER_BASE),
   })
 
-  Router.beforeEach((to) => {
+  let sessionRestored = false
+
+  Router.beforeEach(async (to) => {
     const auth = useAuthStore()
+    // On first navigation, restore the session from the HttpOnly refresh cookie
+    // (the access token lives only in memory and is gone after a reload).
+    if (!sessionRestored) {
+      sessionRestored = true
+      await auth.tryRestore()
+    }
     const isPublic = to.matched.some((r) => r.meta.public)
     if (!isPublic && !auth.isAuthenticated) {
       return { path: '/login', query: { redirect: to.fullPath } }

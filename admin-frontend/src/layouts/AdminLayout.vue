@@ -92,7 +92,7 @@ const nav: NavSection[] = [
 ]
 
 function onLogout() {
-  auth.logout()
+  void auth.logout()
   void router.replace('/login')
 }
 </script>

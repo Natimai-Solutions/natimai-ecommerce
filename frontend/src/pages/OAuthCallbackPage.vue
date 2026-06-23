@@ -43,17 +43,13 @@ onMounted(async () => {
     return
   }
 
-  const accessToken = route.query.access_token
-  const refreshToken = route.query.refresh_token
-  if (typeof accessToken !== 'string' || !accessToken) {
-    errorMessage.value = 'Aucun jeton de connexion reçu.'
+  // The backend already set the HttpOnly refresh cookie during the redirect.
+  // Exchange it for an in-memory access token (no token ever travels in the URL).
+  const restored = await authStore.tryRestore()
+  if (!restored) {
+    errorMessage.value = 'La connexion a échoué. Veuillez réessayer.'
     return
   }
-
-  authStore.setTokens(
-    accessToken,
-    typeof refreshToken === 'string' ? refreshToken : null,
-  )
 
   const target = sessionStorage.getItem('oauth.redirect') ?? '/'
   sessionStorage.removeItem('oauth.redirect')

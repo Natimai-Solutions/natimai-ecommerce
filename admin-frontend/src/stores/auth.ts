@@ -1,15 +1,13 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { api, tokenStorage } from 'src/boot/api'
+import { accessToken, api } from 'src/boot/api'
 
-interface TokenResponse {
+interface AccessTokenResponse {
   access_token: string
-  refresh_token: string
   expires_in: number
 }
 
 export const useAuthStore = defineStore('auth', () => {
-  const accessToken = ref<string | null>(tokenStorage.getAccess())
   const loginError = ref<string | null>(null)
   const loggingIn = ref(false)
 
@@ -22,33 +20,49 @@ export const useAuthStore = defineStore('auth', () => {
       const form = new URLSearchParams()
       form.set('username', email)
       form.set('password', password)
-      const { data } = await api.post<TokenResponse>('/login/access-token', form, {
+      const { data } = await api.post<AccessTokenResponse>('/login/access-token', form, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       })
-      tokenStorage.setAccess(data.access_token)
-      tokenStorage.setRefresh(data.refresh_token)
       accessToken.value = data.access_token
       return true
     } catch (err: unknown) {
-      const message = extractErrorMessage(err)
-      loginError.value = message ?? 'Échec de connexion'
+      loginError.value = extractErrorMessage(err) ?? 'Échec de connexion'
       return false
     } finally {
       loggingIn.value = false
     }
   }
 
-  function logout() {
-    tokenStorage.clear()
+  /**
+   * Silently restore the session on app start from the HttpOnly refresh cookie.
+   * Safe to call when logged out (it simply leaves the session empty).
+   */
+  async function tryRestore(): Promise<void> {
+    try {
+      const { data } = await api.post<AccessTokenResponse>('/login/refresh-token')
+      accessToken.value = data.access_token
+    } catch {
+      accessToken.value = null
+    }
+  }
+
+  async function logout(): Promise<void> {
+    // Clear the in-memory token first so the UI reflects logout immediately.
     accessToken.value = null
+    try {
+      await api.post('/login/logout')
+    } catch {
+      // Best effort — the cookie is HttpOnly; server-side revocation may fail
+      // offline but the local session is already cleared.
+    }
   }
 
   return {
-    accessToken,
     isAuthenticated,
     loginError,
     loggingIn,
     login,
+    tryRestore,
     logout,
   }
 })
@@ -58,7 +72,9 @@ function extractErrorMessage(err: unknown): string | null {
     const resp = (err as { response?: { data?: unknown } }).response
     const data = resp?.data
     if (typeof data === 'object' && data !== null) {
-      const detail = (data as { detail?: unknown; message?: unknown }).detail
+      const errorObj = (data as { error?: { message?: unknown } }).error
+      if (errorObj && typeof errorObj.message === 'string') return errorObj.message
+      const detail = (data as { detail?: unknown }).detail
       if (typeof detail === 'string') return detail
       const message = (data as { message?: unknown }).message
       if (typeof message === 'string') return message

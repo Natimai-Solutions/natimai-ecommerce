@@ -1,15 +1,13 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { api, tokenStorage } from 'src/boot/api'
+import { accessToken, api } from 'src/boot/api'
 
-interface TokenResponse {
+interface AccessTokenResponse {
   access_token: string
-  refresh_token: string
   expires_in: number
 }
 
 export const useAuthStore = defineStore('auth', () => {
-  const accessToken = ref<string | null>(tokenStorage.getAccess())
   const loginError = ref<string | null>(null)
   const loggingIn = ref(false)
 
@@ -22,10 +20,10 @@ export const useAuthStore = defineStore('auth', () => {
       const form = new URLSearchParams()
       form.set('username', email)
       form.set('password', password)
-      const { data } = await api.post<TokenResponse>('/login/access-token', form, {
+      const { data } = await api.post<AccessTokenResponse>('/login/access-token', form, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       })
-      setTokens(data.access_token, data.refresh_token)
+      accessToken.value = data.access_token
       return true
     } catch (err: unknown) {
       loginError.value = extractErrorMessage(err) ?? 'Échec de connexion'
@@ -35,25 +33,37 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /** Persist tokens (used by classic login and the OAuth callback). */
-  function setTokens(access: string, refresh?: string | null): void {
-    tokenStorage.setAccess(access)
-    if (refresh) tokenStorage.setRefresh(refresh)
-    accessToken.value = access
+  /**
+   * Silently restore the session from the HttpOnly refresh cookie. Used at app
+   * startup and right after the OAuth redirect (the cookie is already set).
+   * Returns true if a session was restored. Safe to call when logged out.
+   */
+  async function tryRestore(): Promise<boolean> {
+    try {
+      const { data } = await api.post<AccessTokenResponse>('/login/refresh-token')
+      accessToken.value = data.access_token
+      return true
+    } catch {
+      accessToken.value = null
+      return false
+    }
   }
 
-  function logout(): void {
-    tokenStorage.clear()
+  async function logout(): Promise<void> {
     accessToken.value = null
+    try {
+      await api.post('/login/logout')
+    } catch {
+      // Best effort — local session already cleared.
+    }
   }
 
   return {
-    accessToken,
     isAuthenticated,
     loginError,
     loggingIn,
     login,
-    setTokens,
+    tryRestore,
     logout,
   }
 })

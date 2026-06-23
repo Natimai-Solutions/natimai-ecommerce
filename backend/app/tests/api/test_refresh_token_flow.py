@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core import security
+from app.core.config import settings
 from app.core.db import get_db
 from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.crud.user import crud_user
@@ -48,9 +49,12 @@ async def test_login_access_token_persists_refresh_session(
     )
 
     assert response.status_code == 200
-    payload = response.json()
+    # Refresh token is delivered as an HttpOnly cookie, never in the body.
+    assert "refresh_token" not in response.json()
+    refresh_cookie = response.cookies.get(settings.REFRESH_COOKIE_NAME)
+    assert refresh_cookie is not None
 
-    refresh_payload = security.decode_token(payload["refresh_token"])
+    refresh_payload = security.decode_token(refresh_cookie)
     assert refresh_payload["type"] == "refresh"
     assert refresh_payload["sub"] == str(user_id)
     assert refresh_payload["jti"]
@@ -98,13 +102,14 @@ async def test_refresh_token_rotates_and_returns_new_pair(
 
     response = client.post(
         "/api/v1/login/refresh-token",
-        json={"refresh_token": refresh_token},
+        cookies={settings.REFRESH_COOKIE_NAME: refresh_token},
     )
 
     assert response.status_code == 200
-    payload = response.json()
+    new_refresh_cookie = response.cookies.get(settings.REFRESH_COOKIE_NAME)
+    assert new_refresh_cookie is not None
 
-    new_refresh_payload = security.decode_token(payload["refresh_token"])
+    new_refresh_payload = security.decode_token(new_refresh_cookie)
     assert new_refresh_payload["type"] == "refresh"
     assert new_refresh_payload["sub"] == str(user_id)
     assert new_refresh_payload["jti"] != old_jti
@@ -152,7 +157,7 @@ async def test_refresh_token_expired_is_revoked_and_rejected(
 
     response = client.post(
         "/api/v1/login/refresh-token",
-        json={"refresh_token": refresh_token},
+        cookies={settings.REFRESH_COOKIE_NAME: refresh_token},
     )
 
     assert response.status_code == 401
@@ -213,7 +218,7 @@ async def test_refresh_token_reuse_revokes_all_active_sessions(
 
     response = client.post(
         "/api/v1/login/refresh-token",
-        json={"refresh_token": refresh_token},
+        cookies={settings.REFRESH_COOKIE_NAME: refresh_token},
     )
 
     assert response.status_code == 401
@@ -232,3 +237,39 @@ async def test_refresh_token_reuse_revokes_all_active_sessions(
     revoke_all_kwargs = revoke_all_mock.await_args.kwargs
     assert revoke_all_kwargs["user_id"] == user_id
     assert revoke_all_kwargs["reason"] == "reuse_detected"
+
+
+@pytest.mark.asyncio
+async def test_logout_revokes_session_and_clears_cookie(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user_id = uuid.uuid4()
+    jti = str(uuid.uuid4())
+    refresh_token = security.create_refresh_token(
+        user_id, expires_delta=timedelta(days=1), jti=jti
+    )
+    session_row = SimpleNamespace(
+        id=uuid.uuid4(), user_id=user_id, jti=jti, revoked_at=None
+    )
+    get_mock = AsyncMock(return_value=session_row)
+    revoke_mock = AsyncMock(return_value=session_row)
+    monkeypatch.setattr(crud_user_refresh_token, "get_by_user_and_jti", get_mock)
+    monkeypatch.setattr(crud_user_refresh_token, "revoke_token", revoke_mock)
+
+    response = client.post(
+        "/api/v1/login/logout",
+        cookies={settings.REFRESH_COOKIE_NAME: refresh_token},
+    )
+
+    assert response.status_code == 204
+    revoke_mock.assert_awaited_once()
+    assert revoke_mock.await_args is not None
+    assert revoke_mock.await_args.kwargs["reason"] == "logout"
+    # The cookie is cleared on the way out.
+    assert settings.REFRESH_COOKIE_NAME in response.headers.get("set-cookie", "")
+
+
+def test_logout_without_cookie_is_idempotent(client: TestClient) -> None:
+    response = client.post("/api/v1/login/logout")
+    assert response.status_code == 204

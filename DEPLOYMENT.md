@@ -60,6 +60,17 @@ When `ENVIRONMENT != local`, the app refuses to start if `SECRET_KEY`,
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `30` | Refresh token TTL |
 | `SENTRY_DSN` | — | Error monitoring DSN |
 
+> **Modèle d'authentification (cookie).** Le **refresh token** est délivré en
+> cookie **HttpOnly Secure SameSite=Lax** (illisible par JS → résistant au vol
+> XSS) ; l'**access token** (15 min) ne vit qu'en **mémoire** du SPA et est
+> rétabli au démarrage via `/login/refresh-token`. Implications déploiement :
+> `BACKEND_CORS_ORIGINS` doit lister les **origines exactes** des fronts (jamais
+> `*`) car les requêtes sont *credentialed* (CORS `allow_credentials` est activé) ;
+> en prod tout doit être en **HTTPS** (cookie `Secure`). Le schéma par
+> sous-domaines (`shop.`/`admin.` → `api.`) est *same-site*, donc `SameSite=Lax`
+> envoie bien le cookie. Réglages optionnels : `REFRESH_COOKIE_SAMESITE`,
+> `REFRESH_COOKIE_DOMAIN`, `REFRESH_COOKIE_SECURE` (cf. `.env.example`).
+
 ### 3.2 Redis
 
 | Variable | Default | Description |
@@ -337,9 +348,10 @@ VITE_API_URL=https://api.example.com
 3. Storefront build: set `VITE_OAUTH_ENABLED=true` and rebuild.
 
 Flow: storefront → `GET /api/v1/auth/{provider}/login` → provider →
-`GET /api/v1/auth/{provider}/callback` → redirect to
-`FRONTEND_OAUTH_REDIRECT_URL?access_token=…&refresh_token=…`, captured by the
-`/oauth/callback` page. Inactive users are rejected with `?oauth_error=user_inactive`.
+`GET /api/v1/auth/{provider}/callback` → the backend sets the **HttpOnly refresh
+cookie** and redirects to `FRONTEND_OAUTH_REDIRECT_URL` (no token in the URL).
+The `/oauth/callback` page then calls `/login/refresh-token` to obtain its
+in-memory access token. Inactive users are rejected with `?oauth_error=user_inactive`.
 
 ---
 
