@@ -24,7 +24,7 @@
             />
           </div>
 
-          <!-- Stock -->
+          <!-- Stock
           <div class="q-mb-md">
             <q-toggle
               v-model="inStockOnly"
@@ -33,6 +33,7 @@
               @update:model-value="onStockToggle"
             />
           </div>
+          -->
 
           <!-- Prix -->
           <div class="q-mb-md">
@@ -225,7 +226,7 @@ useMeta(() => ({
 
 const searchQuery = ref<string>('')
 const selectedManufacturer = ref<string | null>(null)
-const inStockOnly = ref(false)
+// const inStockOnly = ref(false)
 const priceMin = ref<number | null>(null)
 const priceMax = ref<number | null>(null)
 const cartFeedback = ref<{ ok: boolean; message: string } | null>(null)
