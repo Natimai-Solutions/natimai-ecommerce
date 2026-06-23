@@ -191,18 +191,24 @@ async def get_user_groups(
     return UserGroupsPublic(data=user_groups, count=len(user_groups))
 
 
+# Literal single-segment routes MUST be registered BEFORE the auto-generated
+# /{id} route: FastAPI path params are `str` convertors in Starlette, so /{id}
+# would otherwise greedily capture "/pricing" and 422 on the UUID parse.
+routes_before_group = [
+    Routes(
+        path="/pricing",
+        endpoint=get_pricing_groups,
+        methods=["GET"],
+        tags=["group"],
+        response_model=GroupsPublic,
+    ),
+]
+
 # Routes for Group with custom endpoints
 routes_after_group = [
     Routes(
         path="/by-type/{group_type}",
         endpoint=get_groups_by_type,
-        methods=["GET"],
-        tags=["group"],
-        response_model=GroupsPublic,
-    ),
-    Routes(
-        path="/pricing",
-        endpoint=get_pricing_groups,
         methods=["GET"],
         tags=["group"],
         response_model=GroupsPublic,
@@ -261,6 +267,7 @@ router = GroupRouter(
     schema_create=GroupCreate,
     schema_update=GroupUpdate,
     auth=Auth(),
+    routes_before=routes_before_group,
     routes_after=routes_after_group + routes_user_groups,
     auto=True,  # Generate standard CRUD endpoints
 )

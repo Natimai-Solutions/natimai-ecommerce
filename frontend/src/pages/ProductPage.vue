@@ -89,33 +89,6 @@
             <span v-else>{{ stockQuantity }} en stock fournisseur</span>
           </div>
 
-          <!-- Mode de livraison import -->
-          <template v-if="shippingLoading || shippingModes.length > 0">
-            <div class="text-caption text-grey-7 q-mb-xs q-mt-md">Mode de livraison</div>
-            <q-skeleton v-if="shippingLoading" type="QInput" />
-            <template v-else>
-              <q-select
-                v-model="selectedModeKey"
-                :options="shippingModeOptions"
-                option-value="value"
-                option-label="label"
-                emit-value
-                map-options
-                outlined
-                dense
-                @update:model-value="onShippingModeChange"
-              >
-                <template #prepend><q-icon name="local_shipping" /></template>
-              </q-select>
-              <div v-if="selectedMode" class="text-caption text-grey-7 q-mt-xs">
-                Fret import&nbsp;: {{ formatXpf(parseFloat(selectedMode.freight)) }}
-                <span v-if="selectedMode.eta_days">
-                  &nbsp;·&nbsp;{{ selectedMode.eta_days }}&nbsp;j
-                </span>
-              </div>
-            </template>
-          </template>
-
           <div
             v-if="safeDescription"
             class="text-body1 q-mt-md product-description"
@@ -204,10 +177,8 @@ const error = ref<string | null>(null)
 const cartFeedback = ref<{ ok: boolean; message: string } | null>(null)
 const selectedImage = ref<string | null>(null)
 
-const SHIPPING_MODE_STORAGE_KEY = 'shipping_mode_preference'
 const shippingModes = ref<ShippingModePricePublic[]>([])
 const selectedModeKey = ref<string | null>(null)
-const shippingLoading = ref(false)
 
 const isOutOfStock = computed(() => {
   if (!product.value) return true
@@ -221,15 +192,6 @@ const stockQuantity = computed(() => {
 
 const selectedMode = computed(
   () => shippingModes.value.find((m) => m.service_level === selectedModeKey.value) ?? null,
-)
-
-const shippingModeOptions = computed(() =>
-  shippingModes.value
-    .filter((m) => m.service_level !== null)
-    .map((m) => ({
-      label: m.customer_label ?? m.service_level ?? m.route_id,
-      value: m.service_level as string,
-    })),
 )
 
 const displayPrice = computed(() => {
@@ -424,25 +386,17 @@ async function onAddToCart() {
 }
 
 async function loadShippingModes(productId: string): Promise<void> {
-  shippingLoading.value = true
   try {
     const data = await getProductShippingModes(productId)
     shippingModes.value = data.shipping_modes
-    const saved = localStorage.getItem(SHIPPING_MODE_STORAGE_KEY)
-    const available = data.shipping_modes.map((m) => m.service_level)
-    selectedModeKey.value =
-      saved !== null && available.includes(saved) ? saved : data.default_mode
+    // Price shown for the default service level (resolved server-side, which
+    // prefers the user's preferred_shipping_mode). The delivery mode is chosen
+    // per order at checkout, not per product.
+    selectedModeKey.value = data.default_mode
   } catch {
     shippingModes.value = []
     selectedModeKey.value = null
-  } finally {
-    shippingLoading.value = false
   }
-}
-
-function onShippingModeChange(modeKey: string | null): void {
-  selectedModeKey.value = modeKey
-  if (modeKey) localStorage.setItem(SHIPPING_MODE_STORAGE_KEY, modeKey)
 }
 
 onServerPrefetch(loadProduct)

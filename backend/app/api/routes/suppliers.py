@@ -309,3 +309,23 @@ async def trigger_category_backfill(
     """
     stats = await backfill_product_categories_task({}, batch_size=batch_size)
     return {"status": "completed", **stats}
+
+
+@router.post("/admin/reproject-specs")
+async def trigger_spec_reprojection(
+    _current_user: CurrentSuperUser,
+    category_id: str | None = None,
+) -> dict[str, Any]:
+    """Rebuild the normalized ``product_spec`` table from each product's stored
+    Icecat ``technical_specifications`` (no Icecat re-fetch).
+
+    Needed for products enriched before the projection existed, and after any
+    spec-definition alias change. Runs inline (blocking) — use for maintenance
+    windows. Optionally scope to one ``category_id``.
+
+    **Required permissions:** Superuser only
+    """
+    from app.tasks.icecat_tasks import reproject_product_specs_task
+
+    stats = await reproject_product_specs_task({}, category_id=category_id)
+    return stats

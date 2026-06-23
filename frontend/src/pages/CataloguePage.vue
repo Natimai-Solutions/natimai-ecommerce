@@ -6,6 +6,66 @@
         <q-card flat bordered class="q-pa-md">
           <div class="text-subtitle2 q-mb-sm">Filtres</div>
 
+          <!-- Catégorie -->
+          <div v-if="categoryOptions.length > 0" class="q-mb-md">
+            <div class="text-caption text-grey-7 q-mb-xs">Catégorie</div>
+            <q-select
+              v-model="selectedCategory"
+              :options="categoryOptions"
+              option-value="value"
+              option-label="label"
+              emit-value
+              map-options
+              clearable
+              dense
+              outlined
+              placeholder="Toutes"
+              @update:model-value="onCategoryChange"
+            />
+          </div>
+
+          <!-- Caractéristiques (specs) — dépend de la catégorie sélectionnée -->
+          <div v-if="store.specFacets.length > 0" class="q-mb-md">
+            <div class="text-caption text-weight-medium text-grey-8 q-mb-xs">
+              Caractéristiques
+            </div>
+            <div v-for="facet in store.specFacets" :key="facet.key" class="q-mb-sm">
+              <div class="text-caption text-grey-7">{{ facet.label_fr }}</div>
+
+              <!-- numérique : minimum (≥) -->
+              <q-select
+                v-if="facet.type === 'numeric'"
+                :model-value="numericMin[facet.key] ?? null"
+                :options="numericOptions(facet)"
+                option-value="value"
+                option-label="label"
+                emit-value
+                map-options
+                clearable
+                dense
+                outlined
+                :placeholder="`≥ minimum${facet.unit ? ' (' + facet.unit + ')' : ''}`"
+                @update:model-value="(v: number | null) => onNumericChange(facet.key, v)"
+              />
+
+              <!-- enum : cases à cocher -->
+              <template v-else>
+                <q-checkbox
+                  v-for="val in facet.values ?? []"
+                  :key="String(val.value_text)"
+                  :model-value="(enumSelections[facet.key] ?? []).includes(val.value_text ?? '')"
+                  :label="`${val.value_text} (${val.count})`"
+                  dense
+                  size="sm"
+                  class="block"
+                  @update:model-value="
+                    (c: boolean) => onEnumToggle(facet.key, val.value_text ?? '', c)
+                  "
+                />
+              </template>
+            </div>
+          </div>
+
           <!-- Fabricant -->
           <div v-if="manufacturerOptions.length > 0" class="q-mb-md">
             <div class="text-caption text-grey-7 q-mb-xs">Fabricant</div>
@@ -208,6 +268,7 @@ import ProductCard from 'src/components/ProductCard.vue'
 import type { components } from '@app/api-types'
 
 type ProductPublic = components['schemas']['ProductPublic']
+type SpecFacet = components['schemas']['SpecFacet']
 
 const store = useProductsStore()
 const cartStore = useCartStore()
@@ -226,10 +287,45 @@ useMeta(() => ({
 
 const searchQuery = ref<string>('')
 const selectedManufacturer = ref<string | null>(null)
-// const inStockOnly = ref(false)
+const selectedCategory = ref<string | null>(null)
+// Spec filters: enum key → selected value_text[]; numeric key → minimum value.
+const enumSelections = ref<Record<string, string[]>>({})
+const numericMin = ref<Record<string, number | null>>({})
 const priceMin = ref<number | null>(null)
 const priceMax = ref<number | null>(null)
 const cartFeedback = ref<{ ok: boolean; message: string } | null>(null)
+
+const categoryOptions = computed(() =>
+  store.categories.map((c) => ({ label: c.name, value: c.id })),
+)
+
+function numericOptions(facet: SpecFacet): { label: string; value: number }[] {
+  const seen = new Set<number>()
+  const opts: { label: string; value: number }[] = []
+  for (const v of facet.values ?? []) {
+    if (v.value_numeric == null) continue
+    const num = Number.parseFloat(v.value_numeric)
+    if (!Number.isFinite(num) || seen.has(num)) continue
+    seen.add(num)
+    opts.push({
+      label: `≥ ${num}${facet.unit ? ' ' + facet.unit : ''} (${v.count})`,
+      value: num,
+    })
+  }
+  return opts.sort((a, b) => a.value - b.value)
+}
+
+/** Build the `specs` search payload: enum → key:[values], numeric → key_min:value. */
+function buildSpecs(): Record<string, unknown> {
+  const specs: Record<string, unknown> = {}
+  for (const [key, vals] of Object.entries(enumSelections.value)) {
+    if (vals.length > 0) specs[key] = vals
+  }
+  for (const [key, min] of Object.entries(numericMin.value)) {
+    if (min != null) specs[`${key}_min`] = min
+  }
+  return specs
+}
 
 const currentPage = computed({
   get: () => store.currentPage,
@@ -253,8 +349,32 @@ async function onManufacturerChange(val: string | null) {
   syncQueryParams()
 }
 
-async function onStockToggle(val: boolean) {
-  await store.applyFilters({ in_stock: val || null })
+async function onCategoryChange(catId: string | null) {
+  selectedCategory.value = catId
+  // Spec facets are per-category — reset any previous spec selection.
+  enumSelections.value = {}
+  numericMin.value = {}
+  await store.loadSpecFacets(catId)
+  await store.applyFilters({ category_id: catId, specs: {} })
+  syncQueryParams()
+}
+
+async function onSpecChange() {
+  await store.applyFilters({ specs: buildSpecs() })
+}
+
+function onNumericChange(key: string, value: number | null) {
+  numericMin.value = { ...numericMin.value, [key]: value }
+  void onSpecChange()
+}
+
+function onEnumToggle(key: string, value: string, checked: boolean) {
+  const current = enumSelections.value[key] ?? []
+  const next = checked
+    ? [...current, value]
+    : current.filter((v) => v !== value)
+  enumSelections.value = { ...enumSelections.value, [key]: next }
+  void onSpecChange()
 }
 
 async function onPriceChange() {
@@ -267,15 +387,20 @@ async function onPriceChange() {
 async function resetFilters() {
   searchQuery.value = ''
   selectedManufacturer.value = null
-  inStockOnly.value = false
+  selectedCategory.value = null
+  enumSelections.value = {}
+  numericMin.value = {}
   priceMin.value = null
   priceMax.value = null
+  await store.loadSpecFacets(null)
   await store.applyFilters({
     q: null,
     manufacturer: null,
+    category_id: null,
     in_stock: null,
     price_min: null,
     price_max: null,
+    specs: {},
   })
   void router.replace({ query: {} })
 }
@@ -284,6 +409,7 @@ function syncQueryParams() {
   const query: Record<string, string> = {}
   if (searchQuery.value) query['q'] = searchQuery.value
   if (selectedManufacturer.value) query['mfr'] = selectedManufacturer.value
+  if (selectedCategory.value) query['cat'] = selectedCategory.value
   void router.replace({ query })
 }
 
@@ -308,15 +434,21 @@ async function onAddToCart(product: ProductPublic) {
 function initFromQuery() {
   const q = route.query['q']
   const mfr = route.query['mfr']
+  const cat = route.query['cat']
   if (typeof q === 'string') searchQuery.value = q
   if (typeof mfr === 'string') selectedManufacturer.value = mfr
+  if (typeof cat === 'string') selectedCategory.value = cat
 }
 
 async function loadCatalogueData() {
   initFromQuery()
+  await store.loadCategories()
+  if (selectedCategory.value) await store.loadSpecFacets(selectedCategory.value)
   await store.applyFilters({
     q: searchQuery.value || null,
     manufacturer: selectedManufacturer.value,
+    category_id: selectedCategory.value,
+    specs: buildSpecs(),
   })
 }
 

@@ -21,7 +21,7 @@ export interface Address {
   is_validated: boolean
 }
 
-/** Create payload for `POST /users/me/addresses` (`AddressMeCreate`). */
+/** Create payload for `POST /address/users/me/addresses` (`AddressMeCreate`). */
 export interface AddressInput {
   street: string
   city: string
@@ -37,12 +37,12 @@ interface AddressesResponse {
 }
 
 export async function listMyAddresses(): Promise<Address[]> {
-  const { data } = await api.get<AddressesResponse>('/users/me/addresses')
+  const { data } = await api.get<AddressesResponse>('/address/users/me/addresses')
   return data.data
 }
 
 export async function createMyAddress(payload: AddressInput): Promise<Address> {
-  const { data } = await api.post<Address>('/users/me/addresses', payload)
+  const { data } = await api.post<Address>('/address/users/me/addresses', payload)
   return data
 }
 
@@ -50,10 +50,10 @@ export async function updateMyAddress(
   id: string,
   payload: Partial<AddressInput>,
 ): Promise<Address> {
-  const { data } = await api.patch<Address>(`/users/me/addresses/${id}`, payload)
+  const { data } = await api.patch<Address>(`/address/users/me/addresses/${id}`, payload)
   return data
 }
 
 export async function deleteMyAddress(id: string): Promise<void> {
-  await api.delete(`/users/me/addresses/${id}`)
+  await api.delete(`/address/users/me/addresses/${id}`)
 }

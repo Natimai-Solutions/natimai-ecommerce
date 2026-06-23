@@ -228,7 +228,10 @@ class ProductBase(Base):
 class ProductCreate(ProductBase, BaseCreate):
     """Represents product create."""
 
-    pass
+    # Internal category link (resolved from supplier_subcategory at sync time).
+    # Declared on the create/update schemas — NOT on ProductBase — so the field
+    # is actually carried through to the table model instead of being dropped.
+    category_id: uuid.UUID | None = None
 
 
 class ProductUpdate(ProductBase, BaseUpdate):
@@ -241,6 +244,7 @@ class ProductUpdate(ProductBase, BaseUpdate):
     cost_currency: str | None = None
     customs_rate_pct: Decimal | None = None
     has_variants: bool | None = None
+    category_id: uuid.UUID | None = None
 
     # Generic supplier fields (optional for updates)
     supplier_sku: str | None = None

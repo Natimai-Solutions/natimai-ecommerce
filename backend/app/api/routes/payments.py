@@ -938,6 +938,31 @@ class PaymentStatusResponse(BaseModel):
     order_id: uuid.UUID | None = None
 
 
+@router.get("/me/methods", response_model=list[dict[str, Any]])
+async def list_my_payment_methods(
+    session: SessionDep,
+    current_user: CurrentUser,
+    cart_total: Decimal | None = None,
+) -> list[dict[str, Any]]:
+    """Return active payment methods available for the authenticated user.
+
+    Filters by the user's price group and optional cart_total (max_amount check).
+    Methods with no eligibility restriction are always included.
+
+    IMPORTANT: declared BEFORE ``/me/{payment_id}`` — otherwise Starlette matches
+    ``/me/methods`` against the parametrized route and tries to parse "methods"
+    as a payment_id UUID (422).
+    """
+    from app.features.payment.models.payment_method import PaymentMethodPublic
+
+    methods = await get_eligible_payment_methods(
+        session,
+        price_group_id=current_user.price_group_id,
+        cart_total=cart_total,
+    )
+    return [PaymentMethodPublic.model_validate(m).model_dump() for m in methods]
+
+
 @router.get("/me/{payment_id}", response_model=PaymentStatusResponse)
 async def get_my_payment_status(
     payment_id: uuid.UUID,
@@ -982,27 +1007,6 @@ async def get_my_payment_status(
         currency=payment.currency,
         order_id=payment.order_id,
     )
-
-
-@router.get("/me/methods", response_model=list[dict[str, Any]])
-async def list_my_payment_methods(
-    session: SessionDep,
-    current_user: CurrentUser,
-    cart_total: Decimal | None = None,
-) -> list[dict[str, Any]]:
-    """Return active payment methods available for the authenticated user.
-
-    Filters by the user's price group and optional cart_total (max_amount check).
-    Methods with no eligibility restriction are always included.
-    """
-    from app.features.payment.models.payment_method import PaymentMethodPublic
-
-    methods = await get_eligible_payment_methods(
-        session,
-        price_group_id=current_user.price_group_id,
-        cart_total=cart_total,
-    )
-    return [PaymentMethodPublic.model_validate(m).model_dump() for m in methods]
 
 
 @router.post("/webhooks/{provider_code}")

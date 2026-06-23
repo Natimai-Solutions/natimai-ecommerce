@@ -1,12 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { components } from '@app/api-types'
-import { searchProducts, getCategories } from 'src/api/products'
+import { searchProducts, getCategories, getCategorySpecFacets } from 'src/api/products'
 
 type ProductPublic = components['schemas']['ProductPublic']
 type ProductSearchRequest = components['schemas']['ProductSearchRequest']
 type ProductSearchFacets = components['schemas']['ProductSearchFacets']
 type CategoryPublic = components['schemas']['CategoryPublic']
+type SpecFacet = components['schemas']['SpecFacet']
 
 const PAGE_SIZE = 24
 
@@ -15,6 +16,7 @@ export const useProductsStore = defineStore('products', () => {
   const count = ref(0)
   const facets = ref<ProductSearchFacets | null>(null)
   const categories = ref<CategoryPublic[]>([])
+  const specFacets = ref<SpecFacet[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -25,6 +27,7 @@ export const useProductsStore = defineStore('products', () => {
     price_min: null,
     price_max: null,
     in_stock: null,
+    specs: {},
   })
   const currentPage = ref(1)
 
@@ -72,11 +75,26 @@ export const useProductsStore = defineStore('products', () => {
     }
   }
 
+  /** Load the spec facets (CPU, RAM…) for a category, or clear them when null. */
+  async function loadSpecFacets(categoryId: string | null) {
+    if (!categoryId) {
+      specFacets.value = []
+      return
+    }
+    try {
+      const resp = await getCategorySpecFacets(categoryId)
+      specFacets.value = resp.specs ?? []
+    } catch {
+      specFacets.value = []
+    }
+  }
+
   return {
     items,
     count,
     facets,
     categories,
+    specFacets,
     loading,
     error,
     filters,
@@ -86,5 +104,6 @@ export const useProductsStore = defineStore('products', () => {
     setPage,
     applyFilters,
     loadCategories,
+    loadSpecFacets,
   }
 })

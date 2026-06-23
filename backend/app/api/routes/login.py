@@ -176,6 +176,12 @@ async def refresh_access_token(
         )
 
     now = datetime.now(timezone.utc)
+    # expires_at is stored in a naive (tz-less) column but always holds UTC
+    # wall-clock — make it aware before comparing to the aware `now`.
+    session_expires_at = current_refresh_session.expires_at
+    if session_expires_at.tzinfo is None:
+        session_expires_at = session_expires_at.replace(tzinfo=timezone.utc)
+
     if current_refresh_session.revoked_at is not None:
         await crud_user_refresh_token.revoke_all_active_for_user(
             session=session,
@@ -192,7 +198,7 @@ async def refresh_access_token(
             },
         )
 
-    if current_refresh_session.expires_at <= now:
+    if session_expires_at <= now:
         await crud_user_refresh_token.revoke_token(
             session=session,
             token=current_refresh_session,

@@ -5,6 +5,7 @@ type ProductSearchRequest = components['schemas']['ProductSearchRequest']
 type ProductSearchResponse = components['schemas']['ProductSearchResponse']
 type CategoryPublic = components['schemas']['CategoryPublic']
 type ProductPublic = components['schemas']['ProductPublic']
+type CategorySpecFacetsResponse = components['schemas']['CategorySpecFacetsResponse']
 
 export interface ShippingModePricePublic {
   route_id: string
@@ -29,6 +30,16 @@ export async function searchProducts(req: ProductSearchRequest): Promise<Product
 
 export async function getCategories(): Promise<{ data: CategoryPublic[]; count: number }> {
   const { data } = await api.get<{ data: CategoryPublic[]; count: number }>('/category')
+  return data
+}
+
+/** Available spec facets (CPU, RAM…) with value counts for a category. */
+export async function getCategorySpecFacets(
+  categoryId: string,
+): Promise<CategorySpecFacetsResponse> {
+  const { data } = await api.get<CategorySpecFacetsResponse>(
+    `/product/categories/${categoryId}/spec-facets`,
+  )
   return data
 }
 

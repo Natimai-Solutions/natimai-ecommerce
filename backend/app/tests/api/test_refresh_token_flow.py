@@ -84,7 +84,11 @@ async def test_refresh_token_rotates_and_returns_new_pair(
         id=uuid.uuid4(),
         user_id=user_id,
         jti=old_jti,
-        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        # Naive UTC, mirroring the tz-less DB column (regression: comparing this
+        # to an aware `now` used to raise TypeError).
+        expires_at=(datetime.now(timezone.utc) + timedelta(hours=1)).replace(
+            tzinfo=None
+        ),
         revoked_at=None,
     )
 

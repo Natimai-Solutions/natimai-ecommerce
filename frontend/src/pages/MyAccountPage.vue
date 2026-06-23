@@ -83,17 +83,8 @@
                   outlined
                   dense
                 />
-                <q-select
-                  v-model="prefs.currency_pref"
-                  :options="currencyOptions"
-                  label="Devise d'affichage"
-                  class="col-12 col-sm-6"
-                  emit-value
-                  map-options
-                  clearable
-                  outlined
-                  dense
-                />
+                <!-- Devise d'affichage : masquée tant que l'affichage multi-devises
+                     (conversion des prix) n'est pas livré — cf. Phase 4. -->
               </div>
 
               <div class="row justify-end q-mt-md">
@@ -381,11 +372,6 @@ const shippingPreferenceOptions = [
 const localeOptions = [
   { label: 'Français', value: 'fr' },
   { label: 'English', value: 'en' },
-]
-const currencyOptions = [
-  { label: 'XPF (Franc Pacifique)', value: 'XPF' },
-  { label: 'USD (Dollar US)', value: 'USD' },
-  { label: 'EUR (Euro)', value: 'EUR' },
 ]
 const addressTypeOptions = [
   { label: 'Livraison', value: 'shipping' },
