@@ -27,7 +27,10 @@ def current_user() -> SimpleNamespace:
 
 @pytest.fixture
 def db_session() -> SimpleNamespace:
-    return SimpleNamespace()
+    # list_my_orders resolves order-status names via session.exec(...).all();
+    # return no statuses (order_status_name stays None) for these contract tests.
+    exec_result = SimpleNamespace(all=lambda: [])
+    return SimpleNamespace(exec=AsyncMock(return_value=exec_result))
 
 
 @pytest.fixture(autouse=True)

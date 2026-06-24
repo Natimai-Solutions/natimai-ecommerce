@@ -134,6 +134,120 @@ async def test_checkout_creates_order_payment_and_marks_cart_checked_out(
 
 
 @pytest.mark.anyio
+async def test_checkout_with_payment_method_runs_single_payment_initiation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When payment_method_id is supplied, checkout creates the order AND runs the
+    provider initiation in one transaction (no pending placeholder payment)."""
+    user_id = uuid4()
+    cart_id = uuid4()
+    order_id = uuid4()
+    payment_id = uuid4()
+    product_id = uuid4()
+    method_id = uuid4()
+
+    current_user = cast(User, SimpleNamespace(id=user_id, price_group_id=None))
+    session = AsyncMock()
+    session.add = Mock()
+
+    cart = SimpleNamespace(
+        id=cart_id,
+        user_id=user_id,
+        currency="XPF",
+        total_amount=Decimal("0.00"),
+        is_checked_out=False,
+    )
+    item = SimpleNamespace(
+        id=uuid4(),
+        cart_id=cart_id,
+        product_id=product_id,
+        quantity=1,
+        unit_price=Decimal("100.00"),
+        is_active=True,
+    )
+    product = SimpleNamespace(
+        id=product_id,
+        base_price=Decimal("100.00"),
+        is_active=True,
+        is_admin_active=True,
+        is_supplier_managed=False,
+        supplier_quantity=Decimal("0.00"),
+    )
+    order = SimpleNamespace(id=order_id, total_amount=Decimal("0.00"))
+    payment = SimpleNamespace(id=payment_id, payment_status_id=uuid4())
+
+    monkeypatch.setattr(
+        crud_cart, "get_active_cart_by_user", AsyncMock(return_value=cart)
+    )
+    monkeypatch.setattr(
+        crud_cart_item, "get_by_cart_id", AsyncMock(return_value=[item])
+    )
+    monkeypatch.setattr(
+        "app.api.routes.cart._get_or_create_order_pending_status",
+        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.cart._get_active_product_or_404",
+        AsyncMock(return_value=product),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.cart._reserve_stock_for_checkout",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(crud_order, "create_draft", AsyncMock(return_value=order))
+    monkeypatch.setattr(
+        crud_order_line,
+        "create_draft",
+        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+    )
+
+    # The placeholder path must NOT be taken.
+    placeholder_status = AsyncMock()
+    placeholder_payment = AsyncMock()
+    monkeypatch.setattr(
+        "app.api.routes.cart._get_or_create_payment_pending_status",
+        placeholder_status,
+    )
+    monkeypatch.setattr(crud_payment, "create_draft", placeholder_payment)
+
+    init_mock = AsyncMock(
+        return_value=SimpleNamespace(
+            payment=payment,
+            provider_code="manual_check",
+            provider_reference="REF-1",
+            form_token=None,
+            server_url=None,
+            public_key=None,
+            redirect_url=None,
+            instructions="Réglez par chèque à l'ordre de…",
+        )
+    )
+    monkeypatch.setattr(
+        "app.api.routes.cart.initiate_payment_for_method", init_mock
+    )
+
+    response = await checkout_my_cart(
+        session=session,
+        current_user=current_user,
+        payload=CheckoutRequest(shipping_address="Papeete", payment_method_id=method_id),
+    )
+
+    assert response.order_id == order_id
+    assert response.payment_id == payment_id
+    assert response.provider_code == "manual_check"
+    assert response.instructions == "Réglez par chèque à l'ordre de…"
+
+    # Single payment: the provider initiation ran, the placeholder did not.
+    init_mock.assert_awaited_once()
+    assert init_mock.await_args is not None
+    assert init_mock.await_args.kwargs["payment_method_id"] == method_id
+    assert init_mock.await_args.kwargs["order_id"] == order_id
+    placeholder_status.assert_not_awaited()
+    placeholder_payment.assert_not_awaited()
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
 async def test_checkout_rejects_missing_active_cart(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

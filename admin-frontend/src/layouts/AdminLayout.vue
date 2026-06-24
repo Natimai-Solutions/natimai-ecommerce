@@ -75,14 +75,21 @@ const nav: NavSection[] = [
   {
     label: 'Commandes',
     links: [
+      { label: 'Commandes clients', icon: 'receipt_long', to: '/orders' },
       { label: 'Commandes fournisseurs', icon: 'local_shipping', to: '/supplier-orders' },
+    ],
+  },
+  {
+    label: 'Paiements',
+    links: [
+      { label: 'Validation paiements', icon: 'price_check', to: '/payment-validations' },
+      { label: 'Éligibilité paiement', icon: 'payments', to: '/payment-eligibility' },
     ],
   },
   {
     label: 'Clients',
     links: [
       { label: 'Demandes de groupe', icon: 'group_add', to: '/group-upgrade-requests' },
-      { label: 'Éligibilité paiement', icon: 'payments', to: '/payment-eligibility' },
     ],
   },
   {

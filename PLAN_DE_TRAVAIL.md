@@ -703,12 +703,61 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 
 | Feature | Backend | Vitrine (`frontend`) | Admin (`admin-frontend`) |
 |---------|---------|----------------------|--------------------------|
-| Éligibilité paiement ↔ groupe | ✅ | ✅ méthodes filtrées au checkout | 🔲 écran éligibilité (`/admin/payment-methods/{id}/groups`) |
+| Éligibilité paiement ↔ groupe | ✅ | ✅ **choix du type de paiement au checkout** (CB / chèque / virement / BC), filtré par éligibilité | ✅ écran éligibilité (`PaymentEligibilityPage.vue`) |
 | Notifications tracking (expédié / livré) | ✅ | — (email) | — |
 | Suivi de commande client | ✅ `/orders/me/{id}/tracking` + `GET /orders/me` | ✅ `MyAccountPage.vue` (onglet Commandes) + `OrderTrackingPage.vue` | — |
 | Webhook Ingram — statut fournisseur | ✅ | — | 🔲 visible via écran `supplier-orders` (backlog P2) |
 | **Catalogue specs éditable (multi-cat.)** | ✅ `/admin/spec-definitions` | — | 🔲 **écran CRUD specs + alias** |
 | Devises — display setting | ✅ `/system/settings` | 🔲 toggle devise (→ P4) | 🔲 écran `system-settings` |
+
+### Avancement vitrine — choix du moyen de paiement (23/06/2026)
+
+- ✅ **`CheckoutPage.vue` refondu** : le checkout affiche désormais **la liste des moyens de paiement éligibles** (filtrés par groupe + `max_amount` via `GET /payments/me/methods`) et laisse le client **choisir** — auparavant il auto-sélectionnait uniquement la CB Payzen. Dispatch par provider à l'initiation (`POST /payments/initiate`) :
+  - **CB (Payzen, provider API)** → SmartForm (flux existant) ;
+  - **Manuel (chèque / virement)** + **Document (BC)** → affichage des **`instructions`** renvoyées + confirmation « commande enregistrée, en attente de validation », bouton « Voir mes commandes ».
+- ✅ **Upload de pièce (BC)** *(23/06/2026)* : pour un provider `document`, l'UI propose le **téléversement du bon de commande** (`q-file`) puis exécute le flux presigned en 3 temps — `POST /payments/{id}/upload-document` → `PUT` du fichier vers l'URL presignée → `POST /payments/{id}/document-uploaded` — avec confirmation « document reçu, en cours de vérification ». Garde-fou : l'URL presignée locale (`LocalFileStorage`) est construite côté backend sur `FRONTEND_HOST` (mauvais hôte en multi-origine) → le front la reconstruit sur `VITE_API_URL` quand elle vise `/internal/storage/` ; les URL S3 sont utilisées telles quelles. Fonctions : [frontend/src/api/payments.ts](frontend/src/api/payments.ts) (`issueDocumentUploadUrl` / `uploadFileToPresignedUrl` / `confirmDocumentUploaded`).
+- ⚠️ Le checkout vitrine ne calcule toujours pas de frais de port (étape shipping reportée, cf. *Avancement vitrine — mode de livraison*) ; le `fee` du moyen de paiement est affiché à titre indicatif mais non ajouté au montant débité (comportement existant conservé).
+
+#### 🐛 Correctif — création de commande au checkout (23/06/2026)
+
+**Bug** : choisir un paiement non‑CB (chèque…) ne créait **aucune commande**, ne vidait pas le panier, et n'affichait pas les instructions. **Cause racine** : le panier de la vitrine était **100 % `localStorage`** (le store n'appelait jamais le backend) et le checkout appelait `POST /payments/initiate` **directement** — or `initiate` crée seulement un *paiement*, pas la commande, et `checkout_my_cart` (`POST /cart/checkout`, qui crée order + lignes + stock + vide le panier + publie `order.created`) lit le **panier backend** inexistant.
+
+**Correctif** (`CheckoutPage.vue` + `frontend/src/api/cart.ts`) — au clic « Procéder » : (1) **synchro panier local → backend** (`clearMyCart` puis `addCartItem` par ligne), (2) **`POST /cart/checkout`** (crée la commande, vide le panier backend) → `{order_id, total_amount}`, (3) **vidage du panier local**, (4) **`POST /payments/initiate`** lié à `order_id` (montant = total backend autoritaire) → SmartForm / instructions. La commande apparaît désormais dans *Mon compte → Commandes*, le panier se vide, les instructions s'affichent. Le vidage local **après** checkout empêche les commandes en double sur retry (un retry retombe sur « panier vide »).
+
+- ⚠️ **Persistance panier** : la synchro n'a lieu **qu'au checkout** (le panier reste `localStorage` pour la navigation/invité). Migrer le store vers le panier backend (auth) est un chantier distinct.
+
+#### 🐛 Correctifs `MissingGreenlet` révélés par le checkout (23/06/2026)
+
+Une fois le checkout réellement atteint, **3 bugs latents** sont apparus : des attributs ORM lus **après** un `session.commit()` (qui expire les instances) déclenchaient un lazy‑load **synchrone** → `sqlalchemy.exc.MissingGreenlet`. Correctif systématique : **capturer les valeurs avant le commit**.
+- `DELETE /cart/items` + `POST /cart/items` : `cart.id` relu après `clear_cart`/`add_or_increment` (qui committent) → capture `cart_id` en tête.
+- `POST /cart/checkout` : `current_user.id` relu dans le logging post‑commit → capture `user_id` en tête.
+- `POST /cart/checkout` : `[route.id for route in selected_routes]` (routes non refresh) lus à la construction de `CheckoutResponse` après commit → capture avant commit.
+
+#### Refactor paiement unique (P1)
+
+- ✅ **Service partagé extrait** : `app/features/payment/services/payment_initiation.py::initiate_payment_for_method` encapsule résolution provider + éligibilité + création paiement + dispatch (API SmartForm / manuel / document), **sans commit** (le caller possède la transaction). `POST /payments/initiate` l'utilise désormais (comportement préservé ; patches de tests redirigés vers le service).
+- ✅ **Unification câblée (paiement unique)** *(23/06/2026)* : `CheckoutRequest` reçoit `payment_method_id` + `return_url` ; `checkout_my_cart` appelle `initiate_payment_for_method` **dans la même transaction** que la création de commande (plus de placeholder), et `CheckoutResponse` expose `provider_code`/`form_token`/`server_url`/`public_key`/`instructions`. Le front [CheckoutPage.vue](frontend/src/pages/CheckoutPage.vue) n'appelle **plus** `/payments/initiate` : un seul appel `POST /cart/checkout` → **une commande, un paiement**, dispatch SmartForm/instructions sur la réponse. Fallback placeholder conservé si `payment_method_id` absent (compat). Atomicité : un moyen de paiement invalide (éligibilité, etc.) annule toute la commande (rollback). Test : `test_checkout_with_payment_method_runs_single_payment_initiation`. `cart.ts` étend les types en attendant la régénération de `schema.ts`.
+
+#### 🐛 Lot de correctifs post‑checkout (23/06/2026)
+
+Retours utilisateur après que le checkout fonctionne :
+1. **Adresse de livraison au checkout** *(Issue 1)* — le checkout ne demandait pas d'adresse (`shipping_address` toujours `null`). Ajout d'un **sélecteur d'adresse validée** dans [CheckoutPage.vue](frontend/src/pages/CheckoutPage.vue) (chargée via `listMyAddresses`, filtrée `is_validated`), bouton « Procéder » désactivé tant qu'aucune adresse n'est choisie, snapshot envoyé en `shipping_address` à `/cart/checkout`. État vide → renvoi vers *Mon compte → Adresses*.
+2. **Étapes de suivi illisibles** *(Issue 2)* — `OrderTrackingPage.vue` affichait `segment.notes` brut, or le backend y stockait des métadonnées internes (`origin=checkout_selected_routes;sequence=1`). Backend : `notes=None` sur les `ShippingRouteTracking` (champ **public**). Front : `customerNote()` masque toute note au format interne `clé=valeur` (couvre les commandes existantes).
+3. **Statut de commande invisible** *(Issue 3c)* — le storefront n'affichait jamais le statut de commande (`order_status_id` opaque) ; le « en attente » visible était le **statut d'expédition** du suivi (inchangé par le paiement, c'est normal). Backend : `/orders/me` expose désormais `order_status_name` (modèle `MyOrderPublic`). Front : **chip de statut** par commande dans *Mes commandes* (Pending→En attente, AwaitingPayment→En attente de paiement, Paid→Payée, PaymentFailed→Paiement refusé) ; le titre du suivi devient « Statut d'expédition » pour lever la confusion. *(Côté backend l'approbation publiait déjà `payment.captured` → `on_payment_captured` met l'order à « Paid ».)*
+4. **Référence non pertinente pour le PO** *(Issue 3b)* — dans l'admin, le champ « Référence (n° de chèque…) » s'affichait pour tous ; masqué pour les providers **document** (`isDocumentProvider`), remplacé par un rappel « vérifiez la pièce jointe ».
+5. **BC joint non visible** *(Issue 3a)* — la liaison pièce↔paiement est **correcte côté code** (`confirm_document_uploaded` → `register_uploaded_attachment(payment_id=…)`), et l'admin a un bouton « Pièces » (providers document) tant que le paiement est en attente. ⏳ À confirmer côté usage (le BC a‑t‑il bien été téléversé ?) + **gap connu** : une fois le paiement approuvé, il sort de la file et la pièce n'est plus consultable (pas encore d'historique paiements admin) ; **wart presigned** (`LocalFileStorage` construit l'URL sur `FRONTEND_HOST`) pouvant faire échouer silencieusement le PUT en dev.
+
+#### 🐛 Storage des pièces jointes éphémère / non partagé (23/06/2026)
+
+**Symptômes** : BC bloqué sur « analyse… » + `GET /internal/storage/{token}` → **500 `StorageError: Object … not found`** alors que la ligne attachment existe. **Cause racine** (pas S3 en soi) : `FILE_STORAGE_LOCAL_ROOT = /tmp/fastapi_ecommerce_storage` n'était **monté dans aucun volume** → (1) le fichier vivait dans le `/tmp` **éphémère** du conteneur `api` et disparaissait à chaque restart/rebuild ; (2) le **scan AV tourne dans `arq-worker`** (conteneur séparé) qui lisait son **propre** `/tmp` vide → `get_bytes` échoue → le handler `on_payment_document_uploaded` retourne sans poser `av_scanned=True` → « analyse… » éternel (`CLAMAV_ENABLED=true`). **Fix** ([docker-compose.yml](docker-compose.yml)) : **named volume `storage_data` partagé** monté sur `/tmp/fastapi_ecommerce_storage` dans `api` **et** `arq-worker` → fichiers persistants et visibles par le worker. L'`override` (dev) ajoute ses bind-mounts `./backend/app` ; Compose concatène les volumes (cibles distinctes) → cohabitation OK. ⚠️ Les BC déjà uploadés sont **perdus** (ancien `/tmp`) → re-téléverser. *(proxy/prod : à doter du même volume lors d'un déploiement réel.)*
+
+#### 🐛 Admin — file de validation des paiements (23/06/2026)
+
+D'après le screenshot d'une ligne `po_public` :
+- **Bouton « Pièces » jamais affiché** *(vrai bug 3a)* : `isDocumentProvider('po_public')` testait `startsWith('document')` → `false`. Backend : `pending-validation` renvoie désormais un flag **`is_document`** (= `provider_code in DOCUMENT_PROVIDER_CODES`) ; la page l'utilise pour le bouton « Pièces » **et** pour masquer le champ Référence. Fallback front : `isDocumentProvider` reconnaît aussi `po_*`.
+- **Nom du client** : `PaymentPendingValidationItem` expose `user_name`/`user_email` (résolus en une requête `User`) ; la colonne « Client » affiche le nom (fallback email, puis id court).
+- **Type lisible** : `providerLabel` mappe `po_*`/`document*` → **« Bon de commande »**.
+- ✅ **A18 — Page « Commandes clients » admin** *(23/06/2026)* : nouveau module backend `admin_orders.py` (superuser) — `GET /admin/orders` (liste enrichie : nom client + nom statut + total, récents d'abord) et `GET /admin/orders/{id}` (détail : client, statut, **lignes** avec nom produit, **paiements** — tous, avec statut/provider/référence, adresse, notes). Front admin : `OrdersPage.vue` (liste) + `OrderDetailPage.vue` (détail) + routes `/orders` & `/orders/:id` + entrée nav « Commandes clients ». La file de validation des paiements **lie** désormais la colonne Commande vers `/orders/:id`. Helpers statut FR partagés dans `api/orders.ts`.
 
 ### Périmètre fonctionnel
 
@@ -911,17 +960,34 @@ Les Phases 0–3 ont livré les **endpoints admin** mais l'`admin-frontend` ne c
 | A6 | **Demandes d'upgrade de groupe** | `GET /admin/group-upgrade-requests`, `POST .../{id}/approve\|reject` | 2 | ✅ livré (20/06/2026) |
 | A7 | **Éligibilité paiement** | `GET/POST/DELETE /admin/payment-methods/{id}/groups`, `GET /payment_method`, `GET /admin/price-groups` *(nouveau)* | 3 | ✅ livré (20/06/2026) |
 | A8 | Toggle « mis en avant » sur `ProductsPage` | `POST/DELETE /product/{id}/feature` | 1 | 🔲 à faire |
-| A9 | Affectation directe de groupe à un user | `POST /admin/users/{id}/assign-price-group` + recherche user | 2 | 🔲 à faire (UX recherche user) |
-| A10 | Validation des adresses | *manque un endpoint listant les adresses à valider* | 2 | ⛔ bloqué (ajout backend requis) |
+| A9 | Affectation directe de groupe à un user | `POST /admin/users/{id}/assign-price-group` + recherche user | 2 | 🔲 à faire (UX recherche user) — couvert par A15 |
+| A10 | **Validation des adresses** | *manque un endpoint listant les adresses à valider* (`POST /admin/addresses/{id}/validate` existe déjà) | 2 | ⛔ **décision requise** : (1) **désactiver la validation** (les adresses self-service deviennent utilisables directement) — la mention « doit être validée » est aujourd'hui dans `MyAccountPage.vue` mais n'était **pas** une exigence explicite du plan ; ou (2) **ajouter l'écran admin** (nécessite un endpoint `GET /admin/addresses?validated=false`) |
 | A11 | Consultation des `QuoteRequest` | *manque un endpoint admin de listing des devis* | 1 | ⛔ bloqué (ajout backend requis) |
-| A12 | Fusion / renommage de catégories | *manque un endpoint de merge* | 2 | ⛔ bloqué (ajout backend requis) |
+| A12 | Fusion / renommage de catégories | *manque un endpoint de merge* | 2 | ⛔ bloqué (ajout backend requis) — voir A17 |
+| A13 | **Validation des paiements** | `GET /admin/payments/pending-validation`, `.../approve\|reject`, `.../attachments[/{id}/download]` | 3 | ✅ livré (23/06/2026) |
+| A14 | **Édition produit** (titre, description, images…) avec **champs d'override** préservés de la sync | `PATCH /product/{id}` (existe) **+ champs override + respect par la sync** (cf. *Décision — personnalisation vs sync*) | 2/3 | 🔲 à faire (ajout backend : champs override + protection sync) |
+| A15 | **Liste des utilisateurs** (compte + groupe) + **création de compte** avec email d'invitation | *manque endpoints admin* : `GET /admin/users` (avec groupe), `POST /admin/users` (+ email d'activation). Inclut A9 (affectation de groupe). | 2 | 🔲 à faire (ajouts backend + écran) |
+| A16 | **Logistique : regroupement / consolidation / suivi d'expédition** | `POST /admin/shipping/consolidation/...`, ship/deliver, `pending-grouping` (Phase 4) | 4 | 🔲 **Phase 4** — distinct d'A4 : A4 = PO fournisseur (Ingram), A16 = expéditions/consolidation. Endpoints à livrer en P4. |
+| A17 | **Catégories** : liste + **titre / description / image vitrine personnalisés** (préservés de l'enrichissement) ; fusion/renommage (A12) | *nouveaux champs `Category` (override) + endpoints admin* | 2/3 | 🔲 à faire (ajouts backend + écran ; cf. *Décision — personnalisation vs sync*) |
+| A18 | **Commandes clients** (liste + statut) | `GET /order/...` (scoping admin à relire ; `GET /order/status/{id}` existe pour superuser) | 2 | 🔲 à faire (écran ; endpoint de liste admin à confirmer) |
+| A19 | **Paiements** (liste + statut, au-delà de la validation A13) | *endpoint de liste générale des paiements à confirmer/ajouter* | 2/3 | 🔲 à faire (écran + endpoint de liste) |
+
+### Décision transverse — personnalisation préservée de la synchronisation
+
+Les **produits** (sync Ingram `SupplierSyncOrchestrator.upsert_product` + enrichissement Icecat) et les **catégories** (`get_or_create_by_name` au sync) sont **réécrits à chaque synchronisation**. Pour qu'un admin puisse personnaliser des informations (titre, description, images produit ; titre / description / image de catégorie pour la vitrine) **sans être écrasé**, deux approches :
+
+- **(a) Champs d'override dédiés** — colonnes séparées non touchées par la sync, ex. `Product.name_override` / `description_override` / `image_override`, `Category.display_title` / `display_description` / `display_image_url`. L'API publique renvoie l'override s'il existe, sinon la valeur synchronisée (résolution centralisée). La valeur fournisseur reste visible/auditable.
+- **(b) Verrous par champ** — un flag `is_manually_edited` ou une liste `locked_fields` que `upsert_product` et l'enrichissement **respectent** (ne réécrivent pas les champs verrouillés).
+
+> **Recommandation : (a)** — plus simple et traçable (l'override est explicite, la valeur fournisseur n'est jamais perdue). **À acter avant A14 (produit) et A17 (catégorie)** ; ces deux écrans en dépendent. Concerne aussi l'image catégorie (nouveau champ, pas de source fournisseur → simple ajout) et le *featured* (A8, déjà non écrasé).
 
 ### Avancement (20/06/2026)
 
 - ✅ **Shell admin** : `AdminLayout.vue` doté d'un `q-drawer` de navigation (sections Catalogue / Tarification / Commandes / Clients / Système) ; routes ajoutées dans `admin-frontend/src/router/routes.ts`.
 - ✅ **Backend** : `GET /admin/price-groups` (superuser, lecture seule) ajouté dans [admin_payment_eligibility.py](backend/app/api/routes/admin_payment_eligibility.py) — débloque A7 (et préparera A9). Test : [test_admin_price_groups.py](backend/app/tests/api/test_admin_price_groups.py).
 - ✅ **Écrans A1→A7** livrés (cf. tableau). Modules API dédiés sous `admin-frontend/src/api/`.
-- 🔲 Restent A8 (featured), A9 (assign group — UX recherche user), et A10–A12 (ajouts backend requis).
+- ✅ **A13 — Validation des paiements** *(23/06/2026)* : `PaymentValidationsPage.vue` (route `/payment-validations`, section nav « Paiements ») — liste des paiements manuels (chèque/virement) et bons de commande en attente (`GET /admin/payments/pending-validation`), **approbation** (référence + commentaire) / **rejet** (motif requis), et pour les BC consultation + **téléchargement des pièces** (`/attachments` + `/attachments/{id}/download`, avec rewrite de l'URL presignée locale sur `VITE_API_URL` + état antivirus). API : [admin-frontend/src/api/paymentValidations.ts](admin-frontend/src/api/paymentValidations.ts).
+- 🔲 **Restent** : A8 (featured), A9 (assign group — fusionné dans A15), A10 (adresses — **décision** désactiver/écran), A11–A12 (devis, fusion catégories — backend requis), et les nouveaux **A14 produit (override), A15 users + création de compte, A16 logistique (P4), A17 catégories (override + image), A18 commandes clients, A19 paiements**. La plupart nécessitent des **ajouts backend** (champs override, endpoints de liste users/orders/payments, endpoint adresses à valider).
 
 ---
 

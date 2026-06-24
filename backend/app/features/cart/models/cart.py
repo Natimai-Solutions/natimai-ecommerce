@@ -240,6 +240,17 @@ class CheckoutRequest(SQLModel):
         default=None,
         description=("Automatic selection preference when shipping_route_ids is empty"),
     )
+    payment_method_id: uuid.UUID | None = Field(
+        default=None,
+        description=(
+            "Payment method to initiate in the same transaction (single-payment "
+            "flow). When omitted, a pending placeholder payment is created instead."
+        ),
+    )
+    return_url: str | None = Field(
+        default=None,
+        description="Return URL for provider redirect/SmartForm (CB).",
+    )
 
 
 class CheckoutResponse(SQLModel):
@@ -265,4 +276,14 @@ class CheckoutResponse(SQLModel):
             "(meme contenu que sur la commande)"
         ),
     )
+    # Provider initiation result (single-payment flow). Populated when
+    # payment_method_id is supplied: CB → form_token/server_url/public_key;
+    # manual/document → instructions.
+    provider_code: str | None = None
+    provider_reference: str | None = None
+    form_token: str | None = None
+    server_url: str | None = None
+    public_key: str | None = None
+    redirect_url: str | None = None
+    instructions: str | None = None
     message: str = Field(default="Checkout completed")

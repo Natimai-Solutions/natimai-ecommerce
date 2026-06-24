@@ -5,6 +5,8 @@ export interface Order {
   id: string
   user_id: string
   order_status_id: string
+  /** Human-readable status name (Pending / AwaitingPayment / Paid / PaymentFailed…). */
+  order_status_name: string | null
   total_amount: string
   subtotal_amount: string
   shipping_fee_amount: string

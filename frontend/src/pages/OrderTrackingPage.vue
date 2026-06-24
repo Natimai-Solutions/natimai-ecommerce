@@ -32,7 +32,7 @@
       <q-card flat bordered class="q-mb-md">
         <q-card-section class="row items-center">
           <div class="col">
-            <div class="text-caption text-grey-7">Statut global</div>
+            <div class="text-caption text-grey-7">Statut d'expédition</div>
             <div class="text-h6">{{ statusLabel(tracking.overall_status) }}</div>
           </div>
           <q-chip
@@ -92,7 +92,9 @@
                   <q-icon name="inventory_2" size="xs" class="q-mr-xs" />
                   Regroupé dans un envoi consolidé
                 </div>
-                <div v-if="segment.notes" class="text-grey-8">{{ segment.notes }}</div>
+                <div v-if="customerNote(segment.notes)" class="text-grey-8">
+                  {{ customerNote(segment.notes) }}
+                </div>
               </div>
             </q-timeline-entry>
           </q-timeline>
@@ -189,6 +191,17 @@ function statusIcon(code: string): string {
 function segmentIcon(segment: OrderTrackingSegment): string {
   if (segment.estimated_delivery) return 'local_shipping'
   return 'place'
+}
+
+/**
+ * Only show genuine carrier notes. The public `notes` field historically also
+ * received internal linkage metadata (e.g. "origin=checkout_selected_routes;
+ * sequence=1") — those are not meaningful to the customer and are hidden.
+ */
+function customerNote(note: string | null): string | null {
+  if (!note) return null
+  if (/\b(origin|segment|sequence|quantity)=/.test(note)) return null
+  return note
 }
 
 const SCENARIO_LABELS: Record<string, string> = {

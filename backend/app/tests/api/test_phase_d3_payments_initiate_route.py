@@ -73,15 +73,15 @@ async def test_payments_initiate_dispatches_by_payment_method(
         )
 
     monkeypatch.setattr(
-        "app.api.routes.payments.resolve_provider_code_for_payment_method",
+        "app.features.payment.services.payment_initiation.resolve_provider_code_for_payment_method",
         _fake_resolve_provider_code,
     )
     monkeypatch.setattr(
-        "app.api.routes.payments.initiate_api_payment",
+        "app.features.payment.services.payment_initiation.initiate_api_payment",
         _fake_initiate_api_payment,
     )
     monkeypatch.setattr(
-        "app.api.routes.payments.check_payment_method_eligible",
+        "app.features.payment.services.payment_initiation.check_payment_method_eligible",
         AsyncMock(return_value=True),
     )
 
@@ -140,7 +140,7 @@ async def test_payments_initiate_returns_404_when_method_not_found(
     create_payment_mock = AsyncMock()
     monkeypatch.setattr(crud_payment, "create_payment_with_log", create_payment_mock)
     monkeypatch.setattr(
-        "app.api.routes.payments.resolve_provider_code_for_payment_method",
+        "app.features.payment.services.payment_initiation.resolve_provider_code_for_payment_method",
         AsyncMock(side_effect=PaymentMethodNotFoundError("payment method not found")),
     )
 
@@ -195,15 +195,15 @@ async def test_payments_initiate_returns_400_when_provider_unsupported(
         AsyncMock(return_value=payment),
     )
     monkeypatch.setattr(
-        "app.api.routes.payments.resolve_provider_code_for_payment_method",
+        "app.features.payment.services.payment_initiation.resolve_provider_code_for_payment_method",
         AsyncMock(return_value="future_provider"),
     )
     monkeypatch.setattr(
-        "app.api.routes.payments.get_provider",
+        "app.features.payment.services.payment_initiation.get_provider",
         lambda provider_code: object(),
     )
     monkeypatch.setattr(
-        "app.api.routes.payments.check_payment_method_eligible",
+        "app.features.payment.services.payment_initiation.check_payment_method_eligible",
         AsyncMock(return_value=True),
     )
 

@@ -211,6 +211,15 @@
               <q-item-label caption>
                 {{ formatDate(order.created_at) ?? '—' }}
               </q-item-label>
+              <q-item-label class="q-mt-xs">
+                <q-chip
+                  dense
+                  size="sm"
+                  :color="orderStatusColor(order.order_status_name)"
+                  text-color="white"
+                  :label="orderStatusLabel(order.order_status_name)"
+                />
+              </q-item-label>
             </q-item-section>
             <q-item-section side class="text-right">
               <q-item-label class="text-weight-medium">
@@ -573,6 +582,30 @@ function formatDate(raw: string | null): string | null {
   const d = new Date(raw)
   if (Number.isNaN(d.getTime())) return raw
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+// Order status (payment/fulfillment) → customer-facing label & colour.
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  Pending: 'En attente',
+  AwaitingPayment: 'En attente de paiement',
+  Paid: 'Payée',
+  PaymentFailed: 'Paiement refusé',
+  Processing: 'En préparation',
+  Shipped: 'Expédiée',
+  Delivered: 'Livrée',
+  Cancelled: 'Annulée',
+}
+
+function orderStatusLabel(name: string | null): string {
+  if (!name) return 'En attente'
+  return ORDER_STATUS_LABELS[name] ?? name
+}
+
+function orderStatusColor(name: string | null): string {
+  if (name === 'Paid' || name === 'Delivered') return 'green'
+  if (name === 'PaymentFailed' || name === 'Cancelled') return 'negative'
+  if (name === 'Shipped' || name === 'Processing') return 'primary'
+  return 'grey-7'
 }
 
 /** Extract a human message from a backend AppError / Axios error shape. */

@@ -60,6 +60,10 @@ from app.features.payment.models.payment_status import (
     PaymentStatus,
     PaymentStatusCreate,
 )
+from app.features.payment.services.payment_initiation import (
+    PaymentInitiationResult,
+    initiate_payment_for_method,
+)
 from app.features.product.models.product import Product
 from app.features.product.services.pricing import (
     calculate_sale_price,
@@ -595,7 +599,9 @@ async def _link_fulfillment_segments_to_tracking(
                 last_status_update=None,
                 tracking_ref=None,
                 estimated_delivery=None,
-                notes=(f"segment={segment.value};quantity={quantity};origin=checkout"),
+                # `notes` is customer-facing (ShippingRouteTrackingPublic); keep
+                # internal linkage out of it (sequence/route already convey it).
+                notes=None,
             ),
             user=current_user,
         )
@@ -640,7 +646,8 @@ async def _link_selected_routes_to_tracking(
                 last_status_update=None,
                 tracking_ref=None,
                 estimated_delivery=None,
-                notes=(f"origin=checkout_selected_routes;sequence={sequence_order}"),
+                # Customer-facing field — no internal linkage metadata here.
+                notes=None,
             ),
             user=current_user,
         )
@@ -883,18 +890,22 @@ async def add_cart_item(
         session=session,
         user_id=current_user.id,
     )
+    # Capture before add_or_increment/sync_total commit (which expire `cart`) —
+    # re-reading cart.id from an expired instance triggers a sync lazy-load
+    # (MissingGreenlet) in the async session.
+    cart_id = cart.id
     product = await _get_active_product_or_404(session, product_id=payload.product_id)
 
     await crud_cart_item.add_or_increment(
         session=session,
-        cart_id=cart.id,
+        cart_id=cart_id,
         product=product,
         quantity=payload.quantity,
     )
-    await crud_cart.sync_total(session=session, cart_id=cart.id)
+    await crud_cart.sync_total(session=session, cart_id=cart_id)
     await session.refresh(cart)
 
-    items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart.id)
+    items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart_id)
     return _build_cart_detail(cart, items)
 
 
@@ -985,9 +996,13 @@ async def clear_my_cart(
         session=session,
         user_id=current_user.id,
     )
+    # Capture the id before clear_cart/sync_total commit (which expire `cart`);
+    # re-reading cart.id from an expired instance triggers a sync lazy-load
+    # (MissingGreenlet) in the async session.
+    cart_id = cart.id
 
-    await crud_cart_item.clear_cart(session=session, cart_id=cart.id)
-    await crud_cart.sync_total(session=session, cart_id=cart.id)
+    await crud_cart_item.clear_cart(session=session, cart_id=cart_id)
+    await crud_cart.sync_total(session=session, cart_id=cart_id)
     await session.refresh(cart)
 
     return _build_cart_detail(cart, [])
@@ -1474,9 +1489,13 @@ async def checkout_my_cart(
 ) -> CheckoutResponse:
     """Execute checkout my cart."""
     checkout_started = perf_counter()
+    # session.commit() below expires every instance bound to the session,
+    # including current_user. Capture the id up-front so the post-commit logging
+    # and error paths don't trigger a sync lazy-load (MissingGreenlet).
+    user_id = current_user.id
     cart = await crud_cart.get_active_cart_by_user(
         session=session,
-        user_id=current_user.id,
+        user_id=user_id,
     )
     if cart is None:
         raise AppError(
@@ -1667,19 +1686,38 @@ async def checkout_my_cart(
                     error=str(tracking_exc),
                 )
 
-        payment_status = await _get_or_create_payment_pending_status(session)
-        payment = await crud_payment.create_draft(
-            session=session,
-            data=PaymentCreate(
+        payment_init: PaymentInitiationResult | None = None
+        if payload.payment_method_id is not None:
+            # Single-payment flow: create the payment AND run the provider
+            # initiation (CB SmartForm / manual / document) in this same
+            # transaction. No separate POST /payments/initiate is needed.
+            payment_init = await initiate_payment_for_method(
+                session,
+                payment_method_id=payload.payment_method_id,
                 amount=total_amount,
                 currency=cart.currency,
                 order_id=order.id,
-                user_id=current_user.id,
-            ),
-            user=current_user,
-        )
-        payment.payment_status_id = payment_status.id
-        session.add(payment)
+                return_url=payload.return_url,
+                metadata=None,
+                current_user=current_user,
+            )
+            payment = payment_init.payment
+        else:
+            # Backward-compatible fallback: a pending placeholder payment to be
+            # initiated later via POST /payments/initiate.
+            payment_status = await _get_or_create_payment_pending_status(session)
+            payment = await crud_payment.create_draft(
+                session=session,
+                data=PaymentCreate(
+                    amount=total_amount,
+                    currency=cart.currency,
+                    order_id=order.id,
+                    user_id=current_user.id,
+                ),
+                user=current_user,
+            )
+            payment.payment_status_id = payment_status.id
+            session.add(payment)
 
         cart.is_checked_out = True
         cart.total_amount = total_amount
@@ -1703,6 +1741,20 @@ async def checkout_my_cart(
             correlation_id=order.id,
         )
 
+        # Capture ORM-derived values for the response/log BEFORE the commit
+        # expires these instances (post-commit attribute access triggers a sync
+        # lazy-load → MissingGreenlet). selected_routes / shipping_cost_summary
+        # are not refreshed below, so they must be read here.
+        applied_shipping_route_ids = [route.id for route in selected_routes]
+        shipping_eta_days = (
+            shipping_cost_summary.eta_days if shipping_cost_summary else None
+        )
+        shipping_carbon_footprint_kg_co2e = (
+            shipping_cost_summary.carbon_footprint_kg_co2e
+            if shipping_cost_summary
+            else None
+        )
+
         await session.commit()
 
         await session.refresh(order)
@@ -1720,7 +1772,7 @@ async def checkout_my_cart(
             event="checkout_completed",
             order_id=order.id,
             payment_id=payment.id,
-            user_id=current_user.id,
+            user_id=user_id,
             amount=total_amount,
             currency=cart.currency,
             item_count=len(items),
@@ -1738,16 +1790,19 @@ async def checkout_my_cart(
             total_amount=total_amount,
             currency=cart.currency,
             item_count=len(items),
-            applied_shipping_route_ids=[route.id for route in selected_routes],
-            shipping_eta_days=(
-                shipping_cost_summary.eta_days if shipping_cost_summary else None
-            ),
-            shipping_carbon_footprint_kg_co2e=(
-                shipping_cost_summary.carbon_footprint_kg_co2e
-                if shipping_cost_summary
-                else None
-            ),
+            applied_shipping_route_ids=applied_shipping_route_ids,
+            shipping_eta_days=shipping_eta_days,
+            shipping_carbon_footprint_kg_co2e=shipping_carbon_footprint_kg_co2e,
             shipping_cost_breakdown=shipping_cost_breakdown_payload,
+            provider_code=payment_init.provider_code if payment_init else None,
+            provider_reference=(
+                payment_init.provider_reference if payment_init else None
+            ),
+            form_token=payment_init.form_token if payment_init else None,
+            server_url=payment_init.server_url if payment_init else None,
+            public_key=payment_init.public_key if payment_init else None,
+            redirect_url=payment_init.redirect_url if payment_init else None,
+            instructions=payment_init.instructions if payment_init else None,
             message="Checkout completed",
         )
 
@@ -1762,7 +1817,7 @@ async def checkout_my_cart(
             logger,
             level="warning",
             event="checkout_failed",
-            user_id=current_user.id,
+            user_id=user_id,
             error_code=exc.code,
             duration_ms=checkout_duration_ms,
         )
@@ -1779,7 +1834,7 @@ async def checkout_my_cart(
             logger,
             level="error",
             event="checkout_failed",
-            user_id=current_user.id,
+            user_id=user_id,
             error_code="internal_error",
             error=str(exc),
             duration_ms=checkout_duration_ms,

@@ -43,6 +43,7 @@ from app.features.payment.services.manual_payment import (
     approve_manual_payment,
     reject_manual_payment,
 )
+from app.features.user.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,10 @@ class PaymentPendingValidationItem(BaseModel):
     amount: float
     currency: str
     user_id: uuid.UUID
+    user_name: str | None = None
+    user_email: str | None = None
     order_id: uuid.UUID | None
+    is_document: bool = False
 
 
 class PaymentValidationResponse(BaseModel):
@@ -143,18 +147,33 @@ async def list_pending_validation(
     result = await session.exec(statement)
     payments = list(result.all())
 
-    return [
-        PaymentPendingValidationItem(
-            payment_id=p.id,
-            provider_code=p.provider_code,
-            provider_reference=p.provider_reference,
-            amount=float(p.amount),
-            currency=p.currency,
-            user_id=p.user_id,
-            order_id=p.order_id,
+    # Resolve client display names in one query.
+    user_ids = {p.user_id for p in payments}
+    users_by_id: dict[uuid.UUID, User] = {}
+    if user_ids:
+        user_result = await session.exec(
+            select(User).where(col(User.id).in_(user_ids))
         )
-        for p in payments
-    ]
+        users_by_id = {u.id: u for u in user_result.all()}
+
+    items: list[PaymentPendingValidationItem] = []
+    for p in payments:
+        user = users_by_id.get(p.user_id)
+        items.append(
+            PaymentPendingValidationItem(
+                payment_id=p.id,
+                provider_code=p.provider_code,
+                provider_reference=p.provider_reference,
+                amount=float(p.amount),
+                currency=p.currency,
+                user_id=p.user_id,
+                user_name=user.full_name if user else None,
+                user_email=user.email if user else None,
+                order_id=p.order_id,
+                is_document=p.provider_code in DOCUMENT_PROVIDER_CODES,
+            )
+        )
+    return items
 
 
 @router.get("/{payment_id}/validations", response_model=list[PaymentValidationPublic])

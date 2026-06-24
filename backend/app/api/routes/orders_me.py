@@ -9,7 +9,7 @@ import uuid
 
 from fastapi import APIRouter
 from fastapi import status as http_status
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, SQLModel, col, select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.api.routes.shipping.tracking import (
@@ -20,6 +20,7 @@ from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.order.crud.order_crud import crud_order
 from app.features.order.models.order import OrderPublic
+from app.features.order.models.order_status import OrderStatus
 from app.features.shipping.crud import (
     crud_shipping_route_tracking,
     crud_shipping_route_tracking_consolidation,
@@ -32,6 +33,12 @@ from app.features.shipping.models.route_tracking import (
 from app.features.shipping.models.status import StatusDefinition
 
 router = APIRouter(prefix="/orders", tags=["order"])
+
+
+class MyOrderPublic(OrderPublic):
+    """Order summary for the customer, enriched with the human-readable status name."""
+
+    order_status_name: str | None = None
 
 
 class CustomerOrderTrackingResponse(SQLModel):
@@ -49,7 +56,7 @@ class CustomerOrderTrackingResponse(SQLModel):
 
 @router.get(
     "/me",
-    response_model=list[OrderPublic],
+    response_model=list[MyOrderPublic],
     summary="List my orders",
 )
 async def list_my_orders(
@@ -57,12 +64,28 @@ async def list_my_orders(
     current_user: CurrentUser,
     skip: int = 0,
     limit: int = 100,
-) -> list[OrderPublic]:
+) -> list[MyOrderPublic]:
     """List the authenticated user's orders (most recent first)."""
     orders = await crud_order.get_by_user(
         session=session, user_id=current_user.id, skip=skip, limit=limit
     )
-    return [OrderPublic.model_validate(order) for order in orders]
+
+    # Resolve the order-status names in one query so the customer sees a readable
+    # status (Payée / En attente de paiement…) rather than an opaque UUID.
+    status_ids = {o.order_status_id for o in orders if o.order_status_id}
+    name_by_id: dict[uuid.UUID, str] = {}
+    if status_ids:
+        result = await session.exec(
+            select(OrderStatus).where(col(OrderStatus.id).in_(status_ids))
+        )
+        name_by_id = {status.id: status.name for status in result.all()}
+
+    items: list[MyOrderPublic] = []
+    for order in orders:
+        item = MyOrderPublic.model_validate(order)
+        item.order_status_name = name_by_id.get(order.order_status_id)
+        items.append(item)
+    return items
 
 
 @router.get(

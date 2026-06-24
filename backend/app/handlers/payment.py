@@ -232,8 +232,11 @@ async def on_payment_document_uploaded(
         data = await storage.get_bytes(key=attachment.file_key)
         result = await scanner.scan_bytes(data)
     except Exception as e:
-        logger.error("AV scan failed for attachment %s: %s", attachment_id, e)
-        return
+        # Re-raise so the ARQ job is retried (e.g. ClamAV not ready yet, or the
+        # file not yet visible). Swallowing here left the attachment stuck on
+        # "analyse…" forever with no retry.
+        logger.error("AV scan failed for attachment %s: %s — will retry", attachment_id, e)
+        raise
 
     attachment.av_scanned = True
     attachment.av_clean = result.is_clean

@@ -73,3 +73,96 @@ export async function getMyPaymentStatus(paymentId: string): Promise<PaymentStat
   const response = await api.get<PaymentStatusResponse>(`/payments/me/${paymentId}`)
   return response.data
 }
+
+// ---------------------------------------------------------------------------
+// Document-validated payments (Bon de commande): presigned upload flow
+// ---------------------------------------------------------------------------
+
+export interface UploadDocumentResponse {
+  payment_id: string
+  file_key: string
+  upload_url: string
+  upload_method: string
+  upload_headers: Record<string, string>
+  expires_in: number
+  max_bytes: number
+  allowed_mime: string[]
+}
+
+export interface DocumentUploadedResponse {
+  payment_id: string
+  attachment_id: string
+  payment_status_id: string | null
+  av_scan: string
+}
+
+/** Step 1: request a presigned URL to upload the purchase-order document. */
+export async function issueDocumentUploadUrl(
+  paymentId: string,
+  payload: { filename: string; mimetype: string; documentType?: string },
+): Promise<UploadDocumentResponse> {
+  const { data } = await api.post<UploadDocumentResponse>(
+    `/payments/${paymentId}/upload-document`,
+    {
+      filename: payload.filename,
+      mimetype: payload.mimetype,
+      document_type: payload.documentType ?? 'purchase_order',
+    },
+  )
+  return data
+}
+
+/**
+ * Step 2: PUT the raw file bytes to the presigned URL (bypasses the axios
+ * client — it's a direct upload to S3 or the local storage endpoint).
+ *
+ * With the LocalFileStorage backend the URL is built server-side from
+ * FRONTEND_HOST, which is the wrong host in a multi-origin deployment. When the
+ * URL targets the internal storage endpoint we rebuild it against VITE_API_URL
+ * (the correct API host); S3 presigned URLs are used verbatim.
+ */
+export async function uploadFileToPresignedUrl(
+  intent: UploadDocumentResponse,
+  file: File,
+): Promise<void> {
+  let url = intent.upload_url
+  try {
+    const parsed = new URL(intent.upload_url)
+    if (parsed.pathname.includes('/internal/storage/')) {
+      const base = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
+      url = `${base}${parsed.pathname}${parsed.search}`
+    }
+  } catch {
+    // Relative/invalid URL — use as returned.
+  }
+  const response = await fetch(url, {
+    method: intent.upload_method,
+    headers: intent.upload_headers,
+    body: file,
+  })
+  if (!response.ok) {
+    throw new Error(`Échec du téléversement du document (${response.status})`)
+  }
+}
+
+/** Step 3: confirm the upload so the backend records the attachment + AV scan. */
+export async function confirmDocumentUploaded(
+  paymentId: string,
+  payload: {
+    fileKey: string
+    filename: string
+    mimetype: string
+    documentType?: string
+  },
+): Promise<DocumentUploadedResponse> {
+  const { data } = await api.post<DocumentUploadedResponse>(
+    `/payments/${paymentId}/document-uploaded`,
+    {
+      file_key: payload.fileKey,
+      filename: payload.filename,
+      mimetype: payload.mimetype,
+      document_type: payload.documentType ?? 'purchase_order',
+    },
+  )
+  return data
+}
