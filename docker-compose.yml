@@ -103,10 +103,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      # The worker runs the antivirus scan (on_payment_document_uploaded); wait
-      # for ClamAV so it isn't scanned before the daemon is ready.
-      clamav:
-        condition: service_healthy
+      # NB: intentionally NOT gated on clamav — the worker processes ALL outbox
+      # events (order status, emails…), so it must run even if clamav is down.
+      # The AV scan handler re-raises on a not-ready scanner so ARQ retries it.
     env_file:
       - .env
     environment:

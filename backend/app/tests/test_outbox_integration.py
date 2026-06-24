@@ -89,6 +89,10 @@ async def test_poll_outbox_once_marks_done_when_enqueue_succeeds(
         AsyncMock(side_effect=_commit_and_refresh),
     )
     monkeypatch.setattr(
+        "app.outbox.poller.outbox_registry.get_handlers",
+        Mock(return_value=[object()]),
+    )
+    monkeypatch.setattr(
         "app.outbox.poller.enqueue_jobs_for_event",
         AsyncMock(return_value=None),
     )
@@ -120,6 +124,11 @@ async def test_poll_outbox_once_schedules_retry_when_enqueue_fails(
         "app.outbox.poller.commit_and_refresh",
         AsyncMock(side_effect=_commit_and_refresh),
     )
+    # A handler exists for this type (so we reach the enqueue step, which fails).
+    monkeypatch.setattr(
+        "app.outbox.poller.outbox_registry.get_handlers",
+        Mock(return_value=[object()]),
+    )
     monkeypatch.setattr(
         "app.outbox.poller.enqueue_jobs_for_event",
         AsyncMock(side_effect=RuntimeError("enqueue failed")),
@@ -134,3 +143,39 @@ async def test_poll_outbox_once_schedules_retry_when_enqueue_fails(
     assert event.last_error is not None
     assert "enqueue failed" in event.last_error
     assert event.next_run_at >= before
+
+
+@pytest.mark.anyio
+async def test_poll_outbox_once_skips_event_without_handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An event whose type has no registered handler is marked DONE, not retried
+    forever (otherwise it would starve handled events)."""
+    session = AsyncMock()
+    session.add = Mock()
+
+    event = OutboxEvent(type="update.product", payload={"id": "p-1"})
+    result = SimpleNamespace(first=Mock(return_value=event))
+    session.exec = AsyncMock(return_value=result)
+
+    async def _commit_and_refresh(
+        _session: AsyncMock, current: OutboxEvent
+    ) -> OutboxEvent:
+        return current
+
+    monkeypatch.setattr(
+        "app.outbox.poller.commit_and_refresh",
+        AsyncMock(side_effect=_commit_and_refresh),
+    )
+    monkeypatch.setattr(
+        "app.outbox.poller.outbox_registry.get_handlers",
+        Mock(return_value=[]),
+    )
+    enqueue = AsyncMock()
+    monkeypatch.setattr("app.outbox.poller.enqueue_jobs_for_event", enqueue)
+
+    processed = await poll_outbox_once(session)
+
+    assert processed is True
+    assert event.status == "DONE"
+    enqueue.assert_not_awaited()

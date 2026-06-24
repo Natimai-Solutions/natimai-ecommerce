@@ -117,11 +117,15 @@ class OutboxPollerService:
 
                 if processed > 0:
                     logger.debug("Processed %d events", processed)
+                    # Drained an event — loop again immediately instead of waiting
+                    # `interval`. Otherwise a backlog (e.g. many skipped
+                    # update.product events) clears at only 1/interval and starves
+                    # handled events like payment.captured.
+                    continue
 
-                # Calculate sleep time to maintain interval
+                # Idle: nothing was due — wait for the polling interval.
                 elapsed = time.time() - start_time
                 sleep_time = max(0, interval - elapsed)
-
                 if sleep_time > 0:
                     await asyncio.sleep(sleep_time)
 

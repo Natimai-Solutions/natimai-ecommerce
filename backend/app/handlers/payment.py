@@ -228,6 +228,13 @@ async def on_payment_document_uploaded(
     storage = get_file_storage()
     scanner = get_antivirus_scanner()
 
+    logger.info(
+        "AV scan starting: payment=%s attachment=%s key=%s",
+        payment_id,
+        attachment_id,
+        attachment.file_key,
+    )
+
     try:
         data = await storage.get_bytes(key=attachment.file_key)
         result = await scanner.scan_bytes(data)
@@ -242,6 +249,9 @@ async def on_payment_document_uploaded(
     attachment.av_clean = result.is_clean
     attachment.av_signature = result.signature
     session.add(attachment)
+    logger.info(
+        "AV scan complete: attachment=%s clean=%s", attachment_id, result.is_clean
+    )
 
     if not result.is_clean:
         try:
