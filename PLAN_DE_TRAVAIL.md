@@ -854,6 +854,17 @@ D'après le screenshot d'une ligne `po_public` :
 
 **Objectif** : outiller l'admin logistique pour grouper les colis et gérer les remboursements clients.
 
+#### ✅ Avancement — Logistique : endpoints + écran admin (23/06/2026)
+
+Sous-chantier **logistique** livré (devises + remboursement restent à faire) :
+- **Backend** [admin_shipping.py](backend/app/api/routes/admin_shipping.py) (`/admin/shipping`, superuser) réutilisant le CRUD shipping existant :
+  - `GET /pending-grouping` (tronçons sans consolidation, enrichis statut),
+  - `GET /consolidations`, `POST /consolidations` (création + code auto), `POST /consolidations/{id}/add-trackings` (bulk), `POST /consolidations/{id}/ship-all` (réf. transporteur → tous les tronçons),
+  - `POST /trackings/{id}/ship` (réf. requise) + `POST /trackings/{id}/deliver`.
+  - Chaque transition statut **get_or_create** le `StatusDefinition` (non seedés), force la transition (pas de dépendance à la table de transitions), pose la réf, et **publie `tracking.status_changed`** (→ email client) avec commit explicite (l'event est bien persisté). Tests : [test_admin_shipping.py](backend/app/tests/api/test_admin_shipping.py).
+- **Admin front** : [ShippingPage.vue](admin-frontend/src/pages/ShippingPage.vue) (« Logistique ») — table des colis à grouper (sélection → créer consolidation), actions Expédier/Livrer par tronçon, table consolidations avec « Expédier tout » ; nav « Commandes → Logistique », route `/shipping`, API [shipping.ts](admin-frontend/src/api/shipping.ts). Le lien commande pointe vers la fiche `/orders/:id`.
+- ⏳ **Reste Phase 4** : permission `logistics_admin` (RBAC — pour l'instant **superuser**), devises auto + multi-affichage, remboursement. ⚠️ Latent repéré : le endpoint **existant** `/shipping/tracking/{id}/update-status` publie l'outbox **sans commit explicite** (event potentiellement perdu) — à aligner sur le pattern de `admin_shipping`.
+
 ### Matrice livrables par surface
 
 | Feature | Backend | Vitrine (`frontend`) | Admin (`admin-frontend`) |
