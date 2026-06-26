@@ -83,8 +83,17 @@
                   outlined
                   dense
                 />
-                <!-- Devise d'affichage : masquée tant que l'affichage multi-devises
-                     (conversion des prix) n'est pas livré — cf. Phase 4. -->
+                <q-select
+                  v-if="currencyStore.available.length > 1"
+                  :model-value="currencyStore.currency"
+                  :options="currencyStore.available"
+                  label="Devise d'affichage"
+                  hint="Affichage uniquement — le paiement reste en XPF."
+                  class="col-12 col-sm-6"
+                  outlined
+                  dense
+                  @update:model-value="onCurrencyPrefChange"
+                />
               </div>
 
               <div class="row justify-end q-mt-md">
@@ -342,6 +351,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { formatXpf } from '@app/utils'
 import { useAuthStore } from 'src/stores/auth'
+import { useCurrencyStore } from 'src/stores/currency'
 import {
   getMyPreferences,
   updateMyPreferences,
@@ -361,6 +371,11 @@ import { listMyOrders, type Order } from 'src/api/orders'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const currencyStore = useCurrencyStore()
+
+function onCurrencyPrefChange(code: string) {
+  void currencyStore.setCurrency(code)
+}
 
 type AccountTab = 'preferences' | 'addresses' | 'orders'
 const tab = ref<AccountTab>('preferences')
@@ -427,6 +442,9 @@ async function savePreferences() {
   prefsError.value = null
   prefsSaved.value = false
   try {
+    // Keep the bulk save consistent with the live display-currency selection
+    // (changed via the header or the selector above, which persist immediately).
+    prefs.currency_pref = currencyStore.currency
     await updateMyPreferences({ ...prefs })
     prefsSaved.value = true
   } catch (err) {

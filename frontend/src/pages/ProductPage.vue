@@ -154,13 +154,13 @@ import { useMeta } from 'quasar'
 import { computed, onMounted, onServerPrefetch, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { components } from '@app/api-types'
-import { formatXpf } from '@app/utils'
 import {
   getProductById,
   getProductShippingModes,
   type ShippingModePricePublic,
 } from 'src/api/products'
 import { useCartStore } from 'src/stores/cart'
+import { useCurrencyStore } from 'src/stores/currency'
 import { getProductRouteByIdAndName, slugifyProductName } from 'src/utils/productRoute'
 
 type ProductPublic = components['schemas']['ProductPublic']
@@ -169,6 +169,7 @@ type Spec = { name: string; value: string; unit: string }
 const route = useRoute()
 const router = useRouter()
 const cartStore = useCartStore()
+const currencyStore = useCurrencyStore()
 
 const placeholderImg = '/icons/placeholder-product.svg'
 const product = ref<ProductPublic | null>(null)
@@ -197,12 +198,12 @@ const selectedMode = computed(
 const displayPrice = computed(() => {
   if (selectedMode.value) {
     const price = parseFloat(selectedMode.value.sale_price)
-    return price > 0 ? formatXpf(price) : '—'
+    return price > 0 ? currencyStore.format(price) : '—'
   }
   if (!product.value) return '—'
   const price = parseFloat(product.value.base_price)
   if (price === 0) return '—'
-  return formatXpf(price)
+  return currencyStore.format(price)
 })
 
 const safeDescription = computed(() => {

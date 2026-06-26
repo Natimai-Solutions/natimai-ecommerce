@@ -1,4 +1,4 @@
-export { formatXpf, formatPrice, parseDecimal } from './currency'
+export { formatXpf, formatPrice, formatMoney, parseDecimal } from './currency'
 export { calculateSalePrice } from './pricing'
 export type { PricingInput, PricingBreakdown } from './pricing'
 export { formatDate, formatDateTime, formatRelative } from './date'

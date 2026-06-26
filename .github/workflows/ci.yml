@@ -64,7 +64,7 @@ jobs:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: 9a9268773f32888a2eae4d1b9567efe0
           filename: coverage-backend.json
-          label: couverture backend
+          label: Backend coverage
           message: ${{ steps.cov_back.outputs.pct }}%
           valColorRange: ${{ steps.cov_back.outputs.pct }}
           minColorRange: 30
@@ -123,7 +123,7 @@ jobs:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: 9a9268773f32888a2eae4d1b9567efe0
           filename: coverage-frontend.json
-          label: couverture frontend
+          label: Frontend coverage
           message: ${{ steps.cov_front.outputs.pct }}%
           valColorRange: ${{ steps.cov_front.outputs.pct }}
           minColorRange: 30

@@ -173,10 +173,11 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { formatXpf } from '@app/utils'
 import { useCartStore } from 'src/stores/cart'
+import { useCurrencyStore } from 'src/stores/currency'
 
 const cartStore = useCartStore()
+const currencyStore = useCurrencyStore()
 const router = useRouter()
 
 const placeholderImg = '/icons/placeholder-product.svg'
@@ -187,11 +188,11 @@ function parseMoney(raw: string): number {
 }
 
 function moneyLabel(raw: string): string {
-  return formatXpf(parseMoney(raw))
+  return currencyStore.format(parseMoney(raw))
 }
 
 function moneyNumberLabel(amount: number): string {
-  return formatXpf(amount)
+  return currencyStore.format(amount)
 }
 
 function fallbackProductName(productId: string): string {

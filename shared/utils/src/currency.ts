@@ -44,3 +44,31 @@ export function parseDecimal(value: string | number | null | undefined): number 
 export function formatPrice(decimalStr: string | number | null | undefined): string {
   return formatXpf(parseDecimal(decimalStr))
 }
+
+/**
+ * Format an amount in an arbitrary display currency.
+ *
+ * XPF (the reference / billing currency) has no decimals and a " F" suffix;
+ * other currencies use the standard `Intl` currency formatting (2 decimals).
+ *
+ * @example
+ *   formatMoney(12500, 'XPF')  // "12 500 F"
+ *   formatMoney(105.04, 'USD') // "105,04 $US"
+ *   formatMoney(96.2, 'EUR')   // "96,20 €"
+ */
+export function formatMoney(amount: number | string, currency: string): string {
+  const n = typeof amount === 'string' ? parseFloat(amount) : amount
+  if (!isFinite(n)) return currency === 'XPF' ? '— F' : '—'
+  if (currency === 'XPF') return formatXpf(n)
+
+  try {
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 2,
+    }).format(n)
+  } catch {
+    return `${n.toFixed(2)} ${currency}`
+  }
+}

@@ -32,6 +32,21 @@
 
         <q-space />
 
+        <!-- Sélecteur de devise d'affichage (présentationnel ; paiement en XPF) -->
+        <q-select
+          v-if="currencyStore.available.length > 1"
+          :model-value="currencyStore.currency"
+          :options="currencyStore.available"
+          dense
+          borderless
+          options-dense
+          class="q-mr-sm"
+          style="min-width: 64px"
+          @update:model-value="onCurrencyChange"
+        >
+          <template #prepend><q-icon name="payments" size="xs" /></template>
+        </q-select>
+
         <!-- Icône panier -->
         <q-btn flat round icon="shopping_cart" :to="{ name: 'cart' }">
           <q-badge v-if="cartCount > 0" color="primary" floating>
@@ -111,15 +126,21 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from 'src/stores/cart'
 import { useAuthStore } from 'src/stores/auth'
+import { useCurrencyStore } from 'src/stores/currency'
 
 const drawerOpen = ref(false)
 const cartStore = useCartStore()
 const authStore = useAuthStore()
+const currencyStore = useCurrencyStore()
 const router = useRouter()
 const cartCount = computed(() => cartStore.totalItems)
 
 function toggleDrawer() {
   drawerOpen.value = !drawerOpen.value
+}
+
+function onCurrencyChange(code: string) {
+  void currencyStore.setCurrency(code)
 }
 
 function onLogout() {
@@ -129,6 +150,7 @@ function onLogout() {
 
 onMounted(() => {
   void cartStore.loadCart()
+  void currencyStore.loadRates()
 })
 </script>
 
