@@ -126,7 +126,9 @@ async def _get_or_create_status(
     )
 
 
-async def _status_map(session: SessionDep, *, entity: str) -> dict[uuid.UUID, StatusDefinition]:
+async def _status_map(
+    session: SessionDep, *, entity: str
+) -> dict[uuid.UUID, StatusDefinition]:
     defs = await crud_status_definition.get_by_entity(session=session, entity=entity)
     return {s.id: s for s in defs}
 
@@ -326,7 +328,9 @@ async def _get_consolidation_or_404(
         ) from exc
 
 
-@router.post("/consolidations/{consolidation_id}/add-trackings", response_model=OkResponse)
+@router.post(
+    "/consolidations/{consolidation_id}/add-trackings", response_model=OkResponse
+)
 async def add_trackings(
     consolidation_id: uuid.UUID,
     body: AddTrackingsRequest,
