@@ -2,6 +2,7 @@
   "name": "admin",
   "version": "0.0.1",
   "description": "Admin frontend for FastAPI ecommerce",
+  "license": "AGPL-3.0-or-later",
   "productName": "Admin Frontend",
   "author": "Jonathan Burckel <jburckel@natimai.solutions>",
   "type": "module",

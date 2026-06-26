@@ -1,8 +1,8 @@
 # FastAPI Ecommerce
 
 [![CI](https://github.com/Natimai-Solutions/natimai-ecommerce/actions/workflows/ci.yml/badge.svg)](https://github.com/Natimai-Solutions/natimai-ecommerce/actions/workflows/ci.yml)
-[![Couverture backend](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/jburckel/9a9268773f32888a2eae4d1b9567efe0/raw/coverage-backend.json)](https://github.com/Natimai-Solutions/natimai-ecommerce/actions/workflows/ci.yml)
-[![Couverture frontend](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/jburckel/9a9268773f32888a2eae4d1b9567efe0/raw/coverage-frontend.json)](https://github.com/Natimai-Solutions/natimai-ecommerce/actions/workflows/ci.yml)
+[![Backend coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/jburckel/9a9268773f32888a2eae4d1b9567efe0/raw/coverage-backend.json)](https://github.com/Natimai-Solutions/natimai-ecommerce/actions/workflows/ci.yml)
+[![Frontend coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/jburckel/9a9268773f32888a2eae4d1b9567efe0/raw/coverage-frontend.json)](https://github.com/Natimai-Solutions/natimai-ecommerce/actions/workflows/ci.yml)
 
 A full-stack e-commerce platform built with FastAPI, featuring async background processing, supplier catalog synchronization, and automatic product enrichment. Designed to handle multi-currency pricing, customs duties, and complex margin structures — with French Polynesia (XPF) as a reference implementation.
 
@@ -113,31 +113,39 @@ Copy `.env.example` to `.env` and fill in the values:
 | `ICECAT_USERNAME` | Icecat account username |
 | `ICECAT_API_KEY` | Icecat API key |
 
-## Tests & couverture
+## Tests & coverage
 
-La CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) s'exécute à chaque push sur `main` et sur chaque PR :
+CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and on every PR:
 
-- **Backend** : `ruff` (lint + format) + `mypy` + `pytest` **sous couverture** (`coverage run -m pytest`). La config de couverture (`source = app`, exclusions) est dans [`backend/pyproject.toml`](backend/pyproject.toml) (section `[tool.coverage.*]`) ; décommenter `fail_under` pour gater le build.
-- **Frontend** : `lint` + `typecheck` des deux apps (storefront + admin) + **tests unitaires du moteur partagé** (`@app/utils` : currency / pricing / date) via **vitest**, sous couverture.
+- **Backend**: `ruff` (lint + format) + `mypy` + `pytest` **under coverage** (`coverage run -m pytest`). The coverage config (`source = app`, exclusions) lives in [`backend/pyproject.toml`](backend/pyproject.toml) (section `[tool.coverage.*]`); uncomment `fail_under` to gate the build.
+- **Frontend**: `lint` + `typecheck` for both apps (storefront + admin) + **unit tests of the shared engine** (`@app/utils`: currency / pricing / date) via **vitest**, under coverage.
 
-### Lancer en local
+### Run locally
 
 ```bash
-# Backend (depuis backend/)
+# Backend (from backend/)
 uv run coverage run -m pytest && uv run coverage report
 
-# Frontend — moteur partagé (depuis la racine)
-pnpm test:coverage          # rapport + coverage/coverage-summary.json
+# Frontend — shared engine (from the repo root)
+pnpm test:coverage          # report + coverage/coverage-summary.json
 ```
 
-### Badges de couverture (gist)
+### Coverage badges (gist)
 
-Les badges en tête de ce README s'appuient sur un **gist** lu par shields.io, mis à jour par la CI à chaque push sur `main` (via `schneegans/dynamic-badges-action`). Le dispositif est **optionnel** : sans configuration, les étapes de badge sont ignorées et la CI reste verte.
+The badges at the top of this README rely on a **gist** read by shields.io, updated by CI on every push to `main` (via `schneegans/dynamic-badges-action`). This is **optional**: without configuration the badge steps are skipped and CI stays green.
 
-**Activer** : le gist (`9a9268773f32888a2eae4d1b9567efe0`) est déjà câblé dans la CI et les badges. Il reste à :
-1. Garnir le **gist public** avec deux fichiers `coverage-backend.json` et `coverage-frontend.json` (contenu initial `{}`).
-2. Ajouter un **PAT** (scope `gist`) en **secret** de dépôt `GIST_SECRET` (Settings → Secrets and variables → Actions → Secrets).
+**Enable**: the gist (`9a9268773f32888a2eae4d1b9567efe0`) is already wired into CI and the badges. What remains:
+1. Seed the **public gist** with two files `coverage-backend.json` and `coverage-frontend.json` (initial content `{}`).
+2. Add a **PAT** (scope `gist`) as the repository **secret** `GIST_SECRET` (Settings → Secrets and variables → Actions → Secrets).
 
-Au prochain push sur `main`, la CI publie les pourcentages dans le gist et les badges s'affichent.
+On the next push to `main`, CI publishes the percentages into the gist and the badges render.
 
-> ℹ️ Un gist est rattaché à un **compte**, pas à un dépôt : le dispositif est indépendant du fork.
+> ℹ️ A gist is tied to an **account**, not a repository — the setup is independent of forks.
+
+## License
+
+This project is licensed under the **GNU Affero General Public License v3.0 or later** (`AGPL-3.0-or-later`) — see [LICENSE](LICENSE).
+
+Copyright (C) 2026 Natimai Solutions.
+
+> ⚠️ **Network use (AGPL §13):** if you run a modified version of this software as a network service, you must make its complete corresponding source code available to the users of that service.
