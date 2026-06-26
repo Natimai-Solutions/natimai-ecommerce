@@ -129,18 +129,19 @@
 import { computed, ref, watch } from 'vue'
 import DOMPurify from 'isomorphic-dompurify'
 import type { components } from '@app/api-types'
-import { formatXpf } from '@app/utils'
 import {
   getProductShippingModes,
   type ShippingModePricePublic,
 } from 'src/api/products'
 import { getProductRoute } from 'src/utils/productRoute'
+import { useCurrencyStore } from 'src/stores/currency'
 
 type ProductPublic = components['schemas']['ProductPublic']
 
 const props = defineProps<{ product: ProductPublic }>()
 const emit = defineEmits<{ 'add-to-cart': [product: ProductPublic] }>()
 const open = defineModel<boolean>({ default: false })
+const currencyStore = useCurrencyStore()
 const productRoute = computed(() => getProductRoute(props.product))
 
 const shippingModes = ref<ShippingModePricePublic[]>([])
@@ -184,11 +185,11 @@ const stockQuantity = computed(() =>
 const displayPrice = computed(() => {
   if (selectedMode.value) {
     const price = parseFloat(selectedMode.value.sale_price)
-    return price > 0 ? formatXpf(price) : '—'
+    return price > 0 ? currencyStore.format(price) : '—'
   }
   const price = parseFloat(props.product.base_price)
   if (price === 0) return '—'
-  return formatXpf(price)
+  return currencyStore.format(price)
 })
 
 const safeDescription = computed(() => {

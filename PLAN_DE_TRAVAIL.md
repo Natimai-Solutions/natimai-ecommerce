@@ -865,6 +865,14 @@ Sous-chantier **logistique** livré (devises + remboursement restent à faire) :
 - **Admin front** : [ShippingPage.vue](admin-frontend/src/pages/ShippingPage.vue) (« Logistique ») — table des colis à grouper (sélection → créer consolidation), actions Expédier/Livrer par tronçon, table consolidations avec « Expédier tout » ; nav « Commandes → Logistique », route `/shipping`, API [shipping.ts](admin-frontend/src/api/shipping.ts). Le lien commande pointe vers la fiche `/orders/:id`.
 - ⏳ **Reste Phase 4** : permission `logistics_admin` (RBAC — pour l'instant **superuser**), devises auto + multi-affichage, remboursement. ⚠️ Latent repéré : le endpoint **existant** `/shipping/tracking/{id}/update-status` publie l'outbox **sans commit explicite** (event potentiellement perdu) — à aligner sur le pattern de `admin_shipping`.
 
+#### ✅ Avancement — Devises : affichage multi-devises (côté client) (23/06/2026)
+
+Décision : **conversion côté client** (l'affichage est purement présentationnel, checkout figé XPF) plutôt que `{amount, currency}` serveur (trop invasif). Volet **affichage** livré ; **auto-update + alerte** restent à faire.
+- **Backend** : endpoint **public** [currency.py](backend/app/api/routes/currency.py) `GET /currency/display-rates` → taux actifs (dernier par devise) + devise de référence. Tests [test_currency_display_rates.py](backend/app/tests/api/test_currency_display_rates.py).
+- **Shared** : `formatMoney(amount, currency)` ([currency.ts](shared/utils/src/currency.ts)) — XPF (0 déc., « F ») / autres via `Intl` (2 déc.) ; tests.
+- **Vitrine** : store Pinia [currency.ts](frontend/src/stores/currency.ts) (taux + sélection persistée localStorage + sync `currency_pref` si connecté ; `format(xpf)` = convertit puis formate). **Sélecteur** dans le header (MainLayout) + dans *Mon compte → Préférences* (démasqué). Affichages convertis : **ProductCard / ProductDetailsDialog / ProductPage / CartPage**. **Checkout + commandes restent en XPF** (montants de paiement autoritaires). Conversion : `montant_devise = xpf / rate_to_reference`.
+- ⏳ **Reste devises** : cron ARQ d'**auto-update FX** (opt-in `CURRENCY_AUTO_UPDATE_ENABLED`, source externe, ne pas écraser un `manual` < 24 h) + **alerte email** admin si dernier taux actif > 30 j.
+
 ### Matrice livrables par surface
 
 | Feature | Backend | Vitrine (`frontend`) | Admin (`admin-frontend`) |

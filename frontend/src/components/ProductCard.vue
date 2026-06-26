@@ -89,15 +89,16 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { components } from '@app/api-types'
-import { formatXpf } from '@app/utils'
 import ProductDetailsDialog from 'src/components/ProductDetailsDialog.vue'
 import { getProductRoute } from 'src/utils/productRoute'
+import { useCurrencyStore } from 'src/stores/currency'
 
 type ProductPublic = components['schemas']['ProductPublic']
 
 const props = defineProps<{ product: ProductPublic }>()
 const emit = defineEmits<{ 'add-to-cart': [product: ProductPublic] }>()
 
+const currencyStore = useCurrencyStore()
 const placeholderImg = '/icons/placeholder-product.svg'
 const showDetails = ref(false)
 const productRoute = computed(() => getProductRoute(props.product))
@@ -111,7 +112,7 @@ const stockQuantity = computed(() =>
 const displayPrice = computed(() => {
   const price = parseFloat(props.product.base_price)
   if (price === 0) return '—'
-  return formatXpf(price)
+  return currencyStore.format(price)
 })
 </script>
 
