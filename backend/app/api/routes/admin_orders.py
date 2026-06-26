@@ -93,10 +93,7 @@ async def list_orders(
 ) -> list[AdminOrderListItem]:
     """List customer orders (most recent first) with client and status names."""
     statement = (
-        select(Order)
-        .order_by(col(Order.created_at).desc())
-        .offset(skip)
-        .limit(limit)
+        select(Order).order_by(col(Order.created_at).desc()).offset(skip).limit(limit)
     )
     result = await session.exec(statement)
     orders = list(result.all())
@@ -211,9 +208,7 @@ async def get_order_detail(
             amount=float(p.amount),
             currency=p.currency,
             status=(
-                pstatus_by_id.get(p.payment_status_id)
-                if p.payment_status_id
-                else None
+                pstatus_by_id.get(p.payment_status_id) if p.payment_status_id else None
             ),
             created_at=p.created_at,
         )

@@ -7,9 +7,8 @@ eligibility endpoint only returns the groups already attached to a method.
 
 from __future__ import annotations
 
-from sqlmodel import col, select
-
 from fastapi import APIRouter
+from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.features.product.models.price_group import (

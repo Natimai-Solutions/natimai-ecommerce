@@ -222,14 +222,14 @@ async def test_checkout_with_payment_method_runs_single_payment_initiation(
             instructions="Réglez par chèque à l'ordre de…",
         )
     )
-    monkeypatch.setattr(
-        "app.api.routes.cart.initiate_payment_for_method", init_mock
-    )
+    monkeypatch.setattr("app.api.routes.cart.initiate_payment_for_method", init_mock)
 
     response = await checkout_my_cart(
         session=session,
         current_user=current_user,
-        payload=CheckoutRequest(shipping_address="Papeete", payment_method_id=method_id),
+        payload=CheckoutRequest(
+            shipping_address="Papeete", payment_method_id=method_id
+        ),
     )
 
     assert response.order_id == order_id

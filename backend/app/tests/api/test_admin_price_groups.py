@@ -72,7 +72,6 @@ def override_dependencies(
 
 def test_list_price_groups_returns_all(
     client: TestClient,
-    price_groups: list[PriceGroup],
 ) -> None:
     response = client.get("/api/v1/admin/price-groups")
 

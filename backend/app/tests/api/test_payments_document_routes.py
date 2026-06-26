@@ -73,7 +73,8 @@ async def test_payments_initiate_dispatches_po_provider(
 
     register_mock = AsyncMock(return_value=payment)
     monkeypatch.setattr(
-        "app.features.payment.services.payment_initiation.register_document_intent", register_mock
+        "app.features.payment.services.payment_initiation.register_document_intent",
+        register_mock,
     )
     monkeypatch.setattr(
         "app.features.payment.services.payment_initiation.check_payment_method_eligible",

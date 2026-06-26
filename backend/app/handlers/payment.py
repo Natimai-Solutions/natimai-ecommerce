@@ -242,7 +242,9 @@ async def on_payment_document_uploaded(
         # Re-raise so the ARQ job is retried (e.g. ClamAV not ready yet, or the
         # file not yet visible). Swallowing here left the attachment stuck on
         # "analyse…" forever with no retry.
-        logger.error("AV scan failed for attachment %s: %s — will retry", attachment_id, e)
+        logger.error(
+            "AV scan failed for attachment %s: %s — will retry", attachment_id, e
+        )
         raise
 
     attachment.av_scanned = True
