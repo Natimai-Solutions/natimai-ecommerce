@@ -2,10 +2,10 @@ from fastapi import APIRouter
 
 from app.api.routes.address import router as address_router
 from app.api.routes.admin_currency_rates import router as admin_currency_rates_router
+from app.api.routes.admin_orders import router as admin_orders_router
 from app.api.routes.admin_payment_eligibility import (
     router as admin_payment_eligibility_router,
 )
-from app.api.routes.admin_orders import router as admin_orders_router
 from app.api.routes.admin_payments import router as admin_payments_router
 from app.api.routes.admin_price_groups import router as admin_price_groups_router
 from app.api.routes.admin_spec_definitions import (

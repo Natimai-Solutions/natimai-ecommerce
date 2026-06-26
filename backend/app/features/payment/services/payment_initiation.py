@@ -186,7 +186,9 @@ async def initiate_payment_for_method(
         provider_result = await initiate_api_payment(provider_code, initiation_request)
 
         payment.provider_code = provider_code
-        payment.provider_reference = provider_result.provider_reference or str(payment.id)
+        payment.provider_reference = provider_result.provider_reference or str(
+            payment.id
+        )
         provider_data: dict[str, object] = {}
         if isinstance(provider_result.raw_response, dict):
             provider_data.update(provider_result.raw_response)
@@ -202,7 +204,9 @@ async def initiate_payment_for_method(
         provider_result = await provider.register_intent(initiation_request)
 
         payment.provider_code = provider_code
-        payment.provider_reference = provider_result.provider_reference or str(payment.id)
+        payment.provider_reference = provider_result.provider_reference or str(
+            payment.id
+        )
         payment.provider_data = provider_result.raw_response
         await register_manual_intent(
             session,
@@ -215,7 +219,9 @@ async def initiate_payment_for_method(
         provider_result = await provider.register_intent(initiation_request)
 
         payment.provider_code = provider_code
-        payment.provider_reference = provider_result.provider_reference or str(payment.id)
+        payment.provider_reference = provider_result.provider_reference or str(
+            payment.id
+        )
         payment.provider_data = provider_result.raw_response
         await register_document_intent(
             session,

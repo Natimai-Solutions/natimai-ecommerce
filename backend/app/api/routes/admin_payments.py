@@ -151,9 +151,7 @@ async def list_pending_validation(
     user_ids = {p.user_id for p in payments}
     users_by_id: dict[uuid.UUID, User] = {}
     if user_ids:
-        user_result = await session.exec(
-            select(User).where(col(User.id).in_(user_ids))
-        )
+        user_result = await session.exec(select(User).where(col(User.id).in_(user_ids)))
         users_by_id = {u.id: u for u in user_result.all()}
 
     items: list[PaymentPendingValidationItem] = []

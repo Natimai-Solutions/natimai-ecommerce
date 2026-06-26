@@ -44,6 +44,6 @@ def test_no_shadowed_routes() -> None:
                     if a is not b:
                         shadowed.append(f"{method} {b.path}  <-  {a.path}")
                     break
-    assert not shadowed, "Route(s) shadowed by an earlier parametrized route:\n" + "\n".join(
-        shadowed
+    assert not shadowed, (
+        "Route(s) shadowed by an earlier parametrized route:\n" + "\n".join(shadowed)
     )

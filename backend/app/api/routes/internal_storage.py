@@ -156,7 +156,7 @@ async def download_via_token(token: str, filename: str | None = None) -> Respons
     quoted = quote(safe_name)
     headers = {
         "Content-Disposition": (
-            f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quoted}'
+            f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quoted}"
         )
     }
     return Response(
