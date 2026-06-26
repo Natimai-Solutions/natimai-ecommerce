@@ -191,6 +191,24 @@ async def poll_outbox_once(session: AsyncSession) -> bool:
 
         logger.debug("Processing outbox event ID %s of type: %s", event.id, event.type)
 
+        # No registered handler → there is nothing to do. Mark the event terminal
+        # instead of rescheduling it forever: a backlog of unhandled events (e.g.
+        # generic CRUD "update.product" with no handler) is always the oldest and
+        # would otherwise starve handled events like payment.captured.
+        if not outbox_registry.get_handlers(event.type):
+            logger.info(
+                "No handler for event type '%s' (event %s) — marking DONE (skipped)",
+                event.type,
+                event.id,
+            )
+            event.status = "DONE"
+            event.attempts += 1
+            event.last_error = f"No handler for event type: {event.type}"
+            event.touch()
+            session.add(event)
+            await commit_and_refresh(session, event)
+            return True
+
         # Mark as RUNNING
         event.status = "RUNNING"
         event.touch()

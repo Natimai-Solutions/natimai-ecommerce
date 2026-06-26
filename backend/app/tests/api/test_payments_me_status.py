@@ -18,7 +18,12 @@ from app.main import app
 
 @pytest.fixture
 def current_user() -> SimpleNamespace:
-    return SimpleNamespace(id=uuid.uuid4(), is_superuser=False, is_active=True)
+    return SimpleNamespace(
+        id=uuid.uuid4(),
+        is_superuser=False,
+        is_active=True,
+        price_group_id=None,
+    )
 
 
 @pytest.fixture
@@ -132,3 +137,20 @@ def test_get_my_payment_status_non_terminal_pending(
     body = response.json()
     assert body["status_name"] == "Pending"
     assert body["is_terminal"] is False
+
+
+def test_me_methods_resolves_to_methods_endpoint_not_payment_id(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: /payments/me/methods must hit the methods endpoint, not be
+    parsed as a payment_id UUID by the parametrized /me/{payment_id} route."""
+    monkeypatch.setattr(
+        "app.api.routes.payments.get_eligible_payment_methods",
+        AsyncMock(return_value=[]),
+    )
+
+    response = client.get("/api/v1/payments/me/methods")
+
+    assert response.status_code == 200
+    assert response.json() == []

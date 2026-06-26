@@ -53,6 +53,11 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     command: ["api"]
+    volumes:
+      # Uploaded attachments (BC, etc.) — shared with arq-worker (AV scan) and
+      # persisted across restarts/rebuilds. Without this, files live in the
+      # container's ephemeral /tmp and are lost / invisible to the worker.
+      - storage_data:/tmp/fastapi_ecommerce_storage
     ports:
       - "8000:8000"
     depends_on:
@@ -90,11 +95,17 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     command: ["worker"]
+    volumes:
+      # Same shared storage as the API: the AV scan reads the uploaded file here.
+      - storage_data:/tmp/fastapi_ecommerce_storage
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      # NB: intentionally NOT gated on clamav — the worker processes ALL outbox
+      # events (order status, emails…), so it must run even if clamav is down.
+      # The AV scan handler re-raises on a not-ready scanner so ARQ retries it.
     env_file:
       - .env
     environment:
@@ -171,7 +182,7 @@ services:
       context: .
       dockerfile: admin-frontend/Dockerfile
     ports:
-      - "3001:3001"
+      - "3001:80"
     environment:
       - PORT=3001
     depends_on:
@@ -189,3 +200,4 @@ volumes:
   postgres_data:
   redis_data:  # Ajouter volume pour Redis
   clamav_data:  # Cache pour les signatures virales ClamAV
+  storage_data:  # Pièces jointes uploadées (BC…) — partagé API/worker, persistant

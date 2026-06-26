@@ -1,5 +1,9 @@
 # FastAPI Ecommerce
 
+[![CI](https://github.com/Natimai-Solutions/natimai-ecommerce/actions/workflows/ci.yml/badge.svg)](https://github.com/Natimai-Solutions/natimai-ecommerce/actions/workflows/ci.yml)
+[![Couverture backend](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/jburckel/9a9268773f32888a2eae4d1b9567efe0/raw/coverage-backend.json)](https://github.com/Natimai-Solutions/natimai-ecommerce/actions/workflows/ci.yml)
+[![Couverture frontend](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/jburckel/9a9268773f32888a2eae4d1b9567efe0/raw/coverage-frontend.json)](https://github.com/Natimai-Solutions/natimai-ecommerce/actions/workflows/ci.yml)
+
 A full-stack e-commerce platform built with FastAPI, featuring async background processing, supplier catalog synchronization, and automatic product enrichment. Designed to handle multi-currency pricing, customs duties, and complex margin structures — with French Polynesia (XPF) as a reference implementation.
 
 ## Tech Stack
@@ -108,3 +112,32 @@ Copy `.env.example` to `.env` and fill in the values:
 | `INGRAM_CLIENT_SECRET` | Ingram Micro API client secret |
 | `ICECAT_USERNAME` | Icecat account username |
 | `ICECAT_API_KEY` | Icecat API key |
+
+## Tests & couverture
+
+La CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) s'exécute à chaque push sur `main` et sur chaque PR :
+
+- **Backend** : `ruff` (lint + format) + `mypy` + `pytest` **sous couverture** (`coverage run -m pytest`). La config de couverture (`source = app`, exclusions) est dans [`backend/pyproject.toml`](backend/pyproject.toml) (section `[tool.coverage.*]`) ; décommenter `fail_under` pour gater le build.
+- **Frontend** : `lint` + `typecheck` des deux apps (storefront + admin) + **tests unitaires du moteur partagé** (`@app/utils` : currency / pricing / date) via **vitest**, sous couverture.
+
+### Lancer en local
+
+```bash
+# Backend (depuis backend/)
+uv run coverage run -m pytest && uv run coverage report
+
+# Frontend — moteur partagé (depuis la racine)
+pnpm test:coverage          # rapport + coverage/coverage-summary.json
+```
+
+### Badges de couverture (gist)
+
+Les badges en tête de ce README s'appuient sur un **gist** lu par shields.io, mis à jour par la CI à chaque push sur `main` (via `schneegans/dynamic-badges-action`). Le dispositif est **optionnel** : sans configuration, les étapes de badge sont ignorées et la CI reste verte.
+
+**Activer** : le gist (`9a9268773f32888a2eae4d1b9567efe0`) est déjà câblé dans la CI et les badges. Il reste à :
+1. Garnir le **gist public** avec deux fichiers `coverage-backend.json` et `coverage-frontend.json` (contenu initial `{}`).
+2. Ajouter un **PAT** (scope `gist`) en **secret** de dépôt `GIST_SECRET` (Settings → Secrets and variables → Actions → Secrets).
+
+Au prochain push sur `main`, la CI publie les pourcentages dans le gist et les badges s'affichent.
+
+> ℹ️ Un gist est rattaché à un **compte**, pas à un dépôt : le dispositif est indépendant du fork.

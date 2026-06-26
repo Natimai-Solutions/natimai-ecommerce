@@ -8,10 +8,14 @@
     "dev:admin": "pnpm --filter admin-frontend dev",
     "build:front": "pnpm --filter frontend build",
     "build:admin": "pnpm --filter admin-frontend build",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.9",
     "openapi-typescript": "^7.4.4",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "vitest": "^4.1.9"
   }
 }

@@ -149,7 +149,7 @@
             unelevated
             color="positive"
             icon="credit_card"
-            label="Payer par carte bancaire"
+            label="Payer"
             class="full-width q-mb-sm"
             :disable="cartStore.items.length === 0 || cartStore.mutating"
             @click="goToCheckout"

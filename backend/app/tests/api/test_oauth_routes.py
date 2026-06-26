@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 
 import app.api.routes.oauth as oauth_module
 from app.api.deps import get_redis_cache
+from app.core.config import settings
 from app.core.db import get_db
 from app.main import app
 
@@ -109,7 +110,7 @@ def test_callback_inactive_user_is_blocked_and_issues_no_token(
     create_token_spy.assert_not_awaited()
 
 
-def test_callback_active_user_redirects_with_tokens(
+def test_callback_active_user_sets_refresh_cookie(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -137,7 +138,9 @@ def test_callback_active_user_redirects_with_tokens(
     )
 
     assert response.status_code == 302
+    # No token must travel in the URL anymore — only the HttpOnly refresh cookie.
     query = parse_qs(urlparse(response.headers["location"]).query)
-    assert "access_token" in query
-    assert "refresh_token" in query
+    assert "access_token" not in query
+    assert "refresh_token" not in query
     assert "oauth_error" not in query
+    assert response.cookies.get(settings.REFRESH_COOKIE_NAME)

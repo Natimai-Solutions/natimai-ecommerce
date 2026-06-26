@@ -1,0 +1,35 @@
+# Reverse proxy de production — terminaison TLS (Let's Encrypt automatique)
+# et routage par sous-domaine vers les services docker-compose.
+#
+# Variables (fournies par docker-compose.proxy.yml depuis le .env racine) :
+#   {$DOMAIN}      domaine racine, ex. natimai.solutions
+#   {$ACME_EMAIL}  contact Let's Encrypt (notifications d'expiration)
+#
+# Prérequis : enregistrements DNS A/AAAA pour le domaine nu, www, api et admin
+# pointant vers l'IP publique du serveur ; ports 80 et 443 ouverts.
+{
+	email {$ACME_EMAIL}
+}
+
+# Vitrine (Quasar SSR — Node) sur le domaine nu
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy frontend:3000
+}
+
+# Redirection www → domaine nu
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}
+
+# API (FastAPI)
+api.{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy api:8000
+}
+
+# Back-office admin (SPA servie par nginx, écoute sur :80)
+admin.{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy admin-frontend:80
+}

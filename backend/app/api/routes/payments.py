@@ -18,46 +18,28 @@ from app.features.attachment.service import (
 from app.features.base.crud import RecordNotFoundError
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_status import crud_payment_status
-from app.features.payment.models.payment import Payment, PaymentCreate
+from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_status import (
     PaymentStatus,
     PaymentStatusCreate,
-)
-from app.features.payment.providers import get_provider
-from app.features.payment.providers.base import (
-    ApiPaymentProvider,
-    DocumentValidatedProvider,
-    InitiationRequest,
-    ManualPaymentProvider,
-    UnknownPaymentProviderError,
 )
 from app.features.payment.services.document_payment import (
     DOCUMENT_PROVIDER_CODES,
     PaymentNotDocumentValidatedError,
     mark_document_uploaded,
 )
-from app.features.payment.services.document_payment import (
-    register_intent as register_document_intent,
-)
 from app.features.payment.services.eligibility import (
-    check_payment_method_eligible,
     get_eligible_payment_methods,
 )
-from app.features.payment.services.manual_payment import (
-    register_intent as register_manual_intent,
+from app.features.payment.services.payment_initiation import (
+    initiate_payment_for_method,
 )
 from app.features.payment.services.provider_dispatch import (
     PaymentApiProviderResolutionError,
-    PaymentMethodInactiveError,
-    PaymentMethodNotFoundError,
-    PaymentMethodResolutionError,
-    initiate_api_payment,
     parse_api_webhook,
     resolve_api_provider,
-    resolve_provider_code_for_payment_method,
 )
 from app.outbox.registry import outbox_registry
-from app.utils.money import decimal_to_minor_units
 
 logger = logging.getLogger(__name__)
 
@@ -501,190 +483,37 @@ class PaymentsInitiateResponse(BaseModel):
 router = APIRouter(prefix="/payments", tags=["payment"])
 
 
-def _build_initiation_request(
-    *,
-    payment_id: uuid.UUID,
-    request: "PaymentsInitiateRequest",
-    current_user: CurrentUser,
-) -> InitiationRequest:
-    """Build initiation request."""
-    amount_minor = decimal_to_minor_units(request.amount, request.currency)
-    name_parts = current_user.full_name.split() if current_user.full_name else []
-    first_name = name_parts[0] if name_parts else ""
-    last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
-
-    return InitiationRequest(
-        amount=amount_minor,
-        currency=request.currency,
-        order_id=str(payment_id),
-        customer_email=current_user.email,
-        customer_reference=str(current_user.id),
-        customer_first_name=first_name,
-        customer_last_name=last_name,
-        return_url=request.return_url,
-        form_action="SILENT",
-        metadata=request.metadata,
-    )
-
-
 @router.post("/initiate", response_model=PaymentsInitiateResponse)
 async def initiate_payment(
     session: SessionDep,
     request: PaymentsInitiateRequest,
     current_user: CurrentUser,
 ) -> PaymentsInitiateResponse:
-    """Execute initiate payment."""
-    # Resolve the method first so an unknown/inactive method yields a precise
-    # 404/400 rather than being masked by the eligibility guard below.
+    """Initiate a standalone payment for a method (CB SmartForm / manual / document)."""
     try:
-        provider_code = await resolve_provider_code_for_payment_method(
+        result = await initiate_payment_for_method(
             session,
-            request.payment_method_id,
+            payment_method_id=request.payment_method_id,
+            amount=request.amount,
+            currency=request.currency,
+            order_id=request.order_id,
+            return_url=request.return_url,
+            metadata=request.metadata,
+            current_user=current_user,
         )
-    except PaymentMethodNotFoundError as e:
-        raise AppError(
-            code="payment.method.not_found",
-            status_code=404,
-            message=str(e),
-            details={"payment_method_id": str(request.payment_method_id)},
-        ) from e
-    except PaymentMethodInactiveError as e:
-        raise AppError(
-            code="payment.method.inactive",
-            status_code=400,
-            message=str(e),
-            details={"payment_method_id": str(request.payment_method_id)},
-        ) from e
-    except PaymentMethodResolutionError as e:
-        raise AppError(
-            code="payment.method.resolution_failed",
-            status_code=400,
-            message=str(e),
-            details={"payment_method_id": str(request.payment_method_id)},
-        ) from e
-
-    # Group eligibility check: verify the method is available to the user's price group
-    # and that the amount does not exceed max_amount.
-    eligible = await check_payment_method_eligible(
-        session,
-        payment_method_id=request.payment_method_id,
-        price_group_id=current_user.price_group_id,
-        amount=request.amount,
-    )
-    if not eligible:
-        raise AppError(
-            code="payment.method.not_eligible",
-            status_code=403,
-            message="This payment method is not available for your account or order amount",
-            details={"payment_method_id": str(request.payment_method_id)},
-        )
-
-    try:
-        provider = get_provider(provider_code)
-    except UnknownPaymentProviderError as e:
-        raise AppError(
-            code="payment.provider.unknown",
-            status_code=400,
-            message=str(e),
-            details={"provider_code": provider_code},
-        ) from e
-
-    payment_data = PaymentCreate(
-        amount=request.amount,
-        currency=request.currency,
-        provider_code=provider_code,
-        order_id=request.order_id,
-        user_id=current_user.id,
-    )
-    payment = await crud_payment.create_payment_with_log(
-        session,
-        payment_data=payment_data,
-        user=current_user,
-        commit=False,
-    )
-    payment.payment_method_id = request.payment_method_id
-
-    initiation_request = _build_initiation_request(
-        payment_id=payment.id,
-        request=request,
-        current_user=current_user,
-    )
-
-    try:
-        if isinstance(provider, ApiPaymentProvider):
-            provider_result = await initiate_api_payment(
-                provider_code,
-                initiation_request,
-            )
-
-            payment.provider_code = provider_code
-            payment.provider_reference = provider_result.provider_reference or str(
-                payment.id
-            )
-            provider_data: dict[str, object] = {}
-            if isinstance(provider_result.raw_response, dict):
-                provider_data.update(provider_result.raw_response)
-            if provider_code == "payzen":
-                provider_data["form_token"] = provider_result.form_token
-                provider_data["server_url"] = provider_result.server_url
-                provider_data["public_key"] = provider_result.public_key
-                provider_data["order_id"] = str(payment.id)
-            payment.provider_data = provider_data or None
-
-            session.add(payment)
-
-        elif isinstance(provider, ManualPaymentProvider):
-            provider_result = await provider.register_intent(initiation_request)
-
-            payment.provider_code = provider_code
-            payment.provider_reference = provider_result.provider_reference or str(
-                payment.id
-            )
-            payment.provider_data = provider_result.raw_response
-
-            await register_manual_intent(
-                session,
-                payment=payment,
-                instructions=provider_result.instructions,
-                user=current_user,
-            )
-
-        elif isinstance(provider, DocumentValidatedProvider):
-            provider_result = await provider.register_intent(initiation_request)
-
-            payment.provider_code = provider_code
-            payment.provider_reference = provider_result.provider_reference or str(
-                payment.id
-            )
-            payment.provider_data = provider_result.raw_response
-
-            await register_document_intent(
-                session,
-                payment=payment,
-                instructions=provider_result.instructions,
-                user=current_user,
-            )
-
-        else:
-            raise AppError(
-                code="payment.provider.unsupported_for_initiation",
-                status_code=400,
-                message=f"Provider '{provider_code}' does not support payment initiation",
-                details={"provider_code": provider_code},
-            )
 
         await session.commit()
-        await session.refresh(payment)
+        await session.refresh(result.payment)
 
         return PaymentsInitiateResponse(
-            payment_id=payment.id,
-            provider_code=provider_code,
-            provider_reference=payment.provider_reference,
-            form_token=provider_result.form_token,
-            server_url=provider_result.server_url,
-            public_key=provider_result.public_key,
-            redirect_url=provider_result.redirect_url,
-            instructions=provider_result.instructions,
+            payment_id=result.payment.id,
+            provider_code=result.provider_code,
+            provider_reference=result.provider_reference,
+            form_token=result.form_token,
+            server_url=result.server_url,
+            public_key=result.public_key,
+            redirect_url=result.redirect_url,
+            instructions=result.instructions,
         )
 
     except AppError:
@@ -696,7 +525,7 @@ async def initiate_payment(
             code="payment.provider.api_resolution_failed",
             status_code=400,
             message=str(e),
-            details={"provider_code": provider_code},
+            details={"payment_method_id": str(request.payment_method_id)},
         ) from e
     except Exception as e:
         await session.rollback()
@@ -938,6 +767,31 @@ class PaymentStatusResponse(BaseModel):
     order_id: uuid.UUID | None = None
 
 
+@router.get("/me/methods", response_model=list[dict[str, Any]])
+async def list_my_payment_methods(
+    session: SessionDep,
+    current_user: CurrentUser,
+    cart_total: Decimal | None = None,
+) -> list[dict[str, Any]]:
+    """Return active payment methods available for the authenticated user.
+
+    Filters by the user's price group and optional cart_total (max_amount check).
+    Methods with no eligibility restriction are always included.
+
+    IMPORTANT: declared BEFORE ``/me/{payment_id}`` — otherwise Starlette matches
+    ``/me/methods`` against the parametrized route and tries to parse "methods"
+    as a payment_id UUID (422).
+    """
+    from app.features.payment.models.payment_method import PaymentMethodPublic
+
+    methods = await get_eligible_payment_methods(
+        session,
+        price_group_id=current_user.price_group_id,
+        cart_total=cart_total,
+    )
+    return [PaymentMethodPublic.model_validate(m).model_dump() for m in methods]
+
+
 @router.get("/me/{payment_id}", response_model=PaymentStatusResponse)
 async def get_my_payment_status(
     payment_id: uuid.UUID,
@@ -982,27 +836,6 @@ async def get_my_payment_status(
         currency=payment.currency,
         order_id=payment.order_id,
     )
-
-
-@router.get("/me/methods", response_model=list[dict[str, Any]])
-async def list_my_payment_methods(
-    session: SessionDep,
-    current_user: CurrentUser,
-    cart_total: Decimal | None = None,
-) -> list[dict[str, Any]]:
-    """Return active payment methods available for the authenticated user.
-
-    Filters by the user's price group and optional cart_total (max_amount check).
-    Methods with no eligibility restriction are always included.
-    """
-    from app.features.payment.models.payment_method import PaymentMethodPublic
-
-    methods = await get_eligible_payment_methods(
-        session,
-        price_group_id=current_user.price_group_id,
-        cart_total=cart_total,
-    )
-    return [PaymentMethodPublic.model_validate(m).model_dump() for m in methods]
 
 
 @router.post("/webhooks/{provider_code}")

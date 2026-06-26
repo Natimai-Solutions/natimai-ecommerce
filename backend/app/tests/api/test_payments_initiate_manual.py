@@ -43,7 +43,7 @@ async def test_payments_initiate_dispatches_manual_check(
         AsyncMock(return_value=payment),
     )
     monkeypatch.setattr(
-        "app.api.routes.payments.resolve_provider_code_for_payment_method",
+        "app.features.payment.services.payment_initiation.resolve_provider_code_for_payment_method",
         AsyncMock(return_value="manual_check"),
     )
 
@@ -63,11 +63,11 @@ async def test_payments_initiate_dispatches_manual_check(
         return payment
 
     monkeypatch.setattr(
-        "app.api.routes.payments.register_manual_intent",
+        "app.features.payment.services.payment_initiation.register_manual_intent",
         _fake_register_intent,
     )
     monkeypatch.setattr(
-        "app.api.routes.payments.check_payment_method_eligible",
+        "app.features.payment.services.payment_initiation.check_payment_method_eligible",
         AsyncMock(return_value=True),
     )
 
@@ -132,15 +132,15 @@ async def test_payments_initiate_dispatches_manual_transfer(
         AsyncMock(return_value=payment),
     )
     monkeypatch.setattr(
-        "app.api.routes.payments.resolve_provider_code_for_payment_method",
+        "app.features.payment.services.payment_initiation.resolve_provider_code_for_payment_method",
         AsyncMock(return_value="manual_transfer"),
     )
     monkeypatch.setattr(
-        "app.api.routes.payments.register_manual_intent",
+        "app.features.payment.services.payment_initiation.register_manual_intent",
         AsyncMock(return_value=payment),
     )
     monkeypatch.setattr(
-        "app.api.routes.payments.check_payment_method_eligible",
+        "app.features.payment.services.payment_initiation.check_payment_method_eligible",
         AsyncMock(return_value=True),
     )
 

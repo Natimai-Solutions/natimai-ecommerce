@@ -192,6 +192,18 @@ class Token(SQLModel):
     expires_in: int  # Seconds until access token expires
 
 
+class AccessTokenResponse(SQLModel):
+    """Login/refresh response — access token only.
+
+    The refresh token is delivered out-of-band as an HttpOnly cookie and is
+    never exposed in the response body (see app.core.auth_cookies).
+    """
+
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int  # Seconds until access token expires
+
+
 class RefreshTokenRequest(SQLModel):
     """Represents refresh token request."""
 

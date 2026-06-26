@@ -47,6 +47,22 @@ class Settings(BaseSettings):
     FRONTEND_HOST: str = "http://localhost:5173"
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
 
+    # Refresh-token cookie. The access token lives only in the SPA memory; the
+    # refresh token is delivered as an HttpOnly cookie so JS (and thus XSS) can
+    # never read it. Path is scoped to the login routes (see auth_cookies.py).
+    REFRESH_COOKIE_NAME: str = "refresh_token"
+    REFRESH_COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "lax"
+    REFRESH_COOKIE_DOMAIN: str | None = None
+    # None → derive from ENVIRONMENT (Secure disabled only for local http dev).
+    REFRESH_COOKIE_SECURE: bool | None = None
+
+    @property
+    def refresh_cookie_secure(self) -> bool:
+        """Whether the refresh cookie carries the Secure attribute."""
+        if self.REFRESH_COOKIE_SECURE is not None:
+            return self.REFRESH_COOKIE_SECURE
+        return self.ENVIRONMENT != "local"
+
     @model_validator(mode="after")
     def _check_secret_key(self) -> Self:
         """Check secret key."""

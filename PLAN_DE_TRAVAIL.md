@@ -1,6 +1,25 @@
 # Plan de déploiement par paliers
 
-Document de travail établi à partir de la vérification fonctionnelle (cf. [PLAN_VERIFICATION_FONCTIONNEMENT.md](PLAN_VERIFICATION_FONCTIONNEMENT.md)). Chaque phase est conçue pour être déployable en production de façon autonome, le frontend pouvant s'enrichir au même rythme.
+Document de travail établi à partir de la vérification fonctionnelle (cf. [PLAN_VERIFICATION_FONCTIONNEMENT.md](backend/docs/development/done/PLAN_VERIFICATION_FONCTIONNEMENT.md)). Chaque phase est conçue pour être déployable en production de façon autonome, le frontend pouvant s'enrichir au même rythme.
+
+---
+
+## Convention — périmètre monorepo & suivi par surface
+
+Ce plan couvre **tout le monorepo**, pas seulement le backend. Trois surfaces sont livrées par phase :
+
+| Surface | Package | Rôle |
+|---------|---------|------|
+| **Backend** | `backend/` (FastAPI) | API, modèles, migrations, tâches |
+| **Vitrine** | `frontend/` (Quasar/Vue) | site public client |
+| **Admin** | `admin-frontend/` (Quasar/Vue) | back-office (édition catalogues, taux, commandes…) |
+| *(transverse)* | `shared/*` | utils partagés (`pricing.ts`…) |
+
+**Règle** : une phase = une tranche verticale déployable. Chaque phase porte donc (1) une **« Matrice livrables par surface »** — 1 ligne par feature, colonnes Backend / Vitrine / Admin — et (2) au besoin des sous-sections détaillées **Travaux backend**, **Travaux vitrine**, **Travaux admin**.
+
+**Légende statut** : ✅ livré · ⏳ partiel / à confirmer · 🔲 non démarré · — non concerné.
+
+> ⚠️ **État au 08/06/2026 (audit des fronts)** : le **backend est nettement en avance**. La **vitrine** couvre catalogue / fiche / panier / checkout / retour paiement. L'**`admin-frontend` ne contient à ce jour que `LoginPage` + `ProductsPage`** — tous les écrans d'administration livrés côté API (taux TVA, devises, catalogue specs, demandes de groupe, éligibilité paiement, commandes fournisseurs, system-settings, consolidation, remboursement) **restent à construire**. Les matrices par phase rendent ce backlog explicite.
 
 ---
 
@@ -332,20 +351,22 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 
 **Objectif** : pouvoir déployer sereinement les phases suivantes sans dette qui se propage.
 
+*Surfaces : correctifs backend uniquement — aucune livraison vitrine / admin-frontend.*
+
 **Statut** : ✅ Réalisée (18/05/2026)
 
 ### Bugs identifiés
 
 | # | Bug | Localisation | Sévérité | Statut |
 |---|-----|--------------|----------|--------|
-| B1 | `_collect_email_targets` utilise des UUIDs comme adresses email → aucun email client n'arrive | [notifications.py](../../app/features/payment/services/notifications.py) | 🔴 Bloquant | ✅ Corrigé |
-| B2 | Specs / features / gallery Icecat fetchées puis jetées | [icecat_tasks.py](../../app/tasks/icecat_tasks.py) + migration [3b5d9a1c7e42](../../app/alembic/versions/3b5d9a1c7e42_add_icecat_payload_columns_to_products.py) | 🔴 Bloquant Phase 1 | ✅ Corrigé |
-| B3 | `last_supplier_sync` typé `datetime` mais stocké en ISO string | [product.py CRUD](../../app/features/product/crud/product.py) vs modèle | 🟠 Risque comparaison | ✅ Corrigé |
-| B4 | `filter: str` du BaseRouter passé brut à SQLAlchemy `.where()` | [base_router.py](../../app/api/base_router.py) + [crud.py](../../app/features/base/crud.py) | 🟠 Audit sécurité | ✅ Corrigé |
-| B5 | Endpoints tracking/consolidation sans gating admin | [tracking.py](../../app/api/routes/shipping/tracking.py) | 🟠 | ✅ Corrigé |
-| B6 | Création produit ouverte à tout user authentifié au lieu de superuser | [product.py](../../app/api/routes/product.py) | 🟠 | ✅ Corrigé |
-| B7 | `CheckoutMetricsStore` in-memory incompatible multi-replicas | [observability.py:137](../../app/core/observability.py#L137) | 🟡 | ⏳ Phase 2 (en attente) |
-| B8 | Auto-sélection routes shipping greedy par segment ≠ optimum global | [cart.py:271-305](../../app/api/routes/cart.py#L271-L305) | 🟡 | ⏸ Reporté Phase 3 |
+| B1 | `_collect_email_targets` utilise des UUIDs comme adresses email → aucun email client n'arrive | [notifications.py](backend/app/features/payment/services/notifications.py) | 🔴 Bloquant | ✅ Corrigé |
+| B2 | Specs / features / gallery Icecat fetchées puis jetées | [icecat_tasks.py](backend/app/tasks/icecat_tasks.py) + migration [3b5d9a1c7e42](backend/app/alembic/versions/3b5d9a1c7e42_add_icecat_payload_columns_to_products.py) | 🔴 Bloquant Phase 1 | ✅ Corrigé |
+| B3 | `last_supplier_sync` typé `datetime` mais stocké en ISO string | [product.py CRUD](backend/app/features/product/crud/product.py) vs modèle | 🟠 Risque comparaison | ✅ Corrigé |
+| B4 | `filter: str` du BaseRouter passé brut à SQLAlchemy `.where()` | [base_router.py](backend/app/api/base_router.py) + [crud.py](backend/app/features/base/crud.py) | 🟠 Audit sécurité | ✅ Corrigé |
+| B5 | Endpoints tracking/consolidation sans gating admin | [tracking.py](backend/app/api/routes/shipping/tracking.py) | 🟠 | ✅ Corrigé |
+| B6 | Création produit ouverte à tout user authentifié au lieu de superuser | [product.py](backend/app/api/routes/product.py) | 🟠 | ✅ Corrigé |
+| B7 | `CheckoutMetricsStore` in-memory incompatible multi-replicas | [observability.py:137](backend/app/core/observability.py#L137) | 🟡 | ⏳ Phase 2 (en attente) |
+| B8 | Auto-sélection routes shipping greedy par segment ≠ optimum global | [cart.py:271-305](backend/app/api/routes/cart.py#L271-L305) | 🟡 | ⏸ Reporté Phase 3 |
 | B9 | Mapping `last_supplier_sync` String/Datetime à harmoniser dans la migration | alembic | 🟡 | ⏸ Reporté (suivi migration) |
 
 ### Périmètre Phase 0
@@ -371,7 +392,31 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 - **Curation par sous-catégorie** : `SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST` (config, seedée `["Ordinateur de Bureau/Tour", "Ordinateur Portable"]`, surchargeable par env) intégrée à `evaluate_product_filters` (action `deactivate` pour purger l'existant au prochain sync ; les règles `skip` priment). Réduit la pollution (garanties, accessoires) sans toucher au code à chaque ajustement.
 - **Facette fabricant insensible à la casse** : `_build_search_facets` regroupe désormais sur `casefold` (« HP Inc. » / « HP INC. » → une seule entrée), libellé = première graphie vue.
 
-> ⚠️ Reste à traiter en **Phase 2** (cf. item *Taxonomie interne & facettes specs*) : dropdown Catégorie vide et filtre par spec (CPU…) inopérants — cause racine : les produits fournisseurs ne sont jamais rattachés à une `Category` interne (`category_id = None`), alors que les facettes catégorie ET le panneau `spec-facets` en dépendent.
+> ✅ **Résolu** : la cause racine (`category_id = None`) a été corrigée en Phase 2 (item *Taxonomie interne & facettes specs* : `get_or_create_by_name` + backfill). La vitrine câble désormais le **sélecteur Catégorie** et les **filtres par spec** (20/06/2026, cf. *Avancement vitrine — filtres specs* ci-dessous). Prérequis d'exploitation : avoir lancé le backfill `category_id` pour que les catégories/specs remontent.
+
+### Avancement vitrine — mode de livraison & devise (22/06/2026)
+
+- ✅ **Sélecteur de mode de livraison retiré** de `ProductPage.vue` + `ProductDetailsDialog.vue`. Le prix affiché est celui du **mode par défaut** (résolu côté backend : préférence utilisateur `preferred_shipping_mode` → défaut). Motif : le fret import variable est nul pour les produits sans poids/dimensions Icecat → le choix par produit ne changeait pas le prix et prêtait à confusion. **Décision** : le mode de livraison est un choix **par commande** (défaut préf utilisateur → rapide).
+- 🔲 **Sélecteur de mode au checkout** : reporté à la phase logistique. Le checkout vitrine actuel paie le total panier sans étape shipping (ne câble pas `checkout_my_cart`, qui sait pourtant calculer le shipping selon `shipping_preference`). À câbler quand l'étape commande+shipping sera intégrée au checkout.
+- ✅ **Option « Devise d'affichage » masquée** dans les préférences (`MyAccountPage.vue`) tant que l'affichage multi-devises (conversion XPF→devise + endpoint taux public) n'est pas livré — **Phase 4**. La préférence `currency_pref` reste stockée, simplement non exposée.
+
+### Avancement vitrine — filtres specs (20/06/2026)
+
+- ✅ **Sélecteur Catégorie** dans `CataloguePage.vue` (depuis `GET /category`).
+- ✅ **Filtres par caractéristique** pilotés par `GET /product/categories/{id}/spec-facets` : facettes **enum** (cases à cocher `value_text (count)`) et **numériques** (sélecteur « ≥ minimum » à partir des valeurs disponibles). Payload `specs` envoyé à `POST /product/search` (`{cpu_family: ["i7"], memory_gb_min: 16}`). Sync URL (`cat`), reset, SSR prefetch.
+- Modules : [frontend/src/api/products.ts](frontend/src/api/products.ts) (`getCategorySpecFacets`) · [frontend/src/stores/products.ts](frontend/src/stores/products.ts) (`specFacets`/`loadSpecFacets`). Typecheck + lint verts.
+
+### Matrice livrables par surface
+
+| Feature | Backend | Vitrine (`frontend`) | Admin (`admin-frontend`) |
+|---------|---------|----------------------|--------------------------|
+| Catalogue + recherche FTS | ✅ | ✅ `CataloguePage.vue` | — |
+| Specs filtrables (facettes) | ✅ | ✅ `CataloguePage.vue` (catégorie + filtres specs enum/num.) | 🔲 édition specs (API en P3, UI à faire) |
+| Fiche produit + modes transport (CAF) | ✅ | ✅ `ProductPage.vue` (prix du mode par défaut ; sélecteur de mode retiré — choix au niveau commande) | — |
+| Panier | ✅ | ✅ `CartPage.vue` | — |
+| Demande de devis | ✅ | ✅ `CartQuoteConfirmationPage.vue` | 🔲 consultation des `QuoteRequest` |
+| Produits mis en avant | ✅ | ✅ `GET /product/featured` consommé | 🔲 toggle featured dans `ProductsPage.vue` |
+| Pricing / TVA / devises (socle) | ✅ | — | 🔲 écrans config (taux → P2, devises → P4) |
 
 ### Avancement backend (22/05/2026)
 
@@ -388,7 +433,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 - ✅ **Recherche avancée PostgreSQL** : extension `pg_trgm` + index GIN FTS (`ix_products_search_fts`) + index GIN trgm sur `name` (`ix_products_name_trgm`) — migration `f2a4b8c1d9e3` ; `search_products()` utilise `to_tsvector @@ plainto_tsquery` avec classement `ts_rank`.
 - ✅ **Seed CurrencyRate** USD/EUR automatique via `initial_data.py` (plus de config manuelle nécessaire au premier déploiement).
 - ✅ **`meets_sync_thresholds` — conversion XPF** : `supplier_tasks.py` appelle `convert_to_xpf()` avant le check ; `meets_sync_thresholds()` reçoit `price_in_xpf` (fallback sur prix brut si `CurrencyRateMissing`). `SUPPLIER_SYNC_MIN_PRICE` est désormais interprété en XPF quelle que soit la devise fournisseur.
-- ✅ **Documentation ops** : [OPS_ENV_ET_CHECKS.md](OPS_ENV_ET_CHECKS.md) — variables d'environnement par catégorie, checklist premier déploiement, checks ARQ/outbox/taux FX en prod.
+- ✅ **Documentation ops** : [OPS_ENV_ET_CHECKS.md](backend/docs/development/OPS_ENV_ET_CHECKS.md) — variables d'environnement par catégorie, checklist premier déploiement, checks ARQ/outbox/taux FX en prod.
 - ✅ **Fret import / CAF** (28/05/2026) : `calculate_sale_price()` calcule désormais la douane sur l'assiette CAF (`cost_in_reference + price_per_kg×billable_weight + assurance`) ; champs `service_level`/`customer_label`/`is_default_import` sur `ShippingRoute` (migration `a3b1c7e2d9f5`) + config `INSURANCE_RATE_PCT` (défaut 0) ; **poids taxable** `resolve_billable_weight()` = `max(poids, volume×dim_factor)` avec `dim_factor_kg_per_m3`/`billing_basis` lus depuis `route_metadata` (défauts avion 167 / mer 1000) intégré à `calculate_shipping_for_routes` (param `total_volume_m3`, fallback poids réel) ; **dimensions physiques Icecat** mappées vers `Product.dimensions_*`/`weight` (`icecat_service.py` + `icecat_tasks.py`) ; `calculate_price_by_mode()` → `list[ShippingModePrice]` ; **corridor France→Papeete** seedé (`initial_data.py` : places `FR_SUPPLIERS`/`PPT_CUSTOMS_WAREHOUSE` + routes avion/bateau) ; endpoint `GET /product/{id}/shipping-modes` (`shipping_modes` + `default_mode`) ; `pricing.ts` étendu CAF (`freightInReference`/`insuranceInReference`) ; dropdown niveau de service dans `ProductPage.vue` + `ProductDetailsDialog.vue` (recalcul local, persistance `localStorage`). 23 tests CAF/shipping verts (`test_product_pricing_caf.py`, `test_pricing.py`). Résidu reporté P2 : câblage `preferred_shipping_mode` (le champ `User`/`UserPreference` est créé en P2).
 - ✅ Migration/seed Phase 1 : validés en environnement d'intégration (01/06/2026) — `alembic upgrade head` + seed `initial_data` (upgrade/downgrade + non-régression) OK. **Têtes alembic** : `a3b1c7e2d9f5` (unique head, chaîne `…→f2a4b8c1d9e3→c5d9e2f1a8b4→a3b1c7e2d9f5`). `schema.ts` régénéré depuis l'OpenAPI. Vitrine minimale OK testée.
 
@@ -474,7 +519,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 8. ✅ **Préparatifs déploiement**
    - ✅ Endpoints `/healthz/liveness` + `/healthz/ready` (DB + Redis).
    - ✅ ARQ worker + outbox poller vérifiés opérationnels.
-   - ✅ [OPS_ENV_ET_CHECKS.md](OPS_ENV_ET_CHECKS.md) : variables d'environnement par catégorie, checklist premier déploiement, checks ARQ/outbox/taux FX en prod.
+   - ✅ [OPS_ENV_ET_CHECKS.md](backend/docs/development/OPS_ENV_ET_CHECKS.md) : variables d'environnement par catégorie, checklist premier déploiement, checks ARQ/outbox/taux FX en prod.
 
 ### Hors périmètre Phase 1
 
@@ -489,6 +534,29 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 **Statut** : ✅ Complète (08/06/2026) — 10 items sur 10 livrés.
 
 **Chaîne Alembic** : `a3b1c7e2d9f5` → `b4c2d8e1f5a6` (user_preference) → `c5e3f9a2b7d1` (group_upgrade_request) → `d6f4a2e8b1c3` (user_oauth_links) → `e7a5b3c9d1f2` (address_is_validated) — head actuel : `e7a5b3c9d1f2`.
+
+### Matrice livrables par surface
+
+| Feature | Backend | Vitrine (`frontend`) | Admin (`admin-frontend`) |
+|---------|---------|----------------------|--------------------------|
+| Inscription / login + OAuth Google/MS | ✅ | ✅ `LoginPage.vue` + `OAuthCallbackPage.vue` | ✅ `LoginPage.vue` (admin) |
+| Profil + préférences utilisateur | ✅ `/users/me/preferences` | ✅ `MyAccountPage.vue` (onglet Préférences) | — |
+| Adresses self-service + validation | ✅ | ✅ `MyAccountPage.vue` (onglet Adresses, CRUD) | 🔲 validation des adresses |
+| Demande d'upgrade de groupe | ✅ | 🔲 formulaire upgrade (justificatif) | 🔲 écran validation des demandes |
+| TVA / TGC — admin CRUD | ✅ `/admin/tax-rates` | — | 🔲 écran taux |
+| Paiement CB (Payzen) | ✅ | ✅ `CheckoutPage.vue` + `PaymentReturnPage.vue` | — |
+| Emails commande / paiement | ✅ | — (transactionnel) | — |
+| Commande auto Ingram (SUPPLIER_DIRECT) | ✅ | — | 🔲 écran `supplier-orders` + retry |
+| Taxonomie / catégories internes | ✅ | ⏳ dropdown catégorie | 🔲 fusion / renommage catégories |
+
+### Avancement vitrine (19/06/2026)
+
+- ✅ **Espace « Mon compte »** (`MyAccountPage.vue`, route `/mon-compte` name `account`, entrée nav toolbar + drawer visible si connecté ; redirection `login?redirect=/mon-compte` si anonyme).
+  - ✅ Onglet **Préférences** : `GET/PUT /users/me/preferences` — toggles notifications (email, suivi expédition) + selects niveau de service import, préférence livraison, langue, devise. Bannières succès/erreur (Quasar `Notify` non activé dans ce projet).
+  - ✅ Onglet **Adresses** : CRUD `/users/me/addresses` (liste cartes + badge `is_validated`, dialog création/édition, confirmation suppression).
+  - Modules API : [frontend/src/api/account.ts](frontend/src/api/account.ts) · [frontend/src/api/addresses.ts](frontend/src/api/addresses.ts). Typecheck (`vue-tsc`) + lint verts.
+- 🔲 **Reste vitrine P2** : formulaire **demande d'upgrade de groupe** (nécessite un endpoint public de liste des `PriceGroup` + lecture du groupe courant — ajouts backend à prévoir).
+- 🔲 **Reste vitrine P3** : page **suivi de commande** (`OrderTrackingPage.vue` → `GET /orders/me/{id}/tracking`).
 
 ### Périmètre fonctionnel
 
@@ -508,7 +576,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - ✅ `PUT /admin/tax-rates/{id}` (modifier `label` ou fixer `valid_until` pour clôturer).
    - ✅ `PUT /admin/products/{id}/tax-rate` et `PUT /admin/categories/{id}/tax-rate`.
    - ✅ Garde-fou : `rate_pct` immutable sur un taux existant — modification bloquée avec `tax_rate.invalid_valid_until` (400).
-   - Fichier : [app/api/routes/admin_tax_rates.py](../../app/api/routes/admin_tax_rates.py)
+   - Fichier : [app/api/routes/admin_tax_rates.py](backend/app/api/routes/admin_tax_rates.py)
 
 2. ✅ **Groupes pricing actifs** *(livré 08/06/2026)*
    - ✅ Modèle `GroupUpgradeRequest` + migration `c5e3f9a2b7d1` (`status: PENDING/APPROVED/REJECTED`, `business_registration_number`, `attestation_notes`, `admin_comment`, `reviewed_by_id`).
@@ -518,7 +586,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - ✅ `POST /admin/group-upgrade-requests/{id}/approve` → met à jour `User.price_group_id`.
    - ✅ `POST /admin/group-upgrade-requests/{id}/reject` (avec commentaire).
    - ✅ `POST /admin/users/{user_id}/assign-price-group` (affectation directe).
-   - Fichier : [app/api/routes/group_upgrade.py](../../app/api/routes/group_upgrade.py)
+   - Fichier : [app/api/routes/group_upgrade.py](backend/app/api/routes/group_upgrade.py)
 
 3. ✅ **RBAC — activation des permissions par groupe** *(livré 08/06/2026)*
    - ✅ Seed idempotent `_seed_security_groups()` dans `initial_data.py` : 3 groupes `group_type='security'` créés automatiquement au démarrage.
@@ -527,7 +595,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - ✅ Groupe `payment_admin` (priority=30) : can_read+can_update sur `payments`, `payment_validations`, `payment_attachments`.
    - Activation : passer `ENABLE_GROUP_PERMISSIONS=true` en prod **après** vérification que le superuser et les users existants fonctionnent (superuser bypass inconditionnel ; users sans groupe de sécurité non restreints).
    - Note : `CrudBase.check_user_permission()` est déjà implémenté et contrôlé par ce flag.
-   - Fichier : [app/features/initial_data.py](../../app/features/initial_data.py)
+   - Fichier : [app/features/initial_data.py](backend/app/features/initial_data.py)
 
 4. ✅ **OAuth Google + Microsoft** *(livré 08/06/2026)*
    - ✅ Modèle `UserOAuthLink(user_id, provider, provider_user_id, email_at_link, created_at)` + contrainte unique `(provider, provider_user_id)`.
@@ -540,7 +608,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - ✅ Durcissement (Codex) : garde-fou compte inactif — un user `is_active=False` est bloqué (`session.rollback()` + redirection `?oauth_error=user_inactive`) **avant** émission de tout JWT, en parité avec le login password.
    - Implémentation httpx native (pas d'`authlib`).
    - Tests : `app/tests/api/test_oauth_routes.py` (provider non supporté, state invalide, blocage user inactif sans token, login actif avec tokens).
-   - Fichiers : [app/api/routes/oauth.py](../../app/api/routes/oauth.py) · [app/features/user/models/oauth_link.py](../../app/features/user/models/oauth_link.py) · [app/alembic/versions/d6f4a2e8b1c3_phase2_user_oauth_link.py](../../app/alembic/versions/d6f4a2e8b1c3_phase2_user_oauth_link.py)
+   - Fichiers : [app/api/routes/oauth.py](backend/app/api/routes/oauth.py) · [app/features/user/models/oauth_link.py](backend/app/features/user/models/oauth_link.py) · [app/alembic/versions/d6f4a2e8b1c3_phase2_user_oauth_link.py](backend/app/alembic/versions/d6f4a2e8b1c3_phase2_user_oauth_link.py)
 
 5. ✅ **Préférences utilisateur** *(livré 08/06/2026)*
    - ✅ Modèle `UserPreference` + migration `b4c2d8e1f5a6` (`notification_email_enabled`, `notification_shipping_steps`, `default_shipping_preference`, `locale`, `currency_pref`, `preferred_shipping_mode`).
@@ -548,7 +616,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - ✅ `GET /users/me/preferences` (renvoie défauts si pas encore de ligne).
    - ✅ `PUT /users/me/preferences` (validation enum-like : `default_shipping_preference` ∈ `{fastest,cheapest,eco_friendly}`, etc.).
    - ✅ Câblage `preferred_shipping_mode` dans `GET /product/{id}/shipping-modes` : priorité user preference > `is_default_import` > première route.
-   - Fichiers : [app/features/user/models/user_preference.py](../../app/features/user/models/user_preference.py) · [app/api/routes/user_preferences.py](../../app/api/routes/user_preferences.py)
+   - Fichiers : [app/features/user/models/user_preference.py](backend/app/features/user/models/user_preference.py) · [app/api/routes/user_preferences.py](backend/app/api/routes/user_preferences.py)
 
 6. ✅ **Email notifications commande/paiement** *(livré 08/06/2026)*
    - ✅ `order.created` publié dans `checkout_my_cart` (avant `session.commit()`, outbox pattern).
@@ -558,7 +626,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - ✅ `notifications.py` mis à jour : `_collect_email_targets` n'inclut plus `user_id` (client notifié uniquement par les handlers dédiés ci-dessus ; admin/support reçoivent le message technique sans doublon).
    - Templates compilés au chargement du module (Jinja2 inline, pas de fichiers séparés).
    - Auto-découverte par `outbox/loader.py` au démarrage, aucune registration manuelle.
-   - Fichier : [app/handlers/order.py](../../app/handlers/order.py)
+   - Fichier : [app/handlers/order.py](backend/app/handlers/order.py)
 
 7. ✅ **Adresses validées** *(livré 08/06/2026)*
    - ✅ Champ `is_validated: bool = False` ajouté au modèle `Address` + exposé dans `AddressPublic`.
@@ -575,7 +643,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - Les routes admin existantes `/users/{user_id}/addresses` sont conservées pour la gestion admin.
    - Code erreur `address.already_validated` enregistré dans ERROR_CODES.md (non levé actuellement — l'endpoint est idempotent).
    - Tests : `app/tests/api/test_address_me_routes.py` (self-service + validation admin), `test_address_error_http_contract.py` (contrat d'erreur).
-   - Fichiers : [app/features/user/models/address.py](../../app/features/user/models/address.py) · [app/features/user/crud/address.py](../../app/features/user/crud/address.py) · [app/api/routes/address.py](../../app/api/routes/address.py) · [app/alembic/versions/e7a5b3c9d1f2_phase2_address_is_validated.py](../../app/alembic/versions/e7a5b3c9d1f2_phase2_address_is_validated.py)
+   - Fichiers : [app/features/user/models/address.py](backend/app/features/user/models/address.py) · [app/features/user/crud/address.py](backend/app/features/user/crud/address.py) · [app/api/routes/address.py](backend/app/api/routes/address.py) · [app/alembic/versions/e7a5b3c9d1f2_phase2_address_is_validated.py](backend/app/alembic/versions/e7a5b3c9d1f2_phase2_address_is_validated.py)
 
 8. ✅ **Commande automatique chez Ingram Micro (SUPPLIER_DIRECT)** *(livré 08/06/2026)*
    - ✅ **Déclencheur** : handler outbox `on_payment_captured_create_ingram_order` sur `payment.captured` (cohabite avec le sync statut et la notif client sur le même event). Garde sur le flag `INGRAM_ORDER_CREATION_ENABLED`.
@@ -590,7 +658,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - ✅ Ship-to = entrepôt (settings `INGRAM_SHIP_TO_*`), jamais l'adresse client.
    - Code erreur `supplier_order.not_found` (404).
    - Tests : `app/tests/test_supplier_order_service.py` (skip/error/submitted/short-circuit/re-raise), `app/tests/test_ingram_payment_handler.py` (garde flag, order_id invalide, délégation), `app/tests/api/test_admin_supplier_orders.py` (liste/filtre/404/retry).
-   - Fichiers : [app/handlers/ingram_micro.py](../../app/handlers/ingram_micro.py) · [app/features/integrations/services/supplier_order_service.py](../../app/features/integrations/services/supplier_order_service.py) · [app/features/integrations/models/supplier_order.py](../../app/features/integrations/models/supplier_order.py) · [app/api/routes/admin_supplier_orders.py](../../app/api/routes/admin_supplier_orders.py) · [app/services/suppliers/ingram_micro.py](../../app/services/suppliers/ingram_micro.py) · [app/alembic/versions/f4a2b7c9d1e3_add_supplier_orders_table.py](../../app/alembic/versions/f4a2b7c9d1e3_add_supplier_orders_table.py)
+   - Fichiers : [app/handlers/ingram_micro.py](backend/app/handlers/ingram_micro.py) · [app/features/integrations/services/supplier_order_service.py](backend/app/features/integrations/services/supplier_order_service.py) · [app/features/integrations/models/supplier_order.py](backend/app/features/integrations/models/supplier_order.py) · [app/api/routes/admin_supplier_orders.py](backend/app/api/routes/admin_supplier_orders.py) · [app/services/suppliers/ingram_micro.py](backend/app/services/suppliers/ingram_micro.py) · [app/alembic/versions/f4a2b7c9d1e3_add_supplier_orders_table.py](backend/app/alembic/versions/f4a2b7c9d1e3_add_supplier_orders_table.py)
    - ⚠️ **Activation prod** : passer `INGRAM_ORDER_CREATION_ENABLED=true` **après** avoir renseigné `INGRAM_SHIP_TO_ADDRESS_LINE1` + `INGRAM_SHIP_TO_CITY` (sinon les PO partent en `ERROR`).
 
 9. ✅ **Paiement CB en production** *(livré 08/06/2026)*
@@ -602,7 +670,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - ✅ `PaymentReturnPage.vue` : lit `payment_id` depuis localStorage, poll `GET /payments/me/{id}` toutes les 2 s jusqu'à `is_terminal`, affiche succès/refus/timeout (2 min), nettoie localStorage en cas de statut terminal.
    - ✅ Routes : `/checkout` (name: `checkout`) + `/paiement/retour` (name: `payment-return`) ajoutées dans `routes.ts`.
    - Tests : `app/tests/api/test_payments_me_status.py` (404 not_found, 403 not_owned, `is_terminal` True/False selon statut).
-   - Fichiers : [app/api/routes/payments.py](../../app/api/routes/payments.py) · [frontend/src/api/payments.ts](../../../frontend/src/api/payments.ts) · [frontend/src/pages/CheckoutPage.vue](../../../frontend/src/pages/CheckoutPage.vue) · [frontend/src/pages/PaymentReturnPage.vue](../../../frontend/src/pages/PaymentReturnPage.vue) · [frontend/src/router/routes.ts](../../../frontend/src/router/routes.ts)
+   - Fichiers : [app/api/routes/payments.py](backend/app/api/routes/payments.py) · [frontend/src/api/payments.ts](frontend/src/api/payments.ts) · [frontend/src/pages/CheckoutPage.vue](frontend/src/pages/CheckoutPage.vue) · [frontend/src/pages/PaymentReturnPage.vue](frontend/src/pages/PaymentReturnPage.vue) · [frontend/src/router/routes.ts](frontend/src/router/routes.ts)
 
 10. ✅ **Taxonomie interne & facettes specs** *(livré 08/06/2026 — remonté du polish P1)*
 
@@ -614,7 +682,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - ✅ `POST /suppliers/admin/backfill-product-categories` (superuser) : déclenche le backfill inline pour maintenance.
    - Résolution adoptée : option (b) — `get_or_create` par `supplier_subcategory`, fusion/renommage admin a posteriori.
    - Cohérence P3 : ce socle prépare l'extension specs multi-catégories (migration YAML → table `spec_definition` éditable).
-   - Fichiers : [app/features/product/crud/category.py](../../app/features/product/crud/category.py) · [app/features/integrations/services/supplier_sync_orchestrator.py](../../app/features/integrations/services/supplier_sync_orchestrator.py) · [app/tasks/supplier_tasks.py](../../app/tasks/supplier_tasks.py)
+   - Fichiers : [app/features/product/crud/category.py](backend/app/features/product/crud/category.py) · [app/features/integrations/services/supplier_sync_orchestrator.py](backend/app/features/integrations/services/supplier_sync_orchestrator.py) · [app/tasks/supplier_tasks.py](backend/app/tasks/supplier_tasks.py)
 
 ### Hors périmètre Phase 2
 
@@ -630,6 +698,78 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 **Statut** : ✅ Complète (08/06/2026) — 7 items sur 7 livrés.
 
 **Chaîne Alembic** : `e7a5b3c9d1f2` → `a8b4c2f1e6d9` (payment_eligibility) → `b9c5d3e2f7a1` (supplier_order_webhook) → `c1d6e4f3a8b2` (spec_definitions) → `d2e7f5a4b9c3` (system_settings) — head actuel : `d2e7f5a4b9c3`.
+
+### Matrice livrables par surface
+
+| Feature | Backend | Vitrine (`frontend`) | Admin (`admin-frontend`) |
+|---------|---------|----------------------|--------------------------|
+| Éligibilité paiement ↔ groupe | ✅ | ✅ **choix du type de paiement au checkout** (CB / chèque / virement / BC), filtré par éligibilité | ✅ écran éligibilité (`PaymentEligibilityPage.vue`) |
+| Notifications tracking (expédié / livré) | ✅ | — (email) | — |
+| Suivi de commande client | ✅ `/orders/me/{id}/tracking` + `GET /orders/me` | ✅ `MyAccountPage.vue` (onglet Commandes) + `OrderTrackingPage.vue` | — |
+| Webhook Ingram — statut fournisseur | ✅ | — | 🔲 visible via écran `supplier-orders` (backlog P2) |
+| **Catalogue specs éditable (multi-cat.)** | ✅ `/admin/spec-definitions` | — | 🔲 **écran CRUD specs + alias** |
+| Devises — display setting | ✅ `/system/settings` | 🔲 toggle devise (→ P4) | 🔲 écran `system-settings` |
+
+### Avancement vitrine — choix du moyen de paiement (23/06/2026)
+
+- ✅ **`CheckoutPage.vue` refondu** : le checkout affiche désormais **la liste des moyens de paiement éligibles** (filtrés par groupe + `max_amount` via `GET /payments/me/methods`) et laisse le client **choisir** — auparavant il auto-sélectionnait uniquement la CB Payzen. Dispatch par provider à l'initiation (`POST /payments/initiate`) :
+  - **CB (Payzen, provider API)** → SmartForm (flux existant) ;
+  - **Manuel (chèque / virement)** + **Document (BC)** → affichage des **`instructions`** renvoyées + confirmation « commande enregistrée, en attente de validation », bouton « Voir mes commandes ».
+- ✅ **Upload de pièce (BC)** *(23/06/2026)* : pour un provider `document`, l'UI propose le **téléversement du bon de commande** (`q-file`) puis exécute le flux presigned en 3 temps — `POST /payments/{id}/upload-document` → `PUT` du fichier vers l'URL presignée → `POST /payments/{id}/document-uploaded` — avec confirmation « document reçu, en cours de vérification ». Garde-fou : l'URL presignée locale (`LocalFileStorage`) est construite côté backend sur `FRONTEND_HOST` (mauvais hôte en multi-origine) → le front la reconstruit sur `VITE_API_URL` quand elle vise `/internal/storage/` ; les URL S3 sont utilisées telles quelles. Fonctions : [frontend/src/api/payments.ts](frontend/src/api/payments.ts) (`issueDocumentUploadUrl` / `uploadFileToPresignedUrl` / `confirmDocumentUploaded`).
+- ⚠️ Le checkout vitrine ne calcule toujours pas de frais de port (étape shipping reportée, cf. *Avancement vitrine — mode de livraison*) ; le `fee` du moyen de paiement est affiché à titre indicatif mais non ajouté au montant débité (comportement existant conservé).
+
+#### 🐛 Correctif — création de commande au checkout (23/06/2026)
+
+**Bug** : choisir un paiement non‑CB (chèque…) ne créait **aucune commande**, ne vidait pas le panier, et n'affichait pas les instructions. **Cause racine** : le panier de la vitrine était **100 % `localStorage`** (le store n'appelait jamais le backend) et le checkout appelait `POST /payments/initiate` **directement** — or `initiate` crée seulement un *paiement*, pas la commande, et `checkout_my_cart` (`POST /cart/checkout`, qui crée order + lignes + stock + vide le panier + publie `order.created`) lit le **panier backend** inexistant.
+
+**Correctif** (`CheckoutPage.vue` + `frontend/src/api/cart.ts`) — au clic « Procéder » : (1) **synchro panier local → backend** (`clearMyCart` puis `addCartItem` par ligne), (2) **`POST /cart/checkout`** (crée la commande, vide le panier backend) → `{order_id, total_amount}`, (3) **vidage du panier local**, (4) **`POST /payments/initiate`** lié à `order_id` (montant = total backend autoritaire) → SmartForm / instructions. La commande apparaît désormais dans *Mon compte → Commandes*, le panier se vide, les instructions s'affichent. Le vidage local **après** checkout empêche les commandes en double sur retry (un retry retombe sur « panier vide »).
+
+- ⚠️ **Persistance panier** : la synchro n'a lieu **qu'au checkout** (le panier reste `localStorage` pour la navigation/invité). Migrer le store vers le panier backend (auth) est un chantier distinct.
+
+#### 🐛 Correctifs `MissingGreenlet` révélés par le checkout (23/06/2026)
+
+Une fois le checkout réellement atteint, **3 bugs latents** sont apparus : des attributs ORM lus **après** un `session.commit()` (qui expire les instances) déclenchaient un lazy‑load **synchrone** → `sqlalchemy.exc.MissingGreenlet`. Correctif systématique : **capturer les valeurs avant le commit**.
+- `DELETE /cart/items` + `POST /cart/items` : `cart.id` relu après `clear_cart`/`add_or_increment` (qui committent) → capture `cart_id` en tête.
+- `POST /cart/checkout` : `current_user.id` relu dans le logging post‑commit → capture `user_id` en tête.
+- `POST /cart/checkout` : `[route.id for route in selected_routes]` (routes non refresh) lus à la construction de `CheckoutResponse` après commit → capture avant commit.
+
+#### Refactor paiement unique (P1)
+
+- ✅ **Service partagé extrait** : `app/features/payment/services/payment_initiation.py::initiate_payment_for_method` encapsule résolution provider + éligibilité + création paiement + dispatch (API SmartForm / manuel / document), **sans commit** (le caller possède la transaction). `POST /payments/initiate` l'utilise désormais (comportement préservé ; patches de tests redirigés vers le service).
+- ✅ **Unification câblée (paiement unique)** *(23/06/2026)* : `CheckoutRequest` reçoit `payment_method_id` + `return_url` ; `checkout_my_cart` appelle `initiate_payment_for_method` **dans la même transaction** que la création de commande (plus de placeholder), et `CheckoutResponse` expose `provider_code`/`form_token`/`server_url`/`public_key`/`instructions`. Le front [CheckoutPage.vue](frontend/src/pages/CheckoutPage.vue) n'appelle **plus** `/payments/initiate` : un seul appel `POST /cart/checkout` → **une commande, un paiement**, dispatch SmartForm/instructions sur la réponse. Fallback placeholder conservé si `payment_method_id` absent (compat). Atomicité : un moyen de paiement invalide (éligibilité, etc.) annule toute la commande (rollback). Test : `test_checkout_with_payment_method_runs_single_payment_initiation`. `cart.ts` étend les types en attendant la régénération de `schema.ts`.
+
+#### 🐛 Lot de correctifs post‑checkout (23/06/2026)
+
+Retours utilisateur après que le checkout fonctionne :
+1. **Adresse de livraison au checkout** *(Issue 1)* — le checkout ne demandait pas d'adresse (`shipping_address` toujours `null`). Ajout d'un **sélecteur d'adresse validée** dans [CheckoutPage.vue](frontend/src/pages/CheckoutPage.vue) (chargée via `listMyAddresses`, filtrée `is_validated`), bouton « Procéder » désactivé tant qu'aucune adresse n'est choisie, snapshot envoyé en `shipping_address` à `/cart/checkout`. État vide → renvoi vers *Mon compte → Adresses*.
+2. **Étapes de suivi illisibles** *(Issue 2)* — `OrderTrackingPage.vue` affichait `segment.notes` brut, or le backend y stockait des métadonnées internes (`origin=checkout_selected_routes;sequence=1`). Backend : `notes=None` sur les `ShippingRouteTracking` (champ **public**). Front : `customerNote()` masque toute note au format interne `clé=valeur` (couvre les commandes existantes).
+3. **Statut de commande invisible** *(Issue 3c)* — le storefront n'affichait jamais le statut de commande (`order_status_id` opaque) ; le « en attente » visible était le **statut d'expédition** du suivi (inchangé par le paiement, c'est normal). Backend : `/orders/me` expose désormais `order_status_name` (modèle `MyOrderPublic`). Front : **chip de statut** par commande dans *Mes commandes* (Pending→En attente, AwaitingPayment→En attente de paiement, Paid→Payée, PaymentFailed→Paiement refusé) ; le titre du suivi devient « Statut d'expédition » pour lever la confusion. *(Côté backend l'approbation publiait déjà `payment.captured` → `on_payment_captured` met l'order à « Paid ».)*
+4. **Référence non pertinente pour le PO** *(Issue 3b)* — dans l'admin, le champ « Référence (n° de chèque…) » s'affichait pour tous ; masqué pour les providers **document** (`isDocumentProvider`), remplacé par un rappel « vérifiez la pièce jointe ».
+5. **BC joint non visible** *(Issue 3a)* — la liaison pièce↔paiement est **correcte côté code** (`confirm_document_uploaded` → `register_uploaded_attachment(payment_id=…)`), et l'admin a un bouton « Pièces » (providers document) tant que le paiement est en attente. ⏳ À confirmer côté usage (le BC a‑t‑il bien été téléversé ?) + **gap connu** : une fois le paiement approuvé, il sort de la file et la pièce n'est plus consultable (pas encore d'historique paiements admin) ; **wart presigned** (`LocalFileStorage` construit l'URL sur `FRONTEND_HOST`) pouvant faire échouer silencieusement le PUT en dev.
+
+#### 🐛 Storage des pièces jointes éphémère / non partagé (23/06/2026)
+
+**Symptômes** : BC bloqué sur « analyse… » + `GET /internal/storage/{token}` → **500 `StorageError: Object … not found`** alors que la ligne attachment existe. **Cause racine** (pas S3 en soi) : `FILE_STORAGE_LOCAL_ROOT = /tmp/fastapi_ecommerce_storage` n'était **monté dans aucun volume** → (1) le fichier vivait dans le `/tmp` **éphémère** du conteneur `api` et disparaissait à chaque restart/rebuild ; (2) le **scan AV tourne dans `arq-worker`** (conteneur séparé) qui lisait son **propre** `/tmp` vide → `get_bytes` échoue → le handler `on_payment_document_uploaded` retourne sans poser `av_scanned=True` → « analyse… » éternel (`CLAMAV_ENABLED=true`). **Fix** ([docker-compose.yml](docker-compose.yml)) : **named volume `storage_data` partagé** monté sur `/tmp/fastapi_ecommerce_storage` dans `api` **et** `arq-worker` → fichiers persistants et visibles par le worker. L'`override` (dev) ajoute ses bind-mounts `./backend/app` ; Compose concatène les volumes (cibles distinctes) → cohabitation OK. ⚠️ Les BC déjà uploadés sont **perdus** (ancien `/tmp`) → re-téléverser. *(proxy/prod : à doter du même volume lors d'un déploiement réel.)*
+
+#### 🐛 Téléchargement BC : nom + scan AV bloqué « analyse… » (23/06/2026)
+
+- **Nom de fichier = token** : `GET /internal/storage/{token}` ne posait pas de `Content-Disposition` → le navigateur nommait le fichier d'après le token. Fix : l'endpoint lit le param `?filename=` et pose `Content-Disposition: attachment; filename="…"; filename*=UTF-8''…` (accents OK), avec repli sur le basename de la clé.
+- **« analyse… » figé** (`av_scanned=False`) : le scan AV tourne dans **`arq-worker`** (le poller enqueue des jobs ARQ → `execute_outbox_handler`). Le handler `on_payment_document_uploaded` **avalait** l'échec scan/storage (`return`) → vu comme succès (clé d'idempotence posée) → **jamais réessayé**. Fix : le handler **`raise`** désormais sur échec → ARQ réessaie (`max_tries=5`). ⚠️ Le BC déjà bloqué ne s'auto-répare pas (clé d'idempotence) → **re-téléverser une fois**. Échappatoire dev : `CLAMAV_ENABLED=false` (NoOp → « sain » instantané).
+- **Visibilité / diagnostic** : poller, consumer et dispatch loguent en **DEBUG** → invisibles à `LOG_LEVEL=INFO` (donc « rien dans les logs » ≠ « ne marche pas »). Ajout de logs **INFO** dans le handler de scan (« AV scan starting/complete/failed »). ⚠️ **Annulé** l'idée de `arq-worker depends_on clamav` : le worker traite **tous** les events (statut commande, emails…) → ne doit pas être bloqué si clamav est lent/instable ; le retry du handler couvre le cas « scanner pas prêt ».
+
+#### 🐛🔥 ROOT CAUSE — Poller bouché par des events sans handler (23/06/2026)
+
+**LE** vrai problème derrière « scan jamais fait » **et** « statut commande inchangé après validation » : les logs poller montraient en boucle `No handlers found for event type: update.product` (tentative 150+). Le CRUD générique publie des events `update.{entity}` (ex. `update.product`) que **personne ne handle** (`product.py` n'a qu'un handler `create.product`). Or le poller, sur « no handler », **rescheduleait en retry** (backoff plafonné 900s) **au lieu de marquer terminal**. Ces vieux events (les plus anciens → priorité `order_by(created_at)`) **monopolisaient** le poller (1 event/cycle) → les `payment.captured` / `payment.document_uploaded` n'étaient **jamais atteints**. **Fix** ([poller.py](backend/app/outbox/poller.py)) : si `outbox_registry.get_handlers(type)` est vide → event marqué **`DONE` (skipped)**, plus de retry infini → la file se draine et les events utiles passent. Tests : `test_poll_outbox_once_skips_event_without_handler`. ⚠️ Recréer le **poller** (`docker compose up -d` — pas de `--reload`).
+
+**+ Vitesse de drainage** : la boucle `run_continuous` dormait `interval` (5s) après **chaque** event, même skippé → un gros backlog se vidait à 1 event/5s (des dizaines de minutes), affamant quand même `payment.*`. Fix ([outbox_poller.py](backend/app/scripts/outbox_poller.py)) : `continue` (pas de sleep) tant qu'un event a été traité ; on ne temporise que quand la file est **vide**. ⚡ Purge immédiate du backlog existant (via adminer:8080) : `UPDATE outbox_event SET status='DONE' WHERE status='PENDING' AND attempts > 20;` — débloque sans attendre le drainage.
+
+#### 🐛 Admin — file de validation des paiements (23/06/2026)
+
+D'après le screenshot d'une ligne `po_public` :
+- **Bouton « Pièces » jamais affiché** *(vrai bug 3a)* : `isDocumentProvider('po_public')` testait `startsWith('document')` → `false`. Backend : `pending-validation` renvoie désormais un flag **`is_document`** (= `provider_code in DOCUMENT_PROVIDER_CODES`) ; la page l'utilise pour le bouton « Pièces » **et** pour masquer le champ Référence. Fallback front : `isDocumentProvider` reconnaît aussi `po_*`.
+- **Nom du client** : `PaymentPendingValidationItem` expose `user_name`/`user_email` (résolus en une requête `User`) ; la colonne « Client » affiche le nom (fallback email, puis id court).
+- **Type lisible** : `providerLabel` mappe `po_*`/`document*` → **« Bon de commande »**.
+- ✅ **A18 — Page « Commandes clients » admin** *(23/06/2026)* : nouveau module backend `admin_orders.py` (superuser) — `GET /admin/orders` (liste enrichie : nom client + nom statut + total, récents d'abord) et `GET /admin/orders/{id}` (détail : client, statut, **lignes** avec nom produit, **paiements** — tous, avec statut/provider/référence, adresse, notes). Front admin : `OrdersPage.vue` (liste) + `OrderDetailPage.vue` (détail) + routes `/orders` & `/orders/:id` + entrée nav « Commandes clients ». La file de validation des paiements **lie** désormais la colonne Commande vers `/orders/:id`. Helpers statut FR partagés dans `api/orders.ts`.
 
 ### Périmètre fonctionnel
 
@@ -648,25 +788,25 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - ✅ Endpoint `GET /payments/me/methods` (auth) filtré par groupe + `cart_total` vs `max_amount` ; le frontend checkout l'utilise pour les clients connectés (fallback public pour les invités).
    - ✅ Garde-fou dans `POST /payments/initiate` : résolution de méthode d'abord (404 `not_found` / 400 `inactive`), puis `payment.method.not_eligible` (403) si non éligible.
    - ✅ Admin : `GET/POST/DELETE /admin/payment-methods/{id}/groups/{group_id}`.
-   - Fichiers : [app/features/payment/models/payment_method_eligibility.py](../../app/features/payment/models/payment_method_eligibility.py) · [app/features/payment/services/eligibility.py](../../app/features/payment/services/eligibility.py) · [app/api/routes/admin_payment_eligibility.py](../../app/api/routes/admin_payment_eligibility.py)
+   - Fichiers : [app/features/payment/models/payment_method_eligibility.py](backend/app/features/payment/models/payment_method_eligibility.py) · [app/features/payment/services/eligibility.py](backend/app/features/payment/services/eligibility.py) · [app/api/routes/admin_payment_eligibility.py](backend/app/api/routes/admin_payment_eligibility.py)
 
 2. ✅ **Notifications tracking** *(livré 08/06/2026)*
    - ✅ `POST /{tracking_id}/update-status` publie `tracking.status_changed` (outbox) avec `{tracking_id, order_id, status_code, status_name, tracking_ref, estimated_delivery}`.
    - ✅ Handler `on_tracking_status_changed` dans `handlers/shipping.py` : détecte codes `shipped` / `delivered`, charge le user via l'order, vérifie `UserPreference.notification_shipping_steps`, envoie l'email.
    - ✅ Templates Jinja2 inline pour « expédiée » (bleu) et « livrée » (vert).
-   - Fichier : [app/handlers/shipping.py](../../app/handlers/shipping.py)
+   - Fichier : [app/handlers/shipping.py](backend/app/handlers/shipping.py)
 
 3. ✅ **Endpoint client de tracking** *(livré 08/06/2026)*
    - ✅ `GET /orders/me/{order_id}/tracking` : vérifie ownership (`order.user_id == current_user.id`), retourne `CustomerOrderTrackingResponse` (trackings, statut global, scénarios d'exception, consolidations).
    - Réutilise `_derive_order_overall_status` / `_derive_order_exception_scenarios` existants.
-   - Fichier : [app/api/routes/orders_me.py](../../app/api/routes/orders_me.py)
+   - Fichier : [app/api/routes/orders_me.py](backend/app/api/routes/orders_me.py)
 
 4. ✅ **Webhook Ingram — suivi statut commande fournisseur** *(livré 08/06/2026)*
    - ✅ Migration `b9c5d3e2f7a1` : colonne `estimated_delivery TIMESTAMP WITH TIME ZONE` sur `supplier_orders`.
    - ✅ Config `INGRAM_WEBHOOK_SECRET` (Bearer token auth).
    - ✅ `POST /webhooks/ingram/order-status` : valide le token, trouve `SupplierOrder` par `supplier_order_number` ou `customer_order_number`, met à jour `supplier_status_label` + `estimated_delivery`, publie `supplier_order.shipped` si statut shipped.
    - ✅ Handler `on_supplier_order_shipped` : tente d'avancer les trackings de la commande vers le statut `shipped` (best-effort, log warning si transition invalide).
-   - Fichiers : [app/api/routes/webhooks.py](../../app/api/routes/webhooks.py) · [app/handlers/supplier_order.py](../../app/handlers/supplier_order.py)
+   - Fichiers : [app/api/routes/webhooks.py](backend/app/api/routes/webhooks.py) · [app/handlers/supplier_order.py](backend/app/handlers/supplier_order.py)
 
 5. ✅ **B5 confirmé** (Phase 0) — `update_tracking_status` exige `CurrentSuperUser`.
 
@@ -678,14 +818,31 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - ✅ `enqueue_reproject_product_specs(category_id)` ajouté dans `icecat_tasks.py`.
    - ✅ Endpoints admin `GET/POST/PUT/DELETE /admin/spec-definitions` + re-projection automatique en background.
    - Soft-delete (`is_active=False`) préserve l'historique.
-   - Fichiers : [app/features/product/models/spec_definition.py](../../app/features/product/models/spec_definition.py) · [app/api/routes/admin_spec_definitions.py](../../app/api/routes/admin_spec_definitions.py)
+   - Fichiers : [app/features/product/models/spec_definition.py](backend/app/features/product/models/spec_definition.py) · [app/api/routes/admin_spec_definitions.py](backend/app/api/routes/admin_spec_definitions.py)
 
 7. ✅ **Devises — préparation P4** *(livré 08/06/2026)*
    - ✅ Migration `d2e7f5a4b9c3` : table `system_settings(id, key, value, description, updated_at)` + seed `default_display_currency = "XPF"`.
    - ✅ Modèle `SystemSetting` + routes :
      - `GET /system/settings` (public, whitelist `default_display_currency`) → prépare le toggle multi-devises P4.
      - `GET/PUT /admin/system-settings[/{key}]` (superuser) → upsert complet.
-   - Fichiers : [app/features/system/models/system_setting.py](../../app/features/system/models/system_setting.py) · [app/api/routes/system_settings.py](../../app/api/routes/system_settings.py)
+   - Fichiers : [app/features/system/models/system_setting.py](backend/app/features/system/models/system_setting.py) · [app/api/routes/system_settings.py](backend/app/api/routes/system_settings.py)
+
+### Travaux admin-frontend (à faire)
+
+> Les endpoints sont livrés (✅ backend) mais aucun écran ne les pilote encore (`admin-frontend` = `LoginPage` + `ProductsPage` seulement). Modèle de découpage à répliquer pour les autres phases :
+>
+> - **Écran « Catalogue de specs »** (`/admin/spec-definitions`) : table CRUD (`key`, `label_fr`, `type`, `unit`, `categories`, `aliases`), toggle `is_active` (soft-delete), action « re-projeter » (déclenche `reproject_product_specs`). ← *ton exemple*
+> - Écran « Éligibilité paiement » : matrice méthode × groupe + `max_amount` (`/admin/payment-methods/{id}/groups`).
+> - Écran « System settings » : édition `default_display_currency` (prépare le toggle multi-devises P4).
+>
+> Côté **vitrine** : ✅ livré (cf. *Avancement vitrine* ci-dessous).
+
+### Avancement vitrine (20/06/2026)
+
+- ✅ **Suivi de commande client** :
+  - Backend : ajout `GET /orders/me` (liste des commandes du client connecté, tri `created_at` desc, scope JWT) — complète le namespace `/orders/me` aux côtés de `/orders/me/{id}/tracking`. Tests : [app/tests/api/test_orders_me_routes.py](backend/app/tests/api/test_orders_me_routes.py) (scope user + liste vide).
+  - Vitrine : onglet **Commandes** dans `MyAccountPage.vue` (liste + bouton « Suivre ») et page **`OrderTrackingPage.vue`** (route `/mon-compte/commandes/:id` name `order-tracking`) consommant `GET /orders/me/{id}/tracking` : statut global mappé en libellés FR, scénarios d'exception (`supplier_delay`/`parcel_split`/`segment_failure`), timeline des tronçons (`q-timeline`), envois consolidés. Gestion 403/404.
+  - Module API : [frontend/src/api/orders.ts](frontend/src/api/orders.ts). Typecheck (`vue-tsc`) + lint verts.
 
 ### Hors périmètre Phase 3
 
@@ -696,6 +853,15 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 ## Phase 4 — Logistique avancée + remboursement
 
 **Objectif** : outiller l'admin logistique pour grouper les colis et gérer les remboursements clients.
+
+### Matrice livrables par surface
+
+| Feature | Backend | Vitrine (`frontend`) | Admin (`admin-frontend`) |
+|---------|---------|----------------------|--------------------------|
+| Permission logistique (`logistics_admin`) | 🔲 | — | 🔲 |
+| Endpoints ship / deliver / consolidate | 🔲 | — | 🔲 écran logistique + consolidation bulk |
+| Devises — auto + multi-affichage | 🔲 | 🔲 sélecteur de devise | 🔲 écran taux FX + alerte > 30 j |
+| Remboursement total / partiel | 🔲 | 🔲 statut remboursement (compte) | 🔲 écran remboursement |
 
 ### Périmètre fonctionnel
 
@@ -711,7 +877,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - Remplacer les gating naïfs par `current_user.has_permission("shipping.update")` ou équivalent.
 
 2. **Endpoints sémantiques admin**
-   - `POST /admin/shipping/consolidation/{id}/add-trackings` (bulk : `[tracking_id, ...]`) — expose la méthode CRUD existante `add_tracking_to_consolidation` ([route_tracking.py:534-570](../../app/features/shipping/crud/route_tracking.py#L534-L570)).
+   - `POST /admin/shipping/consolidation/{id}/add-trackings` (bulk : `[tracking_id, ...]`) — expose la méthode CRUD existante `add_tracking_to_consolidation` ([route_tracking.py:534-570](backend/app/features/shipping/crud/route_tracking.py#L534-L570)).
    - `POST /admin/shipping/consolidation/{id}/ship-all` (transition tous les trackings rattachés vers statut `shipped` + propage `tracking_ref` de la consolidation).
    - `POST /admin/shipping/tracking/{id}/ship` (require `tracking_ref` dans le body) → statut shipped + publish outbox.
    - `POST /admin/shipping/tracking/{id}/deliver` → statut delivered.
@@ -747,18 +913,38 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 
 **Objectif** : compléter le périmètre du document de vérification fonctionnelle.
 
+### Matrice livrables par surface
+
+| Feature | Backend | Vitrine (`frontend`) | Admin (`admin-frontend`) |
+|---------|---------|----------------------|--------------------------|
+| M1 — produits les plus vus | 🔲 | 🔲 section accueil / carrousel | — |
+| M3 — factures PDF (**WeasyPrint**) + export FEC | 🔲 | 🔲 téléchargement facture (compte) | 🔲 écran factures + export comptable |
+| Z2 — avoir comptable | 🔲 | 🔲 affichage avoir | 🔲 écran avoir |
+| Z3 — relance paniers abandonnés | 🔲 | — | 🔲 dashboard relances |
+| Z4 — recherche IA | 🔲 | 🔲 UI recherche sémantique | — |
+
 ### Périmètre
 
 | ID | Fonctionnalité | Notes |
 |----|----------------|-------|
 | M1 | Produits les plus vus | Tracking de vues + endpoint top-N |
 | M2 | Déploiement Kubernetes | Helm chart à partir du `docker-compose.prod.yml` |
-| M3 | Factures + export comptable | Modèle Invoice + numérotation + PDF (avec ventilation TVA par taux via `OrderLine.tax_rate_id`) + export FEC/CSV Sage |
+| M3 | Factures + export comptable | Modèle Invoice + numérotation + PDF **WeasyPrint** (avec ventilation TVA par taux via `OrderLine.tax_rate_id`) + export FEC/CSV Sage — cf. *Note technique — génération PDF des factures* ci-dessous |
 | M4 | Alerting actif | Job ARQ surveille dashboard → Slack/email sur seuils |
 | Z1 | Paiement en plusieurs fois | Dépend Phase 4 (tokenisation Payzen) |
 | Z2 | Avoir comptable | Dépend M3 (facture) + Phase 4 (refund) |
 | Z3 | Relance paniers abandonnés | Cron horaire + handler outbox `cart.abandoned` |
 | Z4 | Recherche IA | Refonte du draft `ia_search_agent.py` (placeholders à remplacer) ; pgvector recommandé |
+
+### Note technique — génération PDF des factures (M3)
+
+**Bibliothèque retenue : WeasyPrint** (rendu HTML/CSS → PDF), cohérent avec l'approche HTML déjà utilisée pour les emails (`_build_quote_email_html` dans `cart.py`) et avec Jinja2 déjà présent dans les dépendances. Un template Jinja2 de facture (HTML + CSS print) sera rendu puis converti en PDF.
+
+⚠️ **État actuel à corriger en début de Phase 5a** : les dépendances **système** de WeasyPrint sont déjà installées dans le [Dockerfile](backend/Dockerfile) (libpango, libpangocairo, libgdk-pixbuf, libffi, shared-mime-info), **mais le paquet Python `weasyprint` n'est ni dans `pyproject.toml` ni dans `uv.lock`**, et aucun code ne l'importe encore. Prérequis M3 :
+
+1. Ajouter `weasyprint` aux `dependencies` de `pyproject.toml`, puis `uv lock` / `uv sync`.
+2. Vérifier la disponibilité des libs système hors Docker (dev Windows : WeasyPrint nécessite GTK/Pango — documenter dans le runbook, ou rendre la génération PDF dépendante du worker conteneurisé).
+3. Templates Jinja2 facture + ventilation TVA par taux via le snapshot `OrderLine.tax_rate_id` (cf. jalon TVA *5a*).
 
 ### Sous-phases possibles
 
@@ -767,6 +953,53 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 - **Phase 5c** : Z3 (relance panier) + M1 (produits populaires) — leviers commerciaux.
 - **Phase 5d** : Z1 + Z2 (paiement N×, avoir).
 - **Phase 5e** : Z4 (recherche IA, optionnel).
+
+---
+
+## Chantier admin-frontend (transverse)
+
+Les Phases 0–3 ont livré les **endpoints admin** mais l'`admin-frontend` ne comptait que `LoginPage` + `ProductsPage`. Ce chantier construit les écrans back-office qui pilotent ces endpoints. Convention reprise du storefront : `api` axios (`src/boot/api`), stores Pinia, `q-table` pour les listes, bannières inline (Quasar `Notify`/`Dialog` non activés), guard d'auth global déjà en place.
+
+### Backlog par écran
+
+| # | Écran | Endpoints | Phase | État |
+|---|-------|-----------|-------|------|
+| A1 | **Taux TVA/TGC** | `GET/POST/PUT /admin/tax-rates` | 2 | ✅ livré (20/06/2026) |
+| A2 | **Taux de change** | `GET /admin/currency-rates`, `PUT /admin/currency-rates/{code}` | 1/4 | ✅ livré (20/06/2026) |
+| A3 | **Catalogue de specs** | `GET/POST/PUT/DELETE /admin/spec-definitions` | 3 | ✅ livré (20/06/2026) |
+| A4 | **Commandes fournisseurs** | `GET /admin/supplier-orders[/{id}]`, `POST .../{id}/retry` | 2 | ✅ livré (20/06/2026) |
+| A5 | **System settings** | `GET /admin/system-settings`, `PUT .../{key}` | 3 | ✅ livré (20/06/2026) |
+| A6 | **Demandes d'upgrade de groupe** | `GET /admin/group-upgrade-requests`, `POST .../{id}/approve\|reject` | 2 | ✅ livré (20/06/2026) |
+| A7 | **Éligibilité paiement** | `GET/POST/DELETE /admin/payment-methods/{id}/groups`, `GET /payment_method`, `GET /admin/price-groups` *(nouveau)* | 3 | ✅ livré (20/06/2026) |
+| A8 | Toggle « mis en avant » sur `ProductsPage` | `POST/DELETE /product/{id}/feature` | 1 | 🔲 à faire |
+| A9 | Affectation directe de groupe à un user | `POST /admin/users/{id}/assign-price-group` + recherche user | 2 | 🔲 à faire (UX recherche user) — couvert par A15 |
+| A10 | **Validation des adresses** | *manque un endpoint listant les adresses à valider* (`POST /admin/addresses/{id}/validate` existe déjà) | 2 | ⛔ **décision requise** : (1) **désactiver la validation** (les adresses self-service deviennent utilisables directement) — la mention « doit être validée » est aujourd'hui dans `MyAccountPage.vue` mais n'était **pas** une exigence explicite du plan ; ou (2) **ajouter l'écran admin** (nécessite un endpoint `GET /admin/addresses?validated=false`) |
+| A11 | Consultation des `QuoteRequest` | *manque un endpoint admin de listing des devis* | 1 | ⛔ bloqué (ajout backend requis) |
+| A12 | Fusion / renommage de catégories | *manque un endpoint de merge* | 2 | ⛔ bloqué (ajout backend requis) — voir A17 |
+| A13 | **Validation des paiements** | `GET /admin/payments/pending-validation`, `.../approve\|reject`, `.../attachments[/{id}/download]` | 3 | ✅ livré (23/06/2026) |
+| A14 | **Édition produit** (titre, description, images…) avec **champs d'override** préservés de la sync | `PATCH /product/{id}` (existe) **+ champs override + respect par la sync** (cf. *Décision — personnalisation vs sync*) | 2/3 | 🔲 à faire (ajout backend : champs override + protection sync) |
+| A15 | **Liste des utilisateurs** (compte + groupe) + **création de compte** avec email d'invitation | *manque endpoints admin* : `GET /admin/users` (avec groupe), `POST /admin/users` (+ email d'activation). Inclut A9 (affectation de groupe). | 2 | 🔲 à faire (ajouts backend + écran) |
+| A16 | **Logistique : regroupement / consolidation / suivi d'expédition** | `POST /admin/shipping/consolidation/...`, ship/deliver, `pending-grouping` (Phase 4) | 4 | 🔲 **Phase 4** — distinct d'A4 : A4 = PO fournisseur (Ingram), A16 = expéditions/consolidation. Endpoints à livrer en P4. |
+| A17 | **Catégories** : liste + **titre / description / image vitrine personnalisés** (préservés de l'enrichissement) ; fusion/renommage (A12) | *nouveaux champs `Category` (override) + endpoints admin* | 2/3 | 🔲 à faire (ajouts backend + écran ; cf. *Décision — personnalisation vs sync*) |
+| A18 | **Commandes clients** (liste + statut) | `GET /order/...` (scoping admin à relire ; `GET /order/status/{id}` existe pour superuser) | 2 | 🔲 à faire (écran ; endpoint de liste admin à confirmer) |
+| A19 | **Paiements** (liste + statut, au-delà de la validation A13) | *endpoint de liste générale des paiements à confirmer/ajouter* | 2/3 | 🔲 à faire (écran + endpoint de liste) |
+
+### Décision transverse — personnalisation préservée de la synchronisation
+
+Les **produits** (sync Ingram `SupplierSyncOrchestrator.upsert_product` + enrichissement Icecat) et les **catégories** (`get_or_create_by_name` au sync) sont **réécrits à chaque synchronisation**. Pour qu'un admin puisse personnaliser des informations (titre, description, images produit ; titre / description / image de catégorie pour la vitrine) **sans être écrasé**, deux approches :
+
+- **(a) Champs d'override dédiés** — colonnes séparées non touchées par la sync, ex. `Product.name_override` / `description_override` / `image_override`, `Category.display_title` / `display_description` / `display_image_url`. L'API publique renvoie l'override s'il existe, sinon la valeur synchronisée (résolution centralisée). La valeur fournisseur reste visible/auditable.
+- **(b) Verrous par champ** — un flag `is_manually_edited` ou une liste `locked_fields` que `upsert_product` et l'enrichissement **respectent** (ne réécrivent pas les champs verrouillés).
+
+> **Recommandation : (a)** — plus simple et traçable (l'override est explicite, la valeur fournisseur n'est jamais perdue). **À acter avant A14 (produit) et A17 (catégorie)** ; ces deux écrans en dépendent. Concerne aussi l'image catégorie (nouveau champ, pas de source fournisseur → simple ajout) et le *featured* (A8, déjà non écrasé).
+
+### Avancement (20/06/2026)
+
+- ✅ **Shell admin** : `AdminLayout.vue` doté d'un `q-drawer` de navigation (sections Catalogue / Tarification / Commandes / Clients / Système) ; routes ajoutées dans `admin-frontend/src/router/routes.ts`.
+- ✅ **Backend** : `GET /admin/price-groups` (superuser, lecture seule) ajouté dans [admin_payment_eligibility.py](backend/app/api/routes/admin_payment_eligibility.py) — débloque A7 (et préparera A9). Test : [test_admin_price_groups.py](backend/app/tests/api/test_admin_price_groups.py).
+- ✅ **Écrans A1→A7** livrés (cf. tableau). Modules API dédiés sous `admin-frontend/src/api/`.
+- ✅ **A13 — Validation des paiements** *(23/06/2026)* : `PaymentValidationsPage.vue` (route `/payment-validations`, section nav « Paiements ») — liste des paiements manuels (chèque/virement) et bons de commande en attente (`GET /admin/payments/pending-validation`), **approbation** (référence + commentaire) / **rejet** (motif requis), et pour les BC consultation + **téléchargement des pièces** (`/attachments` + `/attachments/{id}/download`, avec rewrite de l'URL presignée locale sur `VITE_API_URL` + état antivirus). API : [admin-frontend/src/api/paymentValidations.ts](admin-frontend/src/api/paymentValidations.ts).
+- 🔲 **Restent** : A8 (featured), A9 (assign group — fusionné dans A15), A10 (adresses — **décision** désactiver/écran), A11–A12 (devis, fusion catégories — backend requis), et les nouveaux **A14 produit (override), A15 users + création de compte, A16 logistique (P4), A17 catégories (override + image), A18 commandes clients, A19 paiements**. La plupart nécessitent des **ajouts backend** (champs override, endpoints de liste users/orders/payments, endpoint adresses à valider).
 
 ---
 

@@ -5,7 +5,9 @@ from app.api.routes.admin_currency_rates import router as admin_currency_rates_r
 from app.api.routes.admin_payment_eligibility import (
     router as admin_payment_eligibility_router,
 )
+from app.api.routes.admin_orders import router as admin_orders_router
 from app.api.routes.admin_payments import router as admin_payments_router
+from app.api.routes.admin_price_groups import router as admin_price_groups_router
 from app.api.routes.admin_spec_definitions import (
     router as admin_spec_definitions_router,
 )
@@ -69,7 +71,9 @@ api_router.include_router(payment_router)
 api_router.include_router(payment_method_router)
 api_router.include_router(payments_router)
 api_router.include_router(admin_payments_router)
+api_router.include_router(admin_orders_router)
 api_router.include_router(admin_payment_eligibility_router)
+api_router.include_router(admin_price_groups_router)
 api_router.include_router(admin_currency_rates_router)
 api_router.include_router(admin_tax_rates_router)
 api_router.include_router(admin_supplier_orders_router)

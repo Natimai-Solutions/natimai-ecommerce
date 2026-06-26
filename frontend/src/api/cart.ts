@@ -6,6 +6,22 @@ type CartItemAddRequest = components['schemas']['CartItemAddRequest']
 type CartItemQuantityUpdateRequest = components['schemas']['CartItemQuantityUpdateRequest']
 type QuoteRequestSubmit = components['schemas']['QuoteRequestSubmit']
 type QuoteRequestResponse = components['schemas']['QuoteRequestResponse']
+// The generated schema lags the backend additions for the single-payment flow
+// (payment_method_id/return_url on the request; provider fields on the response).
+type CheckoutRequest = components['schemas']['CheckoutRequest'] & {
+  /** Initiate this method's provider in the same call (single-payment flow). */
+  payment_method_id?: string | null
+  return_url?: string | null
+}
+type CheckoutResponse = components['schemas']['CheckoutResponse'] & {
+  provider_code?: string | null
+  provider_reference?: string | null
+  form_token?: string | null
+  server_url?: string | null
+  public_key?: string | null
+  redirect_url?: string | null
+  instructions?: string | null
+}
 
 export interface GuestQuoteRequestItem {
   product_id?: string | null
@@ -56,6 +72,16 @@ export async function removeCartItem(itemId: string): Promise<CartDetailPublic> 
 
 export async function clearMyCart(): Promise<CartDetailPublic> {
   const { data } = await api.delete<CartDetailPublic>('/cart/items')
+  return data
+}
+
+/**
+ * Turn the authenticated user's backend cart into an order (creates the order +
+ * order lines + a pending payment, and empties the backend cart). The storefront
+ * cart is client-side, so its items must be synced to the backend first.
+ */
+export async function checkoutMyCart(payload: CheckoutRequest): Promise<CheckoutResponse> {
+  const { data } = await api.post<CheckoutResponse>('/cart/checkout', payload)
   return data
 }
 

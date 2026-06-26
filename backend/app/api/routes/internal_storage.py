@@ -9,6 +9,7 @@ itself is the authorization (HMAC-signed with SECRET_KEY, time-limited).
 from __future__ import annotations
 
 import logging
+from urllib.parse import quote
 
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
@@ -121,7 +122,7 @@ async def upload_via_token(token: str, request: Request) -> Response:
 
 
 @router.get("/{token}")
-async def download_via_token(token: str) -> Response:
+async def download_via_token(token: str, filename: str | None = None) -> Response:
     """Execute download via token."""
     try:
         body = decode_token(token)
@@ -146,4 +147,20 @@ async def download_via_token(token: str) -> Response:
 
     storage = _storage()
     data = await storage.get_bytes(key=body["key"])
-    return Response(content=data, media_type="application/octet-stream")
+
+    # Save under the original filename (the URL ends with the opaque token, so
+    # without Content-Disposition the browser would use the token as the name).
+    raw_name = filename or str(body["key"]).rsplit("/", 1)[-1]
+    safe_name = raw_name.replace("\r", "").replace("\n", "").replace('"', "")
+    ascii_name = safe_name.encode("ascii", "ignore").decode("ascii") or "download"
+    quoted = quote(safe_name)
+    headers = {
+        "Content-Disposition": (
+            f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quoted}'
+        )
+    }
+    return Response(
+        content=data,
+        media_type="application/octet-stream",
+        headers=headers,
+    )

@@ -33,6 +33,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import RedisDep, SessionDep
 from app.core import security
+from app.core.auth_cookies import set_refresh_cookie
 from app.core.config import settings
 from app.core.errors import AppError
 from app.features.user.crud.refresh_token import crud_user_refresh_token
@@ -229,10 +230,16 @@ def _build_token_bundle(user_id: uuid.UUID) -> tuple[str, str, str, datetime]:
     return access_tok, refresh_tok, refresh_jti, refresh_expires_at
 
 
-def _frontend_redirect(access_token: str, refresh_token: str) -> RedirectResponse:
+def _frontend_redirect(refresh_token: str) -> RedirectResponse:
+    """Redirect to the SPA with the refresh token set as an HttpOnly cookie.
+
+    No token is placed in the URL: the SPA obtains its in-memory access token by
+    calling /login/refresh-token (which reads the cookie) right after landing.
+    """
     base = settings.FRONTEND_OAUTH_REDIRECT_URL or settings.FRONTEND_HOST
-    params = urlencode({"access_token": access_token, "refresh_token": refresh_token})
-    return RedirectResponse(url=f"{base}?{params}", status_code=302)
+    redirect = RedirectResponse(url=base, status_code=302)
+    set_refresh_cookie(redirect, refresh_token)
+    return redirect
 
 
 def _frontend_error_redirect(error: str) -> RedirectResponse:
@@ -402,7 +409,7 @@ async def oauth_callback(
         await session.rollback()
         return _frontend_error_redirect("user_inactive")
 
-    access_tok, refresh_tok, refresh_jti, refresh_expires_at = _build_token_bundle(
+    _access_tok, refresh_tok, refresh_jti, refresh_expires_at = _build_token_bundle(
         user.id
     )
     # create_for_user internally calls CrudBase.create which commits the transaction,
@@ -418,4 +425,4 @@ async def oauth_callback(
     logger.info(
         "OAuth login success: provider=%s user=%s (email=%s)", provider, user.id, email
     )
-    return _frontend_redirect(access_tok, refresh_tok)
+    return _frontend_redirect(refresh_tok)

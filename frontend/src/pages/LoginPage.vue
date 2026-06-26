@@ -4,7 +4,7 @@
       <q-card-section>
         <div class="text-h5 q-mb-xs">Connexion</div>
         <div class="text-body2 text-grey-7">
-          Connectez-vous pour finaliser votre commande par carte bancaire.
+          Connectez-vous pour accéder à votre compte.
         </div>
       </q-card-section>
 

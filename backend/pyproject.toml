@@ -79,3 +79,17 @@ ignore = [
 [tool.ruff.lint.pyupgrade]
 # Preserve types, even if a file imports `from __future__ import annotations`.
 keep-runtime-typing = true
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+omit = [
+    "app/tests/*",
+    "app/alembic/*",
+    "app/scripts/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+# Raise once the suite stabilizes to gate the build (CI fails under this %).
+# fail_under = 60

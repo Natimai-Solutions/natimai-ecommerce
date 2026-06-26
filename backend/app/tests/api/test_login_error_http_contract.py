@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from jwt.exceptions import InvalidTokenError
 
 from app.core import security
+from app.core.config import settings
 from app.core.db import get_db
 from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.crud.user import crud_user
@@ -81,7 +82,7 @@ def test_refresh_access_token_decode_failure_returns_error_payload(
 
     response = client.post(
         "/api/v1/login/refresh-token",
-        json={"refresh_token": "bad-token"},
+        cookies={settings.REFRESH_COOKIE_NAME: "bad-token"},
     )
 
     assert response.status_code == 401
@@ -119,7 +120,7 @@ def test_refresh_access_token_missing_session_returns_error_payload(
 
     response = client.post(
         "/api/v1/login/refresh-token",
-        json={"refresh_token": refresh_token},
+        cookies={settings.REFRESH_COOKIE_NAME: refresh_token},
     )
 
     assert response.status_code == 401
@@ -175,7 +176,7 @@ def test_refresh_access_token_revoked_returns_error_payload(
 
     response = client.post(
         "/api/v1/login/refresh-token",
-        json={"refresh_token": refresh_token},
+        cookies={settings.REFRESH_COOKIE_NAME: refresh_token},
     )
 
     assert response.status_code == 401
@@ -228,7 +229,7 @@ def test_refresh_access_token_expired_returns_error_payload(
 
     response = client.post(
         "/api/v1/login/refresh-token",
-        json={"refresh_token": refresh_token},
+        cookies={settings.REFRESH_COOKIE_NAME: refresh_token},
     )
 
     assert response.status_code == 401

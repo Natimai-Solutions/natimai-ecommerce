@@ -2,21 +2,25 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Never
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from jwt.exceptions import InvalidTokenError
 from pydantic import ValidationError
 
 from app.api.deps import SessionDep
 from app.core import security
+from app.core.auth_cookies import (
+    clear_refresh_cookie,
+    read_refresh_cookie,
+    set_refresh_cookie,
+)
 from app.core.config import settings
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.crud.user import crud_user
 from app.features.user.models.user import (
-    RefreshTokenRequest,
-    Token,
+    AccessTokenResponse,
     TokenPayload,
 )
 
@@ -65,10 +69,14 @@ def _build_token_bundle(user_id: uuid.UUID) -> tuple[str, str, str, datetime]:
 
 @router.post("/login/access-token")
 async def login_access_token(
-    session: SessionDep, form_data: Annotated[OAuth2PasswordRequestForm, Depends()]
-) -> Token:
-    """
-    OAuth2 compatible token login, get an access token and refresh token for future requests
+    response: Response,
+    session: SessionDep,
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+) -> AccessTokenResponse:
+    """OAuth2 compatible password login.
+
+    Returns the access token in the body (held in SPA memory) and sets the
+    refresh token as an HttpOnly cookie.
     """
     user = await crud_user.authenticate(
         session=session, email=form_data.username, password=form_data.password
@@ -100,21 +108,27 @@ async def login_access_token(
         user=user,
     )
 
-    return Token(
+    set_refresh_cookie(response, refresh_token)
+    return AccessTokenResponse(
         access_token=access_token,
-        refresh_token=refresh_token,
-        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convert to seconds
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # seconds
     )
 
 
 @router.post("/login/refresh-token")
 async def refresh_access_token(
+    request: Request,
+    response: Response,
     session: SessionDep,
-    payload: RefreshTokenRequest,
-) -> Token:
-    """Execute refresh access token."""
+) -> AccessTokenResponse:
+    """Rotate the refresh token (read from the HttpOnly cookie) and mint a new
+    access token. The new refresh token is written back as a cookie."""
+    refresh_cookie = read_refresh_cookie(request)
+    if not refresh_cookie:
+        _raise_invalid_refresh_token(reason="cookie_missing")
+
     try:
-        decoded_payload = security.decode_token(payload.refresh_token)
+        decoded_payload = security.decode_token(refresh_cookie)
         token_data = TokenPayload(**decoded_payload)
     except (InvalidTokenError, ValidationError):
         _raise_invalid_refresh_token(reason="decode_failed")
@@ -162,6 +176,12 @@ async def refresh_access_token(
         )
 
     now = datetime.now(timezone.utc)
+    # expires_at is stored in a naive (tz-less) column but always holds UTC
+    # wall-clock — make it aware before comparing to the aware `now`.
+    session_expires_at = current_refresh_session.expires_at
+    if session_expires_at.tzinfo is None:
+        session_expires_at = session_expires_at.replace(tzinfo=timezone.utc)
+
     if current_refresh_session.revoked_at is not None:
         await crud_user_refresh_token.revoke_all_active_for_user(
             session=session,
@@ -178,7 +198,7 @@ async def refresh_access_token(
             },
         )
 
-    if current_refresh_session.expires_at <= now:
+    if session_expires_at <= now:
         await crud_user_refresh_token.revoke_token(
             session=session,
             token=current_refresh_session,
@@ -207,8 +227,42 @@ async def refresh_access_token(
         user=user,
     )
 
-    return Token(
+    set_refresh_cookie(response, refresh_token)
+    return AccessTokenResponse(
         access_token=access_token,
-        refresh_token=refresh_token,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
+
+
+@router.post("/login/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+    request: Request,
+    response: Response,
+    session: SessionDep,
+) -> Response:
+    """Revoke the current refresh-token session and clear the cookie.
+
+    Idempotent: always clears the cookie and returns 204, even if the cookie is
+    missing or already invalid.
+    """
+    refresh_cookie = read_refresh_cookie(request)
+    if refresh_cookie:
+        try:
+            decoded = security.decode_token(refresh_cookie)
+            token_data = TokenPayload(**decoded)
+            if token_data.type == "refresh" and token_data.sub and token_data.jti:
+                user_id = uuid.UUID(token_data.sub)
+                token_row = await crud_user_refresh_token.get_by_user_and_jti(
+                    session=session, user_id=user_id, jti=token_data.jti
+                )
+                if token_row is not None and token_row.revoked_at is None:
+                    await crud_user_refresh_token.revoke_token(
+                        session=session, token=token_row, reason="logout"
+                    )
+        except (InvalidTokenError, ValidationError, ValueError):
+            # Malformed/expired cookie — nothing to revoke, just clear it.
+            pass
+
+    clear_refresh_cookie(response)
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response

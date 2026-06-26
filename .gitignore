@@ -48,6 +48,9 @@ yarn-error.log*
 htmlcov/
 .tox/
 .hypothesis/
+coverage/
+coverage.json
+coverage.xml
 
 # IDEs
 .vscode/

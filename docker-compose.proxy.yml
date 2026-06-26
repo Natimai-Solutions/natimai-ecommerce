@@ -1,0 +1,45 @@
+# Reverse proxy (Caddy) — terminaison TLS Let's Encrypt + routage par sous-domaine.
+#
+# Usage (production) :
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.proxy.yml up -d
+#
+# Prérequis :
+#   - DNS A/AAAA (domaine nu, www, api, admin) → IP publique du serveur ; ports 80/443 ouverts.
+#   - .env racine : DOMAIN (ex. natimai.solutions) + ACME_EMAIL.
+#   - Images frontends rebuildées avec VITE_API_URL=https://api.${DOMAIN}
+#     (le préfixe /api/v1 est ajouté par le client) — cf. DEPLOYMENT.md §4.
+#
+# Caddy devient l'unique point d'entrée : on retire l'exposition directe des ports
+# hôte des services applicatifs (nécessite Docker Compose ≥ 2.24 pour le tag !reset).
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3 (QUIC)
+    environment:
+      - "DOMAIN=${DOMAIN:?DOMAIN manquant dans .env, ex natimai.solutions}"
+      - "ACME_EMAIL=${ACME_EMAIL:?ACME_EMAIL manquant dans .env, contact Let s Encrypt}"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # certificats Let's Encrypt — À PERSISTER (évite le rate-limit ACME)
+      - caddy_config:/config
+    depends_on:
+      - api
+      - frontend
+      - admin-frontend
+
+  # Le proxy fronte ces services : plus d'exposition directe sur l'hôte.
+  api:
+    ports: !reset []
+  frontend:
+    ports: !reset []
+  admin-frontend:
+    ports: !reset []
+
+volumes:
+  caddy_data:
+  caddy_config:
