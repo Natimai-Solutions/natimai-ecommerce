@@ -2,6 +2,7 @@
   "name": "frontend",
   "version": "0.0.1",
   "description": "A ecommerce frontend for fastapi-ecommerce API",
+  "license": "AGPL-3.0-or-later",
   "productName": "Ecommerce Frontend",
   "author": "Jonathan Burckel <jburckel@natimai.solutions>",
   "type": "module",

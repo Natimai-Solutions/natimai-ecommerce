@@ -1,6 +1,7 @@
 {
   "name": "fastapi-ecommerce",
   "private": true,
+  "license": "AGPL-3.0-or-later",
   "packageManager": "pnpm@10.0.0",
   "scripts": {
     "gen:types": "openapi-typescript http://localhost:8000/api/v1/openapi.json -o shared/api-types/src/schema.ts",
