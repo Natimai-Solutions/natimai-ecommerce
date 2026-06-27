@@ -4,10 +4,8 @@ Environment variables and first‑deployment steps for the e‑commerce stack
 (FastAPI backend, Quasar storefront, Quasar admin, PostgreSQL, Redis, ARQ worker,
 outbox poller, ClamAV).
 
-> Operational runbooks (health checks, restarts, FX rates) live in
-> [`backend/docs/development/OPS_ENV_ET_CHECKS.md`](backend/docs/development/OPS_ENV_ET_CHECKS.md)
-> and [`RUNBOOK_OPERATIONNEL_E3.md`](backend/docs/development/RUNBOOK_OPERATIONNEL_E3.md)
-> (French). This file is the canonical reference for **which variables to set**.
+> This is the canonical reference for **which variables to set**, plus the first
+> deploy steps (§8), post‑deployment checks (§10) and the operations runbook (§11).
 
 ---
 
@@ -60,16 +58,16 @@ When `ENVIRONMENT != local`, the app refuses to start if `SECRET_KEY`,
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `30` | Refresh token TTL |
 | `SENTRY_DSN` | — | Error monitoring DSN |
 
-> **Modèle d'authentification (cookie).** Le **refresh token** est délivré en
-> cookie **HttpOnly Secure SameSite=Lax** (illisible par JS → résistant au vol
-> XSS) ; l'**access token** (15 min) ne vit qu'en **mémoire** du SPA et est
-> rétabli au démarrage via `/login/refresh-token`. Implications déploiement :
-> `BACKEND_CORS_ORIGINS` doit lister les **origines exactes** des fronts (jamais
-> `*`) car les requêtes sont *credentialed* (CORS `allow_credentials` est activé) ;
-> en prod tout doit être en **HTTPS** (cookie `Secure`). Le schéma par
-> sous-domaines (`shop.`/`admin.` → `api.`) est *same-site*, donc `SameSite=Lax`
-> envoie bien le cookie. Réglages optionnels : `REFRESH_COOKIE_SAMESITE`,
-> `REFRESH_COOKIE_DOMAIN`, `REFRESH_COOKIE_SECURE` (cf. `.env.example`).
+> **Authentication model (cookie).** The **refresh token** is delivered as an
+> **HttpOnly, Secure, SameSite=Lax** cookie (unreadable by JS → XSS-resistant);
+> the **access token** (15 min) lives only in the SPA's **memory** and is restored
+> on startup via `/login/refresh-token`. Deployment implications:
+> `BACKEND_CORS_ORIGINS` must list the **exact origins** of the frontends (never
+> `*`), because requests are *credentialed* (CORS `allow_credentials` is on); in
+> production everything must be **HTTPS** (the cookie is `Secure`). The subdomain
+> scheme (`shop.`/`admin.` → `api.`) is *same-site*, so `SameSite=Lax` still sends
+> the cookie. Optional tuning: `REFRESH_COOKIE_SAMESITE`, `REFRESH_COOKIE_DOMAIN`,
+> `REFRESH_COOKIE_SECURE` (see `.env.example`).
 
 ### 3.2 Redis
 
@@ -371,8 +369,7 @@ docker compose exec api python -m app.initial_data
 docker compose up -d arq-worker outbox-poller
 ```
 
-Then verify health and supplier sync as described in
-[`OPS_ENV_ET_CHECKS.md`](backend/docs/development/OPS_ENV_ET_CHECKS.md) §2–3.
+Then run the [post‑deployment checks](#10-postdeployment-checks).
 
 ### Production overrides checklist
 
@@ -388,85 +385,157 @@ Then verify health and supplier sync as described in
 
 ---
 
-## 9. Reverse proxy (Caddy) — déploiement docker‑compose
+## 9. Reverse proxy (Caddy) — docker‑compose deployment
 
-Le déploiement docker‑compose n'expose par défaut que des ports « bruts »
-(`8000`, `3000`, `3001`) sans TLS. Pour la production, un reverse proxy **Caddy**
+By default the docker‑compose deployment only exposes "raw" ports
+(`8000`, `3000`, `3001`) without TLS. For production, a **Caddy** reverse proxy
 ([`infra/caddy/Caddyfile`](infra/caddy/Caddyfile) +
-[`docker-compose.proxy.yml`](docker-compose.proxy.yml)) fournit un point d'entrée
-unique sur `80`/`443`, la **terminaison TLS Let's Encrypt automatique** et le
-routage par sous‑domaine.
+[`docker-compose.proxy.yml`](docker-compose.proxy.yml)) provides a single entry
+point on `80`/`443`, **automatic Let's Encrypt TLS termination** and per‑subdomain
+routing.
 
-> Le déploiement Kubernetes (`infra/k8s/`, [`infra/DEPLOY.md`](infra/DEPLOY.md))
-> reste une alternative avec nginx‑ingress + cert‑manager. Cette section couvre la
-> voie **docker‑compose**.
+> The Kubernetes deployment (`infra/k8s/`, [`infra/DEPLOY.md`](infra/DEPLOY.md))
+> remains an alternative with nginx‑ingress + cert‑manager. This section covers the
+> **docker‑compose** path.
 
-### Routage
+### Routing
 
-| Hôte | Service | Port interne |
-|------|---------|--------------|
-| `${DOMAIN}` (domaine nu) | vitrine `frontend` (SSR) | 3000 |
-| `www.${DOMAIN}` | redirection 301 → domaine nu | — |
+| Host | Service | Internal port |
+|------|---------|---------------|
+| `${DOMAIN}` (bare domain) | `frontend` storefront (SSR) | 3000 |
+| `www.${DOMAIN}` | 301 redirect → bare domain | — |
 | `api.${DOMAIN}` | `api` (FastAPI) | 8000 |
 | `admin.${DOMAIN}` | `admin-frontend` (nginx) | 80 |
 
-### Prérequis
+### Prerequisites
 
-1. **DNS** — enregistrements A/AAAA pour le domaine nu, `www`, `api` et `admin`
-   pointant vers l'IP publique du serveur. Ports `80` et `443` ouverts (HTTP‑01).
-2. **`.env` racine** — `DOMAIN=natimai.solutions` et `ACME_EMAIL=<contact>`.
-3. **Cohérence des URLs publiques** (cf. §3.1, §3.4, §4) :
-   - `FRONTEND_HOST=https://natimai.solutions`
-   - `BACKEND_CORS_ORIGINS=https://natimai.solutions,https://admin.natimai.solutions`
-   - `OAUTH_REDIRECT_BASE_URL=https://api.natimai.solutions` (si OAuth activé)
-   - `FRONTEND_OAUTH_REDIRECT_URL=https://natimai.solutions/oauth/callback`
-4. **Frontends rebuildés** avec l'URL API publique (baked at build time) :
-   `frontend/.env` et `admin-frontend/.env` → `VITE_API_URL=https://api.natimai.solutions`
-   (le client ajoute `/api/v1`). Sans ça, le navigateur appellera `localhost:8000`.
+1. **DNS** — A/AAAA records for the bare domain, `www`, `api` and `admin` pointing
+   to the server's public IP. Ports `80` and `443` open (HTTP‑01 challenge).
+2. **Root `.env`** — `DOMAIN=example.com` and `ACME_EMAIL=<contact>`.
+3. **Consistent public URLs** (see §3.1, §3.4, §4):
+   - `FRONTEND_HOST=https://example.com`
+   - `BACKEND_CORS_ORIGINS=https://example.com,https://admin.example.com`
+   - `OAUTH_REDIRECT_BASE_URL=https://api.example.com` (if OAuth is enabled)
+   - `FRONTEND_OAUTH_REDIRECT_URL=https://example.com/oauth/callback`
+4. **Frontends rebuilt** with the public API URL (baked at build time):
+   `frontend/.env` and `admin-frontend/.env` → `VITE_API_URL=https://api.example.com`
+   (the client appends `/api/v1`). Without this, the browser would call `localhost:8000`.
 
-### Démarrage
+### Start
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.proxy.yml up -d --build
 ```
 
-- Caddy demande et renouvelle les certificats automatiquement (Let's Encrypt).
-- Le tag `!reset` retire l'exposition directe des ports des services applicatifs
-  (Caddy devient l'unique ingress) → **Docker Compose ≥ 2.24** requis.
-- Le volume `caddy_data` **doit être persisté** (il contient les certificats) pour
-  éviter d'atteindre le rate‑limit ACME lors des redéploiements.
+- Caddy obtains and renews certificates automatically (Let's Encrypt).
+- The `!reset` tag removes the direct port exposure of the app services (Caddy
+  becomes the only ingress) → **Docker Compose ≥ 2.24** required.
+- The `caddy_data` volume **must be persisted** (it holds the certificates) to avoid
+  hitting the ACME rate limit on redeploys.
 
-### Isolation réseau & exposition des ports
+### Network isolation & port exposure
 
-Le montage `prod` + `proxy` durcit l'exposition à deux niveaux :
+The `prod` + `proxy` overlay hardens exposure at two levels:
 
-- **Aucun port publié sur l'hôte sauf `80`/`443`** (Caddy). Les ports applicatifs
-  (`8000`, `3000`, `3001`) et data (`5432`, `6379`, `3310`, `8080`) sont retirés via
-  le tag `!reset` — ils ne sont accessibles que sur les réseaux Docker internes.
-- **Cloisonnement réseau** (défini dans `docker-compose.prod.yml`) :
+- **No host port published except `80`/`443`** (Caddy). The app ports
+  (`8000`, `3000`, `3001`) and data ports (`5432`, `6379`, `3310`, `8080`) are
+  removed via the `!reset` tag — reachable only on the internal Docker networks.
+- **Network partitioning** (defined in `docker-compose.prod.yml`):
 
-  | Réseau | `internal` | Services | Rôle |
-  |--------|-----------|----------|------|
-  | `default` | non (gateway) | caddy, frontend, admin-frontend, clamav, + compute | routage HTTP + egress Internet |
-  | `dbnet` | **oui** | postgres, redis (+ api, workers, migrate, health-checker, adminer en pont) | tier data, **sans accès Internet** |
+  | Network | `internal` | Services | Role |
+  |---------|-----------|----------|------|
+  | `default` | no (gateway) | caddy, frontend, admin-frontend, clamav, + compute | HTTP routing + Internet egress |
+  | `dbnet` | **yes** | postgres, redis (+ api, workers, migrate, health-checker, adminer bridged) | data tier, **no Internet access** |
 
-  Conséquences : `postgres`/`redis` sont sur `dbnet` **uniquement** → ni Caddy ni les
-  frontends ne peuvent les joindre, et ils n'ont **aucun egress** (réseau `internal`).
-  L'`api` et les workers sont sur les deux réseaux (egress via `default`, base via
-  `dbnet`). ClamAV reste sur `default` car `freshclam` télécharge ses signatures
-  depuis Internet. Adminer n'est plus exposé (`:8080` retiré) — y accéder via un
-  tunnel SSH ou `docker compose exec`.
+  Consequences: `postgres`/`redis` are on `dbnet` **only** → neither Caddy nor the
+  frontends can reach them, and they have **no egress** (`internal` network). The
+  `api` and workers are on both networks (egress via `default`, DB via `dbnet`).
+  ClamAV stays on `default` because `freshclam` downloads its signatures from the
+  Internet. Adminer is no longer exposed (`:8080` removed) — reach it via an SSH
+  tunnel or `docker compose exec`.
 
-### Vérification
+### Verification
 
 ```bash
-docker compose logs -f caddy           # obtention des certificats
-curl -I https://api.natimai.solutions/api/v1/healthz/liveness
-curl -I https://natimai.solutions      # vitrine
-curl -I https://admin.natimai.solutions
+docker compose logs -f caddy           # certificate acquisition
+curl -I https://api.example.com/api/v1/healthz/liveness
+curl -I https://example.com            # storefront
+curl -I https://admin.example.com
 ```
 
-> Mise au point sans exposer la prod : tester d'abord avec l'environnement de
-> **staging** Let's Encrypt (certs non fiables mais sans rate‑limit) en ajoutant
-> `acme_ca https://acme-staging-v02.api.letsencrypt.org/directory` dans le bloc
-> global du `Caddyfile`, puis repasser en production une fois le routage validé.
+> Tune without exposing production: first test with the Let's Encrypt **staging**
+> environment (untrusted certs but no rate limit) by adding
+> `acme_ca https://acme-staging-v02.api.letsencrypt.org/directory` to the Caddyfile
+> global block, then switch back to production once routing is validated.
+
+---
+
+## 10. Post‑deployment checks
+
+After the first deploy (migrations + `initial_data` + workers up), verify:
+
+**Health**
+```bash
+curl -s $API/healthz/liveness   # {"status":"ok"}
+curl -s $API/healthz/ready      # {"status":"ok","checks":{"db":"ok","redis":"ok"}}
+```
+
+**Database** — migrations applied and the full‑text search extension present:
+```bash
+docker compose exec api alembic current     # should be at head
+docker compose exec postgres psql -U postgres -d fastapi_ecommerce \
+  -c "SELECT extname FROM pg_extension WHERE extname='pg_trgm';"   # 1 row
+```
+
+**FX rates seeded** — `GET /api/v1/admin/currency-rates` should return active EUR/USD.
+
+**Async health** — the observability dashboard (`GET /api/v1/utils/observability/dashboard`, superuser) surfaces ARQ + outbox state. Watch for:
+- `arq_jobs.queued` high / `arq_jobs.failed > 0` → worker behind or failing (`docker compose logs arq-worker`).
+- `outbox_jobs.stale_pending > 0` (events stuck > 15 min) or `outbox_jobs.failed > 0` → see the runbook below.
+- no `*_product_sync` job in the last ~7 h → the supplier cron did not fire.
+
+**Supplier sync** — trigger one catalogue sync and confirm products are created (`is_supplier_managed=true`), an enrichment job is queued, enriched products flip to `is_enriched=true` and appear on the public `GET /api/v1/products`.
+
+**FX staleness** — there is no automatic FX cron yet; check that no active rate's `valid_from` is older than ~30 days, and refresh via `PUT /api/v1/admin/currency-rates/{code}` if needed.
+
+## 11. Operations runbook
+
+Operational actions, aligned with the app's real entry points. Examples assume a
+superuser bearer token (`$AUTH = "Authorization: Bearer <token>"` from
+`POST /api/v1/login/access-token`).
+
+**Restart supplier sync (Ingram / Icecat)**
+```bash
+curl -s $API/api/v1/ingram/health -H "$AUTH"
+curl -s -X POST $API/api/v1/admin/suppliers/ingram_micro/sync/products \
+  -H "$AUTH" -H "Content-Type: application/json" -d '{"categories":["Ordinateur/Serveur"]}'
+curl -s -X POST $API/api/v1/icecat/enrich/batch \
+  -H "$AUTH" -H "Content-Type: application/json" -d '{"limit":50}'
+```
+
+**Restart ARQ / outbox jobs**
+```bash
+docker compose restart arq-worker outbox-poller
+# retry failed outbox events, then force one drain pass
+docker compose exec api python app/scripts/outbox_poller.py --mode retry --max-attempts 5
+docker compose exec api python app/scripts/outbox_poller.py --mode once --max-events 200
+# outbox health check / recover missing jobs
+docker compose exec api python -m app.outbox.health
+```
+
+**Replay a failed PayZen IPN** — diagnose, then replay with a valid signature:
+```bash
+docker compose exec postgres psql -U postgres -d fastapi_ecommerce -c \
+  "SELECT id, provider_reference, provider_data->>'trans_status' AS status, updated_at \
+   FROM payments ORDER BY updated_at DESC LIMIT 30;"
+python app/scripts/replay_payzen_ipn.py --base-url $API \
+  --order-id <ORDER_ID> --trans-status PAID --trans-uuid <TRANS_UUID> \
+  --amount 1500 --currency 953 --card-brand VISA
+# or from a captured kr-answer payload: --kr-answer-file ./tmp/kr-answer.json
+# useful flags: --dry-run, --mode TEST|PRODUCTION, --hmac-key <key>
+```
+
+**Escalate** if, after a restart, an IPN signature keeps failing with correct keys,
+the outbox stays degraded after `app.outbox.health`, or supplier jobs keep erroring.
+Provide: ARQ `job_id`s, the `payment_id`/`provider_reference`, and `api` /
+`arq-worker` / `outbox-poller` log excerpts + the observability dashboard output.

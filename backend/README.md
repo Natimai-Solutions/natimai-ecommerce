@@ -2,6 +2,6 @@ BACKEND FOR FASTAPI-ECOMMERCE
 
 ## Documentation
 
-- Plan de refonte paiements: [docs/development/PLAN_REFONTE_PAIEMENTS.md](docs/development/PLAN_REFONTE_PAIEMENTS.md)
-- Guide providers de notifications: [docs/usage/notifications-providers.md](docs/usage/notifications-providers.md)
-- Runbook operationnel: [docs/development/RUNBOOK_OPERATIONNEL_E3.md](docs/development/RUNBOOK_OPERATIONNEL_E3.md)
+- [`../README.md`](../README.md) — overview, getting started, environment variables.
+- [`../DEVELOPMENT.md`](../DEVELOPMENT.md) — local development, code conventions, error handling, adding a notification provider.
+- [`../DEPLOYMENT.md`](../DEPLOYMENT.md) — environment variables, deployment, post‑deployment checks, operations runbook.

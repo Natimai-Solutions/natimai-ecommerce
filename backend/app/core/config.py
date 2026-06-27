@@ -350,6 +350,21 @@ class Settings(BaseSettings):
             else:
                 raise ValueError(message)
 
+    def _check_required_override(self, var_name: str, value: str, placeholder: str) -> None:
+        """Reject a still-placeholder value: warn in local, fail elsewhere.
+
+        Makes the variable effectively mandatory in any non-local deployment.
+        """
+        if value.strip().lower() == placeholder.lower():
+            message = (
+                f"{var_name} is still the shipped placeholder '{placeholder}'. "
+                f"Set a real value in your .env (required for any non-local deployment)."
+            )
+            if self.ENVIRONMENT == "local":
+                warnings.warn(message, stacklevel=1)
+            else:
+                raise ValueError(message)
+
     @model_validator(mode="after")
     def _enforce_non_default_secrets(self) -> Self:
         """Execute enforce non default secrets."""
@@ -357,6 +372,10 @@ class Settings(BaseSettings):
         self._check_default_secret("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD)
         self._check_default_secret(
             "FIRST_SUPERUSER_PASSWORD", self.FIRST_SUPERUSER_PASSWORD
+        )
+        # The bootstrap admin account must be configured explicitly.
+        self._check_required_override(
+            "FIRST_SUPERUSER", self.FIRST_SUPERUSER, "admin@example.com"
         )
 
         return self
