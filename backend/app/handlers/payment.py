@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 ORDER_STATUS_PAID = "Paid"
 ORDER_STATUS_PAYMENT_FAILED = "PaymentFailed"
 ORDER_STATUS_AWAITING_PAYMENT = "AwaitingPayment"
+ORDER_STATUS_REFUNDED = "Refunded"
+ORDER_STATUS_PARTIALLY_REFUNDED = "PartiallyRefunded"
 
 EVENT_WEBHOOK_RECEIVED = "payment.webhook_received"
 EVENT_AWAITING_VALIDATION = "payment.awaiting_validation"
@@ -32,6 +34,7 @@ __all__ = [
     "crud_order_status",
     "on_payment_awaiting_validation",
     "on_payment_captured",
+    "on_payment_refunded",
     "on_payment_rejected",
     "on_payment_document_required",
     "on_payment_document_uploaded",
@@ -150,6 +153,26 @@ async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) ->
     )
     await _sync_order_status(
         session, payload=payload, target_status_name=ORDER_STATUS_PAID
+    )
+
+
+@outbox_handler("payment.refunded")
+async def on_payment_refunded(session: AsyncSession, payload: dict[str, Any]) -> None:
+    """Sync the order status when a payment is (partially) refunded."""
+    fully = bool(payload.get("fully_refunded"))
+    logger.info(
+        "Payment refunded: payment_id=%s order_id=%s fully=%s amount=%s",
+        payload.get("payment_id"),
+        payload.get("order_id"),
+        fully,
+        payload.get("amount"),
+    )
+    await _sync_order_status(
+        session,
+        payload=payload,
+        target_status_name=(
+            ORDER_STATUS_REFUNDED if fully else ORDER_STATUS_PARTIALLY_REFUNDED
+        ),
     )
 
 

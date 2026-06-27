@@ -883,7 +883,18 @@ Sous-chantier **logistique** livré (devises + remboursement restent à faire) :
   - `POST /trackings/{id}/ship` (réf. requise) + `POST /trackings/{id}/deliver`.
   - Chaque transition statut **get_or_create** le `StatusDefinition` (non seedés), force la transition (pas de dépendance à la table de transitions), pose la réf, et **publie `tracking.status_changed`** (→ email client) avec commit explicite (l'event est bien persisté). Tests : [test_admin_shipping.py](backend/app/tests/api/test_admin_shipping.py).
 - **Admin front** : [ShippingPage.vue](admin-frontend/src/pages/ShippingPage.vue) (« Logistique ») — table des colis à grouper (sélection → créer consolidation), actions Expédier/Livrer par tronçon, table consolidations avec « Expédier tout » ; nav « Commandes → Logistique », route `/shipping`, API [shipping.ts](admin-frontend/src/api/shipping.ts). Le lien commande pointe vers la fiche `/orders/:id`.
-- ⏳ **Reste Phase 4** : **remboursement** (seul gros chantier restant). *(Permission `logistics_admin` livrée ; devises auto déprioritisé → « Optionnel / différé » en fin de document.)*
+- ✅ **Phase 4 complète** : logistique multi-tronçons, permission `logistics_admin`, **remboursement** — tous livrés. *(Devises auto déprioritisé → « Optionnel / différé » en fin de document.)*
+
+#### ✅ Avancement — Remboursement total / partiel (26/06/2026)
+
+- **Modèle** `Refund` ([refund.py](backend/app/features/payment/models/refund.py)) : `payment_id`, `order_id`, `amount`, `currency`, `reason`, `status` (`completed/pending/failed`), `provider_reference`, `processed_at`, `created_by_id`. Migration `e3f9a1c7b2d4` (table `refunds`, **validée par `alembic upgrade head` sur DB fraîche**). Statuts paiement `Refunded`/`PartiallyRefunded` seedés.
+- **Providers** : méthode `refund()` sur l'abstraction ([base.py](backend/app/features/payment/providers/base.py)) — **manuel / BC = `completed`** immédiat (décision / écriture comptable), **PayZen = `pending`** (enregistré, à finaliser au back-office ; l'appel API PayZen `cancelOrRefund` reste un suivi).
+- **Service** [refund_service.py](backend/app/features/payment/services/refund_service.py) : calcule le remboursable (montant − déjà remboursé, **pending compris** → pas de fenêtre de double-remboursement), **rejette** ≤ 0 ou > remboursable, crée le `Refund` + un `PaymentValidation` (action `refund`), et si `completed` pose le statut paiement (Refunded/PartiallyRefunded) + publie `payment.refunded`.
+- **Endpoint** `POST /admin/payments/{id}/refund` (`amount` optionnel = total, `reason`) — superuser.
+- **Handlers** : statut commande `Refunded`/`PartiallyRefunded` ([payment.py](backend/app/handlers/payment.py)) + **email client « remboursement effectué »** ([order.py](backend/app/handlers/order.py)).
+- **Admin** : bouton **« Rembourser »** + dialogue (montant optionnel / motif) sur la fiche commande ([OrderDetailPage.vue](admin-frontend/src/pages/OrderDetailPage.vue)), API [paymentValidations.ts](admin-frontend/src/api/paymentValidations.ts). Le client voit le statut « Remboursée » sur sa commande (déjà câblé) + l'email.
+- Tests : 4 tests d'intégration ([test_refund_flow.py](backend/app/tests/integration/test_refund_flow.py)) — total / partiel-puis-reste / sur-montant rejeté / PayZen pending. **467 tests backend** au vert.
+- ⏳ **Suivi** : brancher l'**API PayZen `cancelOrRefund`** pour automatiser le remboursement CB (aujourd'hui `pending` → action back-office).
 
 #### ✅ Avancement — Robustesse logistique : greenlet, outbox, tests d'intégration DB (26/06/2026)
 
@@ -937,7 +948,7 @@ Décision : **conversion côté client** (l'affichage est purement présentation
 | Notifications avance de tronçon | ✅ publish + email « progresse » | — | — |
 | Devises — multi-affichage | ✅ | ✅ sélecteur de devise | 🔲 (taux gérés ailleurs) |
 | Devises — auto-update + alerte FX | 💤 différé (optionnel, fin de doc) | — | — |
-| Remboursement total / partiel | 🔲 | 🔲 statut remboursement (compte) | 🔲 écran remboursement |
+| Remboursement total / partiel | ✅ modèle + service + endpoint + handlers | ✅ statut « Remboursée » + email | ✅ bouton « Rembourser » (fiche commande) |
 
 ### Périmètre fonctionnel
 
@@ -1154,3 +1165,40 @@ Items sortis du périmètre actif sur décision produit — à reconsidérer plu
 - Cron quotidien ARQ → source externe (ECB API / exchangerate.host) → nouveau `CurrencyRate` `source='auto'` ; **ne pas écraser** un taux `manual` récent (< 24 h).
 - **Alerte email** admin si le dernier taux actif a > 30 jours (taux périmé).
 - (Éventuel) écran admin dédié au suivi des taux auto vs manuels.
+
+---
+
+## Backlog e-commerce — fonctionnalités classiques (à planifier)
+
+Idées de fonctionnalités e-commerce standard à instruire plus tard. État de l'existant noté pour ne pas refaire.
+
+### Variantes d'articles 🔲
+Aujourd'hui : seulement un flag `Product.has_variants` (pas de modèle de variante). À concevoir :
+- Modèle **`ProductVariant`** (SKU, options ex. taille/couleur, **prix/coût**, **stock** propres, image), rattaché au `Product` parent.
+- Sélection de variante côté **vitrine** (sélecteurs d'options) ; **panier/commande** référencent la variante.
+- Mapping **sync fournisseur** (Ingram renvoie-t-il des variantes ? sinon variantes « manuelles »).
+- Impact pricing (le runtime pricing s'applique par variante) et logistique (poids/volume par variante).
+
+### Réductions / codes promo / vouchers 🟡 (backend partiel)
+Le feature **`discount`** existe déjà ([models.py](backend/app/features/discount/models.py)) : `DiscountType`, `DiscountTarget`, champ **`code`**, CRUD. Reste à **câbler le parcours client** :
+- Saisie d'un **code promo au panier/checkout** → validation (existence, dates, montant min, **limites d'usage** globales/par client) → recalcul du total (backend autoritaire).
+- **Vouchers / bons d'achat** (montant prépayé nominatif) si distinct des remises % / montant.
+- **Écran admin** de gestion des remises/codes (création, conditions, suivi d'usage).
+- Cohérence avec **groupes de prix** (cumul ou exclusivité ?) et **devise** (remise en XPF).
+
+### PayPal (intégration standard) 🔲
+Stripe **indisponible en PF** → cible **PayPal** comme moyen CB alternatif. À intégrer dans l'**abstraction provider existante** (comme PayZen / manual) :
+- Provider `PayPalProvider` (init paiement, capture, **refund** — à brancher sur le chantier remboursement), webhooks de statut.
+- Config (client id/secret, sandbox/prod), éligibilité (cf. **contrainte devise × moyen de paiement** — PayPal facture en EUR/USD, pas XPF → à traiter sérieusement, pas seulement présentationnel).
+
+### Déjà présents (à finir / exposer si besoin)
+- **Avis produits** (`Review` + CRUD + route `user_review`) 🟡 — vérifier modération / affichage vitrine.
+- **Wishlist / favoris** (`wishlist` + CRUD + route `user_wishlist`) 🟡 — vérifier l'exposition vitrine.
+
+### Autres pistes classiques (à arbitrer)
+- **Stock / inventaire** réel (aujourd'hui flag `in_stock` ; gestion fine différée — cf. commit « Remove on Stock at this time »), réservation au panier.
+- **Paniers abandonnés** + relance email.
+- **Recommandations / cross-sell / up-sell / produits similaires**.
+- **Cartes cadeaux** (gift cards).
+- **Comparateur de produits**.
+- **Programme de fidélité / points**.

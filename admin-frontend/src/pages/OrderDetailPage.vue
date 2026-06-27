@@ -118,6 +118,9 @@
       <q-card flat bordered class="q-mt-md">
         <q-card-section>
           <div class="text-subtitle1 q-mb-sm">Paiements</div>
+          <q-banner v-if="refundNotice" class="bg-green-1 text-green-9 q-mb-sm" rounded dense>
+            {{ refundNotice }}
+          </q-banner>
           <q-markup-table flat dense>
             <thead>
               <tr>
@@ -126,6 +129,7 @@
                 <th class="text-left">Statut</th>
                 <th class="text-right">Montant</th>
                 <th class="text-left">Date</th>
+                <th class="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -135,14 +139,64 @@
                 <td class="text-left">{{ p.status || '—' }}</td>
                 <td class="text-right">{{ formatMoney(p.amount) }}</td>
                 <td class="text-left">{{ formatDate(p.created_at) }}</td>
+                <td class="text-right">
+                  <q-btn
+                    v-if="canRefund(p)"
+                    flat
+                    dense
+                    no-caps
+                    color="negative"
+                    icon="undo"
+                    label="Rembourser"
+                    @click="openRefund(p)"
+                  />
+                </td>
               </tr>
               <tr v-if="order.payments.length === 0">
-                <td colspan="5" class="text-center text-grey-6">Aucun paiement.</td>
+                <td colspan="6" class="text-center text-grey-6">Aucun paiement.</td>
               </tr>
             </tbody>
           </q-markup-table>
         </q-card-section>
       </q-card>
+
+      <!-- Refund dialog -->
+      <q-dialog v-model="refundDialog">
+        <q-card style="min-width: 380px">
+          <q-card-section class="text-h6">Rembourser le paiement</q-card-section>
+          <q-form @submit.prevent="submitRefund">
+            <q-card-section class="q-pt-none q-gutter-sm">
+              <q-banner v-if="refundError" class="bg-red-1 text-red-9" dense rounded>{{ refundError }}</q-banner>
+              <div class="text-caption text-grey-7">
+                Montant du paiement :
+                {{ refundTarget ? formatMoney(refundTarget.amount) : '' }}. Laissez le
+                montant vide pour un remboursement total.
+              </div>
+              <q-input
+                v-model.number="refundAmount"
+                label="Montant à rembourser (optionnel)"
+                type="number"
+                step="0.01"
+                outlined
+                dense
+                clearable
+              />
+              <q-input
+                v-model="refundReason"
+                label="Motif (optionnel)"
+                type="textarea"
+                autogrow
+                outlined
+                dense
+              />
+            </q-card-section>
+            <q-card-actions align="right">
+              <q-btn flat label="Annuler" v-close-popup />
+              <q-btn type="submit" color="negative" label="Rembourser" :loading="refunding" />
+            </q-card-actions>
+          </q-form>
+        </q-card>
+      </q-dialog>
     </template>
   </q-page>
 </template>
@@ -156,7 +210,9 @@ import {
   orderStatusColor,
   orderStatusLabel,
   type AdminOrderDetail,
+  type AdminOrderPaymentItem,
 } from 'src/api/orders'
+import { refundPayment } from 'src/api/paymentValidations'
 import { extractApiError } from 'src/api/errors'
 
 const route = useRoute()
@@ -203,6 +259,53 @@ async function load() {
     error.value = extractApiError(err) ?? 'Chargement impossible.'
   } finally {
     loading.value = false
+  }
+}
+
+// --- Refund ---
+const refundDialog = ref(false)
+const refundTarget = ref<AdminOrderPaymentItem | null>(null)
+const refundAmount = ref<number | null>(null)
+const refundReason = ref('')
+const refunding = ref(false)
+const refundError = ref<string | null>(null)
+const refundNotice = ref<string | null>(null)
+
+/** Only captured (or partially-refunded) payments can be refunded. */
+function canRefund(p: AdminOrderPaymentItem): boolean {
+  return ['Completed', 'PartiallyRefunded'].includes(p.status ?? '')
+}
+
+function openRefund(p: AdminOrderPaymentItem) {
+  refundTarget.value = p
+  refundAmount.value = null
+  refundReason.value = ''
+  refundError.value = null
+  refundDialog.value = true
+}
+
+async function submitRefund() {
+  if (!refundTarget.value) return
+  refunding.value = true
+  refundError.value = null
+  try {
+    const amount =
+      typeof refundAmount.value === 'number' && !Number.isNaN(refundAmount.value)
+        ? refundAmount.value
+        : null
+    const result = await refundPayment(refundTarget.value.payment_id, {
+      amount,
+      reason: refundReason.value.trim() || null,
+    })
+    refundDialog.value = false
+    refundNotice.value =
+      result.message ??
+      (result.fully_refunded ? 'Remboursement total effectué.' : 'Remboursement effectué.')
+    await load()
+  } catch (err) {
+    refundError.value = extractApiError(err) ?? 'Remboursement impossible.'
+  } finally {
+    refunding.value = false
   }
 }
 

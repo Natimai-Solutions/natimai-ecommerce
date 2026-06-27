@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from decimal import Decimal
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
@@ -23,6 +24,7 @@ from app.features.payment.models.payment_validation import (
     PaymentValidation,
     PaymentValidationPublic,
 )
+from app.features.payment.models.refund import RefundPublic
 from app.features.payment.providers.document_validated import (
     DOCUMENT_STATUS_DOCUMENT_UPLOADED,
     DOCUMENT_STATUS_UNDER_REVIEW,
@@ -43,6 +45,7 @@ from app.features.payment.services.manual_payment import (
     approve_manual_payment,
     reject_manual_payment,
 )
+from app.features.payment.services.refund_service import refund_payment
 from app.features.user.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -95,6 +98,26 @@ class PaymentValidationResponse(BaseModel):
     payment_id: uuid.UUID
     payment_status_id: uuid.UUID | None
     validation: PaymentValidationPublic
+
+
+class PaymentRefundRequest(BaseModel):
+    """Refund request: full when amount is omitted, partial otherwise."""
+
+    amount: Decimal | None = Field(
+        default=None,
+        gt=0,
+        description="Montant à rembourser ; total remboursable si omis",
+    )
+    reason: str | None = Field(default=None, max_length=1024)
+
+
+class PaymentRefundResponse(BaseModel):
+    """Represents payment refund response."""
+
+    payment_id: uuid.UUID
+    refund: RefundPublic
+    fully_refunded: bool
+    message: str | None = None
 
 
 async def _get_payment_or_404(session: SessionDep, payment_id: uuid.UUID) -> Payment:
@@ -311,6 +334,34 @@ async def reject_payment(
         validation=PaymentValidationPublic.model_validate(
             outcome.validation, from_attributes=True
         ),
+    )
+
+
+@router.post("/{payment_id}/refund", response_model=PaymentRefundResponse)
+async def refund_payment_route(
+    payment_id: uuid.UUID,
+    body: PaymentRefundRequest,
+    session: SessionDep,
+    admin: CurrentSuperUser,
+) -> PaymentRefundResponse:
+    """Refund a payment — full when ``amount`` is omitted, partial otherwise.
+
+    Manual / purchase-order payments are refunded immediately; PayZen refunds are
+    recorded as ``pending`` to finalise in the provider back office.
+    """
+    payment = await _get_payment_or_404(session, payment_id)
+    outcome = await refund_payment(
+        session=session,
+        payment=payment,
+        admin=admin,
+        amount=body.amount,
+        reason=body.reason,
+    )
+    return PaymentRefundResponse(
+        payment_id=payment_id,
+        refund=RefundPublic.model_validate(outcome.refund, from_attributes=True),
+        fully_refunded=outcome.fully_refunded,
+        message=outcome.message,
     )
 
 

@@ -263,10 +263,70 @@ _HTML_PAYMENT_REJECTED = """\
 </html>
 """
 
+EVENT_PAYMENT_REFUNDED = "payment.refunded"
+
+_TEXT_PAYMENT_REFUNDED = """\
+Bonjour {{ full_name }},
+
+Un remboursement a été effectué pour votre commande {{ order_id }}.
+
+Montant remboursé : {{ amount }} {{ currency }}{{ scope_line }}
+{{ reason_line }}
+Le délai de réception dépend de votre moyen de paiement.
+
+L'équipe {{ shop_name }}
+"""
+
+_HTML_PAYMENT_REFUNDED = """\
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Remboursement effectué</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0; }
+    .wrapper { max-width: 600px; margin: 32px auto; background: #ffffff; border-radius: 8px; overflow: hidden; }
+    .header { background: #1a5e9e; padding: 24px 32px; }
+    .header h1 { color: #ffffff; margin: 0; font-size: 20px; }
+    .body { padding: 32px; color: #333333; }
+    .body p { margin: 0 0 16px; line-height: 1.5; }
+    .summary { background: #f0f4f8; border-radius: 6px; padding: 16px 24px; margin: 24px 0; }
+    .summary table { width: 100%; border-collapse: collapse; }
+    .summary td { padding: 6px 0; font-size: 14px; }
+    .summary td:first-child { color: #666666; width: 55%; }
+    .summary td:last-child { font-weight: bold; text-align: right; }
+    .footer { padding: 16px 32px; background: #f0f4f8; font-size: 12px; color: #888888; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="header"><h1>Remboursement effectué 💶</h1></div>
+    <div class="body">
+      <p>Bonjour {{ full_name }},</p>
+      <p>Un remboursement a été effectué pour votre commande <strong>{{ order_id }}</strong>.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Montant remboursé</td><td>{{ amount }} {{ currency }}</td></tr>
+          <tr><td>Type</td><td>{{ scope_label }}</td></tr>
+        </table>
+      </div>
+      {% if reason %}<p>Motif : {{ reason }}</p>{% endif %}
+      <p>Le délai de réception dépend de votre moyen de paiement.</p>
+      <p>L'équipe {{ shop_name }}</p>
+    </div>
+    <div class="footer">Ce message est envoyé automatiquement, merci de ne pas y répondre.</div>
+  </div>
+</body>
+</html>
+"""
+
 _tpl_text_captured = Template(_TEXT_PAYMENT_CAPTURED)
 _tpl_html_captured = Template(_HTML_PAYMENT_CAPTURED)
 _tpl_text_rejected = Template(_TEXT_PAYMENT_REJECTED)
 _tpl_html_rejected = Template(_HTML_PAYMENT_REJECTED)
+_tpl_text_refunded = Template(_TEXT_PAYMENT_REFUNDED)
+_tpl_html_refunded = Template(_HTML_PAYMENT_REFUNDED)
 
 
 async def _resolve_user_from_payload(
@@ -385,5 +445,49 @@ async def on_payment_rejected_customer(
         text=text,
         html=html,
         event_type=EVENT_PAYMENT_REJECTED,
+        payload=payload,
+    )
+
+
+@outbox_handler(EVENT_PAYMENT_REFUNDED)
+async def on_payment_refunded_customer(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    """Send a 'Remboursement effectué' email to the customer."""
+    logger.info(
+        "Payment refunded (customer email): order_id=%s user_id=%s amount=%s",
+        payload.get("order_id"),
+        payload.get("user_id"),
+        payload.get("amount"),
+    )
+
+    user = await _resolve_user_from_payload(session, payload)
+    full_name = (user.full_name or user.email or "") if user else ""
+    reason = payload.get("reason") or ""
+    fully = bool(payload.get("fully_refunded"))
+    scope_label = "Remboursement total" if fully else "Remboursement partiel"
+
+    ctx = {
+        "full_name": full_name or "client",
+        "order_id": payload.get("order_id", ""),
+        "amount": payload.get("amount", ""),
+        "currency": payload.get("currency", ""),
+        "reason": reason,
+        "reason_line": f"Motif : {reason}" if reason else "",
+        "scope_label": scope_label,
+        "scope_line": f" ({scope_label.lower()})",
+        "shop_name": getattr(settings, "SHOP_NAME", "Natimai"),
+    }
+    text = _tpl_text_refunded.render(**ctx)
+    html = _tpl_html_refunded.render(**ctx)
+    order_id = payload.get("order_id", "")
+
+    await _send_order_email(
+        session,
+        user_id_raw=payload.get("user_id"),
+        subject=f"Remboursement effectué — commande {order_id}",
+        text=text,
+        html=html,
+        event_type=EVENT_PAYMENT_REFUNDED,
         payload=payload,
     )
