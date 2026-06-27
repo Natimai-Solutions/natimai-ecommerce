@@ -14,7 +14,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from sqlmodel import col, select
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentLogisticsAdmin, SessionDep
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.shipping.crud import (
@@ -22,6 +22,7 @@ from app.features.shipping.crud import (
     crud_shipping_route_tracking_consolidation,
     crud_status_definition,
 )
+from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.models.route_tracking import (
     ShippingRouteTracking,
     ShippingRouteTrackingConsolidation,
@@ -36,6 +37,7 @@ _ENTITY_TRACKING = "route_tracking"
 _ENTITY_CONSOLIDATION = "consolidation"
 _CODE_SHIPPED = "shipped"
 _CODE_DELIVERED = "delivered"
+_CODE_IN_PROGRESS = "in_progress"
 
 
 # --------------------------------------------------------------------------- #
@@ -98,6 +100,21 @@ class AdvanceResponse(BaseModel):
     has_next: bool
     next_tracking_id: uuid.UUID | None = None
     message: str
+
+
+class AdminJourneyLeg(BaseModel):
+    """One leg (tronçon) of an order's multi-hop journey, with resolved names."""
+
+    tracking_id: uuid.UUID
+    sequence_order: int
+    route_name: str | None
+    from_place: str | None
+    to_place: str | None
+    mode: str | None
+    status_code: str | None
+    status_name: str | None
+    tracking_ref: str | None
+    is_current: bool
 
 
 # --------------------------------------------------------------------------- #
@@ -237,7 +254,7 @@ async def _advance_tracking(
 @router.get("/pending-grouping", response_model=list[AdminPendingTrackingItem])
 async def list_pending_grouping(
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentLogisticsAdmin,
 ) -> list[AdminPendingTrackingItem]:
     """Trackings not yet attached to a consolidation (ready to group)."""
     trackings = await crud_shipping_route_tracking.get_unconsolidated_trackings(
@@ -264,7 +281,7 @@ async def list_pending_grouping(
 @router.get("/consolidations", response_model=list[AdminConsolidationItem])
 async def list_consolidations(
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentLogisticsAdmin,
 ) -> list[AdminConsolidationItem]:
     """All consolidations, newest first."""
     result = await session.exec(
@@ -296,7 +313,7 @@ async def list_consolidations(
 async def create_consolidation(
     body: ConsolidationCreateRequest,
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentLogisticsAdmin,
 ) -> AdminConsolidationItem:
     """Create an empty consolidation for a route (then attach trackings)."""
     pending_status = await _get_or_create_status(
@@ -353,7 +370,7 @@ async def add_trackings(
     consolidation_id: uuid.UUID,
     body: AddTrackingsRequest,
     session: SessionDep,
-    _admin: CurrentSuperUser,
+    _admin: CurrentLogisticsAdmin,
 ) -> OkResponse:
     """Bulk-attach trackings to a consolidation."""
     await _get_consolidation_or_404(session, consolidation_id)
@@ -375,7 +392,7 @@ async def ship_consolidation(
     consolidation_id: uuid.UUID,
     body: ShipRequest,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentLogisticsAdmin,
 ) -> OkResponse:
     """Mark all trackings of a consolidation as shipped and stamp the carrier ref."""
     consolidation = await _get_consolidation_or_404(session, consolidation_id)
@@ -398,7 +415,7 @@ async def ship_consolidation(
     shipped_status_code = shipped_tracking.code
     shipped_status_name = shipped_tracking.name
     consolidation_status_id = shipped_consolidation.id
-    # admin is the CurrentSuperUser ORM instance — it is also expired by the
+    # admin is the CurrentLogisticsAdmin ORM instance — it is also expired by the
     # per-tracking commits below, so capture its id before the loop.
     admin_id = admin.id
 
@@ -427,7 +444,7 @@ async def ship_tracking(
     tracking_id: uuid.UUID,
     body: ShipRequest,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentLogisticsAdmin,
 ) -> OkResponse:
     """Mark a single tracking as shipped (requires the carrier reference)."""
     shipped = await _get_or_create_status(
@@ -450,7 +467,7 @@ async def ship_tracking(
 async def deliver_tracking(
     tracking_id: uuid.UUID,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentLogisticsAdmin,
 ) -> OkResponse:
     """Mark a single tracking as delivered (terminal)."""
     delivered = await _get_or_create_status(
@@ -476,22 +493,35 @@ async def deliver_tracking(
 async def advance_tracking(
     tracking_id: uuid.UUID,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentLogisticsAdmin,
 ) -> AdvanceResponse:
     """Complete this leg (tronçon) and activate the next one in the order's
     multi-hop journey. ``activate_next_route`` commits internally."""
+    admin_id = admin.id  # captured: the progression commits expire `admin`
     next_tracking = await crud_shipping_route_tracking.activate_next_route(
         session=session,
         current_tracking_id=tracking_id,
-        changed_by=admin.id,
+        changed_by=admin_id,
     )
     if next_tracking is None:
         return AdvanceResponse(
             has_next=False, message="Dernier tronçon — parcours terminé"
         )
+    # Notify the customer the parcel moved on to the next leg. Snapshot the id
+    # before the commit, which expires next_tracking.
+    next_id = next_tracking.id
+    await _publish_tracking_status_changed(
+        session,
+        tracking=next_tracking,
+        status_code=_CODE_IN_PROGRESS,
+        status_name="En cours",
+        reason="Passage au tronçon suivant",
+        changed_by=admin_id,
+    )
+    await session.commit()
     return AdvanceResponse(
         has_next=True,
-        next_tracking_id=next_tracking.id,
+        next_tracking_id=next_id,
         message="Tronçon suivant activé",
     )
 
@@ -502,7 +532,7 @@ async def advance_tracking(
 async def advance_consolidation(
     consolidation_id: uuid.UUID,
     session: SessionDep,
-    admin: CurrentSuperUser,
+    admin: CurrentLogisticsAdmin,
 ) -> OkResponse:
     """Advance every parcel of a consolidation to its next leg."""
     await _get_consolidation_or_404(session, consolidation_id)
@@ -523,7 +553,75 @@ async def advance_consolidation(
         )
         if next_tracking is not None:
             advanced += 1
+            # Notify the customer; read next_tracking now (this iteration's
+            # activate_next_route refreshed it, the next one will expire it).
+            await _publish_tracking_status_changed(
+                session,
+                tracking=next_tracking,
+                status_code=_CODE_IN_PROGRESS,
+                status_name="En cours",
+                reason="Passage au tronçon suivant (lot)",
+                changed_by=admin_id,
+            )
 
+    await session.commit()
     return OkResponse(
         message=f"{advanced}/{len(tracking_ids)} colis passé(s) au tronçon suivant"
     )
+
+
+@router.get("/orders/{order_id}/journey", response_model=list[AdminJourneyLeg])
+async def order_journey(
+    order_id: uuid.UUID,
+    session: SessionDep,
+    _admin: CurrentLogisticsAdmin,
+) -> list[AdminJourneyLeg]:
+    """Ordered legs (tronçons 1..N) of an order's journey, with resolved status
+    and place names — feeds the admin « parcours du colis » timeline."""
+    trackings = await crud_shipping_route_tracking.get_trackings_by_order_sequence(
+        session=session, order_id=order_id
+    )
+    if not trackings:
+        raise AppError(
+            code="order.not_found",
+            status_code=404,
+            message=f"Aucun tronçon pour la commande '{order_id}'",
+            details={"order_id": str(order_id)},
+        )
+
+    status_by_id = await _status_map(session, entity=_ENTITY_TRACKING)
+    route_ids = {t.route_id for t in trackings}
+    routes_result = await session.exec(
+        select(ShippingRoute).where(col(ShippingRoute.id).in_(route_ids))
+    )
+    route_by_id = {r.id: r for r in routes_result.all()}
+
+    # Current leg = first non-terminal one by sequence.
+    current_id: uuid.UUID | None = None
+    for t in trackings:
+        st = status_by_id.get(t.status_id)
+        if st is None or not st.is_terminal:
+            current_id = t.id
+            break
+
+    legs: list[AdminJourneyLeg] = []
+    for t in trackings:
+        st = status_by_id.get(t.status_id)
+        route = route_by_id.get(t.route_id)
+        legs.append(
+            AdminJourneyLeg(
+                tracking_id=t.id,
+                sequence_order=t.sequence_order,
+                route_name=route.name if route else None,
+                from_place=route.from_place.name
+                if route and route.from_place
+                else None,
+                to_place=route.to_place.name if route and route.to_place else None,
+                mode=route.mode if route else None,
+                status_code=st.code if st else None,
+                status_name=st.name if st else None,
+                tracking_ref=t.tracking_ref,
+                is_current=(t.id == current_id),
+            )
+        )
+    return legs

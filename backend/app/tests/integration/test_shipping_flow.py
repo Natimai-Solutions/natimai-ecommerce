@@ -15,6 +15,7 @@ from app.api.routes.admin_shipping import (
     advance_consolidation,
     advance_tracking,
     deliver_tracking,
+    order_journey,
     ship_consolidation,
     ship_tracking,
 )
@@ -153,6 +154,12 @@ async def test_advance_tracking_admin_endpoint(db_session: AsyncSession) -> None
     assert resp.has_next is True
     assert resp.next_tracking_id == second
 
+    # Advancing notifies the customer (committed outbox event for the next leg).
+    events = await db_session.exec(
+        select(OutboxEvent).where(col(OutboxEvent.type) == "tracking.status_changed")
+    )
+    assert len(events.all()) == 1
+
     # A real request gets a fresh admin; the previous advance expired this one.
     await db_session.refresh(seed.admin)
     resp_last = await advance_tracking(
@@ -178,6 +185,24 @@ async def test_advance_consolidation_admin_endpoint(db_session: AsyncSession) ->
     assert first_leg is not None
     await db_session.refresh(first_leg)
     assert first_leg.status_id == completed_id
+
+
+@pytest.mark.asyncio
+async def test_order_journey(db_session: AsyncSession) -> None:
+    seed = await seed_shipping_scenario(db_session, n_trackings=2)
+
+    legs = await order_journey(
+        order_id=seed.order_id, session=db_session, _admin=seed.admin
+    )
+
+    assert [leg.sequence_order for leg in legs] == [1, 2]
+    assert legs[0].route_name == "FR → PF"
+    assert legs[0].from_place == "Métropole"
+    assert legs[0].to_place == "Tahiti"
+    assert legs[0].mode == "sea"
+    assert legs[0].status_code == "pending"
+    assert legs[0].is_current is True  # first non-terminal leg
+    assert legs[1].is_current is False
 
 
 @pytest.mark.asyncio

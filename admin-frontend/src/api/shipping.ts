@@ -91,3 +91,22 @@ export async function advanceConsolidation(
   )
   return data
 }
+
+export interface JourneyLeg {
+  tracking_id: string
+  sequence_order: number
+  route_name: string | null
+  from_place: string | null
+  to_place: string | null
+  mode: string | null
+  status_code: string | null
+  status_name: string | null
+  tracking_ref: string | null
+  is_current: boolean
+}
+
+/** Ordered legs (tronçons 1..N) of an order's journey, names resolved. */
+export async function getOrderJourney(orderId: string): Promise<JourneyLeg[]> {
+  const { data } = await api.get<JourneyLeg[]>(`/admin/shipping/orders/${orderId}/journey`)
+  return data
+}

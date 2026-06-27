@@ -661,6 +661,26 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - Fichiers : [app/handlers/ingram_micro.py](backend/app/handlers/ingram_micro.py) · [app/features/integrations/services/supplier_order_service.py](backend/app/features/integrations/services/supplier_order_service.py) · [app/features/integrations/models/supplier_order.py](backend/app/features/integrations/models/supplier_order.py) · [app/api/routes/admin_supplier_orders.py](backend/app/api/routes/admin_supplier_orders.py) · [app/services/suppliers/ingram_micro.py](backend/app/services/suppliers/ingram_micro.py) · [app/alembic/versions/f4a2b7c9d1e3_add_supplier_orders_table.py](backend/app/alembic/versions/f4a2b7c9d1e3_add_supplier_orders_table.py)
    - ⚠️ **Activation prod** : passer `INGRAM_ORDER_CREATION_ENABLED=true` **après** avoir renseigné `INGRAM_SHIP_TO_ADDRESS_LINE1` + `INGRAM_SHIP_TO_CITY` (sinon les PO partent en `ERROR`).
 
+   #### 🧪 Tester la création auto en dev sur la **sandbox Ingram**
+
+   Le mécanisme est livré ; il suffit de le **configurer + déclencher**. Le service bascule seul sur l'URL sandbox (`https://api.ingrammicro.com/sandbox`) quand `INGRAM_ENVIRONMENT=sandbox` (déjà la valeur par défaut). Le handler s'exécute dans l'**arq-worker** → la config doit être présente sur le **worker** (et le **backend** pour le retry admin), pas seulement en local.
+
+   **Pré-requis externe** : obtenir des identifiants **sandbox** sur le portail développeur Ingram (`CLIENT_ID`, `CLIENT_SECRET`, `CUSTOMER_NUMBER` de test) + au moins un **part number valide dans le catalogue sandbox**.
+
+   1. **Config** (env des services `backend` + `arq-worker` + `outbox-poller` dans `docker-compose.yml`) :
+      - `INGRAM_ENVIRONMENT=sandbox`
+      - `INGRAM_CLIENT_ID=…`, `INGRAM_CLIENT_SECRET=…`, `INGRAM_CUSTOMER_NUMBER=…`, `INGRAM_COUNTRY_CODE=FR`
+      - `INGRAM_ORDER_CREATION_ENABLED=true`
+      - Ship-to (entrepôt) : `INGRAM_SHIP_TO_CONTACT`, `INGRAM_SHIP_TO_COMPANY_NAME`, `INGRAM_SHIP_TO_ADDRESS_LINE1`, `INGRAM_SHIP_TO_CITY`, `INGRAM_SHIP_TO_POSTAL_CODE`, `INGRAM_SHIP_TO_COUNTRY_CODE` (défaut `PF`), `INGRAM_SHIP_TO_PHONE`.
+   2. **Recréer** les conteneurs (la config est lue au démarrage ; worker/poller **ne hot-reloadent pas**) : `docker compose up -d backend arq-worker outbox-poller`.
+   3. **Produit Ingram** : avoir un `Product` avec `supplier_name="ingram_micro"` et un `supplier_sku` = un **part number sandbox valide** (via une sync `INGRAM_SYNC_ENABLED`, ou inséré à la main). Un SKU inconnu de la sandbox → `SupplierOrder` en `ERROR`.
+   4. **Déclencher `payment.captured`** (le plus simple en dev, sans CB) : passer une commande avec ce produit, payer par **Bon de commande** ou **Virement/Chèque**, puis **valider le paiement dans l'admin** → `manual_payment`/`document_payment` émettent `payment.captured` → l'outbox enchaîne sur le handler. (En CB, la capture PayZen sandbox émet le même event.)
+   5. **Vérifier** : écran admin **Commandes fournisseurs** (`/supplier-orders`) → statut `SUBMITTED` (PO accepté, `supplier_order_number` dans `supplier_response`) / `ERROR` (voir `error_message`) / `SKIPPED` (aucune ligne Ingram). Logs `arq-worker` + `outbox-poller`. En cas d'`ERROR`, rejouer via le bouton/route `POST /admin/supplier-orders/{id}/retry`.
+
+   ⚠️ Pièges : la config doit être sur le **worker** (sinon le flag/credentials manquent au moment du handler) ; `INGRAM_ORDER_CREATION_ENABLED` par défaut `False` ; ship-to incomplet → `ERROR`.
+
+   - 💡 **(Optionnel — plus tard) Durcir la dédup anti-doublon** : la protection actuelle est solide (court-circuit si `SUBMITTED` + réutilisation de la ligne + **dédup Ingram via `customerOrderNumber` = UUID commande**, qui empêche le vrai double-PO côté fournisseur). Seule faille théorique : pas de **contrainte d'unicité DB** sur `local_order_id` → une concurrence vraie pourrait créer 2 lignes `SupplierOrder` locales (doublon cosmétique, pas de double commande chez Ingram). Pour fermer définitivement la fenêtre : **index unique partiel sur `(local_order_id, supplier_name)`** (hors états d'échec) + migration Alembic. Non prioritaire.
+
 9. ✅ **Paiement CB en production** *(livré 08/06/2026)*
    - ✅ `PAYZEN_STATIC_URL` externalisé en config (plus de `"https://static.osb.pf"` codé en dur dans `payzen.py`).
    - ✅ `_TERMINAL_PAYMENT_STATUS_NAMES: frozenset[str]` ajouté dans `payments.py` pour classifier les statuts terminaux.
@@ -863,7 +883,7 @@ Sous-chantier **logistique** livré (devises + remboursement restent à faire) :
   - `POST /trackings/{id}/ship` (réf. requise) + `POST /trackings/{id}/deliver`.
   - Chaque transition statut **get_or_create** le `StatusDefinition` (non seedés), force la transition (pas de dépendance à la table de transitions), pose la réf, et **publie `tracking.status_changed`** (→ email client) avec commit explicite (l'event est bien persisté). Tests : [test_admin_shipping.py](backend/app/tests/api/test_admin_shipping.py).
 - **Admin front** : [ShippingPage.vue](admin-frontend/src/pages/ShippingPage.vue) (« Logistique ») — table des colis à grouper (sélection → créer consolidation), actions Expédier/Livrer par tronçon, table consolidations avec « Expédier tout » ; nav « Commandes → Logistique », route `/shipping`, API [shipping.ts](admin-frontend/src/api/shipping.ts). Le lien commande pointe vers la fiche `/orders/:id`.
-- ⏳ **Reste Phase 4** : permission `logistics_admin` (RBAC — pour l'instant **superuser**), devises auto (cron FX + alerte > 30 j), remboursement.
+- ⏳ **Reste Phase 4** : **remboursement** (seul gros chantier restant). *(Permission `logistics_admin` livrée ; devises auto déprioritisé → « Optionnel / différé » en fin de document.)*
 
 #### ✅ Avancement — Robustesse logistique : greenlet, outbox, tests d'intégration DB (26/06/2026)
 
@@ -877,7 +897,7 @@ Décision : **conversion côté client** (l'affichage est purement présentation
 - **Backend** : endpoint **public** [currency.py](backend/app/api/routes/currency.py) `GET /currency/display-rates` → taux actifs (dernier par devise) + devise de référence. Tests [test_currency_display_rates.py](backend/app/tests/api/test_currency_display_rates.py).
 - **Shared** : `formatMoney(amount, currency)` ([currency.ts](shared/utils/src/currency.ts)) — XPF (0 déc., « F ») / autres via `Intl` (2 déc.) ; tests.
 - **Vitrine** : store Pinia [currency.ts](frontend/src/stores/currency.ts) (taux + sélection persistée localStorage + sync `currency_pref` si connecté ; `format(xpf)` = convertit puis formate). **Sélecteur** dans le header (MainLayout) + dans *Mon compte → Préférences* (démasqué). Affichages convertis : **ProductCard / ProductDetailsDialog / ProductPage / CartPage**. **Checkout + commandes restent en XPF** (montants de paiement autoritaires). Conversion : `montant_devise = xpf / rate_to_reference`.
-- ⏳ **Reste devises** : cron ARQ d'**auto-update FX** (opt-in `CURRENCY_AUTO_UPDATE_ENABLED`, source externe, ne pas écraser un `manual` < 24 h) + **alerte email** admin si dernier taux actif > 30 j.
+- 💤 **Devises auto-update + alerte FX : déprioritisé** (non prioritaire) → déplacé dans « Optionnel / différé » en fin de document. Les taux restent maintenus à la main dans l'admin.
 - ⚠️ **CONTRAINTE devise × moyen de paiement** (à traiter avant toute facturation hors XPF) : **certains moyens de paiement sont liés à une devise précise** (ex. PayZen facturé en `PAYZEN_CURRENCY=XPF` ; un gateway international pourrait n'accepter que EUR/USD). Aujourd'hui `PaymentMethod` **n'a aucune notion de devise** et l'**éligibilité ne filtre pas par devise** ([eligibility.py](backend/app/features/payment/services/eligibility.py)) — c'est sans risque **uniquement parce que la facturation est figée en XPF** (l'affichage multi-devises est présentationnel). Dès qu'un paiement sera réellement facturé dans une autre devise, il faudra : (1) ajouter `supported_currencies`/`billing_currency` à `PaymentMethod`, (2) **filtrer l'éligibilité par la devise de facturation** de la commande, (3) passer la bonne devise au provider à l'initiation, (4) garde-fou : ne pas proposer un moyen de paiement incompatible avec la devise choisie.
 
 #### 🔎 Audit logistique multi-tronçons — gestion des trajets & progression (26/06/2026)
@@ -896,23 +916,27 @@ Décision : **conversion côté client** (l'affichage est purement présentation
 3. **✅ Endpoints admin « tronçon suivant »** : `POST /admin/shipping/trackings/{id}/advance` + `POST /admin/shipping/consolidations/{id}/advance-all` ([admin_shipping.py](backend/app/api/routes/admin_shipping.py), captures avant boucle). Tests d'intégration des deux.
 4. **✅ UI admin** : page **Trajets & Lieux** ([LogisticsRoutesPage.vue](admin-frontend/src/pages/LogisticsRoutesPage.vue) + [api/logistics.ts](admin-frontend/src/api/logistics.ts), nav + route) — CRUD `Place` et `ShippingRoute`. Boutons **« Tronçon suivant »** (par colis **et** par consolidation) sur [ShippingPage.vue](admin-frontend/src/pages/ShippingPage.vue).
 
-**⏳ Reste (logistique)**
-- **Vue « parcours du colis »** détaillée (timeline des tronçons 1..N d'une commande avec le statut de chacun) — aujourd'hui la page affiche le n° de tronçon à plat ; l'avance met à jour les statuts visibles.
-- **Notifications** : l'avance de tronçon ne publie pas (encore) d'event `tracking.status_changed` (ship/deliver le font). À ajouter si l'on veut notifier le client à chaque étape.
-- **Permission `logistics_admin`** : groupe RBAC déjà seedé, mais les endpoints restent gated **superuser** (basculer sur `has_permission`).
+**✅ Finitions livrées (26/06/2026)**
+- **Vue « parcours du colis »** : endpoint `GET /admin/shipping/orders/{order_id}/journey` (legs 1..N avec noms de statut + lieux résolus, `is_current`) + **timeline** dans [ShippingPage.vue](admin-frontend/src/pages/ShippingPage.vue) (bouton « Parcours » → `q-timeline`). Tests d'intégration.
+- **Notifications à l'avance de tronçon** : les endpoints `advance`/`advance-all` publient désormais `tracking.status_changed` (`in_progress`) ; le handler [shipping.py](backend/app/handlers/shipping.py) envoie un email « votre colis progresse » (nouveau palier, gardé par la préférence `notification_shipping_steps`).
+
+**✅ Permission logistique livrée (26/06/2026)**
+- Dépendance **allow-list** `CurrentLogisticsAdmin` ([deps.py](backend/app/api/deps.py)) : superuser **toujours** ; sinon (et seulement si `ENABLE_GROUP_PERMISSIONS=true`) un membre d'un groupe sécurité avec `can_update` sur `shipping_route_trackings` (groupe `logistics_admin` seedé). **Jamais** d'accès aux users sans groupe (contrairement au modèle deny-list de `check_user_permission`). Tous les endpoints `admin_shipping` basculés de `CurrentSuperUser` → `CurrentLogisticsAdmin`. 4 tests d'intégration (superuser / flag off / sans-groupe / membre logistique).
+- ⚙️ **Activation** : mettre `ENABLE_GROUP_PERMISSIONS=true` **et** rattacher les users concernés au groupe `logistics_admin` (sinon comportement inchangé = superuser only).
 
 ### Matrice livrables par surface
 
 | Feature | Backend | Vitrine (`frontend`) | Admin (`admin-frontend`) |
 |---------|---------|----------------------|--------------------------|
-| Permission logistique (`logistics_admin`) | 🔲 (groupe seedé, gating superuser) | — | 🔲 |
+| Permission logistique (`logistics_admin`) | ✅ `CurrentLogisticsAdmin` (allow-list, opt-in `ENABLE_GROUP_PERMISSIONS`) | — | — |
 | Endpoints ship / deliver / consolidate | ✅ | — | ✅ écran logistique + consolidation bulk |
 | Gestion trajets / lieux | ✅ CRUD REST | — | ✅ écran Trajets & Lieux |
 | Progression multi-tronçons (next-leg) | ✅ endpoints + harmonisation | — | ✅ boutons « tronçon suivant » (colis + lot) |
 | Statuts logistiques (seed + harmonisation) | ✅ seed StatusDefinition/Transition | — | — |
-| Vue « parcours du colis » détaillée | — | — | 🔲 timeline tronçons 1..N |
+| Vue « parcours du colis » détaillée | ✅ endpoint journey | — | ✅ timeline tronçons 1..N |
+| Notifications avance de tronçon | ✅ publish + email « progresse » | — | — |
 | Devises — multi-affichage | ✅ | ✅ sélecteur de devise | 🔲 (taux gérés ailleurs) |
-| Devises — auto-update + alerte FX | 🔲 cron + alerte > 30 j | — | 🔲 écran taux FX |
+| Devises — auto-update + alerte FX | 💤 différé (optionnel, fin de doc) | — | — |
 | Remboursement total / partiel | 🔲 | 🔲 statut remboursement (compte) | 🔲 écran remboursement |
 
 ### Périmètre fonctionnel
@@ -1116,3 +1140,17 @@ avant de démarrer l'item 8 de Phase 2.
 S = ≤1 sem, M = 1-3 sem, L = 3-6 sem, XL = >6 sem.
 
 Ces estimations sont des ordres de grandeur pour un dev expérimenté seul ; à recalibrer selon ressources et taille des templates email/PDF.
+
+---
+
+## Optionnel / différé (non prioritaire)
+
+Items sortis du périmètre actif sur décision produit — à reconsidérer plus tard.
+
+### Devises — auto-update FX + alerte (déprioritisé le 26/06/2026)
+
+**Pas une priorité.** Le volet **affichage multi-devises** est livré (sélecteur + conversion côté client, endpoint `GET /currency/display-rates`) ; les taux restent **saisis/maintenus à la main** dans l'admin (`CurrencyRatesPage`). Reste, si un jour utile :
+- Variable `CURRENCY_AUTO_UPDATE_ENABLED: bool = False` (opt-in).
+- Cron quotidien ARQ → source externe (ECB API / exchangerate.host) → nouveau `CurrencyRate` `source='auto'` ; **ne pas écraser** un taux `manual` récent (< 24 h).
+- **Alerte email** admin si le dernier taux actif a > 30 jours (taux périmé).
+- (Éventuel) écran admin dédié au suivi des taux auto vs manuels.

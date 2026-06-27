@@ -126,10 +126,66 @@ _HTML_DELIVERED = """\
 </html>
 """
 
+_PROGRESS_CODES = {"in_progress", "en_cours"}
+
+_TEXT_PROGRESS = """\
+Bonjour {{ full_name }},
+
+Votre commande {{ order_id }} progresse : elle vient de passer à l'étape de transport suivante.
+
+{% if tracking_ref %}Référence de suivi : {{ tracking_ref }}
+{% endif %}Vous pouvez suivre l'avancement de votre livraison dans votre espace client.
+
+L'équipe {{ shop_name }}
+"""
+
+_HTML_PROGRESS = """\
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Votre commande progresse</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0; }
+    .wrapper { max-width: 600px; margin: 32px auto; background: #ffffff; border-radius: 8px; overflow: hidden; }
+    .header { background: #3949ab; padding: 24px 32px; }
+    .header h1 { color: #ffffff; margin: 0; font-size: 20px; }
+    .body { padding: 32px; color: #333333; }
+    .body p { margin: 0 0 16px; line-height: 1.5; }
+    .summary { background: #f0f4f8; border-radius: 6px; padding: 16px 24px; margin: 24px 0; }
+    .summary table { width: 100%; border-collapse: collapse; }
+    .summary td { padding: 6px 0; font-size: 14px; }
+    .summary td:first-child { color: #666666; width: 55%; }
+    .summary td:last-child { font-weight: bold; text-align: right; }
+    .footer { padding: 16px 32px; background: #f0f4f8; font-size: 12px; color: #888888; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="header"><h1>Votre colis progresse 📦</h1></div>
+    <div class="body">
+      <p>Bonjour {{ full_name }},</p>
+      <p>Votre commande <strong>{{ order_id }}</strong> vient de passer à l'étape de transport suivante.</p>
+      <div class="summary">
+        <table>
+          {% if tracking_ref %}<tr><td>Référence de suivi</td><td>{{ tracking_ref }}</td></tr>{% endif %}
+        </table>
+      </div>
+      <p>L'équipe {{ shop_name }}</p>
+    </div>
+    <div class="footer">Ce message est envoyé automatiquement, merci de ne pas y répondre.</div>
+  </div>
+</body>
+</html>
+"""
+
 _tpl_text_shipped = Template(_TEXT_SHIPPED)
 _tpl_html_shipped = Template(_HTML_SHIPPED)
 _tpl_text_delivered = Template(_TEXT_DELIVERED)
 _tpl_html_delivered = Template(_HTML_DELIVERED)
+_tpl_text_progress = Template(_TEXT_PROGRESS)
+_tpl_html_progress = Template(_HTML_PROGRESS)
 
 
 async def _resolve_order_user(
@@ -198,13 +254,17 @@ async def _send_shipping_email(
 async def on_tracking_status_changed(
     session: AsyncSession, payload: dict[str, Any]
 ) -> None:
-    """Send shipping notification email on shipped/delivered milestones."""
+    """Send shipping notification email on progress/shipped/delivered milestones."""
     status_code = (payload.get("status_code") or "").strip().lower()
     order_id_raw = payload.get("order_id")
     tracking_ref = payload.get("tracking_ref")
     estimated_delivery = payload.get("estimated_delivery")
 
-    if status_code not in _SHIPPED_CODES and status_code not in _DELIVERED_CODES:
+    if (
+        status_code not in _SHIPPED_CODES
+        and status_code not in _DELIVERED_CODES
+        and status_code not in _PROGRESS_CODES
+    ):
         return
 
     user = await _resolve_order_user(session, order_id_raw)
@@ -230,7 +290,7 @@ async def on_tracking_status_changed(
         html = _tpl_html_shipped.render(**ctx)
         subject = f"Votre commande {order_id_display} est expédiée"
         event_label = "tracking.shipped"
-    else:
+    elif status_code in _DELIVERED_CODES:
         ctx = {
             "full_name": full_name or "client",
             "order_id": order_id_display,
@@ -240,6 +300,17 @@ async def on_tracking_status_changed(
         html = _tpl_html_delivered.render(**ctx)
         subject = f"Votre commande {order_id_display} a été livrée"
         event_label = "tracking.delivered"
+    else:  # progress milestone (next-leg activation)
+        ctx = {
+            "full_name": full_name or "client",
+            "order_id": order_id_display,
+            "tracking_ref": tracking_ref or "",
+            "shop_name": shop_name,
+        }
+        text = _tpl_text_progress.render(**ctx)
+        html = _tpl_html_progress.render(**ctx)
+        subject = f"Votre commande {order_id_display} progresse"
+        event_label = "tracking.progress"
 
     await _send_shipping_email(
         session,

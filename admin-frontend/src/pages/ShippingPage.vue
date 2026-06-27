@@ -59,6 +59,7 @@
       </template>
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
+          <q-btn flat dense no-caps icon="timeline" color="grey-8" label="Parcours" @click="openJourney(props.row)" />
           <q-btn flat dense no-caps icon="local_shipping" color="primary" label="Expédier" @click="openShipTracking(props.row)" />
           <q-btn flat dense no-caps icon="skip_next" color="indigo" label="Tronçon suivant" @click="advanceTrackingRow(props.row)" />
           <q-btn flat dense no-caps icon="task_alt" color="positive" label="Livrer" @click="deliver(props.row)" />
@@ -124,6 +125,41 @@
       </q-card>
     </q-dialog>
 
+    <!-- Journey dialog (parcours du colis) -->
+    <q-dialog v-model="journeyDialog">
+      <q-card style="min-width: 480px; max-width: 620px">
+        <q-card-section class="text-h6">
+          Parcours du colis
+          <div class="text-caption text-grey-7">Commande #{{ journeyOrderId?.slice(0, 8) }}</div>
+        </q-card-section>
+        <q-card-section class="q-pt-none">
+          <q-banner v-if="journeyError" class="bg-red-1 text-red-9" dense rounded>{{ journeyError }}</q-banner>
+          <div v-else-if="journeyLoading" class="text-center q-pa-md"><q-spinner size="2em" color="primary" /></div>
+          <div v-else-if="journey.length === 0" class="text-grey-6 q-pa-md text-center">Aucun tronçon.</div>
+          <q-timeline v-else color="primary" layout="comfortable">
+            <q-timeline-entry
+              v-for="leg in journey"
+              :key="leg.tracking_id"
+              :title="`Tronçon ${leg.sequence_order} — ${legPath(leg)}`"
+              :subtitle="leg.route_name || ''"
+              :icon="leg.is_current ? 'my_location' : 'place'"
+              :color="legColor(leg)"
+            >
+              <div class="row items-center q-gutter-sm">
+                <q-chip dense size="sm" :color="legColor(leg)" text-color="white" :label="leg.status_name || leg.status_code || '—'" />
+                <span v-if="leg.mode" class="text-caption text-grey-7">{{ leg.mode }}</span>
+                <span v-if="leg.tracking_ref" class="text-caption">réf. {{ leg.tracking_ref }}</span>
+                <q-badge v-if="leg.is_current" color="orange" label="en cours" />
+              </div>
+            </q-timeline-entry>
+          </q-timeline>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Fermer" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <!-- Create consolidation dialog -->
     <q-dialog v-model="createDialog">
       <q-card style="min-width: 360px">
@@ -160,11 +196,13 @@ import {
   advanceTracking,
   createConsolidation,
   deliverTracking,
+  getOrderJourney,
   listConsolidations,
   listPendingGrouping,
   shipConsolidation,
   shipTracking,
   type Consolidation,
+  type JourneyLeg,
   type PendingTracking,
 } from 'src/api/shipping'
 import { extractApiError } from 'src/api/errors'
@@ -287,6 +325,42 @@ async function advanceConsolidationRow(c: Consolidation) {
     await load()
   } catch (err) {
     error.value = extractApiError(err) ?? 'Opération impossible.'
+  }
+}
+
+// --- Journey (parcours du colis) ---
+const journeyDialog = ref(false)
+const journey = ref<JourneyLeg[]>([])
+const journeyLoading = ref(false)
+const journeyError = ref<string | null>(null)
+const journeyOrderId = ref<string | null>(null)
+
+const _legColors: Record<string, string> = {
+  delivered: 'green',
+  completed: 'teal',
+  shipped: 'indigo',
+  in_progress: 'blue',
+  pending: 'grey',
+}
+function legColor(leg: JourneyLeg): string {
+  return _legColors[leg.status_code ?? ''] ?? 'grey-7'
+}
+function legPath(leg: JourneyLeg): string {
+  return `${leg.from_place ?? '?'} → ${leg.to_place ?? '?'}`
+}
+
+async function openJourney(row: PendingTracking) {
+  journeyOrderId.value = row.order_id
+  journey.value = []
+  journeyError.value = null
+  journeyLoading.value = true
+  journeyDialog.value = true
+  try {
+    journey.value = await getOrderJourney(row.order_id)
+  } catch (err) {
+    journeyError.value = extractApiError(err) ?? 'Chargement du parcours impossible.'
+  } finally {
+    journeyLoading.value = false
   }
 }
 
