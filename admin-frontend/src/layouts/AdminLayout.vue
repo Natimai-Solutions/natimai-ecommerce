@@ -77,6 +77,7 @@ const nav: NavSection[] = [
     links: [
       { label: 'Commandes clients', icon: 'receipt_long', to: '/orders' },
       { label: 'Logistique', icon: 'inventory_2', to: '/shipping' },
+      { label: 'Trajets & Lieux', icon: 'route', to: '/logistics-routes' },
       { label: 'Commandes fournisseurs', icon: 'local_shipping', to: '/supplier-orders' },
     ],
   },

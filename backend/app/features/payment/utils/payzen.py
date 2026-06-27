@@ -114,6 +114,67 @@ def validate_ipn_signature(fields_dict: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _payzen_basic_auth() -> str:
+    """Basic-auth credentials header value for the PayZen REST API."""
+    username = settings.PAYZEN_SITE_ID
+    password = (
+        settings.PAYZEN_API_PASSWORD_TEST
+        if settings.PAYZEN_MODE == "TEST"
+        else settings.PAYZEN_API_PASSWORD_PROD
+    )
+    return base64.b64encode(f"{username}:{password}".encode()).decode()
+
+
+async def capture_payzen_transaction(trans_uuid: str) -> dict[str, Any]:
+    """Capture (validate) a PayZen transaction previously AUTHORISED in
+    manual-validation mode — this triggers the actual card debit.
+
+    Calls REST V4 ``Transaction/Validate``.
+    ⚠️ To verify against the PayZen sandbox before production use.
+
+    Returns the PayZen ``answer`` payload. Raises AppError on gateway/transport
+    errors so the caller can mark the capture as failed.
+    """
+    api_url = f"{settings.PAYZEN_API_ENDPOINT}/api-payment/V4/Transaction/Validate"
+    headers = {
+        "Authorization": f"Basic {_payzen_basic_auth()}",
+        "Content-Type": "application/json",
+    }
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                api_url, json={"uuid": trans_uuid}, headers=headers, timeout=30.0
+            )
+            result = response.json()
+            if result.get("status") == "ERROR":
+                err = result.get("answer", {})
+                logger.error(
+                    "PayZen capture error [%s]: %s",
+                    err.get("errorCode"),
+                    err.get("errorMessage"),
+                )
+                raise AppError(
+                    code="payment.provider.gateway_error",
+                    status_code=502,
+                    message=err.get("errorMessage") or "PayZen capture failed",
+                    details={
+                        "provider_code": "payzen",
+                        "error_code": str(err.get("errorCode") or ""),
+                    },
+                )
+            response.raise_for_status()
+            answer: dict[str, Any] = result.get("answer", {})
+            return answer
+    except (httpx.RequestError, httpx.HTTPStatusError) as e:
+        logger.error("PayZen capture transport error: %s", e)
+        raise AppError(
+            code="internal.unavailable",
+            status_code=503,
+            message="Communication error with PayZen during capture",
+            details={"service": "payzen"},
+        ) from e
+
+
 async def create_payzen_form_token(
     *,
     amount: int,
@@ -126,6 +187,7 @@ async def create_payzen_form_token(
     return_url: str | None = None,
     form_action: str = "SILENT",
     metadata: dict[str, Any] | None = None,
+    manual_validation: bool = False,
 ) -> dict[str, Any]:
     """
     Create a formToken via PayZen REST API.
@@ -163,6 +225,10 @@ async def create_payzen_form_token(
         "ipnTargetUrl": settings.payzen_ipn_url_computed,
         "formAction": form_action,
     }
+
+    # Authorise only (capture later, e.g. at shipment) instead of immediate debit.
+    if manual_validation:
+        payload["manualValidation"] = "YES"
 
     # Add metadata if provided
     if metadata:

@@ -24,6 +24,7 @@ from app.features.payment.models.payment_method_eligibility import (
 )
 from app.features.payment.models.payment_status import PaymentStatus
 from app.features.payment.models.payment_validation import PaymentValidation
+from app.features.payment.models.refund import Refund
 from app.features.place.models import Place
 from app.features.product.models.brand import Brand
 from app.features.product.models.category import Category
@@ -82,6 +83,7 @@ __all__ = [
     "PaymentValidation",
     "Place",
     "Product",
+    "Refund",
     "Review",
     "ShippingRoute",
     "ShippingRouteTracking",

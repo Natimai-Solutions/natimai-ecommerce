@@ -27,6 +27,7 @@ from app.features.product.models.currency_rate import CurrencyRate, CurrencyRate
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.tax_rate import TaxRate
 from app.features.shipping.models.route import ShippingRoute
+from app.features.shipping.models.status import StatusDefinition, StatusTransition
 from app.features.user.models.group import Group
 from app.features.user.models.group_security import GroupSecurity
 
@@ -38,6 +39,9 @@ DEFAULT_PAYMENT_STATUSES: tuple[tuple[str, str], ...] = (
     (DOCUMENT_STATUS_UNDER_REVIEW, "Document under admin review"),
     (MANUAL_STATUS_COMPLETED, "Payment confirmed and captured"),
     (MANUAL_STATUS_FAILED, "Payment failed or was rejected"),
+    ("Authorized", "Card authorised (funds reserved), awaiting capture at shipment"),
+    ("Refunded", "Payment fully refunded to the customer"),
+    ("PartiallyRefunded", "Payment partially refunded to the customer"),
 )
 
 
@@ -310,6 +314,130 @@ async def _seed_france_papeete_import_corridor(session: AsyncSession) -> None:
         )
 
 
+# Canonical logistics status catalog. Codes are shared by every shipping code
+# path: checkout creates trackings as `pending`; admin ship/deliver force
+# `shipped`/`delivered`; the multi-leg progression uses `in_progress`
+# (active leg) and `completed` (intermediate leg done). `completed` and
+# `delivered` are terminal.
+_SHIPPING_STATUS_DEFINITIONS: tuple[dict[str, Any], ...] = (
+    # entity "route_tracking" — a single leg (tronçon) of an order's journey
+    {
+        "entity": "route_tracking",
+        "code": "pending",
+        "name": "En attente",
+        "sequence_order": 10,
+        "ui_color": "grey",
+        "ui_icon": "schedule",
+    },
+    {
+        "entity": "route_tracking",
+        "code": "in_progress",
+        "name": "En cours",
+        "sequence_order": 20,
+        "ui_color": "blue",
+        "ui_icon": "local_shipping",
+    },
+    {
+        "entity": "route_tracking",
+        "code": "shipped",
+        "name": "Expédiée",
+        "sequence_order": 30,
+        "ui_color": "indigo",
+        "ui_icon": "flight_takeoff",
+    },
+    {
+        "entity": "route_tracking",
+        "code": "completed",
+        "name": "Tronçon terminé",
+        "sequence_order": 40,
+        "is_terminal": True,
+        "ui_color": "teal",
+        "ui_icon": "check",
+    },
+    {
+        "entity": "route_tracking",
+        "code": "delivered",
+        "name": "Livrée",
+        "sequence_order": 50,
+        "is_terminal": True,
+        "ui_color": "green",
+        "ui_icon": "done_all",
+    },
+    # entity "consolidation" — a grouped shipment over one route
+    {
+        "entity": "consolidation",
+        "code": "pending",
+        "name": "En attente",
+        "sequence_order": 10,
+        "ui_color": "grey",
+        "ui_icon": "schedule",
+    },
+    {
+        "entity": "consolidation",
+        "code": "shipped",
+        "name": "Expédiée",
+        "sequence_order": 30,
+        "ui_color": "indigo",
+        "ui_icon": "flight_takeoff",
+    },
+    {
+        "entity": "consolidation",
+        "code": "delivered",
+        "name": "Livrée",
+        "sequence_order": 50,
+        "is_terminal": True,
+        "ui_color": "green",
+        "ui_icon": "done_all",
+    },
+)
+
+# Allowed transitions consulted by update_status when force=False (e.g. the
+# /shipping/tracking/{id}/update-status route). (entity, from_code, to_code).
+_SHIPPING_STATUS_TRANSITIONS: tuple[tuple[str, str, str], ...] = (
+    ("route_tracking", "pending", "in_progress"),
+    ("route_tracking", "pending", "shipped"),
+    ("route_tracking", "in_progress", "shipped"),
+    ("route_tracking", "in_progress", "completed"),
+    ("route_tracking", "in_progress", "delivered"),
+    ("route_tracking", "shipped", "completed"),
+    ("route_tracking", "shipped", "delivered"),
+    ("consolidation", "pending", "shipped"),
+    ("consolidation", "shipped", "delivered"),
+)
+
+
+async def _seed_shipping_statuses(session: AsyncSession) -> None:
+    """Seed the logistics status catalog + allowed transitions (idempotent).
+
+    Without these, force=False status updates reject every transition, and the
+    multi-leg progression has no `in_progress`/`completed` codes to resolve.
+    """
+    for spec in _SHIPPING_STATUS_DEFINITIONS:
+        existing = await session.exec(
+            select(StatusDefinition).where(
+                StatusDefinition.entity == spec["entity"],
+                StatusDefinition.code == spec["code"],
+            )
+        )
+        if existing.first() is not None:
+            continue
+        session.add(StatusDefinition.model_validate(spec))
+
+    for entity, from_code, to_code in _SHIPPING_STATUS_TRANSITIONS:
+        existing_transition = await session.exec(
+            select(StatusTransition).where(
+                StatusTransition.entity == entity,
+                StatusTransition.from_code == from_code,
+                StatusTransition.to_code == to_code,
+            )
+        )
+        if existing_transition.first() is not None:
+            continue
+        session.add(
+            StatusTransition(entity=entity, from_code=from_code, to_code=to_code)
+        )
+
+
 _SECURITY_GROUPS: tuple[dict[str, Any], ...] = (
     {
         "name": "support",
@@ -432,4 +560,5 @@ async def initial_data(session: AsyncSession) -> None:
     await _seed_tax_rates(session)
     await _seed_currency_rates(session)
     await _seed_france_papeete_import_corridor(session)
+    await _seed_shipping_statuses(session)
     await _seed_security_groups(session)

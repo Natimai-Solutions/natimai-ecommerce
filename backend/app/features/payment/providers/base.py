@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 
@@ -79,10 +80,74 @@ class AttachmentResult:
     metadata: dict[str, Any] | None = None
 
 
+@dataclass(slots=True)
+class CaptureResult:
+    """Outcome of capturing a previously authorised payment (deferred CB debit)."""
+
+    status: str  # "completed" | "failed"
+    provider_reference: str | None = None
+    message: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
+@dataclass(slots=True)
+class RefundResult:
+    """Outcome of a provider refund attempt.
+
+    ``status`` is one of ``completed`` (money returned / decision applied) or
+    ``pending`` (recorded, awaiting an out-of-band action — e.g. a card refund to
+    finalise in the provider back-office). ``failed`` is reserved for API errors.
+    """
+
+    status: str
+    provider_reference: str | None = None
+    message: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
 class PaymentProvider(ABC):
     """Represents payment provider."""
 
     code: str
+
+    async def capture(
+        self,
+        *,
+        payment_reference: str,
+        amount: Decimal,
+        currency: str,
+    ) -> CaptureResult:
+        """Capture a previously authorised payment (deferred CB debit).
+
+        Default: unsupported — only card providers that authorise at checkout
+        (PayZen in manual-validation mode) implement this.
+        """
+        raise PaymentProviderError(
+            f"Provider '{self.code}' does not support deferred capture"
+        )
+
+    async def refund(
+        self,
+        *,
+        payment_reference: str,
+        amount: Decimal,
+        currency: str,
+        reason: str | None = None,
+    ) -> RefundResult:
+        """Refund (full or partial) of a captured payment.
+
+        Default contract: no automated refund API — the refund is *recorded* and
+        must be finalised out-of-band (e.g. a PayZen card refund in the back
+        office). Manual/document providers override this with an immediate
+        ``completed`` decision.
+        """
+        return RefundResult(
+            status="pending",
+            message=(
+                "Remboursement enregistré — à finaliser auprès du prestataire "
+                "(back-office PayZen)."
+            ),
+        )
 
 
 class ApiPaymentProvider(PaymentProvider, ABC):
@@ -129,6 +194,21 @@ class ManualPaymentProvider(PaymentProvider, ABC):
         """Reject a manual payment intent."""
         ...
 
+    async def refund(
+        self,
+        *,
+        payment_reference: str,
+        amount: Decimal,
+        currency: str,
+        reason: str | None = None,
+    ) -> RefundResult:
+        """Manual refund: an immediate decision — the accounting entry / cheque
+        reissue / transfer is performed off-system by the back office."""
+        return RefundResult(
+            status="completed",
+            message="Remboursement manuel enregistré (écriture comptable à effectuer).",
+        )
+
 
 class DocumentValidatedProvider(PaymentProvider, ABC):
     """Define the document-validated payment provider contract."""
@@ -170,3 +250,18 @@ class DocumentValidatedProvider(PaymentProvider, ABC):
     ) -> ValidationResult:
         """Reject a document-validated payment."""
         ...
+
+    async def refund(
+        self,
+        *,
+        payment_reference: str,
+        amount: Decimal,
+        currency: str,
+        reason: str | None = None,
+    ) -> RefundResult:
+        """Document-validated refund (e.g. purchase order): a pure admin
+        decision, applied immediately."""
+        return RefundResult(
+            status="completed",
+            message="Remboursement validé (décision administrative).",
+        )

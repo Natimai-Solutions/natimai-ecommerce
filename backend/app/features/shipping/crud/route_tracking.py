@@ -132,6 +132,10 @@ class ShippingRouteTrackingCrud(
         # Get current status info
         old_status_obj = tracking.status
         old_status_code = old_status_obj.code if old_status_obj else None
+        # Capture the status id now: self.update() below commits, which expires
+        # these ORM instances — re-reading .id afterwards triggers a sync
+        # lazy-load (MissingGreenlet) in the async session.
+        old_status_id = old_status_obj.id if old_status_obj else None
 
         # Get new status definition
         if new_status_id is not None:
@@ -150,6 +154,7 @@ class ShippingRouteTrackingCrud(
             )
 
         new_status_code = new_status_obj.code
+        new_status_id_resolved = new_status_obj.id
 
         # Skip if status is the same
         if old_status_code == new_status_code:
@@ -180,7 +185,7 @@ class ShippingRouteTrackingCrud(
 
         # Update the tracking
         update_data = {
-            "status_id": new_status_obj.id,
+            "status_id": new_status_id_resolved,
             "last_status_update": datetime.utcnow(),
         }
         if reason:
@@ -197,8 +202,8 @@ class ShippingRouteTrackingCrud(
         await self.create_status_log(
             session=session,
             tracking_id=tracking_id,
-            from_status_id=old_status_obj.id if old_status_obj else None,
-            to_status_id=new_status_obj.id,
+            from_status_id=old_status_id,
+            to_status_id=new_status_id_resolved,
             change_type=change_type,
             consolidation_id=consolidation_id,
             changed_by=str(changed_by) if changed_by is not None else None,
@@ -355,47 +360,54 @@ class ShippingRouteTrackingCrud(
     async def activate_next_route(
         self,
         session: AsyncSession,
-        order_id: uuid.UUID,
         current_tracking_id: uuid.UUID,
+        changed_by: str | uuid.UUID | None = None,
     ) -> ShippingRouteTracking | None:
+        """Mark the current leg as completed and activate the next leg in the
+        order's multi-hop sequence (e.g. Fournisseur → Entrepôt → Client).
+
+        Returns the now-active next leg, or None if the current leg was the last.
+        ``order_id``/``sequence_order`` are read up-front: ``update_status`` commits
+        internally, which expires ``current_tracking`` (MissingGreenlet on re-read).
         """
-        Mark current route as completed and activate next route in sequence.
-        Used for automatic progression (Ingram → Warehouse → Bora Bora)
-        """
-        # Get current tracking
         current_tracking = await session.get(self.model, current_tracking_id)
         if not current_tracking:
             return None
 
-        # Mark current route as completed
+        order_id = current_tracking.order_id
+        current_sequence = current_tracking.sequence_order
+        actor = changed_by if changed_by is not None else "system"
+
+        # Complete the current leg. force=True: admin-driven progression, no
+        # dependency on the StatusTransition table being seeded.
         await self.update_status(
             session=session,
             tracking_id=current_tracking_id,
             new_status="completed",
-            notes="Route completed, progressing to next step",
-            changed_by="system",
+            reason="Tronçon terminé, progression vers le tronçon suivant",
+            changed_by=actor,
             change_type="auto_advance",
+            force=True,
         )
 
-        # Find next route in sequence
         next_tracking = await self.get_next_route_for_order(
             session=session,
             order_id=order_id,
-            current_sequence=current_tracking.sequence_order,
+            current_sequence=current_sequence,
         )
+        if next_tracking is None:
+            return None
 
-        if next_tracking:
-            # Activate next route
-            await self.update_status(
-                session=session,
-                tracking_id=next_tracking.id,
-                new_status="in_progress",
-                notes="Route activated in sequence progression",
-                changed_by="system",
-                change_type="auto_advance",
-            )
-
-        return next_tracking
+        # Activate the next leg; update_status returns the refreshed instance.
+        return await self.update_status(
+            session=session,
+            tracking_id=next_tracking.id,
+            new_status="in_progress",
+            reason="Tronçon activé dans la séquence",
+            changed_by=actor,
+            change_type="auto_advance",
+            force=True,
+        )
 
     async def get_status_transition(
         self,

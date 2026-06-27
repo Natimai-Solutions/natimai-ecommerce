@@ -44,12 +44,15 @@ from app.outbox.registry import outbox_registry
 logger = logging.getLogger(__name__)
 
 _PAID_TRANS_STATUS = "PAID"
+# Card authorised but not captured (PayZen manual-validation / deferred capture).
+_AUTHORISED_TRANS_STATUS = "AUTHORISED"
 _FAILED_TRANS_STATUSES = {"REFUSED", "ABANDONED", "CANCELLED"}
 _TERMINAL_TRANS_STATUSES = {_PAID_TRANS_STATUS, *_FAILED_TRANS_STATUSES}
 _WEBHOOK_RECEIVED_EVENT = "payment.webhook_received"
 
 _PAYMENT_STATUS_COMPLETED = "Completed"
 _PAYMENT_STATUS_FAILED = "Failed"
+_PAYMENT_STATUS_AUTHORIZED = "Authorized"
 _TERMINAL_PAYMENT_STATUS_NAMES: frozenset[str] = frozenset(
     {_PAYMENT_STATUS_COMPLETED, _PAYMENT_STATUS_FAILED}
 )
@@ -157,6 +160,8 @@ def _resolve_payment_status_for_trans_status(trans_status: str | None) -> str | 
     """Execute resolve payment status for trans status."""
     if trans_status == _PAID_TRANS_STATUS:
         return _PAYMENT_STATUS_COMPLETED
+    if trans_status == _AUTHORISED_TRANS_STATUS:
+        return _PAYMENT_STATUS_AUTHORIZED
     if trans_status in _FAILED_TRANS_STATUSES:
         return _PAYMENT_STATUS_FAILED
     return None

@@ -42,7 +42,9 @@ def override_dependencies(current_user: SimpleNamespace) -> Generator[None, None
         return current_user
 
     async def _override_get_db() -> AsyncGenerator[SimpleNamespace, None]:
-        yield SimpleNamespace()
+        # commit is awaited by routes that persist an outbox event after the
+        # CRUD's own commit (e.g. tracking update-status).
+        yield SimpleNamespace(commit=AsyncMock())
 
     app.dependency_overrides[get_current_user] = _override_current_user
     app.dependency_overrides[get_current_user_optional] = (

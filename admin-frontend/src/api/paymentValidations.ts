@@ -57,6 +57,36 @@ export async function rejectPayment(paymentId: string, reason: string): Promise<
   await api.post(`/admin/payments/${paymentId}/reject`, { reason })
 }
 
+export interface RefundResult {
+  payment_id: string
+  fully_refunded: boolean
+  message: string | null
+}
+
+/** Refund a payment — full when `amount` is omitted, partial otherwise. */
+export async function refundPayment(
+  paymentId: string,
+  payload: { amount?: number | null; reason?: string | null },
+): Promise<RefundResult> {
+  const { data } = await api.post<RefundResult>(
+    `/admin/payments/${paymentId}/refund`,
+    payload,
+  )
+  return data
+}
+
+export interface CaptureResult {
+  payment_id: string
+  payment_status_id: string | null
+  message: string | null
+}
+
+/** Capture an authorised card payment (deferred debit, e.g. at shipment). */
+export async function capturePayment(paymentId: string): Promise<CaptureResult> {
+  const { data } = await api.post<CaptureResult>(`/admin/payments/${paymentId}/capture`)
+  return data
+}
+
 export async function listPaymentAttachments(
   paymentId: string,
 ): Promise<PaymentAttachment[]> {

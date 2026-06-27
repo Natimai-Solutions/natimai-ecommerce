@@ -388,7 +388,13 @@ class ShippingRouteTrackingRouter(
                     correlation_id=updated_tracking.id,
                 )
 
-                return ShippingRouteTrackingPublic.model_validate(updated_tracking)
+                # update_status already committed, so the publish above opened a
+                # fresh transaction that MUST be committed or the outbox event is
+                # silently dropped (no customer notification). Snapshot the
+                # response first: the commit expires the ORM row.
+                result = ShippingRouteTrackingPublic.model_validate(updated_tracking)
+                await session.commit()
+                return result
 
             except RecordNotFoundError as exc:
                 raise AppError(
@@ -462,8 +468,8 @@ class ShippingRouteTrackingRouter(
             try:
                 next_tracking = await self.crud.activate_next_route(
                     session=session,
-                    tracking_id=tracking_id,
-                    user_id=current_user.id,
+                    current_tracking_id=tracking_id,
+                    changed_by=current_user.id,
                 )
 
                 if next_tracking:

@@ -305,6 +305,11 @@ class Settings(BaseSettings):
     PAYZEN_PUBLIC_KEY_PROD: str | None = None
     PAYZEN_MODE: Literal["TEST", "PRODUCTION"] = "TEST"
     PAYZEN_API_ENDPOINT: str = "https://api.osb.pf"
+    # Deferred CB capture: when True, PayZen card payments are only AUTHORISED at
+    # checkout (funds reserved, not debited) and CAPTURED later — typically at
+    # shipment — via POST /admin/payments/{id}/capture or the ship action.
+    # PayZen authorisations expire (~7 days): capture before then or re-authorise.
+    PAYZEN_MANUAL_VALIDATION: bool = False
     # Reference (pivot) currency: the currency in which costs are normalized,
     # prices are computed and orders are billed. One per deployment. Override
     # per territory via the environment, never hardcode it in the code.
