@@ -32,6 +32,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/LoginPage.vue'),
       },
       {
+        path: 'inscription',
+        name: 'register',
+        component: () => import('pages/RegisterPage.vue'),
+      },
+      {
         path: 'oauth/callback',
         name: 'oauth-callback',
         component: () => import('pages/OAuthCallbackPage.vue'),

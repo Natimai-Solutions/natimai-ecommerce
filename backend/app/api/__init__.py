@@ -49,6 +49,7 @@ from app.api.routes.product import (
 )
 from app.api.routes.product_phase1 import router as product_phase1_router
 from app.api.routes.shipping import shipping_router
+from app.api.routes.signup import router as signup_router
 from app.api.routes.stock_movement import router as stock_movement_router
 from app.api.routes.suppliers import router as suppliers_router
 from app.api.routes.system_settings import router as system_settings_router
@@ -67,6 +68,7 @@ api_router = APIRouter()
 
 api_router.include_router(login_router, tags=["login"])
 api_router.include_router(oauth_router)
+api_router.include_router(signup_router)
 api_router.include_router(partner_router)
 api_router.include_router(place_router)
 api_router.include_router(payment_router)
