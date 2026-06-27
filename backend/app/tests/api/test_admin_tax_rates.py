@@ -75,9 +75,7 @@ async def test_get_active_tax_rate_404(returned: object) -> None:
 async def test_list_tax_rates_filters(valid: bool | None) -> None:
     rates = [_rate(), _rate(code="TGC_REDUCED")]
     session = AsyncMock()
-    session.exec = AsyncMock(
-        return_value=SimpleNamespace(all=Mock(return_value=rates))
-    )
+    session.exec = AsyncMock(return_value=SimpleNamespace(all=Mock(return_value=rates)))
     resp = await list_tax_rates(
         session=session,
         _current_user=_admin(),
@@ -99,7 +97,9 @@ async def test_create_tax_rate() -> None:
         territory_code="PF",
         valid_from=date(2026, 1, 1),
     )
-    resp = await create_tax_rate(payload=payload, session=session, current_user=_admin())
+    resp = await create_tax_rate(
+        payload=payload, session=session, current_user=_admin()
+    )
     assert resp.code == "TGC_NORMAL"
     assert resp.rate_pct == Decimal("16.00")
     session.add.assert_called_once()

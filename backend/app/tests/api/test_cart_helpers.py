@@ -37,7 +37,9 @@ def test_is_polynesia_shipping_address(address: str | None, expected: bool) -> N
 
 def test_select_supplier_segment_by_destination() -> None:
     assert _select_supplier_segment("Papeete") == FulfillmentSegment.CONSOLIDATION_PF
-    assert _select_supplier_segment("Paris, France") == FulfillmentSegment.SUPPLIER_DIRECT
+    assert (
+        _select_supplier_segment("Paris, France") == FulfillmentSegment.SUPPLIER_DIRECT
+    )
 
 
 def _product() -> Product:
@@ -118,7 +120,11 @@ def test_format_fulfillment_segments_note() -> None:
 
 def test_format_fulfillment_segments_note_fractional() -> None:
     note = _format_fulfillment_segments_note(
-        [FulfillmentAllocation(segment=FulfillmentSegment.LOCAL, quantity=Decimal("2.5"))]
+        [
+            FulfillmentAllocation(
+                segment=FulfillmentSegment.LOCAL, quantity=Decimal("2.5")
+            )
+        ]
     )
     assert note == "fulfillment_segments=local:2.5"
 

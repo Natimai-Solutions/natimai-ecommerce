@@ -60,6 +60,7 @@
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
           <q-btn flat dense no-caps icon="local_shipping" color="primary" label="Expédier" @click="openShipTracking(props.row)" />
+          <q-btn flat dense no-caps icon="skip_next" color="indigo" label="Tronçon suivant" @click="advanceTrackingRow(props.row)" />
           <q-btn flat dense no-caps icon="task_alt" color="positive" label="Livrer" @click="deliver(props.row)" />
         </q-td>
       </template>
@@ -91,6 +92,7 @@
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
           <q-btn flat dense no-caps icon="local_shipping" color="primary" label="Expédier tout" @click="openShipConsolidation(props.row)" />
+          <q-btn flat dense no-caps icon="skip_next" color="indigo" label="Tronçon suivant" @click="advanceConsolidationRow(props.row)" />
         </q-td>
       </template>
       <template #no-data>
@@ -154,6 +156,8 @@ import { ref } from 'vue'
 import type { QTableColumn } from 'quasar'
 import {
   addTrackings,
+  advanceConsolidation,
+  advanceTracking,
   createConsolidation,
   deliverTracking,
   listConsolidations,
@@ -257,6 +261,29 @@ async function deliver(row: PendingTracking) {
   try {
     await deliverTracking(row.tracking_id)
     notice.value = 'Colis marqué livré.'
+    await load()
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Opération impossible.'
+  }
+}
+
+// --- Advance to next leg (tronçon suivant) ---
+async function advanceTrackingRow(row: PendingTracking) {
+  error.value = null
+  try {
+    const res = await advanceTracking(row.tracking_id)
+    notice.value = res.message
+    await load()
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Opération impossible.'
+  }
+}
+
+async function advanceConsolidationRow(c: Consolidation) {
+  error.value = null
+  try {
+    const res = await advanceConsolidation(c.id)
+    notice.value = res.message
     await load()
   } catch (err) {
     error.value = extractApiError(err) ?? 'Opération impossible.'

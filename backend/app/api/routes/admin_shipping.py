@@ -92,6 +92,14 @@ class OkResponse(BaseModel):
     message: str
 
 
+class AdvanceResponse(BaseModel):
+    """Result of advancing a parcel to the next leg of its journey."""
+
+    has_next: bool
+    next_tracking_id: uuid.UUID | None = None
+    message: str
+
+
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
@@ -462,3 +470,60 @@ async def deliver_tracking(
     )
     await session.commit()
     return OkResponse(message="Tracking marqué livré")
+
+
+@router.post("/trackings/{tracking_id}/advance", response_model=AdvanceResponse)
+async def advance_tracking(
+    tracking_id: uuid.UUID,
+    session: SessionDep,
+    admin: CurrentSuperUser,
+) -> AdvanceResponse:
+    """Complete this leg (tronçon) and activate the next one in the order's
+    multi-hop journey. ``activate_next_route`` commits internally."""
+    next_tracking = await crud_shipping_route_tracking.activate_next_route(
+        session=session,
+        current_tracking_id=tracking_id,
+        changed_by=admin.id,
+    )
+    if next_tracking is None:
+        return AdvanceResponse(
+            has_next=False, message="Dernier tronçon — parcours terminé"
+        )
+    return AdvanceResponse(
+        has_next=True,
+        next_tracking_id=next_tracking.id,
+        message="Tronçon suivant activé",
+    )
+
+
+@router.post(
+    "/consolidations/{consolidation_id}/advance-all", response_model=OkResponse
+)
+async def advance_consolidation(
+    consolidation_id: uuid.UUID,
+    session: SessionDep,
+    admin: CurrentSuperUser,
+) -> OkResponse:
+    """Advance every parcel of a consolidation to its next leg."""
+    await _get_consolidation_or_404(session, consolidation_id)
+    trackings = await crud_shipping_route_tracking.get_trackings_for_consolidation(
+        session=session, consolidation_id=consolidation_id
+    )
+    # Capture before the loop: each activate_next_route commits and expires the
+    # tracking rows and the admin user (MissingGreenlet otherwise).
+    tracking_ids = [t.id for t in trackings]
+    admin_id = admin.id
+
+    advanced = 0
+    for tid in tracking_ids:
+        next_tracking = await crud_shipping_route_tracking.activate_next_route(
+            session=session,
+            current_tracking_id=tid,
+            changed_by=admin_id,
+        )
+        if next_tracking is not None:
+            advanced += 1
+
+    return OkResponse(
+        message=f"{advanced}/{len(tracking_ids)} colis passé(s) au tronçon suivant"
+    )

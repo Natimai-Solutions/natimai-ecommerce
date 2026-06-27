@@ -67,3 +67,27 @@ export async function shipTracking(trackingId: string, trackingRef: string): Pro
 export async function deliverTracking(trackingId: string): Promise<void> {
   await api.post(`/admin/shipping/trackings/${trackingId}/deliver`)
 }
+
+export interface AdvanceResult {
+  has_next: boolean
+  next_tracking_id: string | null
+  message: string
+}
+
+/** Complete this leg and activate the next one in the order's multi-hop journey. */
+export async function advanceTracking(trackingId: string): Promise<AdvanceResult> {
+  const { data } = await api.post<AdvanceResult>(
+    `/admin/shipping/trackings/${trackingId}/advance`,
+  )
+  return data
+}
+
+/** Advance every parcel of a consolidation to its next leg. */
+export async function advanceConsolidation(
+  consolidationId: string,
+): Promise<{ message: string }> {
+  const { data } = await api.post<{ message: string }>(
+    `/admin/shipping/consolidations/${consolidationId}/advance-all`,
+  )
+  return data
+}
