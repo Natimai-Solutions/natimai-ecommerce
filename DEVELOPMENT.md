@@ -1,207 +1,178 @@
-# Configuration de Développement
+# Development guide
 
-Ce fichier `docker compose.override.yml` configure automatiquement l'environnement de développement avec les fonctionnalités suivantes :
+This guide covers the **Docker-based development workflow**. `docker-compose.override.yml`
+is applied automatically on top of `docker-compose.yml` when you run `docker compose up`,
+enabling hot reload, source-mounted volumes and verbose logging.
 
-## 📚 Documentation de développement (à finaliser)
-
+> 🐍 **Prefer running the apps on your host** (native debuggers, faster reload)?
+> See the **"Run the apps outside Docker"** section of [`README.md`](README.md).
+>
 > 🚀 **Deployment & environment variables**: see [`DEPLOYMENT.md`](DEPLOYMENT.md)
-> (English) for the full list of environment variables to set and the
-> first‑deployment steps.
+> for the full list of environment variables and the first-deployment steps.
 
-La documentation de travail est disponible dans `backend/docs/development/`.
+## Working documentation
 
-Documents où il reste explicitement du travail à faire :
+Internal working documents live in `backend/docs/development/`. Documents that still
+have explicit open work:
 
-- [CAHIER_DES_CHARGES_ROUTAGE_MULTI_FOURNISSEURS.md](backend/docs/development/CAHIER_DES_CHARGES_ROUTAGE_MULTI_FOURNISSEURS.md) (statut: à implémenter)
-- [PLAN_REFONTE_PAIEMENTS.md](backend/docs/development/PLAN_REFONTE_PAIEMENTS.md) (section "Reste à faire", phase Stripe/PayPal non terminée)
-- [PLAN_DEPLOIEMENT_PAR_PHASE.md](backend/docs/development/PLAN_DEPLOIEMENT_PAR_PHASE.md) (roadmap par phases avec éléments à livrer)
-- [PLAN_VERIFICATION_FONCTIONNEMENT.md](backend/docs/development/PLAN_VERIFICATION_FONCTIONNEMENT.md) (checklist de vérification avec items non cochés)
-- [CHECKLIST_PREPROD_ROLLBACK_E4.md](backend/docs/development/CHECKLIST_PREPROD_ROLLBACK_E4.md) (checklist pre-prod/rollback à compléter)
-- [TEST_COVERAGE_GAPS.md](backend/docs/development/TEST_COVERAGE_GAPS.md) (backlog de tests restant)
+- [CAHIER_DES_CHARGES_ROUTAGE_MULTI_FOURNISSEURS.md](backend/docs/development/CAHIER_DES_CHARGES_ROUTAGE_MULTI_FOURNISSEURS.md) (status: to implement)
+- [PLAN_REFONTE_PAIEMENTS.md](backend/docs/development/PLAN_REFONTE_PAIEMENTS.md) ("Remaining" section, Stripe/PayPal phase unfinished)
+- [PLAN_DEPLOIEMENT_PAR_PHASE.md](backend/docs/development/PLAN_DEPLOIEMENT_PAR_PHASE.md) (phased roadmap with deliverables)
+- [PLAN_VERIFICATION_FONCTIONNEMENT.md](backend/docs/development/PLAN_VERIFICATION_FONCTIONNEMENT.md) (verification checklist with unchecked items)
+- [CHECKLIST_PREPROD_ROLLBACK_E4.md](backend/docs/development/CHECKLIST_PREPROD_ROLLBACK_E4.md) (pre-prod / rollback checklist to complete)
+- [TEST_COVERAGE_GAPS.md](backend/docs/development/TEST_COVERAGE_GAPS.md) (remaining test backlog)
 
-## ✨ Fonctionnalités de Développement
+## Development features
 
-### 🔄 Hot Reload
-- **FastAPI avec reload automatique** : Les changements de code sont détectés automatiquement
-- **Montage des volumes** : Le code source est monté en temps réel
-- **Rechargement instantané** : Pas besoin de rebuild les containers
+### Hot reload
+- **FastAPI auto-reload**: code changes are picked up automatically.
+- **Volume mounts**: the source tree is mounted live into the container.
+- **No rebuild needed**: edit and run, no container rebuild.
 
-### 📊 Logging Amélioré
-- **Niveau DEBUG** : Logs plus détaillés pour le développement
-- **Logs PostgreSQL** : Toutes les requêtes SQL sont loggées
-- **Healthchecks plus tolérants** : Timeouts augmentés pour le debug
+### Enhanced logging
+- **DEBUG level**: more detailed logs for development.
+- **PostgreSQL query logging**: all SQL statements are logged.
+- **More tolerant healthchecks**: longer timeouts for debugging.
 
-### 🗄️ Gestion des Migrations Alembic
-- **Service dédié Alembic** : Container spécialement configuré pour les migrations
-- **Scripts utilitaires** : Scripts PowerShell et Bash pour faciliter les opérations
-- **Génération de fichiers** : Possibilité de créer les fichiers de migration directement
+### Alembic migrations
+- **Dedicated Alembic service**: a container configured for migrations.
+- **Helper scripts**: PowerShell and Bash wrappers for common operations.
+- **File generation**: migration files are written directly to your local filesystem.
 
-## 🚀 Utilisation
+## Usage
 
-### Démarrage des Services
+### Start the services
 
-```powershell
-# Démarre tous les services de base (API, Worker, Poller)
+```bash
+# Start all base services (API, worker, poller, db, redis…)
 docker compose up -d
 
-# Ou démarre seulement certains services
+# Or start only selected services
 docker compose up -d postgres redis api
 ```
 
-### Gestion des Migrations avec les Scripts
+### Migrations via the helper scripts
 
 #### PowerShell (Windows)
 ```powershell
-# Génère une nouvelle migration
-.\scripts\alembic-dev.ps1 revision "Add new feature"
-
-# Applique les migrations
-.\scripts\alembic-dev.ps1 upgrade
-
-# Affiche l'historique
-.\scripts\alembic-dev.ps1 history
-
-# Vérifie l'état actuel
-.\scripts\alembic-dev.ps1 current
+.\scripts\alembic-dev.ps1 revision "Add new feature"   # generate a migration
+.\scripts\alembic-dev.ps1 upgrade                       # apply migrations
+.\scripts\alembic-dev.ps1 history                       # show history
+.\scripts\alembic-dev.ps1 current                       # show current revision
 ```
 
 #### Bash (Linux/Mac)
 ```bash
-# Génère une nouvelle migration
-./scripts/alembic-dev.sh revision "Add new feature"
-
-# Applique les migrations
-./scripts/alembic-dev.sh upgrade
-
-# Affiche l'historique
-./scripts/alembic-dev.sh history
+./scripts/alembic-dev.sh revision "Add new feature"   # generate a migration
+./scripts/alembic-dev.sh upgrade                       # apply migrations
+./scripts/alembic-dev.sh history                       # show history
 ```
 
-### Gestion Manuelle des Migrations
+### Manual migrations
 
-```powershell
-# Démarre le service Alembic
+```bash
+# Start the Alembic service
 docker compose --profile alembic run --rm alembic bash
 
-# Dans le container, vous pouvez exécuter :
-alembic revision --autogenerate -m "Description de la migration"
+# Inside the container:
+alembic revision --autogenerate -m "Migration description"
 alembic upgrade head
 alembic history
 ```
 
-### Commandes Utiles
+### Useful commands
 
-```powershell
-# Voir les logs en temps réel
-docker compose logs -f api
-
-# Restart un service après modification
-docker compose restart api
-
-# Accéder au container API pour debug
-docker compose exec api bash
-
-# Exécuter des tests
-docker compose exec api pytest
-
-# Accéder à la base de données
-docker compose exec postgres psql -U postgres -d fastapi_ecommerce
+```bash
+docker compose logs -f api                         # live logs
+docker compose restart api                         # restart a service after changes
+docker compose exec api bash                       # shell into the API container
+docker compose exec api pytest                     # run the tests
+docker compose exec postgres psql -U postgres -d fastapi_ecommerce  # DB shell
 ```
 
-## 📁 Structure des Volumes
+## Volume layout
 
 ```
-./backend/app           → /app/app           (Code source - Hot reload)
-./backend/alembic.ini   → /app/alembic.ini   (Configuration Alembic)
-./backend/pyproject.toml → /app/pyproject.toml (Dependencies)
+./backend/app            → /app/app            (source — hot reload)
+./backend/alembic.ini    → /app/alembic.ini    (Alembic config)
+./backend/pyproject.toml → /app/pyproject.toml (dependencies)
 ```
 
-## 🔧 Configuration des Services
+## Service configuration
 
 ### API (FastAPI)
-- **Port** : 8000
-- **Mode** : Development avec reload
-- **Logs** : DEBUG level
-- **Hot reload** : Activé
+- **Port**: 8000
+- **Mode**: development with reload
+- **Logs**: DEBUG level
 
-### Base de Données (PostgreSQL)
-- **Port** : 5432 (exposé pour connexions externes)
-- **Logs** : Toutes les requêtes SQL
-- **Données** : Persistées dans le volume `postgres_data`
+### Database (PostgreSQL)
+- **Port**: 5432 (exposed for external connections)
+- **Logs**: all SQL queries
+- **Data**: persisted in the `postgres_data` volume
 
 ### Redis
-- **Port** : 6379 (exposé pour connexions externes)
-- **Persistance** : Activée avec appendonly
-- **Données** : Persistées dans le volume `redis_data`
+- **Port**: 6379 (exposed for external connections)
+- **Persistence**: enabled (appendonly)
+- **Data**: persisted in the `redis_data` volume
 
-### ARQ Worker
-- **Logs** : DEBUG level
-- **Restart** : Désactivé en développement
-- **Hot reload** : Code source monté
+### ARQ worker
+- **Logs**: DEBUG level
+- **Restart**: disabled in development
+- **Hot reload**: source mounted
 
-### Outbox Poller
-- **Intervalle** : 5 secondes
-- **Logs** : DEBUG level
-- **Hot reload** : Code source monté
+### Outbox poller
+- **Interval**: 5 seconds
+- **Logs**: DEBUG level
+- **Hot reload**: source mounted
 
-## 🎯 Profiles Docker Compose
+## Docker Compose profiles
 
-### Profile `alembic`
-Service spécialement configuré pour les opérations Alembic :
-```powershell
-docker compose --profile alembic run --rm alembic [commande]
+### `alembic` profile
+A service configured for Alembic operations:
+```bash
+docker compose --profile alembic run --rm alembic [command]
 ```
 
-### Profile `migration`
-Service de migration pour les déploiements :
-```powershell
+### `migration` profile
+A migration service for deployments:
+```bash
 docker compose --profile migration run --rm migrate
 ```
 
-## 🛠️ Développement Workflow
+## Development workflow
 
-1. **Démarrage** : `docker compose up -d`
-2. **Développement** : Modifier le code → Hot reload automatique
-3. **Migrations** : `.\scripts\alembic-dev.ps1 revision "Description"`
-4. **Tests** : `docker compose exec api pytest`
-5. **Debug** : Voir les logs avec `docker compose logs -f`
+1. **Start**: `docker compose up -d`
+2. **Develop**: edit code → automatic hot reload
+3. **Migrations**: `.\scripts\alembic-dev.ps1 revision "Description"`
+4. **Tests**: `docker compose exec api pytest`
+5. **Debug**: tail logs with `docker compose logs -f`
 
-## 🔍 Debugging
+## Debugging
 
-### Accès aux Services
-- **API** : http://localhost:8000
-- **API Docs** : http://localhost:8000/docs
-- **PostgreSQL** : localhost:5432
-- **Redis** : localhost:6379
+### Service access
+- **API**: http://localhost:8000
+- **API docs**: http://localhost:8000/docs
+- **PostgreSQL**: localhost:5432
+- **Redis**: localhost:6379
 
-### Logs Utiles
-```powershell
-# Logs API avec hot reload
-docker compose logs -f api
-
-# Logs base de données
-docker compose logs -f postgres
-
-# Logs tous les services
-docker compose logs -f
+### Useful logs
+```bash
+docker compose logs -f api        # API logs (hot reload)
+docker compose logs -f postgres   # database logs
+docker compose logs -f            # all services
 ```
 
-### Connexion Directe
-```powershell
-# Shell dans le container API
-docker compose exec api bash
-
-# PostgreSQL CLI
-docker compose exec postgres psql -U postgres -d fastapi_ecommerce
-
-# Redis CLI
-docker compose exec redis redis-cli
+### Direct connections
+```bash
+docker compose exec api bash                                         # API container shell
+docker compose exec postgres psql -U postgres -d fastapi_ecommerce   # PostgreSQL CLI
+docker compose exec redis redis-cli                                  # Redis CLI
 ```
 
-## ⚠️ Notes Importantes
+## Important notes
 
-1. **Hot Reload** : Fonctionne uniquement pour les fichiers Python dans `/app`
-2. **Permissions** : Les volumes sont montés en read-only sauf pour Alembic
-3. **Performance** : Mode développement, non optimisé pour la production
-4. **Données** : Les volumes persistent entre les redémarrages
-5. **Migration Files** : Générés directement dans votre filesystem local
+1. **Hot reload** works only for Python files under `/app`.
+2. **Permissions**: volumes are mounted read-only except for Alembic.
+3. **Performance**: development mode is not optimized for production.
+4. **Data**: volumes persist across restarts.
+5. **Migration files** are generated directly on your local filesystem.

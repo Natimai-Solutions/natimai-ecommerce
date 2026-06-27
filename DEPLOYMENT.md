@@ -122,6 +122,7 @@ returns `503 oauth.provider.not_configured`. See section 7 to enable end‑to‑
 | `PAYZEN_PUBLIC_KEY_TEST` | — | Public key for the SmartForm JS (TEST) |
 | `PAYZEN_PUBLIC_KEY_PROD` | — | Public key for the SmartForm JS (PRODUCTION) |
 | `PAYZEN_MODE` | `TEST` | Set `PRODUCTION` in prod |
+| `PAYZEN_MANUAL_VALIDATION` | `false` | `true` → authorise the card at checkout (status `Authorized`) and capture later (deferred debit), e.g. at shipment via `POST /admin/payments/{id}/capture`. ⚠️ authorisations expire (~7 days). |
 | `PAYZEN_API_ENDPOINT` | `https://api.osb.pf` | REST API base URL |
 | `PAYZEN_STATIC_URL` | `https://static.osb.pf` | Base URL of the SmartForm JS/CSS SDK (Krypton client) |
 | `PAYZEN_IPN_URL` | — | Server‑to‑server webhook URL (auto‑computed if empty) |

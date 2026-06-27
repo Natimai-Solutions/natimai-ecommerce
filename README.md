@@ -1,8 +1,6 @@
 # FastAPI Ecommerce
 
 [![CI](https://github.com/Natimai-Solutions/natimai-ecommerce/actions/workflows/ci.yml/badge.svg)](https://github.com/Natimai-Solutions/natimai-ecommerce/actions/workflows/ci.yml)
-[![Backend coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/jburckel/9a9268773f32888a2eae4d1b9567efe0/raw/coverage-backend.json)](https://github.com/Natimai-Solutions/natimai-ecommerce/actions/workflows/ci.yml)
-[![Frontend coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/jburckel/9a9268773f32888a2eae4d1b9567efe0/raw/coverage-frontend.json)](https://github.com/Natimai-Solutions/natimai-ecommerce/actions/workflows/ci.yml)
 
 A full-stack e-commerce platform built with FastAPI, featuring async background processing, supplier catalog synchronization, and automatic product enrichment. Designed to handle multi-currency pricing, customs duties, and complex margin structures — with French Polynesia (XPF) as a reference implementation.
 
@@ -42,6 +40,9 @@ Once synced, products are enriched asynchronously with detailed technical specif
 ### Dynamic Pricing
 Sale prices are computed at runtime from cost + customs rate + margin + tax, avoiding price list maintenance. FX rates are fetched and cached so multi-currency supplier prices (USD, EUR…) are always converted to the local currency at checkout.
 
+### Payments
+Card payments via PayZen / Lyra (with optional deferred capture — authorise at checkout, debit at shipment) plus manual methods (cheque, bank transfer, purchase order) validated in the back office, with full and partial refunds.
+
 ### Full-Text Search
 PostgreSQL GIN index on `to_tsvector` enables fast full-text product search across name, description, manufacturer, and part number fields.
 
@@ -53,6 +54,7 @@ PostgreSQL GIN index on `to_tsvector` enables fast full-text product search acro
 │   └── app/
 │       ├── api/           # Routes and endpoints
 │       ├── features/      # Domain modules (products, orders, cart, pricing…)
+│       ├── handlers/      # Outbox event handlers (emails, status syncs…)
 │       ├── tasks/         # ARQ background tasks (supplier sync, enrichment)
 │       └── alembic/       # Database migrations
 ├── frontend/              # Public storefront (Quasar SSR)
@@ -61,7 +63,10 @@ PostgreSQL GIN index on `to_tsvector` enables fast full-text product search acro
 │   ├── api-types/         # Types auto-generated from OpenAPI schema
 │   ├── api-client/        # Shared axios client with token refresh
 │   └── utils/             # Shared utilities (currency formatting, pricing…)
-└── docker-compose.yml
+├── infra/                 # Caddy / Kubernetes manifests
+├── docker-compose*.yml    # See "Docker Compose files" below
+├── DEVELOPMENT.md         # Local development guide
+└── DEPLOYMENT.md          # Deployment & environment variables reference
 ```
 
 ## Getting Started
@@ -69,78 +74,134 @@ PostgreSQL GIN index on `to_tsvector` enables fast full-text product search acro
 ### Prerequisites
 
 - Docker & Docker Compose
-- Node.js 22+
-- pnpm 10+
-- Python 3.12+ (or uv)
+- Node.js 22+ and pnpm 10+
+- Python 3.12+ and [uv](https://docs.astral.sh/uv/) (only needed for the non-Docker backend workflow)
 
-### Backend
+### Configuration
+
+Copy the example env files and fill in the values (the real `.env` files are gitignored):
 
 ```bash
+cp .env.example .env                              # backend / stack config
+cp frontend/.env.example frontend/.env            # storefront (VITE_API_URL)
+cp admin-frontend/.env.example admin-frontend/.env # admin (VITE_API_URL)
+```
+
+See [Environment Variables](#environment-variables) below, and [`DEPLOYMENT.md`](DEPLOYMENT.md) for the exhaustive reference.
+
+### Option A — Everything in Docker (recommended)
+
+In development, `docker compose up` automatically merges `docker-compose.yml` with `docker-compose.override.yml` (hot reload, source-mounted volumes, DEBUG logs):
+
+```bash
+docker compose up -d                 # full stack (api, worker, poller, db, redis, clamav, frontends)
+docker compose up -d postgres redis  # or just selected services
+docker compose logs -f api
+```
+
+Apply database migrations:
+
+```bash
+docker compose --profile alembic run --rm alembic alembic upgrade head
+# or use the helper scripts — see DEVELOPMENT.md
+```
+
+### Option B — Run the apps outside Docker
+
+Run only the infrastructure in Docker and the apps on your host (faster iteration, native debuggers):
+
+```bash
+# 1. Infrastructure only
 docker compose up -d postgres redis clamav
+
+# 2. Backend API (from backend/)
 cd backend
 uv sync
 uv run alembic upgrade head
-uv run uvicorn app.main:app --reload
-```
+uv run uvicorn app.main:app --reload   # http://localhost:8000  (docs at /docs)
 
-### Frontend
+# 3. Background workers (separate terminals, from backend/)
+uv run arq app.core.arq_worker.WorkerSettings                       # ARQ worker
+uv run python app/scripts/outbox_poller.py --mode continuous --interval 5  # outbox poller
 
-```bash
+# 4. Frontends (from the repo root)
 pnpm install
-pnpm dev:front    # storefront at http://localhost:9000
-pnpm dev:admin    # admin at http://localhost:9001
+pnpm dev:front    # storefront → http://localhost:9000
+pnpm dev:admin    # admin      → http://localhost:9001
 ```
+
+> When running outside Docker, point the backend at the host-mapped services
+> (`POSTGRES_SERVER=localhost`, `REDIS_*=localhost`) — see [`DEPLOYMENT.md`](DEPLOYMENT.md).
 
 ### Regenerate API types
 
 ```bash
-# Backend must be running
-pnpm gen:types
+pnpm gen:types   # backend must be running
+```
+
+## Docker Compose files
+
+| File | Purpose |
+|---|---|
+| `docker-compose.yml` | Base stack: PostgreSQL, Redis, ClamAV, API, ARQ worker, outbox poller, frontends. Defines the `alembic` / `migration` profiles. |
+| `docker-compose.override.yml` | **Auto-applied in development** by `docker compose up`. Enables `--reload`, mounts the source for hot reload, DEBUG logging, tolerant healthchecks. |
+| `docker-compose.prod.yml` | Production overrides: `ENVIRONMENT=production`, no reload, restart policies, isolated DB network. |
+| `docker-compose.proxy.yml` | Caddy reverse proxy — Let's Encrypt TLS + subdomain routing (bare domain → storefront, `api.` → API, `admin.` → admin). |
+| `docker-compose.health.yml` | Dedicated outbox health-checker (recommended in production). |
+
+```bash
+# Development (base + override, automatic)
+docker compose up -d
+
+# Production (compose files are layered explicitly)
+docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.proxy.yml up -d
 ```
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and fill in the values:
+The backend reads configuration from the repository-root `.env` (see [`.env.example`](.env.example)); the two frontends read a build-time `VITE_API_URL` from their own `.env`. In Docker, PostgreSQL and Redis are wired by the compose files; outside Docker you set their connection details yourself.
+
+The most important variables — see [`.env.example`](.env.example) and [`DEPLOYMENT.md`](DEPLOYMENT.md) for the **complete** list:
 
 | Variable | Description |
 |---|---|
-| `SECRET_KEY` | JWT secret key |
-| `DATABASE_URL` | PostgreSQL connection URL |
-| `REDIS_URL` | Redis URL (ARQ broker) |
-| `BACKEND_CORS_ORIGINS` | Allowed CORS origins (e.g. `["http://localhost:9000"]`) |
-| `INGRAM_CLIENT_ID` | Ingram Micro API client ID |
-| `INGRAM_CLIENT_SECRET` | Ingram Micro API client secret |
-| `ICECAT_USERNAME` | Icecat account username |
-| `ICECAT_API_KEY` | Icecat API key |
+| `SECRET_KEY` | JWT signing secret (`openssl rand -base64 32`) |
+| `ENVIRONMENT` | `local` \| `staging` \| `production` (controls cookie `Secure`, etc.) |
+| `DOMAIN` | Root domain (used by the Caddy proxy for subdomain routing) |
+| `BACKEND_CORS_ORIGINS` | Allowed CORS origins, JSON array |
+| `FIRST_SUPERUSER` / `FIRST_SUPERUSER_PASSWORD` | Bootstrap admin account |
+| `POSTGRES_SERVER` / `POSTGRES_PORT` / `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Database connection (set in compose for Docker) |
+| `REDIS_*` | Redis / ARQ broker connection |
+| `PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER` | `mailgun` \| `noop` |
+| `MAILGUN_API_KEY` / `MAILGUN_DOMAIN` / `MAILGUN_FROM_EMAIL` | Transactional email (when provider is `mailgun`) |
+| `PAYZEN_SITE_ID` / `PAYZEN_API_PASSWORD_TEST` / `PAYZEN_API_PASSWORD_PROD` / `PAYZEN_PUBLIC_KEY_*` | PayZen / Lyra card payments |
+| `PAYZEN_MODE` | `TEST` \| `PRODUCTION` |
+| `PAYZEN_MANUAL_VALIDATION` | `true` → authorise card at checkout, capture later (deferred debit) |
+| `INGRAM_CLIENT_ID` / `INGRAM_CLIENT_SECRET` / `INGRAM_CUSTOMER_NUMBER` | Ingram Micro supplier API |
+| `INGRAM_ENVIRONMENT` | `sandbox` \| `production` |
+| `INGRAM_ORDER_CREATION_ENABLED` | Auto-create supplier purchase orders on payment capture |
+| `ICECAT_USERNAME` / `ICECAT_API_KEY` | Icecat product enrichment |
+| `VITE_API_URL` (frontends) | Backend origin; the client appends `/api/v1` |
 
 ## Tests & coverage
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and on every PR:
 
-- **Backend**: `ruff` (lint + format) + `mypy` + `pytest` **under coverage** (`coverage run -m pytest`). The coverage config (`source = app`, exclusions) lives in [`backend/pyproject.toml`](backend/pyproject.toml) (section `[tool.coverage.*]`); uncomment `fail_under` to gate the build.
-- **Frontend**: `lint` + `typecheck` for both apps (storefront + admin) + **unit tests of the shared engine** (`@app/utils`: currency / pricing / date) via **vitest**, under coverage.
+- **Backend**: `ruff` (lint + format) + `mypy` + `pytest` **under coverage**, against a throwaway PostgreSQL service. Coverage config (`source = app`, exclusions) lives in [`backend/pyproject.toml`](backend/pyproject.toml) (`[tool.coverage.*]`); uncomment `fail_under` to gate the build.
+- **Frontend**: `lint` + `typecheck` for both apps + **unit tests of the shared engine** (`@app/utils`: currency / pricing / date) via **vitest**, under coverage.
+
+Coverage reports (`coverage.xml` / `coverage.json` / the vitest summary) are uploaded as CI artifacts.
 
 ### Run locally
 
 ```bash
-# Backend (from backend/)
+# Backend (from backend/) — integration tests need a reachable test DB,
+# otherwise they are skipped. See DEVELOPMENT.md.
 uv run coverage run -m pytest && uv run coverage report
 
 # Frontend — shared engine (from the repo root)
-pnpm test:coverage          # report + coverage/coverage-summary.json
+pnpm test:coverage
 ```
-
-### Coverage badges (gist)
-
-The badges at the top of this README rely on a **gist** read by shields.io, updated by CI on every push to `main` (via `schneegans/dynamic-badges-action`). This is **optional**: without configuration the badge steps are skipped and CI stays green.
-
-**Enable**: the gist (`9a9268773f32888a2eae4d1b9567efe0`) is already wired into CI and the badges. What remains:
-1. Seed the **public gist** with two files `coverage-backend.json` and `coverage-frontend.json` (initial content `{}`).
-2. Add a **PAT** (scope `gist`) as the repository **secret** `GIST_SECRET` (Settings → Secrets and variables → Actions → Secrets).
-
-On the next push to `main`, CI publishes the percentages into the gist and the badges render.
-
-> ℹ️ A gist is tied to an **account**, not a repository — the setup is independent of forks.
 
 ## License
 
