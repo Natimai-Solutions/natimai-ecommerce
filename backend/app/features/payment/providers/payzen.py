@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any
 
+from app.core.config import settings
 from app.features.payment.providers.base import (
     ApiPaymentProvider,
+    CaptureResult,
     InitiationRequest,
     InitiationResult,
     WebhookResult,
 )
 from app.features.payment.utils.payzen import (
+    capture_payzen_transaction,
     create_payzen_form_token,
     validate_ipn_signature,
 )
@@ -32,6 +36,7 @@ class PayzenProvider(ApiPaymentProvider):
             return_url=request.return_url,
             form_action=request.form_action,
             metadata=request.metadata,
+            manual_validation=settings.PAYZEN_MANUAL_VALIDATION,
         )
 
         return InitiationResult(
@@ -69,4 +74,23 @@ class PayzenProvider(ApiPaymentProvider):
             provider_reference=provider_reference,
             payment_status=payment_status,
             payload=fields,
+        )
+
+    async def capture(
+        self,
+        *,
+        payment_reference: str,
+        amount: Decimal,
+        currency: str,
+    ) -> CaptureResult:
+        """Capture (validate) an authorised PayZen transaction — triggers the debit.
+
+        ``payment_reference`` is the PayZen transaction UUID recorded from the IPN.
+        Raises AppError (from the util) if the gateway rejects the capture.
+        """
+        await capture_payzen_transaction(payment_reference)
+        return CaptureResult(
+            status="completed",
+            provider_reference=payment_reference,
+            message="Capture PayZen effectuée.",
         )

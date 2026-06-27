@@ -141,6 +141,17 @@
                 <td class="text-left">{{ formatDate(p.created_at) }}</td>
                 <td class="text-right">
                   <q-btn
+                    v-if="canCapture(p)"
+                    flat
+                    dense
+                    no-caps
+                    color="primary"
+                    icon="payments"
+                    label="Capturer"
+                    :loading="capturingId === p.payment_id"
+                    @click="captureRow(p)"
+                  />
+                  <q-btn
                     v-if="canRefund(p)"
                     flat
                     dense
@@ -212,7 +223,7 @@ import {
   type AdminOrderDetail,
   type AdminOrderPaymentItem,
 } from 'src/api/orders'
-import { refundPayment } from 'src/api/paymentValidations'
+import { capturePayment, refundPayment } from 'src/api/paymentValidations'
 import { extractApiError } from 'src/api/errors'
 
 const route = useRoute()
@@ -306,6 +317,28 @@ async function submitRefund() {
     refundError.value = extractApiError(err) ?? 'Remboursement impossible.'
   } finally {
     refunding.value = false
+  }
+}
+
+// --- Capture (deferred CB debit) ---
+const capturingId = ref<string | null>(null)
+
+/** Only authorised (not-yet-debited) card payments can be captured. */
+function canCapture(p: AdminOrderPaymentItem): boolean {
+  return p.status === 'Authorized'
+}
+
+async function captureRow(p: AdminOrderPaymentItem) {
+  capturingId.value = p.payment_id
+  error.value = null
+  try {
+    const result = await capturePayment(p.payment_id)
+    refundNotice.value = result.message ?? 'Paiement capturé.'
+    await load()
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Capture impossible.'
+  } finally {
+    capturingId.value = null
   }
 }
 

@@ -75,6 +75,18 @@ export async function refundPayment(
   return data
 }
 
+export interface CaptureResult {
+  payment_id: string
+  payment_status_id: string | null
+  message: string | null
+}
+
+/** Capture an authorised card payment (deferred debit, e.g. at shipment). */
+export async function capturePayment(paymentId: string): Promise<CaptureResult> {
+  const { data } = await api.post<CaptureResult>(`/admin/payments/${paymentId}/capture`)
+  return data
+}
+
 export async function listPaymentAttachments(
   paymentId: string,
 ): Promise<PaymentAttachment[]> {

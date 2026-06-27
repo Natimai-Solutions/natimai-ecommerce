@@ -81,6 +81,16 @@ class AttachmentResult:
 
 
 @dataclass(slots=True)
+class CaptureResult:
+    """Outcome of capturing a previously authorised payment (deferred CB debit)."""
+
+    status: str  # "completed" | "failed"
+    provider_reference: str | None = None
+    message: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
+@dataclass(slots=True)
 class RefundResult:
     """Outcome of a provider refund attempt.
 
@@ -99,6 +109,22 @@ class PaymentProvider(ABC):
     """Represents payment provider."""
 
     code: str
+
+    async def capture(
+        self,
+        *,
+        payment_reference: str,
+        amount: Decimal,
+        currency: str,
+    ) -> CaptureResult:
+        """Capture a previously authorised payment (deferred CB debit).
+
+        Default: unsupported — only card providers that authorise at checkout
+        (PayZen in manual-validation mode) implement this.
+        """
+        raise PaymentProviderError(
+            f"Provider '{self.code}' does not support deferred capture"
+        )
 
     async def refund(
         self,

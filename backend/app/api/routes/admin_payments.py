@@ -32,6 +32,7 @@ from app.features.payment.providers.document_validated import (
 from app.features.payment.providers.manual import (
     MANUAL_STATUS_AWAITING_VALIDATION,
 )
+from app.features.payment.services.capture_service import capture_payment
 from app.features.payment.services.document_payment import (
     DOCUMENT_PROVIDER_CODES,
     DocumentValidationOutcome,
@@ -117,6 +118,14 @@ class PaymentRefundResponse(BaseModel):
     payment_id: uuid.UUID
     refund: RefundPublic
     fully_refunded: bool
+    message: str | None = None
+
+
+class PaymentCaptureResponse(BaseModel):
+    """Represents payment capture response."""
+
+    payment_id: uuid.UUID
+    payment_status_id: uuid.UUID | None
     message: str | None = None
 
 
@@ -361,6 +370,22 @@ async def refund_payment_route(
         payment_id=payment_id,
         refund=RefundPublic.model_validate(outcome.refund, from_attributes=True),
         fully_refunded=outcome.fully_refunded,
+        message=outcome.message,
+    )
+
+
+@router.post("/{payment_id}/capture", response_model=PaymentCaptureResponse)
+async def capture_payment_route(
+    payment_id: uuid.UUID,
+    session: SessionDep,
+    admin: CurrentSuperUser,
+) -> PaymentCaptureResponse:
+    """Capture an authorised card payment (deferred debit, e.g. at shipment)."""
+    payment = await _get_payment_or_404(session, payment_id)
+    outcome = await capture_payment(session=session, payment=payment, admin=admin)
+    return PaymentCaptureResponse(
+        payment_id=payment_id,
+        payment_status_id=outcome.payment.payment_status_id,
         message=outcome.message,
     )
 
