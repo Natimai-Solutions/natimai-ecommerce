@@ -151,8 +151,9 @@ class Settings(BaseSettings):
     # TODO: update type to EmailStr when sqlmodel supports it
     EMAIL_TEST_USER: str = "test@example.com"
     # TODO: update type to EmailStr when sqlmodel supports it
-    FIRST_SUPERUSER: str = "jburckel@natimai.solutions"
-    FIRST_SUPERUSER_PASSWORD: str = "changethisA1"
+    # Override in .env — these are placeholder defaults only.
+    FIRST_SUPERUSER: str = "admin@example.com"
+    FIRST_SUPERUSER_PASSWORD: str = "changethis"
     EMAIL_SUPPORT: str | None = None
     EMAIL_CONTACT: str | None = None
 
