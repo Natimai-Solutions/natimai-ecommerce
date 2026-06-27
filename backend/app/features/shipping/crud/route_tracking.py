@@ -132,6 +132,10 @@ class ShippingRouteTrackingCrud(
         # Get current status info
         old_status_obj = tracking.status
         old_status_code = old_status_obj.code if old_status_obj else None
+        # Capture the status id now: self.update() below commits, which expires
+        # these ORM instances — re-reading .id afterwards triggers a sync
+        # lazy-load (MissingGreenlet) in the async session.
+        old_status_id = old_status_obj.id if old_status_obj else None
 
         # Get new status definition
         if new_status_id is not None:
@@ -150,6 +154,7 @@ class ShippingRouteTrackingCrud(
             )
 
         new_status_code = new_status_obj.code
+        new_status_id_resolved = new_status_obj.id
 
         # Skip if status is the same
         if old_status_code == new_status_code:
@@ -180,7 +185,7 @@ class ShippingRouteTrackingCrud(
 
         # Update the tracking
         update_data = {
-            "status_id": new_status_obj.id,
+            "status_id": new_status_id_resolved,
             "last_status_update": datetime.utcnow(),
         }
         if reason:
@@ -197,8 +202,8 @@ class ShippingRouteTrackingCrud(
         await self.create_status_log(
             session=session,
             tracking_id=tracking_id,
-            from_status_id=old_status_obj.id if old_status_obj else None,
-            to_status_id=new_status_obj.id,
+            from_status_id=old_status_id,
+            to_status_id=new_status_id_resolved,
             change_type=change_type,
             consolidation_id=consolidation_id,
             changed_by=str(changed_by) if changed_by is not None else None,

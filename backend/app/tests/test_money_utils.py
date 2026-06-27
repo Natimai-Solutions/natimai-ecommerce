@@ -35,7 +35,12 @@ def test_parse_minor_units_accepts_integer_values(value: object) -> None:
     assert parse_minor_units(value) == 100
 
 
-@pytest.mark.parametrize("value", ["10.5", -1, True, "abc"])
+@pytest.mark.parametrize("value", ["10.5", -1, True, "abc", "inf", "nan"])
 def test_parse_minor_units_rejects_invalid_values(value: object) -> None:
     with pytest.raises(ValueError):
         parse_minor_units(value)
+
+
+def test_minor_units_to_decimal_rejects_bool() -> None:
+    with pytest.raises(ValueError, match="must not be a boolean"):
+        minor_units_to_decimal(True, "EUR")

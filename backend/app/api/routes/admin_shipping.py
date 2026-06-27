@@ -137,7 +137,8 @@ async def _publish_tracking_status_changed(
     session: SessionDep,
     *,
     tracking: ShippingRouteTracking,
-    status_def: StatusDefinition,
+    status_code: str,
+    status_name: str,
     reason: str | None,
     changed_by: uuid.UUID,
 ) -> None:
@@ -148,8 +149,8 @@ async def _publish_tracking_status_changed(
         payload={
             "tracking_id": str(tracking.id),
             "order_id": str(tracking.order_id),
-            "status_code": status_def.code,
-            "status_name": status_def.name,
+            "status_code": status_code,
+            "status_name": status_name,
             "tracking_ref": tracking.tracking_ref,
             "estimated_delivery": (
                 tracking.estimated_delivery.isoformat()
@@ -167,18 +168,26 @@ async def _advance_tracking(
     session: SessionDep,
     *,
     tracking_id: uuid.UUID,
-    status_def: StatusDefinition,
+    status_id: uuid.UUID,
+    status_code: str,
+    status_name: str,
     admin_id: uuid.UUID,
     tracking_ref: str | None = None,
     reason: str | None = None,
 ) -> ShippingRouteTracking:
     """Set a tracking's status (forced, no transition-table dependency), stamp the
-    carrier ref, and publish the customer notification event."""
+    carrier ref, and publish the customer notification event.
+
+    Status fields are passed as plain values (not the ORM ``StatusDefinition``):
+    ``update_status`` commits internally, which would expire a shared status
+    instance and make a later ``.code``/``.id`` access raise MissingGreenlet —
+    fatal in a ship-all loop where the same status is reused for every tracking.
+    """
     try:
         updated = await crud_shipping_route_tracking.update_status(
             session=session,
             tracking_id=tracking_id,
-            new_status_id=status_def.id,
+            new_status_id=status_id,
             changed_by=str(admin_id),
             reason=reason,
             force=True,
@@ -206,7 +215,8 @@ async def _advance_tracking(
     await _publish_tracking_status_changed(
         session,
         tracking=updated,
-        status_def=status_def,
+        status_code=status_code,
+        status_name=status_name,
         reason=reason,
         changed_by=admin_id,
     )
@@ -372,21 +382,35 @@ async def ship_consolidation(
     trackings = await crud_shipping_route_tracking.get_trackings_for_consolidation(
         session=session, consolidation_id=consolidation_id
     )
-    for t in trackings:
+    # Capture everything as plain values BEFORE the loop: each _advance_tracking
+    # commits, which expires the shared status instances and the tracking rows —
+    # re-reading their attributes afterwards would raise MissingGreenlet.
+    tracking_ids = [t.id for t in trackings]
+    shipped_status_id = shipped_tracking.id
+    shipped_status_code = shipped_tracking.code
+    shipped_status_name = shipped_tracking.name
+    consolidation_status_id = shipped_consolidation.id
+    # admin is the CurrentSuperUser ORM instance — it is also expired by the
+    # per-tracking commits below, so capture its id before the loop.
+    admin_id = admin.id
+
+    for tid in tracking_ids:
         await _advance_tracking(
             session,
-            tracking_id=t.id,
-            status_def=shipped_tracking,
-            admin_id=admin.id,
+            tracking_id=tid,
+            status_id=shipped_status_id,
+            status_code=shipped_status_code,
+            status_name=shipped_status_name,
+            admin_id=admin_id,
             tracking_ref=body.tracking_ref,
         )
 
-    consolidation.status_id = shipped_consolidation.id
+    consolidation.status_id = consolidation_status_id
     consolidation.tracking_ref = body.tracking_ref
     session.add(consolidation)
     await session.commit()
     return OkResponse(
-        message=f"{len(trackings)} tracking(s) marqué(s) expédié(s)",
+        message=f"{len(tracking_ids)} tracking(s) marqué(s) expédié(s)",
     )
 
 
@@ -404,7 +428,9 @@ async def ship_tracking(
     await _advance_tracking(
         session,
         tracking_id=tracking_id,
-        status_def=shipped,
+        status_id=shipped.id,
+        status_code=shipped.code,
+        status_name=shipped.name,
         admin_id=admin.id,
         tracking_ref=body.tracking_ref,
     )
@@ -429,7 +455,9 @@ async def deliver_tracking(
     await _advance_tracking(
         session,
         tracking_id=tracking_id,
-        status_def=delivered,
+        status_id=delivered.id,
+        status_code=delivered.code,
+        status_name=delivered.name,
         admin_id=admin.id,
     )
     await session.commit()
