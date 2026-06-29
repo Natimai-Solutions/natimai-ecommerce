@@ -77,9 +77,15 @@
           @click="oauthLogin('microsoft')"
         />
       </q-card-section>
+
+      <q-card-section class="text-center q-pt-none">
+        <span class="text-body2 text-grey-7">Pas encore de compte ?</span>
+        <q-btn flat dense no-caps color="primary" label="Créer un compte" :to="{ name: 'register' }" />
+      </q-card-section>
     </q-card>
   </q-page>
 </template>
+
 
 <script setup lang="ts">
 import { ref } from 'vue'

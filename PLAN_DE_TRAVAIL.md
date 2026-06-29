@@ -1,6 +1,6 @@
 # Plan de déploiement par paliers
 
-Document de travail établi à partir de la vérification fonctionnelle (cf. [PLAN_VERIFICATION_FONCTIONNEMENT.md](backend/docs/development/done/PLAN_VERIFICATION_FONCTIONNEMENT.md)). Chaque phase est conçue pour être déployable en production de façon autonome, le frontend pouvant s'enrichir au même rythme.
+Document de travail établi à partir de la vérification fonctionnelle. Chaque phase est conçue pour être déployable en production de façon autonome, le frontend pouvant s'enrichir au même rythme.
 
 ---
 
@@ -433,7 +433,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 - ✅ **Recherche avancée PostgreSQL** : extension `pg_trgm` + index GIN FTS (`ix_products_search_fts`) + index GIN trgm sur `name` (`ix_products_name_trgm`) — migration `f2a4b8c1d9e3` ; `search_products()` utilise `to_tsvector @@ plainto_tsquery` avec classement `ts_rank`.
 - ✅ **Seed CurrencyRate** USD/EUR automatique via `initial_data.py` (plus de config manuelle nécessaire au premier déploiement).
 - ✅ **`meets_sync_thresholds` — conversion XPF** : `supplier_tasks.py` appelle `convert_to_xpf()` avant le check ; `meets_sync_thresholds()` reçoit `price_in_xpf` (fallback sur prix brut si `CurrencyRateMissing`). `SUPPLIER_SYNC_MIN_PRICE` est désormais interprété en XPF quelle que soit la devise fournisseur.
-- ✅ **Documentation ops** : [OPS_ENV_ET_CHECKS.md](backend/docs/development/OPS_ENV_ET_CHECKS.md) — variables d'environnement par catégorie, checklist premier déploiement, checks ARQ/outbox/taux FX en prod.
+- ✅ **Documentation ops** : [DEPLOYMENT.md](DEPLOYMENT.md) §10-11 — variables d'environnement par catégorie, checklist premier déploiement, checks ARQ/outbox/taux FX en prod.
 - ✅ **Fret import / CAF** (28/05/2026) : `calculate_sale_price()` calcule désormais la douane sur l'assiette CAF (`cost_in_reference + price_per_kg×billable_weight + assurance`) ; champs `service_level`/`customer_label`/`is_default_import` sur `ShippingRoute` (migration `a3b1c7e2d9f5`) + config `INSURANCE_RATE_PCT` (défaut 0) ; **poids taxable** `resolve_billable_weight()` = `max(poids, volume×dim_factor)` avec `dim_factor_kg_per_m3`/`billing_basis` lus depuis `route_metadata` (défauts avion 167 / mer 1000) intégré à `calculate_shipping_for_routes` (param `total_volume_m3`, fallback poids réel) ; **dimensions physiques Icecat** mappées vers `Product.dimensions_*`/`weight` (`icecat_service.py` + `icecat_tasks.py`) ; `calculate_price_by_mode()` → `list[ShippingModePrice]` ; **corridor France→Papeete** seedé (`initial_data.py` : places `FR_SUPPLIERS`/`PPT_CUSTOMS_WAREHOUSE` + routes avion/bateau) ; endpoint `GET /product/{id}/shipping-modes` (`shipping_modes` + `default_mode`) ; `pricing.ts` étendu CAF (`freightInReference`/`insuranceInReference`) ; dropdown niveau de service dans `ProductPage.vue` + `ProductDetailsDialog.vue` (recalcul local, persistance `localStorage`). 23 tests CAF/shipping verts (`test_product_pricing_caf.py`, `test_pricing.py`). Résidu reporté P2 : câblage `preferred_shipping_mode` (le champ `User`/`UserPreference` est créé en P2).
 - ✅ Migration/seed Phase 1 : validés en environnement d'intégration (01/06/2026) — `alembic upgrade head` + seed `initial_data` (upgrade/downgrade + non-régression) OK. **Têtes alembic** : `a3b1c7e2d9f5` (unique head, chaîne `…→f2a4b8c1d9e3→c5d9e2f1a8b4→a3b1c7e2d9f5`). `schema.ts` régénéré depuis l'OpenAPI. Vitrine minimale OK testée.
 
@@ -519,7 +519,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 8. ✅ **Préparatifs déploiement**
    - ✅ Endpoints `/healthz/liveness` + `/healthz/ready` (DB + Redis).
    - ✅ ARQ worker + outbox poller vérifiés opérationnels.
-   - ✅ [OPS_ENV_ET_CHECKS.md](backend/docs/development/OPS_ENV_ET_CHECKS.md) : variables d'environnement par catégorie, checklist premier déploiement, checks ARQ/outbox/taux FX en prod.
+   - ✅ [DEPLOYMENT.md](DEPLOYMENT.md) §10-11 : variables d'environnement par catégorie, checklist premier déploiement, checks ARQ/outbox/taux FX en prod.
 
 ### Hors périmètre Phase 1
 
@@ -641,7 +641,7 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
    - ✅ Durcissement (Codex) : payloads dédiés `AddressMeCreate` / `AddressMeUpdate` (sans `user_id` ni `is_validated`) ; la route admin `/users/{user_id}/addresses/{id}` ignore toute mutation de `user_id`.
    - 🐛 **Correctif ordre des routes (08/06/2026)** : les routes `/users/me/addresses[...]` étaient déclarées *après* `/users/{user_id}/addresses[...]` dans le même routeur ; Starlette liait `user_id="me"` → 422, rendant les endpoints self-service inatteignables. Déplacées **avant** le bloc `{user_id}`. Couvert par `test_address_me_routes.py`.
    - Les routes admin existantes `/users/{user_id}/addresses` sont conservées pour la gestion admin.
-   - Code erreur `address.already_validated` enregistré dans ERROR_CODES.md (non levé actuellement — l'endpoint est idempotent).
+   - Code erreur `address.already_validated` réservé (non levé actuellement — l'endpoint est idempotent).
    - Tests : `app/tests/api/test_address_me_routes.py` (self-service + validation admin), `test_address_error_http_contract.py` (contrat d'erreur).
    - Fichiers : [app/features/user/models/address.py](backend/app/features/user/models/address.py) · [app/features/user/crud/address.py](backend/app/features/user/crud/address.py) · [app/api/routes/address.py](backend/app/api/routes/address.py) · [app/alembic/versions/e7a5b3c9d1f2_phase2_address_is_validated.py](backend/app/alembic/versions/e7a5b3c9d1f2_phase2_address_is_validated.py)
 

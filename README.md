@@ -99,11 +99,11 @@ docker compose up -d postgres redis  # or just selected services
 docker compose logs -f api
 ```
 
-Apply database migrations:
+Apply database migrations **and seed the initial data** (one-shot `migrate` service —
+runs `alembic upgrade head` then `app/initial_data.py`):
 
 ```bash
-docker compose --profile alembic run --rm alembic alembic upgrade head
-# or use the helper scripts — see DEVELOPMENT.md
+docker compose run --rm migrate
 ```
 
 ### Option B — Run the apps outside Docker
@@ -118,6 +118,7 @@ docker compose up -d postgres redis clamav
 cd backend
 uv sync
 uv run alembic upgrade head
+uv run python app/initial_data.py      # seed reference data (first run)
 uv run uvicorn app.main:app --reload   # http://localhost:8000  (docs at /docs)
 
 # 3. Background workers (separate terminals, from backend/)
@@ -126,8 +127,8 @@ uv run python app/scripts/outbox_poller.py --mode continuous --interval 5  # out
 
 # 4. Frontends (from the repo root)
 pnpm install
-pnpm dev:front    # storefront → http://localhost:9000
-pnpm dev:admin    # admin      → http://localhost:9001
+pnpm dev:front    # storefront — Quasar dev server, default http://localhost:9000
+pnpm dev:admin    # admin      — next free Quasar port (e.g. http://localhost:9001)
 ```
 
 > When running outside Docker, point the backend at the host-mapped services
@@ -169,7 +170,7 @@ The most important variables — see [`.env.example`](.env.example) and [`DEPLOY
 | `ENVIRONMENT` | `local` \| `staging` \| `production` (controls cookie `Secure`, etc.) |
 | `DOMAIN` | Root domain (used by the Caddy proxy for subdomain routing) |
 | `BACKEND_CORS_ORIGINS` | Allowed CORS origins, JSON array |
-| `FIRST_SUPERUSER` / `FIRST_SUPERUSER_PASSWORD` | Bootstrap admin account |
+| `FIRST_SUPERUSER` / `FIRST_SUPERUSER_PASSWORD` | **Required** — bootstrap admin account (email + password). Must be set in your `.env`. |
 | `POSTGRES_SERVER` / `POSTGRES_PORT` / `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Database connection (set in compose for Docker) |
 | `REDIS_*` | Redis / ARQ broker connection |
 | `PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER` | `mailgun` \| `noop` |
@@ -182,6 +183,12 @@ The most important variables — see [`.env.example`](.env.example) and [`DEPLOY
 | `INGRAM_ORDER_CREATION_ENABLED` | Auto-create supplier purchase orders on payment capture |
 | `ICECAT_USERNAME` / `ICECAT_API_KEY` | Icecat product enrichment |
 | `VITE_API_URL` (frontends) | Backend origin; the client appends `/api/v1` |
+
+> ⚠️ **Required secrets are enforced.** `SECRET_KEY`, `POSTGRES_PASSWORD`,
+> `FIRST_SUPERUSER` and `FIRST_SUPERUSER_PASSWORD` ship with placeholder defaults
+> for local development only. If they are left at their placeholder value, the
+> backend **refuses to start** when `ENVIRONMENT` is not `local` (and warns in
+> `local`). Set real values in your `.env` before any staging/production deploy.
 
 ## Tests & coverage
 

@@ -58,6 +58,55 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // --- Email-OTP signup ---------------------------------------------------- //
+  interface StepResult {
+    ok: boolean
+    error?: string
+  }
+
+  async function sendSignupOtp(email: string): Promise<StepResult> {
+    try {
+      await api.post('/signup/send-otp', { email })
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: extractErrorMessage(err) ?? "Impossible d'envoyer le code." }
+    }
+  }
+
+  async function verifySignupOtp(
+    email: string,
+    code: string,
+  ): Promise<StepResult & { signupToken?: string }> {
+    try {
+      const { data } = await api.post<{ signup_token: string }>('/signup/verify-otp', {
+        email,
+        code,
+      })
+      return { ok: true, signupToken: data.signup_token }
+    } catch (err) {
+      return { ok: false, error: extractErrorMessage(err) ?? 'Code invalide.' }
+    }
+  }
+
+  /** Finalise the account and log the user in (sets the in-memory access token). */
+  async function completeSignup(
+    signupToken: string,
+    password: string,
+    fullName: string | null,
+  ): Promise<StepResult> {
+    try {
+      const { data } = await api.post<AccessTokenResponse>('/signup/complete', {
+        signup_token: signupToken,
+        password,
+        full_name: fullName,
+      })
+      accessToken.value = data.access_token
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: extractErrorMessage(err) ?? 'Création du compte impossible.' }
+    }
+  }
+
   return {
     isAuthenticated,
     loginError,
@@ -65,6 +114,9 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     tryRestore,
     logout,
+    sendSignupOtp,
+    verifySignupOtp,
+    completeSignup,
   }
 })
 

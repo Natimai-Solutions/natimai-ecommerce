@@ -10,18 +10,6 @@ enabling hot reload, source-mounted volumes and verbose logging.
 > 🚀 **Deployment & environment variables**: see [`DEPLOYMENT.md`](DEPLOYMENT.md)
 > for the full list of environment variables and the first-deployment steps.
 
-## Working documentation
-
-Internal working documents live in `backend/docs/development/`. Documents that still
-have explicit open work:
-
-- [CAHIER_DES_CHARGES_ROUTAGE_MULTI_FOURNISSEURS.md](backend/docs/development/CAHIER_DES_CHARGES_ROUTAGE_MULTI_FOURNISSEURS.md) (status: to implement)
-- [PLAN_REFONTE_PAIEMENTS.md](backend/docs/development/PLAN_REFONTE_PAIEMENTS.md) ("Remaining" section, Stripe/PayPal phase unfinished)
-- [PLAN_DEPLOIEMENT_PAR_PHASE.md](backend/docs/development/PLAN_DEPLOIEMENT_PAR_PHASE.md) (phased roadmap with deliverables)
-- [PLAN_VERIFICATION_FONCTIONNEMENT.md](backend/docs/development/PLAN_VERIFICATION_FONCTIONNEMENT.md) (verification checklist with unchecked items)
-- [CHECKLIST_PREPROD_ROLLBACK_E4.md](backend/docs/development/CHECKLIST_PREPROD_ROLLBACK_E4.md) (pre-prod / rollback checklist to complete)
-- [TEST_COVERAGE_GAPS.md](backend/docs/development/TEST_COVERAGE_GAPS.md) (remaining test backlog)
-
 ## Development features
 
 ### Hot reload
@@ -51,6 +39,18 @@ docker compose up -d
 docker compose up -d postgres redis api
 ```
 
+### Apply migrations + seed initial data
+
+The one-shot `migrate` service runs `alembic upgrade head` **and then** seeds the
+reference data (`app/initial_data.py` — payment statuses, price groups, tax rates,
+FX rates, the import corridor, RBAC groups, shipping statuses…):
+
+```bash
+docker compose run --rm migrate
+```
+
+Run this on first start and after pulling new migrations.
+
 ### Migrations via the helper scripts
 
 #### PowerShell (Windows)
@@ -70,14 +70,14 @@ docker compose up -d postgres redis api
 
 ### Manual migrations
 
-```bash
-# Start the Alembic service
-docker compose --profile alembic run --rm alembic bash
+Run Alembic directly inside the running `api` container (which is what the helper
+scripts above wrap):
 
-# Inside the container:
-alembic revision --autogenerate -m "Migration description"
-alembic upgrade head
-alembic history
+```bash
+docker compose up -d api
+docker compose exec api alembic revision --autogenerate -m "Migration description"
+docker compose exec api alembic upgrade head
+docker compose exec api alembic history
 ```
 
 ### Useful commands
@@ -125,18 +125,13 @@ docker compose exec postgres psql -U postgres -d fastapi_ecommerce  # DB shell
 - **Logs**: DEBUG level
 - **Hot reload**: source mounted
 
-## Docker Compose profiles
+## The `migrate` service
 
-### `alembic` profile
-A service configured for Alembic operations:
-```bash
-docker compose --profile alembic run --rm alembic [command]
-```
+A one-shot service (`docker-compose.yml`) that applies migrations and seeds the
+initial data, then exits — see [Apply migrations + seed initial data](#apply-migrations--seed-initial-data):
 
-### `migration` profile
-A migration service for deployments:
 ```bash
-docker compose --profile migration run --rm migrate
+docker compose run --rm migrate
 ```
 
 ## Development workflow
@@ -168,6 +163,44 @@ docker compose exec api bash                                         # API conta
 docker compose exec postgres psql -U postgres -d fastapi_ecommerce   # PostgreSQL CLI
 docker compose exec redis redis-cli                                  # Redis CLI
 ```
+
+## Code conventions
+
+- **Module layout**: HTTP routes in `app/api/routes/`; each domain is self-contained
+  under `app/features/<domain>/` (`models/`, `crud/`, `services/`); outbox event
+  handlers in `app/handlers/`; ARQ tasks in `app/tasks/`; cross-cutting code in
+  `app/core/` and `app/outbox/`.
+- **SQLModel per entity**: `XBase` (shared fields) → `X` (table) + `XCreate`,
+  `XUpdate`, `XPublic`, and a list wrapper `XsPublic` = `{ data, count }`.
+- **CRUD**: subclass `CrudBase[Model, Create, Update]` and export a singleton
+  `crud_x`. `create_draft` / `update_draft` **flush only**; `create` / `update`
+  **commit**. ⚠️ A `commit()` expires every ORM instance (async `expire_on_commit`)
+  — reading an attribute afterwards raises `MissingGreenlet`. Capture the values you
+  need into plain locals **before** committing (and before a loop that commits).
+- **Providers (plugin pattern)**: an abstract base in `<feature>/providers/base.py`
+  plus a registry / `get_provider(code)` in `providers/__init__.py`, keyed by a
+  `code` string (payment providers, notification providers).
+- **Routes stay thin**: delegate to CRUD/services; use the shared dependencies
+  `SessionDep`, `RedisDep`, `CurrentUser`, `CurrentSuperUser`.
+
+## Error handling
+
+- Raise `AppError(code=..., status_code=..., message=..., details=...)` (from
+  `app.core.errors`). A global handler renders a consistent JSON body
+  `{"error": {"code", "message", "details"}}`.
+- Codes are namespaced `domain.reason` (e.g. `payment.not_found`, `otp.invalid_code`,
+  `signup.email_exists`).
+- Map external/library exceptions to `AppError` at the route or service boundary so
+  the client always gets the standard shape.
+
+## Notification providers
+
+Transactional emails (and Slack) go through a provider abstraction
+(`app/features/notification/providers/`), selected by
+`PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER` (`mailgun` | `noop`); Mailgun config lives in
+`MAILGUN_*` (see [`DEPLOYMENT.md`](DEPLOYMENT.md) §3.3). `noop` sends nothing (dev/test)
+— switching provider is an env-var change, no code change. To add a provider,
+implement `NotificationProvider.send()` and register it in `providers/__init__.py`.
 
 ## Important notes
 
