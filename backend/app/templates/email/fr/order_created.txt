@@ -1,0 +1,12 @@
+Bonjour {{ full_name }},
+
+Votre commande a bien été enregistrée.
+
+Numéro de commande : {{ order_id }}
+Montant total      : {{ total_amount }} {{ currency }}
+Nombre d'articles  : {{ item_count }}
+
+Vous recevrez une confirmation dès que votre paiement aura été validé.
+
+Merci pour votre commande,
+L'équipe {{ shop_name }}

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Paiement échoué</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0; }
+    .wrapper { max-width: 600px; margin: 32px auto; background: #ffffff; border-radius: 8px; overflow: hidden; }
+    .header { background: #7a1a1a; padding: 24px 32px; }
+    .header h1 { color: #ffffff; margin: 0; font-size: 20px; }
+    .body { padding: 32px; color: #333333; }
+    .body p { margin: 0 0 16px; line-height: 1.5; }
+    .badge { display: inline-block; background: #fdecea; color: #7a1a1a; border-radius: 4px; padding: 4px 12px; font-weight: bold; margin-bottom: 16px; }
+    .reason { background: #fdecea; border-left: 4px solid #7a1a1a; border-radius: 4px; padding: 12px 16px; margin: 16px 0; font-size: 14px; }
+    .summary { background: #f0f4f8; border-radius: 6px; padding: 16px 24px; margin: 24px 0; }
+    .summary table { width: 100%; border-collapse: collapse; }
+    .summary td { padding: 6px 0; font-size: 14px; }
+    .summary td:first-child { color: #666666; width: 55%; }
+    .footer { padding: 16px 32px; background: #f0f4f8; font-size: 12px; color: #888888; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="header"><h1>Paiement non abouti</h1></div>
+    <div class="body">
+      <p>Bonjour {{ full_name }},</p>
+      <span class="badge">Paiement refusé</span>
+      <p>Malheureusement, votre paiement pour la commande <strong>{{ order_id }}</strong> n'a pas pu être traité.</p>
+      {% if reason %}<div class="reason">{{ reason }}</div>{% endif %}
+      <p>Veuillez réessayer ou contacter notre support si le problème persiste.</p>
+      <p>L'équipe {{ shop_name }}</p>
+    </div>
+    <div class="footer">Ce message est envoyé automatiquement, merci de ne pas y répondre.</div>
+  </div>
+</body>
+</html>

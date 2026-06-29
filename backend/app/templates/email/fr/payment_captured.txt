@@ -1,0 +1,10 @@
+Bonjour {{ full_name }},
+
+Votre paiement a été validé pour la commande {{ order_id }}.
+
+Montant débité : {{ total_amount }} {{ currency }}
+
+Votre commande est maintenant en cours de traitement.
+
+Merci pour votre confiance,
+L'équipe {{ shop_name }}

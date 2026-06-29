@@ -19,6 +19,7 @@ from app.core.auth_cookies import set_refresh_cookie
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.security import get_password_hash
+from app.features.notification.email_renderer import render_email
 from app.features.notification.providers import (
     NotificationMessage,
     UnknownNotificationProviderError,
@@ -72,36 +73,13 @@ class OkMessage(BaseModel):
     message: str
 
 
-def _render_otp_email(code: str) -> tuple[str, str]:
-    shop = getattr(settings, "SHOP_NAME", "Natimai")
-    text = (
-        f"Bonjour,\n\n"
-        f"Votre code de vérification {shop} est : {code}\n\n"
-        f"Il est valable {OTP_VALID_MINUTES} minutes. Si vous n'êtes pas à "
-        f"l'origine de cette demande, ignorez cet email.\n\n"
-        f"L'équipe {shop}\n"
-    )
-    html = f"""\
-<!DOCTYPE html>
-<html lang="fr"><head><meta charset="UTF-8"></head>
-<body style="font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:0;">
-  <div style="max-width:480px;margin:32px auto;background:#fff;border-radius:8px;overflow:hidden;">
-    <div style="background:#1a3c5e;padding:24px 32px;"><h1 style="color:#fff;margin:0;font-size:20px;">Vérification de votre email</h1></div>
-    <div style="padding:32px;color:#333;">
-      <p>Bonjour,</p>
-      <p>Votre code de vérification est :</p>
-      <p style="font-size:32px;font-weight:bold;letter-spacing:8px;text-align:center;background:#f0f4f8;border-radius:6px;padding:16px 0;">{code}</p>
-      <p>Il est valable <strong>{OTP_VALID_MINUTES} minutes</strong>. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>
-      <p>L'équipe {shop}</p>
-    </div>
-  </div>
-</body></html>
-"""
-    return text, html
-
-
 async def _send_otp_email(email: str, code: str) -> None:
-    text, html = _render_otp_email(code)
+    rendered = render_email(
+        "signup_otp",
+        code=code,
+        valid_minutes=OTP_VALID_MINUTES,
+        shop_name=getattr(settings, "SHOP_NAME", "Natimai"),
+    )
     try:
         provider = get_notification_provider(
             settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER
@@ -109,14 +87,13 @@ async def _send_otp_email(email: str, code: str) -> None:
     except UnknownNotificationProviderError:
         provider = get_notification_provider("noop")
 
-    shop = getattr(settings, "SHOP_NAME", "Natimai")
     result = await provider.send(
         NotificationMessage(
             channel="email",
             recipient=email,
-            subject=f"{shop} — votre code de vérification",
-            text=text,
-            html=html,
+            subject=rendered.subject,
+            text=rendered.text,
+            html=rendered.html,
             metadata={"event_type": "signup.otp"},
         )
     )

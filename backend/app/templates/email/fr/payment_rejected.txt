@@ -1,0 +1,9 @@
+Bonjour {{ full_name }},
+
+Votre paiement pour la commande {{ order_id }} n'a pas pu être traité.
+{% if reason %}
+Motif : {{ reason }}
+{% endif %}
+Veuillez réessayer ou contacter notre support si le problème persiste.
+
+L'équipe {{ shop_name }}

@@ -7,7 +7,7 @@ Reusable logistics route and its steps.
 
 import uuid
 from decimal import Decimal
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from sqlalchemy.dialects.postgresql import NUMERIC
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -127,7 +127,7 @@ class ShippingRouteBase(Base):
 
     # Notes and metadata
     notes: str | None = Field(default=None, max_length=1000, description="Free notes")
-    route_metadata: str | None = Field(
+    route_metadata: dict[str, Any] | None = Field(
         default=None, sa_column=Column(JSON), description="Flexible metadata"
     )
 
@@ -204,7 +204,7 @@ class ShippingRouteUpdate(ShippingRouteBase, BaseUpdate):
     frequency_days: int | None = None
     departure_time: str | None = None
     notes: str | None = None
-    route_metadata: str | None = None
+    route_metadata: dict[str, Any] | None = None
 
 
 class ShippingRoutePublic(ShippingRouteBase, BasePublic):

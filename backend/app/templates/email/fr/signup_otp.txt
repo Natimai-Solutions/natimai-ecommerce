@@ -1,0 +1,7 @@
+Bonjour,
+
+Votre code de vérification {{ shop_name }} est : {{ code }}
+
+Il est valable {{ valid_minutes }} minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.
+
+L'équipe {{ shop_name }}
