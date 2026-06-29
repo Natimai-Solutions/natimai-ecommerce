@@ -127,8 +127,8 @@ uv run python app/scripts/outbox_poller.py --mode continuous --interval 5  # out
 
 # 4. Frontends (from the repo root)
 pnpm install
-pnpm dev:front    # storefront → http://localhost:9000
-pnpm dev:admin    # admin      → http://localhost:9001
+pnpm dev:front    # storefront — Quasar dev server, default http://localhost:9000
+pnpm dev:admin    # admin      — next free Quasar port (e.g. http://localhost:9001)
 ```
 
 > When running outside Docker, point the backend at the host-mapped services

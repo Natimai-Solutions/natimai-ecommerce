@@ -476,8 +476,8 @@ After the first deploy (migrations + `initial_data` + workers up), verify:
 
 **Health**
 ```bash
-curl -s $API/healthz/liveness   # {"status":"ok"}
-curl -s $API/healthz/ready      # {"status":"ok","checks":{"db":"ok","redis":"ok"}}
+curl -s $API/api/v1/healthz/liveness   # {"status":"ok"}
+curl -s $API/api/v1/healthz/ready      # {"status":"ok","checks":{"db":"ok","redis":"ok"}}
 ```
 
 **Database** — migrations applied and the full‑text search extension present:
@@ -506,8 +506,8 @@ superuser bearer token (`$AUTH = "Authorization: Bearer <token>"` from
 
 **Restart supplier sync (Ingram / Icecat)**
 ```bash
-curl -s $API/api/v1/ingram/health -H "$AUTH"
-curl -s -X POST $API/api/v1/admin/suppliers/ingram_micro/sync/products \
+curl -s $API/api/v1/suppliers/ingram_micro/health -H "$AUTH"
+curl -s -X POST $API/api/v1/suppliers/ingram_micro/sync/products \
   -H "$AUTH" -H "Content-Type: application/json" -d '{"categories":["Ordinateur/Serveur"]}'
 curl -s -X POST $API/api/v1/icecat/enrich/batch \
   -H "$AUTH" -H "Content-Type: application/json" -d '{"limit":50}'

@@ -1,6 +1,6 @@
 # Plan de déploiement par paliers
 
-Document de travail établi à partir de la vérification fonctionnelle (cf. [PLAN_VERIFICATION_FONCTIONNEMENT.md](backend/docs/development/done/PLAN_VERIFICATION_FONCTIONNEMENT.md)). Chaque phase est conçue pour être déployable en production de façon autonome, le frontend pouvant s'enrichir au même rythme.
+Document de travail établi à partir de la vérification fonctionnelle. Chaque phase est conçue pour être déployable en production de façon autonome, le frontend pouvant s'enrichir au même rythme.
 
 ---
 
