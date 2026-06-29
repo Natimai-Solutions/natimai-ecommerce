@@ -202,6 +202,18 @@ Transactional emails (and Slack) go through a provider abstraction
 — switching provider is an env-var change, no code change. To add a provider,
 implement `NotificationProvider.send()` and register it in `providers/__init__.py`.
 
+### Email templates
+
+Transactional email bodies live in `app/templates/email/<lang>/` (default language
+`fr`), one template per event with three parts: `<name>.subject.txt`, `<name>.txt`
+(plain text) and `<name>.html`. Render them with
+`render_email(name, *, lang="fr", **context)` from
+`app.features.notification.email_renderer`, which returns a `RenderedEmail(subject,
+text, html)`. HTML parts are **auto-escaped** (`{{ value }}` is XSS-safe); text and
+subject parts are not. Keep presentation logic (conditionals, labels) inside the
+templates so it stays translatable. **Add a language**: copy the `fr/` folder to
+`<lang>/` and translate; a missing template/part falls back to the default language.
+
 ## Important notes
 
 1. **Hot reload** works only for Python files under `/app`.
