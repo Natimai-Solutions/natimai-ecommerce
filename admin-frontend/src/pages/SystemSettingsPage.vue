@@ -31,9 +31,18 @@
         <q-card-section class="text-h6">{{ editing?.key }}</q-card-section>
         <q-form @submit.prevent="submitEdit">
           <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{ dialogError }}</q-banner>
+            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
+              dialogError
+            }}</q-banner>
             <q-input v-model="editForm.value" label="Valeur *" outlined dense :rules="req" />
-            <q-input v-model="editForm.description" label="Description" outlined dense type="textarea" autogrow />
+            <q-input
+              v-model="editForm.description"
+              label="Description"
+              outlined
+              dense
+              type="textarea"
+              autogrow
+            />
           </q-card-section>
           <q-card-actions align="right">
             <q-btn flat label="Annuler" v-close-popup />
@@ -46,23 +55,23 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
-import type { QTableColumn } from 'quasar'
+import { onMounted, reactive, ref } from 'vue';
+import type { QTableColumn } from 'quasar';
 import {
   listSystemSettings,
   updateSystemSetting,
   type SystemSetting,
-} from 'src/api/systemSettings'
-import { extractApiError } from 'src/api/errors'
+} from 'src/api/systemSettings';
+import { extractApiError } from 'src/api/errors';
 
-const rows = ref<SystemSetting[]>([])
-const loading = ref(false)
-const error = ref<string | null>(null)
+const rows = ref<SystemSetting[]>([]);
+const loading = ref(false);
+const error = ref<string | null>(null);
 
 const req = [
   (v: string | number | null | undefined) =>
     (v !== null && v !== undefined && String(v).length > 0) || 'Requis',
-]
+];
 
 const columns: QTableColumn[] = [
   { name: 'key', label: 'Clé', field: 'key', align: 'left' },
@@ -70,51 +79,51 @@ const columns: QTableColumn[] = [
   { name: 'description', label: 'Description', field: (r) => r.description ?? '—', align: 'left' },
   { name: 'updated_at', label: 'Maj', field: 'updated_at', align: 'left' },
   { name: 'actions', label: '', field: 'key', align: 'right' },
-]
+];
 
 async function load() {
-  loading.value = true
-  error.value = null
+  loading.value = true;
+  error.value = null;
   try {
-    rows.value = await listSystemSettings()
+    rows.value = await listSystemSettings();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.'
+    error.value = extractApiError(err) ?? 'Chargement impossible.';
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
-const editDialog = ref(false)
-const editing = ref<SystemSetting | null>(null)
-const saving = ref(false)
-const dialogError = ref<string | null>(null)
-const editForm = reactive({ value: '', description: '' })
+const editDialog = ref(false);
+const editing = ref<SystemSetting | null>(null);
+const saving = ref(false);
+const dialogError = ref<string | null>(null);
+const editForm = reactive({ value: '', description: '' });
 
 function openEdit(setting: SystemSetting) {
-  dialogError.value = null
-  editing.value = setting
-  editForm.value = setting.value
-  editForm.description = setting.description ?? ''
-  editDialog.value = true
+  dialogError.value = null;
+  editing.value = setting;
+  editForm.value = setting.value;
+  editForm.description = setting.description ?? '';
+  editDialog.value = true;
 }
 
 async function submitEdit() {
-  if (!editing.value) return
-  saving.value = true
-  dialogError.value = null
+  if (!editing.value) return;
+  saving.value = true;
+  dialogError.value = null;
   try {
     await updateSystemSetting(editing.value.key, {
       value: editForm.value,
       description: editForm.description || null,
-    })
-    editDialog.value = false
-    await load()
+    });
+    editDialog.value = false;
+    await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Mise à jour impossible.'
+    dialogError.value = extractApiError(err) ?? 'Mise à jour impossible.';
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
-onMounted(load)
+onMounted(load);
 </script>

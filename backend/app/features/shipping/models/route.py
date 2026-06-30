@@ -7,7 +7,7 @@ Reusable logistics route and its steps.
 
 import uuid
 from decimal import Decimal
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from sqlalchemy.dialects.postgresql import NUMERIC
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -87,7 +87,7 @@ class ShippingRouteBase(Base):
     max_volume_m3: float | None = Field(
         default=None, description="Maximum volume allowed"
     )
-    max_dimensions_m: str | None = Field(
+    max_dimensions_m: dict[str, Any] | None = Field(
         default=None,
         sa_column=Column(JSON),
         description="Max dimensions {length, width, height}",
@@ -127,7 +127,7 @@ class ShippingRouteBase(Base):
 
     # Notes and metadata
     notes: str | None = Field(default=None, max_length=1000, description="Free notes")
-    route_metadata: str | None = Field(
+    route_metadata: dict[str, Any] | None = Field(
         default=None, sa_column=Column(JSON), description="Flexible metadata"
     )
 
@@ -195,7 +195,7 @@ class ShippingRouteUpdate(ShippingRouteBase, BaseUpdate):
     eta_days: int | None = None
     max_weight_kg: float | None = None
     max_volume_m3: float | None = None
-    max_dimensions_m: str | None = None
+    max_dimensions_m: dict[str, Any] | None = None
     service_level: str | None = None
     customer_label: str | None = None
     is_default_import: bool | None = None
@@ -204,7 +204,7 @@ class ShippingRouteUpdate(ShippingRouteBase, BaseUpdate):
     frequency_days: int | None = None
     departure_time: str | None = None
     notes: str | None = None
-    route_metadata: str | None = None
+    route_metadata: dict[str, Any] | None = None
 
 
 class ShippingRoutePublic(ShippingRouteBase, BasePublic):

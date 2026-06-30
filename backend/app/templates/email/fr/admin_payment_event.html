@@ -1,0 +1,20 @@
+{% extends "_layout.html" %}
+{% block title %}Notification de paiement{% endblock %}
+{% block extra_style %}.summary td { word-break: break-all; } .summary td:first-child { width: 40%; word-break: normal; }{% endblock %}
+{% block heading %}{{ event_label }}{% endblock %}
+{% block content %}
+      <span class="badge">Notification interne</span>
+      <p>Un événement de paiement vient d'être enregistré.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Événement</td><td>{{ event_type }}</td></tr>
+          <tr><td>Paiement</td><td>{{ payment_id }}</td></tr>
+          <tr><td>Commande</td><td>{{ order_id }}</td></tr>
+          <tr><td>Fournisseur</td><td>{{ provider_code }}</td></tr>
+          {% if amount %}<tr><td>Montant</td><td>{{ amount }} {{ currency }}</td></tr>{% endif %}
+          {% if reference %}<tr><td>Référence</td><td>{{ reference }}</td></tr>{% endif %}
+          {% if reason %}<tr><td>Motif</td><td>{{ reason }}</td></tr>{% endif %}
+        </table>
+      </div>
+{% endblock %}
+{% block footer %}Message interne — destiné à l'équipe {{ shop_name }}.{% endblock %}

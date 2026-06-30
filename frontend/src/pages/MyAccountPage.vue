@@ -15,6 +15,7 @@
       <q-tab name="preferences" icon="tune" label="Préférences" no-caps />
       <q-tab name="addresses" icon="location_on" label="Adresses" no-caps />
       <q-tab name="orders" icon="receipt_long" label="Commandes" no-caps />
+      <q-tab name="group" icon="workspace_premium" label="Groupe tarifaire" no-caps />
     </q-tabs>
 
     <q-tab-panels v-model="tab" animated keep-alive>
@@ -115,16 +116,10 @@
       <q-tab-panel name="addresses" class="q-px-none">
         <div class="row items-center q-mb-md">
           <div class="col text-body2 text-grey-8">
-            Une adresse doit être validée par notre équipe avant de pouvoir être
-            utilisée au paiement.
+            Une adresse doit être validée par notre équipe avant de pouvoir être utilisée au
+            paiement.
           </div>
-          <q-btn
-            color="primary"
-            icon="add"
-            label="Ajouter"
-            no-caps
-            @click="openAddressDialog()"
-          />
+          <q-btn color="primary" icon="add" label="Ajouter" no-caps @click="openAddressDialog()" />
         </div>
 
         <q-banner v-if="addressesError" class="bg-red-1 text-red-9 q-mb-md" rounded>
@@ -136,21 +131,13 @@
           <q-spinner color="primary" size="2em" />
         </div>
 
-        <q-banner
-          v-else-if="addresses.length === 0"
-          class="bg-blue-1 text-blue-10"
-          rounded
-        >
+        <q-banner v-else-if="addresses.length === 0" class="bg-blue-1 text-blue-10" rounded>
           <template #avatar><q-icon name="info" /></template>
           Vous n'avez pas encore enregistré d'adresse.
         </q-banner>
 
         <div v-else class="row q-col-gutter-md">
-          <div
-            v-for="address in addresses"
-            :key="address.id"
-            class="col-12 col-sm-6 col-md-4"
-          >
+          <div v-for="address in addresses" :key="address.id" class="col-12 col-sm-6 col-md-4">
             <q-card flat bordered class="full-height column">
               <q-card-section class="col">
                 <div class="row items-center q-mb-xs">
@@ -201,11 +188,7 @@
           <q-spinner color="primary" size="2em" />
         </div>
 
-        <q-banner
-          v-else-if="orders.length === 0"
-          class="bg-blue-1 text-blue-10"
-          rounded
-        >
+        <q-banner v-else-if="orders.length === 0" class="bg-blue-1 text-blue-10" rounded>
           <template #avatar><q-icon name="info" /></template>
           Vous n'avez pas encore passé de commande.
         </q-banner>
@@ -247,13 +230,121 @@
           </q-item>
         </q-list>
       </q-tab-panel>
+
+      <!-- ============================ Groupe tarifaire ============================ -->
+      <q-tab-panel name="group" class="q-px-none">
+        <q-card flat bordered>
+          <q-card-section>
+            <div v-if="loadingGroup" class="text-center q-pa-lg">
+              <q-spinner color="primary" size="2em" />
+            </div>
+
+            <template v-else>
+              <q-banner v-if="groupError" class="bg-red-1 text-red-9 q-mb-md" rounded>
+                <template #avatar><q-icon name="error_outline" /></template>
+                {{ groupError }}
+              </q-banner>
+              <q-banner v-if="groupSaved" class="bg-green-1 text-green-9 q-mb-md" rounded>
+                <template #avatar><q-icon name="check_circle" /></template>
+                Votre demande a été envoyée. Elle sera examinée par notre équipe.
+              </q-banner>
+
+              <div class="text-subtitle1 text-weight-medium q-mb-sm">Votre groupe tarifaire</div>
+              <q-chip
+                :label="groupOptions?.current_group?.label ?? 'Standard'"
+                color="primary"
+                text-color="white"
+                icon="workspace_premium"
+              />
+
+              <q-separator class="q-my-md" />
+
+              <template v-if="groupSelectOptions.length > 0">
+                <div class="text-subtitle1 text-weight-medium q-mb-xs">
+                  Demander un autre groupe
+                </div>
+                <div class="text-body2 text-grey-7 q-mb-md">
+                  Réservé aux professionnels et revendeurs. Votre demande sera validée par notre
+                  équipe.
+                </div>
+                <q-form @submit.prevent="submitUpgrade">
+                  <q-select
+                    v-model="upgradeForm.price_group_id"
+                    :options="groupSelectOptions"
+                    label="Groupe souhaité *"
+                    outlined
+                    dense
+                    emit-value
+                    map-options
+                    class="q-mb-md"
+                  />
+                  <q-input
+                    v-model="upgradeForm.business_registration_number"
+                    label="Numéro TAHITI / RC (ou équivalent) *"
+                    outlined
+                    dense
+                    class="q-mb-md"
+                  />
+                  <q-input
+                    v-model="upgradeForm.attestation_notes"
+                    label="Informations complémentaires (optionnel)"
+                    type="textarea"
+                    autogrow
+                    outlined
+                    dense
+                    class="q-mb-md"
+                  />
+                  <q-btn
+                    type="submit"
+                    color="primary"
+                    label="Envoyer la demande"
+                    unelevated
+                    :loading="submittingGroup"
+                    :disable="
+                      !upgradeForm.price_group_id ||
+                      !upgradeForm.business_registration_number.trim()
+                    "
+                  />
+                </q-form>
+              </template>
+              <div v-else class="text-body2 text-grey-7">
+                Aucun autre groupe n'est disponible à la demande pour le moment.
+              </div>
+
+              <template v-if="myUpgradeRequests.length > 0">
+                <q-separator class="q-my-md" />
+                <div class="text-subtitle1 text-weight-medium q-mb-sm">Mes demandes</div>
+                <q-list bordered separator>
+                  <q-item v-for="req in myUpgradeRequests" :key="req.id">
+                    <q-item-section>
+                      <q-item-label>{{ upgradeGroupLabel(req.price_group_id) }}</q-item-label>
+                      <q-item-label caption>
+                        Demandée le {{ formatDate(req.created_at) }}
+                        <template v-if="req.admin_comment"> — {{ req.admin_comment }}</template>
+                      </q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                      <q-chip
+                        :color="upgradeStatusColor(req.status)"
+                        text-color="white"
+                        dense
+                        :label="upgradeStatusLabel(req.status)"
+                      />
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+              </template>
+            </template>
+          </q-card-section>
+        </q-card>
+      </q-tab-panel>
     </q-tab-panels>
 
     <!-- ====================== Create / edit address dialog ====================== -->
     <q-dialog v-model="addressDialog">
       <q-card style="min-width: 350px; max-width: 520px">
         <q-card-section class="text-h6">
-          {{ editingId ? 'Modifier l\'adresse' : 'Nouvelle adresse' }}
+          {{ editingId ? "Modifier l'adresse" : 'Nouvelle adresse' }}
         </q-card-section>
         <q-form @submit.prevent="saveAddress">
           <q-card-section class="q-pt-none">
@@ -347,16 +438,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { formatXpf } from '@app/utils'
-import { useAuthStore } from 'src/stores/auth'
-import { useCurrencyStore } from 'src/stores/currency'
-import {
-  getMyPreferences,
-  updateMyPreferences,
-  type UserPreferences,
-} from 'src/api/account'
+import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { formatXpf } from '@app/utils';
+import { useAuthStore } from 'src/stores/auth';
+import { useCurrencyStore } from 'src/stores/currency';
+import { getMyPreferences, updateMyPreferences, type UserPreferences } from 'src/api/account';
 import {
   createMyAddress,
   deleteMyAddress,
@@ -365,20 +452,28 @@ import {
   type Address,
   type AddressInput,
   type AddressType,
-} from 'src/api/addresses'
-import { listMyOrders, type Order } from 'src/api/orders'
+} from 'src/api/addresses';
+import { listMyOrders, type Order } from 'src/api/orders';
+import {
+  getUpgradeOptions,
+  listMyUpgradeRequests,
+  submitUpgradeRequest,
+  type GroupUpgradeRequest,
+  type UpgradeGroupOptions,
+  type UpgradeRequestStatus,
+} from 'src/api/groupUpgrade';
 
-const route = useRoute()
-const router = useRouter()
-const authStore = useAuthStore()
-const currencyStore = useCurrencyStore()
+const route = useRoute();
+const router = useRouter();
+const authStore = useAuthStore();
+const currencyStore = useCurrencyStore();
 
 function onCurrencyPrefChange(code: string) {
-  void currencyStore.setCurrency(code)
+  void currencyStore.setCurrency(code);
 }
 
-type AccountTab = 'preferences' | 'addresses' | 'orders'
-const tab = ref<AccountTab>('preferences')
+type AccountTab = 'preferences' | 'addresses' | 'orders' | 'group';
+const tab = ref<AccountTab>('preferences');
 
 // --------------------------------------------------------------------------
 // Select option sets (labels mirror the backend's allowed enum values).
@@ -387,29 +482,29 @@ const shippingModeOptions = [
   { label: 'Rapide (avion)', value: 'rapide' },
   { label: 'Économique (bateau)', value: 'economique' },
   { label: 'Écologique', value: 'ecologique' },
-]
+];
 const shippingPreferenceOptions = [
   { label: 'Le plus rapide', value: 'fastest' },
   { label: 'Le moins cher', value: 'cheapest' },
   { label: 'Le plus écologique', value: 'eco_friendly' },
-]
+];
 const localeOptions = [
   { label: 'Français', value: 'fr' },
   { label: 'English', value: 'en' },
-]
+];
 const addressTypeOptions = [
   { label: 'Livraison', value: 'shipping' },
   { label: 'Facturation', value: 'billing' },
   { label: 'Autre', value: 'other' },
-]
+];
 
 // --------------------------------------------------------------------------
 // Preferences
 // --------------------------------------------------------------------------
-const loadingPrefs = ref(true)
-const savingPrefs = ref(false)
-const prefsError = ref<string | null>(null)
-const prefsSaved = ref(false)
+const loadingPrefs = ref(true);
+const savingPrefs = ref(false);
+const prefsError = ref<string | null>(null);
+const prefsSaved = ref(false);
 const prefs = reactive<Omit<UserPreferences, 'user_id'>>({
   notification_email_enabled: true,
   notification_shipping_steps: true,
@@ -417,54 +512,54 @@ const prefs = reactive<Omit<UserPreferences, 'user_id'>>({
   locale: null,
   currency_pref: null,
   preferred_shipping_mode: null,
-})
+});
 
 async function loadPreferences() {
-  loadingPrefs.value = true
-  prefsError.value = null
+  loadingPrefs.value = true;
+  prefsError.value = null;
   try {
-    const data = await getMyPreferences()
-    prefs.notification_email_enabled = data.notification_email_enabled
-    prefs.notification_shipping_steps = data.notification_shipping_steps
-    prefs.default_shipping_preference = data.default_shipping_preference
-    prefs.locale = data.locale
-    prefs.currency_pref = data.currency_pref
-    prefs.preferred_shipping_mode = data.preferred_shipping_mode
+    const data = await getMyPreferences();
+    prefs.notification_email_enabled = data.notification_email_enabled;
+    prefs.notification_shipping_steps = data.notification_shipping_steps;
+    prefs.default_shipping_preference = data.default_shipping_preference;
+    prefs.locale = data.locale;
+    prefs.currency_pref = data.currency_pref;
+    prefs.preferred_shipping_mode = data.preferred_shipping_mode;
   } catch (err) {
-    prefsError.value = extractError(err) ?? 'Impossible de charger vos préférences.'
+    prefsError.value = extractError(err) ?? 'Impossible de charger vos préférences.';
   } finally {
-    loadingPrefs.value = false
+    loadingPrefs.value = false;
   }
 }
 
 async function savePreferences() {
-  savingPrefs.value = true
-  prefsError.value = null
-  prefsSaved.value = false
+  savingPrefs.value = true;
+  prefsError.value = null;
+  prefsSaved.value = false;
   try {
     // Keep the bulk save consistent with the live display-currency selection
     // (changed via the header or the selector above, which persist immediately).
-    prefs.currency_pref = currencyStore.currency
-    await updateMyPreferences({ ...prefs })
-    prefsSaved.value = true
+    prefs.currency_pref = currencyStore.currency;
+    await updateMyPreferences({ ...prefs });
+    prefsSaved.value = true;
   } catch (err) {
-    prefsError.value = extractError(err) ?? "Échec de l'enregistrement."
+    prefsError.value = extractError(err) ?? "Échec de l'enregistrement.";
   } finally {
-    savingPrefs.value = false
+    savingPrefs.value = false;
   }
 }
 
 // --------------------------------------------------------------------------
 // Addresses
 // --------------------------------------------------------------------------
-const loadingAddresses = ref(true)
-const addressesError = ref<string | null>(null)
-const addresses = ref<Address[]>([])
+const loadingAddresses = ref(true);
+const addressesError = ref<string | null>(null);
+const addresses = ref<Address[]>([]);
 
-const addressDialog = ref(false)
-const editingId = ref<string | null>(null)
-const savingAddress = ref(false)
-const dialogError = ref<string | null>(null)
+const addressDialog = ref(false);
+const editingId = ref<string | null>(null);
+const savingAddress = ref(false);
+const dialogError = ref<string | null>(null);
 const addressForm = reactive<AddressInput>({
   street: '',
   city: '',
@@ -472,49 +567,49 @@ const addressForm = reactive<AddressInput>({
   postal_code: '',
   country: '',
   type: 'shipping',
-})
+});
 
-const deleteDialog = ref(false)
-const deleting = ref(false)
-const addressToDelete = ref<Address | null>(null)
+const deleteDialog = ref(false);
+const deleting = ref(false);
+const addressToDelete = ref<Address | null>(null);
 
 async function loadAddresses() {
-  loadingAddresses.value = true
-  addressesError.value = null
+  loadingAddresses.value = true;
+  addressesError.value = null;
   try {
-    addresses.value = await listMyAddresses()
+    addresses.value = await listMyAddresses();
   } catch (err) {
-    addressesError.value = extractError(err) ?? 'Impossible de charger vos adresses.'
+    addressesError.value = extractError(err) ?? 'Impossible de charger vos adresses.';
   } finally {
-    loadingAddresses.value = false
+    loadingAddresses.value = false;
   }
 }
 
 function openAddressDialog(address?: Address) {
-  dialogError.value = null
+  dialogError.value = null;
   if (address) {
-    editingId.value = address.id
-    addressForm.street = address.street
-    addressForm.city = address.city
-    addressForm.state = address.state ?? ''
-    addressForm.postal_code = address.postal_code
-    addressForm.country = address.country
-    addressForm.type = (address.type as AddressType) ?? 'shipping'
+    editingId.value = address.id;
+    addressForm.street = address.street;
+    addressForm.city = address.city;
+    addressForm.state = address.state ?? '';
+    addressForm.postal_code = address.postal_code;
+    addressForm.country = address.country;
+    addressForm.type = (address.type as AddressType) ?? 'shipping';
   } else {
-    editingId.value = null
-    addressForm.street = ''
-    addressForm.city = ''
-    addressForm.state = ''
-    addressForm.postal_code = ''
-    addressForm.country = ''
-    addressForm.type = 'shipping'
+    editingId.value = null;
+    addressForm.street = '';
+    addressForm.city = '';
+    addressForm.state = '';
+    addressForm.postal_code = '';
+    addressForm.country = '';
+    addressForm.type = 'shipping';
   }
-  addressDialog.value = true
+  addressDialog.value = true;
 }
 
 async function saveAddress() {
-  savingAddress.value = true
-  dialogError.value = null
+  savingAddress.value = true;
+  dialogError.value = null;
   try {
     const payload: AddressInput = {
       street: addressForm.street,
@@ -523,83 +618,161 @@ async function saveAddress() {
       postal_code: addressForm.postal_code,
       country: addressForm.country,
       type: addressForm.type,
-    }
+    };
     if (editingId.value) {
-      await updateMyAddress(editingId.value, payload)
+      await updateMyAddress(editingId.value, payload);
     } else {
-      await createMyAddress(payload)
+      await createMyAddress(payload);
     }
-    addressDialog.value = false
-    await loadAddresses()
+    addressDialog.value = false;
+    await loadAddresses();
   } catch (err) {
-    dialogError.value = extractError(err) ?? "Échec de l'enregistrement de l'adresse."
+    dialogError.value = extractError(err) ?? "Échec de l'enregistrement de l'adresse.";
   } finally {
-    savingAddress.value = false
+    savingAddress.value = false;
   }
 }
 
 function confirmDelete(address: Address) {
-  addressToDelete.value = address
-  deleteDialog.value = true
+  addressToDelete.value = address;
+  deleteDialog.value = true;
 }
 
 async function performDelete() {
-  if (!addressToDelete.value) return
-  deleting.value = true
+  if (!addressToDelete.value) return;
+  deleting.value = true;
   try {
-    await deleteMyAddress(addressToDelete.value.id)
-    deleteDialog.value = false
-    addressToDelete.value = null
-    await loadAddresses()
+    await deleteMyAddress(addressToDelete.value.id);
+    deleteDialog.value = false;
+    addressToDelete.value = null;
+    await loadAddresses();
   } catch (err) {
-    addressesError.value = extractError(err) ?? 'Échec de la suppression.'
-    deleteDialog.value = false
+    addressesError.value = extractError(err) ?? 'Échec de la suppression.';
+    deleteDialog.value = false;
   } finally {
-    deleting.value = false
+    deleting.value = false;
   }
 }
 
 // --------------------------------------------------------------------------
 // Orders
 // --------------------------------------------------------------------------
-const loadingOrders = ref(true)
-const ordersError = ref<string | null>(null)
-const orders = ref<Order[]>([])
+const loadingOrders = ref(true);
+const ordersError = ref<string | null>(null);
+const orders = ref<Order[]>([]);
 
 async function loadOrders() {
-  loadingOrders.value = true
-  ordersError.value = null
+  loadingOrders.value = true;
+  ordersError.value = null;
   try {
-    orders.value = await listMyOrders()
+    orders.value = await listMyOrders();
   } catch (err) {
-    ordersError.value = extractError(err) ?? 'Impossible de charger vos commandes.'
+    ordersError.value = extractError(err) ?? 'Impossible de charger vos commandes.';
   } finally {
-    loadingOrders.value = false
+    loadingOrders.value = false;
   }
+}
+
+// --------------------------------------------------------------------------
+// Group upgrade
+// --------------------------------------------------------------------------
+const loadingGroup = ref(true);
+const groupError = ref<string | null>(null);
+const groupSaved = ref(false);
+const submittingGroup = ref(false);
+const groupOptions = ref<UpgradeGroupOptions | null>(null);
+const myUpgradeRequests = ref<GroupUpgradeRequest[]>([]);
+const upgradeForm = reactive({
+  price_group_id: null as string | null,
+  business_registration_number: '',
+  attestation_notes: '',
+});
+
+const groupSelectOptions = computed(() =>
+  (groupOptions.value?.available_groups ?? []).map((g) => ({ label: g.label, value: g.id })),
+);
+
+async function loadGroup() {
+  loadingGroup.value = true;
+  groupError.value = null;
+  try {
+    const [options, requests] = await Promise.all([getUpgradeOptions(), listMyUpgradeRequests()]);
+    groupOptions.value = options;
+    myUpgradeRequests.value = requests;
+  } catch (err) {
+    groupError.value = extractError(err) ?? 'Impossible de charger votre groupe tarifaire.';
+  } finally {
+    loadingGroup.value = false;
+  }
+}
+
+async function submitUpgrade() {
+  if (!upgradeForm.price_group_id || !upgradeForm.business_registration_number.trim()) return;
+  submittingGroup.value = true;
+  groupError.value = null;
+  groupSaved.value = false;
+  try {
+    await submitUpgradeRequest({
+      price_group_id: upgradeForm.price_group_id,
+      business_registration_number: upgradeForm.business_registration_number.trim(),
+      attestation_notes: upgradeForm.attestation_notes.trim() || null,
+    });
+    groupSaved.value = true;
+    upgradeForm.price_group_id = null;
+    upgradeForm.business_registration_number = '';
+    upgradeForm.attestation_notes = '';
+    await loadGroup();
+  } catch (err) {
+    groupError.value = extractError(err) ?? "Échec de l'envoi de la demande.";
+  } finally {
+    submittingGroup.value = false;
+  }
+}
+
+function upgradeGroupLabel(priceGroupId: string): string {
+  const all = [
+    ...(groupOptions.value?.current_group ? [groupOptions.value.current_group] : []),
+    ...(groupOptions.value?.available_groups ?? []),
+  ];
+  return all.find((g) => g.id === priceGroupId)?.label ?? 'Groupe';
+}
+
+const UPGRADE_STATUS_LABELS: Record<UpgradeRequestStatus, string> = {
+  PENDING: 'En attente',
+  APPROVED: 'Approuvée',
+  REJECTED: 'Refusée',
+};
+function upgradeStatusLabel(s: UpgradeRequestStatus): string {
+  return UPGRADE_STATUS_LABELS[s] ?? s;
+}
+function upgradeStatusColor(s: UpgradeRequestStatus): string {
+  if (s === 'APPROVED') return 'green';
+  if (s === 'REJECTED') return 'negative';
+  return 'orange';
 }
 
 // --------------------------------------------------------------------------
 // Helpers
 // --------------------------------------------------------------------------
 function typeLabel(type: string): string {
-  return addressTypeOptions.find((o) => o.value === type)?.label ?? type
+  return addressTypeOptions.find((o) => o.value === type)?.label ?? type;
 }
 function typeColor(type: string): string {
-  if (type === 'billing') return 'deep-purple'
-  if (type === 'shipping') return 'primary'
-  return 'grey-7'
+  if (type === 'billing') return 'deep-purple';
+  if (type === 'shipping') return 'primary';
+  return 'grey-7';
 }
 
 function formatMoney(raw: string): string {
-  const n = Number.parseFloat(raw)
-  return Number.isFinite(n) ? formatXpf(n) : raw
+  const n = Number.parseFloat(raw);
+  return Number.isFinite(n) ? formatXpf(n) : raw;
 }
 
 function formatDate(raw: string | null): string | null {
-  if (!raw) return null
-  const d = new Date(raw)
-  if (Number.isNaN(d.getTime())) return raw
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  if (!raw) return null;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw;
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 // Order status (payment/fulfillment) → customer-facing label & colour.
@@ -612,43 +785,43 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   Shipped: 'Expédiée',
   Delivered: 'Livrée',
   Cancelled: 'Annulée',
-}
+};
 
 function orderStatusLabel(name: string | null): string {
-  if (!name) return 'En attente'
-  return ORDER_STATUS_LABELS[name] ?? name
+  if (!name) return 'En attente';
+  return ORDER_STATUS_LABELS[name] ?? name;
 }
 
 function orderStatusColor(name: string | null): string {
-  if (name === 'Paid' || name === 'Delivered') return 'green'
-  if (name === 'PaymentFailed' || name === 'Cancelled') return 'negative'
-  if (name === 'Shipped' || name === 'Processing') return 'primary'
-  return 'grey-7'
+  if (name === 'Paid' || name === 'Delivered') return 'green';
+  if (name === 'PaymentFailed' || name === 'Cancelled') return 'negative';
+  if (name === 'Shipped' || name === 'Processing') return 'primary';
+  return 'grey-7';
 }
 
 /** Extract a human message from a backend AppError / Axios error shape. */
 function extractError(err: unknown): string | null {
   if (typeof err === 'object' && err !== null && 'response' in err) {
-    const data = (err as { response?: { data?: unknown } }).response?.data
+    const data = (err as { response?: { data?: unknown } }).response?.data;
     if (typeof data === 'object' && data !== null) {
-      const errorObj = (data as { error?: { message?: unknown } }).error
-      if (errorObj && typeof errorObj.message === 'string') return errorObj.message
-      const detail = (data as { detail?: unknown }).detail
-      if (typeof detail === 'string') return detail
+      const errorObj = (data as { error?: { message?: unknown } }).error;
+      if (errorObj && typeof errorObj.message === 'string') return errorObj.message;
+      const detail = (data as { detail?: unknown }).detail;
+      if (typeof detail === 'string') return detail;
     }
   }
-  return null
+  return null;
 }
 
 onMounted(async () => {
   if (!authStore.isAuthenticated) {
-    await router.replace({ name: 'login', query: { redirect: '/mon-compte' } })
-    return
+    await router.replace({ name: 'login', query: { redirect: '/mon-compte' } });
+    return;
   }
-  const requestedTab = route.query.tab
-  if (requestedTab === 'addresses' || requestedTab === 'orders') {
-    tab.value = requestedTab
+  const requestedTab = route.query.tab;
+  if (requestedTab === 'addresses' || requestedTab === 'orders' || requestedTab === 'group') {
+    tab.value = requestedTab;
   }
-  await Promise.all([loadPreferences(), loadAddresses(), loadOrders()])
-})
+  await Promise.all([loadPreferences(), loadAddresses(), loadOrders(), loadGroup()]);
+});
 </script>

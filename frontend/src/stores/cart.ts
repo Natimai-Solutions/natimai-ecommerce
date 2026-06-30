@@ -1,105 +1,100 @@
-import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
-import type { components } from '@app/api-types'
-import {
-  createGuestQuoteRequest,
-  type GuestQuoteRequestResponse,
-} from 'src/api/cart'
-import { getProductById } from 'src/api/products'
+import { defineStore } from 'pinia';
+import { computed, ref } from 'vue';
+import type { components } from '@app/api-types';
+import { createGuestQuoteRequest, type GuestQuoteRequestResponse } from 'src/api/cart';
+import { getProductById } from 'src/api/products';
 
-type ProductPublic = components['schemas']['ProductPublic']
+type ProductPublic = components['schemas']['ProductPublic'];
 
 type LocalCartItem = {
-  id: string
-  product_id: string
-  quantity: number
-  unit_price: string
-  line_total: string
-}
+  id: string;
+  product_id: string;
+  quantity: number;
+  unit_price: string;
+  line_total: string;
+};
 
 type LocalCart = {
-  currency: string
-  total_amount: string
-  is_checked_out: boolean
-  items: LocalCartItem[]
-}
+  currency: string;
+  total_amount: string;
+  is_checked_out: boolean;
+  items: LocalCartItem[];
+};
 
 type CartItemWithProduct = {
-  item: LocalCartItem
-  product: ProductPublic | null
-}
+  item: LocalCartItem;
+  product: ProductPublic | null;
+};
 
-const STORAGE_KEY = 'frontend.cart.v1'
+const STORAGE_KEY = 'frontend.cart.v1';
 
 export const useCartStore = defineStore('cart', () => {
-  const cart = ref<LocalCart>(emptyCart())
-  const productsById = ref<Record<string, ProductPublic>>({})
-  const loading = ref(false)
-  const mutating = ref(false)
-  const quoteSubmitting = ref(false)
-  const error = ref<string | null>(null)
-  const requiresAuth = ref(false) // kept for UI compatibility; guest mode does not require auth
-  const quoteMessage = ref<string | null>(null)
-  const quoteEmailDelivered = ref<boolean | null>(null)
+  const cart = ref<LocalCart>(emptyCart());
+  const productsById = ref<Record<string, ProductPublic>>({});
+  const loading = ref(false);
+  const mutating = ref(false);
+  const quoteSubmitting = ref(false);
+  const error = ref<string | null>(null);
+  const requiresAuth = ref(false); // kept for UI compatibility; guest mode does not require auth
+  const quoteMessage = ref<string | null>(null);
+  const quoteEmailDelivered = ref<boolean | null>(null);
 
-  const items = computed(() => cart.value.items)
+  const items = computed(() => cart.value.items);
 
-  const totalItems = computed(() =>
-    items.value.reduce((sum, item) => sum + item.quantity, 0),
-  )
+  const totalItems = computed(() => items.value.reduce((sum, item) => sum + item.quantity, 0));
 
   const totalAmount = computed(() => {
-    const raw = cart.value.total_amount
-    const parsed = Number.parseFloat(raw)
-    return Number.isFinite(parsed) ? parsed : 0
-  })
+    const raw = cart.value.total_amount;
+    const parsed = Number.parseFloat(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  });
 
   const detailedItems = computed<CartItemWithProduct[]>(() =>
     items.value.map((item) => ({
       item,
       product: productsById.value[item.product_id] ?? null,
     })),
-  )
+  );
 
   function seedProduct(product: ProductPublic) {
-    productsById.value[product.id] = product
+    productsById.value[product.id] = product;
   }
 
   async function loadCart() {
-    loading.value = true
-    error.value = null
+    loading.value = true;
+    error.value = null;
     try {
-      cart.value = readPersistedCart()
-      recomputeTotals()
-      await hydrateProducts(cart.value.items)
-      requiresAuth.value = false
+      cart.value = readPersistedCart();
+      recomputeTotals();
+      await hydrateProducts(cart.value.items);
+      requiresAuth.value = false;
     } catch (err) {
-      handleError(err, 'Impossible de charger le panier')
+      handleError(err, 'Impossible de charger le panier');
     } finally {
-      loading.value = false
+      loading.value = false;
     }
   }
 
   async function addItem(productId: string, quantity = 1, seed?: ProductPublic) {
-    mutating.value = true
-    error.value = null
-    quoteMessage.value = null
-    if (seed) seedProduct(seed)
+    mutating.value = true;
+    error.value = null;
+    quoteMessage.value = null;
+    if (seed) seedProduct(seed);
 
     try {
-      const normalizedQuantity = Math.max(1, Math.floor(quantity))
-      let product = seed ?? productsById.value[productId] ?? null
+      const normalizedQuantity = Math.max(1, Math.floor(quantity));
+      let product = seed ?? productsById.value[productId] ?? null;
       if (!product) {
-        product = await getProductById(productId)
+        product = await getProductById(productId);
       }
-      seedProduct(product)
+      seedProduct(product);
 
-      const unitPrice = toMoneyString(parseMoney(product.base_price))
-      const existing = cart.value.items.find((item) => item.product_id === productId)
+      const unitPrice = toMoneyString(parseMoney(product.base_price));
+      const existing = cart.value.items.find((item) => item.product_id === productId);
 
       if (existing) {
-        existing.quantity += normalizedQuantity
-        existing.unit_price = unitPrice
+        existing.quantity += normalizedQuantity;
+        existing.unit_price = unitPrice;
       } else {
         cart.value.items.push({
           id: productId,
@@ -107,103 +102,103 @@ export const useCartStore = defineStore('cart', () => {
           quantity: normalizedQuantity,
           unit_price: unitPrice,
           line_total: toMoneyString(parseMoney(unitPrice) * normalizedQuantity),
-        })
+        });
       }
 
-      recomputeTotals()
-      persistCart(cart.value)
-      requiresAuth.value = false
-      return true
+      recomputeTotals();
+      persistCart(cart.value);
+      requiresAuth.value = false;
+      return true;
     } catch (err) {
-      handleError(err, 'Impossible d\'ajouter au panier')
-      return false
+      handleError(err, "Impossible d'ajouter au panier");
+      return false;
     } finally {
-      mutating.value = false
+      mutating.value = false;
     }
   }
 
   function updateItemQuantity(itemId: string, quantity: number) {
-    mutating.value = true
-    error.value = null
-    quoteMessage.value = null
+    mutating.value = true;
+    error.value = null;
+    quoteMessage.value = null;
     try {
-      const nextQuantity = Math.max(1, Math.floor(quantity))
-      const item = cart.value.items.find((entry) => entry.id === itemId)
+      const nextQuantity = Math.max(1, Math.floor(quantity));
+      const item = cart.value.items.find((entry) => entry.id === itemId);
       if (!item) {
-        error.value = 'Article introuvable dans le panier'
-        return false
+        error.value = 'Article introuvable dans le panier';
+        return false;
       }
 
-      item.quantity = nextQuantity
-      recomputeTotals()
-      persistCart(cart.value)
-      requiresAuth.value = false
-      return true
+      item.quantity = nextQuantity;
+      recomputeTotals();
+      persistCart(cart.value);
+      requiresAuth.value = false;
+      return true;
     } catch (err) {
-      handleError(err, 'Impossible de mettre a jour la quantite')
-      return false
+      handleError(err, 'Impossible de mettre a jour la quantite');
+      return false;
     } finally {
-      mutating.value = false
+      mutating.value = false;
     }
   }
 
   function removeItem(itemId: string) {
-    mutating.value = true
-    error.value = null
-    quoteMessage.value = null
+    mutating.value = true;
+    error.value = null;
+    quoteMessage.value = null;
     try {
-      cart.value.items = cart.value.items.filter((entry) => entry.id !== itemId)
-      recomputeTotals()
-      persistCart(cart.value)
-      requiresAuth.value = false
-      return true
+      cart.value.items = cart.value.items.filter((entry) => entry.id !== itemId);
+      recomputeTotals();
+      persistCart(cart.value);
+      requiresAuth.value = false;
+      return true;
     } catch (err) {
-      handleError(err, 'Impossible de supprimer cet article')
-      return false
+      handleError(err, 'Impossible de supprimer cet article');
+      return false;
     } finally {
-      mutating.value = false
+      mutating.value = false;
     }
   }
 
   function clearCart() {
-    mutating.value = true
-    error.value = null
-    quoteMessage.value = null
+    mutating.value = true;
+    error.value = null;
+    quoteMessage.value = null;
     try {
-      cart.value = emptyCart(cart.value.currency)
-      persistCart(cart.value)
-      requiresAuth.value = false
-      return true
+      cart.value = emptyCart(cart.value.currency);
+      persistCart(cart.value);
+      requiresAuth.value = false;
+      return true;
     } catch (err) {
-      handleError(err, 'Impossible de vider le panier')
-      return false
+      handleError(err, 'Impossible de vider le panier');
+      return false;
     } finally {
-      mutating.value = false
+      mutating.value = false;
     }
   }
 
   async function sendQuoteByEmail(payload: {
-    customer_email: string
-    customer_name?: string | null
-    customer_phone?: string | null
-    shipping_address?: string | null
-    notes?: string | null
+    customer_email: string;
+    customer_name?: string | null;
+    customer_phone?: string | null;
+    shipping_address?: string | null;
+    notes?: string | null;
   }): Promise<GuestQuoteRequestResponse | null> {
-    quoteSubmitting.value = true
-    error.value = null
-    quoteMessage.value = null
-    quoteEmailDelivered.value = null
+    quoteSubmitting.value = true;
+    error.value = null;
+    quoteMessage.value = null;
+    quoteEmailDelivered.value = null;
 
     try {
-      const customerEmail = payload.customer_email.trim().toLowerCase()
+      const customerEmail = payload.customer_email.trim().toLowerCase();
       if (!isValidEmail(customerEmail)) {
-        error.value = 'Veuillez renseigner un email client valide.'
-        return null
+        error.value = 'Veuillez renseigner un email client valide.';
+        return null;
       }
 
       if (cart.value.items.length === 0) {
-        error.value = 'Le panier est vide.'
-        return null
+        error.value = 'Le panier est vide.';
+        return null;
       }
 
       const response = await createGuestQuoteRequest({
@@ -215,73 +210,68 @@ export const useCartStore = defineStore('cart', () => {
         currency: cart.value.currency,
         items: detailedItems.value.map((entry) => ({
           product_id: entry.item.product_id,
-          product_name:
-            entry.product?.name ?? `Produit ${entry.item.product_id.slice(0, 8)}`,
-          product_image_url:
-            entry.product?.image_url ?? entry.product?.supplier_image_url ?? null,
+          product_name: entry.product?.name ?? `Produit ${entry.item.product_id.slice(0, 8)}`,
+          product_image_url: entry.product?.image_url ?? entry.product?.supplier_image_url ?? null,
           quantity: entry.item.quantity,
           unit_price: entry.item.unit_price,
           line_total: entry.item.line_total,
         })),
-      })
+      });
 
-      quoteMessage.value = response.message
-      quoteEmailDelivered.value = response.email_delivered
-      requiresAuth.value = false
-      return response
+      quoteMessage.value = response.message;
+      quoteEmailDelivered.value = response.email_delivered;
+      requiresAuth.value = false;
+      return response;
     } catch (err) {
-      handleError(err, 'Impossible d\'envoyer la demande de devis')
-      return null
+      handleError(err, "Impossible d'envoyer la demande de devis");
+      return null;
     } finally {
-      quoteSubmitting.value = false
+      quoteSubmitting.value = false;
     }
   }
 
   function clearMessages() {
-    error.value = null
-    quoteMessage.value = null
-    quoteEmailDelivered.value = null
+    error.value = null;
+    quoteMessage.value = null;
+    quoteEmailDelivered.value = null;
   }
 
   async function hydrateProducts(cartItems: LocalCartItem[]) {
     const missingIds = cartItems
       .map((item) => item.product_id)
-      .filter((id) => !(id in productsById.value))
+      .filter((id) => !(id in productsById.value));
 
-    if (missingIds.length === 0) return
+    if (missingIds.length === 0) return;
 
     const loaded = await Promise.all(
       missingIds.map(async (id) => {
         try {
-          const product = await getProductById(id)
-          return { id, product }
+          const product = await getProductById(id);
+          return { id, product };
         } catch {
-          return { id, product: null }
+          return { id, product: null };
         }
       }),
-    )
+    );
 
     for (const entry of loaded) {
       if (entry.product) {
-        productsById.value[entry.id] = entry.product
+        productsById.value[entry.id] = entry.product;
       }
     }
   }
 
   function recomputeTotals() {
     for (const item of cart.value.items) {
-      item.line_total = toMoneyString(parseMoney(item.unit_price) * item.quantity)
+      item.line_total = toMoneyString(parseMoney(item.unit_price) * item.quantity);
     }
 
-    const subtotal = cart.value.items.reduce(
-      (sum, item) => sum + parseMoney(item.line_total),
-      0,
-    )
-    cart.value.total_amount = toMoneyString(subtotal)
+    const subtotal = cart.value.items.reduce((sum, item) => sum + parseMoney(item.line_total), 0);
+    cart.value.total_amount = toMoneyString(subtotal);
   }
 
   function handleError(err: unknown, fallback: string) {
-    error.value = extractErrorMessage(err, fallback)
+    error.value = extractErrorMessage(err, fallback);
   }
 
   return {
@@ -305,8 +295,8 @@ export const useCartStore = defineStore('cart', () => {
     clearCart,
     sendQuoteByEmail,
     clearMessages,
-  }
-})
+  };
+});
 
 function emptyCart(currency = 'XPF'): LocalCart {
   return {
@@ -314,45 +304,45 @@ function emptyCart(currency = 'XPF'): LocalCart {
     total_amount: '0.00',
     is_checked_out: false,
     items: [],
-  }
+  };
 }
 
 function readPersistedCart(): LocalCart {
-  if (typeof window === 'undefined') return emptyCart()
+  if (typeof window === 'undefined') return emptyCart();
 
-  const raw = localStorage.getItem(STORAGE_KEY)
-  if (!raw) return emptyCart()
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return emptyCart();
 
   try {
     const parsed = JSON.parse(raw) as {
-      currency?: unknown
-      items?: unknown
-    }
+      currency?: unknown;
+      items?: unknown;
+    };
 
     const currency =
       typeof parsed.currency === 'string' && parsed.currency.trim().length > 0
         ? parsed.currency.trim().toUpperCase()
-        : 'XPF'
+        : 'XPF';
 
     const items = Array.isArray(parsed.items)
       ? parsed.items
           .map((item) => toLocalCartItem(item))
           .filter((item): item is LocalCartItem => item !== null)
-      : []
+      : [];
 
     return {
       currency,
       total_amount: '0.00',
       is_checked_out: false,
       items,
-    }
+    };
   } catch {
-    return emptyCart()
+    return emptyCart();
   }
 }
 
 function persistCart(cart: LocalCart) {
-  if (typeof window === 'undefined') return
+  if (typeof window === 'undefined') return;
 
   localStorage.setItem(
     STORAGE_KEY,
@@ -360,106 +350,100 @@ function persistCart(cart: LocalCart) {
       currency: cart.currency,
       items: cart.items,
     }),
-  )
+  );
 }
 
 function toLocalCartItem(value: unknown): LocalCartItem | null {
-  if (!value || typeof value !== 'object') return null
+  if (!value || typeof value !== 'object') return null;
   const item = value as {
-    id?: unknown
-    product_id?: unknown
-    quantity?: unknown
-    unit_price?: unknown
-    line_total?: unknown
-  }
+    id?: unknown;
+    product_id?: unknown;
+    quantity?: unknown;
+    unit_price?: unknown;
+    line_total?: unknown;
+  };
 
   if (typeof item.product_id !== 'string' || item.product_id.trim().length === 0) {
-    return null
+    return null;
   }
 
-  const quantity =
-    typeof item.quantity === 'number'
-      ? Math.max(1, Math.floor(item.quantity))
-      : 1
+  const quantity = typeof item.quantity === 'number' ? Math.max(1, Math.floor(item.quantity)) : 1;
 
-  const unitPrice = toMoneyString(parseMoney(item.unit_price))
+  const unitPrice = toMoneyString(parseMoney(item.unit_price));
   const lineTotal =
     typeof item.line_total === 'string'
       ? toMoneyString(parseMoney(item.line_total))
-      : toMoneyString(parseMoney(unitPrice) * quantity)
+      : toMoneyString(parseMoney(unitPrice) * quantity);
 
   return {
-    id:
-      typeof item.id === 'string' && item.id.trim().length > 0
-        ? item.id
-        : item.product_id,
+    id: typeof item.id === 'string' && item.id.trim().length > 0 ? item.id : item.product_id,
     product_id: item.product_id,
     quantity,
     unit_price: unitPrice,
     line_total: lineTotal,
-  }
+  };
 }
 
 function parseMoney(value: unknown): number {
   if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : 0
+    return Number.isFinite(value) ? value : 0;
   }
   if (typeof value === 'string') {
-    const parsed = Number.parseFloat(value)
-    return Number.isFinite(parsed) ? parsed : 0
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
   }
-  return 0
+  return 0;
 }
 
 function toMoneyString(value: number): string {
-  if (!Number.isFinite(value)) return '0.00'
-  return value.toFixed(2)
+  if (!Number.isFinite(value)) return '0.00';
+  return value.toFixed(2);
 }
 
 function isValidEmail(value: string): boolean {
-  return /^(?:[^\s@]+)@(?:[^\s@]+)\.[^\s@]+$/.test(value)
+  return /^(?:[^\s@]+)@(?:[^\s@]+)\.[^\s@]+$/.test(value);
 }
 
 function extractErrorMessage(err: unknown, fallback: string): string {
   if (typeof err === 'object' && err !== null && 'response' in err) {
-    const response = (err as { response?: { data?: unknown } }).response
-    const data = response?.data
+    const response = (err as { response?: { data?: unknown } }).response;
+    const data = response?.data;
 
     if (typeof data === 'string' && data.trim().length > 0) {
-      return data
+      return data;
     }
 
     if (typeof data === 'object' && data !== null) {
       const payload = data as {
-        detail?: unknown
-        message?: unknown
-        code?: unknown
-      }
+        detail?: unknown;
+        message?: unknown;
+        code?: unknown;
+      };
 
       if (typeof payload.message === 'string' && payload.message.trim().length > 0) {
-        return payload.message
+        return payload.message;
       }
 
       if (typeof payload.detail === 'string' && payload.detail.trim().length > 0) {
-        return payload.detail
+        return payload.detail;
       }
 
       if (typeof payload.detail === 'object' && payload.detail !== null) {
-        const detailMessage = (payload.detail as { message?: unknown }).message
+        const detailMessage = (payload.detail as { message?: unknown }).message;
         if (typeof detailMessage === 'string' && detailMessage.trim().length > 0) {
-          return detailMessage
+          return detailMessage;
         }
       }
 
       if (typeof payload.code === 'string' && payload.code.trim().length > 0) {
-        return payload.code
+        return payload.code;
       }
     }
   }
 
   if (err instanceof Error && err.message.trim().length > 0) {
-    return err.message
+    return err.message;
   }
 
-  return fallback
+  return fallback;
 }

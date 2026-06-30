@@ -1,0 +1,17 @@
+{% extends "_layout.html" %}
+{% block title %}Remboursement effectué{% endblock %}
+{% block header_color %}#1a5e9e{% endblock %}
+{% block heading %}Remboursement effectué 💶{% endblock %}
+{% block content %}
+      <p>Bonjour {{ full_name }},</p>
+      <p>Un remboursement a été effectué pour votre commande <strong>{{ order_id }}</strong>.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Montant remboursé</td><td>{{ amount }} {{ currency }}</td></tr>
+          <tr><td>Type</td><td>{% if fully_refunded %}Remboursement total{% else %}Remboursement partiel{% endif %}</td></tr>
+        </table>
+      </div>
+      {% if reason %}<p>Motif : {{ reason }}</p>{% endif %}
+      <p>Le délai de réception dépend de votre moyen de paiement.</p>
+      <p>L'équipe {{ shop_name }}</p>
+{% endblock %}

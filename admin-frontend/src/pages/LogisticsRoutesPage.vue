@@ -2,7 +2,9 @@
   <q-page padding>
     <div class="text-h6 q-mb-md">Trajets &amp; Lieux</div>
     <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
-    <q-banner v-if="notice" class="bg-green-1 text-green-9 q-mb-md" rounded dense>{{ notice }}</q-banner>
+    <q-banner v-if="notice" class="bg-green-1 text-green-9 q-mb-md" rounded dense>{{
+      notice
+    }}</q-banner>
 
     <!-- Lieux -->
     <div class="row items-center q-mb-sm">
@@ -97,23 +99,69 @@
     <!-- Place dialog -->
     <q-dialog v-model="placeDialog">
       <q-card style="min-width: 400px">
-        <q-card-section class="text-h6">{{ placeEditId ? 'Modifier le lieu' : 'Nouveau lieu' }}</q-card-section>
+        <q-card-section class="text-h6">{{
+          placeEditId ? 'Modifier le lieu' : 'Nouveau lieu'
+        }}</q-card-section>
         <q-form @submit.prevent="submitPlace">
           <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{ dialogError }}</q-banner>
-            <q-input v-model="placeForm.name" label="Nom *" outlined dense :rules="req" />
-            <q-select v-model="placeForm.type" :options="placeTypeOptions" label="Type *" outlined dense emit-value map-options :rules="req" />
-            <q-input v-model="placeForm.code" label="Code (IATA / LOCODE, optionnel)" outlined dense />
-            <div class="row q-col-gutter-sm">
-              <q-input v-model="placeForm.city" label="Ville" outlined dense class="col" />
-              <q-input v-model="placeForm.country" label="Pays (ISO, ex: PF)" outlined dense class="col" />
+            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
+              dialogError
+            }}</q-banner>
+            <q-input
+              v-model="placeForm.name"
+              label="Nom *"
+              outlined
+              dense
+              bottom-slots
+              :rules="req"
+            />
+            <q-select
+              v-model="placeForm.type"
+              :options="placeTypeOptions"
+              label="Type *"
+              outlined
+              dense
+              bottom-slots
+              emit-value
+              map-options
+              :rules="req"
+            />
+            <q-input
+              v-model="placeForm.code"
+              label="Code (IATA / LOCODE, optionnel)"
+              outlined
+              dense
+              bottom-slots
+            />
+            <div class="row" style="gap: 8px">
+              <q-input
+                v-model="placeForm.city"
+                label="Ville"
+                outlined
+                dense
+                bottom-slots
+                class="col"
+              />
+              <q-input
+                v-model="placeForm.country"
+                label="Pays (ISO, ex: PF)"
+                outlined
+                dense
+                bottom-slots
+                class="col"
+              />
             </div>
             <q-toggle v-model="placeForm.is_warehouse" label="Entrepôt" />
             <q-toggle v-model="placeForm.customs_clearance" label="Dédouanement" />
           </q-card-section>
           <q-card-actions align="right">
             <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" :label="placeEditId ? 'Enregistrer' : 'Créer'" :loading="saving" />
+            <q-btn
+              type="submit"
+              color="primary"
+              :label="placeEditId ? 'Enregistrer' : 'Créer'"
+              :loading="saving"
+            />
           </q-card-actions>
         </q-form>
       </q-card>
@@ -122,29 +170,112 @@
     <!-- Route dialog -->
     <q-dialog v-model="routeDialog">
       <q-card style="min-width: 460px">
-        <q-card-section class="text-h6">{{ routeEditId ? 'Modifier le trajet' : 'Nouveau trajet' }}</q-card-section>
+        <q-card-section class="text-h6">{{
+          routeEditId ? 'Modifier le trajet' : 'Nouveau trajet'
+        }}</q-card-section>
         <q-form @submit.prevent="submitRoute">
           <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{ dialogError }}</q-banner>
-            <q-input v-model="routeForm.name" label="Nom du trajet *" outlined dense :rules="req" />
-            <div class="row q-col-gutter-sm">
-              <q-select v-model="routeForm.from_place_id" :options="placeOptions" label="Origine *" outlined dense emit-value map-options class="col" :rules="req" />
-              <q-select v-model="routeForm.to_place_id" :options="placeOptions" label="Destination *" outlined dense emit-value map-options class="col" :rules="req" />
+            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
+              dialogError
+            }}</q-banner>
+            <q-input
+              v-model="routeForm.name"
+              label="Nom du trajet *"
+              outlined
+              dense
+              bottom-slots
+              :rules="req"
+            />
+            <div class="row" style="gap: 8px">
+              <q-select
+                v-model="routeForm.from_place_id"
+                :options="placeOptions"
+                label="Origine *"
+                outlined
+                dense
+                bottom-slots
+                emit-value
+                map-options
+                class="col"
+                :rules="req"
+              />
+              <q-select
+                v-model="routeForm.to_place_id"
+                :options="placeOptions"
+                label="Destination *"
+                outlined
+                dense
+                bottom-slots
+                emit-value
+                map-options
+                class="col"
+                :rules="req"
+              />
             </div>
-            <div class="row q-col-gutter-sm">
-              <q-select v-model="routeForm.mode" :options="modeOptions" label="Mode *" outlined dense emit-value map-options class="col" :rules="req" />
-              <q-select v-model="routeForm.service_level" :options="serviceLevelOptions" label="Niveau de service" outlined dense emit-value map-options clearable class="col" />
+            <div class="row" style="gap: 8px">
+              <q-select
+                v-model="routeForm.mode"
+                :options="modeOptions"
+                label="Mode *"
+                outlined
+                dense
+                bottom-slots
+                emit-value
+                map-options
+                class="col"
+                :rules="req"
+              />
+              <q-select
+                v-model="routeForm.service_level"
+                :options="serviceLevelOptions"
+                label="Niveau de service"
+                outlined
+                dense
+                bottom-slots
+                emit-value
+                map-options
+                clearable
+                class="col"
+              />
             </div>
-            <q-input v-model="routeForm.customer_label" label="Libellé client (optionnel)" outlined dense />
-            <div class="row q-col-gutter-sm">
-              <q-input v-model.number="routeForm.eta_days" label="Délai (jours)" type="number" outlined dense class="col" />
-              <q-input v-model="routeForm.price_per_kg" label="Prix / kg (XPF)" type="number" step="0.01" outlined dense class="col" />
+            <q-input
+              v-model="routeForm.customer_label"
+              label="Libellé client (optionnel)"
+              outlined
+              dense
+              bottom-slots
+            />
+            <div class="row" style="gap: 8px">
+              <q-input
+                v-model.number="routeForm.eta_days"
+                label="Délai (jours)"
+                type="number"
+                outlined
+                dense
+                bottom-slots
+                class="col"
+              />
+              <q-input
+                v-model="routeForm.price_per_kg"
+                label="Prix / kg (XPF)"
+                type="number"
+                step="0.01"
+                outlined
+                dense
+                bottom-slots
+                class="col"
+              />
             </div>
             <q-toggle v-model="routeForm.is_to_customer" label="Tronçon final (livraison client)" />
           </q-card-section>
           <q-card-actions align="right">
             <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" :label="routeEditId ? 'Enregistrer' : 'Créer'" :loading="saving" />
+            <q-btn
+              type="submit"
+              color="primary"
+              :label="routeEditId ? 'Enregistrer' : 'Créer'"
+              :loading="saving"
+            />
           </q-card-actions>
         </q-form>
       </q-card>
@@ -153,8 +284,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
-import type { QTableColumn } from 'quasar'
+import { computed, onMounted, reactive, ref } from 'vue';
+import type { QTableColumn } from 'quasar';
 import {
   createPlace,
   createRoute,
@@ -164,21 +295,21 @@ import {
   updateRoute,
   type Place,
   type ShippingRoute,
-} from 'src/api/logistics'
-import { extractApiError } from 'src/api/errors'
+} from 'src/api/logistics';
+import { extractApiError } from 'src/api/errors';
 
-const places = ref<Place[]>([])
-const routes = ref<ShippingRoute[]>([])
-const loading = ref(false)
-const error = ref<string | null>(null)
-const notice = ref<string | null>(null)
-const saving = ref(false)
-const dialogError = ref<string | null>(null)
+const places = ref<Place[]>([]);
+const routes = ref<ShippingRoute[]>([]);
+const loading = ref(false);
+const error = ref<string | null>(null);
+const notice = ref<string | null>(null);
+const saving = ref(false);
+const dialogError = ref<string | null>(null);
 
 const req = [
   (v: string | number | null | undefined) =>
     (v !== null && v !== undefined && String(v).length > 0) || 'Requis',
-]
+];
 
 const placeTypeOptions = [
   { label: 'Entrepôt', value: 'warehouse' },
@@ -186,25 +317,25 @@ const placeTypeOptions = [
   { label: 'Port', value: 'seaport' },
   { label: 'Île', value: 'island' },
   { label: 'Adresse', value: 'address' },
-]
+];
 const modeOptions = [
   { label: 'Avion', value: 'air' },
   { label: 'Bateau', value: 'sea' },
   { label: 'Route', value: 'road' },
   { label: 'Retrait', value: 'pickup' },
-]
+];
 const serviceLevelOptions = [
   { label: 'Rapide', value: 'rapide' },
   { label: 'Économique', value: 'economique' },
   { label: 'Écologique', value: 'ecologique' },
-]
+];
 
-const placeById = computed(() => new Map(places.value.map((p) => [p.id, p])))
+const placeById = computed(() => new Map(places.value.map((p) => [p.id, p])));
 const placeOptions = computed(() =>
   places.value.map((p) => ({ label: `${p.name}${p.code ? ` (${p.code})` : ''}`, value: p.id })),
-)
+);
 function placeName(id: string): string {
-  return placeById.value.get(id)?.name ?? id.slice(0, 8)
+  return placeById.value.get(id)?.name ?? id.slice(0, 8);
 }
 
 const placeColumns: QTableColumn[] = [
@@ -216,7 +347,7 @@ const placeColumns: QTableColumn[] = [
   { name: 'warehouse', label: 'Entrepôt', field: 'is_warehouse', align: 'center' },
   { name: 'customs', label: 'Douane', field: 'customs_clearance', align: 'center' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-]
+];
 const routeColumns: QTableColumn[] = [
   { name: 'name', label: 'Nom', field: 'name', align: 'left' },
   { name: 'path', label: 'Trajet', field: 'from_place_id', align: 'left' },
@@ -226,23 +357,23 @@ const routeColumns: QTableColumn[] = [
   { name: 'price_per_kg', label: 'Prix/kg', field: 'price_per_kg', align: 'left' },
   { name: 'to_customer', label: 'Final', field: 'is_to_customer', align: 'center' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-]
+];
 
 async function load() {
-  loading.value = true
-  error.value = null
+  loading.value = true;
+  error.value = null;
   try {
-    ;[places.value, routes.value] = await Promise.all([listPlaces(), listRoutes()])
+    [places.value, routes.value] = await Promise.all([listPlaces(), listRoutes()]);
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.'
+    error.value = extractApiError(err) ?? 'Chargement impossible.';
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 // --- Place create / edit ---
-const placeDialog = ref(false)
-const placeEditId = ref<string | null>(null)
+const placeDialog = ref(false);
+const placeEditId = ref<string | null>(null);
 const placeForm = reactive({
   name: '',
   type: 'warehouse',
@@ -251,41 +382,41 @@ const placeForm = reactive({
   country: '',
   is_warehouse: true,
   customs_clearance: false,
-})
+});
 
 function resetPlaceForm() {
-  placeForm.name = ''
-  placeForm.type = 'warehouse'
-  placeForm.code = ''
-  placeForm.city = ''
-  placeForm.country = ''
-  placeForm.is_warehouse = true
-  placeForm.customs_clearance = false
+  placeForm.name = '';
+  placeForm.type = 'warehouse';
+  placeForm.code = '';
+  placeForm.city = '';
+  placeForm.country = '';
+  placeForm.is_warehouse = true;
+  placeForm.customs_clearance = false;
 }
 
 function openPlaceCreate() {
-  dialogError.value = null
-  placeEditId.value = null
-  resetPlaceForm()
-  placeDialog.value = true
+  dialogError.value = null;
+  placeEditId.value = null;
+  resetPlaceForm();
+  placeDialog.value = true;
 }
 
 function openPlaceEdit(p: Place) {
-  dialogError.value = null
-  placeEditId.value = p.id
-  placeForm.name = p.name
-  placeForm.type = p.type
-  placeForm.code = p.code ?? ''
-  placeForm.city = p.city ?? ''
-  placeForm.country = p.country ?? ''
-  placeForm.is_warehouse = p.is_warehouse
-  placeForm.customs_clearance = p.customs_clearance
-  placeDialog.value = true
+  dialogError.value = null;
+  placeEditId.value = p.id;
+  placeForm.name = p.name;
+  placeForm.type = p.type;
+  placeForm.code = p.code ?? '';
+  placeForm.city = p.city ?? '';
+  placeForm.country = p.country ?? '';
+  placeForm.is_warehouse = p.is_warehouse;
+  placeForm.customs_clearance = p.customs_clearance;
+  placeDialog.value = true;
 }
 
 async function submitPlace() {
-  saving.value = true
-  dialogError.value = null
+  saving.value = true;
+  dialogError.value = null;
   const payload = {
     name: placeForm.name.trim(),
     type: placeForm.type,
@@ -294,36 +425,36 @@ async function submitPlace() {
     country: placeForm.country.trim().toUpperCase() || null,
     is_warehouse: placeForm.is_warehouse,
     customs_clearance: placeForm.customs_clearance,
-  }
+  };
   try {
     if (placeEditId.value) {
-      await updatePlace(placeEditId.value, payload)
+      await updatePlace(placeEditId.value, payload);
     } else {
-      await createPlace(payload)
+      await createPlace(payload);
     }
-    placeDialog.value = false
-    notice.value = 'Lieu enregistré.'
-    await load()
+    placeDialog.value = false;
+    notice.value = 'Lieu enregistré.';
+    await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.'
+    dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.';
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
 // --- Route create / edit ---
-const routeDialog = ref(false)
-const routeEditId = ref<string | null>(null)
+const routeDialog = ref(false);
+const routeEditId = ref<string | null>(null);
 const routeForm = reactive<{
-  name: string
-  from_place_id: string | null
-  to_place_id: string | null
-  mode: string
-  service_level: string | null
-  customer_label: string
-  eta_days: number | null
-  price_per_kg: string
-  is_to_customer: boolean
+  name: string;
+  from_place_id: string | null;
+  to_place_id: string | null;
+  mode: string;
+  service_level: string | null;
+  customer_label: string;
+  eta_days: number | null;
+  price_per_kg: string;
+  is_to_customer: boolean;
 }>({
   name: '',
   from_place_id: null,
@@ -334,53 +465,53 @@ const routeForm = reactive<{
   eta_days: null,
   price_per_kg: '',
   is_to_customer: false,
-})
+});
 
 function resetRouteForm() {
-  routeForm.name = ''
-  routeForm.from_place_id = null
-  routeForm.to_place_id = null
-  routeForm.mode = 'sea'
-  routeForm.service_level = null
-  routeForm.customer_label = ''
-  routeForm.eta_days = null
-  routeForm.price_per_kg = ''
-  routeForm.is_to_customer = false
+  routeForm.name = '';
+  routeForm.from_place_id = null;
+  routeForm.to_place_id = null;
+  routeForm.mode = 'sea';
+  routeForm.service_level = null;
+  routeForm.customer_label = '';
+  routeForm.eta_days = null;
+  routeForm.price_per_kg = '';
+  routeForm.is_to_customer = false;
 }
 
 function openRouteCreate() {
-  dialogError.value = null
-  routeEditId.value = null
-  resetRouteForm()
-  routeDialog.value = true
+  dialogError.value = null;
+  routeEditId.value = null;
+  resetRouteForm();
+  routeDialog.value = true;
 }
 
 function openRouteEdit(r: ShippingRoute) {
-  dialogError.value = null
-  routeEditId.value = r.id
-  routeForm.name = r.name
-  routeForm.from_place_id = r.from_place_id
-  routeForm.to_place_id = r.to_place_id
-  routeForm.mode = r.mode
-  routeForm.service_level = r.service_level
-  routeForm.customer_label = r.customer_label ?? ''
-  routeForm.eta_days = r.eta_days
-  routeForm.price_per_kg = r.price_per_kg ?? ''
-  routeForm.is_to_customer = r.is_to_customer
-  routeDialog.value = true
+  dialogError.value = null;
+  routeEditId.value = r.id;
+  routeForm.name = r.name;
+  routeForm.from_place_id = r.from_place_id;
+  routeForm.to_place_id = r.to_place_id;
+  routeForm.mode = r.mode;
+  routeForm.service_level = r.service_level;
+  routeForm.customer_label = r.customer_label ?? '';
+  routeForm.eta_days = r.eta_days;
+  routeForm.price_per_kg = r.price_per_kg ?? '';
+  routeForm.is_to_customer = r.is_to_customer;
+  routeDialog.value = true;
 }
 
 async function submitRoute() {
   if (!routeForm.from_place_id || !routeForm.to_place_id) {
-    dialogError.value = 'Origine et destination requises.'
-    return
+    dialogError.value = 'Origine et destination requises.';
+    return;
   }
   if (routeForm.from_place_id === routeForm.to_place_id) {
-    dialogError.value = "L'origine et la destination doivent être différentes."
-    return
+    dialogError.value = "L'origine et la destination doivent être différentes.";
+    return;
   }
-  saving.value = true
-  dialogError.value = null
+  saving.value = true;
+  dialogError.value = null;
   const payload = {
     name: routeForm.name.trim(),
     from_place_id: routeForm.from_place_id,
@@ -395,22 +526,22 @@ async function submitRoute() {
         : null,
     price_per_kg: routeForm.price_per_kg.trim() || null,
     is_to_customer: routeForm.is_to_customer,
-  }
+  };
   try {
     if (routeEditId.value) {
-      await updateRoute(routeEditId.value, payload)
+      await updateRoute(routeEditId.value, payload);
     } else {
-      await createRoute(payload)
+      await createRoute(payload);
     }
-    routeDialog.value = false
-    notice.value = 'Trajet enregistré.'
-    await load()
+    routeDialog.value = false;
+    notice.value = 'Trajet enregistré.';
+    await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.'
+    dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.';
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
-onMounted(load)
+onMounted(load);
 </script>

@@ -24,6 +24,7 @@ from app.features.order.models.order import Order
 from app.features.order.models.order_status import OrderStatus
 from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_status import PaymentStatus
+from app.features.payment.providers import provider_supports_in_app_refund
 from app.features.product.models.product import Product
 from app.features.user.models.user import User
 
@@ -52,6 +53,10 @@ class AdminOrderLineItem(BaseModel):
     line_total: float
 
 
+# Payment status names from which a refund can still be issued.
+_REFUNDABLE_PAYMENT_STATUSES = {"Completed", "PartiallyRefunded"}
+
+
 class AdminOrderPaymentItem(BaseModel):
     """Represents a payment attached to an order in the admin detail view."""
 
@@ -62,6 +67,9 @@ class AdminOrderPaymentItem(BaseModel):
     currency: str
     status: str | None = None
     created_at: datetime | None = None
+    # True when the admin UI may initiate a refund: the provider supports an
+    # in-app refund (card / PayZen) and the payment is in a refundable state.
+    can_refund: bool = False
 
 
 class AdminOrderDetail(BaseModel):
@@ -200,20 +208,26 @@ async def get_order_detail(
         )
         pstatus_by_id = {s.id: s.name for s in pstatus_res.all()}
 
-    payment_items = [
-        AdminOrderPaymentItem(
-            payment_id=p.id,
-            provider_code=p.provider_code,
-            provider_reference=p.provider_reference,
-            amount=float(p.amount),
-            currency=p.currency,
-            status=(
-                pstatus_by_id.get(p.payment_status_id) if p.payment_status_id else None
-            ),
-            created_at=p.created_at,
+    payment_items = []
+    for p in payments:
+        status_name = (
+            pstatus_by_id.get(p.payment_status_id) if p.payment_status_id else None
         )
-        for p in payments
-    ]
+        payment_items.append(
+            AdminOrderPaymentItem(
+                payment_id=p.id,
+                provider_code=p.provider_code,
+                provider_reference=p.provider_reference,
+                amount=float(p.amount),
+                currency=p.currency,
+                status=status_name,
+                created_at=p.created_at,
+                can_refund=(
+                    provider_supports_in_app_refund(p.provider_code)
+                    and status_name in _REFUNDABLE_PAYMENT_STATUSES
+                ),
+            )
+        )
 
     return AdminOrderDetail(
         order_id=order.id,

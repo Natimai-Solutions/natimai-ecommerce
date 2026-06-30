@@ -5,7 +5,13 @@
         <h1 class="text-h5 q-my-none">Paiement sécurisé</h1>
       </div>
       <div class="col-auto">
-        <q-btn flat color="primary" icon="arrow_back" label="Retour au panier" :to="{ name: 'cart' }" />
+        <q-btn
+          flat
+          color="primary"
+          icon="arrow_back"
+          label="Retour au panier"
+          :to="{ name: 'cart' }"
+        />
       </div>
     </div>
 
@@ -84,14 +90,10 @@
               </template>
 
               <!-- No method available -->
-              <q-banner
-                v-else-if="methods.length === 0"
-                class="bg-orange-1 text-orange-10"
-                rounded
-              >
+              <q-banner v-else-if="methods.length === 0" class="bg-orange-1 text-orange-10" rounded>
                 <template #avatar><q-icon name="info" /></template>
-                Aucun moyen de paiement n'est disponible pour votre compte. Veuillez
-                contacter notre équipe.
+                Aucun moyen de paiement n'est disponible pour votre compte. Veuillez contacter notre
+                équipe.
               </q-banner>
 
               <template v-else>
@@ -101,7 +103,9 @@
                     <template #avatar><q-icon name="check_circle" /></template>
                     Votre demande de paiement a bien été enregistrée.
                   </q-banner>
-                  <div class="text-body2 q-mb-md" style="white-space: pre-line">{{ instructions }}</div>
+                  <div class="text-body2 q-mb-md" style="white-space: pre-line">
+                    {{ instructions }}
+                  </div>
 
                   <!-- Bon de commande (BC) : téléversement de la pièce -->
                   <template v-if="needsUpload && !uploadDone">
@@ -132,11 +136,7 @@
                     />
                   </template>
 
-                  <q-banner
-                    v-else-if="uploadDone"
-                    class="bg-green-1 text-green-9 q-mb-md"
-                    rounded
-                  >
+                  <q-banner v-else-if="uploadDone" class="bg-green-1 text-green-9 q-mb-md" rounded>
                     <template #avatar><q-icon name="task_alt" /></template>
                     Bon de commande reçu — il sera vérifié par notre équipe avant validation.
                   </q-banner>
@@ -154,9 +154,7 @@
                 <!-- Method selection + initiate -->
                 <template v-else-if="!formToken">
                   <!-- Shipping address (validated addresses only) -->
-                  <div class="text-subtitle2 text-weight-medium q-mb-sm">
-                    Adresse de livraison
-                  </div>
+                  <div class="text-subtitle2 text-weight-medium q-mb-sm">Adresse de livraison</div>
                   <q-banner
                     v-if="addresses.length === 0"
                     class="bg-orange-1 text-orange-10 q-mb-md"
@@ -219,9 +217,7 @@
                     </q-item>
                   </q-list>
 
-                  <div class="text-subtitle2 text-weight-medium q-mb-sm">
-                    Moyen de paiement
-                  </div>
+                  <div class="text-subtitle2 text-weight-medium q-mb-sm">Moyen de paiement</div>
                   <q-list bordered separator class="rounded-borders q-mb-md">
                     <q-item
                       v-for="m in methods"
@@ -240,7 +236,9 @@
                       </q-item-section>
                       <q-item-section>
                         <q-item-label>{{ m.name }}</q-item-label>
-                        <q-item-label v-if="m.description" caption>{{ m.description }}</q-item-label>
+                        <q-item-label v-if="m.description" caption>{{
+                          m.description
+                        }}</q-item-label>
                       </q-item-section>
                       <q-item-section v-if="hasFee(m.fee)" side>
                         <q-item-label caption>+ {{ formatMoney(m.fee) }} de frais</q-item-label>
@@ -274,135 +272,134 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { formatXpf } from '@app/utils'
-import { useCartStore } from 'src/stores/cart'
-import { useAuthStore } from 'src/stores/auth'
+import { computed, onMounted, ref } from 'vue';
+import { formatXpf } from '@app/utils';
+import { useCartStore } from 'src/stores/cart';
+import { useAuthStore } from 'src/stores/auth';
 import {
   confirmDocumentUploaded,
   issueDocumentUploadUrl,
   listMyPaymentMethods,
   uploadFileToPresignedUrl,
   type PaymentMethod,
-} from 'src/api/payments'
-import { addCartItem, checkoutMyCart, clearMyCart } from 'src/api/cart'
-import { listMyAddresses, type Address } from 'src/api/addresses'
+} from 'src/api/payments';
+import { addCartItem, checkoutMyCart, clearMyCart } from 'src/api/cart';
+import { listMyAddresses, type Address } from 'src/api/addresses';
 
-const PENDING_PAYMENT_KEY = 'payzen.pending_payment_id'
+const PENDING_PAYMENT_KEY = 'payzen.pending_payment_id';
 
-const cartStore = useCartStore()
-const authStore = useAuthStore()
+const cartStore = useCartStore();
+const authStore = useAuthStore();
 
-const loadingMethods = ref(true)
-const methods = ref<PaymentMethod[]>([])
-const selectedMethodId = ref<string | null>(null)
-const initiating = ref(false)
-const orderPlaced = ref(false)
-const formToken = ref<string | null>(null)
-const instructions = ref<string | null>(null)
-const errorMessage = ref<string | null>(null)
+const loadingMethods = ref(true);
+const methods = ref<PaymentMethod[]>([]);
+const selectedMethodId = ref<string | null>(null);
+const initiating = ref(false);
+const orderPlaced = ref(false);
+const formToken = ref<string | null>(null);
+const instructions = ref<string | null>(null);
+const errorMessage = ref<string | null>(null);
 // Payment is tied to a user account (POST /payments/initiate requires auth).
-const isAuthenticated = computed(() => authStore.isAuthenticated)
+const isAuthenticated = computed(() => authStore.isAuthenticated);
 
-const cartEmpty = computed(() => cartStore.items.length === 0)
+const cartEmpty = computed(() => cartStore.items.length === 0);
 
 // Shipping address. Validated addresses are preferred but we don't hard-block on
 // validation (the admin validation flow is a separate decision — A10); the
 // backend stores a free-text snapshot regardless.
-const addresses = ref<Address[]>([])
-const selectedAddressId = ref<string | null>(null)
+const addresses = ref<Address[]>([]);
+const selectedAddressId = ref<string | null>(null);
 const selectedAddress = computed(
   () => addresses.value.find((a) => a.id === selectedAddressId.value) ?? null,
-)
+);
 
 function formatAddress(a: Address): string {
   return [a.street, `${a.postal_code} ${a.city}`.trim(), a.state, a.country]
     .filter((part) => !!part && String(part).trim().length > 0)
-    .join(', ')
+    .join(', ');
 }
 
 // Document-validated (Bon de commande) upload state.
-const pendingPaymentId = ref<string | null>(null)
-const selectedFile = ref<File | null>(null)
-const uploading = ref(false)
-const uploadDone = ref(false)
-const uploadError = ref<string | null>(null)
+const pendingPaymentId = ref<string | null>(null);
+const selectedFile = ref<File | null>(null);
+const uploading = ref(false);
+const uploadDone = ref(false);
+const uploadError = ref<string | null>(null);
 
 const selectedMethod = computed(
   () => methods.value.find((m) => m.id === selectedMethodId.value) ?? null,
-)
+);
 const needsUpload = computed(
   () =>
     selectedMethod.value?.requires_document_upload === true ||
     selectedMethod.value?.provider_code === 'document',
-)
+);
 
 function formatMoney(raw: string): string {
-  const n = Number.parseFloat(raw)
-  return Number.isFinite(n) ? formatXpf(n) : raw
+  const n = Number.parseFloat(raw);
+  return Number.isFinite(n) ? formatXpf(n) : raw;
 }
 
 function hasFee(fee: string): boolean {
-  return Number.parseFloat(fee) > 0
+  return Number.parseFloat(fee) > 0;
 }
 
 function methodIcon(providerCode: string): string {
-  if (providerCode === 'payzen') return 'credit_card'
-  if (providerCode === 'manual') return 'account_balance'
-  if (providerCode === 'document') return 'description'
-  return 'payments'
+  if (providerCode === 'payzen') return 'credit_card';
+  if (providerCode === 'manual') return 'account_balance';
+  if (providerCode === 'document') return 'description';
+  return 'payments';
 }
 
 onMounted(async () => {
-  await cartStore.loadCart()
+  await cartStore.loadCart();
   if (!isAuthenticated.value) {
-    loadingMethods.value = false
-    return
+    loadingMethods.value = false;
+    return;
   }
   try {
     // Eligibility-filtered list (price group + max_amount vs cart total). The
     // server re-checks eligibility at POST /cart/checkout regardless.
-    const available = await listMyPaymentMethods(cartStore.totalAmount)
-    methods.value = available.sort((a, b) => a.sort_order - b.sort_order)
-    selectedMethodId.value = methods.value[0]?.id ?? null
+    const available = await listMyPaymentMethods(cartStore.totalAmount);
+    methods.value = available.sort((a, b) => a.sort_order - b.sort_order);
+    selectedMethodId.value = methods.value[0]?.id ?? null;
   } catch {
-    errorMessage.value = 'Impossible de charger les moyens de paiement.'
+    errorMessage.value = 'Impossible de charger les moyens de paiement.';
   } finally {
-    loadingMethods.value = false
+    loadingMethods.value = false;
   }
 
   // Load the user's addresses; pre-select a validated one if available, else the first.
   try {
-    addresses.value = await listMyAddresses()
-    const preferred =
-      addresses.value.find((a) => a.is_validated) ?? addresses.value[0] ?? null
-    selectedAddressId.value = preferred?.id ?? null
+    addresses.value = await listMyAddresses();
+    const preferred = addresses.value.find((a) => a.is_validated) ?? addresses.value[0] ?? null;
+    selectedAddressId.value = preferred?.id ?? null;
   } catch {
     // Non-blocking: the address selector shows an empty state with guidance.
   }
-})
+});
 
 async function startPayment() {
-  const method = methods.value.find((m) => m.id === selectedMethodId.value)
-  if (!method) return
+  const method = methods.value.find((m) => m.id === selectedMethodId.value);
+  if (!method) return;
   if (!isAuthenticated.value) {
-    errorMessage.value = 'Vous devez être connecté pour payer.'
-    return
+    errorMessage.value = 'Vous devez être connecté pour payer.';
+    return;
   }
   if (!selectedAddress.value) {
-    errorMessage.value = 'Veuillez sélectionner une adresse de livraison validée.'
-    return
+    errorMessage.value = 'Veuillez sélectionner une adresse de livraison validée.';
+    return;
   }
 
-  initiating.value = true
-  errorMessage.value = null
+  initiating.value = true;
+  errorMessage.value = null;
 
   try {
-    const returnUrl = `${window.location.origin}/paiement/retour`
+    const returnUrl = `${window.location.origin}/paiement/retour`;
 
     // 1. The storefront cart is client-side — mirror it into the backend cart
     //    so the order can be created from it.
-    await syncCartToBackend()
+    await syncCartToBackend();
 
     // 2. Single call: create the order AND run the provider initiation in one
     //    transaction (empties the backend cart, publishes order.created). No
@@ -413,119 +410,123 @@ async function startPayment() {
       shipping_address: formatAddress(selectedAddress.value),
       payment_method_id: method.id,
       return_url: returnUrl,
-    })
-    orderPlaced.value = true
+    });
+    orderPlaced.value = true;
 
     // 3. Clear the local cart now that the order exists.
-    cartStore.clearCart()
+    cartStore.clearCart();
 
     // Card (Payzen API): render the SmartForm and poll status on return.
     if (checkout.form_token && checkout.server_url && checkout.public_key) {
-      localStorage.setItem(PENDING_PAYMENT_KEY, checkout.payment_id)
-      formToken.value = checkout.form_token
+      localStorage.setItem(PENDING_PAYMENT_KEY, checkout.payment_id);
+      formToken.value = checkout.form_token;
       await loadPayzenSmartForm({
         serverUrl: checkout.server_url,
         publicKey: checkout.public_key,
         token: checkout.form_token,
         returnUrl,
-      })
-      return
+      });
+      return;
     }
 
     // Manual (chèque/virement) or document-validated (BC): show the payment
     // instructions; the order is recorded and awaits validation. The payment id
     // is kept so a Bon de commande can be uploaded for document providers.
     if (checkout.instructions) {
-      instructions.value = checkout.instructions
-      pendingPaymentId.value = checkout.payment_id
-      return
+      instructions.value = checkout.instructions;
+      pendingPaymentId.value = checkout.payment_id;
+      return;
     }
 
     errorMessage.value =
-      "Le moyen de paiement sélectionné n'est pas disponible pour le moment. Veuillez réessayer."
+      "Le moyen de paiement sélectionné n'est pas disponible pour le moment. Veuillez réessayer.";
   } catch (err: unknown) {
     errorMessage.value =
-      extractError(err) ??
-      'Une erreur est survenue lors de la finalisation de la commande.'
+      extractError(err) ?? 'Une erreur est survenue lors de la finalisation de la commande.';
   } finally {
-    initiating.value = false
+    initiating.value = false;
   }
 }
 
 /** Mirror the client-side cart into the backend cart (reset then re-add). */
 async function syncCartToBackend() {
-  await clearMyCart()
+  await clearMyCart();
   for (const { item } of cartStore.detailedItems) {
-    await addCartItem({ product_id: item.product_id, quantity: item.quantity })
+    await addCartItem({ product_id: item.product_id, quantity: item.quantity });
   }
 }
 
 async function uploadDocument() {
-  const file = selectedFile.value
-  if (!file || !pendingPaymentId.value) return
-  uploading.value = true
-  uploadError.value = null
+  const file = selectedFile.value;
+  if (!file || !pendingPaymentId.value) return;
+  uploading.value = true;
+  uploadError.value = null;
   try {
-    const mimetype = file.type || 'application/octet-stream'
+    const mimetype = file.type || 'application/octet-stream';
     const intent = await issueDocumentUploadUrl(pendingPaymentId.value, {
       filename: file.name,
       mimetype,
-    })
-    await uploadFileToPresignedUrl(intent, file)
+    });
+    await uploadFileToPresignedUrl(intent, file);
     await confirmDocumentUploaded(pendingPaymentId.value, {
       fileKey: intent.file_key,
       filename: file.name,
       mimetype,
-    })
-    uploadDone.value = true
+    });
+    uploadDone.value = true;
   } catch (err) {
     uploadError.value =
-      extractError(err) ?? "Échec de l'envoi du bon de commande. Veuillez réessayer."
+      extractError(err) ?? "Échec de l'envoi du bon de commande. Veuillez réessayer.";
   } finally {
-    uploading.value = false
+    uploading.value = false;
   }
 }
 
 function extractError(err: unknown): string | null {
   if (err && typeof err === 'object' && 'response' in err) {
-    const data = (err as { response?: { data?: unknown } }).response?.data
+    const data = (err as { response?: { data?: unknown } }).response?.data;
     if (typeof data === 'object' && data !== null) {
-      const errorObj = (data as { error?: { message?: unknown } }).error
-      if (errorObj && typeof errorObj.message === 'string') return errorObj.message
-      const detail = (data as { detail?: unknown }).detail
-      if (typeof detail === 'string') return detail
+      const errorObj = (data as { error?: { message?: unknown } }).error;
+      if (errorObj && typeof errorObj.message === 'string') return errorObj.message;
+      const detail = (data as { detail?: unknown }).detail;
+      if (typeof detail === 'string') return detail;
     }
   }
-  return null
+  return null;
 }
 
 interface SmartFormOptions {
-  serverUrl: string
-  publicKey: string
-  token: string
-  returnUrl: string
+  serverUrl: string;
+  publicKey: string;
+  token: string;
+  returnUrl: string;
 }
 
-function loadPayzenSmartForm({ serverUrl, publicKey, token, returnUrl }: SmartFormOptions): Promise<void> {
+function loadPayzenSmartForm({
+  serverUrl,
+  publicKey,
+  token,
+  returnUrl,
+}: SmartFormOptions): Promise<void> {
   return new Promise((resolve, reject) => {
-    const existing = document.getElementById('kr-payzen-script')
-    if (existing) existing.remove()
+    const existing = document.getElementById('kr-payzen-script');
+    if (existing) existing.remove();
 
-    const script = document.createElement('script')
-    script.id = 'kr-payzen-script'
-    script.src = `${serverUrl}/static/js/krypton-client/V4.0/ext/smartform.min.js`
-    script.setAttribute('kr-public-key', publicKey)
-    script.setAttribute('kr-post-url-success', returnUrl)
-    script.setAttribute('kr-language', 'fr-FR')
+    const script = document.createElement('script');
+    script.id = 'kr-payzen-script';
+    script.src = `${serverUrl}/static/js/krypton-client/V4.0/ext/smartform.min.js`;
+    script.setAttribute('kr-public-key', publicKey);
+    script.setAttribute('kr-post-url-success', returnUrl);
+    script.setAttribute('kr-language', 'fr-FR');
     script.onload = () => {
-      const container = document.getElementById('kr-smart-form-container')
+      const container = document.getElementById('kr-smart-form-container');
       if (container) {
-        container.innerHTML = `<div class="kr-smart-form" kr-form-token="${token}"></div>`
+        container.innerHTML = `<div class="kr-smart-form" kr-form-token="${token}"></div>`;
       }
-      resolve()
-    }
-    script.onerror = () => reject(new Error('Impossible de charger le script Payzen'))
-    document.head.appendChild(script)
-  })
+      resolve();
+    };
+    script.onerror = () => reject(new Error('Impossible de charger le script Payzen'));
+    document.head.appendChild(script);
+  });
 }
 </script>

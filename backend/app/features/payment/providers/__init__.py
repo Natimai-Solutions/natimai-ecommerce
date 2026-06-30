@@ -38,6 +38,17 @@ def get_provider(provider_code: str) -> PaymentProvider:
     return provider_class()
 
 
+def provider_supports_in_app_refund(provider_code: str | None) -> bool:
+    """Whether the admin UI can initiate a refund for this provider (else hidden).
+
+    Unknown / missing codes default to ``False``.
+    """
+    if not provider_code:
+        return False
+    provider_class = SUPPORTED_PROVIDERS.get(provider_code.strip().lower())
+    return bool(provider_class and provider_class.supports_in_app_refund)
+
+
 __all__ = [
     "ApiPaymentProvider",
     "AttachmentResult",
@@ -56,4 +67,5 @@ __all__ = [
     "ValidationResult",
     "WebhookResult",
     "get_provider",
+    "provider_supports_in_app_refund",
 ]

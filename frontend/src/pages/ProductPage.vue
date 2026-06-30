@@ -66,9 +66,7 @@
           <div v-if="product.vendor_part_number" class="text-caption text-grey-5">
             Réf. {{ product.vendor_part_number }}
           </div>
-          <div v-if="product.ean" class="text-caption text-grey-5">
-            EAN {{ product.ean }}
-          </div>
+          <div v-if="product.ean" class="text-caption text-grey-5">EAN {{ product.ean }}</div>
 
           <div class="text-h4 text-weight-bold text-primary q-mt-md">
             {{ displayPrice }}
@@ -80,10 +78,7 @@
             Prix sur devis
           </div>
 
-          <div
-            class="text-body2 q-mt-sm"
-            :class="isOutOfStock ? 'text-grey-6' : 'text-positive'"
-          >
+          <div class="text-body2 q-mt-sm" :class="isOutOfStock ? 'text-grey-6' : 'text-positive'">
             <q-icon name="inventory_2" size="16px" class="q-mr-xs" />
             <span v-if="isOutOfStock">Sur commande</span>
             <span v-else>{{ stockQuantity }} en stock fournisseur</span>
@@ -149,134 +144,136 @@
 </template>
 
 <script setup lang="ts">
-import DOMPurify from 'isomorphic-dompurify'
-import { useMeta } from 'quasar'
-import { computed, onMounted, onServerPrefetch, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import type { components } from '@app/api-types'
+import DOMPurify from 'isomorphic-dompurify';
+import { useMeta } from 'quasar';
+import { computed, onMounted, onServerPrefetch, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import type { components } from '@app/api-types';
 import {
   getProductById,
   getProductShippingModes,
   type ShippingModePricePublic,
-} from 'src/api/products'
-import { useCartStore } from 'src/stores/cart'
-import { useCurrencyStore } from 'src/stores/currency'
-import { getProductRouteByIdAndName, slugifyProductName } from 'src/utils/productRoute'
+} from 'src/api/products';
+import { useCartStore } from 'src/stores/cart';
+import { useCurrencyStore } from 'src/stores/currency';
+import { getProductRouteByIdAndName, slugifyProductName } from 'src/utils/productRoute';
 
-type ProductPublic = components['schemas']['ProductPublic']
-type Spec = { name: string; value: string; unit: string }
+type ProductPublic = components['schemas']['ProductPublic'];
+type Spec = { name: string; value: string; unit: string };
 
-const route = useRoute()
-const router = useRouter()
-const cartStore = useCartStore()
-const currencyStore = useCurrencyStore()
+const route = useRoute();
+const router = useRouter();
+const cartStore = useCartStore();
+const currencyStore = useCurrencyStore();
 
-const placeholderImg = '/icons/placeholder-product.svg'
-const product = ref<ProductPublic | null>(null)
-const loading = ref(true)
-const error = ref<string | null>(null)
-const cartFeedback = ref<{ ok: boolean; message: string } | null>(null)
-const selectedImage = ref<string | null>(null)
+const placeholderImg = '/icons/placeholder-product.svg';
+const product = ref<ProductPublic | null>(null);
+const loading = ref(true);
+const error = ref<string | null>(null);
+const cartFeedback = ref<{ ok: boolean; message: string } | null>(null);
+const selectedImage = ref<string | null>(null);
 
-const shippingModes = ref<ShippingModePricePublic[]>([])
-const selectedModeKey = ref<string | null>(null)
+const shippingModes = ref<ShippingModePricePublic[]>([]);
+const selectedModeKey = ref<string | null>(null);
 
 const isOutOfStock = computed(() => {
-  if (!product.value) return true
-  return parseFloat(product.value.supplier_quantity) <= 0
-})
+  if (!product.value) return true;
+  return parseFloat(product.value.supplier_quantity) <= 0;
+});
 
 const stockQuantity = computed(() => {
-  if (!product.value) return 0
-  return Math.max(0, Math.round(parseFloat(product.value.supplier_quantity)))
-})
+  if (!product.value) return 0;
+  return Math.max(0, Math.round(parseFloat(product.value.supplier_quantity)));
+});
 
 const selectedMode = computed(
   () => shippingModes.value.find((m) => m.service_level === selectedModeKey.value) ?? null,
-)
+);
 
 const displayPrice = computed(() => {
   if (selectedMode.value) {
-    const price = parseFloat(selectedMode.value.sale_price)
-    return price > 0 ? currencyStore.format(price) : '—'
+    const price = parseFloat(selectedMode.value.sale_price);
+    return price > 0 ? currencyStore.format(price) : '—';
   }
-  if (!product.value) return '—'
-  const price = parseFloat(product.value.base_price)
-  if (price === 0) return '—'
-  return currencyStore.format(price)
-})
+  if (!product.value) return '—';
+  const price = parseFloat(product.value.base_price);
+  if (price === 0) return '—';
+  return currencyStore.format(price);
+});
 
 const safeDescription = computed(() => {
-  const raw = product.value?.long_description ?? product.value?.description ?? ''
-  return raw ? DOMPurify.sanitize(raw) : ''
-})
+  const raw = product.value?.long_description ?? product.value?.description ?? '';
+  return raw ? DOMPurify.sanitize(raw) : '';
+});
 
 const plainDescription = computed(() =>
-  safeDescription.value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
-)
+  safeDescription.value
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim(),
+);
 
 const features = computed(() =>
   (product.value?.features ?? []).map((f) => String(f).trim()).filter(Boolean),
-)
+);
 
 function toStr(v: unknown): string {
-  return typeof v === 'string' || typeof v === 'number' ? String(v).trim() : ''
+  return typeof v === 'string' || typeof v === 'number' ? String(v).trim() : '';
 }
 
 const specGroups = computed<{ group: string; specs: Spec[] }[]>(() => {
-  const groups = new Map<string, Spec[]>()
+  const groups = new Map<string, Spec[]>();
   for (const raw of product.value?.technical_specifications ?? []) {
-    const name = toStr(raw['name']) || toStr(raw['label']) || toStr(raw['feature'])
-    const value = toStr(raw['value']) || toStr(raw['presentation_value'])
-    if (!name || !value) continue
-    const group = toStr(raw['group'])
-    const unit = toStr(raw['unit'])
-    const arr = groups.get(group) ?? []
-    arr.push({ name, value, unit })
-    groups.set(group, arr)
+    const name = toStr(raw['name']) || toStr(raw['label']) || toStr(raw['feature']);
+    const value = toStr(raw['value']) || toStr(raw['presentation_value']);
+    if (!name || !value) continue;
+    const group = toStr(raw['group']);
+    const unit = toStr(raw['unit']);
+    const arr = groups.get(group) ?? [];
+    arr.push({ name, value, unit });
+    groups.set(group, arr);
   }
-  return [...groups.entries()].map(([group, specs]) => ({ group, specs }))
-})
+  return [...groups.entries()].map(([group, specs]) => ({ group, specs }));
+});
 
 function pickUrl(obj: unknown): string | null {
-  if (typeof obj === 'string') return obj
+  if (typeof obj === 'string') return obj;
   if (obj && typeof obj === 'object' && 'url' in obj) {
-    const u = (obj as Record<string, unknown>)['url']
-    return typeof u === 'string' ? u : null
+    const u = (obj as Record<string, unknown>)['url'];
+    return typeof u === 'string' ? u : null;
   }
-  return null
+  return null;
 }
 
 const gallery = computed<string[]>(() => {
-  const urls: string[] = []
-  const main = product.value?.image_url ?? product.value?.supplier_image_url
-  if (main) urls.push(main)
+  const urls: string[] = [];
+  const main = product.value?.image_url ?? product.value?.supplier_image_url;
+  if (main) urls.push(main);
   for (const raw of product.value?.icecat_images ?? []) {
     const url =
       pickUrl(raw['medium']) ??
       pickUrl(raw['low']) ??
       pickUrl(raw['high']) ??
       pickUrl(raw['thumb']) ??
-      pickUrl(raw)
-    if (url && !urls.includes(url)) urls.push(url)
+      pickUrl(raw);
+    if (url && !urls.includes(url)) urls.push(url);
   }
-  return urls
-})
+  return urls;
+});
 
-const mainImage = computed(() => selectedImage.value ?? gallery.value[0] ?? null)
+const mainImage = computed(() => selectedImage.value ?? gallery.value[0] ?? null);
 
-const publicSiteUrl =
-  import.meta.env.VITE_PUBLIC_SITE_URL?.replace(/\/$/, '') ?? ''
+const publicSiteUrl = import.meta.env.VITE_PUBLIC_SITE_URL?.replace(/\/$/, '') ?? '';
 
 const canonicalHref = computed(() => {
-  if (!publicSiteUrl || !product.value) return ''
-  return `${publicSiteUrl}${route.path}`
-})
+  if (!publicSiteUrl || !product.value) return '';
+  return `${publicSiteUrl}${route.path}`;
+});
 
 useMeta(() => {
-  const title = product.value ? `${product.value.name} | Natimai` : 'Produit | Natimai'
+  const title = product.value ? `${product.value.name} | Natimai` : 'Produit | Natimai';
   const description =
-    plainDescription.value || 'Consultez les détails et caractéristiques du produit.'
+    plainDescription.value || 'Consultez les détails et caractéristiques du produit.';
   const meta: Record<string, { name?: string; property?: string; content: string }> = {
     description: {
       name: 'description',
@@ -294,126 +291,126 @@ useMeta(() => {
       property: 'og:type',
       content: 'product',
     },
-  }
+  };
 
-  const link: Record<string, { rel: string; href: string }> = {}
+  const link: Record<string, { rel: string; href: string }> = {};
   if (canonicalHref.value) {
     meta['ogUrl'] = {
       property: 'og:url',
       content: canonicalHref.value,
-    }
+    };
     link['canonical'] = {
       rel: 'canonical',
       href: canonicalHref.value,
-    }
+    };
   }
 
   return {
     title,
     meta,
     link,
-  }
-})
+  };
+});
 
 async function loadProduct() {
-  loading.value = true
-  error.value = null
-  selectedImage.value = null
-  shippingModes.value = []
-  selectedModeKey.value = null
+  loading.value = true;
+  error.value = null;
+  selectedImage.value = null;
+  shippingModes.value = [];
+  selectedModeKey.value = null;
 
-  const routeId = typeof route.params.id === 'string' ? route.params.id : null
+  const routeId = typeof route.params.id === 'string' ? route.params.id : null;
   if (!routeId) {
-    product.value = null
-    error.value = 'Produit introuvable'
-    loading.value = false
-    return
+    product.value = null;
+    error.value = 'Produit introuvable';
+    loading.value = false;
+    return;
   }
 
   try {
-    const data = await getProductById(routeId)
-    product.value = data
+    const data = await getProductById(routeId);
+    product.value = data;
 
     // Shipping modes are interactive/client-only — skip on SSR
     if (typeof window !== 'undefined') {
-      void loadShippingModes(routeId)
+      void loadShippingModes(routeId);
     }
 
-    const expectedSlug = slugifyProductName(data.name)
-    const currentSlug = typeof route.params.slug === 'string' ? route.params.slug : ''
+    const expectedSlug = slugifyProductName(data.name);
+    const currentSlug = typeof route.params.slug === 'string' ? route.params.slug : '';
     if (expectedSlug && expectedSlug !== currentSlug) {
       void router.replace({
         ...getProductRouteByIdAndName(data.id, data.name),
         query: route.query,
-      })
+      });
     }
   } catch (e) {
-    product.value = null
+    product.value = null;
     const requestError = e as {
-      response?: { status?: number; data?: { detail?: string; message?: string } }
-      message?: string
-    }
+      response?: { status?: number; data?: { detail?: string; message?: string } };
+      message?: string;
+    };
     if (requestError.response?.status === 404) {
-      error.value = 'Produit introuvable'
+      error.value = 'Produit introuvable';
     } else {
       error.value =
         requestError.response?.data?.message ??
         requestError.response?.data?.detail ??
         requestError.message ??
-        'Erreur inconnue'
+        'Erreur inconnue';
     }
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 async function onAddToCart() {
-  if (!product.value) return
+  if (!product.value) return;
 
-  cartFeedback.value = null
-  const ok = await cartStore.addItem(product.value.id, 1, product.value)
+  cartFeedback.value = null;
+  const ok = await cartStore.addItem(product.value.id, 1, product.value);
   if (ok) {
     cartFeedback.value = {
       ok: true,
       message: `${product.value.name} ajoute au panier.`,
-    }
-    return
+    };
+    return;
   }
 
   cartFeedback.value = {
     ok: false,
-    message: cartStore.error ?? 'Impossible d\'ajouter cet article au panier.',
-  }
+    message: cartStore.error ?? "Impossible d'ajouter cet article au panier.",
+  };
 }
 
 async function loadShippingModes(productId: string): Promise<void> {
   try {
-    const data = await getProductShippingModes(productId)
-    shippingModes.value = data.shipping_modes
+    const data = await getProductShippingModes(productId);
+    shippingModes.value = data.shipping_modes;
     // Price shown for the default service level (resolved server-side, which
     // prefers the user's preferred_shipping_mode). The delivery mode is chosen
     // per order at checkout, not per product.
-    selectedModeKey.value = data.default_mode
+    selectedModeKey.value = data.default_mode;
   } catch {
-    shippingModes.value = []
-    selectedModeKey.value = null
+    shippingModes.value = [];
+    selectedModeKey.value = null;
   }
 }
 
-onServerPrefetch(loadProduct)
+onServerPrefetch(loadProduct);
 
 onMounted(async () => {
-  await loadProduct()
-})
+  await loadProduct();
+});
 
 watch(
   () => route.params.id,
   (current, previous) => {
     if (current && current !== previous) {
-      void loadProduct()
+      void loadProduct();
     }
   },
-)
+);
 </script>
 
 <style scoped lang="scss">

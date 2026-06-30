@@ -45,9 +45,7 @@
           <div v-if="product.vendor_part_number" class="text-caption text-grey-5">
             Réf. {{ product.vendor_part_number }}
           </div>
-          <div v-if="product.ean" class="text-caption text-grey-5">
-            EAN {{ product.ean }}
-          </div>
+          <div v-if="product.ean" class="text-caption text-grey-5">EAN {{ product.ean }}</div>
 
           <div class="text-h5 text-weight-bold text-primary q-mt-md">
             {{ displayPrice }}
@@ -59,10 +57,7 @@
             Prix sur devis
           </div>
 
-          <div
-            class="text-body2 q-mt-sm"
-            :class="isOutOfStock ? 'text-grey-6' : 'text-positive'"
-          >
+          <div class="text-body2 q-mt-sm" :class="isOutOfStock ? 'text-grey-6' : 'text-positive'">
             <q-icon name="inventory_2" size="16px" class="q-mr-xs" />
             <span v-if="isOutOfStock">Sur commande</span>
             <span v-else>{{ stockQuantity }} en stock fournisseur</span>
@@ -126,129 +121,126 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import DOMPurify from 'isomorphic-dompurify'
-import type { components } from '@app/api-types'
-import {
-  getProductShippingModes,
-  type ShippingModePricePublic,
-} from 'src/api/products'
-import { getProductRoute } from 'src/utils/productRoute'
-import { useCurrencyStore } from 'src/stores/currency'
+import { computed, ref, watch } from 'vue';
+import DOMPurify from 'isomorphic-dompurify';
+import type { components } from '@app/api-types';
+import { getProductShippingModes, type ShippingModePricePublic } from 'src/api/products';
+import { getProductRoute } from 'src/utils/productRoute';
+import { useCurrencyStore } from 'src/stores/currency';
 
-type ProductPublic = components['schemas']['ProductPublic']
+type ProductPublic = components['schemas']['ProductPublic'];
 
-const props = defineProps<{ product: ProductPublic }>()
-const emit = defineEmits<{ 'add-to-cart': [product: ProductPublic] }>()
-const open = defineModel<boolean>({ default: false })
-const currencyStore = useCurrencyStore()
-const productRoute = computed(() => getProductRoute(props.product))
+const props = defineProps<{ product: ProductPublic }>();
+const emit = defineEmits<{ 'add-to-cart': [product: ProductPublic] }>();
+const open = defineModel<boolean>({ default: false });
+const currencyStore = useCurrencyStore();
+const productRoute = computed(() => getProductRoute(props.product));
 
-const shippingModes = ref<ShippingModePricePublic[]>([])
-const selectedModeKey = ref<string | null>(null)
+const shippingModes = ref<ShippingModePricePublic[]>([]);
+const selectedModeKey = ref<string | null>(null);
 
 watch(open, async (isOpen) => {
   if (isOpen) {
-    await loadShippingModes()
+    await loadShippingModes();
   } else {
-    shippingModes.value = []
-    selectedModeKey.value = null
+    shippingModes.value = [];
+    selectedModeKey.value = null;
   }
-})
+});
 
 async function loadShippingModes(): Promise<void> {
   try {
-    const data = await getProductShippingModes(props.product.id)
-    shippingModes.value = data.shipping_modes
+    const data = await getProductShippingModes(props.product.id);
+    shippingModes.value = data.shipping_modes;
     // Price shown for the default service level (resolved server-side, which
     // prefers the user's preferred_shipping_mode). The delivery mode is chosen
     // per order at checkout, not per product.
-    selectedModeKey.value = data.default_mode
+    selectedModeKey.value = data.default_mode;
   } catch {
-    shippingModes.value = []
-    selectedModeKey.value = null
+    shippingModes.value = [];
+    selectedModeKey.value = null;
   }
 }
 
 const selectedMode = computed(
   () => shippingModes.value.find((m) => m.service_level === selectedModeKey.value) ?? null,
-)
+);
 
-const placeholderImg = '/icons/placeholder-product.svg'
+const placeholderImg = '/icons/placeholder-product.svg';
 
-const isOutOfStock = computed(() => parseFloat(props.product.supplier_quantity) <= 0)
+const isOutOfStock = computed(() => parseFloat(props.product.supplier_quantity) <= 0);
 
 const stockQuantity = computed(() =>
   Math.max(0, Math.round(parseFloat(props.product.supplier_quantity))),
-)
+);
 
 const displayPrice = computed(() => {
   if (selectedMode.value) {
-    const price = parseFloat(selectedMode.value.sale_price)
-    return price > 0 ? currencyStore.format(price) : '—'
+    const price = parseFloat(selectedMode.value.sale_price);
+    return price > 0 ? currencyStore.format(price) : '—';
   }
-  const price = parseFloat(props.product.base_price)
-  if (price === 0) return '—'
-  return currencyStore.format(price)
-})
+  const price = parseFloat(props.product.base_price);
+  if (price === 0) return '—';
+  return currencyStore.format(price);
+});
 
 const safeDescription = computed(() => {
-  const raw = props.product.long_description ?? props.product.description ?? ''
-  return raw ? DOMPurify.sanitize(raw) : ''
-})
+  const raw = props.product.long_description ?? props.product.description ?? '';
+  return raw ? DOMPurify.sanitize(raw) : '';
+});
 
 const features = computed(() =>
   (props.product.features ?? []).map((f) => String(f).trim()).filter(Boolean),
-)
+);
 
-type Spec = { name: string; value: string; unit: string }
+type Spec = { name: string; value: string; unit: string };
 
 function toStr(v: unknown): string {
-  return typeof v === 'string' || typeof v === 'number' ? String(v).trim() : ''
+  return typeof v === 'string' || typeof v === 'number' ? String(v).trim() : '';
 }
 
 const specGroups = computed<{ group: string; specs: Spec[] }[]>(() => {
-  const groups = new Map<string, Spec[]>()
+  const groups = new Map<string, Spec[]>();
   for (const raw of props.product.technical_specifications ?? []) {
-    const name = toStr(raw['name']) || toStr(raw['label']) || toStr(raw['feature'])
-    const value = toStr(raw['value']) || toStr(raw['presentation_value'])
-    if (!name || !value) continue
-    const group = toStr(raw['group'])
-    const unit = toStr(raw['unit'])
-    const arr = groups.get(group) ?? []
-    arr.push({ name, value, unit })
-    groups.set(group, arr)
+    const name = toStr(raw['name']) || toStr(raw['label']) || toStr(raw['feature']);
+    const value = toStr(raw['value']) || toStr(raw['presentation_value']);
+    if (!name || !value) continue;
+    const group = toStr(raw['group']);
+    const unit = toStr(raw['unit']);
+    const arr = groups.get(group) ?? [];
+    arr.push({ name, value, unit });
+    groups.set(group, arr);
   }
-  return [...groups.entries()].map(([group, specs]) => ({ group, specs }))
-})
+  return [...groups.entries()].map(([group, specs]) => ({ group, specs }));
+});
 
 function pickUrl(obj: unknown): string | null {
-  if (typeof obj === 'string') return obj
+  if (typeof obj === 'string') return obj;
   if (obj && typeof obj === 'object' && 'url' in obj) {
-    const u = (obj as Record<string, unknown>)['url']
-    return typeof u === 'string' ? u : null
+    const u = (obj as Record<string, unknown>)['url'];
+    return typeof u === 'string' ? u : null;
   }
-  return null
+  return null;
 }
 
 const gallery = computed<string[]>(() => {
-  const urls: string[] = []
-  const main = props.product.image_url ?? props.product.supplier_image_url
-  if (main) urls.push(main)
+  const urls: string[] = [];
+  const main = props.product.image_url ?? props.product.supplier_image_url;
+  if (main) urls.push(main);
   for (const raw of props.product.icecat_images ?? []) {
     const url =
       pickUrl(raw['medium']) ??
       pickUrl(raw['low']) ??
       pickUrl(raw['high']) ??
       pickUrl(raw['thumb']) ??
-      pickUrl(raw)
-    if (url && !urls.includes(url)) urls.push(url)
+      pickUrl(raw);
+    if (url && !urls.includes(url)) urls.push(url);
   }
-  return urls
-})
+  return urls;
+});
 
-const selectedImage = ref<string | null>(null)
-const mainImage = computed(() => selectedImage.value ?? gallery.value[0] ?? null)
+const selectedImage = ref<string | null>(null);
+const mainImage = computed(() => selectedImage.value ?? gallery.value[0] ?? null);
 </script>
 
 <style scoped lang="scss">

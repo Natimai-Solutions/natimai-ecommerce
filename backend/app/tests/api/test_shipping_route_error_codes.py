@@ -103,6 +103,32 @@ async def test_load_active_routes_maps_unknown_or_inactive_routes() -> None:
     assert exc_info.value.details == {"route_ids": [str(route_id)]}
 
 
+def test_shipping_route_public_serializes_json_metadata() -> None:
+    """Regression: route_metadata / max_dimensions_m are JSON objects, not strings.
+
+    A ``str``-typed field over a JSON column made ``GET /shipping/route`` raise a
+    500 (ResponseValidationError) whenever a route carried object metadata.
+    """
+    from app.features.shipping.models.route import (
+        ShippingRoute,
+        ShippingRoutePublic,
+    )
+
+    route = ShippingRoute(
+        from_place_id=uuid4(),
+        to_place_id=uuid4(),
+        name="France → Tahiti",
+        mode="sea",
+        route_metadata={"dim_factor_kg_per_m3": "167"},
+        max_dimensions_m={"length": "1.2", "width": "0.8", "height": "0.5"},
+    )
+
+    public = ShippingRoutePublic.model_validate(route, from_attributes=True)
+
+    assert public.route_metadata == {"dim_factor_kg_per_m3": "167"}
+    assert public.max_dimensions_m == {"length": "1.2", "width": "0.8", "height": "0.5"}
+
+
 def test_get_optimal_path_returns_shipping_route_not_found(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

@@ -1,0 +1,13 @@
+{% extends "_layout.html" %}
+{% block title %}Paiement échoué{% endblock %}
+{% block header_color %}#7a1a1a{% endblock %}
+{% block extra_style %}.badge { background: #fdecea; color: #7a1a1a; }{% endblock %}
+{% block heading %}Paiement non abouti{% endblock %}
+{% block content %}
+      <p>Bonjour {{ full_name }},</p>
+      <span class="badge">Paiement refusé</span>
+      <p>Malheureusement, votre paiement pour la commande <strong>{{ order_id }}</strong> n'a pas pu être traité.</p>
+      {% if reason %}<div class="reason">{{ reason }}</div>{% endif %}
+      <p>Veuillez réessayer ou contacter notre support si le problème persiste.</p>
+      <p>L'équipe {{ shop_name }}</p>
+{% endblock %}

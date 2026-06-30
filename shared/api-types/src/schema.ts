@@ -15,7 +15,10 @@ export interface paths {
         put?: never;
         /**
          * Login Access Token
-         * @description OAuth2 compatible token login, get an access token and refresh token for future requests
+         * @description OAuth2 compatible password login.
+         *
+         *     Returns the access token in the body (held in SPA memory) and sets the
+         *     refresh token as an HttpOnly cookie.
          */
         post: operations["login-login_access_token"];
         delete?: never;
@@ -35,9 +38,138 @@ export interface paths {
         put?: never;
         /**
          * Refresh Access Token
-         * @description Execute refresh access token.
+         * @description Rotate the refresh token (read from the HttpOnly cookie) and mint a new
+         *     access token. The new refresh token is written back as a cookie.
          */
         post: operations["login-refresh_access_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/login/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout
+         * @description Revoke the current refresh-token session and clear the cookie.
+         *
+         *     Idempotent: always clears the cookie and returns 204, even if the cookie is
+         *     missing or already invalid.
+         */
+        post: operations["login-logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/{provider}/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Oauth Login
+         * @description Redirect the browser to the provider OAuth authorization page.
+         *
+         *     Generates a CSRF state token stored in Redis (TTL 5 min).
+         */
+        get: operations["oauth-oauth_login"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/{provider}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Oauth Callback
+         * @description Handle the OAuth provider callback.
+         *
+         *     Exchanges the authorization code, resolves the user, issues JWT tokens,
+         *     and redirects the browser to the frontend with the tokens in query params.
+         */
+        get: operations["oauth-oauth_callback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/signup/send-otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Otp
+         * @description Email a verification code (refuses if the address already has an account).
+         */
+        post: operations["signup-send_otp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/signup/verify-otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Otp Route
+         * @description Validate the code and return a single-use signup token.
+         */
+        post: operations["signup-verify_otp_route"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/signup/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Signup
+         * @description Create the account (email already verified) and log the user in.
+         */
+        post: operations["signup-complete_signup"];
         delete?: never;
         options?: never;
         head?: never;
@@ -263,7 +395,7 @@ export interface paths {
         put?: never;
         /**
          * Initiate Payment
-         * @description Execute initiate payment.
+         * @description Initiate a standalone payment for a method (CB SmartForm / manual / document).
          */
         post: operations["payment-initiate_payment"];
         delete?: never;
@@ -306,6 +438,56 @@ export interface paths {
          * @description Execute confirm document uploaded.
          */
         post: operations["payment-confirm_document_uploaded"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/me/methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Payment Methods
+         * @description Return active payment methods available for the authenticated user.
+         *
+         *     Filters by the user's price group and optional cart_total (max_amount check).
+         *     Methods with no eligibility restriction are always included.
+         *
+         *     IMPORTANT: declared BEFORE ``/me/{payment_id}`` — otherwise Starlette matches
+         *     ``/me/methods`` against the parametrized route and tries to parse "methods"
+         *     as a payment_id UUID (422).
+         */
+        get: operations["payment-list_my_payment_methods"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/me/{payment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Payment Status
+         * @description Return the current status of a payment belonging to the authenticated user.
+         *
+         *     Designed for frontend polling after a Payzen SmartForm submission.
+         *     Returns immediately with the latest DB state — no blocking wait.
+         */
+        get: operations["payment-get_my_payment_status"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -412,6 +594,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payments/{payment_id}/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refund Payment Route
+         * @description Refund a payment — full when ``amount`` is omitted, partial otherwise.
+         *
+         *     Manual / purchase-order payments are refunded immediately; PayZen refunds are
+         *     recorded as ``pending`` to finalise in the provider back office.
+         */
+        post: operations["admin-payment-refund_payment_route"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payments/{payment_id}/capture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Capture Payment Route
+         * @description Capture an authorised card payment (deferred debit, e.g. at shipment).
+         */
+        post: operations["admin-payment-capture_payment_route"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payments/{payment_id}/attachments": {
         parameters: {
             query?: never;
@@ -444,6 +669,298 @@ export interface paths {
          * @description Get attachment download url.
          */
         get: operations["admin-payment-get_attachment_download_url"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Orders
+         * @description List customer orders (most recent first) with client and status names.
+         */
+        get: operations["admin-order-list_orders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Order Detail
+         * @description Return the enriched detail of one order: client, status, lines, payments.
+         */
+        get: operations["admin-order-get_order_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shipping/pending-grouping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Pending Grouping
+         * @description Trackings not yet attached to a consolidation (ready to group).
+         */
+        get: operations["admin-shipping-list_pending_grouping"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shipping/consolidations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Consolidations
+         * @description All consolidations, newest first.
+         */
+        get: operations["admin-shipping-list_consolidations"];
+        put?: never;
+        /**
+         * Create Consolidation
+         * @description Create an empty consolidation for a route (then attach trackings).
+         */
+        post: operations["admin-shipping-create_consolidation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shipping/consolidations/{consolidation_id}/add-trackings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Trackings
+         * @description Bulk-attach trackings to a consolidation.
+         */
+        post: operations["admin-shipping-add_trackings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shipping/consolidations/{consolidation_id}/ship-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ship Consolidation
+         * @description Mark all trackings of a consolidation as shipped and stamp the carrier ref.
+         */
+        post: operations["admin-shipping-ship_consolidation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shipping/trackings/{tracking_id}/ship": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ship Tracking
+         * @description Mark a single tracking as shipped (requires the carrier reference).
+         */
+        post: operations["admin-shipping-ship_tracking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shipping/trackings/{tracking_id}/deliver": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deliver Tracking
+         * @description Mark a single tracking as delivered (terminal).
+         */
+        post: operations["admin-shipping-deliver_tracking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shipping/trackings/{tracking_id}/advance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Advance Tracking
+         * @description Complete this leg (tronçon) and activate the next one in the order's
+         *     multi-hop journey. ``activate_next_route`` commits internally.
+         */
+        post: operations["admin-shipping-advance_tracking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shipping/consolidations/{consolidation_id}/advance-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Advance Consolidation
+         * @description Advance every parcel of a consolidation to its next leg.
+         */
+        post: operations["admin-shipping-advance_consolidation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shipping/orders/{order_id}/journey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Order Journey
+         * @description Ordered legs (tronçons 1..N) of an order's journey, with resolved status
+         *     and place names — feeds the admin « parcours du colis » timeline.
+         */
+        get: operations["admin-shipping-order_journey"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payment-methods/{payment_method_id}/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Eligible Groups
+         * @description List price groups that are explicitly allowed to use a payment method.
+         *
+         *     An empty list means the method is open to all groups (no restriction).
+         */
+        get: operations["admin-payment-list_eligible_groups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payment-methods/{payment_method_id}/groups/{price_group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Eligible Group
+         * @description Allow a price group to use a payment method. Idempotent.
+         */
+        post: operations["admin-payment-add_eligible_group"];
+        /**
+         * Remove Eligible Group
+         * @description Remove a price group restriction from a payment method. Idempotent.
+         */
+        delete: operations["admin-payment-remove_eligible_group"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/price-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Price Groups
+         * @description List all active price groups (ordered by label).
+         */
+        get: operations["admin-price-groups-list_price_groups"];
         put?: never;
         post?: never;
         delete?: never;
@@ -494,6 +1011,208 @@ export interface paths {
         put: operations["admin-currency-rates-upsert_currency_rate"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/tax-rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Tax Rates
+         * @description List tax rates with optional filters.
+         */
+        get: operations["admin-tax-rates-list_tax_rates"];
+        put?: never;
+        /**
+         * Create Tax Rate
+         * @description Create a new tax rate (never modifies an existing one).
+         */
+        post: operations["admin-tax-rates-create_tax_rate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/tax-rates/{tax_rate_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Tax Rate
+         * @description Update label or set valid_until to close a tax rate.
+         *
+         *     Modifying rate_pct is forbidden — create a new rate with a new valid_from instead.
+         */
+        put: operations["admin-tax-rates-update_tax_rate"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/products/{product_id}/tax-rate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Assign Tax Rate To Product
+         * @description Assign (or clear) the tax rate on a product.
+         */
+        put: operations["admin-tax-rates-assign_tax_rate_to_product"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/categories/{category_id}/tax-rate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Assign Tax Rate To Category
+         * @description Assign (or clear) the default tax rate on a category.
+         */
+        put: operations["admin-tax-rates-assign_tax_rate_to_category"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/supplier-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Supplier Orders
+         * @description List supplier orders (most recent first) with optional filters.
+         */
+        get: operations["supplier-list_supplier_orders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/supplier-orders/{supplier_order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Supplier Order
+         * @description Fetch a single supplier order.
+         */
+        get: operations["supplier-get_supplier_order"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/supplier-orders/{supplier_order_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Supplier Order
+         * @description Manually re-attempt creating the Ingram PO for this supplier order's local order.
+         *
+         *     Idempotent: an already-``SUBMITTED`` order is returned unchanged. On an Ingram
+         *     API failure the persisted ``ERROR`` record is returned (200 with the error
+         *     message) rather than surfacing a 5xx, so operators can read why it failed.
+         */
+        post: operations["supplier-retry_supplier_order"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/spec-definitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Spec Definitions
+         * @description List all spec definitions.
+         */
+        get: operations["admin-spec-list_spec_definitions"];
+        put?: never;
+        /**
+         * Create Spec Definition
+         * @description Create a new spec definition. Triggers re-projection.
+         */
+        post: operations["admin-spec-create_spec_definition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/spec-definitions/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Spec Definition
+         * @description Get a single spec definition by key.
+         */
+        get: operations["admin-spec-get_spec_definition"];
+        /**
+         * Update Spec Definition
+         * @description Update a spec definition. Triggers re-projection.
+         */
+        put: operations["admin-spec-update_spec_definition"];
+        post?: never;
+        /**
+         * Delete Spec Definition
+         * @description Soft-delete a spec definition (sets is_active=False). Triggers re-projection.
+         */
+        delete: operations["admin-spec-delete_spec_definition"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1050,6 +1769,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/group/pricing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Pricing Groups
+         * @description Get all pricing/discount groups
+         */
+        get: operations["group-get_pricing_groups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/group/": {
         parameters: {
             query?: never;
@@ -1114,26 +1853,6 @@ export interface paths {
          * @description Get all groups of a specific type
          */
         get: operations["group-get_groups_by_type"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/group/pricing": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Pricing Groups
-         * @description Get all pricing/discount groups
-         */
-        get: operations["group-get_pricing_groups"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1462,6 +2181,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orders/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List my orders
+         * @description List the authenticated user's orders (most recent first).
+         */
+        get: operations["order-list_my_orders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/me/{order_id}/tracking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get tracking for my order
+         * @description Return aggregated tracking information for one of the authenticated user's orders.
+         */
+        get: operations["order-get_my_order_tracking"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/order-line/": {
         parameters: {
             query?: never;
@@ -1626,6 +2385,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/address/users/me/addresses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Addresses
+         * @description List all addresses belonging to the authenticated user.
+         */
+        get: operations["address-get_my_addresses"];
+        put?: never;
+        /**
+         * Create My Address
+         * @description Create a new address for the authenticated user.
+         */
+        post: operations["address-create_my_address"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/address/users/me/addresses/{address_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Address
+         * @description Get a specific address belonging to the authenticated user.
+         */
+        get: operations["address-get_my_address"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete My Address
+         * @description Delete a specific address belonging to the authenticated user.
+         */
+        delete: operations["address-delete_my_address"];
+        options?: never;
+        head?: never;
+        /**
+         * Update My Address
+         * @description Update a specific address belonging to the authenticated user.
+         *
+         *     is_validated cannot be modified here — use the admin validate endpoint.
+         */
+        patch: operations["address-update_my_address"];
+        trace?: never;
+    };
     "/api/v1/address/users/{user_id}/addresses": {
         parameters: {
             query?: never;
@@ -1676,6 +2489,29 @@ export interface paths {
          * @description Update a specific address for a user.
          */
         patch: operations["address-update_user_address"];
+        trace?: never;
+    };
+    "/api/v1/address/admin/addresses/{address_id}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Validate Address
+         * @description Mark an address as validated (admin only).
+         *
+         *     Once validated, the address can be selected at checkout.
+         *     Re-validating an already-validated address is idempotent.
+         */
+        post: operations["address-admin_validate_address"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/address/users/{user_id}/addresses/by-type/{address_type}": {
@@ -2198,6 +3034,217 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Preferences
+         * @description Return the current user's preferences (defaults if none saved yet).
+         */
+        get: operations["user-get_my_preferences"];
+        /**
+         * Update My Preferences
+         * @description Create or partially update the current user's preferences.
+         */
+        put: operations["user-update_my_preferences"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/upgrade-group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Upgrade Requests
+         * @description List all upgrade requests submitted by the current user.
+         */
+        get: operations["user-list_my_upgrade_requests"];
+        put?: never;
+        /**
+         * Submit Upgrade Request
+         * @description Submit a request to move to a PriceGroup that requires validation.
+         *
+         *     Only one pending request per group is allowed at a time.
+         */
+        post: operations["user-submit_upgrade_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/group-upgrade-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Upgrade Requests Admin
+         * @description List group upgrade requests (admin view).
+         */
+        get: operations["user-list_upgrade_requests_admin"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/group-upgrade-requests/{request_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Upgrade Request
+         * @description Approve a pending upgrade request and update User.price_group_id.
+         */
+        post: operations["user-approve_upgrade_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/group-upgrade-requests/{request_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Upgrade Request
+         * @description Reject a pending upgrade request.
+         */
+        post: operations["user-reject_upgrade_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/assign-price-group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assign Price Group To User
+         * @description Directly assign a price group to a user (admin bypass, no request created).
+         */
+        post: operations["user-assign_price_group_to_user"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Settings
+         * @description Return whitelisted system settings (no auth required).
+         */
+        get: operations["system-get_public_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/system-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin List Settings
+         * @description Return all system settings (superuser only).
+         */
+        get: operations["system-admin_list_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/system-settings/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Get Setting */
+        get: operations["system-admin_get_setting"];
+        /**
+         * Admin Upsert Setting
+         * @description Create or update a system setting.
+         */
+        put: operations["system-admin_upsert_setting"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/currency/display-rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Display Rates
+         * @description Active FX rates (latest per currency) for storefront display conversion.
+         */
+        get: operations["currency-get_display_rates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/utils/health-check": {
         parameters: {
             query?: never;
@@ -2232,6 +3279,28 @@ export interface paths {
         get: operations["utils-get_observability_dashboard"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/ingram/order-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ingram Order Status Webhook
+         * @description Receive Ingram order-status callback and update SupplierOrder.
+         *
+         *     Publishes ``supplier_order.shipped`` when Ingram confirms the shipment.
+         */
+        post: operations["webhooks-ingram_order_status_webhook"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2922,6 +3991,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/suppliers/admin/backfill-product-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger Category Backfill
+         * @description Trigger a one-shot backfill: populate Product.category_id from supplier_subcategory.
+         *
+         *     Safe to re-run (idempotent). Runs inline (blocking) — use for maintenance windows.
+         *     **Required permissions:** Superuser only
+         */
+        post: operations["suppliers-trigger_category_backfill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/suppliers/admin/reproject-specs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger Spec Reprojection
+         * @description Rebuild the normalized ``product_spec`` table from each product's stored
+         *     Icecat ``technical_specifications`` (no Icecat re-fetch).
+         *
+         *     Needed for products enriched before the projection existed, and after any
+         *     spec-definition alias change. Runs inline (blocking) — use for maintenance
+         *     windows. Optionally scope to one ``category_id``.
+         *
+         *     **Required permissions:** Superuser only
+         */
+        post: operations["suppliers-trigger_spec_reprojection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/icecat/enrich": {
         parameters: {
             query?: never;
@@ -3336,6 +4455,32 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AccessTokenResponse
+         * @description Login/refresh response — access token only.
+         *
+         *     The refresh token is delivered out-of-band as an HttpOnly cookie and is
+         *     never exposed in the response body (see app.core.auth_cookies).
+         */
+        AccessTokenResponse: {
+            /** Access Token */
+            access_token: string;
+            /**
+             * Token Type
+             * @default bearer
+             */
+            token_type: string;
+            /** Expires In */
+            expires_in: number;
+        };
+        /**
+         * AddTrackingsRequest
+         * @description Bulk-attach trackings to a consolidation.
+         */
+        AddTrackingsRequest: {
+            /** Tracking Ids */
+            tracking_ids: string[];
+        };
+        /**
          * AddressCreate
          * @description Represents address create.
          */
@@ -3394,6 +4539,42 @@ export interface components {
              * @description ID of the user
              */
             user_id: string;
+        };
+        /**
+         * AddressMeCreate
+         * @description Self-service create payload (user_id is derived from current user).
+         */
+        AddressMeCreate: {
+            /** Street */
+            street: string;
+            /** City */
+            city: string;
+            /** State */
+            state?: string | null;
+            /** Postal Code */
+            postal_code: string;
+            /** Country */
+            country: string;
+            /** Type */
+            type: string;
+        };
+        /**
+         * AddressMeUpdate
+         * @description Self-service update payload (ownership and validation are server-managed).
+         */
+        AddressMeUpdate: {
+            /** Street */
+            street?: string | null;
+            /** City */
+            city?: string | null;
+            /** State */
+            state?: string | null;
+            /** Postal Code */
+            postal_code?: string | null;
+            /** Country */
+            country?: string | null;
+            /** Type */
+            type?: string | null;
         };
         /**
          * AddressPublic
@@ -3459,6 +4640,11 @@ export interface components {
              * @description ID of the user
              */
             user_id: string;
+            /**
+             * Is Validated
+             * @default false
+             */
+            is_validated: boolean;
         };
         /**
          * AddressUpdate
@@ -3514,6 +4700,227 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * AdminConsolidationItem
+         * @description A consolidation (parcel grouping).
+         */
+        AdminConsolidationItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Consolidation Code */
+            consolidation_code: string;
+            /**
+             * Route Id
+             * Format: uuid
+             */
+            route_id: string;
+            /** Status Code */
+            status_code?: string | null;
+            /** Status Name */
+            status_name?: string | null;
+            /** Total Orders */
+            total_orders: number;
+            /** Tracking Ref */
+            tracking_ref?: string | null;
+        };
+        /**
+         * AdminJourneyLeg
+         * @description One leg (tronçon) of an order's multi-hop journey, with resolved names.
+         */
+        AdminJourneyLeg: {
+            /**
+             * Tracking Id
+             * Format: uuid
+             */
+            tracking_id: string;
+            /** Sequence Order */
+            sequence_order: number;
+            /** Route Name */
+            route_name: string | null;
+            /** From Place */
+            from_place: string | null;
+            /** To Place */
+            to_place: string | null;
+            /** Mode */
+            mode: string | null;
+            /** Status Code */
+            status_code: string | null;
+            /** Status Name */
+            status_name: string | null;
+            /** Tracking Ref */
+            tracking_ref: string | null;
+            /** Is Current */
+            is_current: boolean;
+        };
+        /**
+         * AdminOrderDetail
+         * @description Represents the enriched admin order detail.
+         */
+        AdminOrderDetail: {
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** User Name */
+            user_name?: string | null;
+            /** User Email */
+            user_email?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Subtotal Amount */
+            subtotal_amount: number;
+            /** Shipping Fee Amount */
+            shipping_fee_amount: number;
+            /** Payment Fee Amount */
+            payment_fee_amount: number;
+            /** Total Fees Amount */
+            total_fees_amount: number;
+            /** Total Amount */
+            total_amount: number;
+            /** Shipping Address */
+            shipping_address?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Lines */
+            lines: components["schemas"]["AdminOrderLineItem"][];
+            /** Payments */
+            payments: components["schemas"]["AdminOrderPaymentItem"][];
+        };
+        /**
+         * AdminOrderLineItem
+         * @description Represents an order line in the admin detail view.
+         */
+        AdminOrderLineItem: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Product Name */
+            product_name?: string | null;
+            /** Quantity */
+            quantity: number;
+            /** Unit Price */
+            unit_price: number;
+            /** Line Total */
+            line_total: number;
+        };
+        /**
+         * AdminOrderListItem
+         * @description Represents an admin order list row.
+         */
+        AdminOrderListItem: {
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** User Name */
+            user_name?: string | null;
+            /** User Email */
+            user_email?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Total Amount */
+            total_amount: number;
+        };
+        /**
+         * AdminOrderPaymentItem
+         * @description Represents a payment attached to an order in the admin detail view.
+         */
+        AdminOrderPaymentItem: {
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /** Provider Code */
+            provider_code?: string | null;
+            /** Provider Reference */
+            provider_reference?: string | null;
+            /** Amount */
+            amount: number;
+            /** Currency */
+            currency: string;
+            /** Status */
+            status?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * Can Refund
+             * @default false
+             */
+            can_refund: boolean;
+        };
+        /**
+         * AdminPendingTrackingItem
+         * @description A tracking segment not yet attached to a consolidation.
+         */
+        AdminPendingTrackingItem: {
+            /**
+             * Tracking Id
+             * Format: uuid
+             */
+            tracking_id: string;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Route Id
+             * Format: uuid
+             */
+            route_id: string;
+            /** Sequence Order */
+            sequence_order: number;
+            /** Status Code */
+            status_code?: string | null;
+            /** Status Name */
+            status_name?: string | null;
+            /** Tracking Ref */
+            tracking_ref?: string | null;
+        };
+        /**
+         * AdminReviewBody
+         * @description Optional comment when approving or rejecting.
+         */
+        AdminReviewBody: {
+            /** Comment */
+            comment?: string | null;
+        };
+        /**
+         * AdvanceResponse
+         * @description Result of advancing a parcel to the next leg of its journey.
+         */
+        AdvanceResponse: {
+            /** Has Next */
+            has_next: boolean;
+            /** Next Tracking Id */
+            next_tracking_id?: string | null;
+            /** Message */
+            message: string;
         };
         /**
          * AnalyticsProductCreate
@@ -4045,6 +5452,17 @@ export interface components {
             count: number;
         };
         /**
+         * AssignPriceGroupBody
+         * @description Assign a price group directly to a user.
+         */
+        AssignPriceGroupBody: {
+            /**
+             * Price Group Id
+             * Format: uuid
+             */
+            price_group_id: string;
+        };
+        /**
          * AttachmentDownloadResponse
          * @description Represents attachment download response.
          */
@@ -4510,6 +5928,16 @@ export interface components {
             shipping_route_ids?: string[];
             /** @description Automatic selection preference when shipping_route_ids is empty */
             shipping_preference?: components["schemas"]["CheckoutShippingPreference"] | null;
+            /**
+             * Payment Method Id
+             * @description Payment method to initiate in the same transaction (single-payment flow). When omitted, a pending placeholder payment is created instead.
+             */
+            payment_method_id?: string | null;
+            /**
+             * Return Url
+             * @description Return URL for provider redirect/SmartForm (CB).
+             */
+            return_url?: string | null;
         };
         /**
          * CheckoutResponse
@@ -4558,6 +5986,20 @@ export interface components {
             shipping_cost_breakdown?: {
                 [key: string]: unknown;
             } | null;
+            /** Provider Code */
+            provider_code?: string | null;
+            /** Provider Reference */
+            provider_reference?: string | null;
+            /** Form Token */
+            form_token?: string | null;
+            /** Server Url */
+            server_url?: string | null;
+            /** Public Key */
+            public_key?: string | null;
+            /** Redirect Url */
+            redirect_url?: string | null;
+            /** Instructions */
+            instructions?: string | null;
             /**
              * Message
              * @default Checkout completed
@@ -4583,6 +6025,33 @@ export interface components {
             payments_total: number;
             /** Payments Last 24H */
             payments_last_24h: number;
+        };
+        /**
+         * CompleteSignupRequest
+         * @description Finalise account creation.
+         */
+        CompleteSignupRequest: {
+            /** Signup Token */
+            signup_token: string;
+            /** Password */
+            password: string;
+            /** Full Name */
+            full_name?: string | null;
+        };
+        /**
+         * ConsolidationCreateRequest
+         * @description Create a consolidation for a route.
+         */
+        ConsolidationCreateRequest: {
+            /**
+             * Route Id
+             * Format: uuid
+             */
+            route_id: string;
+            /** Name */
+            name: string;
+            /** Notes */
+            notes?: string | null;
         };
         /**
          * CurrencyRatePublic
@@ -4678,6 +6147,27 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * CustomerOrderTrackingResponse
+         * @description Aggregated tracking view for a customer-owned order.
+         */
+        CustomerOrderTrackingResponse: {
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Trackings */
+            trackings?: components["schemas"]["ShippingRouteTrackingPublic"][];
+            /** Current Route Sequence */
+            current_route_sequence?: number | null;
+            /** Overall Status */
+            overall_status: string;
+            /** Exception Scenarios */
+            exception_scenarios?: string[];
+            /** Consolidations */
+            consolidations?: components["schemas"]["ShippingRouteTrackingConsolidationPublic"][];
         };
         /**
          * DeliveryTaskCreate
@@ -5084,6 +6574,26 @@ export interface components {
             count: number;
         };
         /**
+         * DisplayRate
+         * @description Active rate for one display currency.
+         */
+        DisplayRate: {
+            /** Currency Code */
+            currency_code: string;
+            /** Rate To Reference */
+            rate_to_reference: number;
+        };
+        /**
+         * DisplayRatesResponse
+         * @description Active FX rates available for presentational display.
+         */
+        DisplayRatesResponse: {
+            /** Reference Currency */
+            reference_currency: string;
+            /** Rates */
+            rates: components["schemas"]["DisplayRate"][];
+        };
+        /**
          * DocumentUploadedRequest
          * @description Represents document uploaded request.
          */
@@ -5201,9 +6711,9 @@ export interface components {
             group_type: string;
             /**
              * Discount Percentage
-             * @description Default discount percentage for pricing groups (0-100)
+             * @description Default discount percentage for pricing groups (0.00-100.00)
              */
-            discount_percentage?: number | null;
+            discount_percentage?: number | string | null;
             /**
              * Priority
              * @description Priority level for group evaluation (higher = more priority)
@@ -5251,9 +6761,9 @@ export interface components {
             group_type: string;
             /**
              * Discount Percentage
-             * @description Default discount percentage for pricing groups (0-100)
+             * @description Default discount percentage for pricing groups (0.00-100.00)
              */
-            discount_percentage?: number | null;
+            discount_percentage?: string | null;
             /**
              * Priority
              * @description Priority level for group evaluation (higher = more priority)
@@ -5440,9 +6950,74 @@ export interface components {
             /** Group Type */
             group_type?: string | null;
             /** Discount Percentage */
-            discount_percentage?: number | null;
+            discount_percentage?: number | string | null;
             /** Priority */
             priority?: number | null;
+        };
+        /**
+         * GroupUpgradeRequestCreate
+         * @description User-facing create schema.
+         */
+        GroupUpgradeRequestCreate: {
+            /**
+             * Price Group Id
+             * Format: uuid
+             */
+            price_group_id: string;
+            /** Business Registration Number */
+            business_registration_number: string;
+            /** Attestation Notes */
+            attestation_notes?: string | null;
+        };
+        /**
+         * GroupUpgradeRequestPublic
+         * @description API read schema.
+         */
+        GroupUpgradeRequestPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /**
+             * Price Group Id
+             * Format: uuid
+             */
+            price_group_id: string;
+            status: components["schemas"]["UpgradeRequestStatus"];
+            /** Business Registration Number */
+            business_registration_number: string;
+            /** Attestation Notes */
+            attestation_notes: string | null;
+            /** Admin Comment */
+            admin_comment: string | null;
+            /** Reviewed By Id */
+            reviewed_by_id: string | null;
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * GroupUpgradeRequestsPublic
+         * @description Paginated list.
+         */
+        GroupUpgradeRequestsPublic: {
+            /** Data */
+            data?: components["schemas"]["GroupUpgradeRequestPublic"][];
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
         };
         /**
          * GroupsPublic
@@ -5470,6 +7045,8 @@ export interface components {
             product_id?: string | null;
             /** Product Name */
             product_name: string;
+            /** Product Image Url */
+            product_image_url?: string | null;
             /** Quantity */
             quantity: number;
             /** Unit Price */
@@ -5938,6 +7515,96 @@ export interface components {
             task_id?: string | null;
         };
         /**
+         * MyOrderPublic
+         * @description Order summary for the customer, enriched with the human-readable status name.
+         */
+        MyOrderPublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * User Id
+             * Format: uuid
+             * @description ID de l'utilisateur qui a passé la commande
+             */
+            user_id: string;
+            /**
+             * Order Status Id
+             * Format: uuid
+             * @description ID du statut de la commande
+             */
+            order_status_id: string;
+            /**
+             * Total Amount
+             * @description Montant total de la commande
+             * @default 0.00
+             */
+            total_amount: string;
+            /**
+             * Subtotal Amount
+             * @description Sous-total des lignes au checkout
+             * @default 0.00
+             */
+            subtotal_amount: string;
+            /**
+             * Shipping Fee Amount
+             * @description Frais de livraison figes au checkout
+             * @default 0.00
+             */
+            shipping_fee_amount: string;
+            /**
+             * Payment Fee Amount
+             * @description Frais de paiement figes au checkout
+             * @default 0.00
+             */
+            payment_fee_amount: string;
+            /**
+             * Total Fees Amount
+             * @description Total des frais figes au checkout
+             * @default 0.00
+             */
+            total_fees_amount: string;
+            /**
+             * Shipping Address
+             * @description Adresse de livraison
+             */
+            shipping_address?: string | null;
+            /**
+             * Shipping Cost Breakdown
+             * @description Snapshot detaille des couts de livraison par troncon au checkout (routes selectionnees, forfait/poids/valeur, ETA, empreinte carbone)
+             */
+            shipping_cost_breakdown?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Notes
+             * @description Notes sur la commande
+             */
+            notes?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Order Status Name */
+            order_status_name?: string | null;
+        };
+        /**
          * NotificationCreate
          * @description Represents notification create.
          */
@@ -6154,6 +7821,22 @@ export interface components {
             commerce: components["schemas"]["CommerceObservabilityMetrics"];
             outbox_jobs: components["schemas"]["OutboxObservabilityMetrics"];
             checkout: components["schemas"]["CheckoutObservabilityMetrics"];
+        };
+        /**
+         * OkMessage
+         * @description Generic acknowledgement.
+         */
+        OkMessage: {
+            /** Message */
+            message: string;
+        };
+        /**
+         * OkResponse
+         * @description Generic acknowledgement.
+         */
+        OkResponse: {
+            /** Message */
+            message: string;
         };
         /**
          * OrderCreate
@@ -7021,6 +8704,21 @@ export interface components {
             id?: string;
         };
         /**
+         * PaymentCaptureResponse
+         * @description Represents payment capture response.
+         */
+        PaymentCaptureResponse: {
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /** Payment Status Id */
+            payment_status_id: string | null;
+            /** Message */
+            message?: string | null;
+        };
+        /**
          * PaymentCreate
          * @description Represents payment create.
          */
@@ -7135,6 +8833,11 @@ export interface components {
              * @default 0
              */
             sort_order: number;
+            /**
+             * Max Amount
+             * @description Maximum transaction amount (NULL = no limit)
+             */
+            max_amount?: number | string | null;
         };
         /**
          * PaymentMethodPublic
@@ -7200,6 +8903,11 @@ export interface components {
              */
             sort_order: number;
             /**
+             * Max Amount
+             * @description Maximum transaction amount (NULL = no limit)
+             */
+            max_amount?: string | null;
+            /**
              * Id
              * Format: uuid
              */
@@ -7242,6 +8950,8 @@ export interface components {
             requires_document_upload?: boolean | null;
             /** Sort Order */
             sort_order?: number | null;
+            /** Max Amount */
+            max_amount?: number | string | null;
         };
         /**
          * PaymentMethodsPublic
@@ -7283,8 +8993,17 @@ export interface components {
              * Format: uuid
              */
             user_id: string;
+            /** User Name */
+            user_name?: string | null;
+            /** User Email */
+            user_email?: string | null;
             /** Order Id */
             order_id: string | null;
+            /**
+             * Is Document
+             * @default false
+             */
+            is_document: boolean;
         };
         /**
          * PaymentPublic
@@ -7361,6 +9080,35 @@ export interface components {
             } | null;
         };
         /**
+         * PaymentRefundRequest
+         * @description Refund request: full when amount is omitted, partial otherwise.
+         */
+        PaymentRefundRequest: {
+            /**
+             * Amount
+             * @description Montant à rembourser ; total remboursable si omis
+             */
+            amount?: number | string | null;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
+         * PaymentRefundResponse
+         * @description Represents payment refund response.
+         */
+        PaymentRefundResponse: {
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            refund: components["schemas"]["RefundPublic"];
+            /** Fully Refunded */
+            fully_refunded: boolean;
+            /** Message */
+            message?: string | null;
+        };
+        /**
          * PaymentRejectRequest
          * @description Represents payment reject request.
          */
@@ -7370,6 +9118,32 @@ export interface components {
              * @description Reason for rejection (mandatory for audit)
              */
             reason: string;
+        };
+        /**
+         * PaymentStatusResponse
+         * @description Lightweight payment status for frontend polling.
+         */
+        PaymentStatusResponse: {
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /** Status Name */
+            status_name?: string | null;
+            /**
+             * Is Terminal
+             * @default false
+             */
+            is_terminal: boolean;
+            /** Provider Code */
+            provider_code?: string | null;
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+            /** Order Id */
+            order_id?: string | null;
         };
         /**
          * PaymentUpdate
@@ -7904,6 +9678,76 @@ export interface components {
             count: number;
         };
         /**
+         * PriceGroupPublic
+         * @description Represents price group public.
+         */
+        PriceGroupPublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * Code
+             * @description Unique pricing group code
+             */
+            code: string;
+            /**
+             * Label
+             * @description Display label for pricing group
+             */
+            label: string;
+            /**
+             * Margin Rate Pct
+             * @description Margin percentage applied for this group
+             * @default 0.00
+             */
+            margin_rate_pct: string;
+            /**
+             * Default
+             * @description Whether this group is the default fallback
+             * @default false
+             */
+            default: boolean;
+            /**
+             * Requires Validation
+             * @description Whether assignment to this group requires admin validation
+             * @default false
+             */
+            requires_validation: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /**
+         * PriceGroupsPublic
+         * @description Represents price groups public.
+         */
+        PriceGroupsPublic: {
+            /** Data */
+            data?: components["schemas"]["PriceGroupPublic"][];
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+        };
+        /**
          * ProductCreate
          * @description Represents product create.
          */
@@ -8140,6 +9984,8 @@ export interface components {
             icecat_images?: {
                 [key: string]: unknown;
             }[] | null;
+            /** Category Id */
+            category_id?: string | null;
         };
         /**
          * ProductFeatureRequest
@@ -8581,6 +10427,8 @@ export interface components {
             icecat_images?: {
                 [key: string]: unknown;
             }[] | null;
+            /** Category Id */
+            category_id?: string | null;
         };
         /**
          * ProductsPublic
@@ -8642,12 +10490,72 @@ export interface components {
             redis: boolean;
         };
         /**
-         * RefreshTokenRequest
-         * @description Represents refresh token request.
+         * RefundPublic
+         * @description Represents refund public.
          */
-        RefreshTokenRequest: {
-            /** Refresh Token */
-            refresh_token: string;
+        RefundPublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * Payment Id
+             * Format: uuid
+             * @description The payment being refunded
+             */
+            payment_id: string;
+            /**
+             * Order Id
+             * @description Order linked to the refunded payment, if any
+             */
+            order_id?: string | null;
+            /**
+             * Amount
+             * @description Refunded amount, expressed in the payment currency
+             */
+            amount: string;
+            /**
+             * Currency
+             * @default XPF
+             */
+            currency: string;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Status
+             * @description completed | pending | failed
+             * @default pending
+             */
+            status: string;
+            /**
+             * Provider Reference
+             * @description External refund reference (provider transaction id)
+             */
+            provider_reference?: string | null;
+            /**
+             * Processed At
+             * @description When the refund became effective (completed)
+             */
+            processed_at?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
         };
         /**
          * ReviewCreate
@@ -8889,6 +10797,25 @@ export interface components {
             }[];
         };
         /**
+         * SendOtpRequest
+         * @description Request an email verification code.
+         */
+        SendOtpRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+        };
+        /**
+         * ShipRequest
+         * @description Carrier reference for a shipment.
+         */
+        ShipRequest: {
+            /** Tracking Ref */
+            tracking_ref: string;
+        };
+        /**
          * ShippingModePricePublic
          * @description Per-service-level price breakdown returned by the shipping-modes endpoint.
          */
@@ -9107,7 +11034,9 @@ export interface components {
              * Max Dimensions M
              * @description Max dimensions {length, width, height}
              */
-            max_dimensions_m?: string | null;
+            max_dimensions_m?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Service Level
              * @description Cross-corridor service-level key for import routes: rapide | economique | ecologique. Null = not an import route.
@@ -9155,7 +11084,9 @@ export interface components {
              * Route Metadata
              * @description Flexible metadata
              */
-            route_metadata?: string | null;
+            route_metadata?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * ShippingRoutePublic
@@ -9273,7 +11204,9 @@ export interface components {
              * Max Dimensions M
              * @description Max dimensions {length, width, height}
              */
-            max_dimensions_m?: string | null;
+            max_dimensions_m?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Service Level
              * @description Cross-corridor service-level key for import routes: rapide | economique | ecologique. Null = not an import route.
@@ -9321,7 +11254,9 @@ export interface components {
              * Route Metadata
              * @description Flexible metadata
              */
-            route_metadata?: string | null;
+            route_metadata?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Id
              * Format: uuid
@@ -9847,7 +11782,9 @@ export interface components {
             /** Max Volume M3 */
             max_volume_m3?: number | null;
             /** Max Dimensions M */
-            max_dimensions_m?: string | null;
+            max_dimensions_m?: {
+                [key: string]: unknown;
+            } | null;
             /** Service Level */
             service_level?: string | null;
             /** Customer Label */
@@ -9865,7 +11802,9 @@ export interface components {
             /** Notes */
             notes?: string | null;
             /** Route Metadata */
-            route_metadata?: string | null;
+            route_metadata?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * ShippingRoutesPublic
@@ -9935,6 +11874,130 @@ export interface components {
              * @description Le tarif du tronçon était-il dans sa fenêtre de date d'effet ?
              */
             pricing_effective: boolean;
+        };
+        /**
+         * SignupTokenResponse
+         * @description Single-use token proving the email was verified.
+         */
+        SignupTokenResponse: {
+            /** Signup Token */
+            signup_token: string;
+        };
+        /** SpecDefinitionCreate */
+        SpecDefinitionCreate: {
+            /**
+             * Key
+             * @description Canonical spec key, e.g. memory_gb
+             */
+            key: string;
+            /**
+             * Label Fr
+             * @description French display label
+             */
+            label_fr: string;
+            /**
+             * Type
+             * @description Value type: numeric | enum
+             */
+            type: string;
+            /**
+             * Unit
+             * @description Unit for numeric specs
+             */
+            unit?: string | null;
+            /**
+             * Categories
+             * @description Category slugs/keywords this spec applies to
+             */
+            categories?: string[];
+            /**
+             * Aliases
+             * @description Icecat field name aliases (case-insensitive matching)
+             */
+            aliases?: string[];
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+        };
+        /** SpecDefinitionPublic */
+        SpecDefinitionPublic: {
+            /**
+             * Key
+             * @description Canonical spec key, e.g. memory_gb
+             */
+            key: string;
+            /**
+             * Label Fr
+             * @description French display label
+             */
+            label_fr: string;
+            /**
+             * Type
+             * @description Value type: numeric | enum
+             */
+            type: string;
+            /**
+             * Unit
+             * @description Unit for numeric specs
+             */
+            unit?: string | null;
+            /**
+             * Categories
+             * @description Category slugs/keywords this spec applies to
+             */
+            categories?: string[];
+            /**
+             * Aliases
+             * @description Icecat field name aliases (case-insensitive matching)
+             */
+            aliases?: string[];
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** SpecDefinitionUpdate */
+        SpecDefinitionUpdate: {
+            /** Label Fr */
+            label_fr?: string | null;
+            /** Type */
+            type?: string | null;
+            /** Unit */
+            unit?: string | null;
+            /** Categories */
+            categories?: string[] | null;
+            /** Aliases */
+            aliases?: string[] | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
+        /** SpecDefinitionsPublic */
+        SpecDefinitionsPublic: {
+            /** Data */
+            data?: components["schemas"]["SpecDefinitionPublic"][];
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
         };
         /**
          * SpecFacet
@@ -10366,6 +12429,62 @@ export interface components {
             count: number;
         };
         /**
+         * SupplierOrderPublic
+         * @description Public schema for supplier orders (admin endpoints).
+         */
+        SupplierOrderPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Supplier Name */
+            supplier_name: string;
+            /**
+             * Local Order Id
+             * Format: uuid
+             */
+            local_order_id: string;
+            /** Customer Order Number */
+            customer_order_number: string;
+            /** Supplier Order Number */
+            supplier_order_number: string | null;
+            status: components["schemas"]["SupplierOrderStatus"];
+            /** Supplier Status Label */
+            supplier_status_label: string | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Attempts */
+            attempts: number;
+            /** Estimated Delivery */
+            estimated_delivery: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * SupplierOrderStatus
+         * @enum {string}
+         */
+        SupplierOrderStatus: "pending" | "submitted" | "error" | "skipped";
+        /** SupplierOrdersPublic */
+        SupplierOrdersPublic: {
+            /** Data */
+            data?: components["schemas"]["SupplierOrderPublic"][];
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+        };
+        /**
          * SupplierSummary
          * @description Represents supplier summary.
          */
@@ -10411,6 +12530,179 @@ export interface components {
              */
             timestamp: string;
         };
+        /** SystemSettingPublic */
+        SystemSettingPublic: {
+            /** Key */
+            key: string;
+            /** Value */
+            value: string;
+            /** Description */
+            description?: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** SystemSettingUpdate */
+        SystemSettingUpdate: {
+            /** Value */
+            value: string;
+            /** Description */
+            description?: string | null;
+        };
+        /**
+         * TaxRateAssignBody
+         * @description Assign (or clear) a tax rate by id.
+         */
+        TaxRateAssignBody: {
+            /** Tax Rate Id */
+            tax_rate_id?: string | null;
+        };
+        /**
+         * TaxRateCreate
+         * @description Represents tax rate create.
+         */
+        TaxRateCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Code
+             * @description Tax code (ex: TGC_NORMAL)
+             */
+            code: string;
+            /**
+             * Label
+             * @description Tax label
+             */
+            label: string;
+            /**
+             * Rate Pct
+             * @description Tax percentage
+             * @default 0.00
+             */
+            rate_pct: number | string;
+            /**
+             * Territory Code
+             * @description Territory code where this tax applies
+             * @default PF
+             */
+            territory_code: string;
+            /**
+             * Valid From
+             * Format: date
+             * @description Start date of validity
+             */
+            valid_from: string;
+            /**
+             * Valid Until
+             * @description Optional end date
+             */
+            valid_until?: string | null;
+        };
+        /**
+         * TaxRatePublic
+         * @description Represents tax rate public.
+         */
+        TaxRatePublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * Code
+             * @description Tax code (ex: TGC_NORMAL)
+             */
+            code: string;
+            /**
+             * Label
+             * @description Tax label
+             */
+            label: string;
+            /**
+             * Rate Pct
+             * @description Tax percentage
+             * @default 0.00
+             */
+            rate_pct: string;
+            /**
+             * Territory Code
+             * @description Territory code where this tax applies
+             * @default PF
+             */
+            territory_code: string;
+            /**
+             * Valid From
+             * Format: date
+             * @description Start date of validity
+             */
+            valid_from: string;
+            /**
+             * Valid Until
+             * @description Optional end date
+             */
+            valid_until?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /**
+         * TaxRateUpdate
+         * @description Represents tax rate update.
+         */
+        TaxRateUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Label */
+            label?: string | null;
+            /** Valid Until */
+            valid_until?: string | null;
+        };
+        /**
+         * TaxRatesPublic
+         * @description Represents tax rates public.
+         */
+        TaxRatesPublic: {
+            /** Data */
+            data?: components["schemas"]["TaxRatePublic"][];
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+        };
         /**
          * TestEnrichmentRequest
          * @description Request model for testing enrichment
@@ -10436,23 +12728,6 @@ export interface components {
              * @description Optional UPC code
              */
             upc?: string | null;
-        };
-        /**
-         * Token
-         * @description Represents token.
-         */
-        Token: {
-            /** Access Token */
-            access_token: string;
-            /** Refresh Token */
-            refresh_token: string;
-            /**
-             * Token Type
-             * @default bearer
-             */
-            token_type: string;
-            /** Expires In */
-            expires_in: number;
         };
         /**
          * TrackingHistoryResponse
@@ -10536,6 +12811,11 @@ export interface components {
              */
             reason?: string | null;
         };
+        /**
+         * UpgradeRequestStatus
+         * @enum {string}
+         */
+        UpgradeRequestStatus: "PENDING" | "APPROVED" | "REJECTED";
         /**
          * UploadDocumentRequest
          * @description Represents upload document request.
@@ -10634,6 +12914,67 @@ export interface components {
              */
             count: number;
         };
+        /**
+         * UserPreferencePublic
+         * @description API read schema.
+         */
+        UserPreferencePublic: {
+            /**
+             * Notification Email Enabled
+             * @description Receive transactional emails (order, payment)
+             * @default true
+             */
+            notification_email_enabled: boolean;
+            /**
+             * Notification Shipping Steps
+             * @description Receive shipping status notifications
+             * @default true
+             */
+            notification_shipping_steps: boolean;
+            /**
+             * Default Shipping Preference
+             * @description Checkout fallback: fastest | cheapest | eco_friendly
+             */
+            default_shipping_preference?: string | null;
+            /**
+             * Locale
+             * @description UI language: fr | en
+             */
+            locale?: string | null;
+            /**
+             * Currency Pref
+             * @description Display currency: XPF | USD | EUR
+             */
+            currency_pref?: string | null;
+            /**
+             * Preferred Shipping Mode
+             * @description Import freight level of service: rapide | economique | ecologique
+             */
+            preferred_shipping_mode?: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * UserPreferenceUpdate
+         * @description Update schema — all fields optional.
+         */
+        UserPreferenceUpdate: {
+            /** Notification Email Enabled */
+            notification_email_enabled?: boolean | null;
+            /** Notification Shipping Steps */
+            notification_shipping_steps?: boolean | null;
+            /** Default Shipping Preference */
+            default_shipping_preference?: string | null;
+            /** Locale */
+            locale?: string | null;
+            /** Currency Pref */
+            currency_pref?: string | null;
+            /** Preferred Shipping Mode */
+            preferred_shipping_mode?: string | null;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -10642,6 +12983,19 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * VerifyOtpRequest
+         * @description Validate the emailed code.
+         */
+        VerifyOtpRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** Code */
+            code: string;
         };
         /**
          * WishlistCreate
@@ -10870,7 +13224,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Token"];
+                    "application/json": components["schemas"]["AccessTokenResponse"];
                 };
             };
             /** @description Validation Error */
@@ -10891,9 +13245,113 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessTokenResponse"];
+                };
+            };
+        };
+    };
+    "login-logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "oauth-oauth_login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "oauth-oauth_callback": {
+        parameters: {
+            query?: {
+                code?: string | null;
+                state?: string | null;
+                error?: string | null;
+            };
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "signup-send_otp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RefreshTokenRequest"];
+                "application/json": components["schemas"]["SendOtpRequest"];
             };
         };
         responses: {
@@ -10903,7 +13361,73 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Token"];
+                    "application/json": components["schemas"]["OkMessage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "signup-verify_otp_route": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyOtpRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignupTokenResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "signup-complete_signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompleteSignupRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessTokenResponse"];
                 };
             };
             /** @description Validation Error */
@@ -11680,6 +14204,70 @@ export interface operations {
             };
         };
     };
+    "payment-list_my_payment_methods": {
+        parameters: {
+            query?: {
+                cart_total?: number | string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "payment-get_my_payment_status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "payment-process_provider_webhook": {
         parameters: {
             query?: never;
@@ -11832,6 +14420,72 @@ export interface operations {
             };
         };
     };
+    "admin-payment-refund_payment_route": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentRefundRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentRefundResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-payment-capture_payment_route": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentCaptureResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-payment-list_payment_attachments": {
         parameters: {
             query?: never;
@@ -11891,6 +14545,488 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-order-list_orders": {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOrderListItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-order-get_order_detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOrderDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-shipping-list_pending_grouping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPendingTrackingItem"][];
+                };
+            };
+        };
+    };
+    "admin-shipping-list_consolidations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminConsolidationItem"][];
+                };
+            };
+        };
+    };
+    "admin-shipping-create_consolidation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsolidationCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminConsolidationItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-shipping-add_trackings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                consolidation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddTrackingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-shipping-ship_consolidation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                consolidation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShipRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-shipping-ship_tracking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tracking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShipRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-shipping-deliver_tracking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tracking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-shipping-advance_tracking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tracking_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdvanceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-shipping-advance_consolidation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                consolidation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-shipping-order_journey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminJourneyLeg"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-payment-list_eligible_groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_method_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-payment-add_eligible_group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_method_id: string;
+                price_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-payment-remove_eligible_group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_method_id: string;
+                price_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-price-groups-list_price_groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceGroupsPublic"];
                 };
             };
         };
@@ -11995,9 +15131,440 @@ export interface operations {
             };
         };
     };
-    "internal-storage-download_via_token": {
+    "admin-tax-rates-list_tax_rates": {
+        parameters: {
+            query?: {
+                /** @description Filter by territory (ex: PF) */
+                territory_code?: string | null;
+                /** @description true → active today, false → already expired */
+                valid?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxRatesPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-tax-rates-create_tax_rate": {
         parameters: {
             query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaxRateCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxRatePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-tax-rates-update_tax_rate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tax_rate_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaxRateUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxRatePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-tax-rates-assign_tax_rate_to_product": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaxRateAssignBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-tax-rates-assign_tax_rate_to_category": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaxRateAssignBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "supplier-list_supplier_orders": {
+        parameters: {
+            query?: {
+                /** @description Filter by supplier order status */
+                status?: components["schemas"]["SupplierOrderStatus"] | null;
+                /** @description Filter by supplier machine name (e.g. ingram_micro) */
+                supplier_name?: string | null;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierOrdersPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "supplier-get_supplier_order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supplier_order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierOrderPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "supplier-retry_supplier_order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supplier_order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierOrderPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-spec-list_spec_definitions": {
+        parameters: {
+            query?: {
+                include_inactive?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecDefinitionsPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-spec-create_spec_definition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpecDefinitionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecDefinitionPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-spec-get_spec_definition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecDefinitionPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-spec-update_spec_definition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpecDefinitionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecDefinitionPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-spec-delete_spec_definition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "internal-storage-download_via_token": {
+        parameters: {
+            query?: {
+                filename?: string | null;
+            };
             header?: never;
             path: {
                 token: string;
@@ -13274,6 +16841,38 @@ export interface operations {
             };
         };
     };
+    "group-get_pricing_groups": {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupsPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "group-get_multiple_Groups": {
         parameters: {
             query?: {
@@ -13449,38 +17048,6 @@ export interface operations {
             path: {
                 group_type: string;
             };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GroupsPublic"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    "group-get_pricing_groups": {
-        parameters: {
-            query?: {
-                skip?: number;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -14292,6 +17859,69 @@ export interface operations {
             };
         };
     };
+    "order-list_my_orders": {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyOrderPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "order-get_my_order_tracking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerOrderTrackingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "order-line-get_multiple_Order-lines": {
         parameters: {
             query?: {
@@ -14720,6 +18350,166 @@ export interface operations {
             };
         };
     };
+    "address-get_my_addresses": {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddressesPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "address-create_my_address": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddressMeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddressPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "address-get_my_address": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddressPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "address-delete_my_address": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "address-update_my_address": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddressMeUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddressPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "address-get_user_addresses": {
         parameters: {
             query?: {
@@ -14868,6 +18658,37 @@ export interface operations {
                 "application/json": components["schemas"]["AddressUpdate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddressPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "address-admin_validate_address": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                address_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -16141,6 +19962,376 @@ export interface operations {
             };
         };
     };
+    "user-get_my_preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPreferencePublic"];
+                };
+            };
+        };
+    };
+    "user-update_my_preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserPreferenceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPreferencePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "user-list_my_upgrade_requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupUpgradeRequestsPublic"];
+                };
+            };
+        };
+    };
+    "user-submit_upgrade_request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupUpgradeRequestCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupUpgradeRequestPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "user-list_upgrade_requests_admin": {
+        parameters: {
+            query?: {
+                /** @description Filter to PENDING requests only */
+                pending_only?: boolean;
+                user_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupUpgradeRequestsPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "user-approve_upgrade_request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminReviewBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupUpgradeRequestPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "user-reject_upgrade_request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminReviewBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupUpgradeRequestPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "user-assign_price_group_to_user": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignPriceGroupBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Message"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "system-get_public_settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemSettingPublic"][];
+                };
+            };
+        };
+    };
+    "system-admin_list_settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemSettingPublic"][];
+                };
+            };
+        };
+    };
+    "system-admin_get_setting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemSettingPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "system-admin_upsert_setting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SystemSettingUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemSettingPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "currency-get_display_rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DisplayRatesResponse"];
+                };
+            };
+        };
+    };
     "utils-health_check": {
         parameters: {
             query?: never;
@@ -16177,6 +20368,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ObservabilityDashboard"];
+                };
+            };
+        };
+    };
+    "webhooks-ingram_order_status_webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };
@@ -17733,6 +21944,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": string[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "suppliers-trigger_category_backfill": {
+        parameters: {
+            query?: {
+                batch_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "suppliers-trigger_spec_reprojection": {
+        parameters: {
+            query?: {
+                category_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */

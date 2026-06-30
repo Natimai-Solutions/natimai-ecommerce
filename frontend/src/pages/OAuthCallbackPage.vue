@@ -16,43 +16,43 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore } from 'src/stores/auth'
+import { onMounted, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useAuthStore } from 'src/stores/auth';
 
-const route = useRoute()
-const router = useRouter()
-const authStore = useAuthStore()
+const route = useRoute();
+const router = useRouter();
+const authStore = useAuthStore();
 
-const errorMessage = ref<string | null>(null)
+const errorMessage = ref<string | null>(null);
 
 const OAUTH_ERROR_LABELS: Record<string, string> = {
   user_inactive: 'Votre compte est désactivé. Contactez notre équipe.',
   invalid_state: 'La session de connexion a expiré. Veuillez réessayer.',
-  provider_error: 'Le fournisseur d\'identité a renvoyé une erreur.',
+  provider_error: "Le fournisseur d'identité a renvoyé une erreur.",
   missing_user_info: 'Profil incomplet renvoyé par le fournisseur.',
   missing_code_or_state: 'Réponse de connexion incomplète.',
   server_error: 'Une erreur interne est survenue pendant la connexion.',
-}
+};
 
 onMounted(async () => {
-  const oauthError = route.query.oauth_error
+  const oauthError = route.query.oauth_error;
   if (typeof oauthError === 'string') {
     errorMessage.value =
-      OAUTH_ERROR_LABELS[oauthError] ?? 'La connexion a échoué. Veuillez réessayer.'
-    return
+      OAUTH_ERROR_LABELS[oauthError] ?? 'La connexion a échoué. Veuillez réessayer.';
+    return;
   }
 
   // The backend already set the HttpOnly refresh cookie during the redirect.
   // Exchange it for an in-memory access token (no token ever travels in the URL).
-  const restored = await authStore.tryRestore()
+  const restored = await authStore.tryRestore();
   if (!restored) {
-    errorMessage.value = 'La connexion a échoué. Veuillez réessayer.'
-    return
+    errorMessage.value = 'La connexion a échoué. Veuillez réessayer.';
+    return;
   }
 
-  const target = sessionStorage.getItem('oauth.redirect') ?? '/'
-  sessionStorage.removeItem('oauth.redirect')
-  await router.replace(target.startsWith('/') ? target : '/')
-})
+  const target = sessionStorage.getItem('oauth.redirect') ?? '/';
+  sessionStorage.removeItem('oauth.redirect');
+  await router.replace(target.startsWith('/') ? target : '/');
+});
 </script>

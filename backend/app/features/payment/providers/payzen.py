@@ -22,6 +22,7 @@ class PayzenProvider(ApiPaymentProvider):
     """Represents payzen provider."""
 
     code = "payzen"
+    supports_in_app_refund = True
 
     async def initiate_payment(self, request: InitiationRequest) -> InitiationResult:
         """Execute initiate payment."""

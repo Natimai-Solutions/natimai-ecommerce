@@ -1,0 +1,15 @@
+{% extends "_layout.html" %}
+{% block title %}Commande reçue{% endblock %}
+{% block heading %}Commande enregistrée{% endblock %}
+{% block content %}
+      <p>Bonjour {{ full_name }},</p>
+      <p>Votre commande a bien été enregistrée. Vous recevrez une confirmation dès que votre paiement aura été validé.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Numéro de commande</td><td>{{ order_id }}</td></tr>
+          <tr><td>Montant total</td><td>{{ total_amount }} {{ currency }}</td></tr>
+          <tr><td>Nombre d'articles</td><td>{{ item_count }}</td></tr>
+        </table>
+      </div>
+      <p>Merci pour votre commande,<br><strong>L'équipe {{ shop_name }}</strong></p>
+{% endblock %}

@@ -39,22 +39,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from 'src/stores/auth'
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { useAuthStore } from 'src/stores/auth';
 
-const auth = useAuthStore()
-const router = useRouter()
-const drawer = ref(true)
+const auth = useAuthStore();
+const router = useRouter();
+const drawer = ref(true);
 
 interface NavLink {
-  label: string
-  icon: string
-  to: string
+  label: string;
+  icon: string;
+  to: string;
 }
 interface NavSection {
-  label: string
-  links: NavLink[]
+  label: string;
+  links: NavLink[];
 }
 
 const nav: NavSection[] = [
@@ -90,18 +90,16 @@ const nav: NavSection[] = [
   },
   {
     label: 'Clients',
-    links: [
-      { label: 'Demandes de groupe', icon: 'group_add', to: '/group-upgrade-requests' },
-    ],
+    links: [{ label: 'Demandes de groupe', icon: 'group_add', to: '/group-upgrade-requests' }],
   },
   {
     label: 'Système',
     links: [{ label: 'Paramètres', icon: 'settings', to: '/system-settings' }],
   },
-]
+];
 
 function onLogout() {
-  void auth.logout()
-  void router.replace('/login')
+  void auth.logout();
+  void router.replace('/login');
 }
 </script>

@@ -64,7 +64,8 @@
           <!-- Step 2 — OTP code -->
           <q-step :name="2" title="Code" icon="pin" :done="step > 2">
             <div class="text-body2 text-grey-7 q-mb-sm">
-              Un code à 6 chiffres a été envoyé à <strong>{{ email }}</strong>.
+              Un code à 6 chiffres a été envoyé à <strong>{{ email }}</strong
+              >.
             </div>
             <q-form @submit.prevent="onVerifyOtp">
               <q-input
@@ -156,86 +157,86 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore } from 'src/stores/auth'
+import { ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useAuthStore } from 'src/stores/auth';
 
-const authStore = useAuthStore()
-const route = useRoute()
-const router = useRouter()
+const authStore = useAuthStore();
+const route = useRoute();
+const router = useRouter();
 
-const step = ref(1)
-const email = ref('')
-const code = ref('')
-const fullName = ref('')
-const password = ref('')
-const passwordConfirm = ref('')
-const showPassword = ref(false)
-const signupToken = ref('')
-const loading = ref(false)
-const error = ref<string | null>(null)
+const step = ref(1);
+const email = ref('');
+const code = ref('');
+const fullName = ref('');
+const password = ref('');
+const passwordConfirm = ref('');
+const showPassword = ref(false);
+const signupToken = ref('');
+const loading = ref(false);
+const error = ref<string | null>(null);
 
-const apiUrl = import.meta.env.VITE_API_URL as string | undefined
-const oauthEnabled = Boolean(apiUrl) && import.meta.env.VITE_OAUTH_ENABLED === 'true'
+const apiUrl = import.meta.env.VITE_API_URL as string | undefined;
+const oauthEnabled = Boolean(apiUrl) && import.meta.env.VITE_OAUTH_ENABLED === 'true';
 
 function redirectTarget(): string {
-  const target = route.query.redirect
-  return typeof target === 'string' && target.startsWith('/') ? target : '/'
+  const target = route.query.redirect;
+  return typeof target === 'string' && target.startsWith('/') ? target : '/';
 }
 
 async function onSendOtp() {
-  loading.value = true
-  error.value = null
+  loading.value = true;
+  error.value = null;
   try {
-    const res = await authStore.sendSignupOtp(email.value.trim().toLowerCase())
+    const res = await authStore.sendSignupOtp(email.value.trim().toLowerCase());
     if (res.ok) {
-      step.value = 2
+      step.value = 2;
     } else {
-      error.value = res.error ?? null
+      error.value = res.error ?? null;
     }
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 async function onVerifyOtp() {
-  loading.value = true
-  error.value = null
+  loading.value = true;
+  error.value = null;
   try {
-    const res = await authStore.verifySignupOtp(email.value.trim().toLowerCase(), code.value)
+    const res = await authStore.verifySignupOtp(email.value.trim().toLowerCase(), code.value);
     if (res.ok && res.signupToken) {
-      signupToken.value = res.signupToken
-      step.value = 3
+      signupToken.value = res.signupToken;
+      step.value = 3;
     } else {
-      error.value = res.error ?? null
+      error.value = res.error ?? null;
     }
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 async function onComplete() {
-  loading.value = true
-  error.value = null
+  loading.value = true;
+  error.value = null;
   try {
     const res = await authStore.completeSignup(
       signupToken.value,
       password.value,
       fullName.value.trim() || null,
-    )
+    );
     if (res.ok) {
-      await router.replace(redirectTarget())
+      await router.replace(redirectTarget());
     } else {
-      error.value = res.error ?? null
+      error.value = res.error ?? null;
     }
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 function oauthSignup(provider: 'google' | 'microsoft') {
-  if (!apiUrl) return
-  sessionStorage.setItem('oauth.redirect', redirectTarget())
-  window.location.href = `${apiUrl}/api/v1/auth/${provider}/login`
+  if (!apiUrl) return;
+  sessionStorage.setItem('oauth.redirect', redirectTarget());
+  window.location.href = `${apiUrl}/api/v1/auth/${provider}/login`;
 }
 </script>

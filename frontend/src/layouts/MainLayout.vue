@@ -2,15 +2,7 @@
   <q-layout view="hHh lpR fFf">
     <q-header elevated class="bg-white text-dark">
       <q-toolbar>
-        <q-btn
-          flat
-          dense
-          round
-          icon="menu"
-          aria-label="Menu"
-          class="lt-md"
-          @click="toggleDrawer"
-        />
+        <q-btn flat dense round icon="menu" aria-label="Menu" class="lt-md" @click="toggleDrawer" />
 
         <q-toolbar-title shrink>
           <router-link to="/" class="text-dark text-weight-bold no-underline">
@@ -76,15 +68,7 @@
           label="Connexion"
           :to="{ name: 'login' }"
         />
-        <q-btn
-          v-else
-          flat
-          dense
-          no-caps
-          icon="logout"
-          label="Déconnexion"
-          @click="onLogout"
-        />
+        <q-btn v-else flat dense no-caps icon="logout" label="Déconnexion" @click="onLogout" />
       </q-toolbar>
     </q-header>
 
@@ -122,36 +106,36 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useCartStore } from 'src/stores/cart'
-import { useAuthStore } from 'src/stores/auth'
-import { useCurrencyStore } from 'src/stores/currency'
+import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { useCartStore } from 'src/stores/cart';
+import { useAuthStore } from 'src/stores/auth';
+import { useCurrencyStore } from 'src/stores/currency';
 
-const drawerOpen = ref(false)
-const cartStore = useCartStore()
-const authStore = useAuthStore()
-const currencyStore = useCurrencyStore()
-const router = useRouter()
-const cartCount = computed(() => cartStore.totalItems)
+const drawerOpen = ref(false);
+const cartStore = useCartStore();
+const authStore = useAuthStore();
+const currencyStore = useCurrencyStore();
+const router = useRouter();
+const cartCount = computed(() => cartStore.totalItems);
 
 function toggleDrawer() {
-  drawerOpen.value = !drawerOpen.value
+  drawerOpen.value = !drawerOpen.value;
 }
 
 function onCurrencyChange(code: string) {
-  void currencyStore.setCurrency(code)
+  void currencyStore.setCurrency(code);
 }
 
 function onLogout() {
-  void authStore.logout()
-  void router.push({ name: 'catalogue' })
+  void authStore.logout();
+  void router.push({ name: 'catalogue' });
 }
 
 onMounted(() => {
-  void cartStore.loadCart()
-  void currencyStore.loadRates()
-})
+  void cartStore.loadCart();
+  void currencyStore.loadRates();
+});
 </script>
 
 <style scoped lang="scss">

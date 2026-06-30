@@ -1,0 +1,17 @@
+{% extends "_layout.html" %}
+{% block title %}Paiement validé{% endblock %}
+{% block header_color %}#1a7a4a{% endblock %}
+{% block extra_style %}.badge { background: #e6f4ed; color: #1a7a4a; }{% endblock %}
+{% block heading %}Paiement validé ✓{% endblock %}
+{% block content %}
+      <p>Bonjour {{ full_name }},</p>
+      <span class="badge">Paiement confirmé</span>
+      <p>Votre paiement a bien été reçu. Votre commande est maintenant en cours de traitement.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Numéro de commande</td><td>{{ order_id }}</td></tr>
+          <tr><td>Montant débité</td><td>{{ total_amount }} {{ currency }}</td></tr>
+        </table>
+      </div>
+      <p>Merci pour votre confiance,<br><strong>L'équipe {{ shop_name }}</strong></p>
+{% endblock %}

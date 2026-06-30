@@ -10,7 +10,9 @@
     </div>
 
     <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
-    <q-banner v-if="notice" class="bg-green-1 text-green-9 q-mb-md" rounded dense>{{ notice }}</q-banner>
+    <q-banner v-if="notice" class="bg-green-1 text-green-9 q-mb-md" rounded dense>{{
+      notice
+    }}</q-banner>
 
     <div v-if="loading" class="text-center q-pa-lg">
       <q-spinner color="primary" size="2em" />
@@ -47,10 +49,7 @@
           <div :title="props.row.user_id">
             {{ props.row.user_name || props.row.user_email || props.row.user_id.slice(0, 8) }}
           </div>
-          <div
-            v-if="props.row.user_name && props.row.user_email"
-            class="text-caption text-grey-6"
-          >
+          <div v-if="props.row.user_name && props.row.user_email" class="text-caption text-grey-6">
             {{ props.row.user_email }}
           </div>
         </q-td>
@@ -82,8 +81,24 @@
             no-caps
             @click="openAttachments(props.row)"
           />
-          <q-btn flat dense icon="check" color="positive" label="Approuver" no-caps @click="openApprove(props.row)" />
-          <q-btn flat dense icon="close" color="negative" label="Rejeter" no-caps @click="openReject(props.row)" />
+          <q-btn
+            flat
+            dense
+            icon="check"
+            color="positive"
+            label="Approuver"
+            no-caps
+            @click="openApprove(props.row)"
+          />
+          <q-btn
+            flat
+            dense
+            icon="close"
+            color="negative"
+            label="Rejeter"
+            no-caps
+            @click="openReject(props.row)"
+          />
         </q-td>
       </template>
     </q-table>
@@ -93,7 +108,9 @@
       <q-card style="min-width: 380px">
         <q-card-section class="text-h6">Approuver le paiement</q-card-section>
         <q-card-section class="q-pt-none q-gutter-sm">
-          <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{ dialogError }}</q-banner>
+          <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
+            dialogError
+          }}</q-banner>
           <div class="text-body2">
             {{ providerLabel(current?.provider_code ?? '') }} —
             <strong>{{ current ? formatMoney(current.amount) : '' }}</strong>
@@ -109,7 +126,14 @@
             Bon de commande : aucune référence de transaction n'est requise — vérifiez la pièce
             jointe puis approuvez.
           </div>
-          <q-input v-model="approveForm.comment" label="Commentaire (optionnel)" outlined dense type="textarea" autogrow />
+          <q-input
+            v-model="approveForm.comment"
+            label="Commentaire (optionnel)"
+            outlined
+            dense
+            type="textarea"
+            autogrow
+          />
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Annuler" v-close-popup />
@@ -124,7 +148,9 @@
         <q-card-section class="text-h6">Rejeter le paiement</q-card-section>
         <q-form @submit.prevent="submitReject">
           <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{ dialogError }}</q-banner>
+            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
+              dialogError
+            }}</q-banner>
             <q-input
               v-model="rejectReason"
               label="Motif du rejet *"
@@ -148,7 +174,9 @@
       <q-card style="min-width: 420px; max-width: 560px">
         <q-card-section class="text-h6">Bon(s) de commande</q-card-section>
         <q-card-section class="q-pt-none">
-          <q-banner v-if="dialogError" class="bg-red-1 text-red-9 q-mb-sm" dense rounded>{{ dialogError }}</q-banner>
+          <q-banner v-if="dialogError" class="bg-red-1 text-red-9 q-mb-sm" dense rounded>{{
+            dialogError
+          }}</q-banner>
           <div v-if="loadingAttachments" class="text-center q-pa-md">
             <q-spinner color="primary" size="1.5em" />
           </div>
@@ -190,9 +218,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
-import type { QTableColumn } from 'quasar'
-import { formatXpf } from '@app/utils'
+import { onMounted, reactive, ref } from 'vue';
+import type { QTableColumn } from 'quasar';
+import { formatXpf } from '@app/utils';
 import {
   approvePayment,
   getAttachmentDownloadUrl,
@@ -201,153 +229,158 @@ import {
   rejectPayment,
   type PaymentAttachment,
   type PendingPayment,
-} from 'src/api/paymentValidations'
-import { extractApiError } from 'src/api/errors'
+} from 'src/api/paymentValidations';
+import { extractApiError } from 'src/api/errors';
 
-const rows = ref<PendingPayment[]>([])
-const loading = ref(false)
-const error = ref<string | null>(null)
-const notice = ref<string | null>(null)
+const rows = ref<PendingPayment[]>([]);
+const loading = ref(false);
+const error = ref<string | null>(null);
+const notice = ref<string | null>(null);
 
 const columns: QTableColumn[] = [
   { name: 'provider', label: 'Type', field: 'provider_code', align: 'left' },
   { name: 'amount', label: 'Montant', field: 'amount', align: 'left' },
-  { name: 'reference', label: 'Référence', field: (r) => r.provider_reference ?? '—', align: 'left' },
+  {
+    name: 'reference',
+    label: 'Référence',
+    field: (r) => r.provider_reference ?? '—',
+    align: 'left',
+  },
   { name: 'user_id', label: 'Client', field: 'user_id', align: 'left' },
   { name: 'order_id', label: 'Commande', field: 'order_id', align: 'left' },
   { name: 'actions', label: '', field: 'payment_id', align: 'right' },
-]
+];
 
 function formatMoney(amount: number): string {
-  return Number.isFinite(amount) ? formatXpf(amount) : String(amount)
+  return Number.isFinite(amount) ? formatXpf(amount) : String(amount);
 }
 
 function providerLabel(code: string): string {
-  if (code.startsWith('document') || code.startsWith('po_')) return 'Bon de commande'
-  if (code.includes('check') || code.includes('cheque')) return 'Chèque'
-  if (code.includes('transfer') || code.includes('virement')) return 'Virement'
-  if (code.startsWith('manual')) return 'Paiement manuel'
-  return code
+  if (code.startsWith('document') || code.startsWith('po_')) return 'Bon de commande';
+  if (code.includes('check') || code.includes('cheque')) return 'Chèque';
+  if (code.includes('transfer') || code.includes('virement')) return 'Virement';
+  if (code.startsWith('manual')) return 'Paiement manuel';
+  return code;
 }
 
 async function load() {
-  loading.value = true
-  error.value = null
+  loading.value = true;
+  error.value = null;
   try {
-    rows.value = await listPendingValidation()
+    rows.value = await listPendingValidation();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.'
+    error.value = extractApiError(err) ?? 'Chargement impossible.';
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 // --- Approve / Reject ---
-const current = ref<PendingPayment | null>(null)
-const saving = ref(false)
-const dialogError = ref<string | null>(null)
+const current = ref<PendingPayment | null>(null);
+const saving = ref(false);
+const dialogError = ref<string | null>(null);
 
-const approveDialog = ref(false)
-const approveForm = reactive({ reference: '', comment: '' })
+const approveDialog = ref(false);
+const approveForm = reactive({ reference: '', comment: '' });
 
 function openApprove(p: PendingPayment) {
-  dialogError.value = null
-  current.value = p
-  approveForm.reference = ''
-  approveForm.comment = ''
-  approveDialog.value = true
+  dialogError.value = null;
+  current.value = p;
+  approveForm.reference = '';
+  approveForm.comment = '';
+  approveDialog.value = true;
 }
 
 async function submitApprove() {
-  if (!current.value) return
-  saving.value = true
-  dialogError.value = null
+  if (!current.value) return;
+  saving.value = true;
+  dialogError.value = null;
   try {
     await approvePayment(current.value.payment_id, {
       reference: approveForm.reference || null,
       comment: approveForm.comment || null,
-    })
-    approveDialog.value = false
-    notice.value = 'Paiement approuvé.'
-    await load()
+    });
+    approveDialog.value = false;
+    notice.value = 'Paiement approuvé.';
+    await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Approbation impossible.'
+    dialogError.value = extractApiError(err) ?? 'Approbation impossible.';
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
-const rejectDialog = ref(false)
-const rejectReason = ref('')
+const rejectDialog = ref(false);
+const rejectReason = ref('');
 
 function openReject(p: PendingPayment) {
-  dialogError.value = null
-  current.value = p
-  rejectReason.value = ''
-  rejectDialog.value = true
+  dialogError.value = null;
+  current.value = p;
+  rejectReason.value = '';
+  rejectDialog.value = true;
 }
 
 async function submitReject() {
-  if (!current.value || !rejectReason.value.trim()) return
-  saving.value = true
-  dialogError.value = null
+  if (!current.value || !rejectReason.value.trim()) return;
+  saving.value = true;
+  dialogError.value = null;
   try {
-    await rejectPayment(current.value.payment_id, rejectReason.value.trim())
-    rejectDialog.value = false
-    notice.value = 'Paiement rejeté.'
-    await load()
+    await rejectPayment(current.value.payment_id, rejectReason.value.trim());
+    rejectDialog.value = false;
+    notice.value = 'Paiement rejeté.';
+    await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Rejet impossible.'
+    dialogError.value = extractApiError(err) ?? 'Rejet impossible.';
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
 // --- Attachments (BC) ---
-const attachmentsDialog = ref(false)
-const attachments = ref<PaymentAttachment[]>([])
-const loadingAttachments = ref(false)
-const downloadingId = ref<string | null>(null)
+const attachmentsDialog = ref(false);
+const attachments = ref<PaymentAttachment[]>([]);
+const loadingAttachments = ref(false);
+const downloadingId = ref<string | null>(null);
 
 async function openAttachments(p: PendingPayment) {
-  dialogError.value = null
-  current.value = p
-  attachments.value = []
-  attachmentsDialog.value = true
-  loadingAttachments.value = true
+  dialogError.value = null;
+  current.value = p;
+  attachments.value = [];
+  attachmentsDialog.value = true;
+  loadingAttachments.value = true;
   try {
-    attachments.value = await listPaymentAttachments(p.payment_id)
+    attachments.value = await listPaymentAttachments(p.payment_id);
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Chargement des pièces impossible.'
+    dialogError.value = extractApiError(err) ?? 'Chargement des pièces impossible.';
   } finally {
-    loadingAttachments.value = false
+    loadingAttachments.value = false;
   }
 }
 
 async function download(att: PaymentAttachment) {
-  if (!current.value) return
-  downloadingId.value = att.id
-  dialogError.value = null
+  if (!current.value) return;
+  downloadingId.value = att.id;
+  dialogError.value = null;
   try {
-    const url = await getAttachmentDownloadUrl(current.value.payment_id, att.id)
-    window.open(url, '_blank', 'noopener')
+    const url = await getAttachmentDownloadUrl(current.value.payment_id, att.id);
+    window.open(url, '_blank', 'noopener');
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Téléchargement impossible.'
+    dialogError.value = extractApiError(err) ?? 'Téléchargement impossible.';
   } finally {
-    downloadingId.value = null
+    downloadingId.value = null;
   }
 }
 
 function avLabel(att: PaymentAttachment): string {
-  if (!att.av_scanned) return 'analyse…'
-  if (att.av_clean) return 'sain'
-  return 'infecté'
+  if (!att.av_scanned) return 'analyse…';
+  if (att.av_clean) return 'sain';
+  return 'infecté';
 }
 function avColor(att: PaymentAttachment): string {
-  if (!att.av_scanned) return 'orange'
-  if (att.av_clean) return 'green'
-  return 'negative'
+  if (!att.av_scanned) return 'orange';
+  if (att.av_clean) return 'green';
+  return 'negative';
 }
 
-onMounted(load)
+onMounted(load);
 </script>

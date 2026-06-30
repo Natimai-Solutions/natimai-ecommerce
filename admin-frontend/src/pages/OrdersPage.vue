@@ -36,10 +36,7 @@
           <div>
             {{ props.row.user_name || props.row.user_email || props.row.user_id.slice(0, 8) }}
           </div>
-          <div
-            v-if="props.row.user_name && props.row.user_email"
-            class="text-caption text-grey-6"
-          >
+          <div v-if="props.row.user_name && props.row.user_email" class="text-caption text-grey-6">
             {{ props.row.user_email }}
           </div>
         </q-td>
@@ -78,31 +75,31 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import type { QTableColumn } from 'quasar'
-import { formatXpf } from '@app/utils'
+import { onMounted, ref } from 'vue';
+import type { QTableColumn } from 'quasar';
+import { formatXpf } from '@app/utils';
 import {
   listOrders,
   orderStatusColor,
   orderStatusLabel,
   type AdminOrderListItem,
-} from 'src/api/orders'
-import { extractApiError } from 'src/api/errors'
+} from 'src/api/orders';
+import { extractApiError } from 'src/api/errors';
 
-const rows = ref<AdminOrderListItem[]>([])
-const loading = ref(false)
-const error = ref<string | null>(null)
+const rows = ref<AdminOrderListItem[]>([]);
+const loading = ref(false);
+const error = ref<string | null>(null);
 
 function formatMoney(amount: number): string {
-  return Number.isFinite(amount) ? formatXpf(amount) : String(amount)
+  return Number.isFinite(amount) ? formatXpf(amount) : String(amount);
 }
 
 function formatDate(raw: string | null): string {
-  if (!raw) return '—'
-  const d = new Date(raw)
+  if (!raw) return '—';
+  const d = new Date(raw);
   return Number.isNaN(d.getTime())
     ? raw
-    : d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 const columns: QTableColumn[] = [
@@ -118,19 +115,19 @@ const columns: QTableColumn[] = [
   { name: 'status', label: 'Statut', field: 'status', align: 'left' },
   { name: 'total', label: 'Total', field: 'total_amount', align: 'left' },
   { name: 'actions', label: '', field: 'order_id', align: 'right' },
-]
+];
 
 async function load() {
-  loading.value = true
-  error.value = null
+  loading.value = true;
+  error.value = null;
   try {
-    rows.value = await listOrders()
+    rows.value = await listOrders();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.'
+    error.value = extractApiError(err) ?? 'Chargement impossible.';
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
-onMounted(load)
+onMounted(load);
 </script>

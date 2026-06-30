@@ -8,6 +8,7 @@ from typing import Any
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.features.notification.email_renderer import render_email
 from app.features.notification.providers import (
     NotificationMessage,
     NotificationProvider,
@@ -20,6 +21,18 @@ logger = logging.getLogger(__name__)
 
 _EMAIL_CHANNEL = "email"
 _SLACK_CHANNEL = "slack"
+
+# Human-readable French labels for the admin notification (falls back to the
+# raw technical event_type when an event is not listed here).
+_EVENT_LABELS = {
+    "payment.authorized": "Paiement autorisé",
+    "payment.captured": "Paiement validé",
+    "payment.completed": "Paiement validé",
+    "payment.rejected": "Paiement refusé",
+    "payment.failed": "Paiement échoué",
+    "payment.refunded": "Remboursement effectué",
+    "payment.cancelled": "Paiement annulé",
+}
 
 # EmailStr validates user emails at write time, but payload values (UUIDs) and
 # settings (EMAIL_SUPPORT) still pass through this guard so a malformed value
@@ -66,6 +79,24 @@ def _build_notification_subject(event_type: str, payload: dict[str, Any]) -> str
     """Build notification subject."""
     payment_id = _as_non_empty_str(payload.get("payment_id")) or "unknown"
     return f"[Payment] {event_type} - {payment_id}"
+
+
+def _build_admin_email_context(
+    event_type: str, payload: dict[str, Any]
+) -> dict[str, Any]:
+    """Context for the admin_payment_event email template (shared visual style)."""
+    return {
+        "event_type": event_type,
+        "event_label": _EVENT_LABELS.get(event_type, event_type),
+        "payment_id": _as_non_empty_str(payload.get("payment_id")) or "—",
+        "order_id": _as_non_empty_str(payload.get("order_id")) or "—",
+        "provider_code": _as_non_empty_str(payload.get("provider_code")) or "—",
+        "amount": _as_non_empty_str(payload.get("amount")) or "",
+        "currency": _as_non_empty_str(payload.get("currency")) or "",
+        "reference": _as_non_empty_str(payload.get("provider_reference")) or "",
+        "reason": _as_non_empty_str(payload.get("reason")) or "",
+        "shop_name": getattr(settings, "SHOP_NAME", "Natimai"),
+    }
 
 
 async def _resolve_user_email(
@@ -149,7 +180,6 @@ def _resolve_provider(provider_code: str) -> NotificationProvider:
 async def _send_email_notifications(
     session: AsyncSession,
     event_type: str,
-    message: str,
     payload: dict[str, Any],
 ) -> None:
     """Execute send email notifications."""
@@ -166,15 +196,19 @@ async def _send_email_notifications(
         return
 
     provider = _resolve_provider(settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER)
-    subject = _build_notification_subject(event_type, payload)
+    # Same styled HTML shell as the customer-facing emails.
+    email = render_email(
+        "admin_payment_event", **_build_admin_email_context(event_type, payload)
+    )
 
     for target in targets:
         result = await provider.send(
             NotificationMessage(
                 channel=_EMAIL_CHANNEL,
                 recipient=target,
-                subject=subject,
-                text=message,
+                subject=email.subject,
+                text=email.text,
+                html=email.html,
                 metadata={"event_type": event_type, "payload": payload},
             )
         )
@@ -221,7 +255,8 @@ async def send_payment_event_notifications(
     payload: dict[str, Any],
 ) -> None:
     """Execute send payment event notifications."""
+    # Slack keeps the compact key=value line; email uses the styled HTML template.
     message = _build_notification_message(event_type, payload)
 
-    await _send_email_notifications(session, event_type, message, payload)
+    await _send_email_notifications(session, event_type, payload)
     await _send_slack_notification(event_type, message, payload)

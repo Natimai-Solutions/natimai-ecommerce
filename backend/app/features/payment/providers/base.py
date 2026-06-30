@@ -110,6 +110,12 @@ class PaymentProvider(ABC):
 
     code: str
 
+    # Whether a refund can be *initiated from the admin UI* for this provider.
+    # Only card providers (PayZen) move money back through the app; manual /
+    # document refunds happen out-of-band, so their button is hidden. Flip this
+    # to True on a future provider to surface the refund button automatically.
+    supports_in_app_refund: bool = False
+
     async def capture(
         self,
         *,

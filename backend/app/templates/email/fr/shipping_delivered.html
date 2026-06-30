@@ -1,0 +1,9 @@
+{% extends "_layout.html" %}
+{% block title %}Commande livrée{% endblock %}
+{% block header_color %}#1a7a4a{% endblock %}
+{% block heading %}Commande livrée ✓{% endblock %}
+{% block content %}
+      <p>Bonjour {{ full_name }},</p>
+      <p>Votre commande <strong>{{ order_id }}</strong> a bien été livrée. Nous espérons que vous êtes satisfait(e) de votre achat.</p>
+      <p>L'équipe {{ shop_name }}</p>
+{% endblock %}
