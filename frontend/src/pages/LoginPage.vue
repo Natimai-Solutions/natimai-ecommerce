@@ -3,9 +3,7 @@
     <q-card flat bordered style="width: 100%; max-width: 420px">
       <q-card-section>
         <div class="text-h5 q-mb-xs">Connexion</div>
-        <div class="text-body2 text-grey-7">
-          Connectez-vous pour accéder à votre compte.
-        </div>
+        <div class="text-body2 text-grey-7">Connectez-vous pour accéder à votre compte.</div>
       </q-card-section>
 
       <q-card-section>
@@ -80,49 +78,55 @@
 
       <q-card-section class="text-center q-pt-none">
         <span class="text-body2 text-grey-7">Pas encore de compte ?</span>
-        <q-btn flat dense no-caps color="primary" label="Créer un compte" :to="{ name: 'register' }" />
+        <q-btn
+          flat
+          dense
+          no-caps
+          color="primary"
+          label="Créer un compte"
+          :to="{ name: 'register' }"
+        />
       </q-card-section>
     </q-card>
   </q-page>
 </template>
 
-
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore } from 'src/stores/auth'
+import { ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useAuthStore } from 'src/stores/auth';
 
-const authStore = useAuthStore()
-const route = useRoute()
-const router = useRouter()
+const authStore = useAuthStore();
+const route = useRoute();
+const router = useRouter();
 
-const email = ref('')
-const password = ref('')
-const showPassword = ref(false)
+const email = ref('');
+const password = ref('');
+const showPassword = ref(false);
 
 // OAuth buttons are gated behind an explicit flag: they only work once the
 // backend has GOOGLE/MICROSOFT client credentials AND
 // FRONTEND_OAUTH_REDIRECT_URL pointing to /oauth/callback. Enable with
 // VITE_OAUTH_ENABLED=true once that config is in place.
-const apiUrl = import.meta.env.VITE_API_URL as string | undefined
-const oauthEnabled = Boolean(apiUrl) && import.meta.env.VITE_OAUTH_ENABLED === 'true'
+const apiUrl = import.meta.env.VITE_API_URL as string | undefined;
+const oauthEnabled = Boolean(apiUrl) && import.meta.env.VITE_OAUTH_ENABLED === 'true';
 
 function redirectTarget(): string {
-  const target = route.query.redirect
-  return typeof target === 'string' && target.startsWith('/') ? target : '/'
+  const target = route.query.redirect;
+  return typeof target === 'string' && target.startsWith('/') ? target : '/';
 }
 
 async function onSubmit() {
-  const ok = await authStore.login(email.value.trim().toLowerCase(), password.value)
+  const ok = await authStore.login(email.value.trim().toLowerCase(), password.value);
   if (ok) {
-    await router.replace(redirectTarget())
+    await router.replace(redirectTarget());
   }
 }
 
 function oauthLogin(provider: 'google' | 'microsoft') {
-  if (!apiUrl) return
+  if (!apiUrl) return;
   // Remember where to land after the OAuth round-trip.
-  sessionStorage.setItem('oauth.redirect', redirectTarget())
-  window.location.href = `${apiUrl}/api/v1/auth/${provider}/login`
+  sessionStorage.setItem('oauth.redirect', redirectTarget());
+  window.location.href = `${apiUrl}/api/v1/auth/${provider}/login`;
 }
 </script>

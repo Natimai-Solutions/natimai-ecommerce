@@ -48,7 +48,13 @@
       </template>
       <template #body-cell-valid_until="props">
         <q-td :props="props">
-          <q-chip v-if="!props.row.valid_until" dense color="green" text-color="white" label="Actif" />
+          <q-chip
+            v-if="!props.row.valid_until"
+            dense
+            color="green"
+            text-color="white"
+            label="Actif"
+          />
           <span v-else>{{ props.row.valid_until }}</span>
         </q-td>
       </template>
@@ -67,13 +73,48 @@
         <q-card-section class="text-h6">Nouveau taux</q-card-section>
         <q-form @submit.prevent="submitCreate">
           <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{ dialogError }}</q-banner>
-            <q-input v-model="form.code" label="Code (ex: TGC_NORMAL) *" outlined dense :rules="req" />
+            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
+              dialogError
+            }}</q-banner>
+            <q-input
+              v-model="form.code"
+              label="Code (ex: TGC_NORMAL) *"
+              outlined
+              dense
+              :rules="req"
+            />
             <q-input v-model="form.label" label="Libellé *" outlined dense :rules="req" />
-            <q-input v-model="form.rate_pct" label="Taux (%) *" type="number" step="0.01" outlined dense :rules="req" />
-            <q-input v-model="form.territory_code" label="Territoire *" outlined dense :rules="req" />
-            <q-input v-model="form.valid_from" label="Valide à partir du *" type="date" outlined dense :rules="req" />
-            <q-input v-model="form.valid_until" label="Valide jusqu'au (optionnel)" type="date" outlined dense />
+            <q-input
+              v-model="form.rate_pct"
+              label="Taux (%) *"
+              type="number"
+              step="0.01"
+              outlined
+              dense
+              :rules="req"
+            />
+            <q-input
+              v-model="form.territory_code"
+              label="Territoire *"
+              outlined
+              dense
+              :rules="req"
+            />
+            <q-input
+              v-model="form.valid_from"
+              label="Valide à partir du *"
+              type="date"
+              outlined
+              dense
+              :rules="req"
+            />
+            <q-input
+              v-model="form.valid_until"
+              label="Valide jusqu'au (optionnel)"
+              type="date"
+              outlined
+              dense
+            />
           </q-card-section>
           <q-card-actions align="right">
             <q-btn flat label="Annuler" v-close-popup />
@@ -89,13 +130,22 @@
         <q-card-section class="text-h6">Modifier {{ editing?.code }}</q-card-section>
         <q-form @submit.prevent="submitEdit">
           <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{ dialogError }}</q-banner>
+            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
+              dialogError
+            }}</q-banner>
             <div class="text-caption text-grey-7">
-              Le taux ({{ editing?.rate_pct }} %) est immuable. Pour le changer, créez un
-              nouveau taux et clôturez celui-ci.
+              Le taux ({{ editing?.rate_pct }} %) est immuable. Pour le changer, créez un nouveau
+              taux et clôturez celui-ci.
             </div>
             <q-input v-model="editForm.label" label="Libellé" outlined dense />
-            <q-input v-model="editForm.valid_until" label="Clôturer le (valid_until)" type="date" outlined dense clearable />
+            <q-input
+              v-model="editForm.valid_until"
+              label="Clôturer le (valid_until)"
+              type="date"
+              outlined
+              dense
+              clearable
+            />
           </q-card-section>
           <q-card-actions align="right">
             <q-btn flat label="Annuler" v-close-popup />
@@ -108,32 +158,27 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
-import type { QTableColumn } from 'quasar'
-import {
-  createTaxRate,
-  listTaxRates,
-  updateTaxRate,
-  type TaxRate,
-} from 'src/api/taxRates'
-import { extractApiError } from 'src/api/errors'
+import { onMounted, reactive, ref } from 'vue';
+import type { QTableColumn } from 'quasar';
+import { createTaxRate, listTaxRates, updateTaxRate, type TaxRate } from 'src/api/taxRates';
+import { extractApiError } from 'src/api/errors';
 
-const rows = ref<TaxRate[]>([])
-const loading = ref(false)
-const error = ref<string | null>(null)
-const territory = ref<string | null>(null)
-const validFilter = ref<boolean | null>(null)
+const rows = ref<TaxRate[]>([]);
+const loading = ref(false);
+const error = ref<string | null>(null);
+const territory = ref<string | null>(null);
+const validFilter = ref<boolean | null>(null);
 
 const validOptions = [
   { label: 'Tous', value: null },
   { label: 'Actifs', value: true },
   { label: 'Expirés', value: false },
-]
+];
 
 const req = [
   (v: string | number | null | undefined) =>
     (v !== null && v !== undefined && String(v).length > 0) || 'Requis',
-]
+];
 
 const columns: QTableColumn[] = [
   { name: 'code', label: 'Code', field: 'code', align: 'left' },
@@ -143,27 +188,27 @@ const columns: QTableColumn[] = [
   { name: 'valid_from', label: 'Valide depuis', field: 'valid_from', align: 'left' },
   { name: 'valid_until', label: 'Clôture', field: 'valid_until', align: 'left' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-]
+];
 
 async function load() {
-  loading.value = true
-  error.value = null
+  loading.value = true;
+  error.value = null;
   try {
-    const params: { territory_code?: string; valid?: boolean } = {}
-    if (territory.value) params.territory_code = territory.value
-    if (validFilter.value !== null) params.valid = validFilter.value
-    rows.value = await listTaxRates(params)
+    const params: { territory_code?: string; valid?: boolean } = {};
+    if (territory.value) params.territory_code = territory.value;
+    if (validFilter.value !== null) params.valid = validFilter.value;
+    rows.value = await listTaxRates(params);
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.'
+    error.value = extractApiError(err) ?? 'Chargement impossible.';
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 // Create
-const createDialog = ref(false)
-const saving = ref(false)
-const dialogError = ref<string | null>(null)
+const createDialog = ref(false);
+const saving = ref(false);
+const dialogError = ref<string | null>(null);
 const form = reactive({
   code: '',
   label: '',
@@ -171,22 +216,22 @@ const form = reactive({
   territory_code: 'PF',
   valid_from: '',
   valid_until: '',
-})
+});
 
 function openCreate() {
-  dialogError.value = null
-  form.code = ''
-  form.label = ''
-  form.rate_pct = ''
-  form.territory_code = 'PF'
-  form.valid_from = new Date().toISOString().slice(0, 10)
-  form.valid_until = ''
-  createDialog.value = true
+  dialogError.value = null;
+  form.code = '';
+  form.label = '';
+  form.rate_pct = '';
+  form.territory_code = 'PF';
+  form.valid_from = new Date().toISOString().slice(0, 10);
+  form.valid_until = '';
+  createDialog.value = true;
 }
 
 async function submitCreate() {
-  saving.value = true
-  dialogError.value = null
+  saving.value = true;
+  dialogError.value = null;
   try {
     await createTaxRate({
       code: form.code,
@@ -195,49 +240,49 @@ async function submitCreate() {
       territory_code: form.territory_code.toUpperCase(),
       valid_from: form.valid_from,
       valid_until: form.valid_until || null,
-    })
-    createDialog.value = false
-    await load()
+    });
+    createDialog.value = false;
+    await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Création impossible.'
+    dialogError.value = extractApiError(err) ?? 'Création impossible.';
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
 // Edit
-const editDialog = ref(false)
-const editing = ref<TaxRate | null>(null)
+const editDialog = ref(false);
+const editing = ref<TaxRate | null>(null);
 const editForm = reactive<{ label: string; valid_until: string | null }>({
   label: '',
   valid_until: '',
-})
+});
 
 function openEdit(rate: TaxRate) {
-  dialogError.value = null
-  editing.value = rate
-  editForm.label = rate.label
-  editForm.valid_until = rate.valid_until ?? ''
-  editDialog.value = true
+  dialogError.value = null;
+  editing.value = rate;
+  editForm.label = rate.label;
+  editForm.valid_until = rate.valid_until ?? '';
+  editDialog.value = true;
 }
 
 async function submitEdit() {
-  if (!editing.value) return
-  saving.value = true
-  dialogError.value = null
+  if (!editing.value) return;
+  saving.value = true;
+  dialogError.value = null;
   try {
     await updateTaxRate(editing.value.id, {
       label: editForm.label,
       valid_until: editForm.valid_until || null,
-    })
-    editDialog.value = false
-    await load()
+    });
+    editDialog.value = false;
+    await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Modification impossible.'
+    dialogError.value = extractApiError(err) ?? 'Modification impossible.';
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
-onMounted(load)
+onMounted(load);
 </script>

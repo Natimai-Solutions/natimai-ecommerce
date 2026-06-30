@@ -26,9 +26,7 @@
 
           <!-- Caractéristiques (specs) — dépend de la catégorie sélectionnée -->
           <div v-if="store.specFacets.length > 0" class="q-mb-md">
-            <div class="text-caption text-weight-medium text-grey-8 q-mb-xs">
-              Caractéristiques
-            </div>
+            <div class="text-caption text-weight-medium text-grey-8 q-mb-xs">Caractéristiques</div>
             <div v-for="facet in store.specFacets" :key="facet.key" class="q-mb-sm">
               <div class="text-caption text-grey-7">{{ facet.label_fr }}</div>
 
@@ -161,14 +159,7 @@
                 <q-icon name="search" />
               </template>
               <template #append>
-                <q-btn
-                  flat
-                  dense
-                  round
-                  icon="search"
-                  color="primary"
-                  @click="onSearch"
-                />
+                <q-btn flat dense round icon="search" color="primary" @click="onSearch" />
               </template>
             </q-input>
           </div>
@@ -193,11 +184,7 @@
 
         <!-- État chargement -->
         <div v-if="store.loading" class="row q-col-gutter-md">
-          <div
-            v-for="n in 12"
-            :key="n"
-            class="col-12 col-sm-6 col-md-4 col-lg-3"
-          >
+          <div v-for="n in 12" :key="n" class="col-12 col-sm-6 col-md-4 col-lg-3">
             <q-card flat bordered>
               <q-skeleton height="180px" square />
               <q-card-section>
@@ -218,10 +205,7 @@
         </q-banner>
 
         <!-- Aucun résultat -->
-        <div
-          v-else-if="store.items.length === 0"
-          class="column items-center q-py-xl text-grey-6"
-        >
+        <div v-else-if="store.items.length === 0" class="column items-center q-py-xl text-grey-6">
           <q-icon name="search_off" size="4rem" class="q-mb-md" />
           <div class="text-h6">Aucun produit trouvé</div>
           <div class="text-body2">Modifiez vos critères de recherche</div>
@@ -234,10 +218,7 @@
             :key="product.id"
             class="col-12 col-sm-6 col-md-4 col-lg-3"
           >
-            <ProductCard
-              :product="product"
-              @add-to-cart="onAddToCart"
-            />
+            <ProductCard :product="product" @add-to-cart="onAddToCart" />
           </div>
         </div>
 
@@ -259,21 +240,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onServerPrefetch, ref } from 'vue'
-import { useMeta } from 'quasar'
-import { useRoute, useRouter } from 'vue-router'
-import { useProductsStore } from 'src/stores/products'
-import { useCartStore } from 'src/stores/cart'
-import ProductCard from 'src/components/ProductCard.vue'
-import type { components } from '@app/api-types'
+import { computed, onMounted, onServerPrefetch, ref } from 'vue';
+import { useMeta } from 'quasar';
+import { useRoute, useRouter } from 'vue-router';
+import { useProductsStore } from 'src/stores/products';
+import { useCartStore } from 'src/stores/cart';
+import ProductCard from 'src/components/ProductCard.vue';
+import type { components } from '@app/api-types';
 
-type ProductPublic = components['schemas']['ProductPublic']
-type SpecFacet = components['schemas']['SpecFacet']
+type ProductPublic = components['schemas']['ProductPublic'];
+type SpecFacet = components['schemas']['SpecFacet'];
 
-const store = useProductsStore()
-const cartStore = useCartStore()
-const route = useRoute()
-const router = useRouter()
+const store = useProductsStore();
+const cartStore = useCartStore();
+const route = useRoute();
+const router = useRouter();
 
 useMeta(() => ({
   title: 'Catalogue | Natimai',
@@ -283,116 +264,116 @@ useMeta(() => ({
       content: 'Explorez notre catalogue de produits avec filtres par fabricant et prix.',
     },
   },
-}))
+}));
 
-const searchQuery = ref<string>('')
-const selectedManufacturer = ref<string | null>(null)
-const selectedCategory = ref<string | null>(null)
+const searchQuery = ref<string>('');
+const selectedManufacturer = ref<string | null>(null);
+const selectedCategory = ref<string | null>(null);
 // Spec filters: enum key → selected value_text[]; numeric key → minimum value.
-const enumSelections = ref<Record<string, string[]>>({})
-const numericMin = ref<Record<string, number | null>>({})
-const priceMin = ref<number | null>(null)
-const priceMax = ref<number | null>(null)
-const cartFeedback = ref<{ ok: boolean; message: string } | null>(null)
+const enumSelections = ref<Record<string, string[]>>({});
+const numericMin = ref<Record<string, number | null>>({});
+const priceMin = ref<number | null>(null);
+const priceMax = ref<number | null>(null);
+const cartFeedback = ref<{ ok: boolean; message: string } | null>(null);
 
 const categoryOptions = computed(() =>
   store.categories.map((c) => ({ label: c.name, value: c.id })),
-)
+);
 
 function numericOptions(facet: SpecFacet): { label: string; value: number }[] {
-  const seen = new Set<number>()
-  const opts: { label: string; value: number }[] = []
+  const seen = new Set<number>();
+  const opts: { label: string; value: number }[] = [];
   for (const v of facet.values ?? []) {
-    if (v.value_numeric == null) continue
-    const num = Number.parseFloat(v.value_numeric)
-    if (!Number.isFinite(num) || seen.has(num)) continue
-    seen.add(num)
+    if (v.value_numeric == null) continue;
+    const num = Number.parseFloat(v.value_numeric);
+    if (!Number.isFinite(num) || seen.has(num)) continue;
+    seen.add(num);
     opts.push({
       label: `≥ ${num}${facet.unit ? ' ' + facet.unit : ''} (${v.count})`,
       value: num,
-    })
+    });
   }
-  return opts.sort((a, b) => a.value - b.value)
+  return opts.sort((a, b) => a.value - b.value);
 }
 
 /** Build the `specs` search payload: enum → key:[values], numeric → key_min:value. */
 function buildSpecs(): Record<string, unknown> {
-  const specs: Record<string, unknown> = {}
+  const specs: Record<string, unknown> = {};
   for (const [key, vals] of Object.entries(enumSelections.value)) {
-    if (vals.length > 0) specs[key] = vals
+    if (vals.length > 0) specs[key] = vals;
   }
   for (const [key, min] of Object.entries(numericMin.value)) {
-    if (min != null) specs[`${key}_min`] = min
+    if (min != null) specs[`${key}_min`] = min;
   }
-  return specs
+  return specs;
 }
 
 const currentPage = computed({
   get: () => store.currentPage,
-  set: (v) => { store.currentPage = v },
-})
+  set: (v) => {
+    store.currentPage = v;
+  },
+});
 
 const manufacturerOptions = computed(() => {
-  const mfrs = store.facets?.manufacturers ?? {}
+  const mfrs = store.facets?.manufacturers ?? {};
   return Object.entries(mfrs)
     .sort((a, b) => b[1] - a[1])
-    .map(([name, cnt]) => ({ label: `${name} (${cnt})`, value: name }))
-})
+    .map(([name, cnt]) => ({ label: `${name} (${cnt})`, value: name }));
+});
 
 async function onSearch() {
-  await store.applyFilters({ q: searchQuery.value || null })
-  syncQueryParams()
+  await store.applyFilters({ q: searchQuery.value || null });
+  syncQueryParams();
 }
 
 async function onManufacturerChange(val: string | null) {
-  await store.applyFilters({ manufacturer: val })
-  syncQueryParams()
+  await store.applyFilters({ manufacturer: val });
+  syncQueryParams();
 }
 
 async function onCategoryChange(catId: string | null) {
-  selectedCategory.value = catId
+  selectedCategory.value = catId;
   // Spec facets are per-category — reset any previous spec selection.
-  enumSelections.value = {}
-  numericMin.value = {}
-  await store.loadSpecFacets(catId)
-  await store.applyFilters({ category_id: catId, specs: {} })
-  syncQueryParams()
+  enumSelections.value = {};
+  numericMin.value = {};
+  await store.loadSpecFacets(catId);
+  await store.applyFilters({ category_id: catId, specs: {} });
+  syncQueryParams();
 }
 
 async function onSpecChange() {
-  await store.applyFilters({ specs: buildSpecs() })
+  await store.applyFilters({ specs: buildSpecs() });
 }
 
 function onNumericChange(key: string, value: number | null) {
-  numericMin.value = { ...numericMin.value, [key]: value }
-  void onSpecChange()
+  numericMin.value = { ...numericMin.value, [key]: value };
+  void onSpecChange();
 }
 
 function onEnumToggle(key: string, value: string, checked: boolean) {
-  const current = enumSelections.value[key] ?? []
-  const next = checked
-    ? [...current, value]
-    : current.filter((v) => v !== value)
-  enumSelections.value = { ...enumSelections.value, [key]: next }
-  void onSpecChange()
+  const current = enumSelections.value[key] ?? [];
+  const next = checked ? [...current, value] : current.filter((v) => v !== value);
+  enumSelections.value = { ...enumSelections.value, [key]: next };
+  void onSpecChange();
 }
 
 async function onPriceChange() {
   await store.applyFilters({
     price_min: priceMin.value ?? null,
     price_max: priceMax.value ?? null,
-  })
+  });
 }
 
 async function resetFilters() {
-  searchQuery.value = ''
-  selectedManufacturer.value = null
-  selectedCategory.value = null
-  enumSelections.value = {}
-  numericMin.value = {}
-  priceMin.value = null
-  priceMax.value = null
-  await store.loadSpecFacets(null)
+  searchQuery.value = '';
+  selectedManufacturer.value = null;
+  selectedCategory.value = null;
+  enumSelections.value = {};
+  numericMin.value = {};
+  priceMin.value = null;
+  priceMax.value = null;
+  await store.loadSpecFacets(null);
   await store.applyFilters({
     q: null,
     manufacturer: null,
@@ -401,62 +382,62 @@ async function resetFilters() {
     price_min: null,
     price_max: null,
     specs: {},
-  })
-  void router.replace({ query: {} })
+  });
+  void router.replace({ query: {} });
 }
 
 function syncQueryParams() {
-  const query: Record<string, string> = {}
-  if (searchQuery.value) query['q'] = searchQuery.value
-  if (selectedManufacturer.value) query['mfr'] = selectedManufacturer.value
-  if (selectedCategory.value) query['cat'] = selectedCategory.value
-  void router.replace({ query })
+  const query: Record<string, string> = {};
+  if (searchQuery.value) query['q'] = searchQuery.value;
+  if (selectedManufacturer.value) query['mfr'] = selectedManufacturer.value;
+  if (selectedCategory.value) query['cat'] = selectedCategory.value;
+  void router.replace({ query });
 }
 
 async function onAddToCart(product: ProductPublic) {
-  cartFeedback.value = null
-  const ok = await cartStore.addItem(product.id, 1, product)
+  cartFeedback.value = null;
+  const ok = await cartStore.addItem(product.id, 1, product);
 
   if (ok) {
     cartFeedback.value = {
       ok: true,
       message: `${product.name} ajoute au panier.`,
-    }
-    return
+    };
+    return;
   }
 
   cartFeedback.value = {
     ok: false,
-    message: cartStore.error ?? 'Impossible d\'ajouter cet article au panier.',
-  }
+    message: cartStore.error ?? "Impossible d'ajouter cet article au panier.",
+  };
 }
 
 function initFromQuery() {
-  const q = route.query['q']
-  const mfr = route.query['mfr']
-  const cat = route.query['cat']
-  if (typeof q === 'string') searchQuery.value = q
-  if (typeof mfr === 'string') selectedManufacturer.value = mfr
-  if (typeof cat === 'string') selectedCategory.value = cat
+  const q = route.query['q'];
+  const mfr = route.query['mfr'];
+  const cat = route.query['cat'];
+  if (typeof q === 'string') searchQuery.value = q;
+  if (typeof mfr === 'string') selectedManufacturer.value = mfr;
+  if (typeof cat === 'string') selectedCategory.value = cat;
 }
 
 async function loadCatalogueData() {
-  initFromQuery()
-  await store.loadCategories()
-  if (selectedCategory.value) await store.loadSpecFacets(selectedCategory.value)
+  initFromQuery();
+  await store.loadCategories();
+  if (selectedCategory.value) await store.loadSpecFacets(selectedCategory.value);
   await store.applyFilters({
     q: searchQuery.value || null,
     manufacturer: selectedManufacturer.value,
     category_id: selectedCategory.value,
     specs: buildSpecs(),
-  })
+  });
 }
 
-onServerPrefetch(loadCatalogueData)
+onServerPrefetch(loadCatalogueData);
 
 onMounted(async () => {
-  await loadCatalogueData()
-})
+  await loadCatalogueData();
+});
 </script>
 
 <style scoped lang="scss">

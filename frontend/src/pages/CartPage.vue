@@ -15,11 +15,7 @@
       </div>
     </div>
 
-    <q-banner
-      v-if="cartStore.error"
-      class="bg-red-1 text-red-8 q-mb-md"
-      rounded
-    >
+    <q-banner v-if="cartStore.error" class="bg-red-1 text-red-8 q-mb-md" rounded>
       <template #avatar><q-icon name="error_outline" /></template>
       {{ cartStore.error }}
       <template #action>
@@ -59,14 +55,12 @@
 
         <q-card v-else flat bordered>
           <q-list separator>
-            <q-item
-              v-for="entry in cartStore.detailedItems"
-              :key="entry.item.id"
-              class="q-py-md"
-            >
+            <q-item v-for="entry in cartStore.detailedItems" :key="entry.item.id" class="q-py-md">
               <q-item-section avatar top>
                 <q-img
-                  :src="entry.product?.image_url ?? entry.product?.supplier_image_url ?? placeholderImg"
+                  :src="
+                    entry.product?.image_url ?? entry.product?.supplier_image_url ?? placeholderImg
+                  "
                   width="72px"
                   height="72px"
                   fit="contain"
@@ -171,65 +165,65 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useCartStore } from 'src/stores/cart'
-import { useCurrencyStore } from 'src/stores/currency'
+import { onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useCartStore } from 'src/stores/cart';
+import { useCurrencyStore } from 'src/stores/currency';
 
-const cartStore = useCartStore()
-const currencyStore = useCurrencyStore()
-const router = useRouter()
+const cartStore = useCartStore();
+const currencyStore = useCurrencyStore();
+const router = useRouter();
 
-const placeholderImg = '/icons/placeholder-product.svg'
+const placeholderImg = '/icons/placeholder-product.svg';
 
 function parseMoney(raw: string): number {
-  const value = Number.parseFloat(raw)
-  return Number.isFinite(value) ? value : 0
+  const value = Number.parseFloat(raw);
+  return Number.isFinite(value) ? value : 0;
 }
 
 function moneyLabel(raw: string): string {
-  return currencyStore.format(parseMoney(raw))
+  return currencyStore.format(parseMoney(raw));
 }
 
 function moneyNumberLabel(amount: number): string {
-  return currencyStore.format(amount)
+  return currencyStore.format(amount);
 }
 
 function fallbackProductName(productId: string): string {
-  return `Produit ${productId.slice(0, 8)}`
+  return `Produit ${productId.slice(0, 8)}`;
 }
 
 async function loadCart() {
-  await cartStore.loadCart()
+  await cartStore.loadCart();
 }
 
 function increaseQuantity(itemId: string, currentQuantity: number) {
-  cartStore.updateItemQuantity(itemId, currentQuantity + 1)
+  cartStore.updateItemQuantity(itemId, currentQuantity + 1);
 }
 
 function decreaseQuantity(itemId: string, currentQuantity: number) {
   if (currentQuantity <= 1) {
-    cartStore.removeItem(itemId)
-    return
+    cartStore.removeItem(itemId);
+    return;
   }
-  cartStore.updateItemQuantity(itemId, currentQuantity - 1)
+  cartStore.updateItemQuantity(itemId, currentQuantity - 1);
 }
 
 function removeItem(itemId: string) {
-  cartStore.removeItem(itemId)
+  cartStore.removeItem(itemId);
 }
 
 function clearCart() {
-  cartStore.clearCart()
+  cartStore.clearCart();
 }
 
 function goToCheckout() {
-  void router.push({ name: 'checkout' })
+  void router.push({ name: 'checkout' });
 }
 
 onMounted(async () => {
-  await loadCart()
-})
+  await loadCart();
+});
 </script>
 
 <style scoped lang="scss">

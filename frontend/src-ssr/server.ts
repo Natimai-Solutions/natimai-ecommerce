@@ -18,7 +18,7 @@ import {
   defineSsrListen,
   defineSsrClose,
   defineSsrServeStaticContent,
-  defineSsrRenderPreloadTag
+  defineSsrRenderPreloadTag,
 } from '#q-app/wrappers';
 
 declare module '#q-app' {
@@ -130,7 +130,7 @@ const pngRE = /\.png$/;
  * Should return a String with HTML output
  * (if any) for preloading indicated file
  */
-export const renderPreloadTag = defineSsrRenderPreloadTag((file/* , { ssrContext } */) => {
+export const renderPreloadTag = defineSsrRenderPreloadTag((file /* , { ssrContext } */) => {
   if (jsRE.test(file) === true) {
     return `<link rel="modulepreload" href="${file}" crossorigin>`;
   }

@@ -1,0 +1,43 @@
+{#
+  Shared shell for all transactional emails. Child templates live under
+  <lang>/<name>.html and override the blocks below:
+    title         → <title> text (defaults to the shop name)
+    header_color  → header background colour
+    extra_style   → per-email CSS additions (e.g. badge colour)
+    heading       → the <h1> shown in the coloured header
+    content       → the email body
+    footer        → footer line (defaults to the automated-message notice)
+#}<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}{{ shop_name }}{% endblock %}</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0; }
+    .wrapper { max-width: 600px; margin: 32px auto; background: #ffffff; border-radius: 8px; overflow: hidden; }
+    .header { background: {% block header_color %}#1a3c5e{% endblock %}; padding: 24px 32px; }
+    .header h1 { color: #ffffff; margin: 0; font-size: 20px; }
+    .body { padding: 32px; color: #333333; }
+    .body p { margin: 0 0 16px; line-height: 1.5; }
+    .badge { display: inline-block; background: #eef2f7; color: #1a3c5e; border-radius: 4px; padding: 4px 12px; font-weight: bold; margin-bottom: 16px; font-size: 13px; }
+    .reason { background: #fdecea; border-left: 4px solid #7a1a1a; border-radius: 4px; padding: 12px 16px; margin: 16px 0; font-size: 14px; }
+    .summary { background: #f0f4f8; border-radius: 6px; padding: 16px 24px; margin: 24px 0; }
+    .summary table { width: 100%; border-collapse: collapse; }
+    .summary td { padding: 6px 0; font-size: 14px; }
+    .summary td:first-child { color: #666666; width: 55%; }
+    .summary td:last-child { font-weight: bold; text-align: right; }
+    .footer { padding: 16px 32px; background: #f0f4f8; font-size: 12px; color: #888888; text-align: center; }
+    {% block extra_style %}{% endblock %}
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="header"><h1>{% block heading %}{% endblock %}</h1></div>
+    <div class="body">
+      {% block content %}{% endblock %}
+    </div>
+    <div class="footer">{% block footer %}Ce message est envoyé automatiquement, merci de ne pas y répondre.{% endblock %}</div>
+  </div>
+</body>
+</html>

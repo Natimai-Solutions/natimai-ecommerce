@@ -101,9 +101,12 @@ async def submit_upgrade_request(
             details={"price_group_id": str(payload.price_group_id)},
         )
 
+    # Capture before the commit below expires the ORM instance (MissingGreenlet).
+    user_id = current_user.id
+
     # Block duplicate pending request for the same group
     dup_stmt = select(GroupUpgradeRequest).where(
-        GroupUpgradeRequest.user_id == current_user.id,
+        GroupUpgradeRequest.user_id == user_id,
         GroupUpgradeRequest.price_group_id == payload.price_group_id,
         GroupUpgradeRequest.status == UpgradeRequestStatus.pending,
     )
@@ -114,13 +117,13 @@ async def submit_upgrade_request(
             status_code=409,
             message="A pending request for this group already exists",
             details={
-                "user_id": str(current_user.id),
+                "user_id": str(user_id),
                 "price_group_id": str(payload.price_group_id),
             },
         )
 
     req = GroupUpgradeRequest(
-        user_id=current_user.id,
+        user_id=user_id,
         price_group_id=payload.price_group_id,
         business_registration_number=payload.business_registration_number,
         attestation_notes=payload.attestation_notes,
@@ -131,7 +134,7 @@ async def submit_upgrade_request(
     await session.refresh(req)
     logger.info(
         "Upgrade request submitted: user_id=%s price_group_id=%s",
-        current_user.id,
+        user_id,
         payload.price_group_id,
     )
     return GroupUpgradeRequestPublic.model_validate(req)
@@ -153,6 +156,68 @@ async def list_my_upgrade_requests(
     return GroupUpgradeRequestsPublic(
         data=[GroupUpgradeRequestPublic.model_validate(r) for r in requests],
         count=len(requests),
+    )
+
+
+class PriceGroupOption(BaseModel):
+    """Customer-safe view of a price group (omits the internal margin rate)."""
+
+    id: uuid.UUID
+    code: str
+    label: str
+
+
+class UpgradeGroupOptions(BaseModel):
+    """Context for the storefront group-upgrade form."""
+
+    current_group: PriceGroupOption | None = None
+    available_groups: list[PriceGroupOption] = []
+
+
+def _as_option(group: PriceGroup) -> PriceGroupOption:
+    return PriceGroupOption(id=group.id, code=group.code, label=group.label)
+
+
+@router.get("/users/me/upgrade-group/options", response_model=UpgradeGroupOptions)
+async def get_upgrade_group_options(
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> UpgradeGroupOptions:
+    """Return the user's current price group and the groups they may request.
+
+    Requestable groups are active groups flagged ``requires_validation`` (minus
+    the current one). Margin rates are intentionally not exposed.
+    """
+    current: PriceGroup | None = None
+    if current_user.price_group_id is not None:
+        current = await session.get(PriceGroup, current_user.price_group_id)
+    if current is None:
+        # Fall back to the default group so the user always sees an effective one.
+        default_stmt = select(PriceGroup).where(
+            col(PriceGroup.default).is_(True),
+            col(PriceGroup.is_active).is_(True),
+        )
+        current = (await session.exec(default_stmt)).first()
+
+    current_id = current.id if current is not None else None
+
+    avail_stmt = (
+        select(PriceGroup)
+        .where(
+            col(PriceGroup.requires_validation).is_(True),
+            col(PriceGroup.is_active).is_(True),
+        )
+        .order_by(col(PriceGroup.label))
+    )
+    available = [
+        _as_option(g)
+        for g in (await session.exec(avail_stmt)).all()
+        if g.id != current_id
+    ]
+
+    return UpgradeGroupOptions(
+        current_group=_as_option(current) if current is not None else None,
+        available_groups=available,
     )
 
 
@@ -223,11 +288,12 @@ async def approve_upgrade_request(
             message=f"User '{req.user_id}' not found",
             details={"user_id": str(req.user_id)},
         )
+    admin_id = current_user.id  # capture before commit (MissingGreenlet)
     user.price_group_id = req.price_group_id
     session.add(user)
 
     req.status = UpgradeRequestStatus.approved
-    req.reviewed_by_id = current_user.id
+    req.reviewed_by_id = admin_id
     req.reviewed_at = datetime.utcnow()
     req.admin_comment = payload.comment
     session.add(req)
@@ -239,7 +305,7 @@ async def approve_upgrade_request(
         request_id,
         req.user_id,
         req.price_group_id,
-        current_user.id,
+        admin_id,
     )
     return GroupUpgradeRequestPublic.model_validate(req)
 
@@ -265,8 +331,9 @@ async def reject_upgrade_request(
             details={"request_id": str(request_id), "status": req.status},
         )
 
+    admin_id = current_user.id  # capture before commit (MissingGreenlet)
     req.status = UpgradeRequestStatus.rejected
-    req.reviewed_by_id = current_user.id
+    req.reviewed_by_id = admin_id
     req.reviewed_at = datetime.utcnow()
     req.admin_comment = payload.comment
     session.add(req)
@@ -277,7 +344,7 @@ async def reject_upgrade_request(
         "Upgrade request rejected: request_id=%s user_id=%s admin=%s",
         request_id,
         req.user_id,
-        current_user.id,
+        admin_id,
     )
     return GroupUpgradeRequestPublic.model_validate(req)
 
@@ -316,6 +383,7 @@ async def assign_price_group_to_user(
             details={"user_id": str(user_id)},
         )
 
+    admin_id = current_user.id  # capture before commit (MissingGreenlet)
     user.price_group_id = payload.price_group_id
     session.add(user)
     await session.commit()
@@ -323,6 +391,6 @@ async def assign_price_group_to_user(
         "Price group directly assigned: user_id=%s price_group_id=%s admin=%s",
         user_id,
         payload.price_group_id,
-        current_user.id,
+        admin_id,
     )
     return Message(message="Price group assigned")

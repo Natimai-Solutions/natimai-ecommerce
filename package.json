@@ -6,9 +6,9 @@
   "scripts": {
     "gen:types": "openapi-typescript http://localhost:8000/api/v1/openapi.json -o shared/api-types/src/schema.ts",
     "dev:front": "pnpm --filter frontend dev",
-    "dev:admin": "pnpm --filter admin-frontend dev",
+    "dev:admin": "pnpm --filter admin dev",
     "build:front": "pnpm --filter frontend build",
-    "build:admin": "pnpm --filter admin-frontend build",
+    "build:admin": "pnpm --filter admin build",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"

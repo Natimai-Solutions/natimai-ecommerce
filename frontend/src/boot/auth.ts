@@ -1,5 +1,5 @@
-import { defineBoot } from '#q-app/wrappers'
-import { useAuthStore } from 'src/stores/auth'
+import { defineBoot } from '#q-app/wrappers';
+import { useAuthStore } from 'src/stores/auth';
 
 /**
  * Restore the session from the HttpOnly refresh cookie before the app mounts,
@@ -10,6 +10,6 @@ import { useAuthStore } from 'src/stores/auth'
  */
 export default defineBoot(async () => {
   if (process.env.CLIENT) {
-    await useAuthStore().tryRestore()
+    await useAuthStore().tryRestore();
   }
-})
+});

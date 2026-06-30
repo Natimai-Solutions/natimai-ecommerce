@@ -38,10 +38,7 @@
       <div v-if="product.base_price === '0.00'" class="text-caption text-grey-6">
         Prix sur devis
       </div>
-      <div
-        class="text-caption q-mt-xs"
-        :class="isOutOfStock ? 'text-grey-6' : 'text-positive'"
-      >
+      <div class="text-caption q-mt-xs" :class="isOutOfStock ? 'text-grey-6' : 'text-positive'">
         <q-icon name="inventory_2" size="14px" class="q-mr-xs" />
         <span v-if="isOutOfStock">Sur commande</span>
         <span v-else>{{ stockQuantity }} en stock</span>
@@ -87,33 +84,33 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import type { components } from '@app/api-types'
-import ProductDetailsDialog from 'src/components/ProductDetailsDialog.vue'
-import { getProductRoute } from 'src/utils/productRoute'
-import { useCurrencyStore } from 'src/stores/currency'
+import { computed, ref } from 'vue';
+import type { components } from '@app/api-types';
+import ProductDetailsDialog from 'src/components/ProductDetailsDialog.vue';
+import { getProductRoute } from 'src/utils/productRoute';
+import { useCurrencyStore } from 'src/stores/currency';
 
-type ProductPublic = components['schemas']['ProductPublic']
+type ProductPublic = components['schemas']['ProductPublic'];
 
-const props = defineProps<{ product: ProductPublic }>()
-const emit = defineEmits<{ 'add-to-cart': [product: ProductPublic] }>()
+const props = defineProps<{ product: ProductPublic }>();
+const emit = defineEmits<{ 'add-to-cart': [product: ProductPublic] }>();
 
-const currencyStore = useCurrencyStore()
-const placeholderImg = '/icons/placeholder-product.svg'
-const showDetails = ref(false)
-const productRoute = computed(() => getProductRoute(props.product))
+const currencyStore = useCurrencyStore();
+const placeholderImg = '/icons/placeholder-product.svg';
+const showDetails = ref(false);
+const productRoute = computed(() => getProductRoute(props.product));
 
-const isOutOfStock = computed(() => parseFloat(props.product.supplier_quantity) <= 0)
+const isOutOfStock = computed(() => parseFloat(props.product.supplier_quantity) <= 0);
 
 const stockQuantity = computed(() =>
   Math.max(0, Math.round(parseFloat(props.product.supplier_quantity))),
-)
+);
 
 const displayPrice = computed(() => {
-  const price = parseFloat(props.product.base_price)
-  if (price === 0) return '—'
-  return currencyStore.format(price)
-})
+  const price = parseFloat(props.product.base_price);
+  if (price === 0) return '—';
+  return currencyStore.format(price);
+});
 </script>
 
 <style scoped lang="scss">

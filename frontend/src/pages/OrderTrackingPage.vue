@@ -82,7 +82,8 @@
               <div class="column q-gutter-xs">
                 <div v-if="segment.tracking_ref">
                   <q-icon name="qr_code" size="xs" class="q-mr-xs" />
-                  Référence transporteur : <span class="text-weight-medium">{{ segment.tracking_ref }}</span>
+                  Référence transporteur :
+                  <span class="text-weight-medium">{{ segment.tracking_ref }}</span>
                 </div>
                 <div v-if="segment.estimated_delivery">
                   <q-icon name="event" size="xs" class="q-mr-xs" />
@@ -121,29 +122,25 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore } from 'src/stores/auth'
-import {
-  getMyOrderTracking,
-  type OrderTracking,
-  type OrderTrackingSegment,
-} from 'src/api/orders'
+import { computed, onMounted, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useAuthStore } from 'src/stores/auth';
+import { getMyOrderTracking, type OrderTracking, type OrderTrackingSegment } from 'src/api/orders';
 
-const route = useRoute()
-const router = useRouter()
-const authStore = useAuthStore()
+const route = useRoute();
+const router = useRouter();
+const authStore = useAuthStore();
 
-const orderId = computed(() => String(route.params.id ?? ''))
-const shortId = computed(() => orderId.value.slice(0, 8))
+const orderId = computed(() => String(route.params.id ?? ''));
+const shortId = computed(() => orderId.value.slice(0, 8));
 
-const loading = ref(true)
-const errorMessage = ref<string | null>(null)
-const tracking = ref<OrderTracking | null>(null)
+const loading = ref(true);
+const errorMessage = ref<string | null>(null);
+const tracking = ref<OrderTracking | null>(null);
 
 const sortedSegments = computed(() =>
   [...(tracking.value?.trackings ?? [])].sort((a, b) => a.sequence_order - b.sequence_order),
-)
+);
 
 // --------------------------------------------------------------------------
 // Status / scenario presentation (best-effort mapping with prettify fallback)
@@ -160,37 +157,35 @@ const STATUS_LABELS: Record<string, string> = {
   delivered: 'Livrée',
   cancelled: 'Annulée',
   returned: 'Retournée',
-}
+};
 
 function prettify(code: string): string {
-  return code
-    .replace(/[_-]+/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
+  return code.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function statusLabel(code: string): string {
-  return STATUS_LABELS[code] ?? prettify(code)
+  return STATUS_LABELS[code] ?? prettify(code);
 }
 
 function statusColor(code: string): string {
-  if (code === 'delivered') return 'green'
-  if (code === 'cancelled' || code === 'returned' || code.endsWith('_failed')) return 'negative'
-  if (code === 'shipped' || code === 'in_transit' || code === 'out_for_delivery') return 'primary'
-  return 'grey-7'
+  if (code === 'delivered') return 'green';
+  if (code === 'cancelled' || code === 'returned' || code.endsWith('_failed')) return 'negative';
+  if (code === 'shipped' || code === 'in_transit' || code === 'out_for_delivery') return 'primary';
+  return 'grey-7';
 }
 
 function statusIcon(code: string): string {
-  if (code === 'delivered') return 'check_circle'
-  if (code === 'cancelled' || code === 'returned' || code.endsWith('_failed')) return 'cancel'
-  if (code === 'shipped' || code === 'in_transit') return 'local_shipping'
-  if (code === 'out_for_delivery') return 'local_shipping'
-  if (code === 'customs') return 'gavel'
-  return 'schedule'
+  if (code === 'delivered') return 'check_circle';
+  if (code === 'cancelled' || code === 'returned' || code.endsWith('_failed')) return 'cancel';
+  if (code === 'shipped' || code === 'in_transit') return 'local_shipping';
+  if (code === 'out_for_delivery') return 'local_shipping';
+  if (code === 'customs') return 'gavel';
+  return 'schedule';
 }
 
 function segmentIcon(segment: OrderTrackingSegment): string {
-  if (segment.estimated_delivery) return 'local_shipping'
-  return 'place'
+  if (segment.estimated_delivery) return 'local_shipping';
+  return 'place';
 }
 
 /**
@@ -199,59 +194,59 @@ function segmentIcon(segment: OrderTrackingSegment): string {
  * sequence=1") — those are not meaningful to the customer and are hidden.
  */
 function customerNote(note: string | null): string | null {
-  if (!note) return null
-  if (/\b(origin|segment|sequence|quantity)=/.test(note)) return null
-  return note
+  if (!note) return null;
+  if (/\b(origin|segment|sequence|quantity)=/.test(note)) return null;
+  return note;
 }
 
 const SCENARIO_LABELS: Record<string, string> = {
   supplier_delay: 'Retard fournisseur signalé sur un tronçon.',
   parcel_split: 'Votre commande a été scindée en plusieurs colis.',
-  segment_failure: 'Un incident est survenu sur un tronçon d\'acheminement.',
-}
+  segment_failure: "Un incident est survenu sur un tronçon d'acheminement.",
+};
 
 function scenarioLabel(code: string): string {
-  return SCENARIO_LABELS[code] ?? prettify(code)
+  return SCENARIO_LABELS[code] ?? prettify(code);
 }
 
 function formatDate(raw: string | null): string | null {
-  if (!raw) return null
-  const d = new Date(raw)
-  if (Number.isNaN(d.getTime())) return raw
+  if (!raw) return null;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw;
   return d.toLocaleString('fr-FR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  })
+  });
 }
 
 function extractError(err: unknown): string | null {
   if (typeof err === 'object' && err !== null && 'response' in err) {
-    const resp = (err as { response?: { status?: number; data?: unknown } }).response
-    const data = resp?.data
+    const resp = (err as { response?: { status?: number; data?: unknown } }).response;
+    const data = resp?.data;
     if (typeof data === 'object' && data !== null) {
-      const errorObj = (data as { error?: { message?: unknown } }).error
-      if (errorObj && typeof errorObj.message === 'string') return errorObj.message
-      const detail = (data as { detail?: unknown }).detail
-      if (typeof detail === 'string') return detail
+      const errorObj = (data as { error?: { message?: unknown } }).error;
+      if (errorObj && typeof errorObj.message === 'string') return errorObj.message;
+      const detail = (data as { detail?: unknown }).detail;
+      if (typeof detail === 'string') return detail;
     }
-    if (resp?.status === 404) return "Cette commande est introuvable."
-    if (resp?.status === 403) return "Vous n'avez pas accès à cette commande."
+    if (resp?.status === 404) return 'Cette commande est introuvable.';
+    if (resp?.status === 403) return "Vous n'avez pas accès à cette commande.";
   }
-  return null
+  return null;
 }
 
 async function load() {
-  loading.value = true
-  errorMessage.value = null
+  loading.value = true;
+  errorMessage.value = null;
   try {
-    tracking.value = await getMyOrderTracking(orderId.value)
+    tracking.value = await getMyOrderTracking(orderId.value);
   } catch (err) {
-    errorMessage.value = extractError(err) ?? 'Impossible de charger le suivi de cette commande.'
+    errorMessage.value = extractError(err) ?? 'Impossible de charger le suivi de cette commande.';
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
@@ -260,9 +255,9 @@ onMounted(async () => {
     await router.replace({
       name: 'login',
       query: { redirect: `/mon-compte/commandes/${orderId.value}` },
-    })
-    return
+    });
+    return;
   }
-  await load()
-})
+  await load();
+});
 </script>

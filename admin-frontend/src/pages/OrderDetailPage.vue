@@ -177,11 +177,13 @@
           <q-card-section class="text-h6">Rembourser le paiement</q-card-section>
           <q-form @submit.prevent="submitRefund">
             <q-card-section class="q-pt-none q-gutter-sm">
-              <q-banner v-if="refundError" class="bg-red-1 text-red-9" dense rounded>{{ refundError }}</q-banner>
+              <q-banner v-if="refundError" class="bg-red-1 text-red-9" dense rounded>{{
+                refundError
+              }}</q-banner>
               <div class="text-caption text-grey-7">
                 Montant du paiement :
-                {{ refundTarget ? formatMoney(refundTarget.amount) : '' }}. Laissez le
-                montant vide pour un remboursement total.
+                {{ refundTarget ? formatMoney(refundTarget.amount) : '' }}. Laissez le montant vide
+                pour un remboursement total.
               </div>
               <q-input
                 v-model.number="refundAmount"
@@ -213,33 +215,33 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
-import { formatXpf } from '@app/utils'
+import { computed, onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
+import { formatXpf } from '@app/utils';
 import {
   getOrder,
   orderStatusColor,
   orderStatusLabel,
   type AdminOrderDetail,
   type AdminOrderPaymentItem,
-} from 'src/api/orders'
-import { capturePayment, refundPayment } from 'src/api/paymentValidations'
-import { extractApiError } from 'src/api/errors'
+} from 'src/api/orders';
+import { capturePayment, refundPayment } from 'src/api/paymentValidations';
+import { extractApiError } from 'src/api/errors';
 
-const route = useRoute()
-const orderId = computed(() => String(route.params.id ?? ''))
+const route = useRoute();
+const orderId = computed(() => String(route.params.id ?? ''));
 
-const order = ref<AdminOrderDetail | null>(null)
-const loading = ref(false)
-const error = ref<string | null>(null)
+const order = ref<AdminOrderDetail | null>(null);
+const loading = ref(false);
+const error = ref<string | null>(null);
 
 function formatMoney(amount: number): string {
-  return Number.isFinite(amount) ? formatXpf(amount) : String(amount)
+  return Number.isFinite(amount) ? formatXpf(amount) : String(amount);
 }
 
 function formatDate(raw: string | null): string {
-  if (!raw) return '—'
-  const d = new Date(raw)
+  if (!raw) return '—';
+  const d = new Date(raw);
   return Number.isNaN(d.getTime())
     ? raw
     : d.toLocaleString('fr-FR', {
@@ -248,99 +250,103 @@ function formatDate(raw: string | null): string {
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-      })
+      });
 }
 
 function providerLabel(code: string | null): string {
-  if (!code) return '—'
-  if (code.startsWith('document') || code.startsWith('po_')) return 'Bon de commande'
-  if (code.includes('check') || code.includes('cheque')) return 'Chèque'
-  if (code.includes('transfer') || code.includes('virement')) return 'Virement'
-  if (code === 'payzen') return 'Carte bancaire'
-  if (code.startsWith('manual')) return 'Paiement manuel'
-  return code
+  if (!code) return '—';
+  if (code.startsWith('document') || code.startsWith('po_')) return 'Bon de commande';
+  if (code.includes('check') || code.includes('cheque')) return 'Chèque';
+  if (code.includes('transfer') || code.includes('virement')) return 'Virement';
+  if (code === 'payzen') return 'Carte bancaire';
+  if (code.startsWith('manual')) return 'Paiement manuel';
+  return code;
 }
 
 async function load() {
-  loading.value = true
-  error.value = null
+  loading.value = true;
+  error.value = null;
   try {
-    order.value = await getOrder(orderId.value)
+    order.value = await getOrder(orderId.value);
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.'
+    error.value = extractApiError(err) ?? 'Chargement impossible.';
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 // --- Refund ---
-const refundDialog = ref(false)
-const refundTarget = ref<AdminOrderPaymentItem | null>(null)
-const refundAmount = ref<number | null>(null)
-const refundReason = ref('')
-const refunding = ref(false)
-const refundError = ref<string | null>(null)
-const refundNotice = ref<string | null>(null)
+const refundDialog = ref(false);
+const refundTarget = ref<AdminOrderPaymentItem | null>(null);
+const refundAmount = ref<number | null>(null);
+const refundReason = ref('');
+const refunding = ref(false);
+const refundError = ref<string | null>(null);
+const refundNotice = ref<string | null>(null);
 
-/** Only captured (or partially-refunded) payments can be refunded. */
+/**
+ * Show the refund button only when the backend says so: the provider supports
+ * an in-app refund (card / PayZen) and the payment is in a refundable state.
+ * Manual / document payments are refunded out-of-band, so no button is shown.
+ */
 function canRefund(p: AdminOrderPaymentItem): boolean {
-  return ['Completed', 'PartiallyRefunded'].includes(p.status ?? '')
+  return p.can_refund === true;
 }
 
 function openRefund(p: AdminOrderPaymentItem) {
-  refundTarget.value = p
-  refundAmount.value = null
-  refundReason.value = ''
-  refundError.value = null
-  refundDialog.value = true
+  refundTarget.value = p;
+  refundAmount.value = null;
+  refundReason.value = '';
+  refundError.value = null;
+  refundDialog.value = true;
 }
 
 async function submitRefund() {
-  if (!refundTarget.value) return
-  refunding.value = true
-  refundError.value = null
+  if (!refundTarget.value) return;
+  refunding.value = true;
+  refundError.value = null;
   try {
     const amount =
       typeof refundAmount.value === 'number' && !Number.isNaN(refundAmount.value)
         ? refundAmount.value
-        : null
+        : null;
     const result = await refundPayment(refundTarget.value.payment_id, {
       amount,
       reason: refundReason.value.trim() || null,
-    })
-    refundDialog.value = false
+    });
+    refundDialog.value = false;
     refundNotice.value =
       result.message ??
-      (result.fully_refunded ? 'Remboursement total effectué.' : 'Remboursement effectué.')
-    await load()
+      (result.fully_refunded ? 'Remboursement total effectué.' : 'Remboursement effectué.');
+    await load();
   } catch (err) {
-    refundError.value = extractApiError(err) ?? 'Remboursement impossible.'
+    refundError.value = extractApiError(err) ?? 'Remboursement impossible.';
   } finally {
-    refunding.value = false
+    refunding.value = false;
   }
 }
 
 // --- Capture (deferred CB debit) ---
-const capturingId = ref<string | null>(null)
+const capturingId = ref<string | null>(null);
 
 /** Only authorised (not-yet-debited) card payments can be captured. */
 function canCapture(p: AdminOrderPaymentItem): boolean {
-  return p.status === 'Authorized'
+  return p.status === 'Authorized';
 }
 
 async function captureRow(p: AdminOrderPaymentItem) {
-  capturingId.value = p.payment_id
-  error.value = null
+  capturingId.value = p.payment_id;
+  error.value = null;
   try {
-    const result = await capturePayment(p.payment_id)
-    refundNotice.value = result.message ?? 'Paiement capturé.'
-    await load()
+    const result = await capturePayment(p.payment_id);
+    refundNotice.value = result.message ?? 'Paiement capturé.';
+    await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Capture impossible.'
+    error.value = extractApiError(err) ?? 'Capture impossible.';
   } finally {
-    capturingId.value = null
+    capturingId.value = null;
   }
 }
 
-onMounted(load)
+onMounted(load);
 </script>

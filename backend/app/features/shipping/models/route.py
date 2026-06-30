@@ -87,7 +87,7 @@ class ShippingRouteBase(Base):
     max_volume_m3: float | None = Field(
         default=None, description="Maximum volume allowed"
     )
-    max_dimensions_m: str | None = Field(
+    max_dimensions_m: dict[str, Any] | None = Field(
         default=None,
         sa_column=Column(JSON),
         description="Max dimensions {length, width, height}",
@@ -195,7 +195,7 @@ class ShippingRouteUpdate(ShippingRouteBase, BaseUpdate):
     eta_days: int | None = None
     max_weight_kg: float | None = None
     max_volume_m3: float | None = None
-    max_dimensions_m: str | None = None
+    max_dimensions_m: dict[str, Any] | None = None
     service_level: str | None = None
     customer_label: str | None = None
     is_default_import: bool | None = None

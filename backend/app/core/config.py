@@ -350,7 +350,9 @@ class Settings(BaseSettings):
             else:
                 raise ValueError(message)
 
-    def _check_required_override(self, var_name: str, value: str, placeholder: str) -> None:
+    def _check_required_override(
+        self, var_name: str, value: str, placeholder: str
+    ) -> None:
         """Reject a still-placeholder value: warn in local, fail elsewhere.
 
         Makes the variable effectively mandatory in any non-local deployment.

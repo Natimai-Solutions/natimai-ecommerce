@@ -2,20 +2,13 @@
   <q-page class="quote-confirmation q-pa-md">
     <div class="quote-confirmation__content">
       <q-card flat bordered class="quote-confirmation__card q-pa-xl">
-        <q-icon
-          name="check_circle"
-          size="72px"
-          color="positive"
-          class="q-mb-md"
-        />
+        <q-icon name="check_circle" size="72px" color="positive" class="q-mb-md" />
 
-        <h1 class="text-h4 text-weight-bold q-my-none q-mb-sm">
-          Demande envoyée
-        </h1>
+        <h1 class="text-h4 text-weight-bold q-my-none q-mb-sm">Demande envoyée</h1>
 
         <p class="text-body1 text-grey-8 q-mb-lg">
-          Votre panier a bien été transmis à notre équipe.
-          Nous revenons vers vous rapidement avec votre devis.
+          Votre panier a bien été transmis à notre équipe. Nous revenons vers vous rapidement avec
+          votre devis.
         </p>
 
         <p v-if="customerEmail" class="text-body2 text-grey-7 q-mb-lg">
@@ -33,7 +26,6 @@
               :to="{ name: 'catalogue' }"
             />
           </div>
-
         </div>
       </q-card>
     </div>
@@ -41,18 +33,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed } from 'vue';
+import { useRoute } from 'vue-router';
 
-const route = useRoute()
+const route = useRoute();
 
 const customerEmail = computed(() => {
-  const value = route.query.email
-  if (typeof value !== 'string') return ''
+  const value = route.query.email;
+  if (typeof value !== 'string') return '';
 
-  const normalized = value.trim().toLowerCase()
-  return /^(?:[^\s@]+)@(?:[^\s@]+)\.[^\s@]+$/.test(normalized) ? normalized : ''
-})
+  const normalized = value.trim().toLowerCase();
+  return /^(?:[^\s@]+)@(?:[^\s@]+)\.[^\s@]+$/.test(normalized) ? normalized : '';
+});
 </script>
 
 <style scoped lang="scss">

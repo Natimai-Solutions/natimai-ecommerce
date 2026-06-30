@@ -2,7 +2,11 @@ from typing import Any
 
 import pytest
 
-from app.features.payment.providers import SUPPORTED_PROVIDERS, get_provider
+from app.features.payment.providers import (
+    SUPPORTED_PROVIDERS,
+    get_provider,
+    provider_supports_in_app_refund,
+)
 from app.features.payment.providers.base import (
     InitiationRequest,
     UnknownPaymentProviderError,
@@ -35,6 +39,18 @@ def test_get_provider_normalizes_provider_code() -> None:
 def test_get_provider_unknown_provider_raises() -> None:
     with pytest.raises(UnknownPaymentProviderError):
         get_provider("unknown")
+
+
+def test_only_payzen_supports_in_app_refund() -> None:
+    # Card payments can be refunded from the admin UI…
+    assert provider_supports_in_app_refund("payzen") is True
+    assert provider_supports_in_app_refund("  PayZen ") is True
+    # …manual / document / unknown providers cannot (refunded out-of-band).
+    assert provider_supports_in_app_refund("manual_check") is False
+    assert provider_supports_in_app_refund("manual_transfer") is False
+    assert provider_supports_in_app_refund("po_public") is False
+    assert provider_supports_in_app_refund("unknown") is False
+    assert provider_supports_in_app_refund(None) is False
 
 
 @pytest.mark.anyio

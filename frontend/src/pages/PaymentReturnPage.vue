@@ -5,7 +5,9 @@
       <template v-if="state === 'polling'">
         <q-spinner color="primary" size="3em" class="q-mb-md" />
         <div class="text-h6 q-mb-sm">Vérification du paiement…</div>
-        <div class="text-body2 text-grey-7">Merci de patienter, nous vérifions votre transaction.</div>
+        <div class="text-body2 text-grey-7">
+          Merci de patienter, nous vérifions votre transaction.
+        </div>
       </template>
 
       <!-- Success -->
@@ -47,80 +49,80 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
-import { getMyPaymentStatus } from 'src/api/payments'
+import { onMounted, onUnmounted, ref } from 'vue';
+import { getMyPaymentStatus } from 'src/api/payments';
 
-const PENDING_PAYMENT_KEY = 'payzen.pending_payment_id'
-const POLL_INTERVAL_MS = 2000
-const POLL_TIMEOUT_MS = 120_000 // 2 minutes max
+const PENDING_PAYMENT_KEY = 'payzen.pending_payment_id';
+const POLL_INTERVAL_MS = 2000;
+const POLL_TIMEOUT_MS = 120_000; // 2 minutes max
 
-type PageState = 'polling' | 'success' | 'failure' | 'error'
+type PageState = 'polling' | 'success' | 'failure' | 'error';
 
-const state = ref<PageState>('polling')
-const errorMessage = ref('')
+const state = ref<PageState>('polling');
+const errorMessage = ref('');
 
-let intervalId: ReturnType<typeof setInterval> | null = null
-let timeoutId: ReturnType<typeof setTimeout> | null = null
+let intervalId: ReturnType<typeof setInterval> | null = null;
+let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
 onMounted(() => {
-  const paymentId = localStorage.getItem(PENDING_PAYMENT_KEY)
+  const paymentId = localStorage.getItem(PENDING_PAYMENT_KEY);
 
   if (!paymentId) {
-    state.value = 'error'
+    state.value = 'error';
     errorMessage.value =
-      'Aucune transaction en attente trouvée. Si vous venez d\'effectuer un paiement, veuillez contacter notre équipe.'
-    return
+      "Aucune transaction en attente trouvée. Si vous venez d'effectuer un paiement, veuillez contacter notre équipe.";
+    return;
   }
 
-  startPolling(paymentId)
-})
+  startPolling(paymentId);
+});
 
 onUnmounted(() => {
-  stopPolling()
-})
+  stopPolling();
+});
 
 function startPolling(paymentId: string) {
   // Kick off first check immediately
-  void checkStatus(paymentId)
+  void checkStatus(paymentId);
 
   intervalId = setInterval(() => {
-    void checkStatus(paymentId)
-  }, POLL_INTERVAL_MS)
+    void checkStatus(paymentId);
+  }, POLL_INTERVAL_MS);
 
   timeoutId = setTimeout(() => {
-    stopPolling()
+    stopPolling();
     if (state.value === 'polling') {
-      state.value = 'error'
+      state.value = 'error';
       errorMessage.value =
-        'La vérification du paiement a pris trop longtemps. Veuillez vérifier votre email de confirmation ou contacter notre équipe.'
+        'La vérification du paiement a pris trop longtemps. Veuillez vérifier votre email de confirmation ou contacter notre équipe.';
     }
-  }, POLL_TIMEOUT_MS)
+  }, POLL_TIMEOUT_MS);
 }
 
 function stopPolling() {
   if (intervalId !== null) {
-    clearInterval(intervalId)
-    intervalId = null
+    clearInterval(intervalId);
+    intervalId = null;
   }
   if (timeoutId !== null) {
-    clearTimeout(timeoutId)
-    timeoutId = null
+    clearTimeout(timeoutId);
+    timeoutId = null;
   }
 }
 
 async function checkStatus(paymentId: string) {
   try {
-    const status = await getMyPaymentStatus(paymentId)
+    const status = await getMyPaymentStatus(paymentId);
 
-    if (!status.is_terminal) return
+    if (!status.is_terminal) return;
 
-    stopPolling()
-    localStorage.removeItem(PENDING_PAYMENT_KEY)
+    stopPolling();
+    localStorage.removeItem(PENDING_PAYMENT_KEY);
 
     if (status.status_name === 'Completed') {
-      state.value = 'success'
+      state.value = 'success';
     } else {
-      state.value = 'failure'
+      state.value = 'failure';
     }
   } catch {
     // Network errors are transient — keep polling unless timeout fires

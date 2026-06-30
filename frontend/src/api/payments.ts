@@ -1,53 +1,53 @@
-import { api } from 'src/boot/api'
+import { api } from 'src/boot/api';
 
 export interface PaymentMethod {
-  id: string
-  name: string
-  description: string | null
-  fee: string
-  provider_code: string
-  requires_admin_validation: boolean
-  requires_document_upload: boolean
-  sort_order: number
+  id: string;
+  name: string;
+  description: string | null;
+  fee: string;
+  provider_code: string;
+  requires_admin_validation: boolean;
+  requires_document_upload: boolean;
+  sort_order: number;
 }
 
 export interface PaymentMethodsResponse {
-  data: PaymentMethod[]
-  count: number
+  data: PaymentMethod[];
+  count: number;
 }
 
 export interface InitiatePaymentRequest {
-  payment_method_id: string
-  amount: string
-  currency: string
-  order_id?: string | null
-  return_url?: string | null
+  payment_method_id: string;
+  amount: string;
+  currency: string;
+  order_id?: string | null;
+  return_url?: string | null;
 }
 
 export interface InitiatePaymentResponse {
-  payment_id: string
-  provider_code: string
-  provider_reference: string | null
-  form_token: string | null
-  server_url: string | null
-  public_key: string | null
-  redirect_url: string | null
-  instructions: string | null
+  payment_id: string;
+  provider_code: string;
+  provider_reference: string | null;
+  form_token: string | null;
+  server_url: string | null;
+  public_key: string | null;
+  redirect_url: string | null;
+  instructions: string | null;
 }
 
 export interface PaymentStatusResponse {
-  payment_id: string
-  status_name: string | null
-  is_terminal: boolean
-  provider_code: string | null
-  amount: string
-  currency: string
-  order_id: string | null
+  payment_id: string;
+  status_name: string | null;
+  is_terminal: boolean;
+  provider_code: string | null;
+  amount: string;
+  currency: string;
+  order_id: string | null;
 }
 
 export async function listPaymentMethods(): Promise<PaymentMethod[]> {
-  const response = await api.get<PaymentMethodsResponse>('/payment_method')
-  return response.data.data
+  const response = await api.get<PaymentMethodsResponse>('/payment_method');
+  return response.data.data;
 }
 
 /**
@@ -58,20 +58,20 @@ export async function listPaymentMethods(): Promise<PaymentMethod[]> {
 export async function listMyPaymentMethods(cartTotal?: number): Promise<PaymentMethod[]> {
   const response = await api.get<PaymentMethod[]>('/payments/me/methods', {
     params: cartTotal != null ? { cart_total: cartTotal } : {},
-  })
-  return response.data
+  });
+  return response.data;
 }
 
 export async function initiatePayment(
   data: InitiatePaymentRequest,
 ): Promise<InitiatePaymentResponse> {
-  const response = await api.post<InitiatePaymentResponse>('/payments/initiate', data)
-  return response.data
+  const response = await api.post<InitiatePaymentResponse>('/payments/initiate', data);
+  return response.data;
 }
 
 export async function getMyPaymentStatus(paymentId: string): Promise<PaymentStatusResponse> {
-  const response = await api.get<PaymentStatusResponse>(`/payments/me/${paymentId}`)
-  return response.data
+  const response = await api.get<PaymentStatusResponse>(`/payments/me/${paymentId}`);
+  return response.data;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,21 +79,21 @@ export async function getMyPaymentStatus(paymentId: string): Promise<PaymentStat
 // ---------------------------------------------------------------------------
 
 export interface UploadDocumentResponse {
-  payment_id: string
-  file_key: string
-  upload_url: string
-  upload_method: string
-  upload_headers: Record<string, string>
-  expires_in: number
-  max_bytes: number
-  allowed_mime: string[]
+  payment_id: string;
+  file_key: string;
+  upload_url: string;
+  upload_method: string;
+  upload_headers: Record<string, string>;
+  expires_in: number;
+  max_bytes: number;
+  allowed_mime: string[];
 }
 
 export interface DocumentUploadedResponse {
-  payment_id: string
-  attachment_id: string
-  payment_status_id: string | null
-  av_scan: string
+  payment_id: string;
+  attachment_id: string;
+  payment_status_id: string | null;
+  av_scan: string;
 }
 
 /** Step 1: request a presigned URL to upload the purchase-order document. */
@@ -108,8 +108,8 @@ export async function issueDocumentUploadUrl(
       mimetype: payload.mimetype,
       document_type: payload.documentType ?? 'purchase_order',
     },
-  )
-  return data
+  );
+  return data;
 }
 
 /**
@@ -125,12 +125,12 @@ export async function uploadFileToPresignedUrl(
   intent: UploadDocumentResponse,
   file: File,
 ): Promise<void> {
-  let url = intent.upload_url
+  let url = intent.upload_url;
   try {
-    const parsed = new URL(intent.upload_url)
+    const parsed = new URL(intent.upload_url);
     if (parsed.pathname.includes('/internal/storage/')) {
-      const base = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
-      url = `${base}${parsed.pathname}${parsed.search}`
+      const base = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
+      url = `${base}${parsed.pathname}${parsed.search}`;
     }
   } catch {
     // Relative/invalid URL — use as returned.
@@ -139,9 +139,9 @@ export async function uploadFileToPresignedUrl(
     method: intent.upload_method,
     headers: intent.upload_headers,
     body: file,
-  })
+  });
   if (!response.ok) {
-    throw new Error(`Échec du téléversement du document (${response.status})`)
+    throw new Error(`Échec du téléversement du document (${response.status})`);
   }
 }
 
@@ -149,10 +149,10 @@ export async function uploadFileToPresignedUrl(
 export async function confirmDocumentUploaded(
   paymentId: string,
   payload: {
-    fileKey: string
-    filename: string
-    mimetype: string
-    documentType?: string
+    fileKey: string;
+    filename: string;
+    mimetype: string;
+    documentType?: string;
   },
 ): Promise<DocumentUploadedResponse> {
   const { data } = await api.post<DocumentUploadedResponse>(
@@ -163,6 +163,6 @@ export async function confirmDocumentUploaded(
       mimetype: payload.mimetype,
       document_type: payload.documentType ?? 'purchase_order',
     },
-  )
-  return data
+  );
+  return data;
 }

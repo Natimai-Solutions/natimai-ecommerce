@@ -1,0 +1,13 @@
+{{ event_label }}
+
+Un événement de paiement vient d'être enregistré.
+
+Événement   : {{ event_type }}
+Paiement    : {{ payment_id }}
+Commande    : {{ order_id }}
+Fournisseur : {{ provider_code }}
+{% if amount %}Montant     : {{ amount }} {{ currency }}
+{% endif %}{% if reference %}Référence   : {{ reference }}
+{% endif %}{% if reason %}Motif       : {{ reason }}
+{% endif %}
+Notification automatique — {{ shop_name }}

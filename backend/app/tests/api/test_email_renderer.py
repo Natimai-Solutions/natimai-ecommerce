@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from app.features.notification.email_renderer import (
@@ -9,7 +11,7 @@ from app.features.notification.email_renderer import (
     render_email,
 )
 
-_SAMPLE_CONTEXT: dict[str, dict[str, object]] = {
+_SAMPLE_CONTEXT: dict[str, dict[str, Any]] = {
     "order_created": {
         "full_name": "Alice",
         "order_id": "ORD-1",
@@ -61,6 +63,18 @@ _SAMPLE_CONTEXT: dict[str, dict[str, object]] = {
     "signup_otp": {
         "code": "123456",
         "valid_minutes": 10,
+        "shop_name": "Natimai",
+    },
+    "admin_payment_event": {
+        "event_type": "payment.captured",
+        "event_label": "Paiement validé",
+        "payment_id": "pay_1",
+        "order_id": "ord_1",
+        "provider_code": "payzen",
+        "amount": "1000",
+        "currency": "XPF",
+        "reference": "ref-9",
+        "reason": "",
         "shop_name": "Natimai",
     },
 }
