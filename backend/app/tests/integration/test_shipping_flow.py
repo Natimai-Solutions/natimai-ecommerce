@@ -6,22 +6,39 @@ per-tracking commit expires them). A mocked session cannot reproduce them; these
 real-engine tests would have caught all of them.
 """
 
+import uuid
+from datetime import datetime, timezone
+from decimal import Decimal
+from types import SimpleNamespace
+
 import pytest
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.routes.admin_shipping import (
+    AdvanceConsolidationRequest,
     ShipRequest,
     advance_consolidation,
     advance_tracking,
+    consolidation_ungroup_hint,
+    deliver_consolidation,
     deliver_tracking,
     order_journey,
     ship_consolidation,
     ship_tracking,
 )
+from app.features.order.models.order import Order
+from app.features.order.models.order_status import OrderStatus
+from app.features.place.models import Place
 from app.features.shipping.crud.route_tracking import crud_shipping_route_tracking
-from app.features.shipping.models.route_tracking import ShippingRouteTracking
+from app.features.shipping.models.route import ShippingRoute
+from app.features.shipping.models.route_tracking import (
+    ShippingRouteTracking,
+    ShippingRouteTrackingConsolidation,
+)
 from app.features.shipping.models.status import StatusDefinition
+from app.features.user.models.address import Address
+from app.features.user.models.user import User
 from app.outbox.models import OutboxEvent
 from app.tests.integration.factories import seed_shipping_scenario
 
@@ -174,7 +191,10 @@ async def test_advance_consolidation_admin_endpoint(db_session: AsyncSession) ->
     await _seed_progression_statuses(db_session)
 
     resp = await advance_consolidation(
-        consolidation_id=seed.consolidation_id, session=db_session, admin=seed.admin
+        consolidation_id=seed.consolidation_id,
+        body=AdvanceConsolidationRequest(ungroup=False),
+        session=db_session,
+        admin=seed.admin,
     )
     assert "colis" in resp.message
 
@@ -185,6 +205,52 @@ async def test_advance_consolidation_admin_endpoint(db_session: AsyncSession) ->
     assert first_leg is not None
     await db_session.refresh(first_leg)
     assert first_leg.status_id == completed_id
+    # ungroup=False keeps the parcel attached to the lot.
+    assert first_leg.consolidation_id == seed.consolidation_id
+
+
+@pytest.mark.asyncio
+async def test_advance_consolidation_ungroup_detaches(
+    db_session: AsyncSession,
+) -> None:
+    seed = await seed_shipping_scenario(db_session, n_trackings=2)
+    await _seed_progression_statuses(db_session)
+
+    await advance_consolidation(
+        consolidation_id=seed.consolidation_id,
+        body=AdvanceConsolidationRequest(ungroup=True),
+        session=db_session,
+        admin=seed.admin,
+    )
+
+    # Every parcel is detached from the lot (and advanced individually).
+    for tid in seed.tracking_ids:
+        tracking = await db_session.get(ShippingRouteTracking, tid)
+        assert tracking is not None
+        await db_session.refresh(tracking)
+        assert tracking.consolidation_id is None
+
+
+@pytest.mark.asyncio
+async def test_deliver_consolidation_detaches_and_delivers(
+    db_session: AsyncSession,
+) -> None:
+    seed = await seed_shipping_scenario(db_session, n_trackings=2)
+
+    resp = await deliver_consolidation(
+        consolidation_id=seed.consolidation_id, session=db_session, admin=seed.admin
+    )
+    assert "livré" in resp.message
+
+    delivered_id = await _status_id(
+        db_session, entity="route_tracking", code="delivered"
+    )
+    for tid in seed.tracking_ids:
+        tracking = await db_session.get(ShippingRouteTracking, tid)
+        assert tracking is not None
+        await db_session.refresh(tracking)
+        assert tracking.consolidation_id is None  # forced ungroup
+        assert tracking.status_id == delivered_id  # terminal
 
 
 @pytest.mark.asyncio
@@ -223,3 +289,114 @@ async def test_deliver_single_tracking(db_session: AsyncSession) -> None:
     assert tracking is not None
     await db_session.refresh(tracking)
     assert tracking.status_id == delivered_id
+
+
+async def _seed_lot_with_next_leg(
+    session: AsyncSession, *, next_is_customer: bool
+) -> SimpleNamespace:
+    """A lot holding one parcel at leg 1, whose leg 2 is either the customer
+    last-leg (``is_to_customer``) or a shared intermediate leg."""
+    admin = User(
+        email=f"a+{uuid.uuid4().hex[:8]}@test.local",
+        is_superuser=True,
+        is_active=True,
+        hashed_password="x",
+    )
+    p1 = Place(name="FR", type="warehouse")
+    p2 = Place(name="PF", type="warehouse")
+    p3 = Place(name="Client", type="address")
+    session.add_all([admin, p1, p2, p3])
+    await session.flush()
+
+    leg1 = ShippingRoute(
+        from_place_id=p1.id, to_place_id=p2.id, name="FR→PF", mode="sea"
+    )
+    leg2 = ShippingRoute(
+        from_place_id=p2.id,
+        to_place_id=p3.id,
+        name="leg2",
+        mode="road",
+        is_to_customer=next_is_customer,
+    )
+    ostatus = OrderStatus(name="Pending")
+    st_t = StatusDefinition(entity="route_tracking", code="pending", name="x")
+    st_c = StatusDefinition(entity="consolidation", code="pending", name="x")
+    session.add_all([leg1, leg2, ostatus, st_t, st_c])
+    await session.flush()
+
+    order = Order(
+        user_id=admin.id,
+        order_status_id=ostatus.id,
+        total_amount=Decimal("0"),
+        subtotal_amount=Decimal("0"),
+        shipping_fee_amount=Decimal("0"),
+        payment_fee_amount=Decimal("0"),
+        total_fees_amount=Decimal("0"),
+    )
+    addr = Address(
+        user_id=admin.id,
+        street="BP 1",
+        city="Papeete",
+        postal_code="98714",
+        country="PF",
+        type="shipping",
+    )
+    session.add_all([order, addr])
+    await session.flush()
+
+    cons = ShippingRouteTrackingConsolidation(
+        route_id=leg1.id,
+        name="Lot",
+        consolidation_code=f"CONS-{uuid.uuid4().hex[:8].upper()}",
+        status_id=st_c.id,
+        total_orders=1,
+    )
+    session.add(cons)
+    await session.flush()
+
+    now = datetime.now(timezone.utc)
+    session.add_all(
+        [
+            ShippingRouteTracking(
+                order_id=order.id,
+                route_id=leg1.id,
+                status_id=st_t.id,
+                address_id=addr.id,
+                consolidation_id=cons.id,
+                sequence_order=1,
+                selected_at=now,
+            ),
+            ShippingRouteTracking(
+                order_id=order.id,
+                route_id=leg2.id,
+                status_id=st_t.id,
+                address_id=addr.id,
+                sequence_order=2,
+                selected_at=now,
+            ),
+        ]
+    )
+    await session.flush()
+    return SimpleNamespace(admin=admin, consolidation_id=cons.id)
+
+
+@pytest.mark.asyncio
+async def test_ungroup_hint_true_when_next_leg_is_customer(
+    db_session: AsyncSession,
+) -> None:
+    seed = await _seed_lot_with_next_leg(db_session, next_is_customer=True)
+    resp = await consolidation_ungroup_hint(
+        consolidation_id=seed.consolidation_id, session=db_session, _admin=seed.admin
+    )
+    assert resp.suggest_ungroup is True
+
+
+@pytest.mark.asyncio
+async def test_ungroup_hint_false_when_next_leg_is_shared(
+    db_session: AsyncSession,
+) -> None:
+    seed = await _seed_lot_with_next_leg(db_session, next_is_customer=False)
+    resp = await consolidation_ungroup_hint(
+        consolidation_id=seed.consolidation_id, session=db_session, _admin=seed.admin
+    )
+    assert resp.suggest_ungroup is False

@@ -171,6 +171,16 @@
             :disable="isTerminal(props.row)"
             @click="advanceConsolidationRow(props.row)"
           />
+          <q-btn
+            flat
+            dense
+            no-caps
+            icon="task_alt"
+            color="positive"
+            label="Livrer"
+            :disable="isTerminal(props.row)"
+            @click="deliverConsolidationRow(props.row)"
+          />
         </q-td>
       </template>
       <template #no-data>
@@ -210,6 +220,36 @@
             <q-btn type="submit" color="primary" label="Remettre au transporteur" :loading="saving" />
           </q-card-actions>
         </q-form>
+      </q-card>
+    </q-dialog>
+
+    <!-- Advance consolidation: keep or ungroup the lot -->
+    <q-dialog v-model="ungroupDialog">
+      <q-card style="min-width: 400px">
+        <q-card-section class="text-h6">Passage au tronçon suivant</q-card-section>
+        <q-card-section class="q-pt-none">
+          <div class="text-body2 text-grey-8 q-mb-sm">
+            Conserver le groupage pour le prochain tronçon, ou dégrouper les colis pour
+            qu'ils continuent individuellement (livraisons séparées) ?
+          </div>
+          <q-option-group
+            v-model="ungroupChoice"
+            :options="[
+              { label: 'Garder le groupage', value: 'keep' },
+              { label: 'Dégrouper (colis individuels)', value: 'ungroup' },
+            ]"
+            color="primary"
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Annuler" v-close-popup />
+          <q-btn
+            color="primary"
+            label="Valider"
+            :loading="ungroupBusy"
+            @click="submitAdvanceConsolidation"
+          />
+        </q-card-actions>
       </q-card>
     </q-dialog>
 
@@ -293,14 +333,17 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useQuasar } from 'quasar';
 import type { QTableColumn } from 'quasar';
 import {
   addTrackings,
   advanceConsolidation,
   advanceTracking,
   createConsolidation,
+  deliverConsolidation,
   deliverTracking,
   getOrderJourney,
+  getUngroupHint,
   listCarriers,
   listConsolidations,
   listPendingGrouping,
@@ -312,6 +355,8 @@ import {
   type PendingTracking,
 } from 'src/api/shipping';
 import { extractApiError } from 'src/api/errors';
+
+const $q = useQuasar();
 
 const pending = ref<PendingTracking[]>([]);
 const consolidations = ref<Consolidation[]>([]);
@@ -445,15 +490,62 @@ async function advanceTrackingRow(row: PendingTracking) {
   }
 }
 
+// --- Consolidation: advance (keep/ungroup popup) & deliver (forced ungroup) ---
+const ungroupDialog = ref(false);
+const ungroupTarget = ref<Consolidation | null>(null);
+const ungroupChoice = ref<'keep' | 'ungroup'>('keep');
+const ungroupBusy = ref(false);
+
 async function advanceConsolidationRow(c: Consolidation) {
+  ungroupTarget.value = c;
+  ungroupChoice.value = 'keep';
+  ungroupDialog.value = true;
+  // Smart default: pre-select "Dégrouper" when the next leg is the last-leg or
+  // the parcels diverge onto different legs.
+  try {
+    if (await getUngroupHint(c.id)) ungroupChoice.value = 'ungroup';
+  } catch {
+    // keep the default on error
+  }
+}
+
+async function submitAdvanceConsolidation() {
+  if (!ungroupTarget.value) return;
+  ungroupBusy.value = true;
   error.value = null;
   try {
-    const res = await advanceConsolidation(c.id);
+    const res = await advanceConsolidation(
+      ungroupTarget.value.id,
+      ungroupChoice.value === 'ungroup',
+    );
     notice.value = res.message;
+    ungroupDialog.value = false;
     await load();
   } catch (err) {
     error.value = extractApiError(err) ?? 'Opération impossible.';
+  } finally {
+    ungroupBusy.value = false;
   }
+}
+
+function deliverConsolidationRow(c: Consolidation) {
+  $q.dialog({
+    title: 'Livrer le lot',
+    message: 'Chaque colis sera dégroupé et marqué « livré ». Continuer ?',
+    cancel: true,
+    ok: { label: 'Livrer', color: 'positive' },
+  }).onOk(() => {
+    void (async () => {
+      error.value = null;
+      try {
+        const res = await deliverConsolidation(c.id);
+        notice.value = res.message;
+        await load();
+      } catch (err) {
+        error.value = extractApiError(err) ?? 'Opération impossible.';
+      }
+    })();
+  });
 }
 
 // --- Journey (parcours du colis) ---

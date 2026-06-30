@@ -97,11 +97,31 @@ export async function advanceTracking(trackingId: string): Promise<AdvanceResult
 }
 
 /** Advance every parcel of a consolidation to its next leg. */
-export async function advanceConsolidation(consolidationId: string): Promise<{ message: string }> {
+export async function advanceConsolidation(
+  consolidationId: string,
+  ungroup: boolean,
+): Promise<{ message: string }> {
   const { data } = await api.post<{ message: string }>(
     `/admin/shipping/consolidations/${consolidationId}/advance-all`,
+    { ungroup },
   );
   return data;
+}
+
+export async function deliverConsolidation(
+  consolidationId: string,
+): Promise<{ message: string }> {
+  const { data } = await api.post<{ message: string }>(
+    `/admin/shipping/consolidations/${consolidationId}/deliver-all`,
+  );
+  return data;
+}
+
+export async function getUngroupHint(consolidationId: string): Promise<boolean> {
+  const { data } = await api.get<{ suggest_ungroup: boolean }>(
+    `/admin/shipping/consolidations/${consolidationId}/ungroup-hint`,
+  );
+  return data.suggest_ungroup;
 }
 
 export interface JourneyLeg {

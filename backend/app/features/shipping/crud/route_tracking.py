@@ -368,6 +368,34 @@ class ShippingRouteTrackingCrud(
         result = await session.exec(statement)
         return result.first()
 
+    async def suggest_ungroup_for_consolidation(
+        self,
+        session: AsyncSession,
+        consolidation_id: uuid.UUID,
+    ) -> bool:
+        """Smart default for the « garder / dégrouper » popup.
+
+        Suggest ungrouping when the parcels of the lot would no longer travel
+        together on the next leg: the next tronçon is the last-leg (delivery to
+        the customer), a parcel has no next leg, or the next legs diverge.
+        """
+        trackings = await self.get_trackings_for_consolidation(
+            session, consolidation_id
+        )
+        if not trackings:
+            return False
+        next_route_ids: set[uuid.UUID] = set()
+        for t in trackings:
+            nxt = await self.get_next_route_for_order(
+                session, t.order_id, t.sequence_order
+            )
+            if nxt is None:
+                return True  # a parcel terminates here → deliver individually
+            if nxt.route is not None and nxt.route.is_to_customer:
+                return True  # next leg is the last-leg (warehouse → customer)
+            next_route_ids.add(nxt.route_id)
+        return len(next_route_ids) > 1  # parcels diverge onto different legs
+
     async def activate_next_route(
         self,
         session: AsyncSession,

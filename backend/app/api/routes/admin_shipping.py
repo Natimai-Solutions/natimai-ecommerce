@@ -90,6 +90,19 @@ class ShipRequest(BaseModel):
     carrier_id: uuid.UUID | None = None
 
 
+class AdvanceConsolidationRequest(BaseModel):
+    """Advance a consolidation. ``ungroup=True`` detaches each parcel first so it
+    continues individually on its own next leg."""
+
+    ungroup: bool = False
+
+
+class UngroupHintResponse(BaseModel):
+    """Smart default for the « garder / dégrouper » popup."""
+
+    suggest_ungroup: bool
+
+
 class OkResponse(BaseModel):
     """Generic acknowledgement."""
 
@@ -556,10 +569,15 @@ async def advance_tracking(
 )
 async def advance_consolidation(
     consolidation_id: uuid.UUID,
+    body: AdvanceConsolidationRequest,
     session: SessionDep,
     admin: CurrentLogisticsAdmin,
 ) -> OkResponse:
-    """Advance every parcel of a consolidation to its next leg."""
+    """Advance every parcel of a consolidation to its next leg.
+
+    ``ungroup=True`` first detaches each parcel from the consolidation, so it
+    continues individually (e.g. into its own last-leg delivery).
+    """
     await _get_consolidation_or_404(session, consolidation_id)
     trackings = await crud_shipping_route_tracking.get_trackings_for_consolidation(
         session=session, consolidation_id=consolidation_id
@@ -571,6 +589,10 @@ async def advance_consolidation(
 
     advanced = 0
     for tid in tracking_ids:
+        if body.ungroup:
+            await crud_shipping_route_tracking_consolidation.remove_tracking_from_consolidation(
+                session=session, tracking_id=tid
+            )
         next_tracking = await crud_shipping_route_tracking.activate_next_route(
             session=session,
             current_tracking_id=tid,
@@ -593,6 +615,87 @@ async def advance_consolidation(
     return OkResponse(
         message=f"{advanced}/{len(tracking_ids)} colis passé(s) au tronçon suivant"
     )
+
+
+@router.post(
+    "/consolidations/{consolidation_id}/deliver-all", response_model=OkResponse
+)
+async def deliver_consolidation(
+    consolidation_id: uuid.UUID,
+    session: SessionDep,
+    admin: CurrentLogisticsAdmin,
+) -> OkResponse:
+    """Deliver every parcel of a consolidation.
+
+    Delivery is always individual, so each parcel is detached from the lot
+    (forced ungroup) and marked delivered (terminal).
+    """
+    await _get_consolidation_or_404(session, consolidation_id)
+    delivered = await _get_or_create_status(
+        session,
+        entity=_ENTITY_TRACKING,
+        code=_CODE_DELIVERED,
+        name="Livrée",
+        is_terminal=True,
+    )
+    delivered_consolidation = await _get_or_create_status(
+        session,
+        entity=_ENTITY_CONSOLIDATION,
+        code=_CODE_DELIVERED,
+        name="Livrée",
+        is_terminal=True,
+    )
+    trackings = await crud_shipping_route_tracking.get_trackings_for_consolidation(
+        session=session, consolidation_id=consolidation_id
+    )
+    # Capture before the per-tracking commits (MissingGreenlet otherwise).
+    tracking_ids = [t.id for t in trackings]
+    delivered_status_id = delivered.id
+    delivered_status_code = delivered.code
+    delivered_status_name = delivered.name
+    consolidation_status_id = delivered_consolidation.id
+    admin_id = admin.id
+
+    for tid in tracking_ids:
+        await crud_shipping_route_tracking_consolidation.remove_tracking_from_consolidation(
+            session=session, tracking_id=tid
+        )
+        await _advance_tracking(
+            session,
+            tracking_id=tid,
+            status_id=delivered_status_id,
+            status_code=delivered_status_code,
+            status_name=delivered_status_name,
+            admin_id=admin_id,
+        )
+
+    # The (now empty) consolidation is marked delivered too. Re-fetch: the loop's
+    # commits above expired the instance.
+    consolidation = await session.get(
+        ShippingRouteTrackingConsolidation, consolidation_id
+    )
+    if consolidation is not None:
+        consolidation.status_id = consolidation_status_id
+        session.add(consolidation)
+    await session.commit()
+    return OkResponse(message=f"{len(tracking_ids)} colis dégroupé(s) et livré(s)")
+
+
+@router.get(
+    "/consolidations/{consolidation_id}/ungroup-hint",
+    response_model=UngroupHintResponse,
+)
+async def consolidation_ungroup_hint(
+    consolidation_id: uuid.UUID,
+    session: SessionDep,
+    _admin: CurrentLogisticsAdmin,
+) -> UngroupHintResponse:
+    """Smart default for the « garder / dégrouper » popup."""
+    await _get_consolidation_or_404(session, consolidation_id)
+    suggest = await crud_shipping_route_tracking.suggest_ungroup_for_consolidation(
+        session=session, consolidation_id=consolidation_id
+    )
+    return UngroupHintResponse(suggest_ungroup=suggest)
 
 
 @router.get("/orders/{order_id}/journey", response_model=list[AdminJourneyLeg])
