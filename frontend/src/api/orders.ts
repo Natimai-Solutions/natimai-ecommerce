@@ -30,6 +30,14 @@ export interface OrderTrackingSegment {
   selected_at: string | null;
   consolidation_id: string | null;
   notes: string | null;
+  /** Leg details for display, e.g. "France → Papeete (avion)". */
+  from_place_name: string | null;
+  to_place_name: string | null;
+  mode: string | null;
+  route_label: string | null;
+  /** External carrier name + clickable tracking link (null when self-managed). */
+  carrier_name: string | null;
+  tracking_url: string | null;
 }
 
 /** Consolidation grouping (`ShippingRouteTrackingConsolidationPublic`). */

@@ -22,6 +22,7 @@ from app.features.shipping.crud import (
     crud_shipping_route_tracking_consolidation,
     crud_status_definition,
 )
+from app.features.shipping.models.carrier import Carrier, CarrierPublic
 from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.models.route_tracking import (
     ShippingRouteTracking,
@@ -83,9 +84,10 @@ class AddTrackingsRequest(BaseModel):
 
 
 class ShipRequest(BaseModel):
-    """Carrier reference for a shipment."""
+    """Carrier + reference for a shipment (both optional — may be self-managed)."""
 
-    tracking_ref: str = Field(..., min_length=1, max_length=100)
+    tracking_ref: str | None = Field(default=None, max_length=100)
+    carrier_id: uuid.UUID | None = None
 
 
 class OkResponse(BaseModel):
@@ -198,6 +200,7 @@ async def _advance_tracking(
     status_name: str,
     admin_id: uuid.UUID,
     tracking_ref: str | None = None,
+    carrier_id: uuid.UUID | None = None,
     reason: str | None = None,
 ) -> ShippingRouteTracking:
     """Set a tracking's status (forced, no transition-table dependency), stamp the
@@ -233,8 +236,11 @@ async def _advance_tracking(
             details={"tracking_id": str(tracking_id)},
         )
 
-    if tracking_ref is not None:
+    if tracking_ref:
         updated.tracking_ref = tracking_ref
+    if carrier_id is not None:
+        updated.carrier_id = carrier_id
+    if tracking_ref or carrier_id is not None:
         session.add(updated)
 
     await _publish_tracking_status_changed(
@@ -307,6 +313,20 @@ async def list_consolidations(
             )
         )
     return items
+
+
+@router.get("/carriers", response_model=list[CarrierPublic])
+async def list_carriers(
+    session: SessionDep,
+    _admin: CurrentLogisticsAdmin,
+) -> list[CarrierPublic]:
+    """Active carriers for the « remise au transporteur » selector."""
+    result = await session.exec(
+        select(Carrier)
+        .where(col(Carrier.is_active).is_(True))
+        .order_by(col(Carrier.name).asc())
+    )
+    return [CarrierPublic.model_validate(c) for c in result.all()]
 
 
 @router.post("/consolidations", response_model=AdminConsolidationItem, status_code=201)
@@ -428,10 +448,14 @@ async def ship_consolidation(
             status_name=shipped_status_name,
             admin_id=admin_id,
             tracking_ref=body.tracking_ref,
+            carrier_id=body.carrier_id,
         )
 
     consolidation.status_id = consolidation_status_id
-    consolidation.tracking_ref = body.tracking_ref
+    if body.tracking_ref:
+        consolidation.tracking_ref = body.tracking_ref
+    if body.carrier_id is not None:
+        consolidation.carrier_id = body.carrier_id
     session.add(consolidation)
     await session.commit()
     return OkResponse(
@@ -446,7 +470,7 @@ async def ship_tracking(
     session: SessionDep,
     admin: CurrentLogisticsAdmin,
 ) -> OkResponse:
-    """Mark a single tracking as shipped (requires the carrier reference)."""
+    """Mark a single tracking as shipped (carrier reference optional)."""
     shipped = await _get_or_create_status(
         session, entity=_ENTITY_TRACKING, code=_CODE_SHIPPED, name="Expédiée"
     )
@@ -458,6 +482,7 @@ async def ship_tracking(
         status_name=shipped.name,
         admin_id=admin.id,
         tracking_ref=body.tracking_ref,
+        carrier_id=body.carrier_id,
     )
     await session.commit()
     return OkResponse(message="Tracking marqué expédié")

@@ -6,6 +6,7 @@ Phase 3: GET /orders/me/{order_id}/tracking
 from __future__ import annotations
 
 import uuid
+from urllib.parse import quote
 
 from fastapi import APIRouter
 from fastapi import status as http_status
@@ -23,10 +24,11 @@ from app.features.order.models.order import OrderPublic
 from app.features.order.models.order_status import OrderStatus
 from app.features.shipping.crud import (
     crud_shipping_route_tracking,
-    crud_shipping_route_tracking_consolidation,
     crud_status_definition,
 )
 from app.features.shipping.models.route_tracking import (
+    ShippingRouteTracking,
+    ShippingRouteTrackingConsolidation,
     ShippingRouteTrackingConsolidationPublic,
     ShippingRouteTrackingPublic,
 )
@@ -52,6 +54,37 @@ class CustomerOrderTrackingResponse(SQLModel):
     consolidations: list[ShippingRouteTrackingConsolidationPublic] = Field(
         default_factory=list
     )
+
+
+def _carrier_tracking_url(template: str | None, ref: str | None) -> str | None:
+    """Build a carrier tracking URL from a ``{ref}`` template, URL-encoding the ref.
+
+    Returns None unless the template is a real https URL and a ref is present
+    (https-only guards against a malicious ``javascript:`` template).
+    """
+    if template and ref and template.startswith("https://"):
+        return template.replace("{ref}", quote(ref, safe=""))
+    return None
+
+
+def _to_customer_segment(
+    tracking: ShippingRouteTracking,
+) -> ShippingRouteTrackingPublic:
+    """Public tracking segment enriched with the route leg + carrier tracking link."""
+    segment = ShippingRouteTrackingPublic.model_validate(tracking)
+    route = tracking.route
+    if route is not None:
+        segment.from_place_name = route.from_place.name if route.from_place else None
+        segment.to_place_name = route.to_place.name if route.to_place else None
+        segment.mode = route.mode
+        segment.route_label = route.customer_label or route.name
+    carrier = tracking.carrier
+    if carrier is not None:
+        segment.carrier_name = carrier.name
+        segment.tracking_url = _carrier_tracking_url(
+            carrier.tracking_url_template, tracking.tracking_ref
+        )
+    return segment
 
 
 @router.get(
@@ -127,12 +160,12 @@ async def get_my_order_tracking(
             overall_status="unknown",
         )
 
-    consolidations = []
+    # Only the consolidations THIS order's trackings actually belong to
+    # (deduplicated) — not every consolidation that shares the route.
+    consolidations_by_id: dict[uuid.UUID, ShippingRouteTrackingConsolidation] = {}
     for t in trackings:
-        route_consolidations = await crud_shipping_route_tracking_consolidation.get_consolidations_for_route(
-            session=session, route_id=t.route_id
-        )
-        consolidations.extend(route_consolidations)
+        if t.consolidation is not None:
+            consolidations_by_id[t.consolidation.id] = t.consolidation
 
     status_defs = await crud_status_definition.get_by_entity(
         session=session, entity="route_tracking"
@@ -148,12 +181,12 @@ async def get_my_order_tracking(
 
     return CustomerOrderTrackingResponse(
         order_id=order_id,
-        trackings=[ShippingRouteTrackingPublic.model_validate(t) for t in trackings],
+        trackings=[_to_customer_segment(t) for t in trackings],
         current_route_sequence=current_sequence,
         overall_status=overall_status,
         exception_scenarios=exception_scenarios,
         consolidations=[
             ShippingRouteTrackingConsolidationPublic.model_validate(c)
-            for c in consolidations
+            for c in consolidations_by_id.values()
         ],
     )

@@ -26,6 +26,7 @@ from app.features.place.models import Place
 from app.features.product.models.currency_rate import CurrencyRate, CurrencyRateSource
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.tax_rate import TaxRate
+from app.features.shipping.models.carrier import Carrier
 from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.models.status import StatusDefinition, StatusTransition
 from app.features.user.models.group import Group
@@ -153,6 +154,41 @@ async def _seed_price_groups(session: AsyncSession) -> None:
         if existing is not None:
             continue
         session.add(PriceGroup.model_validate(group))
+
+
+async def _seed_carriers(session: AsyncSession) -> None:
+    """Seed common carriers with a tracking-URL template ({ref} placeholder).
+
+    URLs are best-effort defaults — an admin can edit/complete them.
+    """
+    carriers = (
+        {
+            "name": "DHL",
+            "code": "dhl",
+            "tracking_url_template": "https://www.dhl.com/track?tracking-id={ref}",
+        },
+        {
+            "name": "Colissimo",
+            "code": "colissimo",
+            "tracking_url_template": "https://www.laposte.fr/outils/suivre-vos-envois?code={ref}",
+        },
+        {
+            "name": "Chronopost",
+            "code": "chronopost",
+            "tracking_url_template": "https://www.chronopost.fr/tracking-no-cms/suivi-page?listeNumerosLT={ref}",
+        },
+        {
+            "name": "OPT (Fenua Post)",
+            "code": "opt",
+            "tracking_url_template": None,
+        },
+    )
+    for carrier in carriers:
+        statement = select(Carrier).where(Carrier.code == carrier["code"])
+        result = await session.exec(statement)
+        if result.first() is not None:
+            continue
+        session.add(Carrier.model_validate(carrier))
 
 
 async def _seed_tax_rates(session: AsyncSession) -> None:
@@ -557,6 +593,7 @@ async def initial_data(session: AsyncSession) -> None:
     await _seed_payment_statuses(session)
     await _seed_manual_payment_methods(session)
     await _seed_price_groups(session)
+    await _seed_carriers(session)
     await _seed_tax_rates(session)
     await _seed_currency_rates(session)
     await _seed_france_papeete_import_corridor(session)

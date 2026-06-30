@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from sqlalchemy.orm import selectinload
 from sqlmodel import and_, col, desc, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -304,12 +305,22 @@ class ShippingRouteTrackingCrud(
         session: AsyncSession,
         order_id: uuid.UUID,
     ) -> list[ShippingRouteTracking]:
-        """Get all trackings for an order, ordered by sequence"""
+        """Get all trackings for an order, ordered by sequence.
+
+        Eager-loads the route (and its places via the route's selectin relations)
+        and the consolidation so the customer tracking view can show the leg
+        ("France → Papeete (avion)") and the order's own consolidations without
+        triggering lazy loads.
+        """
         statement = (
             select(ShippingRouteTracking)
             .where(
                 ShippingRouteTracking.order_id == order_id,
                 col(ShippingRouteTracking.is_active).is_(True),
+            )
+            .options(
+                selectinload(ShippingRouteTracking.route),
+                selectinload(ShippingRouteTracking.consolidation),
             )
             .order_by(col(ShippingRouteTracking.sequence_order).asc())
         )

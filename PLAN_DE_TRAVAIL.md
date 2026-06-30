@@ -935,6 +935,53 @@ Décision : **conversion côté client** (l'affichage est purement présentation
 - Dépendance **allow-list** `CurrentLogisticsAdmin` ([deps.py](backend/app/api/deps.py)) : superuser **toujours** ; sinon (et seulement si `ENABLE_GROUP_PERMISSIONS=true`) un membre d'un groupe sécurité avec `can_update` sur `shipping_route_trackings` (groupe `logistics_admin` seedé). **Jamais** d'accès aux users sans groupe (contrairement au modèle deny-list de `check_user_permission`). Tous les endpoints `admin_shipping` basculés de `CurrentSuperUser` → `CurrentLogisticsAdmin`. 4 tests d'intégration (superuser / flag off / sans-groupe / membre logistique).
 - ⚙️ **Activation** : mettre `ENABLE_GROUP_PERMISSIONS=true` **et** rattacher les users concernés au groupe `logistics_admin` (sinon comportement inchangé = superuser only).
 
+#### 🔎 Retour propriétaire — souplesse du suivi & finitions logistique (29/06/2026)
+
+**Rappel objectif cible** : suivi d'articles simple et souple. Une commande peut mêler articles fournisseur 1 + articles en stock entrepôt. Les articles fournisseur peuvent être affectés à une **consolidation**. Quand tous les articles atteignent l'**entrepôt principal**, on exécute le mode **last-leg** choisi par le client (retrait magasin / livraison domicile / fret aérien). Première étape (périmètre courant) : le client choisit **rapide(avion) vs économique(bateau)** pour le tronçon international (impacte le prix), puis **le mode last-leg au checkout** ; les tronçons sont déduits de ces choix + de la localisation des articles. *Le propriétaire précise : « pas encore prêts » pour le flux complet.*
+
+**Sémantique du bouton « Expédier » (point 3 — clarification)** : « Expédier » fait 3 choses sur le **tronçon courant** — (1) statut → `shipped` (non terminal), (2) enregistre le **n° de suivi transporteur** (`tracking_ref`), (3) publie `tracking.status_changed` → **email client « colis expédié »**. Il **ne fait PAS avancer** au tronçon suivant : c'est le bouton dédié **« Tronçon suivant »** (`activate_next_route`) qui marque le tronçon `completed` et active le suivant. → Intuition du propriétaire (« indiquer un numéro de suivi ») correcte. Tooltip ajouté ✅.
+
+##### ✅ Quick wins livrés (29/06/2026)
+
+- [x] **Point 1 — Boutons grisés sur statut terminal** : dans [ShippingPage.vue](admin-frontend/src/pages/ShippingPage.vue), `:disable` sur **Livrer** / **Tronçon suivant** quand `status_code ∈ {completed, delivered}`, et sur **Expédier** / **Expédier tout** quand terminal **ou** déjà `shipped` (helpers `isTerminal` / `isShipped`). *(Reste possible : garde-fou backend HTTP 409 sur transition d'un tracking déjà terminal — cf. design.)*
+- [x] **Point 3 — Clarifier « Expédier »** : `q-tooltip` explicatif ajouté sur les deux boutons Expédier.
+- [x] **Point 4b — 🐞 Bug consolidations vitrine** : [orders_me.py](backend/app/api/routes/orders_me.py) renvoyait **toutes** les consolidations de la route (`get_consolidations_for_route`, sans filtre commande, + doublons). Corrigé : on ne garde que les consolidations liées aux trackings de **cette** commande (via `tracking.consolidation`, dédupliquées), avec eager-load.
+- [x] **Point 4a — Infos transport vitrine enrichies** : `ShippingRouteTrackingPublic` enrichi (`from_place_name`/`to_place_name`/`mode`/`route_label`, eager-load `route` dans `get_trackings_by_order_sequence`) ; la vitrine ([OrderTrackingPage.vue](frontend/src/pages/OrderTrackingPage.vue)) affiche désormais **« France → Papeete (avion) »** par tronçon (mapping mode FR : air→avion, sea→bateau, road→route, pickup→retrait).
+- [x] **Point 5 (1re tranche) — N° de suivi optionnel** : `ShipRequest.tracking_ref` rendu **optionnel** ([admin_shipping.py](backend/app/api/routes/admin_shipping.py)) + rule UI retirée + envoi `null` si vide. Couvre le cas « suivi géré en interne, pas de numéro ».
+- [x] **Point 2/3 (libellé) — Renommage** : bouton « Expédier » → **« Remettre au transporteur »** (et « Tout remettre au transporteur » pour le lot) + dialogue « Remise au transporteur ».
+
+##### 🧭 Conception (phase logistique avancée — « pas encore prêts »)
+
+- [ ] **Point 2 — Dégroupage au passage du lot : popup + défaut intelligent (✅ décision propriétaire)**
+  - **Décidé** : sur le **lot/consolidation**, cliquer **« Tronçon suivant »** ouvre une **popup *« Garder le groupage / Dégrouper »*** avec un **défaut intelligent** :
+    - défaut = **Dégrouper** si le prochain tronçon est le **last-leg** (route `is_to_customer=True`) **ou** si les colis **divergent** (routes suivantes différentes) ;
+    - défaut = **Garder** sinon (tronçon intermédiaire encore commun).
+  - **« Livrer »** sur un lot → **dégroupage forcé** (on livre des colis individuels), pas de question.
+  - Implémentation : revoir `advance_consolidation` / un futur `deliver_consolidation` ([admin_shipping.py](backend/app/api/routes/admin_shipping.py)). Si « Dégrouper » : **par tracking** → `remove_tracking_from_consolidation` (détacher) **puis** `activate_next_route` (avancer individuellement, chaque colis poursuit sa propre séquence). Si « Garder » : comportement actuel (avancer le lot ensemble). Détection du défaut côté backend (exposer dans la réponse `/consolidations` un flag « prochain tronçon = last-leg / colis divergents » pour pré-cocher la popup). Vérifier que le statut repart proprement de l'`activate_next_route` une fois détaché (l'override consolidation ne s'applique plus).
+- [x] **Point 5 — Transporteur + lien de suivi (✅ PHASE 1 LIVRÉE 29/06/2026)**
+  - Modèle **`Carrier`** (`name`, `code`, `tracking_url_template` avec placeholder `{ref}`) + `carrier_id` (FK nullable) sur `ShippingRouteTracking` **et** la consolidation. Migration `f7a1c3e9d2b5` (table + colonnes, réversible) + seed (DHL, Colissimo, Chronopost, OPT).
+  - Admin : sélecteur **Transporteur** (+ « — Suivi interne — ») dans le dialogue « Remise au transporteur » ; `carrier_id` + n° stampés à l'expédition. Endpoint `GET /admin/shipping/carriers`.
+  - Vitrine : `carrier_name` + **lien « Suivre le colis »** cliquable construit côté backend (`tracking_url`, **https-only** + ref URL-encodée, garde anti-`javascript:`). Affiché dans [OrderTrackingPage.vue](frontend/src/pages/OrderTrackingPage.vue). Test unitaire du builder d'URL.
+  - **Pas** d'intégration API transporteur (YAGNI) — saisie manuelle. *(Le `tracking_mode` explicite {externe/auto/sans} n'a pas été nécessaire : carrier présent = externe + lien ; absent = suivi interne.)*
+  - Reste (futur) : `PATCH /admin/shipping/trackings/{id}/tracking-ref` pour corriger un n° après coup (ré-notification client : à décider) ; petite UI de gestion des transporteurs (URLs éditables).
+- [ ] **Modèle de tronçons unifié (✅ décision : last-leg = tronçon)** : le **last-leg** (entrepôt → client final) devient un **tronçon `ShippingRouteTracking`** comme les autres, et **non** un `DeliveryTask` séparé. Bénéfice : un parcours unique et homogène (mêmes statuts, même suivi, même « tronçon suivant »), du simple (1 tronçon entrepôt→client) au complexe (fournisseur → étape 1 → douane → étape 2 → entrepôt → client). Le last-leg peut être un **transporteur classique** (la Poste/DHL) avec lien de suivi (cf. point 5) **ou** géré en interne. → `DeliveryTask` ([delivery_task.py](backend/app/features/shipping/models/delivery_task.py)) à **résorber/migrer** vers un tronçon (ou conserver seulement comme détail de tâche admin, à trancher).
+- [ ] **Modèle de prix par zones (✅ cadrage propriétaire)** :
+  - **Zone A — fournisseur → douane** (tronçons internationaux) : **incluse dans le prix de l'article** (mode rapide/éco choisi au catalogue → CAF, déjà livré P1).
+  - **Zone C — entrepôt → client final** (last-leg) : **choisie par le client au checkout**, tarifée à part. *(Futur, optionnel — généralisation : tarif au **poids/volume** par tranches, ex. 1–2 kg = X XPF, 2–5 kg = Y… par transporteur/zone.)*
+  - **Zone B — douane → entrepôt principal** : ✅ **incluse dans la zone A** (décision propriétaire). Le prix article couvre tout jusqu'à l'entrepôt principal ; **seul le last-leg** est choisi/payé par le client (évite de multiplier les choix au checkout).
+  - Câblage manquant : sélection du mode **last-leg au checkout vitrine** (aujourd'hui `checkout_my_cart` non câblé côté vitrine) ; la machinerie `sequence_order` + consolidation existe déjà ([cart.py](backend/app/api/routes/cart.py)).
+
+##### Décisions
+
+- [x] **Grisage** : `completed`+`delivered`, + re-grisage « Expédier » sur `shipped`. ✅
+- [x] **Libellé** : « Remettre au transporteur ». ✅
+- [x] **N° de suivi** : optionnel. ✅
+- [x] **Dégroupage** : « Tronçon suivant » du lot → **popup Garder/Dégrouper** avec défaut intelligent (Dégrouper si prochain = last-leg ou colis divergents) ; **« Livrer » → dégroupage forcé**. ✅
+- [x] **Suivi** : transporteur + gabarit d'URL → lien de suivi cliquable côté client (+ `tracking_mode`). ✅
+- [x] **Modèle last-leg** : tronçon `ShippingRouteTracking` unifié (pas `DeliveryTask` séparé). ✅
+- [x] **Zone B (douane → entrepôt principal)** : incluse dans la zone A (prix article jusqu'à l'entrepôt). ✅
+- [ ] Détails secondaires : MAJ d'un n° de suivi → email client ou silencieux ? Vitrine : tous les tronçons ou seulement courant + franchis ? Tarif last-leg au poids/volume (futur, optionnel).
+
 ### Matrice livrables par surface
 
 | Feature | Backend | Vitrine (`frontend`) | Admin (`admin-frontend`) |

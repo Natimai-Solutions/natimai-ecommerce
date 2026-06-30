@@ -32,6 +32,7 @@ from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import Product
 from app.features.product.models.spec_definition import SpecDefinition
 from app.features.product.models.tax_rate import TaxRate
+from app.features.shipping.models.carrier import Carrier
 from app.features.shipping.models.delivery_task import DeliveryTask
 from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.models.route_tracking import (
@@ -64,6 +65,7 @@ __all__ = [
     "Category",
     "PriceGroup",
     "TaxRate",
+    "Carrier",
     "DeliveryTask",
     "Discount",
     "Group",

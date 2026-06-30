@@ -80,10 +80,32 @@
               :icon="segmentIcon(segment)"
             >
               <div class="column q-gutter-xs">
-                <div v-if="segment.tracking_ref">
-                  <q-icon name="qr_code" size="xs" class="q-mr-xs" />
-                  Référence transporteur :
-                  <span class="text-weight-medium">{{ segment.tracking_ref }}</span>
+                <div v-if="legLabel(segment)" class="text-weight-medium text-grey-9">
+                  <q-icon name="route" size="xs" class="q-mr-xs" />
+                  {{ legLabel(segment) }}
+                </div>
+                <div v-if="segment.tracking_ref || segment.carrier_name" class="row items-center">
+                  <q-icon name="local_shipping" size="xs" class="q-mr-xs" />
+                  <span v-if="segment.carrier_name">{{ segment.carrier_name }}</span>
+                  <span v-if="segment.carrier_name && segment.tracking_ref" class="q-mx-xs">—</span>
+                  <span v-if="segment.tracking_ref" class="text-weight-medium">{{
+                    segment.tracking_ref
+                  }}</span>
+                  <q-btn
+                    v-if="segment.tracking_url"
+                    flat
+                    dense
+                    no-caps
+                    size="sm"
+                    color="primary"
+                    icon-right="open_in_new"
+                    label="Suivre le colis"
+                    type="a"
+                    :href="segment.tracking_url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="q-ml-sm"
+                  />
                 </div>
                 <div v-if="segment.estimated_delivery">
                   <q-icon name="event" size="xs" class="q-mr-xs" />
@@ -186,6 +208,23 @@ function statusIcon(code: string): string {
 function segmentIcon(segment: OrderTrackingSegment): string {
   if (segment.estimated_delivery) return 'local_shipping';
   return 'place';
+}
+
+// Transport mode → customer-facing French label.
+const MODE_LABELS: Record<string, string> = {
+  air: 'avion',
+  sea: 'bateau',
+  road: 'route',
+  pickup: 'retrait',
+};
+
+/** e.g. "France → Papeete (avion)" — falls back to the route label or null. */
+function legLabel(segment: OrderTrackingSegment): string | null {
+  const from = segment.from_place_name;
+  const to = segment.to_place_name;
+  if (!from || !to) return segment.route_label;
+  const mode = segment.mode ? (MODE_LABELS[segment.mode] ?? segment.mode) : null;
+  return mode ? `${from} → ${to} (${mode})` : `${from} → ${to}`;
 }
 
 /**

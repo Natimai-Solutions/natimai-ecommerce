@@ -82,9 +82,15 @@
             no-caps
             icon="local_shipping"
             color="primary"
-            label="Expédier"
+            label="Remettre au transporteur"
+            :disable="isTerminal(props.row) || isShipped(props.row)"
             @click="openShipTracking(props.row)"
-          />
+          >
+            <q-tooltip max-width="320px">
+              Marque ce tronçon comme remis au transporteur et enregistre le n° de
+              suivi (notifie le client). Ne fait pas passer au tronçon suivant.
+            </q-tooltip>
+          </q-btn>
           <q-btn
             flat
             dense
@@ -92,6 +98,7 @@
             icon="skip_next"
             color="indigo"
             label="Tronçon suivant"
+            :disable="isTerminal(props.row)"
             @click="advanceTrackingRow(props.row)"
           />
           <q-btn
@@ -101,6 +108,7 @@
             icon="task_alt"
             color="positive"
             label="Livrer"
+            :disable="isTerminal(props.row)"
             @click="deliver(props.row)"
           />
         </q-td>
@@ -144,9 +152,15 @@
             no-caps
             icon="local_shipping"
             color="primary"
-            label="Expédier tout"
+            label="Tout remettre au transporteur"
+            :disable="isTerminal(props.row) || isShipped(props.row)"
             @click="openShipConsolidation(props.row)"
-          />
+          >
+            <q-tooltip max-width="320px">
+              Marque tous les colis du lot comme remis au transporteur et enregistre
+              le n° de suivi (notifie les clients). Ne fait pas passer au tronçon suivant.
+            </q-tooltip>
+          </q-btn>
           <q-btn
             flat
             dense
@@ -154,6 +168,7 @@
             icon="skip_next"
             color="indigo"
             label="Tronçon suivant"
+            :disable="isTerminal(props.row)"
             @click="advanceConsolidationRow(props.row)"
           />
         </q-td>
@@ -166,24 +181,33 @@
     <!-- Ship dialog (tracking ref) -->
     <q-dialog v-model="shipDialog">
       <q-card style="min-width: 360px">
-        <q-card-section class="text-h6">Référence d'expédition</q-card-section>
+        <q-card-section class="text-h6">Remise au transporteur</q-card-section>
         <q-form @submit.prevent="submitShip">
           <q-card-section class="q-pt-none q-gutter-sm">
             <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
               dialogError
             }}</q-banner>
+            <q-select
+              v-model="shipCarrierId"
+              :options="carrierOptions"
+              label="Transporteur"
+              outlined
+              dense
+              emit-value
+              map-options
+            />
             <q-input
               v-model="shipRef"
-              label="Référence transporteur *"
+              label="Numéro de suivi (optionnel)"
+              hint="Laisser vide si vous n'avez pas de numéro (suivi géré en interne)."
               outlined
               dense
               autofocus
-              :rules="[(v) => (!!v && v.trim().length > 0) || 'Référence requise']"
             />
           </q-card-section>
           <q-card-actions align="right">
             <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" label="Expédier" :loading="saving" />
+            <q-btn type="submit" color="primary" label="Remettre au transporteur" :loading="saving" />
           </q-card-actions>
         </q-form>
       </q-card>
@@ -268,7 +292,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import {
   addTrackings,
@@ -277,10 +301,12 @@ import {
   createConsolidation,
   deliverTracking,
   getOrderJourney,
+  listCarriers,
   listConsolidations,
   listPendingGrouping,
   shipConsolidation,
   shipTracking,
+  type Carrier,
   type Consolidation,
   type JourneyLeg,
   type PendingTracking,
@@ -289,6 +315,7 @@ import { extractApiError } from 'src/api/errors';
 
 const pending = ref<PendingTracking[]>([]);
 const consolidations = ref<Consolidation[]>([]);
+const carriers = ref<Carrier[]>([]);
 const selected = ref<PendingTracking[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -323,9 +350,10 @@ async function load() {
   loading.value = true;
   error.value = null;
   try {
-    [pending.value, consolidations.value] = await Promise.all([
+    [pending.value, consolidations.value, carriers.value] = await Promise.all([
       listPendingGrouping(),
       listConsolidations(),
+      listCarriers(),
     ]);
     selected.value = [];
   } catch (err) {
@@ -335,14 +363,30 @@ async function load() {
   }
 }
 
+// --- Action gating (disable buttons once a leg is terminal/shipped) ---
+const TERMINAL_STATUS_CODES = ['completed', 'delivered'];
+function isTerminal(row: { status_code: string | null }): boolean {
+  return TERMINAL_STATUS_CODES.includes(row.status_code ?? '');
+}
+function isShipped(row: { status_code: string | null }): boolean {
+  return row.status_code === 'shipped';
+}
+
 // --- Ship (tracking or consolidation) ---
 const shipDialog = ref(false);
 const shipRef = ref('');
+const shipCarrierId = ref<string | null>(null);
 const shipTarget = ref<{ type: 'tracking' | 'consolidation'; id: string } | null>(null);
+
+const carrierOptions = computed<{ label: string; value: string | null }[]>(() => [
+  { label: '— Suivi interne (sans transporteur) —', value: null },
+  ...carriers.value.map((c) => ({ label: c.name, value: c.id })),
+]);
 
 function openShipTracking(row: PendingTracking) {
   dialogError.value = null;
   shipRef.value = row.tracking_ref ?? '';
+  shipCarrierId.value = null;
   shipTarget.value = { type: 'tracking', id: row.tracking_id };
   shipDialog.value = true;
 }
@@ -350,22 +394,26 @@ function openShipTracking(row: PendingTracking) {
 function openShipConsolidation(c: Consolidation) {
   dialogError.value = null;
   shipRef.value = c.tracking_ref ?? '';
+  shipCarrierId.value = null;
   shipTarget.value = { type: 'consolidation', id: c.id };
   shipDialog.value = true;
 }
 
 async function submitShip() {
-  if (!shipTarget.value || !shipRef.value.trim()) return;
+  if (!shipTarget.value) return;
+  // Carrier and reference are both optional (self-managed shipments).
+  const ref = shipRef.value.trim() || null;
+  const carrierId = shipCarrierId.value;
   saving.value = true;
   dialogError.value = null;
   try {
     if (shipTarget.value.type === 'tracking') {
-      await shipTracking(shipTarget.value.id, shipRef.value.trim());
+      await shipTracking(shipTarget.value.id, ref, carrierId);
     } else {
-      await shipConsolidation(shipTarget.value.id, shipRef.value.trim());
+      await shipConsolidation(shipTarget.value.id, ref, carrierId);
     }
     shipDialog.value = false;
-    notice.value = 'Expédition enregistrée.';
+    notice.value = 'Remise au transporteur enregistrée.';
     await load();
   } catch (err) {
     dialogError.value = extractApiError(err) ?? 'Expédition impossible.';
