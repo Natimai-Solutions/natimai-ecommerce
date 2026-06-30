@@ -41,16 +41,18 @@ async def get_current_user(session: SessionDep, token: TokenDep) -> User:
         payload = security.decode_token(token)
         token_data = TokenPayload(**payload)
     except (InvalidTokenError, ValidationError):
+        # Expired / malformed access token = authentication failure → 401 so the
+        # client's interceptor refreshes (a 403 would leave it stuck until reload).
         raise AppError(
             code="auth.credentials.invalid",
-            status_code=403,
+            status_code=401,
             message="Could not validate credentials",
             details={"reason": "invalid_or_malformed_token"},
         )
     if token_data.type not in (None, "access"):
         raise AppError(
             code="auth.credentials.invalid",
-            status_code=403,
+            status_code=401,
             message="Could not validate credentials",
             details={"reason": "invalid_token_type", "token_type": token_data.type},
         )
