@@ -86,8 +86,9 @@ async def test_submit_then_options_excludes_assigned_group(
     assert created.status == UpgradeRequestStatus.pending
 
     # submit committed → re-fetch the (now expired) user instance.
-    user = await db_session.get(User, user_id)
-    assert user is not None
+    refreshed = await db_session.get(User, user_id)
+    assert refreshed is not None
+    user = refreshed
 
     # A second pending request for the same group is refused.
     with pytest.raises(AppError) as exc:

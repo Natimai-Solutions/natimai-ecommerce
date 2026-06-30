@@ -1,0 +1,50 @@
+{% extends "_layout.html" %}
+{% block title %}Demande de devis{% endblock %}
+{% block extra_style %}
+    .items { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    .items th { background: #f0f4f8; color: #334155; font-size: 12px; text-align: left; padding: 10px 8px; }
+    .items th.num, .items td.num { text-align: right; white-space: nowrap; }
+    .items td { padding: 10px 8px; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #334155; vertical-align: middle; }
+    .items .thumb { width: 48px; height: 48px; border-radius: 8px; object-fit: contain; background: #f8fafc; border: 1px solid #e2e8f0; display: block; }
+    .items .thumb-empty { width: 48px; height: 48px; border-radius: 8px; background: #f1f5f9; border: 1px solid #e2e8f0; }
+    .items .name { font-weight: 700; color: #0f172a; }
+{% endblock %}
+{% block heading %}Nouvelle demande de devis{% endblock %}
+{% block content %}
+      <p>{{ subtitle }}</p>
+      <div class="summary">
+        <table>
+          {% for row in summary %}<tr><td>{{ row.label }}</td><td>{{ row.value }}</td></tr>
+          {% endfor %}
+        </table>
+      </div>
+      <table class="items">
+        <thead>
+          <tr>
+            <th>Article</th>
+            <th class="num">Qté</th>
+            <th class="num">PU</th>
+            <th class="num">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for it in items %}<tr>
+            <td>
+              <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                <td style="padding-right:10px;">{% if it.image_url %}<img class="thumb" src="{{ it.image_url }}" alt="" width="48" height="48" />{% else %}<div class="thumb-empty"></div>{% endif %}</td>
+                <td class="name">{{ it.product_name }}</td>
+              </tr></table>
+            </td>
+            <td class="num">{{ it.quantity }}</td>
+            <td class="num">{{ it.unit_price }} {{ currency }}</td>
+            <td class="num">{{ it.line_total }} {{ currency }}</td>
+          </tr>
+          {% endfor %}
+          <tr>
+            <td colspan="3" class="num"><strong>Sous-total</strong></td>
+            <td class="num"><strong>{{ subtotal }} {{ currency }}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+{% endblock %}
+{% block footer %}Notification interne — {{ shop_name }}.{% endblock %}

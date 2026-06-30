@@ -77,6 +77,24 @@ _SAMPLE_CONTEXT: dict[str, dict[str, Any]] = {
         "reason": "",
         "shop_name": "Natimai",
     },
+    "quote_request": {
+        "subtitle": "Demande transmise depuis le panier public.",
+        "contact": "client@example.com",
+        "item_count": 1,
+        "summary": [{"label": "Email", "value": "client@example.com"}],
+        "items": [
+            {
+                "product_name": "Laptop Test",
+                "quantity": "2",
+                "unit_price": "1000.00",
+                "line_total": "2000.00",
+                "image_url": "https://cdn.example.com/laptop.png",
+            }
+        ],
+        "currency": "XPF",
+        "subtotal": "2000.00",
+        "shop_name": "Natimai",
+    },
 }
 
 

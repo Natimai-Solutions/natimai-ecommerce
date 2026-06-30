@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
-from html import escape
 from time import perf_counter
 from typing import Any
 
@@ -42,6 +41,7 @@ from app.features.inventory.models.stock_movement import (
     MovementType,
     ReferenceType,
 )
+from app.features.notification.email_renderer import render_email
 from app.features.notification.providers import (
     NotificationMessage,
     UnknownNotificationProviderError,
@@ -1025,99 +1025,46 @@ def _snapshot_text_value(
     return normalized
 
 
-def _build_quote_email_html(
+def _quote_items(
+    item_snapshots: list[dict[str, str | None]],
+) -> list[dict[str, str]]:
+    """Normalise cart snapshots into template-friendly item rows."""
+    return [
+        {
+            "product_name": _snapshot_text_value(
+                item, "product_name", fallback="Produit"
+            ),
+            "quantity": _snapshot_text_value(item, "quantity", fallback="0"),
+            "unit_price": _snapshot_text_value(item, "unit_price", fallback="0.00"),
+            "line_total": _snapshot_text_value(item, "line_total", fallback="0.00"),
+            "image_url": _snapshot_text_value(item, "image_url", fallback=""),
+        }
+        for item in item_snapshots
+    ]
+
+
+def _render_quote_email(
     *,
-    title: str,
     subtitle: str,
-    summary_lines: list[tuple[str, str]],
+    contact: str,
+    summary: list[tuple[str, str]],
     currency: str,
     item_snapshots: list[dict[str, str | None]],
     subtotal_amount: Decimal,
-) -> str:
-    """Build HTML body for quote support email."""
-    currency_label = escape(currency.strip().upper() or "XPF")
-
-    summary_rows = "".join(
-        (
-            "<tr>"
-            f'<td style="padding:4px 0;color:#64748b;font-size:13px;">{escape(label)}</td>'
-            f'<td style="padding:4px 0;color:#0f172a;font-size:13px;font-weight:600;">{escape(value)}</td>'
-            "</tr>"
-        )
-        for label, value in summary_lines
+) -> tuple[str, str, str]:
+    """Render a quote-request support email via the shared email layout."""
+    email = render_email(
+        "quote_request",
+        subtitle=subtitle,
+        contact=contact,
+        item_count=len(item_snapshots),
+        summary=[{"label": label, "value": value} for label, value in summary],
+        items=_quote_items(item_snapshots),
+        currency=currency.strip().upper() or "XPF",
+        subtotal=str(subtotal_amount),
+        shop_name=getattr(settings, "SHOP_NAME", "Natimai"),
     )
-
-    item_rows: list[str] = []
-    for item in item_snapshots:
-        product_name = escape(
-            _snapshot_text_value(item, "product_name", fallback="Produit")
-        )
-        quantity = escape(_snapshot_text_value(item, "quantity", fallback="0"))
-        unit_price = escape(_snapshot_text_value(item, "unit_price", fallback="0.00"))
-        line_total = escape(_snapshot_text_value(item, "line_total", fallback="0.00"))
-
-        image_url = _snapshot_text_value(item, "image_url", fallback="")
-        if image_url:
-            image_cell = (
-                f'<img src="{escape(image_url, quote=True)}" alt="" '
-                'width="56" height="56" '
-                'style="display:block;width:56px;height:56px;border-radius:10px;'
-                'object-fit:contain;background:#f8fafc;border:1px solid #e2e8f0;"/>'
-            )
-        else:
-            image_cell = (
-                '<div style="width:56px;height:56px;border-radius:10px;'
-                'background:#f1f5f9;border:1px solid #e2e8f0;"></div>'
-            )
-
-        item_rows.append(
-            "<tr>"
-            f'<td style="padding:10px 8px;border-bottom:1px solid #e2e8f0;">{image_cell}</td>'
-            '<td style="padding:10px 8px;border-bottom:1px solid #e2e8f0;">'
-            f'<div style="font-size:14px;font-weight:700;color:#0f172a;">{product_name}</div>'
-            f'<div style="font-size:12px;color:#64748b;margin-top:4px;">Quantite: {quantity}</div>'
-            "</td>"
-            f'<td style="padding:10px 8px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:13px;color:#334155;">{unit_price} {currency_label}</td>'
-            f'<td style="padding:10px 8px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:13px;font-weight:700;color:#0f172a;">{line_total} {currency_label}</td>'
-            "</tr>"
-        )
-
-    items_html = "".join(item_rows)
-    subtotal_label = escape(str(subtotal_amount))
-
-    return (
-        "<!doctype html>"
-        '<html><body style="margin:0;padding:24px;background:#f8fafc;'
-        'font-family:Arial,Helvetica,sans-serif;color:#0f172a;">'
-        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;">'
-        '<tr><td style="padding:24px 24px 10px 24px;">'
-        f'<h1 style="margin:0;font-size:24px;line-height:1.25;">{escape(title)}</h1>'
-        f'<p style="margin:8px 0 0 0;color:#475569;font-size:14px;">{escape(subtitle)}</p>'
-        "</td></tr>"
-        '<tr><td style="padding:8px 24px 16px 24px;">'
-        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
-        f"{summary_rows}"
-        "</table>"
-        "</td></tr>"
-        '<tr><td style="padding:0 24px 24px 24px;">'
-        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
-        "<thead>"
-        "<tr>"
-        '<th style="text-align:left;padding:10px 8px;background:#f1f5f9;color:#334155;font-size:12px;">Image</th>'
-        '<th style="text-align:left;padding:10px 8px;background:#f1f5f9;color:#334155;font-size:12px;">Produit</th>'
-        '<th style="text-align:right;padding:10px 8px;background:#f1f5f9;color:#334155;font-size:12px;">Prix unitaire</th>'
-        '<th style="text-align:right;padding:10px 8px;background:#f1f5f9;color:#334155;font-size:12px;">Total ligne</th>'
-        "</tr>"
-        "</thead>"
-        "<tbody>"
-        f"{items_html}"
-        "<tr>"
-        '<td colspan="3" style="padding:14px 8px;text-align:right;font-size:13px;color:#334155;font-weight:700;">Total panier</td>'
-        f'<td style="padding:14px 8px;text-align:right;font-size:14px;color:#0f172a;font-weight:800;">{subtotal_label} {currency_label}</td>'
-        "</tr>"
-        "</tbody></table>"
-        "</td></tr></table></body></html>"
-    )
+    return email.subject, email.text, email.html
 
 
 def _format_quote_support_email(
@@ -1130,45 +1077,14 @@ def _format_quote_support_email(
     notes: str | None,
 ) -> tuple[str, str, str]:
     """Build subject and body for support quote request emails."""
-    subject = f"[Quote Request] user={current_user.id} items={len(item_snapshots)}"
-
-    lines = [
-        "Nouvelle demande de devis",
-        "",
-        f"user_id: {current_user.id}",
-        f"email: {current_user.email}",
-        f"full_name: {current_user.full_name or 'n/a'}",
-        f"phone: {current_user.phone or 'n/a'}",
-        f"shipping_address: {shipping_address or 'n/a'}",
-        f"notes: {notes or 'n/a'}",
-        "",
-        "Panier:",
-    ]
-
-    for item in item_snapshots:
-        lines.append(
-            "- "
-            f"{_snapshot_text_value(item, 'product_name', fallback='Produit')} "
-            f"(qty={_snapshot_text_value(item, 'quantity', fallback='0')}, "
-            f"unit={_snapshot_text_value(item, 'unit_price', fallback='0.00')} {currency}, "
-            f"line_total={_snapshot_text_value(item, 'line_total', fallback='0.00')} {currency})"
-        )
-
-    lines.extend(
-        [
-            "",
-            f"subtotal: {subtotal_amount} {currency}",
-        ]
-    )
-
-    html_body = _build_quote_email_html(
-        title="Nouvelle demande de devis",
+    return _render_quote_email(
         subtitle="Demande transmise depuis le panier client.",
-        summary_lines=[
+        contact=str(current_user.email),
+        summary=[
             ("Utilisateur", str(current_user.id)),
             ("Email", str(current_user.email)),
             ("Nom", current_user.full_name or "n/a"),
-            ("Telephone", current_user.phone or "n/a"),
+            ("Téléphone", current_user.phone or "n/a"),
             ("Adresse de livraison", shipping_address or "n/a"),
             ("Notes", notes or "n/a"),
         ],
@@ -1176,8 +1092,6 @@ def _format_quote_support_email(
         item_snapshots=item_snapshots,
         subtotal_amount=subtotal_amount,
     )
-
-    return subject, "\n".join(lines), html_body
 
 
 def _format_guest_quote_support_email(
@@ -1192,45 +1106,13 @@ def _format_guest_quote_support_email(
     notes: str | None,
 ) -> tuple[str, str, str]:
     """Build subject and body for guest quote request emails."""
-    subject = (
-        f"[Guest Quote Request] email={customer_email} items={len(item_snapshots)}"
-    )
-
-    lines = [
-        "New guest quote request",
-        "",
-        f"email: {customer_email}",
-        f"full_name: {customer_name or 'n/a'}",
-        f"phone: {customer_phone or 'n/a'}",
-        f"shipping_address: {shipping_address or 'n/a'}",
-        f"notes: {notes or 'n/a'}",
-        "",
-        "Cart:",
-    ]
-
-    for item in item_snapshots:
-        lines.append(
-            "- "
-            f"{_snapshot_text_value(item, 'product_name', fallback='Produit')} "
-            f"(qty={_snapshot_text_value(item, 'quantity', fallback='0')}, "
-            f"unit={_snapshot_text_value(item, 'unit_price', fallback='0.00')} {currency}, "
-            f"line_total={_snapshot_text_value(item, 'line_total', fallback='0.00')} {currency})"
-        )
-
-    lines.extend(
-        [
-            "",
-            f"subtotal: {subtotal_amount} {currency}",
-        ]
-    )
-
-    html_body = _build_quote_email_html(
-        title="Nouvelle demande de devis",
+    return _render_quote_email(
         subtitle="Demande transmise depuis le panier public.",
-        summary_lines=[
+        contact=customer_email,
+        summary=[
             ("Email", customer_email),
             ("Nom", customer_name or "n/a"),
-            ("Telephone", customer_phone or "n/a"),
+            ("Téléphone", customer_phone or "n/a"),
             ("Adresse de livraison", shipping_address or "n/a"),
             ("Notes", notes or "n/a"),
         ],
@@ -1238,8 +1120,6 @@ def _format_guest_quote_support_email(
         item_snapshots=item_snapshots,
         subtotal_amount=subtotal_amount,
     )
-
-    return subject, "\n".join(lines), html_body
 
 
 async def _send_quote_support_email(

@@ -142,7 +142,8 @@ def test_guest_quote_email_html_contains_image_line_items() -> None:
         notes="Urgent",
     )
 
-    assert subject.startswith("[Guest Quote Request]")
+    assert "Demande de devis" in subject
+    assert "client@example.com" in subject
     assert "Laptop Test" in text_body
     assert "<img" in html_body
     assert "Laptop Test" in html_body
