@@ -1,0 +1,8 @@
+{{ subtitle }}
+
+{% for row in summary %}{{ row.label }} : {{ row.value }}
+{% endfor %}
+Panier :
+{% for it in items %}- {{ it.product_name }} (x{{ it.quantity }}, {{ it.unit_price }} {{ currency }}, total {{ it.line_total }} {{ currency }})
+{% endfor %}
+Sous-total : {{ subtotal }} {{ currency }}
