@@ -630,35 +630,35 @@ class ShippingRouteTrackingConsolidationCrud(
         tracking_id: uuid.UUID,
     ) -> bool:
         """Remove a tracking from consolidation"""
-        # Get the tracking
         tracking = await session.get(ShippingRouteTracking, tracking_id)
         if not tracking or not tracking.consolidation_id:
             return False
+
+        # Capture before the update below commits and expires these instances —
+        # reading consolidation.total_orders afterwards raises MissingGreenlet.
+        consolidation_id = tracking.consolidation_id
+        consolidation = await session.get(self.model, consolidation_id)
+        current_total = consolidation.total_orders if consolidation is not None else 0
 
         tracking_crud = ShippingRouteTrackingCrud(
             model=ShippingRouteTracking,
             schema_create=ShippingRouteTrackingCreate,
             schema_update=ShippingRouteTrackingUpdate,
         )
-
-        # Get consolidation for count update
-        consolidation = await session.get(self.model, tracking.consolidation_id)
-
-        # Remove from consolidation
         await tracking_crud.update(
             session=session,
-            id=tracking.id,
+            id=tracking_id,
             record=tracking,
             data={"consolidation_id": None},
         )
 
-        # Update consolidation total orders
-        if consolidation and consolidation.total_orders > 0:
+        # Decrement the consolidation counter by id (re-fetched inside update);
+        # the captured `consolidation` instance is now expired.
+        if consolidation is not None and current_total > 0:
             await self.update(
                 session=session,
-                id=consolidation.id,
-                record=consolidation,
-                data={"total_orders": consolidation.total_orders - 1},
+                id=consolidation_id,
+                data={"total_orders": current_total - 1},
             )
 
         return True

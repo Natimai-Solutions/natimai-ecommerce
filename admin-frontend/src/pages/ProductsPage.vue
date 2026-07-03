@@ -1,7 +1,7 @@
 <template>
   <q-page padding>
     <div class="row q-col-gutter-md q-mb-md items-end">
-      <div class="col-12 col-md-6">
+      <div class="col-12 col-md-5">
         <q-input
           v-model="searchInput"
           label="Rechercher (nom, SKU, MPN)"
@@ -28,7 +28,15 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-12 col-md-2 text-right">
+      <div class="col-12 col-md-3 text-right">
+        <q-btn
+          unelevated
+          color="primary"
+          icon="add"
+          label="Nouveau"
+          class="q-mr-sm"
+          @click="openCreate"
+        />
         <q-btn
           flat
           icon="refresh"
@@ -81,6 +89,27 @@
         </q-td>
       </template>
 
+      <template #body-cell-origin="props">
+        <q-td :props="props">
+          <q-select
+            :model-value="props.row.supplier_place_id ?? null"
+            :options="placeOptions"
+            dense
+            outlined
+            options-dense
+            emit-value
+            map-options
+            clearable
+            hide-bottom-space
+            placeholder="—"
+            style="min-width: 200px"
+            :disable="store.savingOriginIds.has(props.row.id)"
+            :loading="store.savingOriginIds.has(props.row.id)"
+            @update:model-value="(val) => onOriginChange(props.row, val)"
+          />
+        </q-td>
+      </template>
+
       <template #body-cell-active="props">
         <q-td :props="props" align="center">
           <q-toggle
@@ -91,7 +120,17 @@
           />
         </q-td>
       </template>
+
+      <template #body-cell-actions="props">
+        <q-td :props="props" align="right">
+          <q-btn flat dense round icon="edit" color="primary" @click="openEdit(props.row)">
+            <q-tooltip>Modifier</q-tooltip>
+          </q-btn>
+        </q-td>
+      </template>
     </q-table>
+
+    <ProductFormDialog v-model="formOpen" :product="editingProduct" @saved="store.fetchPage()" />
 
     <div class="row justify-end q-mt-md">
       <q-pagination
@@ -108,12 +147,35 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
-import { useProductsStore, type ActiveFilter } from 'src/stores/products';
+import { useProductsStore, type ActiveFilter, type ProductPublic } from 'src/stores/products';
+import { listPlaces, type Place } from 'src/api/logistics';
+import ProductFormDialog from 'src/components/ProductFormDialog.vue';
 
 const store = useProductsStore();
+
+const formOpen = ref(false);
+const editingProduct = ref<ProductPublic | null>(null);
+
+function openCreate() {
+  editingProduct.value = null;
+  formOpen.value = true;
+}
+function openEdit(product: ProductPublic) {
+  editingProduct.value = product;
+  formOpen.value = true;
+}
 const searchInput = ref(store.search);
 const activeFilter = ref<ActiveFilter>(store.activeFilter);
 const currentPage = ref(store.page);
+
+const places = ref<Place[]>([]);
+const placeOptions = computed(() =>
+  places.value.map((p) => ({ label: p.code ? `${p.name} (${p.code})` : p.name, value: p.id })),
+);
+
+function onOriginChange(product: Parameters<typeof store.updateOriginPlace>[0], value: unknown) {
+  void store.updateOriginPlace(product, typeof value === 'string' ? value : null);
+}
 
 const placeholderImg =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"/>';
@@ -134,7 +196,14 @@ const columns: QTableColumn[] = [
     align: 'left',
   },
   { name: 'name', label: 'Nom', field: 'name', align: 'left', style: 'max-width: 480px' },
+  {
+    name: 'origin',
+    label: 'Origine (fournisseur)',
+    field: 'supplier_place_id',
+    align: 'left',
+  },
   { name: 'active', label: 'Actif admin', field: 'is_admin_active', align: 'center' },
+  { name: 'actions', label: '', field: 'id', align: 'right' },
 ];
 
 const totalPages = computed(() => Math.max(1, Math.ceil(store.totalCount / store.pageSize)));
@@ -151,5 +220,14 @@ function onFilterChange(value: ActiveFilter) {
 
 onMounted(() => {
   void store.fetchPage();
+  void loadPlaces();
 });
+
+async function loadPlaces() {
+  try {
+    places.value = await listPlaces();
+  } catch {
+    // Non-blocking: the origin selector simply stays empty if places fail to load.
+  }
+}
 </script>

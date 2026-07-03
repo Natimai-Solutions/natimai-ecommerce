@@ -422,6 +422,11 @@ class IngramMicroAdapter(SupplierAdapter):
         """Execute default categories."""
         return list(settings.INGRAM_SYNC_CATEGORIES)
 
+    @property
+    def origin_place_code(self) -> str | None:  # type: ignore[override]
+        """Place code where Ingram products ship from (drives the first leg)."""
+        return settings.INGRAM_ORIGIN_PLACE_CODE or None
+
     def is_configured(self) -> bool:
         """Check whether configured."""
         return all(

@@ -6,8 +6,9 @@
     </div>
 
     <div class="text-caption text-grey-7 q-mb-md">
-      Cochez les groupes autorisés pour chaque méthode. <strong>Aucune coche</strong> sur une ligne
-      = méthode ouverte à <strong>tous</strong> les groupes (aucune restriction).
+      Le commutateur <strong>Activé</strong> coupe/rétablit une méthode <strong>globalement</strong>
+      (masquée pour tous les clients si désactivée). Les cases cochent les groupes autorisés :
+      <strong>aucune coche</strong> = méthode ouverte à <strong>tous</strong> les groupes.
     </div>
 
     <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
@@ -20,6 +21,7 @@
       <thead>
         <tr>
           <th class="text-left">Méthode</th>
+          <th class="text-center">Activé</th>
           <th v-for="g in groups" :key="g.id" class="text-center">
             {{ g.label }}
             <q-badge v-if="g.default" color="grey-6" class="q-ml-xs" label="défaut" />
@@ -32,6 +34,14 @@
           <td class="text-left">
             <div>{{ m.name }}</div>
             <div class="text-caption text-grey-6">{{ m.provider_code }}</div>
+          </td>
+          <td class="text-center">
+            <q-toggle
+              :model-value="m.is_admin_active"
+              color="positive"
+              :disable="updatingKey === activeKey(m.id)"
+              @update:model-value="(val) => toggleActive(m, val)"
+            />
           </td>
           <td v-for="g in groups" :key="g.id" class="text-center">
             <q-checkbox
@@ -64,6 +74,7 @@ import {
   listPaymentMethods,
   listPriceGroups,
   removeEligibility,
+  setPaymentMethodActive,
   type PaymentMethod,
   type PriceGroup,
 } from 'src/api/eligibility';
@@ -79,6 +90,9 @@ const updatingKey = ref<string | null>(null);
 
 function cellKey(methodId: string, groupId: string): string {
   return `${methodId}:${groupId}`;
+}
+function activeKey(methodId: string): string {
+  return `active:${methodId}`;
 }
 function isEligible(methodId: string, groupId: string): boolean {
   return eligible.value[methodId]?.includes(groupId) ?? false;
@@ -99,6 +113,19 @@ async function load() {
     error.value = extractApiError(err) ?? 'Chargement impossible.';
   } finally {
     loading.value = false;
+  }
+}
+
+async function toggleActive(method: PaymentMethod, value: boolean) {
+  updatingKey.value = activeKey(method.id);
+  error.value = null;
+  try {
+    await setPaymentMethodActive(method.id, value);
+    method.is_admin_active = value;
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Mise à jour impossible.';
+  } finally {
+    updatingKey.value = null;
   }
 }
 

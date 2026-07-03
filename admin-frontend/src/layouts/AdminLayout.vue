@@ -90,7 +90,10 @@ const nav: NavSection[] = [
   },
   {
     label: 'Clients',
-    links: [{ label: 'Demandes de groupe', icon: 'group_add', to: '/group-upgrade-requests' }],
+    links: [
+      { label: 'Demandes de groupe', icon: 'group_add', to: '/group-upgrade-requests' },
+      { label: 'Adresses', icon: 'location_on', to: '/addresses' },
+    ],
   },
   {
     label: 'Système',

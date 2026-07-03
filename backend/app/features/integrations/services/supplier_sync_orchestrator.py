@@ -14,6 +14,7 @@ and price/availability data; this class never talks to a vendor API directly.
 
 import asyncio
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -26,6 +27,7 @@ from app.features.integrations.services.supplier_data_normalization import (
     evaluate_product_filters,
     normalize_supplier_snapshot,
 )
+from app.features.place.crud import crud_place
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product, ProductCreate, ProductUpdate
 from app.services.suppliers import get_adapter
@@ -41,6 +43,33 @@ class SupplierSyncOrchestrator:
     def __init__(self, adapter: SupplierAdapter) -> None:
         """Initialize the supplier sync orchestrator instance."""
         self.adapter = adapter
+        # Origin place resolution is memoized per sync run (one DB lookup).
+        self._origin_place_id: uuid.UUID | None = None
+        self._origin_place_resolved = False
+
+    async def _resolve_origin_place_id(self, session: AsyncSession) -> uuid.UUID | None:
+        """Resolve the supplier's origin ``Place`` id from its ``origin_place_code``.
+
+        Idempotent (``crud_place.get_by_code``) and memoized for the run. Returns
+        ``None`` when the adapter declares no origin or the code is unknown.
+        """
+        if self._origin_place_resolved:
+            return self._origin_place_id
+
+        code = self.adapter.origin_place_code
+        if code:
+            place = await crud_place.get_by_code(session=session, code=code)
+            if place is not None:
+                self._origin_place_id = place.id
+            else:
+                logger.warning(
+                    "Origin place code %r not found for supplier %s; "
+                    "supplier_place_id left unset.",
+                    code,
+                    self.adapter.name,
+                )
+        self._origin_place_resolved = True
+        return self._origin_place_id
 
     @property
     def supplier_name(self) -> str:
@@ -196,6 +225,15 @@ class SupplierSyncOrchestrator:
 
         product_data_dict = self._to_product_data(item)
 
+        # Stamp the supplier's origin place (drives the logistics first leg),
+        # but never clobber a manual admin override: set it only when creating a
+        # product or when the existing one has no origin yet. Omitting the key
+        # leaves the persisted value untouched (partial update semantics).
+        if existing_product is None or existing_product.supplier_place_id is None:
+            origin_place_id = await self._resolve_origin_place_id(session)
+            if origin_place_id is not None:
+                product_data_dict["supplier_place_id"] = origin_place_id
+
         # Resolve internal category from supplier_subcategory (get_or_create)
         if item.subcategory:
             from app.features.product.crud.category import crud_category
@@ -213,6 +251,12 @@ class SupplierSyncOrchestrator:
                 item.subcategory,
             )
             product_data_dict["is_active"] = False
+
+        # Respect admin overrides: never overwrite fields the admin has locked.
+        # Omitting them from the update dict preserves the persisted values.
+        if existing_product is not None and existing_product.overridden_fields:
+            for locked_field in existing_product.overridden_fields:
+                product_data_dict.pop(locked_field, None)
 
         if existing_product:
             product = await crud_product.update_draft(

@@ -293,11 +293,11 @@ def test_e1_critical_journey_login_catalog_cart_checkout_payment_tracking_histor
     async def _link_segments(
         *_args: Any,
         order_id: uuid.UUID,
-        segment_totals: dict[FulfillmentSegment, Decimal],
+        segment_totals: dict[tuple[FulfillmentSegment, uuid.UUID | None], Decimal],
         **_kwargs: Any,
     ) -> None:
         trackings: list[ShippingRouteTracking] = []
-        for sequence_order, (segment, quantity) in enumerate(
+        for sequence_order, ((segment, origin_place_id), quantity) in enumerate(
             segment_totals.items(),
             start=1,
         ):
@@ -311,7 +311,8 @@ def test_e1_critical_journey_login_catalog_cart_checkout_payment_tracking_histor
                     selected_at=datetime.now(timezone.utc),
                     sequence_order=sequence_order,
                     notes=(
-                        f"segment={segment.value};quantity={quantity};origin=e1_test"
+                        f"segment={segment.value};quantity={quantity};"
+                        f"origin={origin_place_id or 'e1_test'}"
                     ),
                     is_active=True,
                 )

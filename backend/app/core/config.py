@@ -192,6 +192,9 @@ class Settings(BaseSettings):
     INGRAM_CLIENT_SECRET: str | None = None
     INGRAM_CUSTOMER_NUMBER: str | None = None
     INGRAM_COUNTRY_CODE: str = "FR"  # Default to FR, can be changed via env var
+    # Place.code identifying where Ingram products ship from (drives the first
+    # logistics leg). Seeded by initial_data as "FR_SUPPLIERS".
+    INGRAM_ORIGIN_PLACE_CODE: str = "FR_SUPPLIERS"
     INGRAM_ENVIRONMENT: Literal["sandbox", "production"] = "sandbox"
     INGRAM_SYNC_ENABLED: bool = True
     INGRAM_SYNC_CATEGORIES: list[str] = [

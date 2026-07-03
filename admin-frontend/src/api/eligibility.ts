@@ -6,6 +6,8 @@ export interface PaymentMethod {
   description: string | null;
   provider_code: string;
   sort_order: number;
+  /** Global admin on/off switch. When false the method is hidden for everyone. */
+  is_admin_active: boolean;
 }
 
 export interface PriceGroup {
@@ -55,4 +57,12 @@ export async function addEligibility(methodId: string, groupId: string): Promise
 
 export async function removeEligibility(methodId: string, groupId: string): Promise<void> {
   await api.delete(`/admin/payment-methods/${methodId}/groups/${groupId}`);
+}
+
+/** Global enable/disable of a payment method (admin). */
+export async function setPaymentMethodActive(
+  methodId: string,
+  isActive: boolean,
+): Promise<void> {
+  await api.put(`/payment_method/${methodId}`, { is_admin_active: isActive });
 }

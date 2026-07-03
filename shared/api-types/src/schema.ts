@@ -761,6 +761,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/shipping/carriers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Carriers
+         * @description Active carriers for the « remise au transporteur » selector.
+         */
+        get: operations["admin-shipping-list_carriers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/shipping/consolidations/{consolidation_id}/add-trackings": {
         parameters: {
             query?: never;
@@ -812,7 +832,7 @@ export interface paths {
         put?: never;
         /**
          * Ship Tracking
-         * @description Mark a single tracking as shipped (requires the carrier reference).
+         * @description Mark a single tracking as shipped (carrier reference optional).
          */
         post: operations["admin-shipping-ship_tracking"];
         delete?: never;
@@ -874,8 +894,54 @@ export interface paths {
         /**
          * Advance Consolidation
          * @description Advance every parcel of a consolidation to its next leg.
+         *
+         *     ``ungroup=True`` first detaches each parcel from the consolidation, so it
+         *     continues individually (e.g. into its own last-leg delivery).
          */
         post: operations["admin-shipping-advance_consolidation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shipping/consolidations/{consolidation_id}/deliver-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deliver Consolidation
+         * @description Deliver every parcel of a consolidation.
+         *
+         *     Delivery is always individual, so each parcel is detached from the lot
+         *     (forced ungroup) and marked delivered (terminal).
+         */
+        post: operations["admin-shipping-deliver_consolidation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shipping/consolidations/{consolidation_id}/ungroup-hint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Consolidation Ungroup Hint
+         * @description Smart default for the « garder / dégrouper » popup.
+         */
+        get: operations["admin-shipping-consolidation_ungroup_hint"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3084,6 +3150,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me/upgrade-group/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Upgrade Group Options
+         * @description Return the user's current price group and the groups they may request.
+         *
+         *     Requestable groups are active groups flagged ``requires_validation`` (minus
+         *     the current one). Margin rates are intentionally not exposed.
+         */
+        get: operations["user-get_upgrade_group_options"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/group-upgrade-requests": {
         parameters: {
             query?: never;
@@ -4911,6 +5000,18 @@ export interface components {
             comment?: string | null;
         };
         /**
+         * AdvanceConsolidationRequest
+         * @description Advance a consolidation. ``ungroup=True`` detaches each parcel first so it
+         *     continues individually on its own next leg.
+         */
+        AdvanceConsolidationRequest: {
+            /**
+             * Ungroup
+             * @default false
+             */
+            ungroup: boolean;
+        };
+        /**
          * AdvanceResponse
          * @description Result of advancing a parcel to the next leg of its journey.
          */
@@ -5633,6 +5734,50 @@ export interface components {
             count: number;
         };
         /**
+         * CarrierPublic
+         * @description Represents carrier public.
+         */
+        CarrierPublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * Name
+             * @description Display name, e.g. 'DHL'
+             */
+            name: string;
+            /**
+             * Code
+             * @description Unique slug, e.g. 'dhl'
+             */
+            code: string;
+            /**
+             * Tracking Url Template
+             * @description Tracking URL with a {ref} placeholder (https only).
+             */
+            tracking_url_template?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /**
          * CartDetailPublic
          * @description Represents cart detail public.
          */
@@ -5928,6 +6073,8 @@ export interface components {
             shipping_route_ids?: string[];
             /** @description Automatic selection preference when shipping_route_ids is empty */
             shipping_preference?: components["schemas"]["CheckoutShippingPreference"] | null;
+            /** @description Last-leg delivery mode (retrait magasin / domicile / fret aérien) */
+            delivery_type?: components["schemas"]["DeliveryType"] | null;
             /**
              * Payment Method Id
              * @description Payment method to initiate in the same transaction (single-payment flow). When omitted, a pending placeholder payment is created instead.
@@ -6351,6 +6498,12 @@ export interface components {
              */
             count: number;
         };
+        /**
+         * DeliveryType
+         * @description Last-leg delivery mode chosen by the customer at checkout.
+         * @enum {string}
+         */
+        DeliveryType: "pickup" | "home_delivery" | "air_freight";
         /**
          * DiscountCreate
          * @description Represents discount create.
@@ -7597,6 +7750,11 @@ export interface components {
              */
             notes?: string | null;
             /**
+             * Delivery Type
+             * @description Mode de livraison du dernier tronçon choisi au checkout
+             */
+            delivery_type?: string | null;
+            /**
              * Id
              * Format: uuid
              */
@@ -7920,6 +8078,11 @@ export interface components {
              * @description Notes sur la commande
              */
             notes?: string | null;
+            /**
+             * Delivery Type
+             * @description Mode de livraison du dernier tronçon choisi au checkout
+             */
+            delivery_type?: string | null;
         };
         /**
          * OrderLineCreate
@@ -8232,6 +8395,11 @@ export interface components {
              */
             notes?: string | null;
             /**
+             * Delivery Type
+             * @description Mode de livraison du dernier tronçon choisi au checkout
+             */
+            delivery_type?: string | null;
+            /**
              * Id
              * Format: uuid
              */
@@ -8390,6 +8558,8 @@ export interface components {
             } | null;
             /** Notes */
             notes?: string | null;
+            /** Delivery Type */
+            delivery_type?: string | null;
         };
         /**
          * OrdersPublic
@@ -9678,6 +9848,21 @@ export interface components {
             count: number;
         };
         /**
+         * PriceGroupOption
+         * @description Customer-safe view of a price group (omits the internal margin rate).
+         */
+        PriceGroupOption: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+        };
+        /**
          * PriceGroupPublic
          * @description Represents price group public.
          */
@@ -9904,6 +10089,11 @@ export interface components {
              */
             is_supplier_managed: boolean;
             /**
+             * Supplier Place Id
+             * @description Origin place when supplier-sourced (drives the first leg)
+             */
+            supplier_place_id?: string | null;
+            /**
              * Last Enrichment Sync
              * @description Last synchronization timestamp for enrichment data
              */
@@ -10113,6 +10303,11 @@ export interface components {
              * @default false
              */
             is_supplier_managed: boolean;
+            /**
+             * Supplier Place Id
+             * @description Origin place when supplier-sourced (drives the first leg)
+             */
+            supplier_place_id?: string | null;
             /**
              * Last Enrichment Sync
              * @description Last synchronization timestamp for enrichment data
@@ -10368,6 +10563,8 @@ export interface components {
             last_supplier_sync?: string | null;
             /** Is Supplier Managed */
             is_supplier_managed?: boolean | null;
+            /** Supplier Place Id */
+            supplier_place_id?: string | null;
             /**
              * Last Enrichment Sync
              * @description Last synchronization timestamp for enrichment data
@@ -10809,11 +11006,13 @@ export interface components {
         };
         /**
          * ShipRequest
-         * @description Carrier reference for a shipment.
+         * @description Carrier + reference for a shipment (both optional — may be self-managed).
          */
         ShipRequest: {
             /** Tracking Ref */
-            tracking_ref: string;
+            tracking_ref?: string | null;
+            /** Carrier Id */
+            carrier_id?: string | null;
         };
         /**
          * ShippingModePricePublic
@@ -11314,6 +11513,11 @@ export interface components {
              */
             tracking_ref?: string | null;
             /**
+             * Carrier Id
+             * @description External carrier for the whole lot (None = self-managed)
+             */
+            carrier_id?: string | null;
+            /**
              * Total Orders
              * @description Total number of orders
              * @default 0
@@ -11375,6 +11579,11 @@ export interface components {
              * @description Carrier tracking reference
              */
             tracking_ref?: string | null;
+            /**
+             * Carrier Id
+             * @description External carrier for the whole lot (None = self-managed)
+             */
+            carrier_id?: string | null;
             /**
              * Total Orders
              * @description Total number of orders
@@ -11501,6 +11710,11 @@ export interface components {
              * @description Carrier tracking reference
              */
             tracking_ref?: string | null;
+            /**
+             * Carrier Id
+             * @description External carrier when handed over (None = self-managed)
+             */
+            carrier_id?: string | null;
             /**
              * Estimated Delivery
              * @description Estimated delivery date
@@ -11670,6 +11884,11 @@ export interface components {
              */
             tracking_ref?: string | null;
             /**
+             * Carrier Id
+             * @description External carrier when handed over (None = self-managed)
+             */
+            carrier_id?: string | null;
+            /**
              * Estimated Delivery
              * @description Estimated delivery date
              */
@@ -11684,6 +11903,18 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** From Place Name */
+            from_place_name?: string | null;
+            /** To Place Name */
+            to_place_name?: string | null;
+            /** Mode */
+            mode?: string | null;
+            /** Route Label */
+            route_label?: string | null;
+            /** Carrier Name */
+            carrier_name?: string | null;
+            /** Tracking Url */
+            tracking_url?: string | null;
         };
         /**
          * ShippingRouteTrackingUpdate
@@ -12795,6 +13026,14 @@ export interface components {
             tracking_ref?: string | null;
         };
         /**
+         * UngroupHintResponse
+         * @description Smart default for the « garder / dégrouper » popup.
+         */
+        UngroupHintResponse: {
+            /** Suggest Ungroup */
+            suggest_ungroup: boolean;
+        };
+        /**
          * UpdateStatusRequest
          * @description Request payload for updating tracking status.
          */
@@ -12810,6 +13049,18 @@ export interface components {
              * @description Raison du changement
              */
             reason?: string | null;
+        };
+        /**
+         * UpgradeGroupOptions
+         * @description Context for the storefront group-upgrade form.
+         */
+        UpgradeGroupOptions: {
+            current_group?: components["schemas"]["PriceGroupOption"] | null;
+            /**
+             * Available Groups
+             * @default []
+             */
+            available_groups: components["schemas"]["PriceGroupOption"][];
         };
         /**
          * UpgradeRequestStatus
@@ -14685,6 +14936,26 @@ export interface operations {
             };
         };
     };
+    "admin-shipping-list_carriers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CarrierPublic"][];
+                };
+            };
+        };
+    };
     "admin-shipping-add_trackings": {
         parameters: {
             query?: never;
@@ -14861,6 +15132,41 @@ export interface operations {
             };
             cookie?: never;
         };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdvanceConsolidationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-shipping-deliver_consolidation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                consolidation_id: string;
+            };
+            cookie?: never;
+        };
         requestBody?: never;
         responses: {
             /** @description Successful Response */
@@ -14870,6 +15176,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-shipping-consolidation_ungroup_hint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                consolidation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UngroupHintResponse"];
                 };
             };
             /** @description Validation Error */
@@ -20064,6 +20401,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "user-get_upgrade_group_options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpgradeGroupOptions"];
                 };
             };
         };

@@ -207,9 +207,19 @@
                 <q-chip
                   dense
                   size="sm"
-                  :color="orderStatusColor(order.order_status_name)"
+                  :color="paymentBadge(order.order_status_name).color"
                   text-color="white"
-                  :label="orderStatusLabel(order.order_status_name)"
+                  :icon="paymentBadge(order.order_status_name).icon"
+                  :label="paymentBadge(order.order_status_name).label"
+                />
+                <q-chip
+                  v-if="deliveryBadge(order.order_status_name)"
+                  dense
+                  size="sm"
+                  :color="deliveryBadge(order.order_status_name)?.color"
+                  text-color="white"
+                  :icon="deliveryBadge(order.order_status_name)?.icon"
+                  :label="deliveryBadge(order.order_status_name)?.label"
                 />
               </q-item-label>
             </q-item-section>
@@ -792,11 +802,41 @@ function orderStatusLabel(name: string | null): string {
   return ORDER_STATUS_LABELS[name] ?? name;
 }
 
-function orderStatusColor(name: string | null): string {
-  if (name === 'Paid' || name === 'Delivered') return 'green';
-  if (name === 'PaymentFailed' || name === 'Cancelled') return 'negative';
-  if (name === 'Shipped' || name === 'Processing') return 'primary';
-  return 'grey-7';
+// The order lifecycle status conflates payment + fulfillment; split it into two
+// customer-facing facets (paiement / livraison) derived from the single status.
+interface OrderBadge {
+  label: string;
+  color: string;
+  icon: string;
+}
+
+const PAYMENT_BADGE: Record<string, OrderBadge> = {
+  Pending: { label: 'Paiement en attente', color: 'orange', icon: 'schedule' },
+  AwaitingPayment: { label: 'En attente de paiement', color: 'orange', icon: 'schedule' },
+  Paid: { label: 'Payée', color: 'green', icon: 'check_circle' },
+  PaymentFailed: { label: 'Paiement refusé', color: 'negative', icon: 'cancel' },
+  Processing: { label: 'Payée', color: 'green', icon: 'check_circle' },
+  Shipped: { label: 'Payée', color: 'green', icon: 'check_circle' },
+  Delivered: { label: 'Payée', color: 'green', icon: 'check_circle' },
+  Cancelled: { label: 'Annulée', color: 'grey-6', icon: 'block' },
+  Refunded: { label: 'Remboursée', color: 'blue', icon: 'undo' },
+  PartiallyRefunded: { label: 'Remboursée en partie', color: 'blue', icon: 'undo' },
+};
+
+const DELIVERY_BADGE: Record<string, OrderBadge> = {
+  Paid: { label: 'En préparation', color: 'grey-7', icon: 'inventory_2' },
+  Processing: { label: 'En préparation', color: 'grey-7', icon: 'inventory_2' },
+  Shipped: { label: 'Expédiée', color: 'primary', icon: 'local_shipping' },
+  Delivered: { label: 'Livrée', color: 'green', icon: 'task_alt' },
+};
+
+function paymentBadge(name: string | null): OrderBadge {
+  const badge = name ? PAYMENT_BADGE[name] : undefined;
+  return badge ?? { label: orderStatusLabel(name), color: 'grey-7', icon: 'info' };
+}
+
+function deliveryBadge(name: string | null): OrderBadge | null {
+  return (name ? DELIVERY_BADGE[name] : undefined) ?? null;
 }
 
 /** Extract a human message from a backend AppError / Axios error shape. */

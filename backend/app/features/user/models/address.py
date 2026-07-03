@@ -90,3 +90,16 @@ class AddressesPublic(SQLModel):
         default_factory=list, description="List of addresses"
     )
     count: int = Field(default=0, description="Total number of addresses")
+
+
+class AdminAddressPublic(AddressPublic):
+    """Address enriched with the owner's email for the admin validation screen."""
+
+    user_email: str | None = None
+
+
+class AdminAddressesPublic(SQLModel):
+    """Paginated admin address listing."""
+
+    data: list[AdminAddressPublic] = Field(default_factory=list)
+    count: int = Field(default=0, description="Total number of addresses")

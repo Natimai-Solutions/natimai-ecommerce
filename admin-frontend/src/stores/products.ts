@@ -3,8 +3,17 @@ import { ref } from 'vue';
 import type { components } from '@app/api-types';
 import { api } from 'src/boot/api';
 
-type ProductPublic = components['schemas']['ProductPublic'] & { id: string };
+// `supplier_place_id` / `overridden_fields` are served by the backend (inherited
+// from ProductBase) but the generated OpenAPI schema may lag — declare locally.
+export type ProductPublic = components['schemas']['ProductPublic'] & {
+  id: string;
+  supplier_place_id?: string | null;
+  overridden_fields?: string[] | null;
+};
 type ProductsPublic = components['schemas']['ProductsPublic'];
+
+/** Fields the admin product form can set (create or edit). */
+export type ProductFormValues = Record<string, unknown>;
 
 const PAGE_SIZE = 25;
 
@@ -16,6 +25,7 @@ export const useProductsStore = defineStore('products', () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
   const togglingIds = ref<Set<string>>(new Set());
+  const savingOriginIds = ref<Set<string>>(new Set());
 
   const search = ref('');
   const activeFilter = ref<ActiveFilter>('all');
@@ -59,6 +69,32 @@ export const useProductsStore = defineStore('products', () => {
     }
   }
 
+  async function updateOriginPlace(product: ProductPublic, placeId: string | null) {
+    savingOriginIds.value.add(product.id);
+    savingOriginIds.value = new Set(savingOriginIds.value);
+    try {
+      await api.put(`/product/${product.id}`, { supplier_place_id: placeId });
+      product.supplier_place_id = placeId;
+    } catch (err: unknown) {
+      error.value = err instanceof Error ? err.message : 'Échec de mise à jour';
+    } finally {
+      savingOriginIds.value.delete(product.id);
+      savingOriginIds.value = new Set(savingOriginIds.value);
+    }
+  }
+
+  /** Create a manual product via the admin endpoint, then refresh the list. */
+  async function createProduct(payload: ProductFormValues): Promise<void> {
+    await api.post('/admin/products', payload);
+    await fetchPage();
+  }
+
+  /** Update a product; edited fields are locked against the supplier sync. */
+  async function updateProduct(id: string, changed: ProductFormValues): Promise<void> {
+    await api.put(`/admin/products/${id}`, changed);
+    await fetchPage();
+  }
+
   function setPage(n: number) {
     page.value = n;
     void fetchPage();
@@ -77,12 +113,16 @@ export const useProductsStore = defineStore('products', () => {
     loading,
     error,
     togglingIds,
+    savingOriginIds,
     search,
     activeFilter,
     page,
     pageSize: PAGE_SIZE,
     fetchPage,
     toggleActive,
+    updateOriginPlace,
+    createProduct,
+    updateProduct,
     setPage,
     applyFilters,
   };

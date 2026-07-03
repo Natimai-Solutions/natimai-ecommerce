@@ -63,6 +63,14 @@ async def _seed_manual_payment_methods(session: AsyncSession) -> None:
     """Execute seed manual payment methods."""
     methods = (
         {
+            "name": "Carte bancaire",
+            "description": "Paiement par carte bancaire (CB) via PayZen SmartForm.",
+            "provider_code": "payzen",
+            "sort_order": 10,
+            "requires_admin_validation": False,
+            "requires_document_upload": False,
+        },
+        {
             "name": "Chèque",
             "description": "Paiement par chèque, validé manuellement à réception.",
             "provider_code": "manual_check",

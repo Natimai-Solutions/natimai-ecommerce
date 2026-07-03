@@ -8,10 +8,19 @@ type QuoteRequestSubmit = components['schemas']['QuoteRequestSubmit'];
 type QuoteRequestResponse = components['schemas']['QuoteRequestResponse'];
 // The generated schema lags the backend additions for the single-payment flow
 // (payment_method_id/return_url on the request; provider fields on the response).
-type CheckoutRequest = components['schemas']['CheckoutRequest'] & {
+// Omit the fields we widen so these overrides win over the generated (narrower)
+// declarations instead of being intersected with them.
+type CheckoutRequest = Omit<
+  components['schemas']['CheckoutRequest'],
+  'payment_method_id' | 'return_url' | 'delivery_type'
+> & {
   /** Initiate this method's provider in the same call (single-payment flow). */
   payment_method_id?: string | null;
   return_url?: string | null;
+  /** Last-leg delivery mode: pickup | home_delivery | air_freight. */
+  delivery_type?: string | null;
+  /** Id of the saved shipping address to link (avoids duplicate creation). */
+  shipping_address_id?: string | null;
 };
 type CheckoutResponse = components['schemas']['CheckoutResponse'] & {
   provider_code?: string | null;
@@ -82,6 +91,26 @@ export async function clearMyCart(): Promise<CartDetailPublic> {
  */
 export async function checkoutMyCart(payload: CheckoutRequest): Promise<CheckoutResponse> {
   const { data } = await api.post<CheckoutResponse>('/cart/checkout', payload);
+  return data;
+}
+
+export interface LastLegOption {
+  delivery_type: string;
+  /** Customer-facing label (route's customer_label); falls back to the mode key. */
+  label: string | null;
+  amount: string;
+  currency: string;
+  eta_days: number | null;
+  route_name: string | null;
+}
+interface LastLegOptionsResponse {
+  currency: string;
+  options: LastLegOption[];
+}
+
+/** Priced last-leg delivery options for the current cart (shown at checkout). */
+export async function getLastLegOptions(): Promise<LastLegOptionsResponse> {
+  const { data } = await api.get<LastLegOptionsResponse>('/cart/me/last-leg-options');
   return data;
 }
 

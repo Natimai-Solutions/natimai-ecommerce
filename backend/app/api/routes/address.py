@@ -2,7 +2,7 @@ import uuid
 
 from fastapi import Query, status
 from pydantic import field_validator
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, col, select
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentSuperUser, CurrentUser, SessionDep
@@ -15,8 +15,11 @@ from app.features.user.models.address import (
     AddressesPublic,
     AddressPublic,
     AddressUpdate,
+    AdminAddressesPublic,
+    AdminAddressPublic,
     validate_address_type,
 )
+from app.features.user.models.user import User
 
 
 class AddressMeCreate(SQLModel):
@@ -457,6 +460,40 @@ async def admin_validate_address(
 
     address = await crud_address.validate_address(session=session, address=address)
     return AddressPublic.model_validate(address)
+
+
+@router.get("/admin/addresses", response_model=AdminAddressesPublic)
+async def admin_list_addresses(
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+    validated: bool | None = Query(
+        default=None,
+        description="Filter on the admin-validation flag (omit for all addresses)",
+    ),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> AdminAddressesPublic:
+    """List addresses across all users for the admin validation screen."""
+    addresses = await crud_address.list_all(
+        session=session, validated=validated, skip=skip, limit=limit
+    )
+    total = await crud_address.count_all(session=session, validated=validated)
+
+    emails: dict[uuid.UUID, str] = {}
+    user_ids = {address.user_id for address in addresses}
+    if user_ids:
+        rows = await session.exec(
+            select(User.id, User.email).where(col(User.id).in_(user_ids))
+        )
+        emails = {row[0]: row[1] for row in rows}
+
+    data: list[AdminAddressPublic] = []
+    for address in addresses:
+        public = AdminAddressPublic.model_validate(address)
+        public.user_email = emails.get(address.user_id)
+        data.append(public)
+
+    return AdminAddressesPublic(data=data, count=total)
 
 
 @router.get(

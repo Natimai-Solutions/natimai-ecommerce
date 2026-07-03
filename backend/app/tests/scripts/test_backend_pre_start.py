@@ -23,14 +23,6 @@ def test_init_successful_connection() -> None:
         patch.object(logger, "error"),
         patch.object(logger, "warn"),
     ):
-        try:
-            asyncio.run(init(engine_mock))
-            connection_successful = True
-        except Exception:
-            connection_successful = False
-
-        assert connection_successful, (
-            "The database connection should be successful and not raise an exception."
-        )
+        asyncio.run(init(engine_mock))
 
         session_mock.exec.assert_awaited_once()

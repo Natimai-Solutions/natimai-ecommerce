@@ -1,5 +1,6 @@
 import uuid
 
+from sqlalchemy import func
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -65,6 +66,52 @@ class AddressCrud(CrudBase[Address, AddressCreate, AddressUpdate]):
         await session.commit()
         await session.refresh(record)
         return record
+
+    async def list_all(
+        self,
+        session: AsyncSession,
+        *,
+        validated: bool | None = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[Address]:
+        """List addresses across all users (admin), newest first.
+
+        ``validated`` filters on the admin-validation flag when provided.
+        """
+        statement = select(self.model).where(
+            col(self.model.is_admin_active).is_(True),
+            col(self.model.is_active).is_(True),
+        )
+        if validated is not None:
+            statement = statement.where(col(self.model.is_validated).is_(validated))
+        statement = (
+            statement.order_by(col(self.model.created_at).desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        exec_result = await session.exec(statement)
+        return list(exec_result.all())
+
+    async def count_all(
+        self,
+        session: AsyncSession,
+        *,
+        validated: bool | None = None,
+    ) -> int:
+        """Count addresses across all users (admin), matching ``list_all`` filters."""
+        statement = (
+            select(func.count())
+            .select_from(self.model)
+            .where(
+                col(self.model.is_admin_active).is_(True),
+                col(self.model.is_active).is_(True),
+            )
+        )
+        if validated is not None:
+            statement = statement.where(col(self.model.is_validated).is_(validated))
+        result = await session.exec(statement)
+        return int(result.one())
 
     async def validate_address(
         self,

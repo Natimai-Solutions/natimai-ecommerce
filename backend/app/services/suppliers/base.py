@@ -88,6 +88,10 @@ class SupplierAdapter(ABC):
     #: Categories synced by default when the caller does not pass an explicit
     #: list.
     default_categories: list[str] = []
+    #: Stable :class:`~app.features.place.models.Place` ``code`` identifying
+    #: where this supplier ships from. The orchestrator resolves it to a
+    #: ``Product.supplier_place_id`` (the logistics first leg). ``None`` = unknown.
+    origin_place_code: str | None = None
     #: Max number of SKUs accepted per price/availability request.
     price_batch_size: int = 50
     #: Soft client-side rate limit hint (requests / minute). ``None`` = unknown.

@@ -33,6 +33,7 @@ export interface ShippingRoute {
   price_per_kg: string | null;
   base_price: string | null;
   is_to_customer: boolean;
+  last_leg_delivery_type: string | null;
   status_code: string | null;
 }
 
@@ -47,6 +48,7 @@ export interface ShippingRouteCreate {
   price_per_kg?: string | null;
   base_price?: string | null;
   is_to_customer?: boolean;
+  last_leg_delivery_type?: string | null;
 }
 
 interface Paginated<T> {

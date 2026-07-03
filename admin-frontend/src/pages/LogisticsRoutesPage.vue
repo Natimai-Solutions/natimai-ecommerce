@@ -265,8 +265,33 @@
                 bottom-slots
                 class="col"
               />
+              <q-input
+                v-model="routeForm.base_price"
+                label="Forfait (XPF)"
+                type="number"
+                step="0.01"
+                outlined
+                dense
+                bottom-slots
+                class="col"
+              />
             </div>
             <q-toggle v-model="routeForm.is_to_customer" label="Tronçon final (livraison client)" />
+            <q-select
+              v-if="routeForm.is_to_customer"
+              v-model="routeForm.last_leg_delivery_type"
+              :options="deliveryTypeSuggestions"
+              label="Mode de livraison (last-leg)"
+              outlined
+              dense
+              bottom-slots
+              clearable
+              use-input
+              input-debounce="0"
+              new-value-mode="add-unique"
+              @filter="filterDeliveryTypes"
+              hint="Choisissez un mode ou tapez-en un nouveau (ex. sea_freight), puis Entrée. Relie ce tronçon au choix client au checkout."
+            />
           </q-card-section>
           <q-card-actions align="right">
             <q-btn flat label="Annuler" v-close-popup />
@@ -329,6 +354,24 @@ const serviceLevelOptions = [
   { label: 'Économique', value: 'economique' },
   { label: 'Écologique', value: 'ecologique' },
 ];
+// Delivery modes are free-form: suggest a few defaults + every mode already used
+// on a route, but let the admin type a new one (e.g. "sea_freight").
+const deliveryTypeAll = computed<string[]>(() => {
+  const defaults = ['pickup', 'home_delivery', 'air_freight', 'sea_freight'];
+  const used = routes.value
+    .map((r) => r.last_leg_delivery_type)
+    .filter((v): v is string => !!v);
+  return Array.from(new Set([...defaults, ...used])).sort();
+});
+const deliveryTypeSuggestions = ref<string[]>([]);
+function filterDeliveryTypes(val: string, update: (fn: () => void) => void) {
+  update(() => {
+    const needle = val.toLowerCase();
+    deliveryTypeSuggestions.value = deliveryTypeAll.value.filter((o) =>
+      o.toLowerCase().includes(needle),
+    );
+  });
+}
 
 const placeById = computed(() => new Map(places.value.map((p) => [p.id, p])));
 const placeOptions = computed(() =>
@@ -355,6 +398,13 @@ const routeColumns: QTableColumn[] = [
   { name: 'service_level', label: 'Service', field: 'service_level', align: 'left' },
   { name: 'eta', label: 'Délai (j)', field: 'eta_days', align: 'left' },
   { name: 'price_per_kg', label: 'Prix/kg', field: 'price_per_kg', align: 'left' },
+  { name: 'base_price', label: 'Forfait', field: 'base_price', align: 'left' },
+  {
+    name: 'delivery_mode',
+    label: 'Mode last-leg',
+    field: 'last_leg_delivery_type',
+    align: 'left',
+  },
   { name: 'to_customer', label: 'Final', field: 'is_to_customer', align: 'center' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
 ];
@@ -454,7 +504,9 @@ const routeForm = reactive<{
   customer_label: string;
   eta_days: number | null;
   price_per_kg: string;
+  base_price: string;
   is_to_customer: boolean;
+  last_leg_delivery_type: string | null;
 }>({
   name: '',
   from_place_id: null,
@@ -464,7 +516,9 @@ const routeForm = reactive<{
   customer_label: '',
   eta_days: null,
   price_per_kg: '',
+  base_price: '',
   is_to_customer: false,
+  last_leg_delivery_type: null,
 });
 
 function resetRouteForm() {
@@ -476,7 +530,9 @@ function resetRouteForm() {
   routeForm.customer_label = '';
   routeForm.eta_days = null;
   routeForm.price_per_kg = '';
+  routeForm.base_price = '';
   routeForm.is_to_customer = false;
+  routeForm.last_leg_delivery_type = null;
 }
 
 function openRouteCreate() {
@@ -497,7 +553,9 @@ function openRouteEdit(r: ShippingRoute) {
   routeForm.customer_label = r.customer_label ?? '';
   routeForm.eta_days = r.eta_days;
   routeForm.price_per_kg = r.price_per_kg ?? '';
+  routeForm.base_price = r.base_price ?? '';
   routeForm.is_to_customer = r.is_to_customer;
+  routeForm.last_leg_delivery_type = r.last_leg_delivery_type;
   routeDialog.value = true;
 }
 
@@ -525,7 +583,11 @@ async function submitRoute() {
         ? routeForm.eta_days
         : null,
     price_per_kg: routeForm.price_per_kg.trim() || null,
+    base_price: routeForm.base_price.trim() || null,
     is_to_customer: routeForm.is_to_customer,
+    last_leg_delivery_type: routeForm.is_to_customer
+      ? routeForm.last_leg_delivery_type
+      : null,
   };
   try {
     if (routeEditId.value) {

@@ -142,8 +142,8 @@
           <q-btn
             unelevated
             color="positive"
-            icon="credit_card"
-            label="Payer"
+            icon="shopping_cart_checkout"
+            label="Passer commande"
             class="full-width q-mb-sm"
             :disable="cartStore.items.length === 0 || cartStore.mutating"
             @click="goToCheckout"
