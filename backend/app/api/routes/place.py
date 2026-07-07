@@ -17,6 +17,8 @@ from app.features.place.models import (
     PlacesPublic,
     PlaceTreeResponse,
     PlaceUpdate,
+    PostalCodeDirectoryEntry,
+    PostalCodeDirectoryResponse,
 )
 
 
@@ -67,6 +69,39 @@ class PlaceRouter(
                 country=country.upper() if country else None,
             )
             return PlaceTreeResponse(roots=roots)
+
+        @self.get(
+            "/geo/postal-codes",
+            response_model=PostalCodeDirectoryResponse,
+            summary="Postal code directory of a country",
+            description=(
+                "Tous les codes postaux enregistrés d'un pays avec leur zone "
+                "(île, commune...). Alimente l'autocomplete du formulaire "
+                "d'adresse — sélectionner un code = sélectionner sa zone."
+            ),
+        )
+        async def list_postal_codes(
+            session: SessionDep,
+            country: str = Query(..., min_length=2, max_length=2),
+            _current_user: CurrentUser | None = Depends(get_current_user_optional),
+        ) -> PostalCodeDirectoryResponse:
+            """List every registered postal code of a country with its zone."""
+            normalized = country.upper()
+            rows = await crud_place.list_postal_codes_by_country(
+                session, country=normalized
+            )
+            return PostalCodeDirectoryResponse(
+                country=normalized,
+                entries=[
+                    PostalCodeDirectoryEntry(
+                        postal_code=code.postal_code,
+                        place_id=place.id,
+                        place_name=place.name,
+                        place_type=place.type,
+                    )
+                    for code, place in rows
+                ],
+            )
 
         @self.get(
             "/geo/resolve-postal",

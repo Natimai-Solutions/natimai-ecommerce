@@ -93,6 +93,21 @@ async def test_ancestor_chain_and_postal_resolution(
 
 
 @pytest.mark.asyncio
+async def test_postal_code_directory_by_country(db_session: AsyncSession) -> None:
+    places = await _seed_pf_tree(db_session)
+    db_session.add(
+        PlacePostalCode(place_id=places["tahiti"].id, country="PF", postal_code="98714")
+    )
+    await db_session.flush()
+
+    rows = await crud_place.list_postal_codes_by_country(db_session, country="pf")
+    directory = {code.postal_code: place.name for code, place in rows}
+    assert directory == {"98714": "Tahiti", "98728": "Moorea"}
+    # Sorted by postal code for a stable dropdown.
+    assert [code.postal_code for code, _ in rows] == ["98714", "98728"]
+
+
+@pytest.mark.asyncio
 async def test_geo_tree_excludes_operational_nodes(db_session: AsyncSession) -> None:
     places = await _seed_pf_tree(db_session)
     roots = await crud_place.get_geo_tree(db_session, country="PF")

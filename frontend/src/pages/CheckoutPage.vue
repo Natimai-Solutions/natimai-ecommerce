@@ -192,7 +192,7 @@
                       <q-item-section>
                         <q-item-label>{{ a.street }}</q-item-label>
                         <q-item-label caption>
-                          {{ a.postal_code }} {{ a.city }} — {{ a.country }}
+                          {{ a.postal_code }} {{ a.city }} — {{ countryLabel(a.country) }}
                         </q-item-label>
                       </q-item-section>
                       <q-item-section side>
@@ -311,7 +311,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { formatXpf } from '@app/utils';
+import { countryLabel, formatXpf } from '@app/utils';
 import { useCartStore } from 'src/stores/cart';
 import { useAuthStore } from 'src/stores/auth';
 import {

@@ -161,7 +161,7 @@
                 <div>{{ address.street }}</div>
                 <div>{{ address.postal_code }} {{ address.city }}</div>
                 <div v-if="address.state">{{ address.state }}</div>
-                <div class="text-weight-medium">{{ address.country }}</div>
+                <div class="text-weight-medium">{{ countryLabel(address.country) }}</div>
               </q-card-section>
               <q-separator />
               <q-card-actions align="right">
@@ -380,14 +380,32 @@
               :rules="[(v) => !!v || 'Champ requis']"
             />
             <div class="row q-col-gutter-sm">
-              <q-input
+              <q-select
                 v-model="addressForm.postal_code"
+                :options="filteredPostalOptions"
                 label="Code postal *"
                 outlined
                 dense
                 class="col-5"
+                emit-value
+                map-options
+                use-input
+                fill-input
+                hide-selected
+                input-debounce="0"
                 :rules="[(v) => !!v || 'Requis']"
-              />
+                @filter="filterPostalCodes"
+                @input-value="onPostalTyped"
+              >
+                <template #option="scope">
+                  <q-item v-bind="scope.itemProps">
+                    <q-item-section>
+                      <q-item-label>{{ scope.opt.value }}</q-item-label>
+                      <q-item-label caption>{{ scope.opt.zone }}</q-item-label>
+                    </q-item-section>
+                  </q-item>
+                </template>
+              </q-select>
               <q-input
                 v-model="addressForm.city"
                 label="Ville *"
@@ -404,12 +422,18 @@
               dense
               class="q-mb-sm q-mt-sm"
             />
-            <q-input
+            <q-select
               v-model="addressForm.country"
-              label="Pays (code ISO, ex : PF) *"
+              :options="filteredCountryOptions"
+              label="Pays *"
               outlined
               dense
+              emit-value
+              map-options
+              use-input
+              input-debounce="0"
               :rules="[(v) => !!v || 'Champ requis']"
+              @filter="filterCountries"
             />
             <q-banner
               v-if="detectedZoneLabel"
@@ -474,7 +498,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { formatXpf } from '@app/utils';
+import { countryLabel, countryOptions, formatXpf, type CountryOption } from '@app/utils';
 import { useAuthStore } from 'src/stores/auth';
 import { useCurrencyStore } from 'src/stores/currency';
 import { getMyPreferences, updateMyPreferences, type UserPreferences } from 'src/api/account';
@@ -483,6 +507,7 @@ import {
   deleteMyAddress,
   getGeoTree,
   listMyAddresses,
+  listPostalCodes,
   resolvePostalZone,
   updateMyAddress,
   type Address,
@@ -610,6 +635,88 @@ const deleteDialog = ref(false);
 const deleting = ref(false);
 const addressToDelete = ref<Address | null>(null);
 
+// --- Pays : sélecteur ISO (PF/FR épinglés), filtrable à la saisie -----------
+const allCountryOptions = countryOptions();
+const filteredCountryOptions = ref<CountryOption[]>(allCountryOptions);
+
+function filterCountries(val: string, update: (fn: () => void) => void) {
+  update(() => {
+    const needle = val.trim().toLowerCase();
+    filteredCountryOptions.value = needle
+      ? allCountryOptions.filter((o) => o.label.toLowerCase().includes(needle))
+      : allCountryOptions;
+  });
+}
+
+/** Legacy addresses may store a free-text country ("Polynésie française"). */
+function normalizeCountry(raw: string): string {
+  const trimmed = raw.trim();
+  if (/^[A-Za-z]{2}$/.test(trimmed)) return trimmed.toUpperCase();
+  const match = allCountryOptions.find(
+    (o) => o.label.toLowerCase().startsWith(trimmed.toLowerCase()),
+  );
+  return match?.value ?? trimmed;
+}
+
+// --- Code postal : autocomplete sur l'annuaire des codes connus -------------
+// Sélectionner un code = sélectionner sa zone (l'île s'affiche en légende) ;
+// la saisie reste libre pour les codes non répertoriés.
+interface PostalOption {
+  label: string;
+  value: string;
+  zone: string;
+}
+const postalDirectory = ref<PostalOption[]>([]);
+const postalDirectoryCountry = ref<string | null>(null);
+const filteredPostalOptions = ref<PostalOption[]>([]);
+
+async function loadPostalDirectory(rawCountry: string): Promise<void> {
+  const country = rawCountry.trim().toUpperCase();
+  if (country.length !== 2) {
+    postalDirectory.value = [];
+    postalDirectoryCountry.value = null;
+    return;
+  }
+  if (postalDirectoryCountry.value === country) return;
+  try {
+    const entries = await listPostalCodes(country);
+    postalDirectory.value = entries.map((e) => ({
+      label: e.postal_code,
+      value: e.postal_code,
+      zone: e.place_name,
+    }));
+    postalDirectoryCountry.value = country;
+  } catch {
+    // Annuaire indisponible : le champ reste une saisie libre classique.
+    postalDirectory.value = [];
+    postalDirectoryCountry.value = null;
+  }
+}
+
+function filterPostalCodes(val: string, update: (fn: () => void) => void) {
+  update(() => {
+    const needle = val.trim().toLowerCase();
+    // Matche le début du code OU le nom de la zone ("moo" → 98728 Moorea).
+    filteredPostalOptions.value = needle
+      ? postalDirectory.value.filter(
+          (o) => o.value.startsWith(needle) || o.zone.toLowerCase().includes(needle),
+        )
+      : postalDirectory.value;
+  });
+}
+
+function onPostalTyped(val: string) {
+  addressForm.postal_code = val;
+}
+
+watch(
+  () => addressForm.country,
+  (country) => {
+    if (!addressDialog.value || !country) return;
+    void loadPostalDirectory(country);
+  },
+);
+
 // --- Zone de livraison (île) : déduite du code postal, fallback manuel ------
 const detectedZoneLabel = ref<string | null>(null);
 const zoneLookupDone = ref(false);
@@ -697,9 +804,10 @@ function openAddressDialog(address?: Address) {
     addressForm.city = address.city;
     addressForm.state = address.state ?? '';
     addressForm.postal_code = address.postal_code;
-    addressForm.country = address.country;
+    addressForm.country = normalizeCountry(address.country);
     addressForm.type = (address.type as AddressType) ?? 'shipping';
     manualPlaceId.value = address.place_id;
+    void loadPostalDirectory(addressForm.country);
     void lookupZone();
   } else {
     editingId.value = null;

@@ -92,6 +92,22 @@ export async function resolvePostalZone(
   return data;
 }
 
+export interface PostalCodeEntry {
+  postal_code: string;
+  place_id: string;
+  place_name: string;
+  place_type: string;
+}
+
+/** Every registered postal code of a country (address-form autocomplete). */
+export async function listPostalCodes(country: string): Promise<PostalCodeEntry[]> {
+  const { data } = await api.get<{ country: string; entries: PostalCodeEntry[] }>(
+    '/place/geo/postal-codes',
+    { params: { country } },
+  );
+  return data.entries;
+}
+
 export interface PlaceTreeNode {
   id: string;
   name: string;

@@ -160,13 +160,20 @@
                 bottom-slots
                 class="col"
               />
-              <q-input
+              <q-select
                 v-model="placeForm.country"
-                label="Pays (ISO, ex: PF)"
+                :options="filteredCountryOptions"
+                label="Pays"
                 outlined
                 dense
                 bottom-slots
+                emit-value
+                map-options
+                use-input
+                input-debounce="0"
+                clearable
                 class="col"
+                @filter="filterCountries"
               />
             </div>
             <q-select
@@ -379,6 +386,7 @@ import {
   type ShippingRoute,
 } from 'src/api/logistics';
 import { extractApiError } from 'src/api/errors';
+import { countryOptions, type CountryOption } from '@app/utils';
 
 const places = ref<Place[]>([]);
 const routes = ref<ShippingRoute[]>([]);
@@ -392,6 +400,18 @@ const req = [
   (v: string | number | null | undefined) =>
     (v !== null && v !== undefined && String(v).length > 0) || 'Requis',
 ];
+
+// Sélecteur pays ISO (PF/FR épinglés), filtrable à la saisie.
+const allCountryOptions = countryOptions();
+const filteredCountryOptions = ref<CountryOption[]>(allCountryOptions);
+function filterCountries(val: string, update: (fn: () => void) => void) {
+  update(() => {
+    const needle = val.trim().toLowerCase();
+    filteredCountryOptions.value = needle
+      ? allCountryOptions.filter((o) => o.label.toLowerCase().includes(needle))
+      : allCountryOptions;
+  });
+}
 
 const placeTypeOptions = [
   { label: 'Entrepôt', value: 'warehouse' },
@@ -520,7 +540,7 @@ const placeForm = reactive({
   type: 'warehouse',
   code: '',
   city: '',
-  country: '',
+  country: null as string | null,
   parent_id: null as string | null,
   is_warehouse: true,
   customs_clearance: false,
@@ -532,7 +552,7 @@ function resetPlaceForm() {
   placeForm.type = 'warehouse';
   placeForm.code = '';
   placeForm.city = '';
-  placeForm.country = '';
+  placeForm.country = null;
   placeForm.parent_id = null;
   placeForm.is_warehouse = true;
   placeForm.customs_clearance = false;
@@ -553,7 +573,7 @@ function openPlaceEdit(p: Place) {
   placeForm.type = p.type;
   placeForm.code = p.code ?? '';
   placeForm.city = p.city ?? '';
-  placeForm.country = p.country ?? '';
+  placeForm.country = p.country;
   placeForm.parent_id = p.parent_id;
   placeForm.is_warehouse = p.is_warehouse;
   placeForm.customs_clearance = p.customs_clearance;
@@ -571,7 +591,7 @@ function openPlaceEdit(p: Place) {
 }
 
 async function submitPlace() {
-  const country = placeForm.country.trim().toUpperCase();
+  const country = (placeForm.country ?? '').trim().toUpperCase();
   const codes = placePostalCodes.value.map((c) => c.trim()).filter((c) => c.length > 0);
   if (isGeoType(placeForm.type) && codes.length > 0 && !country) {
     dialogError.value = 'Le pays (ISO) est requis pour rattacher des codes postaux.';

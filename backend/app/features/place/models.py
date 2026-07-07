@@ -213,6 +213,22 @@ class PlacePostalCodesUpdate(SQLModel):
     )
 
 
+class PostalCodeDirectoryEntry(SQLModel):
+    """A known postal code and the zone it belongs to (address-form dropdown)."""
+
+    postal_code: str
+    place_id: uuid.UUID
+    place_name: str
+    place_type: str
+
+
+class PostalCodeDirectoryResponse(SQLModel):
+    """Every registered postal code of a country, sorted by code."""
+
+    country: str
+    entries: list[PostalCodeDirectoryEntry] = Field(default_factory=list)
+
+
 class PlaceResolveResponse(SQLModel):
     """Result of a postal-code → zone lookup (place is null when unknown)."""
 

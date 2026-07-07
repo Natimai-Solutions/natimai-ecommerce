@@ -300,6 +300,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/place/geo/postal-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Postal code directory of a country
+         * @description Tous les codes postaux enregistrés d'un pays avec leur zone (île, commune...). Alimente l'autocomplete du formulaire d'adresse — sélectionner un code = sélectionner sa zone.
+         */
+        get: operations["place-list_postal_codes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/place/geo/resolve-postal": {
         parameters: {
             query?: never;
@@ -10227,6 +10247,33 @@ export interface components {
             count: number;
         };
         /**
+         * PostalCodeDirectoryEntry
+         * @description A known postal code and the zone it belongs to (address-form dropdown).
+         */
+        PostalCodeDirectoryEntry: {
+            /** Postal Code */
+            postal_code: string;
+            /**
+             * Place Id
+             * Format: uuid
+             */
+            place_id: string;
+            /** Place Name */
+            place_name: string;
+            /** Place Type */
+            place_type: string;
+        };
+        /**
+         * PostalCodeDirectoryResponse
+         * @description Every registered postal code of a country, sorted by code.
+         */
+        PostalCodeDirectoryResponse: {
+            /** Country */
+            country: string;
+            /** Entries */
+            entries?: components["schemas"]["PostalCodeDirectoryEntry"][];
+        };
+        /**
          * PriceGroupOption
          * @description Customer-safe view of a price group (omits the internal margin rate).
          */
@@ -14482,6 +14529,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlaceTreeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "place-list_postal_codes": {
+        parameters: {
+            query: {
+                country: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostalCodeDirectoryResponse"];
                 };
             };
             /** @description Validation Error */

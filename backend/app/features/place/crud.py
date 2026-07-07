@@ -298,6 +298,23 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
         )
         return result.first()
 
+    async def list_postal_codes_by_country(
+        self,
+        session: AsyncSession,
+        country: str,
+    ) -> list[tuple[PlacePostalCode, Place]]:
+        """Every registered postal code of a country with its (active) zone."""
+        result = await session.exec(
+            select(PlacePostalCode, Place)
+            .join(Place, col(PlacePostalCode.place_id) == col(Place.id))
+            .where(
+                PlacePostalCode.country == country.strip().upper(),
+                col(Place.is_active).is_(True),
+            )
+            .order_by(col(PlacePostalCode.postal_code).asc())
+        )
+        return [(row[0], row[1]) for row in result.all()]
+
     async def get_postal_codes(
         self,
         session: AsyncSession,

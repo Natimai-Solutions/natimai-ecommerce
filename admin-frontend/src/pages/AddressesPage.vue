@@ -34,7 +34,7 @@
         <q-td :props="props">
           <div class="text-body2">{{ props.row.street }}</div>
           <div class="text-caption text-grey-7">
-            {{ [`${props.row.postal_code} ${props.row.city}`.trim(), props.row.state, props.row.country]
+            {{ [`${props.row.postal_code} ${props.row.city}`.trim(), props.row.state, countryLabel(props.row.country)]
               .filter((p) => !!p && String(p).trim().length > 0)
               .join(', ') }}
           </div>
@@ -77,6 +77,7 @@
 import { onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import { listAddresses, validateAddress, type AdminAddress } from 'src/api/addresses';
+import { countryLabel } from '@app/utils';
 
 type Filter = 'all' | 'pending' | 'validated';
 
