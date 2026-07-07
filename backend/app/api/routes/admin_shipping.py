@@ -12,7 +12,7 @@ import uuid
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
-from sqlmodel import col, select
+from sqlmodel import col, func, select
 
 from app.api.deps import CurrentLogisticsAdmin, SessionDep
 from app.core.errors import AppError
@@ -54,6 +54,13 @@ class AdminPendingTrackingItem(BaseModel):
     status_code: str | None = None
     status_name: str | None = None
     tracking_ref: str | None = None
+    is_final_leg: bool = Field(
+        default=False,
+        description=(
+            "Last leg of the order's journey (customer delivery route or highest "
+            "sequence) — close it with « Livrer », not « Tronçon suivant »."
+        ),
+    )
 
 
 class AdminConsolidationItem(BaseModel):
@@ -280,9 +287,39 @@ async def list_pending_grouping(
         session=session
     )
     status_by_id = await _status_map(session, entity=_ENTITY_TRACKING)
+
+    # Final-leg detection: customer-delivery route (is_to_customer) or highest
+    # sequence of the order's journey. The UI closes those with « Livrer ».
+    last_leg_route_ids: set[uuid.UUID] = set()
+    max_sequence_by_order: dict[uuid.UUID, int] = {}
+    if trackings:
+        route_rows = await session.exec(
+            select(ShippingRoute.id).where(
+                col(ShippingRoute.id).in_({t.route_id for t in trackings}),
+                col(ShippingRoute.is_to_customer).is_(True),
+            )
+        )
+        last_leg_route_ids = set(route_rows.all())
+        sequence_rows = await session.exec(
+            select(
+                ShippingRouteTracking.order_id,
+                func.max(ShippingRouteTracking.sequence_order),
+            )
+            .where(
+                col(ShippingRouteTracking.order_id).in_(
+                    {t.order_id for t in trackings}
+                )
+            )
+            .group_by(col(ShippingRouteTracking.order_id))
+        )
+        max_sequence_by_order = {row[0]: row[1] for row in sequence_rows.all()}
+
     items: list[AdminPendingTrackingItem] = []
     for t in trackings:
         status = status_by_id.get(t.status_id)
+        is_final = t.route_id in last_leg_route_ids or (
+            t.sequence_order >= max_sequence_by_order.get(t.order_id, t.sequence_order)
+        )
         items.append(
             AdminPendingTrackingItem(
                 tracking_id=t.id,
@@ -292,6 +329,7 @@ async def list_pending_grouping(
                 status_code=status.code if status else None,
                 status_name=status.name if status else None,
                 tracking_ref=t.tracking_ref,
+                is_final_leg=is_final,
             )
         )
     return items
@@ -536,6 +574,29 @@ async def advance_tracking(
     """Complete this leg (tronçon) and activate the next one in the order's
     multi-hop journey. ``activate_next_route`` commits internally."""
     admin_id = admin.id  # captured: the progression commits expire `admin`
+
+    tracking = await session.get(ShippingRouteTracking, tracking_id)
+    if tracking is None:
+        raise AppError(
+            code="shipping.tracking.not_found",
+            status_code=404,
+            message="Tracking not found",
+            details={"tracking_id": str(tracking_id)},
+        )
+    # A customer-delivery leg has no « next »: advancing it would mark it
+    # `completed` (terminal) and the delivery could never be confirmed.
+    route = await session.get(ShippingRoute, tracking.route_id)
+    if route is not None and route.is_to_customer:
+        raise AppError(
+            code="shipping.advance.last_leg",
+            status_code=400,
+            message=(
+                "Dernier tronçon (livraison client) — utilisez « Livrer » "
+                "pour confirmer la livraison"
+            ),
+            details={"tracking_id": str(tracking_id), "route_id": str(route.id)},
+        )
+
     next_tracking = await crud_shipping_route_tracking.activate_next_route(
         session=session,
         current_tracking_id=tracking_id,

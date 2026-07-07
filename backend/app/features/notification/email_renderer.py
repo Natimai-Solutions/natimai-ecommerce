@@ -12,6 +12,7 @@ Usage:
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -23,10 +24,26 @@ _TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "templates" / "email"
 
 DEFAULT_LANG = "fr"
 
+
+def short_ref(value: Any) -> str:
+    """Human-friendly reference for a UUID: ``#e090fee1`` (first 8 hex chars).
+
+    Non-UUID values (already-short refs, "n/a", empty) pass through unchanged
+    so templates can apply the filter unconditionally.
+    """
+    raw = str(value or "").strip()
+    try:
+        parsed = uuid.UUID(raw)
+    except ValueError:
+        return raw
+    return f"#{parsed.hex[:8]}"
+
+
 _env = Environment(
     loader=FileSystemLoader(str(_TEMPLATES_DIR)),
     autoescape=select_autoescape(["html"]),
 )
+_env.filters["short_ref"] = short_ref
 
 
 @dataclass(slots=True)

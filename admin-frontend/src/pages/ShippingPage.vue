@@ -2,6 +2,12 @@
   <q-page padding>
     <div class="row items-center q-mb-md">
       <div class="text-h6 col">Logistique</div>
+      <q-toggle
+        v-model="showCompleted"
+        label="Afficher les terminés"
+        dense
+        class="q-mr-md"
+      />
       <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
     </div>
 
@@ -29,7 +35,7 @@
 
     <q-table
       v-model:selected="selected"
-      :rows="pending"
+      :rows="visiblePending"
       :columns="pendingColumns"
       row-key="tracking_id"
       selection="multiple"
@@ -98,9 +104,13 @@
             icon="skip_next"
             color="indigo"
             label="Tronçon suivant"
-            :disable="isTerminal(props.row)"
+            :disable="isTerminal(props.row) || props.row.is_final_leg"
             @click="advanceTrackingRow(props.row)"
-          />
+          >
+            <q-tooltip v-if="props.row.is_final_leg" max-width="280px">
+              Dernier tronçon du parcours — confirmez la livraison avec « Livrer ».
+            </q-tooltip>
+          </q-btn>
           <q-btn
             flat
             dense
@@ -108,9 +118,14 @@
             icon="task_alt"
             color="positive"
             label="Livrer"
-            :disable="isTerminal(props.row)"
+            :disable="isTerminal(props.row) || !props.row.is_final_leg"
             @click="deliver(props.row)"
-          />
+          >
+            <q-tooltip v-if="!props.row.is_final_leg" max-width="280px">
+              Réservé au dernier tronçon — faites d'abord progresser le colis avec
+              « Tronçon suivant ».
+            </q-tooltip>
+          </q-btn>
         </q-td>
       </template>
       <template #no-data>
@@ -121,7 +136,7 @@
     <!-- Consolidations -->
     <div class="text-subtitle1 text-weight-medium q-mt-lg q-mb-sm">Consolidations</div>
     <q-table
-      :rows="consolidations"
+      :rows="visibleConsolidations"
       :columns="consolidationColumns"
       row-key="id"
       flat
@@ -416,6 +431,17 @@ function isTerminal(row: { status_code: string | null }): boolean {
 function isShipped(row: { status_code: string | null }): boolean {
   return row.status_code === 'shipped';
 }
+
+// Les tronçons/lots terminés sont masqués par défaut (toggle pour l'historique).
+const showCompleted = ref(false);
+const visiblePending = computed(() =>
+  showCompleted.value ? pending.value : pending.value.filter((r) => !isTerminal(r)),
+);
+const visibleConsolidations = computed(() =>
+  showCompleted.value
+    ? consolidations.value
+    : consolidations.value.filter((c) => !isTerminal(c)),
+);
 
 // --- Ship (tracking or consolidation) ---
 const shipDialog = ref(false);

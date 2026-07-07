@@ -186,8 +186,11 @@ class PlaceRouter(
                     ),
                     details={"postal_codes": exc.postal_codes},
                 ) from exc
+            # Capture before commit: committing expires the ORM instances and a
+            # later attribute read would sync-lazy-load → MissingGreenlet.
+            codes = [row.postal_code for row in rows]
             await session.commit()
-            return [row.postal_code for row in rows]
+            return codes
 
 
 class Auth:

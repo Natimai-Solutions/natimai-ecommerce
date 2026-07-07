@@ -8,6 +8,8 @@ export interface PendingTracking {
   status_code: string | null;
   status_name: string | null;
   tracking_ref: string | null;
+  /** Dernier tronçon du parcours (livraison client) : se clôt par « Livrer ». */
+  is_final_leg: boolean;
 }
 
 export interface Consolidation {
