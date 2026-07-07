@@ -28,6 +28,16 @@ class AddressBase(Base):
         index=True,
         description="Address type: billing, shipping, or other",
     )
+    place_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="places.id",
+        index=True,
+        description=(
+            "Geographic zone of the address (island, municipality...). "
+            "Auto-resolved from country + postal code when not provided; "
+            "drives the delivery modes offered at checkout."
+        ),
+    )
 
     @field_validator("type")
     @classmethod
@@ -51,6 +61,7 @@ class AddressUpdate(AddressBase, BaseUpdate):
     postal_code: str | None = None
     country: str | None = None
     type: str | None = None
+    place_id: uuid.UUID | None = None
     user_id: uuid.UUID | None = None
 
     @field_validator("type")

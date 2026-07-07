@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from fastapi import Depends, Query
 from sqlmodel import Field, SQLModel, col, select
@@ -11,6 +11,8 @@ from sqlmodel import Field, SQLModel, col, select
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
 from app.core.errors import AppError
+from app.features.base.crud import RecordNotFoundError
+from app.features.place.models import Place, PlacePublic
 from app.features.shipping.crud import crud_shipping_route
 from app.features.shipping.models.route import (
     ShippingRoute,
@@ -18,6 +20,11 @@ from app.features.shipping.models.route import (
     ShippingRoutePublic,
     ShippingRoutesPublic,
     ShippingRouteUpdate,
+)
+from app.features.shipping.models.route_served_place import (
+    RouteServedPlace,
+    RouteServedPlacesPublic,
+    RouteServedPlacesUpdate,
 )
 from app.features.shipping.services import (
     ShippingCostSummary,
@@ -221,6 +228,111 @@ class ShippingRouteRouter(
 
         # Ajouter les endpoints personnalisés après initialisation
         self.add_routing_endpoints()
+        self.add_served_places_endpoints()
+
+    def add_served_places_endpoints(self) -> None:
+        """Register the served-zones endpoints (last-leg coverage)."""
+
+        async def _load_route_or_404(
+            session: SessionDep, route_id: uuid.UUID
+        ) -> ShippingRoute:
+            try:
+                return cast(ShippingRoute, await self.crud.read(session, id=route_id))
+            except RecordNotFoundError as exc:
+                raise AppError(
+                    code="resource.not_found",
+                    status_code=404,
+                    message="Shipping route not found",
+                    details={"id": str(route_id)},
+                ) from exc
+
+        @self.get(
+            "/{id}/served-places",
+            response_model=RouteServedPlacesPublic,
+            summary="Zones served by a route",
+            description=(
+                "Zones géographiques desservies par ce trajet (îles, communes, "
+                "archipels). Une zone parente couvre toutes ses zones enfants."
+            ),
+        )
+        async def get_served_places(
+            session: SessionDep,
+            id: uuid.UUID,
+            current_user: CurrentUser | None = Depends(get_current_user_optional),
+        ) -> RouteServedPlacesPublic:
+            """List the zones served by a shipping route."""
+            await self._check_auth(session, "read", current_user)
+            await _load_route_or_404(session, id)
+            result = await session.exec(
+                select(Place)
+                .join(RouteServedPlace, col(RouteServedPlace.place_id) == col(Place.id))
+                .where(RouteServedPlace.route_id == id)
+                .order_by(col(Place.name).asc())
+            )
+            return RouteServedPlacesPublic(
+                route_id=id,
+                places=[
+                    PlacePublic.model_validate(place) for place in result.all()
+                ],
+            )
+
+        @self.put(
+            "/{id}/served-places",
+            response_model=RouteServedPlacesPublic,
+            summary="Replace the zones served by a route",
+        )
+        async def set_served_places(
+            session: SessionDep,
+            id: uuid.UUID,
+            payload: RouteServedPlacesUpdate,
+            current_user: CurrentUser | None = Depends(get_current_user_optional),
+        ) -> RouteServedPlacesPublic:
+            """Replace the full set of zones served by a shipping route."""
+            await self._check_auth(session, "update", current_user)
+            await _load_route_or_404(session, id)
+
+            wanted = set(payload.place_ids)
+            if wanted:
+                places_result = await session.exec(
+                    select(Place).where(
+                        col(Place.id).in_(wanted),
+                        col(Place.is_active).is_(True),
+                    )
+                )
+                found = {place.id for place in places_result.all()}
+                missing = sorted(str(pid) for pid in wanted - found)
+                if missing:
+                    raise AppError(
+                        code="shipping.route.served_place_unknown",
+                        status_code=400,
+                        message="Unknown or inactive places: " + ", ".join(missing),
+                        details={"place_ids": missing},
+                    )
+
+            existing_result = await session.exec(
+                select(RouteServedPlace).where(RouteServedPlace.route_id == id)
+            )
+            existing = list(existing_result.all())
+            for row in existing:
+                if row.place_id not in wanted:
+                    await session.delete(row)
+            kept = {row.place_id for row in existing if row.place_id in wanted}
+            for place_id in wanted - kept:
+                session.add(RouteServedPlace(route_id=id, place_id=place_id))
+            await session.commit()
+
+            result = await session.exec(
+                select(Place)
+                .join(RouteServedPlace, col(RouteServedPlace.place_id) == col(Place.id))
+                .where(RouteServedPlace.route_id == id)
+                .order_by(col(Place.name).asc())
+            )
+            return RouteServedPlacesPublic(
+                route_id=id,
+                places=[
+                    PlacePublic.model_validate(place) for place in result.all()
+                ],
+            )
 
     def add_routing_endpoints(self) -> None:
         """Register custom routing and quotation endpoints."""

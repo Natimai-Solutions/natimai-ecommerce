@@ -22,7 +22,7 @@ from app.features.payment.providers.manual import (
     MANUAL_STATUS_COMPLETED,
     MANUAL_STATUS_FAILED,
 )
-from app.features.place.models import Place
+from app.features.place.models import Place, PlacePostalCode
 from app.features.product.models.currency_rate import CurrencyRate, CurrencyRateSource
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.tax_rate import TaxRate
@@ -358,6 +358,131 @@ async def _seed_france_papeete_import_corridor(session: AsyncSession) -> None:
         )
 
 
+# French Polynesia geographic zone tree: country → archipelago (region) →
+# island. Identified by stable `code` values for idempotency. Postal codes are
+# an INDICATIVE starter set (main communes) — verify/complete them from the
+# admin (PUT /place/{id}/postal-codes); an unknown postal code simply leaves
+# the address without a zone.
+_PF_ARCHIPELAGOS: tuple[tuple[str, str], ...] = (
+    ("PF_SOCIETE", "Archipel de la Société"),
+    ("PF_TUAMOTU", "Archipel des Tuamotu"),
+    ("PF_GAMBIER", "Archipel des Gambier"),
+    ("PF_MARQUISES", "Archipel des Marquises"),
+    ("PF_AUSTRALES", "Archipel des Australes"),
+)
+
+# (code, name, archipelago_code, postal_codes)
+_PF_ISLANDS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
+    (
+        "PF_TAHITI",
+        "Tahiti",
+        "PF_SOCIETE",
+        (
+            "98701",  # Arue
+            "98704",  # Faa'a
+            "98709",  # Mahina
+            "98711",  # Paea
+            "98712",  # Papara
+            "98713",  # Papeete
+            "98714",  # Papeete
+            "98715",  # Papeete
+            "98716",  # Pirae
+            "98718",  # Punaauia
+        ),
+    ),
+    ("PF_MOOREA", "Moorea", "PF_SOCIETE", ("98728", "98729")),
+    ("PF_BORA_BORA", "Bora Bora", "PF_SOCIETE", ("98730",)),
+    ("PF_HUAHINE", "Huahine", "PF_SOCIETE", ("98731",)),
+    ("PF_RAIATEA", "Raiatea", "PF_SOCIETE", ("98735",)),
+    ("PF_TAHAA", "Taha'a", "PF_SOCIETE", ()),
+    ("PF_MAUPITI", "Maupiti", "PF_SOCIETE", ()),
+    ("PF_RANGIROA", "Rangiroa", "PF_TUAMOTU", ()),
+    ("PF_FAKARAVA", "Fakarava", "PF_TUAMOTU", ()),
+    ("PF_TIKEHAU", "Tikehau", "PF_TUAMOTU", ()),
+    ("PF_HAO", "Hao", "PF_TUAMOTU", ()),
+    ("PF_MANGAREVA", "Mangareva", "PF_GAMBIER", ()),
+    ("PF_NUKU_HIVA", "Nuku Hiva", "PF_MARQUISES", ("98742",)),
+    ("PF_HIVA_OA", "Hiva Oa", "PF_MARQUISES", ("98741",)),
+    ("PF_UA_POU", "Ua Pou", "PF_MARQUISES", ()),
+    ("PF_RURUTU", "Rurutu", "PF_AUSTRALES", ()),
+    ("PF_TUBUAI", "Tubuai", "PF_AUSTRALES", ()),
+    ("PF_RAIVAVAE", "Raivavae", "PF_AUSTRALES", ()),
+)
+
+
+async def _get_or_create_place_by_code(
+    session: AsyncSession,
+    *,
+    code: str,
+    name: str,
+    place_type: str,
+    parent_id: Any = None,
+) -> Place:
+    """Fetch a place by stable code, creating it when missing (idempotent)."""
+    result = await session.exec(select(Place).where(Place.code == code))
+    place = result.first()
+    if place is None:
+        place = Place(
+            name=name,
+            type=place_type,
+            code=code,
+            country="PF",
+            parent_id=parent_id,
+        )
+        session.add(place)
+        await session.flush()
+    return place
+
+
+async def _seed_french_polynesia_geography(session: AsyncSession) -> None:
+    """Seed the PF zone tree (pays → archipels → îles) + starter postal codes.
+
+    Granularity stops at the island (municipalities stay free text on the
+    address); the postal-code mapping is what deduces the island at address
+    entry. Everything is admin-editable afterwards.
+    """
+    country = await _get_or_create_place_by_code(
+        session,
+        code="PF_COUNTRY",
+        name="Polynésie française",
+        place_type="country",
+    )
+
+    archipelagos: dict[str, Place] = {}
+    for code, name in _PF_ARCHIPELAGOS:
+        archipelagos[code] = await _get_or_create_place_by_code(
+            session,
+            code=code,
+            name=name,
+            place_type="region",
+            parent_id=country.id,
+        )
+
+    for code, name, archipelago_code, postal_codes in _PF_ISLANDS:
+        island = await _get_or_create_place_by_code(
+            session,
+            code=code,
+            name=name,
+            place_type="island",
+            parent_id=archipelagos[archipelago_code].id,
+        )
+        for postal_code in postal_codes:
+            existing = await session.exec(
+                select(PlacePostalCode).where(
+                    PlacePostalCode.country == "PF",
+                    PlacePostalCode.postal_code == postal_code,
+                )
+            )
+            if existing.first() is None:
+                session.add(
+                    PlacePostalCode(
+                        place_id=island.id,
+                        country="PF",
+                        postal_code=postal_code,
+                    )
+                )
+
+
 # Canonical logistics status catalog. Codes are shared by every shipping code
 # path: checkout creates trackings as `pending`; admin ship/deliver force
 # `shipped`/`delivered`; the multi-leg progression uses `in_progress`
@@ -605,5 +730,6 @@ async def initial_data(session: AsyncSession) -> None:
     await _seed_tax_rates(session)
     await _seed_currency_rates(session)
     await _seed_france_papeete_import_corridor(session)
+    await _seed_french_polynesia_geography(session)
     await _seed_shipping_statuses(session)
     await _seed_security_groups(session)

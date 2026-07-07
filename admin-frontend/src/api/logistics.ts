@@ -7,6 +7,7 @@ export interface Place {
   code: string | null;
   country: string | null;
   city: string | null;
+  parent_id: string | null;
   is_warehouse: boolean;
   customs_clearance: boolean;
 }
@@ -17,6 +18,7 @@ export interface PlaceCreate {
   code?: string | null;
   country?: string | null;
   city?: string | null;
+  parent_id?: string | null;
   is_warehouse?: boolean;
   customs_clearance?: boolean;
 }
@@ -34,6 +36,7 @@ export interface ShippingRoute {
   base_price: string | null;
   is_to_customer: boolean;
   last_leg_delivery_type: string | null;
+  always_available: boolean;
   status_code: string | null;
 }
 
@@ -49,6 +52,7 @@ export interface ShippingRouteCreate {
   base_price?: string | null;
   is_to_customer?: boolean;
   last_leg_delivery_type?: string | null;
+  always_available?: boolean;
 }
 
 interface Paginated<T> {
@@ -72,6 +76,24 @@ export async function updatePlace(id: string, payload: Partial<PlaceCreate>): Pr
   return data;
 }
 
+// Codes postaux rattachés à une zone (déduction île/commune à l'adresse).
+export async function getPlacePostalCodes(id: string): Promise<string[]> {
+  const { data } = await api.get<string[]>(`/place/${id}/postal-codes`);
+  return data;
+}
+
+export async function setPlacePostalCodes(
+  id: string,
+  country: string,
+  postalCodes: string[],
+): Promise<string[]> {
+  const { data } = await api.put<string[]>(`/place/${id}/postal-codes`, {
+    country,
+    postal_codes: postalCodes,
+  });
+  return data;
+}
+
 // --- Routes (tronçons) ---------------------------------------------------- //
 export async function listRoutes(): Promise<ShippingRoute[]> {
   const { data } = await api.get<Paginated<ShippingRoute>>('/shipping/route', {
@@ -91,4 +113,26 @@ export async function updateRoute(
 ): Promise<ShippingRoute> {
   const { data } = await api.put<ShippingRoute>(`/shipping/route/${id}`, payload);
   return data;
+}
+
+// Zones desservies par un trajet (une zone parente couvre ses enfants).
+interface ServedPlacesResponse {
+  route_id: string;
+  places: Place[];
+}
+
+export async function getRouteServedPlaces(routeId: string): Promise<Place[]> {
+  const { data } = await api.get<ServedPlacesResponse>(`/shipping/route/${routeId}/served-places`);
+  return data.places;
+}
+
+export async function setRouteServedPlaces(
+  routeId: string,
+  placeIds: string[],
+): Promise<Place[]> {
+  const { data } = await api.put<ServedPlacesResponse>(
+    `/shipping/route/${routeId}/served-places`,
+    { place_ids: placeIds },
+  );
+  return data.places;
 }

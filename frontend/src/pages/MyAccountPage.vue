@@ -406,11 +406,35 @@
             />
             <q-input
               v-model="addressForm.country"
-              label="Pays *"
+              label="Pays (code ISO, ex : PF) *"
               outlined
               dense
               :rules="[(v) => !!v || 'Champ requis']"
             />
+            <q-banner
+              v-if="detectedZoneLabel"
+              dense
+              rounded
+              class="bg-green-1 text-green-9 q-mt-sm"
+            >
+              <q-icon name="place" class="q-mr-xs" />
+              Zone de livraison détectée : {{ detectedZoneLabel }}
+            </q-banner>
+            <template v-else-if="zoneLookupDone && zoneOptions.length > 0">
+              <q-banner dense rounded class="bg-orange-1 text-orange-10 q-mt-sm q-mb-sm">
+                Code postal non reconnu — indiquez votre île / zone de livraison.
+              </q-banner>
+              <q-select
+                v-model="manualPlaceId"
+                :options="zoneOptions"
+                label="Île / zone de livraison"
+                outlined
+                dense
+                emit-value
+                map-options
+                clearable
+              />
+            </template>
           </q-card-section>
           <q-card-actions align="right" class="q-pa-md q-pt-none">
             <q-btn flat label="Annuler" color="grey-8" v-close-popup />
@@ -448,7 +472,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { formatXpf } from '@app/utils';
 import { useAuthStore } from 'src/stores/auth';
@@ -457,11 +481,14 @@ import { getMyPreferences, updateMyPreferences, type UserPreferences } from 'src
 import {
   createMyAddress,
   deleteMyAddress,
+  getGeoTree,
   listMyAddresses,
+  resolvePostalZone,
   updateMyAddress,
   type Address,
   type AddressInput,
   type AddressType,
+  type PlaceTreeNode,
 } from 'src/api/addresses';
 import { listMyOrders, type Order } from 'src/api/orders';
 import {
@@ -583,6 +610,70 @@ const deleteDialog = ref(false);
 const deleting = ref(false);
 const addressToDelete = ref<Address | null>(null);
 
+// --- Zone de livraison (île) : déduite du code postal, fallback manuel ------
+const detectedZoneLabel = ref<string | null>(null);
+const zoneLookupDone = ref(false);
+const manualPlaceId = ref<string | null>(null);
+const zoneOptions = ref<{ label: string; value: string }[]>([]);
+const zoneTreeCountry = ref<string | null>(null);
+let zoneLookupTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flattenZoneTree(nodes: PlaceTreeNode[], path: string[] = []): void {
+  for (const node of nodes) {
+    // Seules les zones fines sont sélectionnables (une île, pas tout un pays).
+    if (node.type === 'island' || node.type === 'municipality') {
+      const context = path.length > 0 ? ` (${path[path.length - 1]})` : '';
+      zoneOptions.value.push({ label: `${node.name}${context}`, value: node.id });
+    }
+    flattenZoneTree(node.children, [...path, node.name]);
+  }
+}
+
+async function loadZoneOptions(country: string): Promise<void> {
+  if (zoneTreeCountry.value === country) return;
+  zoneOptions.value = [];
+  try {
+    const roots = await getGeoTree(country);
+    flattenZoneTree(roots);
+    zoneOptions.value.sort((a, b) => a.label.localeCompare(b.label));
+    zoneTreeCountry.value = country;
+  } catch {
+    // Pas d'arbre pour ce pays → pas de sélecteur (champ purement optionnel).
+    zoneTreeCountry.value = null;
+  }
+}
+
+async function lookupZone(): Promise<void> {
+  const country = addressForm.country.trim().toUpperCase();
+  const postalCode = addressForm.postal_code.trim();
+  detectedZoneLabel.value = null;
+  zoneLookupDone.value = false;
+  if (country.length !== 2 || postalCode.length === 0) return;
+  try {
+    const result = await resolvePostalZone(country, postalCode);
+    if (result.place) {
+      const context = result.ancestors[0] ? ` (${result.ancestors[0].name})` : '';
+      detectedZoneLabel.value = `${result.place.name}${context}`;
+      manualPlaceId.value = null;
+    } else {
+      await loadZoneOptions(country);
+    }
+    zoneLookupDone.value = true;
+  } catch {
+    // Résolution indisponible : l'adresse reste enregistrable sans zone.
+    zoneLookupDone.value = false;
+  }
+}
+
+watch(
+  () => [addressForm.postal_code, addressForm.country],
+  () => {
+    if (!addressDialog.value) return;
+    if (zoneLookupTimer) clearTimeout(zoneLookupTimer);
+    zoneLookupTimer = setTimeout(() => void lookupZone(), 400);
+  },
+);
+
 async function loadAddresses() {
   loadingAddresses.value = true;
   addressesError.value = null;
@@ -597,6 +688,9 @@ async function loadAddresses() {
 
 function openAddressDialog(address?: Address) {
   dialogError.value = null;
+  detectedZoneLabel.value = null;
+  zoneLookupDone.value = false;
+  manualPlaceId.value = null;
   if (address) {
     editingId.value = address.id;
     addressForm.street = address.street;
@@ -605,6 +699,8 @@ function openAddressDialog(address?: Address) {
     addressForm.postal_code = address.postal_code;
     addressForm.country = address.country;
     addressForm.type = (address.type as AddressType) ?? 'shipping';
+    manualPlaceId.value = address.place_id;
+    void lookupZone();
   } else {
     editingId.value = null;
     addressForm.street = '';
@@ -629,6 +725,11 @@ async function saveAddress() {
       country: addressForm.country,
       type: addressForm.type,
     };
+    // Zone choisie à la main (code postal non reconnu) : envoyée explicitement.
+    // Sinon on laisse le backend déduire la zone du code postal.
+    if (!detectedZoneLabel.value && manualPlaceId.value) {
+      payload.place_id = manualPlaceId.value;
+    }
     if (editingId.value) {
       await updateMyAddress(editingId.value, payload);
     } else {

@@ -8,6 +8,7 @@ from app.api.base_router import BaseRouter
 from app.api.deps import CurrentSuperUser, CurrentUser, SessionDep
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
+from app.features.place.crud import crud_place
 from app.features.user.crud.address import AddressCrud, crud_address
 from app.features.user.models.address import (
     Address,
@@ -31,6 +32,7 @@ class AddressMeCreate(SQLModel):
     postal_code: str
     country: str
     type: str
+    place_id: uuid.UUID | None = None
 
     @field_validator("type")
     @classmethod
@@ -47,6 +49,7 @@ class AddressMeUpdate(SQLModel):
     postal_code: str | None = None
     country: str | None = None
     type: str | None = None
+    place_id: uuid.UUID | None = None
 
     @field_validator("type")
     @classmethod
@@ -54,6 +57,41 @@ class AddressMeUpdate(SQLModel):
         if v is not None:
             return validate_address_type(v)
         return v
+
+
+async def _resolve_address_place_id(
+    session: SessionDep,
+    *,
+    place_id: uuid.UUID | None,
+    country: str | None,
+    postal_code: str | None,
+) -> uuid.UUID | None:
+    """Geographic zone of an address: explicit choice or postal-code lookup.
+
+    An explicitly provided ``place_id`` is validated and kept; otherwise the
+    zone is deduced from country + postal code (e.g. PF: 98728 → Moorea).
+    Unknown postal codes simply leave the address without a zone — checkout
+    then only offers destination-independent delivery modes.
+    """
+    if place_id is not None:
+        try:
+            await crud_place.read(session, id=place_id)
+        except RecordNotFoundError as exc:
+            raise AppError(
+                code="address.place.unknown",
+                status_code=400,
+                message=f"Unknown place '{place_id}'",
+                details={"place_id": str(place_id)},
+            ) from exc
+        return place_id
+
+    if country and postal_code:
+        place = await crud_place.resolve_by_postal_code(
+            session, country=country, postal_code=postal_code
+        )
+        if place is not None:
+            return place.id
+    return None
 
 
 def _check_permission(
@@ -137,8 +175,15 @@ async def create_my_address(
     address_in: AddressMeCreate,
 ) -> AddressPublic:
     """Create a new address for the authenticated user."""
+    resolved_place_id = await _resolve_address_place_id(
+        session,
+        place_id=address_in.place_id,
+        country=address_in.country,
+        postal_code=address_in.postal_code,
+    )
     payload = AddressCreate(
-        **address_in.model_dump(),
+        **address_in.model_dump(exclude={"place_id"}),
+        place_id=resolved_place_id,
         user_id=current_user.id,
     )
     address = await crud_address.create_for_user(
@@ -206,7 +251,24 @@ async def update_my_address(
             details={"address_id": str(address_id)},
         )
 
-    update_payload = AddressUpdate(**address_in.model_dump(exclude_unset=True))
+    update_dict = address_in.model_dump(exclude_unset=True)
+    # Re-resolve the zone when the location changed without an explicit choice
+    # (otherwise a stale island would survive a postal-code edit).
+    if "place_id" in update_dict:
+        update_dict["place_id"] = await _resolve_address_place_id(
+            session,
+            place_id=update_dict["place_id"],
+            country=update_dict.get("country", address.country),
+            postal_code=update_dict.get("postal_code", address.postal_code),
+        )
+    elif "postal_code" in update_dict or "country" in update_dict:
+        update_dict["place_id"] = await _resolve_address_place_id(
+            session,
+            place_id=None,
+            country=update_dict.get("country", address.country),
+            postal_code=update_dict.get("postal_code", address.postal_code),
+        )
+    update_payload = AddressUpdate(**update_dict)
     address = await crud_address.update(
         session=session,
         id=address_id,

@@ -108,9 +108,18 @@ interface LastLegOptionsResponse {
   options: LastLegOption[];
 }
 
-/** Priced last-leg delivery options for the current cart (shown at checkout). */
-export async function getLastLegOptions(): Promise<LastLegOptionsResponse> {
-  const { data } = await api.get<LastLegOptionsResponse>('/cart/me/last-leg-options');
+/** Priced last-leg delivery options for the current cart (shown at checkout).
+ *
+ * `addressId` filters the modes to those serving the address' destination
+ * (île → archipel → pays) — always-available modes (retrait boutique) are
+ * returned in every case.
+ */
+export async function getLastLegOptions(
+  addressId?: string | null,
+): Promise<LastLegOptionsResponse> {
+  const { data } = await api.get<LastLegOptionsResponse>('/cart/me/last-leg-options', {
+    params: addressId ? { address_id: addressId } : {},
+  });
   return data;
 }
 

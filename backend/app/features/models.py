@@ -25,7 +25,7 @@ from app.features.payment.models.payment_method_eligibility import (
 from app.features.payment.models.payment_status import PaymentStatus
 from app.features.payment.models.payment_validation import PaymentValidation
 from app.features.payment.models.refund import Refund
-from app.features.place.models import Place
+from app.features.place.models import Place, PlacePostalCode
 from app.features.product.models.brand import Brand
 from app.features.product.models.category import Category
 from app.features.product.models.price_group import PriceGroup
@@ -35,6 +35,7 @@ from app.features.product.models.tax_rate import TaxRate
 from app.features.shipping.models.carrier import Carrier
 from app.features.shipping.models.delivery_task import DeliveryTask
 from app.features.shipping.models.route import ShippingRoute
+from app.features.shipping.models.route_served_place import RouteServedPlace
 from app.features.shipping.models.route_tracking import (
     ShippingRouteTracking,
     ShippingRouteTrackingLogs,
@@ -84,9 +85,11 @@ __all__ = [
     "PaymentStatus",
     "PaymentValidation",
     "Place",
+    "PlacePostalCode",
     "Product",
     "Refund",
     "Review",
+    "RouteServedPlace",
     "ShippingRoute",
     "ShippingRouteTracking",
     "ShippingRouteTrackingLogs",

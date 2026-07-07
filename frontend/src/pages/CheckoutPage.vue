@@ -310,7 +310,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { formatXpf } from '@app/utils';
 import { useCartStore } from 'src/stores/cart';
 import { useAuthStore } from 'src/stores/auth';
@@ -444,9 +444,16 @@ onMounted(async () => {
     // Non-blocking: the address selector shows an empty state with guidance.
   }
 
-  // Priced last-leg delivery options for the current cart (admin-configured).
+  // Priced last-leg delivery options for the current cart and the pre-selected
+  // address (the watcher below reloads them on address change).
+  await loadDeliveryOptions();
+});
+
+// Delivery modes depend on the destination (île → archipel → pays) of the
+// selected address: reload them whenever the customer picks another address.
+async function loadDeliveryOptions() {
   try {
-    const res = await getLastLegOptions();
+    const res = await getLastLegOptions(selectedAddressId.value);
     deliveryOptions.value = res.options.map((o) => ({
       value: o.delivery_type,
       label: o.label || prettifyMode(o.delivery_type),
@@ -454,10 +461,20 @@ onMounted(async () => {
       amount: o.amount,
       etaDays: o.eta_days,
     }));
-    selectedDeliveryType.value = deliveryOptions.value[0]?.value ?? null;
+    // Keep the current choice when the new destination still offers it.
+    if (!deliveryOptions.value.some((d) => d.value === selectedDeliveryType.value)) {
+      selectedDeliveryType.value = deliveryOptions.value[0]?.value ?? null;
+    }
   } catch {
     // Non-blocking: the delivery section is hidden if options can't be loaded.
+    deliveryOptions.value = [];
+    selectedDeliveryType.value = null;
   }
+}
+
+watch(selectedAddressId, () => {
+  if (!isAuthenticated.value) return;
+  void loadDeliveryOptions();
 });
 
 async function startPayment() {
