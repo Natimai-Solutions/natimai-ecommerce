@@ -1,1 +1,1 @@
-[Paiement] {{ event_label }} — {{ payment_id }}
+[Paiement] {{ event_label }} — {{ payment_id | short_ref }}

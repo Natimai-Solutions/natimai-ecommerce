@@ -1,1 +1,1 @@
-Problème avec votre paiement — commande {{ order_id }}
+Problème avec votre paiement — commande {{ order_id | short_ref }}

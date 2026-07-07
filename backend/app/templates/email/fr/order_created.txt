@@ -2,7 +2,7 @@ Bonjour {{ full_name }},
 
 Votre commande a bien été enregistrée.
 
-Numéro de commande : {{ order_id }}
+Numéro de commande : {{ order_id | short_ref }}
 Montant total      : {{ total_amount }} {{ currency }}
 Nombre d'articles  : {{ item_count }}
 

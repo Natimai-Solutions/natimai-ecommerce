@@ -3,8 +3,8 @@
 Un événement de paiement vient d'être enregistré.
 
 Événement   : {{ event_type }}
-Paiement    : {{ payment_id }}
-Commande    : {{ order_id }}
+Paiement    : {{ payment_id | short_ref }}
+Commande    : {{ order_id | short_ref }}
 Fournisseur : {{ provider_code }}
 {% if amount %}Montant     : {{ amount }} {{ currency }}
 {% endif %}{% if reference %}Référence   : {{ reference }}

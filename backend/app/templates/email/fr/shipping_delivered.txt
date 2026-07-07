@@ -1,6 +1,6 @@
 Bonjour {{ full_name }},
 
-Votre commande {{ order_id }} a été livrée.
+Votre commande {{ order_id | short_ref }} a été livrée.
 
 Nous espérons que vous êtes satisfait(e) de votre achat. N'hésitez pas à nous contacter si vous avez la moindre question.
 

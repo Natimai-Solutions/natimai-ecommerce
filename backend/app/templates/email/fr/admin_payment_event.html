@@ -8,8 +8,8 @@
       <div class="summary">
         <table>
           <tr><td>Événement</td><td>{{ event_type }}</td></tr>
-          <tr><td>Paiement</td><td>{{ payment_id }}</td></tr>
-          <tr><td>Commande</td><td>{{ order_id }}</td></tr>
+          <tr><td>Paiement</td><td>{{ payment_id | short_ref }}</td></tr>
+          <tr><td>Commande</td><td>{{ order_id | short_ref }}</td></tr>
           <tr><td>Fournisseur</td><td>{{ provider_code }}</td></tr>
           {% if amount %}<tr><td>Montant</td><td>{{ amount }} {{ currency }}</td></tr>{% endif %}
           {% if reference %}<tr><td>Référence</td><td>{{ reference }}</td></tr>{% endif %}

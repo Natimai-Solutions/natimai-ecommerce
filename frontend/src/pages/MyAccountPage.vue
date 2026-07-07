@@ -371,13 +371,19 @@
               dense
               class="q-mb-sm"
             />
-            <q-input
-              v-model="addressForm.street"
-              label="Adresse (rue) *"
+            <q-select
+              v-model="addressForm.country"
+              :options="filteredCountryOptions"
+              label="Pays *"
               outlined
               dense
               class="q-mb-sm"
+              emit-value
+              map-options
+              use-input
+              input-debounce="0"
               :rules="[(v) => !!v || 'Champ requis']"
+              @filter="filterCountries"
             />
             <div class="row q-col-gutter-sm">
               <q-select
@@ -393,6 +399,8 @@
                 fill-input
                 hide-selected
                 input-debounce="0"
+                :disable="!countryChosen"
+                :hide-dropdown-icon="postalDirectory.length === 0"
                 :rules="[(v) => !!v || 'Requis']"
                 @filter="filterPostalCodes"
                 @input-value="onPostalTyped"
@@ -408,32 +416,30 @@
               </q-select>
               <q-input
                 v-model="addressForm.city"
-                label="Ville *"
+                :label="cityRequired ? 'Ville *' : 'Ville'"
                 outlined
                 dense
                 class="col-7"
-                :rules="[(v) => !!v || 'Requis']"
+                :disable="!postalFilled"
+                :rules="cityRules"
               />
             </div>
             <q-input
-              v-model="addressForm.state"
-              label="État / Région"
+              v-model="addressForm.street"
+              label="Adresse (rue) *"
               outlined
               dense
-              class="q-mb-sm q-mt-sm"
-            />
-            <q-select
-              v-model="addressForm.country"
-              :options="filteredCountryOptions"
-              label="Pays *"
-              outlined
-              dense
-              emit-value
-              map-options
-              use-input
-              input-debounce="0"
+              class="q-mb-sm"
+              :disable="!postalFilled"
               :rules="[(v) => !!v || 'Champ requis']"
-              @filter="filterCountries"
+            />
+            <q-input
+              v-model="addressForm.state"
+              label="État / Région / Île"
+              outlined
+              dense
+              class="q-mb-sm"
+              :disable="!postalFilled"
             />
             <q-banner
               v-if="detectedZoneLabel"
@@ -467,6 +473,7 @@
               color="primary"
               :label="editingId ? 'Enregistrer' : 'Créer'"
               :loading="savingAddress"
+              :disable="savingAddress || !postalFilled"
             />
           </q-card-actions>
         </q-form>
@@ -513,6 +520,7 @@ import {
   type Address,
   type AddressInput,
   type AddressType,
+  type PlaceSummary,
   type PlaceTreeNode,
 } from 'src/api/addresses';
 import { listMyOrders, type Order } from 'src/api/orders';
@@ -711,16 +719,69 @@ function onPostalTyped(val: string) {
 
 watch(
   () => addressForm.country,
-  (country) => {
-    if (!addressDialog.value || !country) return;
-    void loadPostalDirectory(country);
+  (country, previous) => {
+    if (!addressDialog.value) return;
+    // Changer de pays invalide le code postal et tout ce qui en découlait :
+    // le formulaire redémarre à l'étape « code postal ».
+    if (previous && country !== previous) {
+      addressForm.postal_code = '';
+      clearZoneAutofill();
+    }
+    if (country) void loadPostalDirectory(country);
   },
 );
+
+// --- Saisie progressive : Pays → Code postal → le reste ---------------------
+const countryChosen = computed(() => addressForm.country.trim().length === 2);
+const postalFilled = computed(() => addressForm.postal_code.trim().length > 0);
 
 // --- Zone de livraison (île) : déduite du code postal, fallback manuel ------
 const detectedZoneLabel = ref<string | null>(null);
 const zoneLookupDone = ref(false);
 const manualPlaceId = ref<string | null>(null);
+
+// La ville n'est exigée que si le code postal ne suffit pas à situer la
+// livraison (code inconnu et aucune île choisie à la main).
+const cityRequired = computed(
+  () => !detectedZoneLabel.value && !manualPlaceId.value,
+);
+const cityRules = computed(() =>
+  cityRequired.value
+    ? [(v: string) => !!v?.trim() || 'Requis — code postal non reconnu']
+    : [],
+);
+
+// Valeurs posées par l'auto-remplissage : on ne les efface / remplace que si
+// l'utilisateur ne les a pas retouchées entre-temps.
+let lastAutoCity: string | null = null;
+let lastAutoState: string | null = null;
+
+function clearZoneAutofill(): void {
+  if (lastAutoCity && addressForm.city === lastAutoCity) addressForm.city = '';
+  if (lastAutoState && addressForm.state === lastAutoState) addressForm.state = '';
+  lastAutoCity = null;
+  lastAutoState = null;
+}
+
+function applyZoneAutofill(place: PlaceSummary, ancestors: PlaceSummary[]): void {
+  if (place.type === 'municipality') {
+    // Commune → la ville est connue ; l'île / région vient de la hiérarchie.
+    addressForm.city = place.name;
+    lastAutoCity = place.name;
+    const geo =
+      ancestors.find((a) => a.type === 'island') ??
+      ancestors.find((a) => a.type === 'region');
+    if (geo) {
+      addressForm.state = geo.name;
+      lastAutoState = geo.name;
+    }
+  } else if (place.type === 'island' || place.type === 'region') {
+    if (lastAutoCity && addressForm.city === lastAutoCity) addressForm.city = '';
+    lastAutoCity = null;
+    addressForm.state = place.name;
+    lastAutoState = place.name;
+  }
+}
 const zoneOptions = ref<{ label: string; value: string }[]>([]);
 const zoneTreeCountry = ref<string | null>(null);
 let zoneLookupTimer: ReturnType<typeof setTimeout> | null = null;
@@ -750,7 +811,7 @@ async function loadZoneOptions(country: string): Promise<void> {
   }
 }
 
-async function lookupZone(): Promise<void> {
+async function lookupZone(autofill = true): Promise<void> {
   const country = addressForm.country.trim().toUpperCase();
   const postalCode = addressForm.postal_code.trim();
   detectedZoneLabel.value = null;
@@ -762,7 +823,9 @@ async function lookupZone(): Promise<void> {
       const context = result.ancestors[0] ? ` (${result.ancestors[0].name})` : '';
       detectedZoneLabel.value = `${result.place.name}${context}`;
       manualPlaceId.value = null;
+      if (autofill) applyZoneAutofill(result.place, result.ancestors);
     } else {
+      if (autofill) clearZoneAutofill();
       await loadZoneOptions(country);
     }
     zoneLookupDone.value = true;
@@ -798,6 +861,8 @@ function openAddressDialog(address?: Address) {
   detectedZoneLabel.value = null;
   zoneLookupDone.value = false;
   manualPlaceId.value = null;
+  lastAutoCity = null;
+  lastAutoState = null;
   if (address) {
     editingId.value = address.id;
     addressForm.street = address.street;
@@ -808,15 +873,19 @@ function openAddressDialog(address?: Address) {
     addressForm.type = (address.type as AddressType) ?? 'shipping';
     manualPlaceId.value = address.place_id;
     void loadPostalDirectory(addressForm.country);
-    void lookupZone();
+    // Pas d'auto-remplissage à l'ouverture : on n'écrase pas ce que le client
+    // avait enregistré ; seul un changement de code postal re-remplit.
+    void lookupZone(false);
   } else {
     editingId.value = null;
     addressForm.street = '';
     addressForm.city = '';
     addressForm.state = '';
     addressForm.postal_code = '';
-    addressForm.country = '';
+    // Marché principal : le dropdown des codes postaux marche dès l'ouverture.
+    addressForm.country = 'PF';
     addressForm.type = 'shipping';
+    void loadPostalDirectory(addressForm.country);
   }
   addressDialog.value = true;
 }

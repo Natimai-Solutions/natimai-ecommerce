@@ -4,7 +4,7 @@
 {% block heading %}Remboursement effectué 💶{% endblock %}
 {% block content %}
       <p>Bonjour {{ full_name }},</p>
-      <p>Un remboursement a été effectué pour votre commande <strong>{{ order_id }}</strong>.</p>
+      <p>Un remboursement a été effectué pour votre commande <strong>{{ order_id | short_ref }}</strong>.</p>
       <div class="summary">
         <table>
           <tr><td>Montant remboursé</td><td>{{ amount }} {{ currency }}</td></tr>
