@@ -73,8 +73,7 @@ async def _seed(
                 from_place_id=None,
                 quantity=Decimal("3.00"),
                 reason=(
-                    "Supplier stock reserved during checkout "
-                    "(segment=supplier_direct)"
+                    "Supplier stock reserved during checkout (segment=supplier_direct)"
                 ),
                 status=MovementStatus.PENDING.value,
             ),

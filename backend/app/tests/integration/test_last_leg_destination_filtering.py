@@ -35,9 +35,7 @@ async def _seed_pf_tree(session: AsyncSession) -> dict[str, Place]:
     warehouse = Place(name="Entrepôt Papeete", type="warehouse", is_warehouse=True)
     session.add_all([tahiti, moorea, warehouse])
     await session.flush()
-    session.add(
-        PlacePostalCode(place_id=moorea.id, country="PF", postal_code="98728")
-    )
+    session.add(PlacePostalCode(place_id=moorea.id, country="PF", postal_code="98728"))
     await session.flush()
     return {
         "country": country,
@@ -140,11 +138,15 @@ async def test_served_zone_filtering_and_always_available(
 ) -> None:
     places = await _seed_pf_tree(db_session)
 
-    boat = _last_leg_route(places, name="Fret bateau Société", delivery_type="sea_freight")
+    boat = _last_leg_route(
+        places, name="Fret bateau Société", delivery_type="sea_freight"
+    )
     pickup = _last_leg_route(
         places, name="Retrait boutique", delivery_type="pickup", always_available=True
     )
-    legacy = _last_leg_route(places, name="Domicile (non scopé)", delivery_type="home_delivery")
+    legacy = _last_leg_route(
+        places, name="Domicile (non scopé)", delivery_type="home_delivery"
+    )
     tahiti_only = _last_leg_route(
         places, name="Coursier Tahiti", delivery_type="courier"
     )
@@ -192,10 +194,16 @@ async def test_island_specific_route_beats_archipelago_route(
     places = await _seed_pf_tree(db_session)
 
     generic = _last_leg_route(
-        places, name="Bateau Société (générique)", delivery_type="sea_freight", priority=0
+        places,
+        name="Bateau Société (générique)",
+        delivery_type="sea_freight",
+        priority=0,
     )
     moorea_special = _last_leg_route(
-        places, name="Bateau Moorea (spécifique)", delivery_type="sea_freight", priority=99
+        places,
+        name="Bateau Moorea (spécifique)",
+        delivery_type="sea_freight",
+        priority=99,
     )
     db_session.add_all([generic, moorea_special])
     await db_session.flush()

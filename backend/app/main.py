@@ -75,6 +75,7 @@ async def security_headers_middleware(
         )
     return response
 
+
 # Set all CORS enabled origins
 if settings.BACKEND_CORS_ORIGINS:
     app.add_middleware(

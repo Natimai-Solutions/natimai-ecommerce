@@ -33,9 +33,7 @@ def _unique_code() -> str:
 
 @pytest_asyncio.fixture
 async def real_user_auth(db: AsyncSession) -> AsyncGenerator[None, None]:
-    result = await db.exec(
-        select(User).where(col(User.is_active).is_(True)).limit(1)
-    )
+    result = await db.exec(select(User).where(col(User.is_active).is_(True)).limit(1))
     user = result.first()
     assert user is not None, "dev database has no user to authenticate as"
     stub = SimpleNamespace(id=user.id, is_superuser=True, is_active=True)
@@ -52,6 +50,8 @@ def test_put_then_get_postal_codes_roundtrip(
     client: TestClient,
     real_user_auth: None,
 ) -> None:
+    # Fixture is used for its dependency-override side effects.
+    assert real_user_auth is None
     created = client.post(
         f"{_BASE}/",
         json={

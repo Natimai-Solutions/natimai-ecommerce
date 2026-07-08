@@ -271,9 +271,7 @@ class ShippingRouteRouter(
             )
             return RouteServedPlacesPublic(
                 route_id=id,
-                places=[
-                    PlacePublic.model_validate(place) for place in result.all()
-                ],
+                places=[PlacePublic.model_validate(place) for place in result.all()],
             )
 
         @self.put(
@@ -329,9 +327,7 @@ class ShippingRouteRouter(
             )
             return RouteServedPlacesPublic(
                 route_id=id,
-                places=[
-                    PlacePublic.model_validate(place) for place in result.all()
-                ],
+                places=[PlacePublic.model_validate(place) for place in result.all()],
             )
 
     def add_routing_endpoints(self) -> None:

@@ -187,14 +187,10 @@ async def test_advance_tracking_refuses_customer_delivery_leg(
     session.get = AsyncMock(side_effect=[tracking, route])
 
     activate = AsyncMock()
-    monkeypatch.setattr(
-        crud_shipping_route_tracking, "activate_next_route", activate
-    )
+    monkeypatch.setattr(crud_shipping_route_tracking, "activate_next_route", activate)
 
     with pytest.raises(AppError) as exc:
-        await advance_tracking(
-            tracking_id=tracking.id, session=session, admin=admin
-        )
+        await advance_tracking(tracking_id=tracking.id, session=session, admin=admin)
 
     assert exc.value.status_code == 400
     assert exc.value.code == "shipping.advance.last_leg"
