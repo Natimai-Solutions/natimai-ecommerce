@@ -47,6 +47,11 @@ async def test_payment_captured_handler_syncs_order_paid(
         AsyncMock(return_value=paid_status),
     )
 
+    # The stock confirmation reads real movements through the CRUD layer,
+    # which an AsyncMock session cannot serve — mock it at the service boundary.
+    confirm_stock = AsyncMock(return_value=0)
+    monkeypatch.setattr(handlers, "confirm_order_stock", confirm_stock)
+
     payload = {
         "payment_id": str(uuid4()),
         "order_id": str(order.id),
@@ -56,6 +61,7 @@ async def test_payment_captured_handler_syncs_order_paid(
     await handlers.on_payment_captured(cast(Any, session), payload)
 
     assert order.order_status_id == paid_status.id
+    confirm_stock.assert_awaited_once_with(session, order_id=order.id)
     session.commit.assert_awaited_once()
 
 
@@ -76,6 +82,10 @@ async def test_payment_rejected_handler_syncs_order_failed(
         AsyncMock(return_value=failed_status),
     )
 
+    # Same as the captured test: the stock release needs a real session.
+    release_stock = AsyncMock(return_value=0)
+    monkeypatch.setattr(handlers, "release_order_stock", release_stock)
+
     payload = {
         "payment_id": str(uuid4()),
         "order_id": str(order.id),
@@ -86,6 +96,7 @@ async def test_payment_rejected_handler_syncs_order_failed(
     await handlers.on_payment_rejected(cast(Any, session), payload)
 
     assert order.order_status_id == failed_status.id
+    release_stock.assert_awaited_once_with(session, order_id=order.id)
     session.commit.assert_awaited_once()
 
 

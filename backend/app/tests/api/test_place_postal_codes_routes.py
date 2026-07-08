@@ -36,7 +36,12 @@ async def real_user_auth(db: AsyncSession) -> AsyncGenerator[None, None]:
     result = await db.exec(select(User).where(col(User.is_active).is_(True)).limit(1))
     user = result.first()
     assert user is not None, "dev database has no user to authenticate as"
-    stub = SimpleNamespace(id=user.id, is_superuser=True, is_active=True)
+    user_id = user.id  # capture before rollback — the instance expires with it
+    # End the read transaction: the session-scoped ``db`` fixture would
+    # otherwise sit idle-in-transaction for the rest of the run, and its
+    # lock on ``users`` blocks the integration suite's DROP SCHEMA.
+    await db.rollback()
+    stub = SimpleNamespace(id=user_id, is_superuser=True, is_active=True)
 
     async def _override() -> SimpleNamespace:
         return stub
