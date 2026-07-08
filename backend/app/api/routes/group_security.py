@@ -128,7 +128,9 @@ routes_after_security = [
 ]
 
 
-# Authentication configuration - Admin only
+# Authentication configuration — permission rules are superuser-only end to
+# end: writable rules would be a direct privilege escalation once
+# ENABLE_GROUP_PERMISSIONS is turned on.
 class Auth:
     """Represents auth."""
 
@@ -136,6 +138,10 @@ class Auth:
     create = True
     update = True
     delete = True
+    read_superuser = True
+    create_superuser = True
+    update_superuser = True
+    delete_superuser = True
 
 
 # Instantiate router

@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from sqlmodel import col, func, select
 
-from app.api.deps import SessionDep
+from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.observability import get_checkout_metrics_snapshot
 from app.features.order.models.order import Order
 from app.features.payment.models.payment import Payment
@@ -165,8 +165,11 @@ async def _collect_outbox_metrics(
     tags=["utils"],
     response_model=ObservabilityDashboard,
 )
-async def get_observability_dashboard(session: SessionDep) -> ObservabilityDashboard:
-    """Get observability dashboard."""
+async def get_observability_dashboard(
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+) -> ObservabilityDashboard:
+    """Get observability dashboard (superuser only — business metrics)."""
     now = datetime.now(timezone.utc)
     commerce_metrics = await _collect_commerce_metrics(session, now=now)
     outbox_metrics = await _collect_outbox_metrics(session, now=now)

@@ -1068,6 +1068,7 @@ Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/my
 |---------|---------|----------------------|--------------------------|
 | M1 — produits les plus vus | 🔲 | 🔲 section accueil / carrousel | — |
 | M3 — factures PDF (**WeasyPrint**) + export FEC | 🔲 | 🔲 téléchargement facture (compte) | 🔲 écran factures + export comptable |
+| M5 — numéro de commande séquentiel | 🔲 | 🔲 affichage (compte, suivi, checkout) | 🔲 affichage (commandes, logistique) |
 | Z2 — avoir comptable | 🔲 | 🔲 affichage avoir | 🔲 écran avoir |
 | Z3 — relance paniers abandonnés | 🔲 | — | 🔲 dashboard relances |
 | Z4 — recherche IA | 🔲 | 🔲 UI recherche sémantique | — |
@@ -1084,6 +1085,7 @@ Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/my
 | Z2 | Avoir comptable | Dépend M3 (facture) + Phase 4 (refund) |
 | Z3 | Relance paniers abandonnés | Cron horaire + handler outbox `cart.abandoned` |
 | Z4 | Recherche IA | Refonte du draft `ia_search_agent.py` (placeholders à remplacer) ; pgvector recommandé |
+| M5 | Numéro de commande séquentiel | Cf. *Note technique — numéro de commande séquentiel (M5)* ci-dessous |
 
 ### Note technique — génération PDF des factures (M3)
 
@@ -1095,9 +1097,30 @@ Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/my
 2. Vérifier la disponibilité des libs système hors Docker (dev Windows : WeasyPrint nécessite GTK/Pango — documenter dans le runbook, ou rendre la génération PDF dépendante du worker conteneurisé).
 3. Templates Jinja2 facture + ventilation TVA par taux via le snapshot `OrderLine.tax_rate_id` (cf. jalon TVA *5a*).
 
+### Note technique — numéro de commande séquentiel (M5)
+
+**Contexte (07/07/2026)** : les emails transactionnels affichent désormais une référence courte dérivée de l'UUID (filtre Jinja `short_ref` → `#e090fee1`). Solution suffisante pour la communication client, mais **non garantie unique** (8 hex ≈ 1 collision pour ~65 000 commandes) et inutilisable comme référence comptable. M5 la remplace par un vrai numéro.
+
+**Modèle** :
+
+| Élément | Décision |
+|---------|----------|
+| Champ | `Order.order_number: str` — unique, indexé, immuable, **nullable** (les commandes antérieures n'en ont pas ; pas de backfill rétroactif) |
+| Format | `CMD-{YYYY}-{NNNNN}` (ex. `CMD-2026-00042`) — année + compteur, lisible au téléphone |
+| Génération | **Séquence PostgreSQL** dédiée (`CREATE SEQUENCE order_number_seq`) consommée à la création de la commande — jamais de `MAX()+1` (course sous concurrence) ; trous acceptés (rollback = numéro perdu, sans conséquence) |
+| Clé technique | L'UUID reste la PK et la clé d'API partout ; `order_number` est purement une référence humaine |
+
+**Surfaces** :
+
+- **Backend** : migration (colonne + séquence), génération au checkout, exposé dans `OrderPublic` et le payload outbox `order.created` ; les emails basculent de `{{ order_id \| short_ref }}` vers `{{ order_number }}` (fallback `short_ref` pour les commandes sans numéro).
+- **Vitrine** : affichage compte / suivi de commande / confirmation checkout.
+- **Admin** : colonnes commandes + logistique (remplace `#uuid8` tronqué), recherche par numéro.
+
+**Distinct de la numérotation de facture (M3)** : la facture a ses contraintes légales propres (séquence continue sans trous, par exercice) — les deux compteurs ne doivent pas être fusionnés.
+
 ### Sous-phases possibles
 
-- **Phase 5a** : M3 (factures) — bloque la facturation B2B Polynésie.
+- **Phase 5a** : M3 (factures) + M5 (numéro de commande — prérequis léger, livrable isolément avant le reste de la 5a) — bloque la facturation B2B Polynésie.
 - **Phase 5b** : M4 (alerting actif) + M2 (K8s) — fiabilité prod.
 - **Phase 5c** : Z3 (relance panier) + M1 (produits populaires) — leviers commerciaux.
 - **Phase 5d** : Z1 + Z2 (paiement N×, avoir).

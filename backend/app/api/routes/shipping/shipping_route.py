@@ -549,12 +549,16 @@ class ShippingRouteRouter(
 
 
 class Auth:
-    """Authorization flags for shipping route endpoints."""
+    """Authorization flags for shipping route endpoints. Writes (tariffs,
+    coverage) are superuser-only; the quote/paths endpoints stay public."""
 
     read = True
     create = True
     update = True
     delete = True
+    create_superuser = True
+    update_superuser = True
+    delete_superuser = True
 
 
 # Router pour les routes de livraison

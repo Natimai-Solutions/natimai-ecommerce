@@ -537,8 +537,10 @@ def test_e1_critical_journey_login_catalog_cart_checkout_payment_tracking_histor
     order_id = checkout_payload["order_id"]
     payment_id = checkout_payload["payment_id"]
 
+    # The customer polls payment status via the ownership-scoped endpoint —
+    # the raw /payment CRUD is superuser-only since the gating pass.
     payment_response = client.get(
-        f"/api/v1/payment/{payment_id}",
+        f"/api/v1/payments/me/{payment_id}",
         headers=auth_headers,
     )
     assert payment_response.status_code == 200

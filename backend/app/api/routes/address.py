@@ -117,12 +117,18 @@ class AddressRouter(
 
 
 class Auth:
-    """Represents auth."""
+    """Superuser-only: the generic CRUD has no ownership check (IDOR on PII).
+    Customers use the /users/me/addresses endpoints below, admins the
+    /admin/addresses ones — both carry their own explicit guards."""
 
     read = True
     create = True
     update = True
     delete = True
+    read_superuser = True
+    create_superuser = True
+    update_superuser = True
+    delete_superuser = True
 
 
 router = AddressRouter(

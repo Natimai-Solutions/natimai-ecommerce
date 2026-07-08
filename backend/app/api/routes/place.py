@@ -194,12 +194,16 @@ class PlaceRouter(
 
 
 class Auth:
-    """Represents auth."""
+    """Writes are superuser-only (logistics configuration). Reads stay
+    authenticated; the public /geo/* endpoints bypass this on purpose."""
 
     read = True
     create = True
     update = True
     delete = True
+    create_superuser = True
+    update_superuser = True
+    delete_superuser = True
 
 
 router = PlaceRouter(

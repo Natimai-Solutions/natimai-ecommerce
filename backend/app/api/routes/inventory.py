@@ -31,6 +31,10 @@ class Auth:
     create = True  # Admin only
     update = True  # Admin only
     delete = True  # Admin only
+    read_superuser = True
+    create_superuser = True
+    update_superuser = True
+    delete_superuser = True
 
 
 router = InventoryRouter(

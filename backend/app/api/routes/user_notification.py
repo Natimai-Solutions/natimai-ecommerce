@@ -44,12 +44,18 @@ class NotificationRouter(
 
 
 class Auth:
-    """Represents auth."""
+    """Generic CRUD is superuser-only (notifications are private; no ownership
+    check on /{id}). Users go through the ownership-checked
+    /users/{user_id}/notifications endpoints."""
 
     read = True
     create = True
     update = True
     delete = True
+    read_superuser = True
+    create_superuser = True
+    update_superuser = True
+    delete_superuser = True
 
 
 router = NotificationRouter(
