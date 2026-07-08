@@ -192,7 +192,7 @@
                       <q-item-section>
                         <q-item-label>{{ a.street }}</q-item-label>
                         <q-item-label caption>
-                          {{ a.postal_code }} {{ a.city }} — {{ a.country }}
+                          {{ a.postal_code }} {{ a.city }} — {{ countryLabel(a.country) }}
                         </q-item-label>
                       </q-item-section>
                       <q-item-section side>
@@ -216,6 +216,39 @@
                       </q-item-section>
                     </q-item>
                   </q-list>
+
+                  <template v-if="deliveryOptions.length > 0">
+                    <div class="text-subtitle2 text-weight-medium q-mb-sm">Mode de livraison</div>
+                    <q-list bordered separator class="rounded-borders q-mb-md">
+                      <q-item
+                        v-for="d in deliveryOptions"
+                        :key="d.value"
+                        v-ripple
+                        clickable
+                        :active="selectedDeliveryType === d.value"
+                        active-class="bg-blue-1"
+                        @click="selectedDeliveryType = d.value"
+                      >
+                        <q-item-section avatar>
+                          <q-radio v-model="selectedDeliveryType" :val="d.value" />
+                        </q-item-section>
+                        <q-item-section avatar>
+                          <q-icon :name="d.icon" color="primary" />
+                        </q-item-section>
+                        <q-item-section>
+                          <q-item-label>{{ d.label }}</q-item-label>
+                          <q-item-label v-if="d.etaDays != null" caption>
+                            Livraison estimée ~{{ d.etaDays }} j
+                          </q-item-label>
+                        </q-item-section>
+                        <q-item-section v-if="deliveryPriceLabel(d.amount)" side>
+                          <q-item-label class="text-weight-medium text-primary">
+                            {{ deliveryPriceLabel(d.amount) }}
+                          </q-item-label>
+                        </q-item-section>
+                      </q-item>
+                    </q-list>
+                  </template>
 
                   <div class="text-subtitle2 text-weight-medium q-mb-sm">Moyen de paiement</div>
                   <q-list bordered separator class="rounded-borders q-mb-md">
@@ -248,12 +281,17 @@
 
                   <q-btn
                     color="primary"
-                    icon="lock"
-                    label="Procéder au paiement"
+                    icon="check_circle"
+                    label="Valider la commande"
                     size="lg"
                     class="full-width"
                     :loading="initiating"
-                    :disable="initiating || !selectedMethodId || !selectedAddressId"
+                    :disable="
+                      initiating ||
+                      !selectedMethodId ||
+                      !selectedAddressId ||
+                      (deliveryOptions.length > 0 && !selectedDeliveryType)
+                    "
                     @click="startPayment"
                   />
                 </template>
@@ -272,8 +310,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { formatXpf } from '@app/utils';
+import { computed, onMounted, ref, watch } from 'vue';
+import { countryLabel, formatXpf } from '@app/utils';
 import { useCartStore } from 'src/stores/cart';
 import { useAuthStore } from 'src/stores/auth';
 import {
@@ -283,7 +321,7 @@ import {
   uploadFileToPresignedUrl,
   type PaymentMethod,
 } from 'src/api/payments';
-import { addCartItem, checkoutMyCart, clearMyCart } from 'src/api/cart';
+import { addCartItem, checkoutMyCart, clearMyCart, getLastLegOptions } from 'src/api/cart';
 import { listMyAddresses, type Address } from 'src/api/addresses';
 
 const PENDING_PAYMENT_KEY = 'payzen.pending_payment_id';
@@ -312,6 +350,34 @@ const selectedAddressId = ref<string | null>(null);
 const selectedAddress = computed(
   () => addresses.value.find((a) => a.id === selectedAddressId.value) ?? null,
 );
+
+// Last-leg delivery modes are driven by the admin's configured routes, not a
+// fixed list: they are loaded from the backend so new modes (e.g. sea freight)
+// appear automatically with their price.
+interface DeliveryChoice {
+  value: string;
+  label: string;
+  icon: string;
+  amount: string;
+  etaDays: number | null;
+}
+const deliveryOptions = ref<DeliveryChoice[]>([]);
+const selectedDeliveryType = ref<string | null>(null);
+
+function iconForMode(mode: string): string {
+  if (mode === 'pickup') return 'store';
+  if (mode === 'air_freight') return 'flight';
+  if (mode === 'sea_freight') return 'directions_boat';
+  return 'local_shipping';
+}
+function prettifyMode(mode: string): string {
+  return mode.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+function deliveryPriceLabel(amount: string): string {
+  const n = Number.parseFloat(amount);
+  if (!Number.isFinite(n)) return '';
+  return n > 0 ? `+ ${formatMoney(amount)}` : 'Offert';
+}
 
 function formatAddress(a: Address): string {
   return [a.street, `${a.postal_code} ${a.city}`.trim(), a.state, a.country]
@@ -377,6 +443,38 @@ onMounted(async () => {
   } catch {
     // Non-blocking: the address selector shows an empty state with guidance.
   }
+
+  // Priced last-leg delivery options for the current cart and the pre-selected
+  // address (the watcher below reloads them on address change).
+  await loadDeliveryOptions();
+});
+
+// Delivery modes depend on the destination (île → archipel → pays) of the
+// selected address: reload them whenever the customer picks another address.
+async function loadDeliveryOptions() {
+  try {
+    const res = await getLastLegOptions(selectedAddressId.value);
+    deliveryOptions.value = res.options.map((o) => ({
+      value: o.delivery_type,
+      label: o.label || prettifyMode(o.delivery_type),
+      icon: iconForMode(o.delivery_type),
+      amount: o.amount,
+      etaDays: o.eta_days,
+    }));
+    // Keep the current choice when the new destination still offers it.
+    if (!deliveryOptions.value.some((d) => d.value === selectedDeliveryType.value)) {
+      selectedDeliveryType.value = deliveryOptions.value[0]?.value ?? null;
+    }
+  } catch {
+    // Non-blocking: the delivery section is hidden if options can't be loaded.
+    deliveryOptions.value = [];
+    selectedDeliveryType.value = null;
+  }
+}
+
+watch(selectedAddressId, () => {
+  if (!isAuthenticated.value) return;
+  void loadDeliveryOptions();
 });
 
 async function startPayment() {
@@ -406,8 +504,10 @@ async function startPayment() {
     //    separate /payments/initiate — one order, one payment.
     const checkout = await checkoutMyCart({
       shipping_preference: 'fastest',
+      delivery_type: selectedDeliveryType.value,
       payment_fee_amount: '0.00',
       shipping_address: formatAddress(selectedAddress.value),
+      shipping_address_id: selectedAddressId.value,
       payment_method_id: method.id,
       return_url: returnUrl,
     });

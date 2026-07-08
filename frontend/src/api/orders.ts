@@ -13,6 +13,8 @@ export interface Order {
   payment_fee_amount: string;
   total_fees_amount: string;
   shipping_address: string | null;
+  /** Last-leg delivery mode chosen at checkout: pickup | home_delivery | air_freight. */
+  delivery_type: string | null;
   notes: string | null;
   created_at: string | null;
 }
@@ -30,6 +32,14 @@ export interface OrderTrackingSegment {
   selected_at: string | null;
   consolidation_id: string | null;
   notes: string | null;
+  /** Leg details for display, e.g. "France → Papeete (avion)". */
+  from_place_name: string | null;
+  to_place_name: string | null;
+  mode: string | null;
+  route_label: string | null;
+  /** External carrier name + clickable tracking link (null when self-managed). */
+  carrier_name: string | null;
+  tracking_url: string | null;
 }
 
 /** Consolidation grouping (`ShippingRouteTrackingConsolidationPublic`). */
@@ -55,6 +65,12 @@ export interface OrderTracking {
 export async function listMyOrders(): Promise<Order[]> {
   const { data } = await api.get<Order[]>('/orders/me');
   return data;
+}
+
+/** Fetch a single order of the current user (resolved from the orders list). */
+export async function getMyOrder(orderId: string): Promise<Order | null> {
+  const orders = await listMyOrders();
+  return orders.find((o) => o.id === orderId) ?? null;
 }
 
 export async function getMyOrderTracking(orderId: string): Promise<OrderTracking> {

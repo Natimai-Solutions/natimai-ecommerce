@@ -1,10 +1,19 @@
 import uuid
 from decimal import Decimal
+from enum import Enum
 from typing import Any
 
 from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
+
+
+class DeliveryType(str, Enum):
+    """Last-leg delivery mode chosen by the customer at checkout."""
+
+    PICKUP = "pickup"  # retrait en magasin
+    HOME_DELIVERY = "home_delivery"  # livraison à domicile
+    AIR_FREIGHT = "air_freight"  # fret aérien (vers les archipels)
 
 
 class OrderBase(Base):
@@ -73,6 +82,11 @@ class OrderBase(Base):
         max_length=1000,
         description="Notes sur la commande",
     )
+    delivery_type: str | None = Field(
+        default=None,
+        max_length=50,
+        description="Mode de livraison du dernier tronçon choisi au checkout",
+    )
 
 
 class OrderCreate(OrderBase, BaseCreate):
@@ -94,6 +108,7 @@ class OrderUpdate(BaseUpdate):
     shipping_address: str | None = None
     shipping_cost_breakdown: dict[str, Any] | None = None
     notes: str | None = None
+    delivery_type: str | None = None
 
 
 class Order(OrderBase, table=True):

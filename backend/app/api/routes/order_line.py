@@ -3,6 +3,8 @@ import uuid
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep
 from app.core.errors import AppError
+from app.features.base.crud import RecordNotFoundError
+from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_line_crud import OrderLineCrud, crud_order_line
 from app.features.order.models.order_line import (
     OrderLine,
@@ -29,12 +31,18 @@ class OrderLineRouter(
 
 
 class Auth:
-    """Represents auth."""
+    """Superuser-only: order lines belong to other customers' orders and the
+    generic CRUD has no ownership check. Customers read their lines through
+    /orders/me; /order/{order_id} below checks ownership explicitly."""
 
-    read = True  # Authentification requise pour lire
-    create = True  # Authentification requise pour créer
-    update = True  # Authentification requise pour modifier
-    delete = True  # Authentification requise pour supprimer
+    read = True
+    create = True
+    update = True
+    delete = True
+    read_superuser = True
+    create_superuser = True
+    update_superuser = True
+    delete_superuser = True
 
 
 router = OrderLineRouter(
@@ -53,10 +61,24 @@ router = OrderLineRouter(
 @router.get("/order/{order_id}", response_model=list[OrderLinePublic])
 async def get_order_lines(
     session: SessionDep,
-    _current_user: CurrentUser,
+    current_user: CurrentUser,
     order_id: uuid.UUID,
 ) -> list[OrderLinePublic]:
-    """Get order lines."""
+    """Get the lines of an order (owner or superuser only)."""
+    try:
+        order = await crud_order.read(session=session, id=order_id)
+    except RecordNotFoundError:
+        order = None
+    if order is None or (
+        not current_user.is_superuser and order.user_id != current_user.id
+    ):
+        # Same 404 for "missing" and "not yours": don't leak order existence.
+        raise AppError(
+            code="order.not_found",
+            status_code=404,
+            message=f"Order '{order_id}' not found",
+            details={"order_id": str(order_id)},
+        )
     lines = await crud_order_line.get_by_order(session=session, order_id=order_id)
     return [OrderLinePublic.model_validate(line) for line in lines]
 

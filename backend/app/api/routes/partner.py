@@ -27,12 +27,15 @@ class PartnerRouter(
 
 
 class Auth:
-    """Represents auth."""
+    """Partners (suppliers, carriers): writes superuser-only."""
 
     read = True
     create = True
     update = True
     delete = True
+    create_superuser = True
+    update_superuser = True
+    delete_superuser = True
 
 
 router = PartnerRouter(

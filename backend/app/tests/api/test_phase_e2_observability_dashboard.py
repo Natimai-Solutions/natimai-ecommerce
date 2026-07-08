@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.api.routes.utils as utils_routes
+from app.api.deps import get_current_active_superuser
 from app.core.db import get_db
 from app.core.observability import (
     get_checkout_metrics_snapshot,
@@ -34,7 +35,12 @@ def override_db_dependency() -> Generator[None, None, None]:
     async def _override_get_db() -> AsyncGenerator[SimpleNamespace, None]:
         yield SimpleNamespace()
 
+    # The dashboard is superuser-only since the gating pass.
+    async def _override_superuser() -> SimpleNamespace:
+        return SimpleNamespace(id=uuid.uuid4(), is_superuser=True, is_active=True)
+
     app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_current_active_superuser] = _override_superuser
     yield
     app.dependency_overrides.clear()
 

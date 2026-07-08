@@ -8,6 +8,8 @@ export interface PendingTracking {
   status_code: string | null;
   status_name: string | null;
   tracking_ref: string | null;
+  /** Dernier tronçon du parcours (livraison client) : se clôt par « Livrer ». */
+  is_final_leg: boolean;
 }
 
 export interface Consolidation {
@@ -21,8 +23,20 @@ export interface Consolidation {
   tracking_ref: string | null;
 }
 
+export interface Carrier {
+  id: string;
+  name: string;
+  code: string;
+  tracking_url_template: string | null;
+}
+
 export async function listPendingGrouping(): Promise<PendingTracking[]> {
   const { data } = await api.get<PendingTracking[]>('/admin/shipping/pending-grouping');
+  return data;
+}
+
+export async function listCarriers(): Promise<Carrier[]> {
+  const { data } = await api.get<Carrier[]>('/admin/shipping/carriers');
   return data;
 }
 
@@ -48,16 +62,23 @@ export async function addTrackings(consolidationId: string, trackingIds: string[
 
 export async function shipConsolidation(
   consolidationId: string,
-  trackingRef: string,
+  trackingRef: string | null,
+  carrierId: string | null,
 ): Promise<void> {
   await api.post(`/admin/shipping/consolidations/${consolidationId}/ship-all`, {
     tracking_ref: trackingRef,
+    carrier_id: carrierId,
   });
 }
 
-export async function shipTracking(trackingId: string, trackingRef: string): Promise<void> {
+export async function shipTracking(
+  trackingId: string,
+  trackingRef: string | null,
+  carrierId: string | null,
+): Promise<void> {
   await api.post(`/admin/shipping/trackings/${trackingId}/ship`, {
     tracking_ref: trackingRef,
+    carrier_id: carrierId,
   });
 }
 
@@ -78,11 +99,31 @@ export async function advanceTracking(trackingId: string): Promise<AdvanceResult
 }
 
 /** Advance every parcel of a consolidation to its next leg. */
-export async function advanceConsolidation(consolidationId: string): Promise<{ message: string }> {
+export async function advanceConsolidation(
+  consolidationId: string,
+  ungroup: boolean,
+): Promise<{ message: string }> {
   const { data } = await api.post<{ message: string }>(
     `/admin/shipping/consolidations/${consolidationId}/advance-all`,
+    { ungroup },
   );
   return data;
+}
+
+export async function deliverConsolidation(
+  consolidationId: string,
+): Promise<{ message: string }> {
+  const { data } = await api.post<{ message: string }>(
+    `/admin/shipping/consolidations/${consolidationId}/deliver-all`,
+  );
+  return data;
+}
+
+export async function getUngroupHint(consolidationId: string): Promise<boolean> {
+  const { data } = await api.get<{ suggest_ungroup: boolean }>(
+    `/admin/shipping/consolidations/${consolidationId}/ungroup-hint`,
+  );
+  return data.suggest_ungroup;
 }
 
 export interface JourneyLeg {

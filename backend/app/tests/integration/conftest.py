@@ -33,6 +33,9 @@ TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
     "postgresql+psycopg://postgres:postgres@localhost:5432/fastapi_ecommerce_test",
 )
+STRICT_INTEGRATION_DB = os.environ.get(
+    "STRICT_INTEGRATION_DB", "0"
+).strip().lower() in {"1", "true", "yes", "on"}
 
 
 @pytest_asyncio.fixture
@@ -48,8 +51,11 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
             await conn.run_sync(SQLModel.metadata.create_all)
     except (OperationalError, InterfaceError, OSError) as exc:
         # No reachable test database (e.g. a local run without the stack up).
-        # Skip rather than fail so the unit suite stays runnable everywhere.
+        # Skip by default so the unit suite stays runnable everywhere.
+        # In CI, enable STRICT_INTEGRATION_DB=1 to fail hard instead of skipping.
         await engine.dispose()
+        if STRICT_INTEGRATION_DB:
+            pytest.fail(f"integration test database unavailable: {exc}")
         pytest.skip(f"integration test database unavailable: {exc}")
     try:
         async with AsyncSession(engine) as session:

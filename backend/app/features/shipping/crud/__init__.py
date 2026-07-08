@@ -1,3 +1,4 @@
+from .carrier import crud_carrier
 from .delivery_task import crud_delivery_task
 from .route import crud_shipping_route
 from .route_tracking import (
@@ -15,4 +16,5 @@ __all__ = [
     "crud_shipping_route_tracking_consolidation",
     "crud_shipping_route_tracking_logs",
     "crud_delivery_task",
+    "crud_carrier",
 ]

@@ -2,6 +2,12 @@
   <q-page padding>
     <div class="row items-center q-mb-md">
       <div class="text-h6 col">Logistique</div>
+      <q-toggle
+        v-model="showCompleted"
+        label="Afficher les terminés"
+        dense
+        class="q-mr-md"
+      />
       <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
     </div>
 
@@ -29,7 +35,7 @@
 
     <q-table
       v-model:selected="selected"
-      :rows="pending"
+      :rows="visiblePending"
       :columns="pendingColumns"
       row-key="tracking_id"
       selection="multiple"
@@ -82,9 +88,15 @@
             no-caps
             icon="local_shipping"
             color="primary"
-            label="Expédier"
+            label="Remettre au transporteur"
+            :disable="isTerminal(props.row) || isShipped(props.row)"
             @click="openShipTracking(props.row)"
-          />
+          >
+            <q-tooltip max-width="320px">
+              Marque ce tronçon comme remis au transporteur et enregistre le n° de
+              suivi (notifie le client). Ne fait pas passer au tronçon suivant.
+            </q-tooltip>
+          </q-btn>
           <q-btn
             flat
             dense
@@ -92,8 +104,13 @@
             icon="skip_next"
             color="indigo"
             label="Tronçon suivant"
+            :disable="isTerminal(props.row) || props.row.is_final_leg"
             @click="advanceTrackingRow(props.row)"
-          />
+          >
+            <q-tooltip v-if="props.row.is_final_leg" max-width="280px">
+              Dernier tronçon du parcours — confirmez la livraison avec « Livrer ».
+            </q-tooltip>
+          </q-btn>
           <q-btn
             flat
             dense
@@ -101,8 +118,14 @@
             icon="task_alt"
             color="positive"
             label="Livrer"
+            :disable="isTerminal(props.row) || !props.row.is_final_leg"
             @click="deliver(props.row)"
-          />
+          >
+            <q-tooltip v-if="!props.row.is_final_leg" max-width="280px">
+              Réservé au dernier tronçon — faites d'abord progresser le colis avec
+              « Tronçon suivant ».
+            </q-tooltip>
+          </q-btn>
         </q-td>
       </template>
       <template #no-data>
@@ -113,7 +136,7 @@
     <!-- Consolidations -->
     <div class="text-subtitle1 text-weight-medium q-mt-lg q-mb-sm">Consolidations</div>
     <q-table
-      :rows="consolidations"
+      :rows="visibleConsolidations"
       :columns="consolidationColumns"
       row-key="id"
       flat
@@ -144,9 +167,15 @@
             no-caps
             icon="local_shipping"
             color="primary"
-            label="Expédier tout"
+            label="Tout remettre au transporteur"
+            :disable="isTerminal(props.row) || isShipped(props.row)"
             @click="openShipConsolidation(props.row)"
-          />
+          >
+            <q-tooltip max-width="320px">
+              Marque tous les colis du lot comme remis au transporteur et enregistre
+              le n° de suivi (notifie les clients). Ne fait pas passer au tronçon suivant.
+            </q-tooltip>
+          </q-btn>
           <q-btn
             flat
             dense
@@ -154,7 +183,18 @@
             icon="skip_next"
             color="indigo"
             label="Tronçon suivant"
+            :disable="isTerminal(props.row)"
             @click="advanceConsolidationRow(props.row)"
+          />
+          <q-btn
+            flat
+            dense
+            no-caps
+            icon="task_alt"
+            color="positive"
+            label="Livrer"
+            :disable="isTerminal(props.row)"
+            @click="deliverConsolidationRow(props.row)"
           />
         </q-td>
       </template>
@@ -166,26 +206,65 @@
     <!-- Ship dialog (tracking ref) -->
     <q-dialog v-model="shipDialog">
       <q-card style="min-width: 360px">
-        <q-card-section class="text-h6">Référence d'expédition</q-card-section>
+        <q-card-section class="text-h6">Remise au transporteur</q-card-section>
         <q-form @submit.prevent="submitShip">
           <q-card-section class="q-pt-none q-gutter-sm">
             <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
               dialogError
             }}</q-banner>
+            <q-select
+              v-model="shipCarrierId"
+              :options="carrierOptions"
+              label="Transporteur"
+              outlined
+              dense
+              emit-value
+              map-options
+            />
             <q-input
               v-model="shipRef"
-              label="Référence transporteur *"
+              label="Numéro de suivi (optionnel)"
+              hint="Laisser vide si vous n'avez pas de numéro (suivi géré en interne)."
               outlined
               dense
               autofocus
-              :rules="[(v) => (!!v && v.trim().length > 0) || 'Référence requise']"
             />
           </q-card-section>
           <q-card-actions align="right">
             <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" label="Expédier" :loading="saving" />
+            <q-btn type="submit" color="primary" label="Remettre au transporteur" :loading="saving" />
           </q-card-actions>
         </q-form>
+      </q-card>
+    </q-dialog>
+
+    <!-- Advance consolidation: keep or ungroup the lot -->
+    <q-dialog v-model="ungroupDialog">
+      <q-card style="min-width: 400px">
+        <q-card-section class="text-h6">Passage au tronçon suivant</q-card-section>
+        <q-card-section class="q-pt-none">
+          <div class="text-body2 text-grey-8 q-mb-sm">
+            Conserver le groupage pour le prochain tronçon, ou dégrouper les colis pour
+            qu'ils continuent individuellement (livraisons séparées) ?
+          </div>
+          <q-option-group
+            v-model="ungroupChoice"
+            :options="[
+              { label: 'Garder le groupage', value: 'keep' },
+              { label: 'Dégrouper (colis individuels)', value: 'ungroup' },
+            ]"
+            color="primary"
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Annuler" v-close-popup />
+          <q-btn
+            color="primary"
+            label="Valider"
+            :loading="ungroupBusy"
+            @click="submitAdvanceConsolidation"
+          />
+        </q-card-actions>
       </q-card>
     </q-dialog>
 
@@ -268,27 +347,35 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import { useQuasar } from 'quasar';
 import type { QTableColumn } from 'quasar';
 import {
   addTrackings,
   advanceConsolidation,
   advanceTracking,
   createConsolidation,
+  deliverConsolidation,
   deliverTracking,
   getOrderJourney,
+  getUngroupHint,
+  listCarriers,
   listConsolidations,
   listPendingGrouping,
   shipConsolidation,
   shipTracking,
+  type Carrier,
   type Consolidation,
   type JourneyLeg,
   type PendingTracking,
 } from 'src/api/shipping';
 import { extractApiError } from 'src/api/errors';
 
+const $q = useQuasar();
+
 const pending = ref<PendingTracking[]>([]);
 const consolidations = ref<Consolidation[]>([]);
+const carriers = ref<Carrier[]>([]);
 const selected = ref<PendingTracking[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -323,9 +410,10 @@ async function load() {
   loading.value = true;
   error.value = null;
   try {
-    [pending.value, consolidations.value] = await Promise.all([
+    [pending.value, consolidations.value, carriers.value] = await Promise.all([
       listPendingGrouping(),
       listConsolidations(),
+      listCarriers(),
     ]);
     selected.value = [];
   } catch (err) {
@@ -335,14 +423,41 @@ async function load() {
   }
 }
 
+// --- Action gating (disable buttons once a leg is terminal/shipped) ---
+const TERMINAL_STATUS_CODES = ['completed', 'delivered'];
+function isTerminal(row: { status_code: string | null }): boolean {
+  return TERMINAL_STATUS_CODES.includes(row.status_code ?? '');
+}
+function isShipped(row: { status_code: string | null }): boolean {
+  return row.status_code === 'shipped';
+}
+
+// Les tronçons/lots terminés sont masqués par défaut (toggle pour l'historique).
+const showCompleted = ref(false);
+const visiblePending = computed(() =>
+  showCompleted.value ? pending.value : pending.value.filter((r) => !isTerminal(r)),
+);
+const visibleConsolidations = computed(() =>
+  showCompleted.value
+    ? consolidations.value
+    : consolidations.value.filter((c) => !isTerminal(c)),
+);
+
 // --- Ship (tracking or consolidation) ---
 const shipDialog = ref(false);
 const shipRef = ref('');
+const shipCarrierId = ref<string | null>(null);
 const shipTarget = ref<{ type: 'tracking' | 'consolidation'; id: string } | null>(null);
+
+const carrierOptions = computed<{ label: string; value: string | null }[]>(() => [
+  { label: '— Suivi interne (sans transporteur) —', value: null },
+  ...carriers.value.map((c) => ({ label: c.name, value: c.id })),
+]);
 
 function openShipTracking(row: PendingTracking) {
   dialogError.value = null;
   shipRef.value = row.tracking_ref ?? '';
+  shipCarrierId.value = null;
   shipTarget.value = { type: 'tracking', id: row.tracking_id };
   shipDialog.value = true;
 }
@@ -350,22 +465,26 @@ function openShipTracking(row: PendingTracking) {
 function openShipConsolidation(c: Consolidation) {
   dialogError.value = null;
   shipRef.value = c.tracking_ref ?? '';
+  shipCarrierId.value = null;
   shipTarget.value = { type: 'consolidation', id: c.id };
   shipDialog.value = true;
 }
 
 async function submitShip() {
-  if (!shipTarget.value || !shipRef.value.trim()) return;
+  if (!shipTarget.value) return;
+  // Carrier and reference are both optional (self-managed shipments).
+  const ref = shipRef.value.trim() || null;
+  const carrierId = shipCarrierId.value;
   saving.value = true;
   dialogError.value = null;
   try {
     if (shipTarget.value.type === 'tracking') {
-      await shipTracking(shipTarget.value.id, shipRef.value.trim());
+      await shipTracking(shipTarget.value.id, ref, carrierId);
     } else {
-      await shipConsolidation(shipTarget.value.id, shipRef.value.trim());
+      await shipConsolidation(shipTarget.value.id, ref, carrierId);
     }
     shipDialog.value = false;
-    notice.value = 'Expédition enregistrée.';
+    notice.value = 'Remise au transporteur enregistrée.';
     await load();
   } catch (err) {
     dialogError.value = extractApiError(err) ?? 'Expédition impossible.';
@@ -397,15 +516,62 @@ async function advanceTrackingRow(row: PendingTracking) {
   }
 }
 
+// --- Consolidation: advance (keep/ungroup popup) & deliver (forced ungroup) ---
+const ungroupDialog = ref(false);
+const ungroupTarget = ref<Consolidation | null>(null);
+const ungroupChoice = ref<'keep' | 'ungroup'>('keep');
+const ungroupBusy = ref(false);
+
 async function advanceConsolidationRow(c: Consolidation) {
+  ungroupTarget.value = c;
+  ungroupChoice.value = 'keep';
+  ungroupDialog.value = true;
+  // Smart default: pre-select "Dégrouper" when the next leg is the last-leg or
+  // the parcels diverge onto different legs.
+  try {
+    if (await getUngroupHint(c.id)) ungroupChoice.value = 'ungroup';
+  } catch {
+    // keep the default on error
+  }
+}
+
+async function submitAdvanceConsolidation() {
+  if (!ungroupTarget.value) return;
+  ungroupBusy.value = true;
   error.value = null;
   try {
-    const res = await advanceConsolidation(c.id);
+    const res = await advanceConsolidation(
+      ungroupTarget.value.id,
+      ungroupChoice.value === 'ungroup',
+    );
     notice.value = res.message;
+    ungroupDialog.value = false;
     await load();
   } catch (err) {
     error.value = extractApiError(err) ?? 'Opération impossible.';
+  } finally {
+    ungroupBusy.value = false;
   }
+}
+
+function deliverConsolidationRow(c: Consolidation) {
+  $q.dialog({
+    title: 'Livrer le lot',
+    message: 'Chaque colis sera dégroupé et marqué « livré ». Continuer ?',
+    cancel: true,
+    ok: { label: 'Livrer', color: 'positive' },
+  }).onOk(() => {
+    void (async () => {
+      error.value = null;
+      try {
+        const res = await deliverConsolidation(c.id);
+        notice.value = res.message;
+        await load();
+      } catch (err) {
+        error.value = extractApiError(err) ?? 'Opération impossible.';
+      }
+    })();
+  });
 }
 
 // --- Journey (parcours du colis) ---

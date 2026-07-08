@@ -24,6 +24,12 @@
       hide-pagination
       :loading="loading"
     >
+      <template #body-cell-parent="props">
+        <q-td :props="props">
+          <span v-if="props.row.parent_id">{{ placeName(props.row.parent_id) }}</span>
+          <span v-else>—</span>
+        </q-td>
+      </template>
       <template #body-cell-warehouse="props">
         <q-td :props="props">
           <q-icon v-if="props.row.is_warehouse" name="check" color="positive" />
@@ -126,6 +132,18 @@
               map-options
               :rules="req"
             />
+            <q-select
+              v-model="placeForm.parent_id"
+              :options="parentOptions"
+              label="Zone parente (optionnel)"
+              outlined
+              dense
+              bottom-slots
+              emit-value
+              map-options
+              clearable
+              hint="Ex. commune → île, île → archipel, boutique → commune."
+            />
             <q-input
               v-model="placeForm.code"
               label="Code (IATA / LOCODE, optionnel)"
@@ -142,15 +160,38 @@
                 bottom-slots
                 class="col"
               />
-              <q-input
+              <q-select
                 v-model="placeForm.country"
-                label="Pays (ISO, ex: PF)"
+                :options="filteredCountryOptions"
+                label="Pays"
                 outlined
                 dense
                 bottom-slots
+                emit-value
+                map-options
+                use-input
+                input-debounce="0"
+                clearable
                 class="col"
+                @filter="filterCountries"
               />
             </div>
+            <q-select
+              v-if="isGeoType(placeForm.type)"
+              v-model="placePostalCodes"
+              label="Codes postaux de la zone"
+              outlined
+              dense
+              bottom-slots
+              multiple
+              use-chips
+              use-input
+              input-debounce="0"
+              new-value-mode="add-unique"
+              hide-dropdown-icon
+              :options="[]"
+              hint="Tapez un code postal puis Entrée (ex. 98728). Sert à déduire la zone depuis l'adresse client. Pays requis."
+            />
             <q-toggle v-model="placeForm.is_warehouse" label="Entrepôt" />
             <q-toggle v-model="placeForm.customs_clearance" label="Dédouanement" />
           </q-card-section>
@@ -265,8 +306,52 @@
                 bottom-slots
                 class="col"
               />
+              <q-input
+                v-model="routeForm.base_price"
+                label="Forfait (XPF)"
+                type="number"
+                step="0.01"
+                outlined
+                dense
+                bottom-slots
+                class="col"
+              />
             </div>
             <q-toggle v-model="routeForm.is_to_customer" label="Tronçon final (livraison client)" />
+            <q-select
+              v-if="routeForm.is_to_customer"
+              v-model="routeForm.last_leg_delivery_type"
+              :options="deliveryTypeSuggestions"
+              label="Mode de livraison (last-leg)"
+              outlined
+              dense
+              bottom-slots
+              clearable
+              use-input
+              input-debounce="0"
+              new-value-mode="add-unique"
+              @filter="filterDeliveryTypes"
+              hint="Choisissez un mode ou tapez-en un nouveau (ex. sea_freight), puis Entrée. Relie ce tronçon au choix client au checkout."
+            />
+            <q-toggle
+              v-if="routeForm.is_to_customer"
+              v-model="routeForm.always_available"
+              label="Toujours proposé (quelle que soit la destination)"
+            />
+            <q-select
+              v-if="routeForm.is_to_customer && !routeForm.always_available"
+              v-model="routeServedPlaceIds"
+              :options="geoPlaceOptions"
+              label="Zones desservies"
+              outlined
+              dense
+              bottom-slots
+              multiple
+              use-chips
+              emit-value
+              map-options
+              hint="Îles, communes ou archipels desservis — une zone parente couvre toutes ses zones enfants. Vide = desservi partout (héritage)."
+            />
           </q-card-section>
           <q-card-actions align="right">
             <q-btn flat label="Annuler" v-close-popup />
@@ -289,14 +374,19 @@ import type { QTableColumn } from 'quasar';
 import {
   createPlace,
   createRoute,
+  getPlacePostalCodes,
+  getRouteServedPlaces,
   listPlaces,
   listRoutes,
+  setPlacePostalCodes,
+  setRouteServedPlaces,
   updatePlace,
   updateRoute,
   type Place,
   type ShippingRoute,
 } from 'src/api/logistics';
 import { extractApiError } from 'src/api/errors';
+import { countryOptions, type CountryOption } from '@app/utils';
 
 const places = ref<Place[]>([]);
 const routes = ref<ShippingRoute[]>([]);
@@ -311,13 +401,34 @@ const req = [
     (v !== null && v !== undefined && String(v).length > 0) || 'Requis',
 ];
 
+// Sélecteur pays ISO (PF/FR épinglés), filtrable à la saisie.
+const allCountryOptions = countryOptions();
+const filteredCountryOptions = ref<CountryOption[]>(allCountryOptions);
+function filterCountries(val: string, update: (fn: () => void) => void) {
+  update(() => {
+    const needle = val.trim().toLowerCase();
+    filteredCountryOptions.value = needle
+      ? allCountryOptions.filter((o) => o.label.toLowerCase().includes(needle))
+      : allCountryOptions;
+  });
+}
+
 const placeTypeOptions = [
   { label: 'Entrepôt', value: 'warehouse' },
   { label: 'Aéroport', value: 'airport' },
   { label: 'Port', value: 'seaport' },
+  { label: 'Boutique', value: 'shop' },
+  { label: 'Pays', value: 'country' },
+  { label: 'Région / Archipel', value: 'region' },
   { label: 'Île', value: 'island' },
+  { label: 'Commune', value: 'municipality' },
   { label: 'Adresse', value: 'address' },
 ];
+// Zones géographiques : forment l'arbre de desserte + portent les codes postaux.
+const GEO_TYPES = ['country', 'region', 'island', 'municipality'];
+function isGeoType(type: string): boolean {
+  return GEO_TYPES.includes(type);
+}
 const modeOptions = [
   { label: 'Avion', value: 'air' },
   { label: 'Bateau', value: 'sea' },
@@ -329,18 +440,61 @@ const serviceLevelOptions = [
   { label: 'Économique', value: 'economique' },
   { label: 'Écologique', value: 'ecologique' },
 ];
+// Delivery modes are free-form: suggest a few defaults + every mode already used
+// on a route, but let the admin type a new one (e.g. "sea_freight").
+const deliveryTypeAll = computed<string[]>(() => {
+  const defaults = ['pickup', 'home_delivery', 'air_freight', 'sea_freight'];
+  const used = routes.value
+    .map((r) => r.last_leg_delivery_type)
+    .filter((v): v is string => !!v);
+  return Array.from(new Set([...defaults, ...used])).sort();
+});
+const deliveryTypeSuggestions = ref<string[]>([]);
+function filterDeliveryTypes(val: string, update: (fn: () => void) => void) {
+  update(() => {
+    const needle = val.toLowerCase();
+    deliveryTypeSuggestions.value = deliveryTypeAll.value.filter((o) =>
+      o.toLowerCase().includes(needle),
+    );
+  });
+}
 
 const placeById = computed(() => new Map(places.value.map((p) => [p.id, p])));
 const placeOptions = computed(() =>
   places.value.map((p) => ({ label: `${p.name}${p.code ? ` (${p.code})` : ''}`, value: p.id })),
 );
+// Zones candidates comme parent ou comme desserte (pas les nœuds opérationnels),
+// libellées avec leur chaîne parente pour lever les ambiguïtés.
+const geoPlaceOptions = computed(() =>
+  places.value
+    .filter((p) => isGeoType(p.type))
+    .map((p) => ({ label: placePathLabel(p), value: p.id }))
+    .sort((a, b) => a.label.localeCompare(b.label)),
+);
+// Le parent d'un lieu peut être n'importe quelle zone géo (une boutique a pour
+// parent sa commune/île) — on exclut le lieu lui-même à l'édition.
+const parentOptions = computed(() =>
+  geoPlaceOptions.value.filter((o) => o.value !== placeEditId.value),
+);
 function placeName(id: string): string {
   return placeById.value.get(id)?.name ?? id.slice(0, 8);
+}
+function placePathLabel(place: Place): string {
+  const parts = [place.name];
+  let current = place;
+  for (let depth = 0; depth < 6; depth += 1) {
+    const parent = current.parent_id ? placeById.value.get(current.parent_id) : undefined;
+    if (!parent) break;
+    parts.push(parent.name);
+    current = parent;
+  }
+  return parts.join(' ‹ ');
 }
 
 const placeColumns: QTableColumn[] = [
   { name: 'name', label: 'Nom', field: 'name', align: 'left' },
   { name: 'type', label: 'Type', field: 'type', align: 'left' },
+  { name: 'parent', label: 'Zone parente', field: 'parent_id', align: 'left' },
   { name: 'code', label: 'Code', field: 'code', align: 'left' },
   { name: 'city', label: 'Ville', field: 'city', align: 'left' },
   { name: 'country', label: 'Pays', field: 'country', align: 'left' },
@@ -355,6 +509,13 @@ const routeColumns: QTableColumn[] = [
   { name: 'service_level', label: 'Service', field: 'service_level', align: 'left' },
   { name: 'eta', label: 'Délai (j)', field: 'eta_days', align: 'left' },
   { name: 'price_per_kg', label: 'Prix/kg', field: 'price_per_kg', align: 'left' },
+  { name: 'base_price', label: 'Forfait', field: 'base_price', align: 'left' },
+  {
+    name: 'delivery_mode',
+    label: 'Mode last-leg',
+    field: 'last_leg_delivery_type',
+    align: 'left',
+  },
   { name: 'to_customer', label: 'Final', field: 'is_to_customer', align: 'center' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
 ];
@@ -379,19 +540,23 @@ const placeForm = reactive({
   type: 'warehouse',
   code: '',
   city: '',
-  country: '',
+  country: null as string | null,
+  parent_id: null as string | null,
   is_warehouse: true,
   customs_clearance: false,
 });
+const placePostalCodes = ref<string[]>([]);
 
 function resetPlaceForm() {
   placeForm.name = '';
   placeForm.type = 'warehouse';
   placeForm.code = '';
   placeForm.city = '';
-  placeForm.country = '';
+  placeForm.country = null;
+  placeForm.parent_id = null;
   placeForm.is_warehouse = true;
   placeForm.customs_clearance = false;
+  placePostalCodes.value = [];
 }
 
 function openPlaceCreate() {
@@ -408,13 +573,30 @@ function openPlaceEdit(p: Place) {
   placeForm.type = p.type;
   placeForm.code = p.code ?? '';
   placeForm.city = p.city ?? '';
-  placeForm.country = p.country ?? '';
+  placeForm.country = p.country;
+  placeForm.parent_id = p.parent_id;
   placeForm.is_warehouse = p.is_warehouse;
   placeForm.customs_clearance = p.customs_clearance;
+  placePostalCodes.value = [];
+  if (isGeoType(p.type)) {
+    getPlacePostalCodes(p.id)
+      .then((codes) => {
+        placePostalCodes.value = codes;
+      })
+      .catch(() => {
+        // Non bloquant : l'édition des autres champs reste possible.
+      });
+  }
   placeDialog.value = true;
 }
 
 async function submitPlace() {
+  const country = (placeForm.country ?? '').trim().toUpperCase();
+  const codes = placePostalCodes.value.map((c) => c.trim()).filter((c) => c.length > 0);
+  if (isGeoType(placeForm.type) && codes.length > 0 && !country) {
+    dialogError.value = 'Le pays (ISO) est requis pour rattacher des codes postaux.';
+    return;
+  }
   saving.value = true;
   dialogError.value = null;
   const payload = {
@@ -422,15 +604,20 @@ async function submitPlace() {
     type: placeForm.type,
     code: placeForm.code.trim() || null,
     city: placeForm.city.trim() || null,
-    country: placeForm.country.trim().toUpperCase() || null,
+    country: country || null,
+    parent_id: placeForm.parent_id,
     is_warehouse: placeForm.is_warehouse,
     customs_clearance: placeForm.customs_clearance,
   };
   try {
+    let saved: Place;
     if (placeEditId.value) {
-      await updatePlace(placeEditId.value, payload);
+      saved = await updatePlace(placeEditId.value, payload);
     } else {
-      await createPlace(payload);
+      saved = await createPlace(payload);
+    }
+    if (isGeoType(placeForm.type) && country) {
+      await setPlacePostalCodes(saved.id, country, codes);
     }
     placeDialog.value = false;
     notice.value = 'Lieu enregistré.';
@@ -454,7 +641,10 @@ const routeForm = reactive<{
   customer_label: string;
   eta_days: number | null;
   price_per_kg: string;
+  base_price: string;
   is_to_customer: boolean;
+  last_leg_delivery_type: string | null;
+  always_available: boolean;
 }>({
   name: '',
   from_place_id: null,
@@ -464,8 +654,12 @@ const routeForm = reactive<{
   customer_label: '',
   eta_days: null,
   price_per_kg: '',
+  base_price: '',
   is_to_customer: false,
+  last_leg_delivery_type: null,
+  always_available: false,
 });
+const routeServedPlaceIds = ref<string[]>([]);
 
 function resetRouteForm() {
   routeForm.name = '';
@@ -476,7 +670,11 @@ function resetRouteForm() {
   routeForm.customer_label = '';
   routeForm.eta_days = null;
   routeForm.price_per_kg = '';
+  routeForm.base_price = '';
   routeForm.is_to_customer = false;
+  routeForm.last_leg_delivery_type = null;
+  routeForm.always_available = false;
+  routeServedPlaceIds.value = [];
 }
 
 function openRouteCreate() {
@@ -497,7 +695,20 @@ function openRouteEdit(r: ShippingRoute) {
   routeForm.customer_label = r.customer_label ?? '';
   routeForm.eta_days = r.eta_days;
   routeForm.price_per_kg = r.price_per_kg ?? '';
+  routeForm.base_price = r.base_price ?? '';
   routeForm.is_to_customer = r.is_to_customer;
+  routeForm.last_leg_delivery_type = r.last_leg_delivery_type;
+  routeForm.always_available = r.always_available;
+  routeServedPlaceIds.value = [];
+  if (r.is_to_customer) {
+    getRouteServedPlaces(r.id)
+      .then((served) => {
+        routeServedPlaceIds.value = served.map((p) => p.id);
+      })
+      .catch(() => {
+        // Non bloquant : l'édition des autres champs reste possible.
+      });
+  }
   routeDialog.value = true;
 }
 
@@ -525,13 +736,25 @@ async function submitRoute() {
         ? routeForm.eta_days
         : null,
     price_per_kg: routeForm.price_per_kg.trim() || null,
+    base_price: routeForm.base_price.trim() || null,
     is_to_customer: routeForm.is_to_customer,
+    last_leg_delivery_type: routeForm.is_to_customer
+      ? routeForm.last_leg_delivery_type
+      : null,
+    always_available: routeForm.is_to_customer ? routeForm.always_available : false,
   };
   try {
+    let saved: ShippingRoute;
     if (routeEditId.value) {
-      await updateRoute(routeEditId.value, payload);
+      saved = await updateRoute(routeEditId.value, payload);
     } else {
-      await createRoute(payload);
+      saved = await createRoute(payload);
+    }
+    if (routeForm.is_to_customer) {
+      await setRouteServedPlaces(
+        saved.id,
+        routeForm.always_available ? [] : routeServedPlaceIds.value,
+      );
     }
     routeDialog.value = false;
     notice.value = 'Trajet enregistré.';

@@ -247,14 +247,18 @@ routes_user_groups = [
 ]
 
 
-# Authentication configuration
+# Authentication configuration — groups drive pricing and (future) RBAC:
+# writes are superuser-only to block privilege-escalation via group edits.
 class Auth:
     """Represents auth."""
 
-    read = True  # Authentication required for read
-    create = True  # Authentication required for create
-    update = True  # Authentication required for update
-    delete = True  # Authentication required for delete
+    read = True
+    create = True
+    update = True
+    delete = True
+    create_superuser = True
+    update_superuser = True
+    delete_superuser = True
 
 
 # Instantiate router with auto-generated CRUD endpoints

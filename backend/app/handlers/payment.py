@@ -6,6 +6,10 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.features.inventory.services.stock_release import (
+    confirm_order_stock,
+    release_order_stock,
+)
 from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_status_crud import crud_order_status
 from app.features.order.models.order_status import OrderStatusCreate
@@ -46,6 +50,17 @@ __all__ = [
     "on_payment_rejected_notify",
     "on_payment_document_infected_notify",
 ]
+
+
+def _parse_order_id(payload: dict[str, Any]) -> uuid.UUID | None:
+    """Order id from an outbox payment payload, or None."""
+    raw_order_id = payload.get("order_id")
+    if not raw_order_id:
+        return None
+    try:
+        return uuid.UUID(str(raw_order_id))
+    except (TypeError, ValueError):
+        return None
 
 
 async def _get_or_create_order_status_id(
@@ -154,6 +169,17 @@ async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) ->
     await _sync_order_status(
         session, payload=payload, target_status_name=ORDER_STATUS_PAID
     )
+    # The stock reserved at checkout is now definitively consumed.
+    order_id = _parse_order_id(payload)
+    if order_id is not None:
+        confirmed = await confirm_order_stock(session, order_id=order_id)
+        if confirmed:
+            await session.commit()
+            logger.info(
+                "Stock reservations confirmed for order %s (%d movement(s))",
+                order_id,
+                confirmed,
+            )
 
 
 @outbox_handler("payment.refunded")
@@ -188,6 +214,18 @@ async def on_payment_rejected(session: AsyncSession, payload: dict[str, Any]) ->
     await _sync_order_status(
         session, payload=payload, target_status_name=ORDER_STATUS_PAYMENT_FAILED
     )
+    # Give the reserved stock back: the order will never be fulfilled.
+    # (Historically nothing compensated the checkout decrement — oversell.)
+    order_id = _parse_order_id(payload)
+    if order_id is not None:
+        released = await release_order_stock(session, order_id=order_id)
+        if released:
+            await session.commit()
+            logger.info(
+                "Stock released for rejected order %s (%d movement(s))",
+                order_id,
+                released,
+            )
 
 
 @outbox_handler("payment.document_required")

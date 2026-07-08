@@ -38,7 +38,8 @@ def test_auth_credentials_invalid_returns_error_payload(
         headers={"Authorization": "Bearer not-a-valid-token"},
     )
 
-    assert response.status_code == 403
+    # 401 (not 403) so the SPA interceptor refreshes on an expired/invalid token.
+    assert response.status_code == 401
     assert response.json() == {
         "error": {
             "code": "auth.credentials.invalid",

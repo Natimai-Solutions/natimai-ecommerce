@@ -192,6 +192,9 @@ class Settings(BaseSettings):
     INGRAM_CLIENT_SECRET: str | None = None
     INGRAM_CUSTOMER_NUMBER: str | None = None
     INGRAM_COUNTRY_CODE: str = "FR"  # Default to FR, can be changed via env var
+    # Place.code identifying where Ingram products ship from (drives the first
+    # logistics leg). Seeded by initial_data as "FR_SUPPLIERS".
+    INGRAM_ORIGIN_PLACE_CODE: str = "FR_SUPPLIERS"
     INGRAM_ENVIRONMENT: Literal["sandbox", "production"] = "sandbox"
     INGRAM_SYNC_ENABLED: bool = True
     INGRAM_SYNC_CATEGORIES: list[str] = [
@@ -271,6 +274,21 @@ class Settings(BaseSettings):
     # Set to True in Phase 2 after security groups are seeded and assigned.
     # When False, all authenticated users pass permission checks (current behavior).
     ENABLE_GROUP_PERMISSIONS: bool = False
+
+    # --- Login hardening -------------------------------------------------
+    # Per-IP throttle on POST /login/access-token (Redis-backed, fail-open).
+    LOGIN_RATE_LIMIT_ATTEMPTS: int = 10
+    LOGIN_RATE_LIMIT_WINDOW_SECONDS: int = 60
+    # Per-account lockout: after N consecutive wrong passwords the account is
+    # locked for LOGIN_LOCKOUT_MINUTES (counter resets on successful login).
+    LOGIN_LOCKOUT_MAX_FAILURES: int = 5
+    LOGIN_LOCKOUT_MINUTES: int = 15
+    # Behind Cloudflare / a reverse proxy the socket IP is the proxy's, not the
+    # client's: name the trusted header carrying the real client IP —
+    # "CF-Connecting-IP" (Cloudflare) or "X-Forwarded-For" (nginx/traefik with
+    # a sanitized XFF). Leave None when the app is directly exposed, otherwise
+    # the header could be spoofed to bypass the per-IP throttle.
+    CLIENT_IP_HEADER: str | None = None
 
     # Shop branding
     SHOP_NAME: str = "Natimai"

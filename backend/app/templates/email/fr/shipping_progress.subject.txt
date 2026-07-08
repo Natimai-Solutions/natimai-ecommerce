@@ -1,1 +1,1 @@
-Votre commande {{ order_id }} progresse
+Votre commande {{ order_id | short_ref }} progresse

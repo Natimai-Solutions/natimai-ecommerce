@@ -935,6 +935,68 @@ Décision : **conversion côté client** (l'affichage est purement présentation
 - Dépendance **allow-list** `CurrentLogisticsAdmin` ([deps.py](backend/app/api/deps.py)) : superuser **toujours** ; sinon (et seulement si `ENABLE_GROUP_PERMISSIONS=true`) un membre d'un groupe sécurité avec `can_update` sur `shipping_route_trackings` (groupe `logistics_admin` seedé). **Jamais** d'accès aux users sans groupe (contrairement au modèle deny-list de `check_user_permission`). Tous les endpoints `admin_shipping` basculés de `CurrentSuperUser` → `CurrentLogisticsAdmin`. 4 tests d'intégration (superuser / flag off / sans-groupe / membre logistique).
 - ⚙️ **Activation** : mettre `ENABLE_GROUP_PERMISSIONS=true` **et** rattacher les users concernés au groupe `logistics_admin` (sinon comportement inchangé = superuser only).
 
+#### 🔎 Retour propriétaire — souplesse du suivi & finitions logistique (29/06/2026)
+
+**Rappel objectif cible** : suivi d'articles simple et souple. Une commande peut mêler articles fournisseur 1 + articles en stock entrepôt. Les articles fournisseur peuvent être affectés à une **consolidation**. Quand tous les articles atteignent l'**entrepôt principal**, on exécute le mode **last-leg** choisi par le client (retrait magasin / livraison domicile / fret aérien). Première étape (périmètre courant) : le client choisit **rapide(avion) vs économique(bateau)** pour le tronçon international (impacte le prix), puis **le mode last-leg au checkout** ; les tronçons sont déduits de ces choix + de la localisation des articles. *Le propriétaire précise : « pas encore prêts » pour le flux complet.*
+
+**Sémantique du bouton « Expédier » (point 3 — clarification)** : « Expédier » fait 3 choses sur le **tronçon courant** — (1) statut → `shipped` (non terminal), (2) enregistre le **n° de suivi transporteur** (`tracking_ref`), (3) publie `tracking.status_changed` → **email client « colis expédié »**. Il **ne fait PAS avancer** au tronçon suivant : c'est le bouton dédié **« Tronçon suivant »** (`activate_next_route`) qui marque le tronçon `completed` et active le suivant. → Intuition du propriétaire (« indiquer un numéro de suivi ») correcte. Tooltip ajouté ✅.
+
+##### ✅ Quick wins livrés (29/06/2026)
+
+- [x] **Point 1 — Boutons grisés sur statut terminal** : dans [ShippingPage.vue](admin-frontend/src/pages/ShippingPage.vue), `:disable` sur **Livrer** / **Tronçon suivant** quand `status_code ∈ {completed, delivered}`, et sur **Expédier** / **Expédier tout** quand terminal **ou** déjà `shipped` (helpers `isTerminal` / `isShipped`). *(Reste possible : garde-fou backend HTTP 409 sur transition d'un tracking déjà terminal — cf. design.)*
+- [x] **Point 3 — Clarifier « Expédier »** : `q-tooltip` explicatif ajouté sur les deux boutons Expédier.
+- [x] **Point 4b — 🐞 Bug consolidations vitrine** : [orders_me.py](backend/app/api/routes/orders_me.py) renvoyait **toutes** les consolidations de la route (`get_consolidations_for_route`, sans filtre commande, + doublons). Corrigé : on ne garde que les consolidations liées aux trackings de **cette** commande (via `tracking.consolidation`, dédupliquées), avec eager-load.
+- [x] **Point 4a — Infos transport vitrine enrichies** : `ShippingRouteTrackingPublic` enrichi (`from_place_name`/`to_place_name`/`mode`/`route_label`, eager-load `route` dans `get_trackings_by_order_sequence`) ; la vitrine ([OrderTrackingPage.vue](frontend/src/pages/OrderTrackingPage.vue)) affiche désormais **« France → Papeete (avion) »** par tronçon (mapping mode FR : air→avion, sea→bateau, road→route, pickup→retrait).
+- [x] **Point 5 (1re tranche) — N° de suivi optionnel** : `ShipRequest.tracking_ref` rendu **optionnel** ([admin_shipping.py](backend/app/api/routes/admin_shipping.py)) + rule UI retirée + envoi `null` si vide. Couvre le cas « suivi géré en interne, pas de numéro ».
+- [x] **Point 2/3 (libellé) — Renommage** : bouton « Expédier » → **« Remettre au transporteur »** (et « Tout remettre au transporteur » pour le lot) + dialogue « Remise au transporteur ».
+
+##### 🧭 Conception (phase logistique avancée — « pas encore prêts »)
+
+- [x] **Point 2 — Dégroupage au passage du lot : popup + défaut intelligent (✅ PHASE 2 LIVRÉE 29/06/2026)**
+  - `advance_consolidation` ([admin_shipping.py](backend/app/api/routes/admin_shipping.py)) accepte `ungroup: bool` : si `true` → **par colis** `remove_tracking_from_consolidation` (détacher) **puis** `activate_next_route` (avancer individuellement) ; si `false` → lot ensemble (comportement existant).
+  - Nouveau `POST /consolidations/{id}/deliver-all` → **dégroupage forcé** + chaque colis marqué **livré** (terminal) + lot marqué livré.
+  - Nouveau `GET /consolidations/{id}/ungroup-hint` → **défaut intelligent** `suggest_ungroup` (`suggest_ungroup_for_consolidation`, [crud/route_tracking.py](backend/app/features/shipping/crud/route_tracking.py)) : vrai si le prochain tronçon est le **last-leg** (`is_to_customer`), si un colis n'a plus de tronçon, ou si les colis **divergent**.
+  - Admin ([ShippingPage.vue](admin-frontend/src/pages/ShippingPage.vue)) : « Tronçon suivant » du lot → **popup *Garder / Dégrouper*** pré-cochée via le hint ; nouveau bouton **« Livrer »** (confirmation → dégroupage forcé + livraison).
+  - 🐞 Au passage : corrigé un **bug greenlet latent** dans `remove_tracking_from_consolidation` (lecture de `consolidation.total_orders` après commit — la méthode n'était jamais appelée jusqu'ici). 4 tests d'intégration (keep, ungroup, deliver, hint).
+- [x] **Point 5 — Transporteur + lien de suivi (✅ PHASE 1 LIVRÉE 29/06/2026)**
+  - Modèle **`Carrier`** (`name`, `code`, `tracking_url_template` avec placeholder `{ref}`) + `carrier_id` (FK nullable) sur `ShippingRouteTracking` **et** la consolidation. Migration `f7a1c3e9d2b5` (table + colonnes, réversible) + seed (DHL, Colissimo, Chronopost, OPT).
+  - Admin : sélecteur **Transporteur** (+ « — Suivi interne — ») dans le dialogue « Remise au transporteur » ; `carrier_id` + n° stampés à l'expédition. Endpoint `GET /admin/shipping/carriers`.
+  - Vitrine : `carrier_name` + **lien « Suivre le colis »** cliquable construit côté backend (`tracking_url`, **https-only** + ref URL-encodée, garde anti-`javascript:`). Affiché dans [OrderTrackingPage.vue](frontend/src/pages/OrderTrackingPage.vue). Test unitaire du builder d'URL.
+  - **Pas** d'intégration API transporteur (YAGNI) — saisie manuelle. *(Le `tracking_mode` explicite {externe/auto/sans} n'a pas été nécessaire : carrier présent = externe + lien ; absent = suivi interne.)*
+  - Reste (futur) : `PATCH /admin/shipping/trackings/{id}/tracking-ref` pour corriger un n° après coup (ré-notification client : à décider) ; petite UI de gestion des transporteurs (URLs éditables).
+- [ ] **Modèle de tronçons unifié (✅ décision : last-leg = tronçon)** : le **last-leg** (entrepôt → client final) devient un **tronçon `ShippingRouteTracking`** comme les autres, et **non** un `DeliveryTask` séparé. Bénéfice : un parcours unique et homogène (mêmes statuts, même suivi, même « tronçon suivant »), du simple (1 tronçon entrepôt→client) au complexe (fournisseur → étape 1 → douane → étape 2 → entrepôt → client). Le last-leg peut être un **transporteur classique** (la Poste/DHL) avec lien de suivi (cf. point 5) **ou** géré en interne. → `DeliveryTask` ([delivery_task.py](backend/app/features/shipping/models/delivery_task.py)) à **résorber/migrer** vers un tronçon (ou conserver seulement comme détail de tâche admin, à trancher).
+- [ ] **Modèle de prix par zones (✅ cadrage propriétaire)** :
+  - **Zone A — fournisseur → douane** (tronçons internationaux) : **incluse dans le prix de l'article** (mode rapide/éco choisi au catalogue → CAF, déjà livré P1).
+  - **Zone C — entrepôt → client final** (last-leg) : **choisie par le client au checkout**, tarifée à part. *(Futur, optionnel — généralisation : tarif au **poids/volume** par tranches, ex. 1–2 kg = X XPF, 2–5 kg = Y… par transporteur/zone.)*
+  - **Zone B — douane → entrepôt principal** : ✅ **incluse dans la zone A** (décision propriétaire). Le prix article couvre tout jusqu'à l'entrepôt principal ; **seul le last-leg** est choisi/payé par le client (évite de multiplier les choix au checkout).
+  - ✅ **Sélection last-leg au checkout vitrine (29/06/2026)** : enum `DeliveryType` (retrait magasin / livraison domicile / fret aérien) + champ `CheckoutRequest.delivery_type` + colonne `Order.delivery_type` (migration `a3b8d1f6c4e2`) + sélecteur dans [CheckoutPage.vue](frontend/src/pages/CheckoutPage.vue). **Le choix est enregistré** sur la commande. Reste (flux cible) : s'en servir pour **déterminer/tarifer** le tronçon last-leg (la machinerie `sequence_order` + consolidation existe déjà dans [cart.py](backend/app/api/routes/cart.py) mais n'exploite pas encore `delivery_type`).
+
+##### Décisions
+
+- [x] **Grisage** : `completed`+`delivered`, + re-grisage « Expédier » sur `shipped`. ✅
+- [x] **Libellé** : « Remettre au transporteur ». ✅
+- [x] **N° de suivi** : optionnel. ✅
+- [x] **Dégroupage** : « Tronçon suivant » du lot → **popup Garder/Dégrouper** avec défaut intelligent (Dégrouper si prochain = last-leg ou colis divergents) ; **« Livrer » → dégroupage forcé**. ✅
+- [x] **Suivi** : transporteur + gabarit d'URL → lien de suivi cliquable côté client (+ `tracking_mode`). ✅
+- [x] **Modèle last-leg** : tronçon `ShippingRouteTracking` unifié (pas `DeliveryTask` séparé). ✅
+- [x] **Lien fournisseur → 1er tronçon** : nouveau champ `Product.supplier_place_id` (lieu d'origine quand produit sourcé fournisseur — migration `b5c9e2a7f1d3`). Au checkout, chaque allocation porte son `origin_place_id` (`FulfillmentAllocation`), les segments sont agrégés par **`(segment, origine)`** (donc un tracking par origine distincte), et le 1er tronçon est résolu par **pathfinding** `origine → entrepôt principal` (`get_optimal_route_between_places`, `is_to_customer=False`) — l'entrepôt principal = destination de la route `is_default_import`, sinon 1er `Place.is_warehouse`. Fallback heuristique quand l'origine est absente. Tests d'intégration `test_supplier_origin_routing.py` (3) + d2/e1 alignés. ✅
+- [x] **Peuplement de `supplier_place_id`** (les deux voies) : ✅
+  - **UI admin** — colonne **« Origine (fournisseur) »** dans [ProductsPage.vue](admin-frontend/src/pages/ProductsPage.vue) : `q-select` inline des `Place` (auto-sauvegarde au changement, comme le toggle « Actif admin »), via `store.updateOriginPlace` → `PUT /product/{id}` (`supplier_place_id`).
+  - **Sync fournisseur** — l'adaptateur expose `origin_place_code` (Ingram → `settings.INGRAM_ORIGIN_PLACE_CODE`, défaut `"FR_SUPPLIERS"` déjà seedé par `initial_data`) ; l'orchestrateur ([supplier_sync_orchestrator.py](backend/app/features/integrations/services/supplier_sync_orchestrator.py)) le résout en `Place.id` (`crud_place.get_by_code`, idempotent, mémoïsé/run) et l'estampille à l'upsert — **sans écraser un override admin** (posé seulement à la création ou si origine absente). Tests `test_ingram_supplier_place_sync.py` (create / no-clobber / code inconnu).
+- [x] **Zone B (douane → entrepôt principal)** : incluse dans la zone A (prix article jusqu'à l'entrepôt). ✅
+- [ ] Détails secondaires : MAJ d'un n° de suivi → email client ou silencieux ? Vitrine : tous les tronçons ou seulement courant + franchis ? Tarif last-leg au poids/volume (futur, optionnel).
+
+#### 🔧 Lot de corrections & outils admin (02/07/2026)
+
+Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/mypy/alembic tête unique ; eslint/vue-tsc admin & vitrine ; 252 tests backend de non-régression verts).
+
+- [x] **1. Duplication d'adresse au checkout** : cause = rapprochement par **texte** (`street, city, country`) qui ne matche jamais le format vitrine (`street, "CP ville", state, country`) → adresse recréée à chaque commande. Corrigé : la vitrine envoie `shipping_address_id` ([CheckoutRequest](backend/app/features/cart/models/cart.py)), le backend lie le tronçon **par id** avec vérif de propriété ([`_resolve_tracking_address_for_checkout`](backend/app/api/routes/cart.py)) ; le texte reste snapshot de commande. ✅
+- [x] **2. Vérification d'adresse (indicative) + page admin** : décision propriétaire = garder, **non bloquante** au checkout. Nouvel endpoint `GET /admin/addresses` (paginé, filtre validé/non-validé, email client joint) + page admin **« Adresses »** ([AddressesPage.vue](admin-frontend/src/pages/AddressesPage.vue), section Clients) avec badge + bouton **Valider** (→ endpoint existant). ✅
+- [x] **3. Outils création/édition produit admin + overrides génériques** : nouveau champ `Product.overridden_fields` (JSON, migration `c7d2f4a9e5b1`). Tout champ édité en admin est enregistré et **le sync ne l'écrase plus** ([`upsert_product`](backend/app/features/integrations/services/supplier_sync_orchestrator.py)). Endpoints `POST/PUT /admin/products` ([admin_product.py](backend/app/api/routes/admin_product.py)) — create force `is_supplier_managed=False` (produit manuel), update verrouille les champs modifiés. UI : bouton **Nouveau** + action **Modifier** + [ProductFormDialog.vue](admin-frontend/src/components/ProductFormDialog.vue) (lookups catégorie/TVA/origine, envoi du **diff** en édition, coût+devise pilotant le prix CAF). ✅
+- [x] **4. Bouton panier** : « Payer » → **« Passer commande »** (icône `shopping_cart_checkout`) — c'est une navigation vers le checkout, pas un paiement ([CartPage.vue](frontend/src/pages/CartPage.vue)). ✅
+- [x] **5. Tronçons last-leg + tarif appliqué** : décision = outils admin **+ application au checkout**. `base_price` (forfait) désormais éditable sur les routes + nouveau champ `ShippingRoute.last_leg_delivery_type` (migration `d8e3f5b2a6c4`) taggant la route par mode (retrait/domicile/fret aérien) dans [LogisticsRoutesPage.vue](admin-frontend/src/pages/LogisticsRoutesPage.vue). Au checkout, [`_resolve_last_leg_route`](backend/app/api/routes/cart.py) résout la route last-leg du `delivery_type` choisi et la **price avec les autres tronçons** (`base_price + prix/kg × poids`) → **le tarif last-leg est enfin ajouté au total + breakdown**. **Affichage vitrine** : endpoint `GET /cart/me/last-leg-options` (price chaque mode pour le panier courant) → prix montré à côté de chaque mode dans [CheckoutPage.vue](frontend/src/pages/CheckoutPage.vue) (« Offert » si 0). *(Reste optionnel : tranches poids/volume via `route_metadata`.)* ✅
+- [x] **6. Moyens de paiement** : **CB absente** = aucun `PaymentMethod` `provider_code="payzen"` seedé → ajout **« Carte bancaire »** au seed idempotent ([initial_data.py](backend/app/features/initial_data.py)). **Désactivation globale** : `is_admin_active` existait déjà (modèle + filtrage éligibilité) — ajout d'un toggle **« Activé »** par méthode dans [PaymentEligibilityPage.vue](admin-frontend/src/pages/PaymentEligibilityPage.vue) (→ `PUT /payment_method/{id}`). ✅
+
 ### Matrice livrables par surface
 
 | Feature | Backend | Vitrine (`frontend`) | Admin (`admin-frontend`) |
@@ -1006,6 +1068,7 @@ Décision : **conversion côté client** (l'affichage est purement présentation
 |---------|---------|----------------------|--------------------------|
 | M1 — produits les plus vus | 🔲 | 🔲 section accueil / carrousel | — |
 | M3 — factures PDF (**WeasyPrint**) + export FEC | 🔲 | 🔲 téléchargement facture (compte) | 🔲 écran factures + export comptable |
+| M5 — numéro de commande séquentiel | 🔲 | 🔲 affichage (compte, suivi, checkout) | 🔲 affichage (commandes, logistique) |
 | Z2 — avoir comptable | 🔲 | 🔲 affichage avoir | 🔲 écran avoir |
 | Z3 — relance paniers abandonnés | 🔲 | — | 🔲 dashboard relances |
 | Z4 — recherche IA | 🔲 | 🔲 UI recherche sémantique | — |
@@ -1022,6 +1085,7 @@ Décision : **conversion côté client** (l'affichage est purement présentation
 | Z2 | Avoir comptable | Dépend M3 (facture) + Phase 4 (refund) |
 | Z3 | Relance paniers abandonnés | Cron horaire + handler outbox `cart.abandoned` |
 | Z4 | Recherche IA | Refonte du draft `ia_search_agent.py` (placeholders à remplacer) ; pgvector recommandé |
+| M5 | Numéro de commande séquentiel | Cf. *Note technique — numéro de commande séquentiel (M5)* ci-dessous |
 
 ### Note technique — génération PDF des factures (M3)
 
@@ -1033,9 +1097,30 @@ Décision : **conversion côté client** (l'affichage est purement présentation
 2. Vérifier la disponibilité des libs système hors Docker (dev Windows : WeasyPrint nécessite GTK/Pango — documenter dans le runbook, ou rendre la génération PDF dépendante du worker conteneurisé).
 3. Templates Jinja2 facture + ventilation TVA par taux via le snapshot `OrderLine.tax_rate_id` (cf. jalon TVA *5a*).
 
+### Note technique — numéro de commande séquentiel (M5)
+
+**Contexte (07/07/2026)** : les emails transactionnels affichent désormais une référence courte dérivée de l'UUID (filtre Jinja `short_ref` → `#e090fee1`). Solution suffisante pour la communication client, mais **non garantie unique** (8 hex ≈ 1 collision pour ~65 000 commandes) et inutilisable comme référence comptable. M5 la remplace par un vrai numéro.
+
+**Modèle** :
+
+| Élément | Décision |
+|---------|----------|
+| Champ | `Order.order_number: str` — unique, indexé, immuable, **nullable** (les commandes antérieures n'en ont pas ; pas de backfill rétroactif) |
+| Format | `CMD-{YYYY}-{NNNNN}` (ex. `CMD-2026-00042`) — année + compteur, lisible au téléphone |
+| Génération | **Séquence PostgreSQL** dédiée (`CREATE SEQUENCE order_number_seq`) consommée à la création de la commande — jamais de `MAX()+1` (course sous concurrence) ; trous acceptés (rollback = numéro perdu, sans conséquence) |
+| Clé technique | L'UUID reste la PK et la clé d'API partout ; `order_number` est purement une référence humaine |
+
+**Surfaces** :
+
+- **Backend** : migration (colonne + séquence), génération au checkout, exposé dans `OrderPublic` et le payload outbox `order.created` ; les emails basculent de `{{ order_id \| short_ref }}` vers `{{ order_number }}` (fallback `short_ref` pour les commandes sans numéro).
+- **Vitrine** : affichage compte / suivi de commande / confirmation checkout.
+- **Admin** : colonnes commandes + logistique (remplace `#uuid8` tronqué), recherche par numéro.
+
+**Distinct de la numérotation de facture (M3)** : la facture a ses contraintes légales propres (séquence continue sans trous, par exercice) — les deux compteurs ne doivent pas être fusionnés.
+
 ### Sous-phases possibles
 
-- **Phase 5a** : M3 (factures) — bloque la facturation B2B Polynésie.
+- **Phase 5a** : M3 (factures) + M5 (numéro de commande — prérequis léger, livrable isolément avant le reste de la 5a) — bloque la facturation B2B Polynésie.
 - **Phase 5b** : M4 (alerting actif) + M2 (K8s) — fiabilité prod.
 - **Phase 5c** : Z3 (relance panier) + M1 (produits populaires) — leviers commerciaux.
 - **Phase 5d** : Z1 + Z2 (paiement N×, avoir).

@@ -29,12 +29,18 @@ class DiscountRouter(
 
 
 class Auth:
-    """Represents auth."""
+    """Superuser-only CRUD: public read allowed enumerating every coupon code.
+    Public flows use the dedicated endpoints (/validate-coupon, /promotions/…)
+    which only reveal an already-known code or active promotions."""
 
-    read = False  # Lecture publique pour valider les coupons
-    create = True  # Création réservée aux admins
-    update = True  # Modification réservée aux admins
-    delete = True  # Suppression réservée aux admins
+    read = True
+    create = True
+    update = True
+    delete = True
+    read_superuser = True
+    create_superuser = True
+    update_superuser = True
+    delete_superuser = True
 
 
 router = DiscountRouter(
@@ -107,9 +113,19 @@ async def get_category_promotions(
 async def use_discount(
     session: SessionDep,
     discount_id: uuid.UUID,
-    _current_user: CurrentUser,
+    current_user: CurrentUser,
 ) -> DiscountPublic:
-    """Execute use discount."""
+    """Increment a discount's usage counter (admin/server flows only).
+
+    Left open, any customer could exhaust a coupon's max_uses on purpose.
+    """
+    if not current_user.is_superuser:
+        raise AppError(
+            code="discount.admin_required",
+            status_code=403,
+            message="Admin privileges required to consume a discount usage",
+            details={"discount_id": str(discount_id)},
+        )
     discount = await crud_discount.increment_usage(session, discount_id)
     if not discount:
         raise AppError(

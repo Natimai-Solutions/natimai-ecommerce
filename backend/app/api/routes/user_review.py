@@ -39,12 +39,18 @@ class ReviewRouter(
 
 
 class Auth:
-    """Represents auth."""
+    """Generic CRUD writes are superuser-only (no ownership check on /{id}).
+    Customers create/edit their reviews via the ownership-checked
+    /users/{user_id}/reviews endpoints; product reviews are read publicly via
+    /products/{product_id}/reviews."""
 
     read = True
     create = True
     update = True
     delete = True
+    create_superuser = True
+    update_superuser = True
+    delete_superuser = True
 
 
 router = ReviewRouter(

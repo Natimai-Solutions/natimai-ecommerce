@@ -14,6 +14,7 @@ from sqlmodel import Field, Relationship, SQLModel
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 if TYPE_CHECKING:
+    from app.features.shipping.models.carrier import Carrier
     from app.features.shipping.models.route import ShippingRoute
     from app.features.shipping.models.status import StatusDefinition
 
@@ -75,6 +76,14 @@ class ShippingRouteTrackingBase(Base):
         default=None, max_length=100, description="Carrier tracking reference"
     )
 
+    # External carrier (la Poste/DHL…) — enables a customer-facing tracking link
+    carrier_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="carriers.id",
+        index=True,
+        description="External carrier when handed over (None = self-managed)",
+    )
+
     # Expected delivery
     estimated_delivery: datetime | None = Field(
         default=None, description="Estimated delivery date"
@@ -115,6 +124,12 @@ class ShippingRouteTracking(ShippingRouteTrackingBase, table=True):
             "lazy": "selectin",
         }
     )
+    carrier: Optional["Carrier"] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "[ShippingRouteTracking.carrier_id]",
+            "lazy": "selectin",
+        }
+    )
 
     @property
     def is_terminal(self) -> bool:
@@ -150,6 +165,15 @@ class ShippingRouteTrackingPublic(ShippingRouteTrackingBase, BasePublic):
     """Represents shipping route tracking public."""
 
     id: uuid.UUID
+    # Route details (populated for the customer tracking view) — e.g. the leg
+    # "France → Papeete (avion)". None when the route is not eager-loaded.
+    from_place_name: str | None = None
+    to_place_name: str | None = None
+    mode: str | None = None
+    route_label: str | None = None
+    # External carrier + clickable tracking link (None when self-managed).
+    carrier_name: str | None = None
+    tracking_url: str | None = None
 
 
 class ShippingRouteTrackingConsolidationBase(Base):
@@ -183,6 +207,12 @@ class ShippingRouteTrackingConsolidationBase(Base):
     tracking_ref: str | None = Field(
         default=None, max_length=100, description="Carrier tracking reference"
     )
+    carrier_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="carriers.id",
+        index=True,
+        description="External carrier for the whole lot (None = self-managed)",
+    )
 
     # Metrics
     total_orders: int = Field(default=0, description="Total number of orders")
@@ -215,6 +245,12 @@ class ShippingRouteTrackingConsolidation(
     status: "StatusDefinition" = Relationship(
         sa_relationship_kwargs={
             "foreign_keys": "[ShippingRouteTrackingConsolidation.status_id]",
+            "lazy": "selectin",
+        }
+    )
+    carrier: Optional["Carrier"] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "[ShippingRouteTrackingConsolidation.carrier_id]",
             "lazy": "selectin",
         }
     )

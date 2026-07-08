@@ -1,1 +1,1 @@
-Votre commande {{ order_id }} a été livrée
+Votre commande {{ order_id | short_ref }} a été livrée

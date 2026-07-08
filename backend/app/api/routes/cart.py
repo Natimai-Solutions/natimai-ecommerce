@@ -7,7 +7,7 @@ from enum import Enum
 from time import perf_counter
 from typing import Any
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Query, status
 from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep
@@ -26,6 +26,8 @@ from app.features.cart.models.cart import (
     CheckoutRequest,
     CheckoutResponse,
     CheckoutShippingPreference,
+    LastLegOption,
+    LastLegOptionsResponse,
 )
 from app.features.cart.models.quote_request import (
     GuestQuoteRequestResponse,
@@ -64,6 +66,8 @@ from app.features.payment.services.payment_initiation import (
     PaymentInitiationResult,
     initiate_payment_for_method,
 )
+from app.features.place.crud import crud_place
+from app.features.place.models import Place
 from app.features.product.models.product import Product
 from app.features.product.services.pricing import (
     calculate_sale_price,
@@ -86,6 +90,7 @@ from app.features.shipping.services import (
     calculate_shipping_for_routes,
     serialize_shipping_cost_summary,
 )
+from app.features.shipping.services.last_leg import resolve_last_leg_candidates
 from app.features.user.crud.address import crud_address
 from app.features.user.models.address import Address, AddressCreate
 from app.features.user.models.user import User
@@ -114,6 +119,9 @@ class FulfillmentAllocation:
 
     segment: FulfillmentSegment
     quantity: Decimal
+    # Origin place of this allocation (own warehouse for LOCAL, supplier origin
+    # for supplier segments). Drives the first-leg route; None → generic fallback.
+    origin_place_id: uuid.UUID | None = None
 
 
 _FULFILLMENT_SEGMENT_PRIORITY: dict[FulfillmentSegment, int] = {
@@ -157,6 +165,8 @@ def _plan_checkout_fulfillment_segments(
     local_available: Decimal,
     supplier_available: Decimal,
     shipping_address: str | None,
+    local_place_id: uuid.UUID | None = None,
+    supplier_place_id: uuid.UUID | None = None,
 ) -> list[FulfillmentAllocation]:
     """Execute plan checkout fulfillment segments."""
     requested_quantity = Decimal(quantity)
@@ -189,6 +199,7 @@ def _plan_checkout_fulfillment_segments(
             FulfillmentAllocation(
                 segment=FulfillmentSegment.LOCAL,
                 quantity=local_to_reserve,
+                origin_place_id=local_place_id,
             )
         )
 
@@ -197,6 +208,7 @@ def _plan_checkout_fulfillment_segments(
             FulfillmentAllocation(
                 segment=_select_supplier_segment(shipping_address),
                 quantity=supplier_to_reserve,
+                origin_place_id=supplier_place_id,
             )
         )
 
@@ -383,13 +395,25 @@ async def _resolve_tracking_address_for_checkout(
     *,
     current_user: User,
     shipping_address: str | None,
+    shipping_address_id: uuid.UUID | None = None,
 ) -> Address:
-    """Execute resolve tracking address for checkout."""
+    """Execute resolve tracking address for checkout.
+
+    When ``shipping_address_id`` points to one of the customer's own addresses,
+    that record is linked directly — no text rematching, no duplicate creation.
+    Otherwise falls back to matching ``shipping_address`` text, then to creating
+    a snapshot address (guest/manual entry).
+    """
     existing_shipping_addresses = await crud_address.get_by_user_and_type(
         session=session,
         user_id=current_user.id,
         address_type="shipping",
     )
+
+    if shipping_address_id is not None:
+        for address in existing_shipping_addresses:
+            if address.id == shipping_address_id:
+                return address
 
     if shipping_address:
         normalized_shipping_address = shipping_address.strip().lower()
@@ -470,12 +494,120 @@ async def _get_or_create_tracking_status(
     )
 
 
+async def _get_main_warehouse_place_id(session: SessionDep) -> uuid.UUID | None:
+    """Resolve the main warehouse: the destination of the default import corridor,
+    else the first active warehouse Place."""
+    import_route = (
+        await session.exec(
+            select(ShippingRoute)
+            .where(
+                col(ShippingRoute.is_default_import).is_(True),
+                col(ShippingRoute.is_active).is_(True),
+            )
+            .limit(1)
+        )
+    ).first()
+    if import_route is not None:
+        return import_route.to_place_id
+
+    warehouse = (
+        await session.exec(
+            select(Place)
+            .where(
+                col(Place.is_warehouse).is_(True),
+                col(Place.is_active).is_(True),
+            )
+            .limit(1)
+        )
+    ).first()
+    return warehouse.id if warehouse is not None else None
+
+
+async def _destination_chain_for_address(
+    session: SessionDep,
+    *,
+    address: Address | None,
+) -> list[uuid.UUID]:
+    """Destination chain of an address, nearest zone first (île → ... → pays).
+
+    Empty when the address has no resolved zone — only destination-independent
+    delivery modes (always_available / legacy unscoped) are then offered.
+    """
+    if address is None or address.place_id is None:
+        return []
+    chain = await crud_place.get_ancestor_chain(session, place_id=address.place_id)
+    return [place.id for place in chain]
+
+
+async def _load_user_address(
+    session: SessionDep,
+    *,
+    user_id: uuid.UUID,
+    address_id: uuid.UUID | None,
+) -> Address | None:
+    """One of the user's own addresses, or None (foreign ids are rejected)."""
+    if address_id is None:
+        return None
+    result = await session.exec(
+        select(Address).where(
+            Address.id == address_id,
+            Address.user_id == user_id,
+            col(Address.is_active).is_(True),
+        )
+    )
+    return result.first()
+
+
+async def _resolve_last_leg_route(
+    session: SessionDep,
+    *,
+    delivery_type: str | None,
+    destination_chain: list[uuid.UUID] | None = None,
+) -> ShippingRoute | None:
+    """Active last-leg route (``is_to_customer``) priced for the chosen delivery mode.
+
+    The admin tags each last-leg route with a free-form ``last_leg_delivery_type``
+    (e.g. ``home_delivery``, ``air_freight``, ``sea_freight``…); the checkout maps
+    the customer's ``delivery_type`` to that route so its tariff (base_price +
+    price_per_kg × weight) is added to the order total. Modes are not a fixed
+    enum — any value an admin configures on a route becomes a selectable mode.
+
+    When a ``destination_chain`` is given, only routes serving that destination
+    qualify (most specific zone first) — see ``resolve_last_leg_candidates``.
+    """
+    if not delivery_type:
+        return None
+    candidates = await resolve_last_leg_candidates(
+        session, destination_chain=destination_chain or []
+    )
+    candidate = candidates.get(delivery_type)
+    return candidate.route if candidate is not None else None
+
+
 async def _resolve_tracking_route_for_segment(
     session: SessionDep,
     *,
     segment: FulfillmentSegment,
+    origin_place_id: uuid.UUID | None = None,
 ) -> ShippingRoute | None:
-    """Execute resolve tracking route for segment."""
+    """Execute resolve tracking route for segment.
+
+    When the allocation's origin place is known (e.g. a supplier's warehouse),
+    the first leg is the optimal route from that origin to the main warehouse.
+    Falls back to the generic heuristic when no origin / no path is found.
+    """
+    if origin_place_id is not None:
+        main_warehouse_id = await _get_main_warehouse_place_id(session)
+        if main_warehouse_id is not None and main_warehouse_id != origin_place_id:
+            path = await crud_shipping_route.get_optimal_route_between_places(
+                session=session,
+                from_place_id=origin_place_id,
+                to_place_id=main_warehouse_id,
+                is_to_customer=False,
+            )
+            if path:
+                return path[0]  # first leg of the resolved journey
+
     if segment == FulfillmentSegment.CONSOLIDATION_PF:
         intermediary_routes = await crud_shipping_route.get_intermediary_routes(
             session=session,
@@ -518,7 +650,8 @@ async def _link_fulfillment_segments_to_tracking(
     order_id: uuid.UUID,
     current_user: User,
     shipping_address: str | None,
-    segment_totals: dict[FulfillmentSegment, Decimal],
+    shipping_address_id: uuid.UUID | None = None,
+    segment_totals: dict[tuple[FulfillmentSegment, uuid.UUID | None], Decimal],
 ) -> None:
     """Execute link fulfillment segments to tracking."""
     if not segment_totals:
@@ -528,6 +661,7 @@ async def _link_fulfillment_segments_to_tracking(
         session=session,
         current_user=current_user,
         shipping_address=shipping_address,
+        shipping_address_id=shipping_address_id,
     )
 
     route_tracking_status = await _get_or_create_tracking_status(
@@ -546,15 +680,19 @@ async def _link_fulfillment_segments_to_tracking(
     ordered_segments = sorted(
         segment_totals.items(),
         key=lambda item: (
-            _FULFILLMENT_SEGMENT_PRIORITY[item[0]],
-            item[0].value,
+            _FULFILLMENT_SEGMENT_PRIORITY[item[0][0]],
+            item[0][0].value,
+            str(item[0][1] or ""),
         ),
     )
 
-    for sequence_order, (segment, quantity) in enumerate(ordered_segments, start=1):
+    for sequence_order, ((segment, origin_place_id), quantity) in enumerate(
+        ordered_segments, start=1
+    ):
         selected_route = await _resolve_tracking_route_for_segment(
             session=session,
             segment=segment,
+            origin_place_id=origin_place_id,
         )
         if selected_route is None:
             logger.warning(
@@ -613,6 +751,7 @@ async def _link_selected_routes_to_tracking(
     order_id: uuid.UUID,
     current_user: User,
     shipping_address: str | None,
+    shipping_address_id: uuid.UUID | None = None,
     selected_routes: list[ShippingRoute],
 ) -> None:
     """Execute link selected routes to tracking."""
@@ -623,6 +762,7 @@ async def _link_selected_routes_to_tracking(
         session=session,
         current_user=current_user,
         shipping_address=shipping_address,
+        shipping_address_id=shipping_address_id,
     )
 
     route_tracking_status = await _get_or_create_tracking_status(
@@ -746,6 +886,8 @@ async def _reserve_stock_for_checkout(
         local_available=local_available,
         supplier_available=supplier_available,
         shipping_address=shipping_address,
+        local_place_id=inventory.place_id if inventory is not None else None,
+        supplier_place_id=getattr(product, "supplier_place_id", None),
     )
 
     for segment in segments:
@@ -1357,6 +1499,83 @@ async def create_guest_quote_request(
     )
 
 
+@router.get("/me/last-leg-options", response_model=LastLegOptionsResponse)
+async def get_last_leg_options(
+    session: SessionDep,
+    current_user: CurrentUser,
+    address_id: uuid.UUID | None = Query(
+        default=None,
+        description=(
+            "Shipping address whose destination filters the delivery modes "
+            "(must belong to the current user). Without it, only "
+            "destination-independent modes are returned."
+        ),
+    ),
+) -> LastLegOptionsResponse:
+    """Priced last-leg (zone C) delivery options for the current cart.
+
+    Lets the storefront show each delivery mode's price before checkout. Mirrors
+    the pricing applied at ``POST /cart/checkout`` (base_price + price_per_kg ×
+    billable weight). Only delivery modes whose route serves the address'
+    destination appear — plus the always-available ones (in-store pickup...).
+    """
+    cart = await crud_cart.get_active_cart_by_user(
+        session=session, user_id=current_user.id
+    )
+    if cart is None:
+        return LastLegOptionsResponse(currency=settings.REFERENCE_CURRENCY, options=[])
+
+    items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart.id)
+    products_by_id: dict[uuid.UUID, Product] = {}
+    try:
+        for item in items:
+            products_by_id[item.product_id] = await _get_active_product_or_404(
+                session, product_id=item.product_id
+            )
+    except AppError:
+        # A cart line is no longer purchasable; no quote to show (checkout will
+        # surface the real error). Return no priced options rather than 404.
+        return LastLegOptionsResponse(currency=cart.currency, options=[])
+
+    declared_value, total_weight_kg = _compute_checkout_declared_value_and_weight(
+        items=items,
+        products_by_id=products_by_id,
+    )
+
+    address = await _load_user_address(
+        session, user_id=current_user.id, address_id=address_id
+    )
+    destination_chain = await _destination_chain_for_address(session, address=address)
+
+    # Delivery modes are driven by the admin's configured last-leg routes, not a
+    # fixed enum: any mode whose route serves this destination appears.
+    candidates = await resolve_last_leg_candidates(
+        session, destination_chain=destination_chain
+    )
+
+    options: list[LastLegOption] = []
+    for mode in sorted(candidates):
+        route = candidates[mode].route
+        summary = calculate_shipping_for_routes(
+            routes=[route],
+            total_weight_kg=total_weight_kg,
+            declared_value=declared_value,
+            currency=cart.currency,
+        )
+        options.append(
+            LastLegOption(
+                delivery_type=mode,
+                label=route.customer_label,
+                amount=summary.total_fee,
+                currency=cart.currency,
+                eta_days=route.eta_days,
+                route_name=route.name,
+            )
+        )
+
+    return LastLegOptionsResponse(currency=cart.currency, options=options)
+
+
 @router.post(
     "/checkout",
     response_model=CheckoutResponse,
@@ -1420,12 +1639,50 @@ async def checkout_my_cart(
             currency=cart.currency,
         )
 
+    # Price the import/intermediate legs together with the chosen last-leg
+    # (zone C). The last-leg route must serve the shipping address' destination
+    # (île → archipel → pays) or be always_available; a delivery_type that does
+    # not resolve is rejected instead of silently skipping the tariff.
+    checkout_address = await _load_user_address(
+        session, user_id=user_id, address_id=payload.shipping_address_id
+    )
+    destination_chain = await _destination_chain_for_address(
+        session, address=checkout_address
+    )
+    last_leg_route = await _resolve_last_leg_route(
+        session,
+        delivery_type=payload.delivery_type,
+        destination_chain=destination_chain,
+    )
+    if payload.delivery_type and last_leg_route is None:
+        raise AppError(
+            code="checkout.delivery_type.unavailable",
+            status_code=400,
+            message=(
+                "Delivery mode "
+                f"'{payload.delivery_type}' is not available for this destination"
+            ),
+            details={
+                "delivery_type": payload.delivery_type,
+                "shipping_address_id": (
+                    str(payload.shipping_address_id)
+                    if payload.shipping_address_id
+                    else None
+                ),
+            },
+        )
+    priced_routes = list(selected_routes)
+    if last_leg_route is not None and all(
+        route.id != last_leg_route.id for route in priced_routes
+    ):
+        priced_routes.append(last_leg_route)
+
     shipping_cost_summary = None
     shipping_cost_breakdown_payload: dict[str, Any] | None = None
     shipping_fee_input = payload.shipping_fee_amount or Decimal("0.00")
-    if selected_routes:
+    if priced_routes:
         shipping_cost_summary = calculate_shipping_for_routes(
-            routes=selected_routes,
+            routes=priced_routes,
             total_weight_kg=total_weight_kg,
             declared_value=declared_value,
             currency=cart.currency,
@@ -1476,11 +1733,14 @@ async def checkout_my_cart(
                 shipping_address=payload.shipping_address,
                 shipping_cost_breakdown=shipping_cost_breakdown_payload,
                 notes=payload.notes,
+                delivery_type=payload.delivery_type,
             ),
             user=current_user,
         )
 
-        segment_totals: dict[FulfillmentSegment, Decimal] = {}
+        # Keyed by (segment, origin place) so each distinct origin (own warehouse,
+        # supplier A, supplier B…) gets its own tracking with its own first leg.
+        segment_totals: dict[tuple[FulfillmentSegment, uuid.UUID | None], Decimal] = {}
 
         for item in items:
             product = products_by_id[item.product_id]
@@ -1497,8 +1757,10 @@ async def checkout_my_cart(
             line_segments = line_segments or []
 
             for segment in line_segments:
-                current_total = segment_totals.get(segment.segment, Decimal("0.00"))
-                segment_totals[segment.segment] = current_total + segment.quantity
+                key = (segment.segment, segment.origin_place_id)
+                segment_totals[key] = (
+                    segment_totals.get(key, Decimal("0.00")) + segment.quantity
+                )
 
             line_notes = _format_fulfillment_segments_note(line_segments or [])
 
@@ -1538,6 +1800,7 @@ async def checkout_my_cart(
                     order_id=order.id,
                     current_user=current_user,
                     shipping_address=payload.shipping_address,
+                    shipping_address_id=payload.shipping_address_id,
                     selected_routes=selected_routes,
                 )
             except Exception as tracking_exc:
@@ -1555,6 +1818,7 @@ async def checkout_my_cart(
                     order_id=order.id,
                     current_user=current_user,
                     shipping_address=payload.shipping_address,
+                    shipping_address_id=payload.shipping_address_id,
                     segment_totals=segment_totals,
                 )
             except Exception as tracking_exc:

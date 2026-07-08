@@ -12,7 +12,7 @@ import uuid
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
-from sqlmodel import col, select
+from sqlmodel import col, func, select
 
 from app.api.deps import CurrentLogisticsAdmin, SessionDep
 from app.core.errors import AppError
@@ -22,6 +22,7 @@ from app.features.shipping.crud import (
     crud_shipping_route_tracking_consolidation,
     crud_status_definition,
 )
+from app.features.shipping.models.carrier import Carrier, CarrierPublic
 from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.models.route_tracking import (
     ShippingRouteTracking,
@@ -53,6 +54,13 @@ class AdminPendingTrackingItem(BaseModel):
     status_code: str | None = None
     status_name: str | None = None
     tracking_ref: str | None = None
+    is_final_leg: bool = Field(
+        default=False,
+        description=(
+            "Last leg of the order's journey (customer delivery route or highest "
+            "sequence) — close it with « Livrer », not « Tronçon suivant »."
+        ),
+    )
 
 
 class AdminConsolidationItem(BaseModel):
@@ -83,9 +91,23 @@ class AddTrackingsRequest(BaseModel):
 
 
 class ShipRequest(BaseModel):
-    """Carrier reference for a shipment."""
+    """Carrier + reference for a shipment (both optional — may be self-managed)."""
 
-    tracking_ref: str = Field(..., min_length=1, max_length=100)
+    tracking_ref: str | None = Field(default=None, max_length=100)
+    carrier_id: uuid.UUID | None = None
+
+
+class AdvanceConsolidationRequest(BaseModel):
+    """Advance a consolidation. ``ungroup=True`` detaches each parcel first so it
+    continues individually on its own next leg."""
+
+    ungroup: bool = False
+
+
+class UngroupHintResponse(BaseModel):
+    """Smart default for the « garder / dégrouper » popup."""
+
+    suggest_ungroup: bool
 
 
 class OkResponse(BaseModel):
@@ -198,6 +220,7 @@ async def _advance_tracking(
     status_name: str,
     admin_id: uuid.UUID,
     tracking_ref: str | None = None,
+    carrier_id: uuid.UUID | None = None,
     reason: str | None = None,
 ) -> ShippingRouteTracking:
     """Set a tracking's status (forced, no transition-table dependency), stamp the
@@ -233,8 +256,11 @@ async def _advance_tracking(
             details={"tracking_id": str(tracking_id)},
         )
 
-    if tracking_ref is not None:
+    if tracking_ref:
         updated.tracking_ref = tracking_ref
+    if carrier_id is not None:
+        updated.carrier_id = carrier_id
+    if tracking_ref or carrier_id is not None:
         session.add(updated)
 
     await _publish_tracking_status_changed(
@@ -261,9 +287,39 @@ async def list_pending_grouping(
         session=session
     )
     status_by_id = await _status_map(session, entity=_ENTITY_TRACKING)
+
+    # Final-leg detection: customer-delivery route (is_to_customer) or highest
+    # sequence of the order's journey. The UI closes those with « Livrer ».
+    last_leg_route_ids: set[uuid.UUID] = set()
+    max_sequence_by_order: dict[uuid.UUID, int] = {}
+    if trackings:
+        route_rows = await session.exec(
+            select(ShippingRoute.id).where(
+                col(ShippingRoute.id).in_({t.route_id for t in trackings}),
+                col(ShippingRoute.is_to_customer).is_(True),
+            )
+        )
+        last_leg_route_ids = set(route_rows.all())
+        sequence_rows = await session.exec(
+            select(
+                ShippingRouteTracking.order_id,
+                func.max(ShippingRouteTracking.sequence_order),
+            )
+            .where(
+                col(ShippingRouteTracking.order_id).in_(
+                    {t.order_id for t in trackings}
+                )
+            )
+            .group_by(col(ShippingRouteTracking.order_id))
+        )
+        max_sequence_by_order = {row[0]: row[1] for row in sequence_rows.all()}
+
     items: list[AdminPendingTrackingItem] = []
     for t in trackings:
         status = status_by_id.get(t.status_id)
+        is_final = t.route_id in last_leg_route_ids or (
+            t.sequence_order >= max_sequence_by_order.get(t.order_id, t.sequence_order)
+        )
         items.append(
             AdminPendingTrackingItem(
                 tracking_id=t.id,
@@ -273,6 +329,7 @@ async def list_pending_grouping(
                 status_code=status.code if status else None,
                 status_name=status.name if status else None,
                 tracking_ref=t.tracking_ref,
+                is_final_leg=is_final,
             )
         )
     return items
@@ -307,6 +364,20 @@ async def list_consolidations(
             )
         )
     return items
+
+
+@router.get("/carriers", response_model=list[CarrierPublic])
+async def list_carriers(
+    session: SessionDep,
+    _admin: CurrentLogisticsAdmin,
+) -> list[CarrierPublic]:
+    """Active carriers for the « remise au transporteur » selector."""
+    result = await session.exec(
+        select(Carrier)
+        .where(col(Carrier.is_active).is_(True))
+        .order_by(col(Carrier.name).asc())
+    )
+    return [CarrierPublic.model_validate(c) for c in result.all()]
 
 
 @router.post("/consolidations", response_model=AdminConsolidationItem, status_code=201)
@@ -428,10 +499,14 @@ async def ship_consolidation(
             status_name=shipped_status_name,
             admin_id=admin_id,
             tracking_ref=body.tracking_ref,
+            carrier_id=body.carrier_id,
         )
 
     consolidation.status_id = consolidation_status_id
-    consolidation.tracking_ref = body.tracking_ref
+    if body.tracking_ref:
+        consolidation.tracking_ref = body.tracking_ref
+    if body.carrier_id is not None:
+        consolidation.carrier_id = body.carrier_id
     session.add(consolidation)
     await session.commit()
     return OkResponse(
@@ -446,7 +521,7 @@ async def ship_tracking(
     session: SessionDep,
     admin: CurrentLogisticsAdmin,
 ) -> OkResponse:
-    """Mark a single tracking as shipped (requires the carrier reference)."""
+    """Mark a single tracking as shipped (carrier reference optional)."""
     shipped = await _get_or_create_status(
         session, entity=_ENTITY_TRACKING, code=_CODE_SHIPPED, name="Expédiée"
     )
@@ -458,6 +533,7 @@ async def ship_tracking(
         status_name=shipped.name,
         admin_id=admin.id,
         tracking_ref=body.tracking_ref,
+        carrier_id=body.carrier_id,
     )
     await session.commit()
     return OkResponse(message="Tracking marqué expédié")
@@ -498,6 +574,29 @@ async def advance_tracking(
     """Complete this leg (tronçon) and activate the next one in the order's
     multi-hop journey. ``activate_next_route`` commits internally."""
     admin_id = admin.id  # captured: the progression commits expire `admin`
+
+    tracking = await session.get(ShippingRouteTracking, tracking_id)
+    if tracking is None:
+        raise AppError(
+            code="shipping.tracking.not_found",
+            status_code=404,
+            message="Tracking not found",
+            details={"tracking_id": str(tracking_id)},
+        )
+    # A customer-delivery leg has no « next »: advancing it would mark it
+    # `completed` (terminal) and the delivery could never be confirmed.
+    route = await session.get(ShippingRoute, tracking.route_id)
+    if route is not None and route.is_to_customer:
+        raise AppError(
+            code="shipping.advance.last_leg",
+            status_code=400,
+            message=(
+                "Dernier tronçon (livraison client) — utilisez « Livrer » "
+                "pour confirmer la livraison"
+            ),
+            details={"tracking_id": str(tracking_id), "route_id": str(route.id)},
+        )
+
     next_tracking = await crud_shipping_route_tracking.activate_next_route(
         session=session,
         current_tracking_id=tracking_id,
@@ -531,10 +630,15 @@ async def advance_tracking(
 )
 async def advance_consolidation(
     consolidation_id: uuid.UUID,
+    body: AdvanceConsolidationRequest,
     session: SessionDep,
     admin: CurrentLogisticsAdmin,
 ) -> OkResponse:
-    """Advance every parcel of a consolidation to its next leg."""
+    """Advance every parcel of a consolidation to its next leg.
+
+    ``ungroup=True`` first detaches each parcel from the consolidation, so it
+    continues individually (e.g. into its own last-leg delivery).
+    """
     await _get_consolidation_or_404(session, consolidation_id)
     trackings = await crud_shipping_route_tracking.get_trackings_for_consolidation(
         session=session, consolidation_id=consolidation_id
@@ -546,6 +650,10 @@ async def advance_consolidation(
 
     advanced = 0
     for tid in tracking_ids:
+        if body.ungroup:
+            await crud_shipping_route_tracking_consolidation.remove_tracking_from_consolidation(
+                session=session, tracking_id=tid
+            )
         next_tracking = await crud_shipping_route_tracking.activate_next_route(
             session=session,
             current_tracking_id=tid,
@@ -568,6 +676,87 @@ async def advance_consolidation(
     return OkResponse(
         message=f"{advanced}/{len(tracking_ids)} colis passé(s) au tronçon suivant"
     )
+
+
+@router.post(
+    "/consolidations/{consolidation_id}/deliver-all", response_model=OkResponse
+)
+async def deliver_consolidation(
+    consolidation_id: uuid.UUID,
+    session: SessionDep,
+    admin: CurrentLogisticsAdmin,
+) -> OkResponse:
+    """Deliver every parcel of a consolidation.
+
+    Delivery is always individual, so each parcel is detached from the lot
+    (forced ungroup) and marked delivered (terminal).
+    """
+    await _get_consolidation_or_404(session, consolidation_id)
+    delivered = await _get_or_create_status(
+        session,
+        entity=_ENTITY_TRACKING,
+        code=_CODE_DELIVERED,
+        name="Livrée",
+        is_terminal=True,
+    )
+    delivered_consolidation = await _get_or_create_status(
+        session,
+        entity=_ENTITY_CONSOLIDATION,
+        code=_CODE_DELIVERED,
+        name="Livrée",
+        is_terminal=True,
+    )
+    trackings = await crud_shipping_route_tracking.get_trackings_for_consolidation(
+        session=session, consolidation_id=consolidation_id
+    )
+    # Capture before the per-tracking commits (MissingGreenlet otherwise).
+    tracking_ids = [t.id for t in trackings]
+    delivered_status_id = delivered.id
+    delivered_status_code = delivered.code
+    delivered_status_name = delivered.name
+    consolidation_status_id = delivered_consolidation.id
+    admin_id = admin.id
+
+    for tid in tracking_ids:
+        await crud_shipping_route_tracking_consolidation.remove_tracking_from_consolidation(
+            session=session, tracking_id=tid
+        )
+        await _advance_tracking(
+            session,
+            tracking_id=tid,
+            status_id=delivered_status_id,
+            status_code=delivered_status_code,
+            status_name=delivered_status_name,
+            admin_id=admin_id,
+        )
+
+    # The (now empty) consolidation is marked delivered too. Re-fetch: the loop's
+    # commits above expired the instance.
+    consolidation = await session.get(
+        ShippingRouteTrackingConsolidation, consolidation_id
+    )
+    if consolidation is not None:
+        consolidation.status_id = consolidation_status_id
+        session.add(consolidation)
+    await session.commit()
+    return OkResponse(message=f"{len(tracking_ids)} colis dégroupé(s) et livré(s)")
+
+
+@router.get(
+    "/consolidations/{consolidation_id}/ungroup-hint",
+    response_model=UngroupHintResponse,
+)
+async def consolidation_ungroup_hint(
+    consolidation_id: uuid.UUID,
+    session: SessionDep,
+    _admin: CurrentLogisticsAdmin,
+) -> UngroupHintResponse:
+    """Smart default for the « garder / dégrouper » popup."""
+    await _get_consolidation_or_404(session, consolidation_id)
+    suggest = await crud_shipping_route_tracking.suggest_ungroup_for_consolidation(
+        session=session, consolidation_id=consolidation_id
+    )
+    return UngroupHintResponse(suggest_ungroup=suggest)
 
 
 @router.get("/orders/{order_id}/journey", response_model=list[AdminJourneyLeg])

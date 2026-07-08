@@ -8,6 +8,7 @@ from app.features.integrations.crud.supplier_sync import supplier_product_mappin
 from app.features.integrations.services.supplier_sync_orchestrator import (
     SupplierSyncOrchestrator,
 )
+from app.features.place.crud import crud_place
 from app.features.product.crud.product import crud_product
 from app.services.suppliers import NormalizedProductData
 from app.services.suppliers.ingram_micro import IngramMicroAdapter
@@ -65,6 +66,8 @@ async def test_upsert_product_does_not_overwrite_manual_product(
     )
     monkeypatch.setattr(crud_product, "update_draft", update_draft_mock)
     monkeypatch.setattr(crud_product, "create_draft", create_draft_mock)
+    # Origin-place resolution is orthogonal to the manual-product guard.
+    monkeypatch.setattr(crud_place, "get_by_code", AsyncMock(return_value=None))
 
     result = await orchestrator.upsert_product(session=session, item=item)
 

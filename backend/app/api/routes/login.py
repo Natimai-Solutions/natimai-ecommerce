@@ -16,9 +16,10 @@ from app.core.auth_cookies import (
 )
 from app.core.config import settings
 from app.core.errors import AppError
+from app.core.rate_limit import get_client_ip, hit_rate_limit
 from app.features.base.crud import RecordNotFoundError
 from app.features.user.crud.refresh_token import crud_user_refresh_token
-from app.features.user.crud.user import crud_user
+from app.features.user.crud.user import AccountLockedError, crud_user
 from app.features.user.models.user import (
     AccessTokenResponse,
     TokenPayload,
@@ -69,6 +70,7 @@ def _build_token_bundle(user_id: uuid.UUID) -> tuple[str, str, str, datetime]:
 
 @router.post("/login/access-token")
 async def login_access_token(
+    request: Request,
     response: Response,
     session: SessionDep,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
@@ -76,11 +78,36 @@ async def login_access_token(
     """OAuth2 compatible password login.
 
     Returns the access token in the body (held in SPA memory) and sets the
-    refresh token as an HttpOnly cookie.
+    refresh token as an HttpOnly cookie. Per-IP throttled + per-account
+    lockout against brute force.
     """
-    user = await crud_user.authenticate(
-        session=session, email=form_data.username, password=form_data.password
-    )
+    client_ip = get_client_ip(request)
+    if await hit_rate_limit(
+        f"login:ip:{client_ip}",
+        limit=settings.LOGIN_RATE_LIMIT_ATTEMPTS,
+        window_seconds=settings.LOGIN_RATE_LIMIT_WINDOW_SECONDS,
+    ):
+        raise AppError(
+            code="login.rate_limited",
+            status_code=429,
+            message="Trop de tentatives de connexion. Réessayez dans une minute.",
+            details={"retry_after_seconds": settings.LOGIN_RATE_LIMIT_WINDOW_SECONDS},
+        )
+
+    try:
+        user = await crud_user.authenticate(
+            session=session, email=form_data.username, password=form_data.password
+        )
+    except AccountLockedError as exc:
+        raise AppError(
+            code="login.account.locked",
+            status_code=429,
+            message=(
+                "Compte temporairement verrouillé après trop de tentatives. "
+                "Réessayez plus tard."
+            ),
+            details={"locked_until": exc.locked_until.isoformat()},
+        ) from exc
     if not user:
         raise AppError(
             code="login.credentials.invalid",

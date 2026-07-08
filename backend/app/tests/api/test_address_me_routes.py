@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from app.api.deps import get_current_active_superuser, get_current_user
 from app.core.db import get_db
 from app.features.base.crud import RecordNotFoundError
+from app.features.place.crud import crud_place
 from app.features.user.crud.address import crud_address
 from app.features.user.models.address import Address
 from app.main import app
@@ -70,6 +71,10 @@ def test_create_my_address_forces_ownership_and_ignores_injected_fields(
     created = _address(user_id=current_user.id)
     create_mock = AsyncMock(return_value=created)
     monkeypatch.setattr(crud_address, "create_for_user", create_mock)
+    # Zone resolution (postal code → island) hits the DB; the session is a
+    # bare namespace here, so stub it to "unknown postal code".
+    resolve_mock = AsyncMock(return_value=None)
+    monkeypatch.setattr(crud_place, "resolve_by_postal_code", resolve_mock)
 
     response = client.post(
         "/api/v1/address/users/me/addresses",
@@ -92,6 +97,9 @@ def test_create_my_address_forces_ownership_and_ignores_injected_fields(
     assert create_mock.call_args.kwargs["user_id"] == current_user.id
     # The create payload schema has no is_validated field at all.
     assert not hasattr(passed_payload, "is_validated")
+    # Unknown postal code → no zone attached (resolution was consulted).
+    assert passed_payload.place_id is None
+    resolve_mock.assert_awaited_once()
     # Response reflects the persisted (non-validated) address.
     assert response.json()["is_validated"] is False
     assert response.json()["user_id"] == str(current_user.id)

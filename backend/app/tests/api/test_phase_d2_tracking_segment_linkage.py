@@ -47,8 +47,9 @@ async def test_link_segments_creates_tracking_entries_with_consolidation(
         session: object,
         *,
         segment: FulfillmentSegment,
+        origin_place_id: object = None,
     ) -> object:
-        _ = session
+        _ = (session, origin_place_id)
         if segment == FulfillmentSegment.LOCAL:
             return local_route
         return consolidation_route
@@ -85,8 +86,8 @@ async def test_link_segments_creates_tracking_entries_with_consolidation(
         current_user=current_user,
         shipping_address="Papeete, PF",
         segment_totals={
-            FulfillmentSegment.LOCAL: Decimal("1.00"),
-            FulfillmentSegment.CONSOLIDATION_PF: Decimal("2.00"),
+            (FulfillmentSegment.LOCAL, None): Decimal("1.00"),
+            (FulfillmentSegment.CONSOLIDATION_PF, None): Decimal("2.00"),
         },
     )
 
@@ -223,6 +224,6 @@ async def test_checkout_calls_tracking_linker_with_segment_totals(
     assert kwargs["order_id"] == order_id
     assert kwargs["shipping_address"] == "Paris, France"
     assert kwargs["segment_totals"] == {
-        FulfillmentSegment.LOCAL: Decimal("1.00"),
-        FulfillmentSegment.SUPPLIER_DIRECT: Decimal("2.00"),
+        (FulfillmentSegment.LOCAL, None): Decimal("1.00"),
+        (FulfillmentSegment.SUPPLIER_DIRECT, None): Decimal("2.00"),
     }

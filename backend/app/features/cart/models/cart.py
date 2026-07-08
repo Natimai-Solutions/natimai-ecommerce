@@ -210,6 +210,14 @@ class CheckoutRequest(SQLModel):
         max_length=500,
         description="Shipping address snapshot for order creation",
     )
+    shipping_address_id: uuid.UUID | None = Field(
+        default=None,
+        description=(
+            "Id of the customer's saved shipping address. When provided, the "
+            "tracking is linked to this exact address (no text rematching, no "
+            "duplicate creation). `shipping_address` stays as the order snapshot."
+        ),
+    )
     notes: str | None = Field(
         default=None,
         max_length=1000,
@@ -239,6 +247,14 @@ class CheckoutRequest(SQLModel):
     shipping_preference: CheckoutShippingPreference | None = Field(
         default=None,
         description=("Automatic selection preference when shipping_route_ids is empty"),
+    )
+    delivery_type: str | None = Field(
+        default=None,
+        max_length=50,
+        description=(
+            "Last-leg delivery mode tagged on a route by the admin (free-form, "
+            "e.g. home_delivery / air_freight / sea_freight)"
+        ),
     )
     payment_method_id: uuid.UUID | None = Field(
         default=None,
@@ -287,3 +303,21 @@ class CheckoutResponse(SQLModel):
     redirect_url: str | None = None
     instructions: str | None = None
     message: str = Field(default="Checkout completed")
+
+
+class LastLegOption(SQLModel):
+    """Priced last-leg (zone C) delivery option for the current cart."""
+
+    delivery_type: str
+    label: str | None = None
+    amount: Decimal
+    currency: str
+    eta_days: int | None = None
+    route_name: str | None = None
+
+
+class LastLegOptionsResponse(SQLModel):
+    """Last-leg delivery options with their price, for the checkout selector."""
+
+    currency: str
+    options: list[LastLegOption] = Field(default_factory=list)

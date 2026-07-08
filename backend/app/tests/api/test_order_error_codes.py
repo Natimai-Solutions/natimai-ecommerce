@@ -126,7 +126,9 @@ async def test_order_update_returns_order_not_found(
 ) -> None:
     session = AsyncMock()
     order_id = uuid4()
-    current_user = _user(is_superuser=False)
+    # Writes are superuser-only since the gating pass; the not-found contract
+    # is therefore asserted from an admin's seat.
+    current_user = _user(is_superuser=True)
 
     monkeypatch.setattr(
         crud_order,
@@ -155,7 +157,7 @@ async def test_order_delete_returns_order_not_found(
 ) -> None:
     session = AsyncMock()
     order_id = uuid4()
-    current_user = _user(is_superuser=False)
+    current_user = _user(is_superuser=True)
 
     monkeypatch.setattr(
         crud_order,
@@ -194,3 +196,49 @@ async def test_get_user_orders_returns_order_not_owned_for_foreign_user(
     assert exc_info.value.status_code == 403
     assert exc_info.value.details == {"user_id": str(user_id)}
     get_by_user_mock.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_order_update_requires_superuser(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Gating regression guard: customers must never mutate orders directly."""
+    session = AsyncMock()
+    order_id = uuid4()
+    current_user = _user(is_superuser=False)
+
+    update_mock = AsyncMock()
+    monkeypatch.setattr(crud_order, "update", update_mock)
+
+    endpoint = order_routes.router.generate_update_endpoint()
+
+    with pytest.raises(AppError) as exc_info:
+        await endpoint(
+            session=session,
+            id=order_id,
+            data=SimpleNamespace(),
+            current_user=current_user,
+        )
+
+    assert exc_info.value.status_code == 403
+    update_mock.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_order_delete_requires_superuser(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = AsyncMock()
+    order_id = uuid4()
+    current_user = _user(is_superuser=False)
+
+    delete_mock = AsyncMock()
+    monkeypatch.setattr(crud_order, "delete", delete_mock)
+
+    endpoint = order_routes.router.generate_delete_endpoint()
+
+    with pytest.raises(AppError) as exc_info:
+        await endpoint(session=session, id=order_id, current_user=current_user)
+
+    assert exc_info.value.status_code == 403
+    delete_mock.assert_not_awaited()

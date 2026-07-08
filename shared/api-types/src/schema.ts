@@ -18,7 +18,8 @@ export interface paths {
          * @description OAuth2 compatible password login.
          *
          *     Returns the access token in the body (held in SPA memory) and sets the
-         *     refresh token as an HttpOnly cookie.
+         *     refresh token as an HttpOnly cookie. Per-IP throttled + per-account
+         *     lockout against brute force.
          */
         post: operations["login-login_access_token"];
         delete?: never;
@@ -275,6 +276,90 @@ export interface paths {
          * @description Execute delete.
          */
         delete: operations["place-delete_Place"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/place/geo/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Geographic zone tree
+         * @description Arbre des zones géographiques (pays → région/archipel → île → commune) pour les sélecteurs en cascade. Les nœuds opérationnels (entrepôts, boutiques...) sont exclus.
+         */
+        get: operations["place-get_geo_tree"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/place/geo/postal-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Postal code directory of a country
+         * @description Tous les codes postaux enregistrés d'un pays avec leur zone (île, commune...). Alimente l'autocomplete du formulaire d'adresse — sélectionner un code = sélectionner sa zone.
+         */
+        get: operations["place-list_postal_codes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/place/geo/resolve-postal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve a postal code to its zone
+         * @description Déduit la zone (île, commune...) d'un code postal exact. Renvoie place=null si le code postal est inconnu.
+         */
+        get: operations["place-resolve_postal_code"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/place/{id}/postal-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Postal codes of a place
+         * @description List the postal codes attached to a place.
+         */
+        get: operations["place-get_place_postal_codes"];
+        /**
+         * Replace the postal codes of a place
+         * @description Replace the full set of postal codes attached to a place.
+         */
+        put: operations["place-set_place_postal_codes"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -761,6 +846,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/shipping/carriers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Carriers
+         * @description Active carriers for the « remise au transporteur » selector.
+         */
+        get: operations["admin-shipping-list_carriers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/shipping/consolidations/{consolidation_id}/add-trackings": {
         parameters: {
             query?: never;
@@ -812,7 +917,7 @@ export interface paths {
         put?: never;
         /**
          * Ship Tracking
-         * @description Mark a single tracking as shipped (requires the carrier reference).
+         * @description Mark a single tracking as shipped (carrier reference optional).
          */
         post: operations["admin-shipping-ship_tracking"];
         delete?: never;
@@ -874,8 +979,54 @@ export interface paths {
         /**
          * Advance Consolidation
          * @description Advance every parcel of a consolidation to its next leg.
+         *
+         *     ``ungroup=True`` first detaches each parcel from the consolidation, so it
+         *     continues individually (e.g. into its own last-leg delivery).
          */
         post: operations["admin-shipping-advance_consolidation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shipping/consolidations/{consolidation_id}/deliver-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deliver Consolidation
+         * @description Deliver every parcel of a consolidation.
+         *
+         *     Delivery is always individual, so each parcel is detached from the lot
+         *     (forced ungroup) and marked delivered (terminal).
+         */
+        post: operations["admin-shipping-deliver_consolidation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shipping/consolidations/{consolidation_id}/ungroup-hint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Consolidation Ungroup Hint
+         * @description Smart default for the « garder / dégrouper » popup.
+         */
+        get: operations["admin-shipping-consolidation_ungroup_hint"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -897,6 +1048,49 @@ export interface paths {
         get: operations["admin-shipping-order_journey"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Inventory
+         * @description Product-centric stock view (local stock + supplier availability).
+         */
+        get: operations["admin-inventory-list_inventory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/inventory/adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Adjust Inventory
+         * @description Set a product's local stock, with a mandatory audited reason.
+         *
+         *     Creates the ``Inventory`` row on first use. Writes an ``adjustment``
+         *     movement carrying the delta so the history stays reconstructible.
+         */
+        post: operations["admin-inventory-adjust_inventory"];
         delete?: never;
         options?: never;
         head?: never;
@@ -944,6 +1138,48 @@ export interface paths {
          * @description Remove a price group restriction from a payment method. Idempotent.
          */
         delete: operations["admin-payment-remove_eligible_group"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Create Product
+         * @description Create a manually-managed product (never overwritten by the supplier sync).
+         */
+        post: operations["admin-product-admin_create_product"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/products/{product_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Admin Update Product
+         * @description Update a product and lock the edited fields against the supplier sync.
+         *
+         *     Every content field present in the payload is added to ``overridden_fields``.
+         */
+        put: operations["admin-product-admin_update_product"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1528,7 +1764,9 @@ export interface paths {
         put?: never;
         /**
          * Use Discount
-         * @description Execute use discount.
+         * @description Increment a discount's usage counter (admin/server flows only).
+         *
+         *     Left open, any customer could exhaust a coupon's max_uses on purpose.
          */
         post: operations["discount-use_discount"];
         delete?: never;
@@ -1639,6 +1877,31 @@ export interface paths {
          * @description Send a quote request email for a guest cart without authentication.
          */
         post: operations["cart-create_guest_quote_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/me/last-leg-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Last Leg Options
+         * @description Priced last-leg (zone C) delivery options for the current cart.
+         *
+         *     Lets the storefront show each delivery mode's price before checkout. Mirrors
+         *     the pricing applied at ``POST /cart/checkout`` (base_price + price_per_kg ×
+         *     billable weight). Only delivery modes whose route serves the address'
+         *     destination appear — plus the always-available ones (in-store pickup...).
+         */
+        get: operations["cart-get_last_leg_options"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2098,7 +2361,7 @@ export interface paths {
         };
         /**
          * Get Multiple Orders
-         * @description Read multi.
+         * @description List orders (own orders unless superuser).
          */
         get: operations["order-get_multiple_Orders"];
         put?: never;
@@ -2282,7 +2545,7 @@ export interface paths {
         };
         /**
          * Get Order Lines
-         * @description Get order lines.
+         * @description Get the lines of an order (owner or superuser only).
          */
         get: operations["order-line-get_order_lines"];
         put?: never;
@@ -2508,6 +2771,26 @@ export interface paths {
          *     Re-validating an already-validated address is idempotent.
          */
         post: operations["address-admin_validate_address"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/address/admin/addresses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin List Addresses
+         * @description List addresses across all users for the admin validation screen.
+         */
+        get: operations["address-admin_list_addresses"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3084,6 +3367,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me/upgrade-group/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Upgrade Group Options
+         * @description Return the user's current price group and the groups they may request.
+         *
+         *     Requestable groups are active groups flagged ``requires_validation`` (minus
+         *     the current one). Margin rates are intentionally not exposed.
+         */
+        get: operations["user-get_upgrade_group_options"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/group-upgrade-requests": {
         parameters: {
             query?: never;
@@ -3274,7 +3580,7 @@ export interface paths {
         };
         /**
          * Get Observability Dashboard
-         * @description Get observability dashboard.
+         * @description Get observability dashboard (superuser only — business metrics).
          */
         get: operations["utils-get_observability_dashboard"];
         put?: never;
@@ -3472,6 +3778,30 @@ export interface paths {
          */
         get: operations["shipping-get_routing_statistics"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shipping/route/{id}/served-places": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Zones served by a route
+         * @description Zones géographiques desservies par ce trajet (îles, communes, archipels). Une zone parente couvre toutes ses zones enfants.
+         */
+        get: operations["shipping-get_served_places"];
+        /**
+         * Replace the zones served by a route
+         * @description Replace the full set of zones served by a shipping route.
+         */
+        put: operations["shipping-set_served_places"];
         post?: never;
         delete?: never;
         options?: never;
@@ -4534,6 +4864,11 @@ export interface components {
              */
             type: string;
             /**
+             * Place Id
+             * @description Geographic zone of the address (island, municipality...). Auto-resolved from country + postal code when not provided; drives the delivery modes offered at checkout.
+             */
+            place_id?: string | null;
+            /**
              * User Id
              * Format: uuid
              * @description ID of the user
@@ -4557,6 +4892,8 @@ export interface components {
             country: string;
             /** Type */
             type: string;
+            /** Place Id */
+            place_id?: string | null;
         };
         /**
          * AddressMeUpdate
@@ -4575,6 +4912,8 @@ export interface components {
             country?: string | null;
             /** Type */
             type?: string | null;
+            /** Place Id */
+            place_id?: string | null;
         };
         /**
          * AddressPublic
@@ -4630,6 +4969,11 @@ export interface components {
              */
             type: string;
             /**
+             * Place Id
+             * @description Geographic zone of the address (island, municipality...). Auto-resolved from country + postal code when not provided; drives the delivery modes offered at checkout.
+             */
+            place_id?: string | null;
+            /**
              * Id
              * Format: uuid
              */
@@ -4681,6 +5025,8 @@ export interface components {
             country?: string | null;
             /** Type */
             type?: string | null;
+            /** Place Id */
+            place_id?: string | null;
             /** User Id */
             user_id?: string | null;
         };
@@ -4694,6 +5040,97 @@ export interface components {
              * @description List of addresses
              */
             data?: components["schemas"]["AddressPublic"][];
+            /**
+             * Count
+             * @description Total number of addresses
+             * @default 0
+             */
+            count: number;
+        };
+        /**
+         * AdminAddressPublic
+         * @description Address enriched with the owner's email for the admin validation screen.
+         */
+        AdminAddressPublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * Street
+             * @description Street address
+             */
+            street: string;
+            /**
+             * City
+             * @description City of the address
+             */
+            city: string;
+            /**
+             * State
+             * @description State of the address
+             */
+            state?: string | null;
+            /**
+             * Postal Code
+             * @description Postal code of the address
+             */
+            postal_code: string;
+            /**
+             * Country
+             * @description Country of the address
+             */
+            country: string;
+            /**
+             * Type
+             * @description Address type: billing, shipping, or other
+             */
+            type: string;
+            /**
+             * Place Id
+             * @description Geographic zone of the address (island, municipality...). Auto-resolved from country + postal code when not provided; drives the delivery modes offered at checkout.
+             */
+            place_id?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id?: string;
+            /**
+             * User Id
+             * Format: uuid
+             * @description ID of the user
+             */
+            user_id: string;
+            /**
+             * Is Validated
+             * @default false
+             */
+            is_validated: boolean;
+            /** User Email */
+            user_email?: string | null;
+        };
+        /**
+         * AdminAddressesPublic
+         * @description Paginated admin address listing.
+         */
+        AdminAddressesPublic: {
+            /** Data */
+            data?: components["schemas"]["AdminAddressPublic"][];
             /**
              * Count
              * @description Total number of addresses
@@ -4728,6 +5165,41 @@ export interface components {
             total_orders: number;
             /** Tracking Ref */
             tracking_ref?: string | null;
+        };
+        /**
+         * AdminInventoryItem
+         * @description A product with its local stock and (read-only) supplier availability.
+         */
+        AdminInventoryItem: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Product Name */
+            product_name: string;
+            /** Is Supplier Managed */
+            is_supplier_managed: boolean;
+            /** Supplier Name */
+            supplier_name?: string | null;
+            /** Supplier Quantity */
+            supplier_quantity: string;
+            /** Local Quantity */
+            local_quantity: string;
+            /** Inventory Id */
+            inventory_id?: string | null;
+            /** Place Id */
+            place_id?: string | null;
+        };
+        /**
+         * AdminInventoryList
+         * @description Paginated inventory listing.
+         */
+        AdminInventoryList: {
+            /** Data */
+            data: components["schemas"]["AdminInventoryItem"][];
+            /** Count */
+            count: number;
         };
         /**
          * AdminJourneyLeg
@@ -4901,6 +5373,12 @@ export interface components {
             status_name?: string | null;
             /** Tracking Ref */
             tracking_ref?: string | null;
+            /**
+             * Is Final Leg
+             * @description Last leg of the order's journey (customer delivery route or highest sequence) — close it with « Livrer », not « Tronçon suivant ».
+             * @default false
+             */
+            is_final_leg: boolean;
         };
         /**
          * AdminReviewBody
@@ -4909,6 +5387,18 @@ export interface components {
         AdminReviewBody: {
             /** Comment */
             comment?: string | null;
+        };
+        /**
+         * AdvanceConsolidationRequest
+         * @description Advance a consolidation. ``ungroup=True`` detaches each parcel first so it
+         *     continues individually on its own next leg.
+         */
+        AdvanceConsolidationRequest: {
+            /**
+             * Ungroup
+             * @default false
+             */
+            ungroup: boolean;
         };
         /**
          * AdvanceResponse
@@ -5633,6 +6123,50 @@ export interface components {
             count: number;
         };
         /**
+         * CarrierPublic
+         * @description Represents carrier public.
+         */
+        CarrierPublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * Name
+             * @description Display name, e.g. 'DHL'
+             */
+            name: string;
+            /**
+             * Code
+             * @description Unique slug, e.g. 'dhl'
+             */
+            code: string;
+            /**
+             * Tracking Url Template
+             * @description Tracking URL with a {ref} placeholder (https only).
+             */
+            tracking_url_template?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /**
          * CartDetailPublic
          * @description Represents cart detail public.
          */
@@ -5906,6 +6440,11 @@ export interface components {
              */
             shipping_address?: string | null;
             /**
+             * Shipping Address Id
+             * @description Id of the customer's saved shipping address. When provided, the tracking is linked to this exact address (no text rematching, no duplicate creation). `shipping_address` stays as the order snapshot.
+             */
+            shipping_address_id?: string | null;
+            /**
              * Notes
              * @description Optional checkout notes
              */
@@ -5928,6 +6467,11 @@ export interface components {
             shipping_route_ids?: string[];
             /** @description Automatic selection preference when shipping_route_ids is empty */
             shipping_preference?: components["schemas"]["CheckoutShippingPreference"] | null;
+            /**
+             * Delivery Type
+             * @description Last-leg delivery mode tagged on a route by the admin (free-form, e.g. home_delivery / air_freight / sea_freight)
+             */
+            delivery_type?: string | null;
             /**
              * Payment Method Id
              * @description Payment method to initiate in the same transaction (single-payment flow). When omitted, a pending placeholder payment is created instead.
@@ -7132,6 +7676,32 @@ export interface components {
             count: number;
         };
         /**
+         * InventoryAdjustRequest
+         * @description Set the local stock of a product to an absolute quantity.
+         */
+        InventoryAdjustRequest: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Place Id
+             * @description Warehouse place (None = default/unspecified warehouse)
+             */
+            place_id?: string | null;
+            /**
+             * Quantity
+             * @description New absolute local quantity
+             */
+            quantity: number | string;
+            /**
+             * Reason
+             * @description Why (audit trail)
+             */
+            reason: string;
+        };
+        /**
          * InventoryCreate
          * @description Represents inventory create.
          */
@@ -7490,6 +8060,34 @@ export interface components {
             compute_from_movements?: boolean | null;
         };
         /**
+         * LastLegOption
+         * @description Priced last-leg (zone C) delivery option for the current cart.
+         */
+        LastLegOption: {
+            /** Delivery Type */
+            delivery_type: string;
+            /** Label */
+            label?: string | null;
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+            /** Eta Days */
+            eta_days?: number | null;
+            /** Route Name */
+            route_name?: string | null;
+        };
+        /**
+         * LastLegOptionsResponse
+         * @description Last-leg delivery options with their price, for the checkout selector.
+         */
+        LastLegOptionsResponse: {
+            /** Currency */
+            currency: string;
+            /** Options */
+            options?: components["schemas"]["LastLegOption"][];
+        };
+        /**
          * LivenessResponse
          * @description Represents liveness response.
          */
@@ -7596,6 +8194,11 @@ export interface components {
              * @description Notes sur la commande
              */
             notes?: string | null;
+            /**
+             * Delivery Type
+             * @description Mode de livraison du dernier tronçon choisi au checkout
+             */
+            delivery_type?: string | null;
             /**
              * Id
              * Format: uuid
@@ -7920,6 +8523,11 @@ export interface components {
              * @description Notes sur la commande
              */
             notes?: string | null;
+            /**
+             * Delivery Type
+             * @description Mode de livraison du dernier tronçon choisi au checkout
+             */
+            delivery_type?: string | null;
         };
         /**
          * OrderLineCreate
@@ -8232,6 +8840,11 @@ export interface components {
              */
             notes?: string | null;
             /**
+             * Delivery Type
+             * @description Mode de livraison du dernier tronçon choisi au checkout
+             */
+            delivery_type?: string | null;
+            /**
              * Id
              * Format: uuid
              */
@@ -8390,6 +9003,8 @@ export interface components {
             } | null;
             /** Notes */
             notes?: string | null;
+            /** Delivery Type */
+            delivery_type?: string | null;
         };
         /**
          * OrdersPublic
@@ -9372,6 +9987,11 @@ export interface components {
              */
             type: string;
             /**
+             * Parent Id
+             * @description Parent zone (e.g. municipality → island → region → country). Null for roots and standalone operational nodes.
+             */
+            parent_id?: string | null;
+            /**
              * Code
              * @description Code IATA/UN/LOCODE/autre
              */
@@ -9461,6 +10081,22 @@ export interface components {
             is_owned: boolean;
         };
         /**
+         * PlacePostalCodesUpdate
+         * @description Replace the set of postal codes attached to a place.
+         */
+        PlacePostalCodesUpdate: {
+            /**
+             * Country
+             * @description ISO country code
+             */
+            country: string;
+            /**
+             * Postal Codes
+             * @description Full list of postal codes for this place (replaces existing)
+             */
+            postal_codes?: string[];
+        };
+        /**
          * PlacePublic
          * @description Represents place public.
          */
@@ -9493,6 +10129,11 @@ export interface components {
              * @description Type: airport, seaport, warehouse, address, island, etc.
              */
             type: string;
+            /**
+             * Parent Id
+             * @description Parent zone (e.g. municipality → island → region → country). Null for roots and standalone operational nodes.
+             */
+            parent_id?: string | null;
             /**
              * Code
              * @description Code IATA/UN/LOCODE/autre
@@ -9588,6 +10229,45 @@ export interface components {
             id: string;
         };
         /**
+         * PlaceResolveResponse
+         * @description Result of a postal-code → zone lookup (place is null when unknown).
+         */
+        PlaceResolveResponse: {
+            place?: components["schemas"]["PlacePublic"] | null;
+            /**
+             * Ancestors
+             * @description Parent chain of the resolved place, nearest first
+             */
+            ancestors?: components["schemas"]["PlacePublic"][];
+        };
+        /**
+         * PlaceTreeNode
+         * @description Node of the geographic zone tree (children nested).
+         */
+        PlaceTreeNode: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Type */
+            type: string;
+            /** Code */
+            code?: string | null;
+            /** Children */
+            children?: components["schemas"]["PlaceTreeNode"][];
+        };
+        /**
+         * PlaceTreeResponse
+         * @description Represents the geographic zone tree.
+         */
+        PlaceTreeResponse: {
+            /** Roots */
+            roots?: components["schemas"]["PlaceTreeNode"][];
+        };
+        /**
          * PlaceUpdate
          * @description Represents place update.
          */
@@ -9614,6 +10294,8 @@ export interface components {
             name?: string | null;
             /** Type */
             type?: string | null;
+            /** Parent Id */
+            parent_id?: string | null;
             /** Code */
             code?: string | null;
             /** Latitude */
@@ -9676,6 +10358,48 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * PostalCodeDirectoryEntry
+         * @description A known postal code and the zone it belongs to (address-form dropdown).
+         */
+        PostalCodeDirectoryEntry: {
+            /** Postal Code */
+            postal_code: string;
+            /**
+             * Place Id
+             * Format: uuid
+             */
+            place_id: string;
+            /** Place Name */
+            place_name: string;
+            /** Place Type */
+            place_type: string;
+        };
+        /**
+         * PostalCodeDirectoryResponse
+         * @description Every registered postal code of a country, sorted by code.
+         */
+        PostalCodeDirectoryResponse: {
+            /** Country */
+            country: string;
+            /** Entries */
+            entries?: components["schemas"]["PostalCodeDirectoryEntry"][];
+        };
+        /**
+         * PriceGroupOption
+         * @description Customer-safe view of a price group (omits the internal margin rate).
+         */
+        PriceGroupOption: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
         };
         /**
          * PriceGroupPublic
@@ -9904,6 +10628,16 @@ export interface components {
              */
             is_supplier_managed: boolean;
             /**
+             * Supplier Place Id
+             * @description Origin place when supplier-sourced (drives the first leg)
+             */
+            supplier_place_id?: string | null;
+            /**
+             * Overridden Fields
+             * @description Field names manually set by an admin. The supplier sync must not overwrite these — they are the admin's authoritative values.
+             */
+            overridden_fields?: string[] | null;
+            /**
              * Last Enrichment Sync
              * @description Last synchronization timestamp for enrichment data
              */
@@ -10113,6 +10847,16 @@ export interface components {
              * @default false
              */
             is_supplier_managed: boolean;
+            /**
+             * Supplier Place Id
+             * @description Origin place when supplier-sourced (drives the first leg)
+             */
+            supplier_place_id?: string | null;
+            /**
+             * Overridden Fields
+             * @description Field names manually set by an admin. The supplier sync must not overwrite these — they are the admin's authoritative values.
+             */
+            overridden_fields?: string[] | null;
             /**
              * Last Enrichment Sync
              * @description Last synchronization timestamp for enrichment data
@@ -10368,6 +11112,10 @@ export interface components {
             last_supplier_sync?: string | null;
             /** Is Supplier Managed */
             is_supplier_managed?: boolean | null;
+            /** Supplier Place Id */
+            supplier_place_id?: string | null;
+            /** Overridden Fields */
+            overridden_fields?: string[] | null;
             /**
              * Last Enrichment Sync
              * @description Last synchronization timestamp for enrichment data
@@ -10754,6 +11502,30 @@ export interface components {
             total_count: number;
         };
         /**
+         * RouteServedPlacesPublic
+         * @description Zones served by a route.
+         */
+        RouteServedPlacesPublic: {
+            /**
+             * Route Id
+             * Format: uuid
+             */
+            route_id: string;
+            /** Places */
+            places?: components["schemas"]["PlacePublic"][];
+        };
+        /**
+         * RouteServedPlacesUpdate
+         * @description Replace the set of zones served by a route.
+         */
+        RouteServedPlacesUpdate: {
+            /**
+             * Place Ids
+             * @description Full list of served zone ids (replaces existing)
+             */
+            place_ids?: string[];
+        };
+        /**
          * RoutingStatisticsResponse
          * @description Aggregated routing statistics between two places.
          */
@@ -10809,11 +11581,13 @@ export interface components {
         };
         /**
          * ShipRequest
-         * @description Carrier reference for a shipment.
+         * @description Carrier + reference for a shipment (both optional — may be self-managed).
          */
         ShipRequest: {
             /** Tracking Ref */
-            tracking_ref: string;
+            tracking_ref?: string | null;
+            /** Carrier Id */
+            carrier_id?: string | null;
         };
         /**
          * ShippingModePricePublic
@@ -11054,6 +11828,17 @@ export interface components {
              */
             is_default_import: boolean;
             /**
+             * Last Leg Delivery Type
+             * @description For last-leg routes (is_to_customer=True): the delivery mode this route serves and prices — pickup | home_delivery | air_freight. Maps the checkout delivery_type to a priced route. Null = untyped.
+             */
+            last_leg_delivery_type?: string | null;
+            /**
+             * Always Available
+             * @description Last-leg routes only: offered whatever the customer's destination (e.g. in-store pickup). Routes that are neither always_available nor linked to served zones remain visible everywhere (legacy).
+             * @default false
+             */
+            always_available: boolean;
+            /**
              * Status Code
              * @description Current status
              * @default draft
@@ -11224,6 +12009,17 @@ export interface components {
              */
             is_default_import: boolean;
             /**
+             * Last Leg Delivery Type
+             * @description For last-leg routes (is_to_customer=True): the delivery mode this route serves and prices — pickup | home_delivery | air_freight. Maps the checkout delivery_type to a priced route. Null = untyped.
+             */
+            last_leg_delivery_type?: string | null;
+            /**
+             * Always Available
+             * @description Last-leg routes only: offered whatever the customer's destination (e.g. in-store pickup). Routes that are neither always_available nor linked to served zones remain visible everywhere (legacy).
+             * @default false
+             */
+            always_available: boolean;
+            /**
              * Status Code
              * @description Current status
              * @default draft
@@ -11314,6 +12110,11 @@ export interface components {
              */
             tracking_ref?: string | null;
             /**
+             * Carrier Id
+             * @description External carrier for the whole lot (None = self-managed)
+             */
+            carrier_id?: string | null;
+            /**
              * Total Orders
              * @description Total number of orders
              * @default 0
@@ -11375,6 +12176,11 @@ export interface components {
              * @description Carrier tracking reference
              */
             tracking_ref?: string | null;
+            /**
+             * Carrier Id
+             * @description External carrier for the whole lot (None = self-managed)
+             */
+            carrier_id?: string | null;
             /**
              * Total Orders
              * @description Total number of orders
@@ -11501,6 +12307,11 @@ export interface components {
              * @description Carrier tracking reference
              */
             tracking_ref?: string | null;
+            /**
+             * Carrier Id
+             * @description External carrier when handed over (None = self-managed)
+             */
+            carrier_id?: string | null;
             /**
              * Estimated Delivery
              * @description Estimated delivery date
@@ -11670,6 +12481,11 @@ export interface components {
              */
             tracking_ref?: string | null;
             /**
+             * Carrier Id
+             * @description External carrier when handed over (None = self-managed)
+             */
+            carrier_id?: string | null;
+            /**
              * Estimated Delivery
              * @description Estimated delivery date
              */
@@ -11684,6 +12500,18 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** From Place Name */
+            from_place_name?: string | null;
+            /** To Place Name */
+            to_place_name?: string | null;
+            /** Mode */
+            mode?: string | null;
+            /** Route Label */
+            route_label?: string | null;
+            /** Carrier Name */
+            carrier_name?: string | null;
+            /** Tracking Url */
+            tracking_url?: string | null;
         };
         /**
          * ShippingRouteTrackingUpdate
@@ -11791,6 +12619,10 @@ export interface components {
             customer_label?: string | null;
             /** Is Default Import */
             is_default_import?: boolean | null;
+            /** Last Leg Delivery Type */
+            last_leg_delivery_type?: string | null;
+            /** Always Available */
+            always_available?: boolean | null;
             /** Status Code */
             status_code?: string | null;
             /** Priority */
@@ -12795,6 +13627,14 @@ export interface components {
             tracking_ref?: string | null;
         };
         /**
+         * UngroupHintResponse
+         * @description Smart default for the « garder / dégrouper » popup.
+         */
+        UngroupHintResponse: {
+            /** Suggest Ungroup */
+            suggest_ungroup: boolean;
+        };
+        /**
          * UpdateStatusRequest
          * @description Request payload for updating tracking status.
          */
@@ -12810,6 +13650,18 @@ export interface components {
              * @description Raison du changement
              */
             reason?: string | null;
+        };
+        /**
+         * UpgradeGroupOptions
+         * @description Context for the storefront group-upgrade form.
+         */
+        UpgradeGroupOptions: {
+            current_group?: components["schemas"]["PriceGroupOption"] | null;
+            /**
+             * Available Groups
+             * @default []
+             */
+            available_groups: components["schemas"]["PriceGroupOption"][];
         };
         /**
          * UpgradeRequestStatus
@@ -13771,6 +14623,167 @@ export interface operations {
             };
         };
     };
+    "place-get_geo_tree": {
+        parameters: {
+            query?: {
+                /** @description Filtre pays ISO */
+                country?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceTreeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "place-list_postal_codes": {
+        parameters: {
+            query: {
+                country: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostalCodeDirectoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "place-resolve_postal_code": {
+        parameters: {
+            query: {
+                country: string;
+                postal_code: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceResolveResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "place-get_place_postal_codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "place-set_place_postal_codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlacePostalCodesUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "payment-get_multiple_Payments": {
         parameters: {
             query?: {
@@ -14685,6 +15698,26 @@ export interface operations {
             };
         };
     };
+    "admin-shipping-list_carriers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CarrierPublic"][];
+                };
+            };
+        };
+    };
     "admin-shipping-add_trackings": {
         parameters: {
             query?: never;
@@ -14861,6 +15894,41 @@ export interface operations {
             };
             cookie?: never;
         };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdvanceConsolidationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-shipping-deliver_consolidation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                consolidation_id: string;
+            };
+            cookie?: never;
+        };
         requestBody?: never;
         responses: {
             /** @description Successful Response */
@@ -14870,6 +15938,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-shipping-consolidation_ungroup_hint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                consolidation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UngroupHintResponse"];
                 };
             };
             /** @description Validation Error */
@@ -14901,6 +16000,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminJourneyLeg"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-inventory-list_inventory": {
+        parameters: {
+            query?: {
+                search?: string | null;
+                /** @description Only products holding local stock */
+                only_local?: boolean;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminInventoryList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-inventory-adjust_inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryAdjustRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminInventoryItem"];
                 };
             };
             /** @description Validation Error */
@@ -14999,6 +16166,74 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-admin_create_product": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-admin_update_product": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductPublic"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -16478,6 +17713,38 @@ export interface operations {
             };
         };
     };
+    "cart-get_last_leg_options": {
+        parameters: {
+            query?: {
+                /** @description Shipping address whose destination filters the delivery modes (must belong to the current user). Without it, only destination-independent modes are returned. */
+                address_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LastLegOptionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "cart-checkout_my_cart": {
         parameters: {
             query?: never;
@@ -17631,9 +18898,6 @@ export interface operations {
             query?: {
                 skip?: number;
                 limit?: number;
-                filter?: string | null;
-                order_by?: string | null;
-                include_archived?: boolean;
             };
             header?: never;
             path?: never;
@@ -18697,6 +19961,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AddressPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "address-admin_list_addresses": {
+        parameters: {
+            query?: {
+                /** @description Filter on the admin-validation flag (omit for all addresses) */
+                validated?: boolean | null;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAddressesPublic"];
                 };
             };
             /** @description Validation Error */
@@ -20068,6 +21366,26 @@ export interface operations {
             };
         };
     };
+    "user-get_upgrade_group_options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpgradeGroupOptions"];
+                };
+            };
+        };
+    };
     "user-list_upgrade_requests_admin": {
         parameters: {
             query?: {
@@ -20734,6 +22052,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RoutingStatisticsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "shipping-get_served_places": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RouteServedPlacesPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "shipping-set_served_places": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RouteServedPlacesUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RouteServedPlacesPublic"];
                 };
             };
             /** @description Validation Error */

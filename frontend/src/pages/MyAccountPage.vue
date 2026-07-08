@@ -161,7 +161,7 @@
                 <div>{{ address.street }}</div>
                 <div>{{ address.postal_code }} {{ address.city }}</div>
                 <div v-if="address.state">{{ address.state }}</div>
-                <div class="text-weight-medium">{{ address.country }}</div>
+                <div class="text-weight-medium">{{ countryLabel(address.country) }}</div>
               </q-card-section>
               <q-separator />
               <q-card-actions align="right">
@@ -207,9 +207,19 @@
                 <q-chip
                   dense
                   size="sm"
-                  :color="orderStatusColor(order.order_status_name)"
+                  :color="paymentBadge(order.order_status_name).color"
                   text-color="white"
-                  :label="orderStatusLabel(order.order_status_name)"
+                  :icon="paymentBadge(order.order_status_name).icon"
+                  :label="paymentBadge(order.order_status_name).label"
+                />
+                <q-chip
+                  v-if="deliveryBadge(order.order_status_name)"
+                  dense
+                  size="sm"
+                  :color="deliveryBadge(order.order_status_name)?.color"
+                  text-color="white"
+                  :icon="deliveryBadge(order.order_status_name)?.icon"
+                  :label="deliveryBadge(order.order_status_name)?.label"
                 />
               </q-item-label>
             </q-item-section>
@@ -361,46 +371,100 @@
               dense
               class="q-mb-sm"
             />
+            <q-select
+              v-model="addressForm.country"
+              :options="filteredCountryOptions"
+              label="Pays *"
+              outlined
+              dense
+              class="q-mb-sm"
+              emit-value
+              map-options
+              use-input
+              input-debounce="0"
+              :rules="[(v) => !!v || 'Champ requis']"
+              @filter="filterCountries"
+            />
+            <div class="row q-col-gutter-sm">
+              <q-select
+                v-model="addressForm.postal_code"
+                :options="filteredPostalOptions"
+                label="Code postal *"
+                outlined
+                dense
+                class="col-5"
+                emit-value
+                map-options
+                use-input
+                fill-input
+                hide-selected
+                input-debounce="0"
+                :disable="!countryChosen"
+                :hide-dropdown-icon="postalDirectory.length === 0"
+                :rules="[(v) => !!v || 'Requis']"
+                @filter="filterPostalCodes"
+                @input-value="onPostalTyped"
+              >
+                <template #option="scope">
+                  <q-item v-bind="scope.itemProps">
+                    <q-item-section>
+                      <q-item-label>{{ scope.opt.value }}</q-item-label>
+                      <q-item-label caption>{{ scope.opt.zone }}</q-item-label>
+                    </q-item-section>
+                  </q-item>
+                </template>
+              </q-select>
+              <q-input
+                v-model="addressForm.city"
+                :label="cityRequired ? 'Ville *' : 'Ville'"
+                outlined
+                dense
+                class="col-7"
+                :disable="!postalFilled"
+                :rules="cityRules"
+              />
+            </div>
             <q-input
               v-model="addressForm.street"
               label="Adresse (rue) *"
               outlined
               dense
               class="q-mb-sm"
+              :disable="!postalFilled"
               :rules="[(v) => !!v || 'Champ requis']"
             />
-            <div class="row q-col-gutter-sm">
-              <q-input
-                v-model="addressForm.postal_code"
-                label="Code postal *"
-                outlined
-                dense
-                class="col-5"
-                :rules="[(v) => !!v || 'Requis']"
-              />
-              <q-input
-                v-model="addressForm.city"
-                label="Ville *"
-                outlined
-                dense
-                class="col-7"
-                :rules="[(v) => !!v || 'Requis']"
-              />
-            </div>
             <q-input
               v-model="addressForm.state"
-              label="État / Région"
+              label="État / Région / Île"
               outlined
               dense
-              class="q-mb-sm q-mt-sm"
+              class="q-mb-sm"
+              :disable="!postalFilled"
             />
-            <q-input
-              v-model="addressForm.country"
-              label="Pays *"
-              outlined
+            <q-banner
+              v-if="detectedZoneLabel"
               dense
-              :rules="[(v) => !!v || 'Champ requis']"
-            />
+              rounded
+              class="bg-green-1 text-green-9 q-mt-sm"
+            >
+              <q-icon name="place" class="q-mr-xs" />
+              Zone de livraison détectée : {{ detectedZoneLabel }}
+            </q-banner>
+            <template v-else-if="zoneLookupDone && zoneOptions.length > 0">
+              <q-banner dense rounded class="bg-orange-1 text-orange-10 q-mt-sm q-mb-sm">
+                Code postal non reconnu — indiquez votre île / zone de livraison.
+              </q-banner>
+              <q-select
+                v-model="manualPlaceId"
+                :options="zoneOptions"
+                label="Île / zone de livraison"
+                outlined
+                dense
+                emit-value
+                map-options
+                clearable
+              />
+            </template>
           </q-card-section>
           <q-card-actions align="right" class="q-pa-md q-pt-none">
             <q-btn flat label="Annuler" color="grey-8" v-close-popup />
@@ -409,6 +473,7 @@
               color="primary"
               :label="editingId ? 'Enregistrer' : 'Créer'"
               :loading="savingAddress"
+              :disable="savingAddress || !postalFilled"
             />
           </q-card-actions>
         </q-form>
@@ -438,20 +503,25 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { formatXpf } from '@app/utils';
+import { countryLabel, countryOptions, formatXpf, type CountryOption } from '@app/utils';
 import { useAuthStore } from 'src/stores/auth';
 import { useCurrencyStore } from 'src/stores/currency';
 import { getMyPreferences, updateMyPreferences, type UserPreferences } from 'src/api/account';
 import {
   createMyAddress,
   deleteMyAddress,
+  getGeoTree,
   listMyAddresses,
+  listPostalCodes,
+  resolvePostalZone,
   updateMyAddress,
   type Address,
   type AddressInput,
   type AddressType,
+  type PlaceSummary,
+  type PlaceTreeNode,
 } from 'src/api/addresses';
 import { listMyOrders, type Order } from 'src/api/orders';
 import {
@@ -573,6 +643,207 @@ const deleteDialog = ref(false);
 const deleting = ref(false);
 const addressToDelete = ref<Address | null>(null);
 
+// --- Pays : sélecteur ISO (PF/FR épinglés), filtrable à la saisie -----------
+const allCountryOptions = countryOptions();
+const filteredCountryOptions = ref<CountryOption[]>(allCountryOptions);
+
+function filterCountries(val: string, update: (fn: () => void) => void) {
+  update(() => {
+    const needle = val.trim().toLowerCase();
+    filteredCountryOptions.value = needle
+      ? allCountryOptions.filter((o) => o.label.toLowerCase().includes(needle))
+      : allCountryOptions;
+  });
+}
+
+/** Legacy addresses may store a free-text country ("Polynésie française"). */
+function normalizeCountry(raw: string): string {
+  const trimmed = raw.trim();
+  if (/^[A-Za-z]{2}$/.test(trimmed)) return trimmed.toUpperCase();
+  const match = allCountryOptions.find(
+    (o) => o.label.toLowerCase().startsWith(trimmed.toLowerCase()),
+  );
+  return match?.value ?? trimmed;
+}
+
+// --- Code postal : autocomplete sur l'annuaire des codes connus -------------
+// Sélectionner un code = sélectionner sa zone (l'île s'affiche en légende) ;
+// la saisie reste libre pour les codes non répertoriés.
+interface PostalOption {
+  label: string;
+  value: string;
+  zone: string;
+}
+const postalDirectory = ref<PostalOption[]>([]);
+const postalDirectoryCountry = ref<string | null>(null);
+const filteredPostalOptions = ref<PostalOption[]>([]);
+
+async function loadPostalDirectory(rawCountry: string): Promise<void> {
+  const country = rawCountry.trim().toUpperCase();
+  if (country.length !== 2) {
+    postalDirectory.value = [];
+    postalDirectoryCountry.value = null;
+    return;
+  }
+  if (postalDirectoryCountry.value === country) return;
+  try {
+    const entries = await listPostalCodes(country);
+    postalDirectory.value = entries.map((e) => ({
+      label: e.postal_code,
+      value: e.postal_code,
+      zone: e.place_name,
+    }));
+    postalDirectoryCountry.value = country;
+  } catch {
+    // Annuaire indisponible : le champ reste une saisie libre classique.
+    postalDirectory.value = [];
+    postalDirectoryCountry.value = null;
+  }
+}
+
+function filterPostalCodes(val: string, update: (fn: () => void) => void) {
+  update(() => {
+    const needle = val.trim().toLowerCase();
+    // Matche le début du code OU le nom de la zone ("moo" → 98728 Moorea).
+    filteredPostalOptions.value = needle
+      ? postalDirectory.value.filter(
+          (o) => o.value.startsWith(needle) || o.zone.toLowerCase().includes(needle),
+        )
+      : postalDirectory.value;
+  });
+}
+
+function onPostalTyped(val: string) {
+  addressForm.postal_code = val;
+}
+
+watch(
+  () => addressForm.country,
+  (country, previous) => {
+    if (!addressDialog.value) return;
+    // Changer de pays invalide le code postal et tout ce qui en découlait :
+    // le formulaire redémarre à l'étape « code postal ».
+    if (previous && country !== previous) {
+      addressForm.postal_code = '';
+      clearZoneAutofill();
+    }
+    if (country) void loadPostalDirectory(country);
+  },
+);
+
+// --- Saisie progressive : Pays → Code postal → le reste ---------------------
+const countryChosen = computed(() => addressForm.country.trim().length === 2);
+const postalFilled = computed(() => addressForm.postal_code.trim().length > 0);
+
+// --- Zone de livraison (île) : déduite du code postal, fallback manuel ------
+const detectedZoneLabel = ref<string | null>(null);
+const zoneLookupDone = ref(false);
+const manualPlaceId = ref<string | null>(null);
+
+// La ville n'est exigée que si le code postal ne suffit pas à situer la
+// livraison (code inconnu et aucune île choisie à la main).
+const cityRequired = computed(
+  () => !detectedZoneLabel.value && !manualPlaceId.value,
+);
+const cityRules = computed(() =>
+  cityRequired.value
+    ? [(v: string) => !!v?.trim() || 'Requis — code postal non reconnu']
+    : [],
+);
+
+// Valeurs posées par l'auto-remplissage : on ne les efface / remplace que si
+// l'utilisateur ne les a pas retouchées entre-temps.
+let lastAutoCity: string | null = null;
+let lastAutoState: string | null = null;
+
+function clearZoneAutofill(): void {
+  if (lastAutoCity && addressForm.city === lastAutoCity) addressForm.city = '';
+  if (lastAutoState && addressForm.state === lastAutoState) addressForm.state = '';
+  lastAutoCity = null;
+  lastAutoState = null;
+}
+
+function applyZoneAutofill(place: PlaceSummary, ancestors: PlaceSummary[]): void {
+  if (place.type === 'municipality') {
+    // Commune → la ville est connue ; l'île / région vient de la hiérarchie.
+    addressForm.city = place.name;
+    lastAutoCity = place.name;
+    const geo =
+      ancestors.find((a) => a.type === 'island') ??
+      ancestors.find((a) => a.type === 'region');
+    if (geo) {
+      addressForm.state = geo.name;
+      lastAutoState = geo.name;
+    }
+  } else if (place.type === 'island' || place.type === 'region') {
+    if (lastAutoCity && addressForm.city === lastAutoCity) addressForm.city = '';
+    lastAutoCity = null;
+    addressForm.state = place.name;
+    lastAutoState = place.name;
+  }
+}
+const zoneOptions = ref<{ label: string; value: string }[]>([]);
+const zoneTreeCountry = ref<string | null>(null);
+let zoneLookupTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flattenZoneTree(nodes: PlaceTreeNode[], path: string[] = []): void {
+  for (const node of nodes) {
+    // Seules les zones fines sont sélectionnables (une île, pas tout un pays).
+    if (node.type === 'island' || node.type === 'municipality') {
+      const context = path.length > 0 ? ` (${path[path.length - 1]})` : '';
+      zoneOptions.value.push({ label: `${node.name}${context}`, value: node.id });
+    }
+    flattenZoneTree(node.children, [...path, node.name]);
+  }
+}
+
+async function loadZoneOptions(country: string): Promise<void> {
+  if (zoneTreeCountry.value === country) return;
+  zoneOptions.value = [];
+  try {
+    const roots = await getGeoTree(country);
+    flattenZoneTree(roots);
+    zoneOptions.value.sort((a, b) => a.label.localeCompare(b.label));
+    zoneTreeCountry.value = country;
+  } catch {
+    // Pas d'arbre pour ce pays → pas de sélecteur (champ purement optionnel).
+    zoneTreeCountry.value = null;
+  }
+}
+
+async function lookupZone(autofill = true): Promise<void> {
+  const country = addressForm.country.trim().toUpperCase();
+  const postalCode = addressForm.postal_code.trim();
+  detectedZoneLabel.value = null;
+  zoneLookupDone.value = false;
+  if (country.length !== 2 || postalCode.length === 0) return;
+  try {
+    const result = await resolvePostalZone(country, postalCode);
+    if (result.place) {
+      const context = result.ancestors[0] ? ` (${result.ancestors[0].name})` : '';
+      detectedZoneLabel.value = `${result.place.name}${context}`;
+      manualPlaceId.value = null;
+      if (autofill) applyZoneAutofill(result.place, result.ancestors);
+    } else {
+      if (autofill) clearZoneAutofill();
+      await loadZoneOptions(country);
+    }
+    zoneLookupDone.value = true;
+  } catch {
+    // Résolution indisponible : l'adresse reste enregistrable sans zone.
+    zoneLookupDone.value = false;
+  }
+}
+
+watch(
+  () => [addressForm.postal_code, addressForm.country],
+  () => {
+    if (!addressDialog.value) return;
+    if (zoneLookupTimer) clearTimeout(zoneLookupTimer);
+    zoneLookupTimer = setTimeout(() => void lookupZone(), 400);
+  },
+);
+
 async function loadAddresses() {
   loadingAddresses.value = true;
   addressesError.value = null;
@@ -587,22 +858,34 @@ async function loadAddresses() {
 
 function openAddressDialog(address?: Address) {
   dialogError.value = null;
+  detectedZoneLabel.value = null;
+  zoneLookupDone.value = false;
+  manualPlaceId.value = null;
+  lastAutoCity = null;
+  lastAutoState = null;
   if (address) {
     editingId.value = address.id;
     addressForm.street = address.street;
     addressForm.city = address.city;
     addressForm.state = address.state ?? '';
     addressForm.postal_code = address.postal_code;
-    addressForm.country = address.country;
+    addressForm.country = normalizeCountry(address.country);
     addressForm.type = (address.type as AddressType) ?? 'shipping';
+    manualPlaceId.value = address.place_id;
+    void loadPostalDirectory(addressForm.country);
+    // Pas d'auto-remplissage à l'ouverture : on n'écrase pas ce que le client
+    // avait enregistré ; seul un changement de code postal re-remplit.
+    void lookupZone(false);
   } else {
     editingId.value = null;
     addressForm.street = '';
     addressForm.city = '';
     addressForm.state = '';
     addressForm.postal_code = '';
-    addressForm.country = '';
+    // Marché principal : le dropdown des codes postaux marche dès l'ouverture.
+    addressForm.country = 'PF';
     addressForm.type = 'shipping';
+    void loadPostalDirectory(addressForm.country);
   }
   addressDialog.value = true;
 }
@@ -619,6 +902,11 @@ async function saveAddress() {
       country: addressForm.country,
       type: addressForm.type,
     };
+    // Zone choisie à la main (code postal non reconnu) : envoyée explicitement.
+    // Sinon on laisse le backend déduire la zone du code postal.
+    if (!detectedZoneLabel.value && manualPlaceId.value) {
+      payload.place_id = manualPlaceId.value;
+    }
     if (editingId.value) {
       await updateMyAddress(editingId.value, payload);
     } else {
@@ -792,11 +1080,41 @@ function orderStatusLabel(name: string | null): string {
   return ORDER_STATUS_LABELS[name] ?? name;
 }
 
-function orderStatusColor(name: string | null): string {
-  if (name === 'Paid' || name === 'Delivered') return 'green';
-  if (name === 'PaymentFailed' || name === 'Cancelled') return 'negative';
-  if (name === 'Shipped' || name === 'Processing') return 'primary';
-  return 'grey-7';
+// The order lifecycle status conflates payment + fulfillment; split it into two
+// customer-facing facets (paiement / livraison) derived from the single status.
+interface OrderBadge {
+  label: string;
+  color: string;
+  icon: string;
+}
+
+const PAYMENT_BADGE: Record<string, OrderBadge> = {
+  Pending: { label: 'Paiement en attente', color: 'orange', icon: 'schedule' },
+  AwaitingPayment: { label: 'En attente de paiement', color: 'orange', icon: 'schedule' },
+  Paid: { label: 'Payée', color: 'green', icon: 'check_circle' },
+  PaymentFailed: { label: 'Paiement refusé', color: 'negative', icon: 'cancel' },
+  Processing: { label: 'Payée', color: 'green', icon: 'check_circle' },
+  Shipped: { label: 'Payée', color: 'green', icon: 'check_circle' },
+  Delivered: { label: 'Payée', color: 'green', icon: 'check_circle' },
+  Cancelled: { label: 'Annulée', color: 'grey-6', icon: 'block' },
+  Refunded: { label: 'Remboursée', color: 'blue', icon: 'undo' },
+  PartiallyRefunded: { label: 'Remboursée en partie', color: 'blue', icon: 'undo' },
+};
+
+const DELIVERY_BADGE: Record<string, OrderBadge> = {
+  Paid: { label: 'En préparation', color: 'grey-7', icon: 'inventory_2' },
+  Processing: { label: 'En préparation', color: 'grey-7', icon: 'inventory_2' },
+  Shipped: { label: 'Expédiée', color: 'primary', icon: 'local_shipping' },
+  Delivered: { label: 'Livrée', color: 'green', icon: 'task_alt' },
+};
+
+function paymentBadge(name: string | null): OrderBadge {
+  const badge = name ? PAYMENT_BADGE[name] : undefined;
+  return badge ?? { label: orderStatusLabel(name), color: 'grey-7', icon: 'info' };
+}
+
+function deliveryBadge(name: string | null): OrderBadge | null {
+  return (name ? DELIVERY_BADGE[name] : undefined) ?? null;
 }
 
 /** Extract a human message from a backend AppError / Axios error shape. */

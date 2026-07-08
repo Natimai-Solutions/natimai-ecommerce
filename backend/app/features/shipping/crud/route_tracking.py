@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from sqlalchemy.orm import selectinload
 from sqlmodel import and_, col, desc, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -304,12 +305,22 @@ class ShippingRouteTrackingCrud(
         session: AsyncSession,
         order_id: uuid.UUID,
     ) -> list[ShippingRouteTracking]:
-        """Get all trackings for an order, ordered by sequence"""
+        """Get all trackings for an order, ordered by sequence.
+
+        Eager-loads the route (and its places via the route's selectin relations)
+        and the consolidation so the customer tracking view can show the leg
+        ("France → Papeete (avion)") and the order's own consolidations without
+        triggering lazy loads.
+        """
         statement = (
             select(ShippingRouteTracking)
             .where(
                 ShippingRouteTracking.order_id == order_id,
                 col(ShippingRouteTracking.is_active).is_(True),
+            )
+            .options(
+                selectinload(ShippingRouteTracking.route),
+                selectinload(ShippingRouteTracking.consolidation),
             )
             .order_by(col(ShippingRouteTracking.sequence_order).asc())
         )
@@ -356,6 +367,34 @@ class ShippingRouteTrackingCrud(
 
         result = await session.exec(statement)
         return result.first()
+
+    async def suggest_ungroup_for_consolidation(
+        self,
+        session: AsyncSession,
+        consolidation_id: uuid.UUID,
+    ) -> bool:
+        """Smart default for the « garder / dégrouper » popup.
+
+        Suggest ungrouping when the parcels of the lot would no longer travel
+        together on the next leg: the next tronçon is the last-leg (delivery to
+        the customer), a parcel has no next leg, or the next legs diverge.
+        """
+        trackings = await self.get_trackings_for_consolidation(
+            session, consolidation_id
+        )
+        if not trackings:
+            return False
+        next_route_ids: set[uuid.UUID] = set()
+        for t in trackings:
+            nxt = await self.get_next_route_for_order(
+                session, t.order_id, t.sequence_order
+            )
+            if nxt is None:
+                return True  # a parcel terminates here → deliver individually
+            if nxt.route is not None and nxt.route.is_to_customer:
+                return True  # next leg is the last-leg (warehouse → customer)
+            next_route_ids.add(nxt.route_id)
+        return len(next_route_ids) > 1  # parcels diverge onto different legs
 
     async def activate_next_route(
         self,
@@ -591,35 +630,35 @@ class ShippingRouteTrackingConsolidationCrud(
         tracking_id: uuid.UUID,
     ) -> bool:
         """Remove a tracking from consolidation"""
-        # Get the tracking
         tracking = await session.get(ShippingRouteTracking, tracking_id)
         if not tracking or not tracking.consolidation_id:
             return False
+
+        # Capture before the update below commits and expires these instances —
+        # reading consolidation.total_orders afterwards raises MissingGreenlet.
+        consolidation_id = tracking.consolidation_id
+        consolidation = await session.get(self.model, consolidation_id)
+        current_total = consolidation.total_orders if consolidation is not None else 0
 
         tracking_crud = ShippingRouteTrackingCrud(
             model=ShippingRouteTracking,
             schema_create=ShippingRouteTrackingCreate,
             schema_update=ShippingRouteTrackingUpdate,
         )
-
-        # Get consolidation for count update
-        consolidation = await session.get(self.model, tracking.consolidation_id)
-
-        # Remove from consolidation
         await tracking_crud.update(
             session=session,
-            id=tracking.id,
+            id=tracking_id,
             record=tracking,
             data={"consolidation_id": None},
         )
 
-        # Update consolidation total orders
-        if consolidation and consolidation.total_orders > 0:
+        # Decrement the consolidation counter by id (re-fetched inside update);
+        # the captured `consolidation` instance is now expired.
+        if consolidation is not None and current_total > 0:
             await self.update(
                 session=session,
-                id=consolidation.id,
-                record=consolidation,
-                data={"total_orders": consolidation.total_orders - 1},
+                id=consolidation_id,
+                data={"total_orders": current_total - 1},
             )
 
         return True

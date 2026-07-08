@@ -50,12 +50,15 @@ class StatusTransitionRouter(
 
 
 class Auth:
-    """Represents auth."""
+    """Status catalog: reads authenticated, writes superuser-only."""
 
     read = True
     create = True
     update = True
     delete = True
+    create_superuser = True
+    update_superuser = True
+    delete_superuser = True
 
 
 # Router pour les définitions de statuts

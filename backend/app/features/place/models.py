@@ -7,11 +7,26 @@ Tout lieu physique (aéroport, port, entrepôt, adresse client, île...).
 
 import uuid
 
-from sqlalchemy import Column
+from sqlalchemy import Column, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlmodel import Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
+
+# Zone géographique de desserte, du plus large au plus fin. La chaîne de
+# destination d'une adresse remonte parent par parent (commune → île →
+# archipel/région → pays) ; tout autre type est un nœud opérationnel.
+GEO_PLACE_TYPES: tuple[str, ...] = ("country", "region", "island", "municipality")
+NODE_PLACE_TYPES: tuple[str, ...] = (
+    "warehouse",
+    "seaport",
+    "airport",
+    "shop",
+    "supplier",
+    "address",
+)
+# Garde-fou contre un cycle parent_id accidentel lors de la remontée.
+MAX_PLACE_DEPTH = 10
 
 
 class PlaceBase(Base):
@@ -22,6 +37,15 @@ class PlaceBase(Base):
         max_length=50,
         index=True,
         description="Type: airport, seaport, warehouse, address, island, etc.",
+    )
+    parent_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="places.id",
+        index=True,
+        description=(
+            "Parent zone (e.g. municipality → island → region → country). "
+            "Null for roots and standalone operational nodes."
+        ),
     )
     code: str | None = Field(
         default=None,
@@ -107,6 +131,7 @@ class PlaceUpdate(PlaceBase, BaseUpdate):
 
     name: str | None = None
     type: str | None = None
+    parent_id: uuid.UUID | None = None
     code: str | None = None
     latitude: float | None = None
     longitude: float | None = None
@@ -143,3 +168,88 @@ class PlacesPublic(SQLModel):
         default=0,
         description="Total number of places",
     )
+
+
+class PlacePostalCode(SQLModel, table=True):
+    """Postal code → geographic zone mapping (e.g. 98728 → Moorea).
+
+    Lets the address form deduce the island/zone from the postal code the
+    customer typed. One postal code maps to exactly one place per country.
+    """
+
+    __tablename__ = "place_postal_codes"
+    __table_args__ = (
+        UniqueConstraint("country", "postal_code", name="uq_place_postal_code"),
+    )
+
+    id: uuid.UUID = Field(
+        default_factory=uuid.uuid4,
+        sa_column=Column(PG_UUID(as_uuid=True), primary_key=True),
+    )
+    place_id: uuid.UUID = Field(
+        foreign_key="places.id",
+        index=True,
+        description="Zone the postal code belongs to (island, municipality...)",
+    )
+    country: str = Field(
+        max_length=2,
+        index=True,
+        description="ISO country code the postal code belongs to",
+    )
+    postal_code: str = Field(
+        max_length=20,
+        index=True,
+        description="Exact postal code (e.g. 98728)",
+    )
+
+
+class PlacePostalCodesUpdate(SQLModel):
+    """Replace the set of postal codes attached to a place."""
+
+    country: str = Field(max_length=2, description="ISO country code")
+    postal_codes: list[str] = Field(
+        default_factory=list,
+        description="Full list of postal codes for this place (replaces existing)",
+    )
+
+
+class PostalCodeDirectoryEntry(SQLModel):
+    """A known postal code and the zone it belongs to (address-form dropdown)."""
+
+    postal_code: str
+    place_id: uuid.UUID
+    place_name: str
+    place_type: str
+
+
+class PostalCodeDirectoryResponse(SQLModel):
+    """Every registered postal code of a country, sorted by code."""
+
+    country: str
+    entries: list[PostalCodeDirectoryEntry] = Field(default_factory=list)
+
+
+class PlaceResolveResponse(SQLModel):
+    """Result of a postal-code → zone lookup (place is null when unknown)."""
+
+    place: PlacePublic | None = None
+    ancestors: list[PlacePublic] = Field(
+        default_factory=list,
+        description="Parent chain of the resolved place, nearest first",
+    )
+
+
+class PlaceTreeNode(SQLModel):
+    """Node of the geographic zone tree (children nested)."""
+
+    id: uuid.UUID
+    name: str
+    type: str
+    code: str | None = None
+    children: list["PlaceTreeNode"] = Field(default_factory=list)
+
+
+class PlaceTreeResponse(SQLModel):
+    """Represents the geographic zone tree."""
+
+    roots: list[PlaceTreeNode] = Field(default_factory=list)

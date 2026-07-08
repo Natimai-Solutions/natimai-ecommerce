@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 import pytest
@@ -9,6 +10,7 @@ import pytest
 from app.features.notification.email_renderer import (
     DEFAULT_LANG,
     render_email,
+    short_ref,
 )
 
 _SAMPLE_CONTEXT: dict[str, dict[str, Any]] = {
@@ -163,3 +165,23 @@ def test_unknown_language_falls_back_to_default() -> None:
     )
     assert fallback.text == default.text
     assert fallback.subject == default.subject
+
+
+def test_short_ref_shortens_uuids_and_passes_through_other_values() -> None:
+    assert short_ref("e090fee1-2b5d-4a7c-9f3e-8d1c6b4a2e90") == "#e090fee1"
+    assert short_ref(uuid.UUID("e090fee1-2b5d-4a7c-9f3e-8d1c6b4a2e90")) == "#e090fee1"
+    # Non-UUID references are displayed as-is.
+    assert short_ref("ORD-1") == "ORD-1"
+    assert short_ref("") == ""
+    assert short_ref(None) == ""
+
+
+def test_rendered_emails_show_short_order_reference() -> None:
+    order_uuid = "e090fee1-2b5d-4a7c-9f3e-8d1c6b4a2e90"
+    email = render_email(
+        "order_created",
+        **{**_SAMPLE_CONTEXT["order_created"], "order_id": order_uuid},
+    )
+    for part in (email.subject, email.text, email.html):
+        assert "#e090fee1" in part
+        assert order_uuid not in part

@@ -29,12 +29,16 @@ class DeliveryTaskRouter(
 
 
 class Auth:
-    """Represents auth."""
+    """Delivery operations data: superuser-only end to end."""
 
     read = True
     create = True
     update = True
     delete = True
+    read_superuser = True
+    create_superuser = True
+    update_superuser = True
+    delete_superuser = True
 
 
 # Router pour les tâches de livraison

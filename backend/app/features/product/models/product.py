@@ -156,6 +156,20 @@ class ProductBase(Base):
         default=False,
         description="Indicates if this product is managed by a supplier",
     )
+    supplier_place_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="places.id",
+        index=True,
+        description="Origin place when supplier-sourced (drives the first leg)",
+    )
+    overridden_fields: list[str] | None = Field(
+        default=None,
+        sa_column=Column(JSON),
+        description=(
+            "Field names manually set by an admin. The supplier sync must not "
+            "overwrite these — they are the admin's authoritative values."
+        ),
+    )
     last_enrichment_sync: datetime | None = Field(
         default=None,
         description="Last synchronization timestamp for enrichment data",
@@ -261,6 +275,8 @@ class ProductUpdate(ProductBase, BaseUpdate):
     supplier_spec_url: str | None = None
     last_supplier_sync: datetime | None = None
     is_supplier_managed: bool | None = None
+    supplier_place_id: uuid.UUID | None = None
+    overridden_fields: list[str] | None = None
     tax_rate_id: uuid.UUID | None = None
     is_featured: bool | None = None
     featured_position: int | None = None

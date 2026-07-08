@@ -45,6 +45,33 @@
         </q-card-section>
       </q-card>
 
+      <!-- Cost recap (subtotal / last-leg delivery / total) -->
+      <q-card v-if="order" flat bordered class="q-mb-md">
+        <q-card-section>
+          <div class="text-subtitle1 text-weight-medium q-mb-sm">Récapitulatif</div>
+          <div class="row justify-between q-mb-xs">
+            <span>Sous-total</span>
+            <span>{{ money(order.subtotal_amount) }}</span>
+          </div>
+          <div class="row justify-between q-mb-xs">
+            <span>
+              <q-icon name="local_shipping" size="xs" class="q-mr-xs" />
+              Livraison<template v-if="deliveryLabel"> — {{ deliveryLabel }}</template>
+            </span>
+            <span>{{ money(order.shipping_fee_amount) }}</span>
+          </div>
+          <div v-if="hasFee(order.payment_fee_amount)" class="row justify-between q-mb-xs">
+            <span>Frais de paiement</span>
+            <span>{{ money(order.payment_fee_amount) }}</span>
+          </div>
+          <q-separator class="q-my-sm" />
+          <div class="row justify-between text-weight-bold">
+            <span>Total</span>
+            <span>{{ money(order.total_amount) }}</span>
+          </div>
+        </q-card-section>
+      </q-card>
+
       <!-- Exception scenarios -->
       <q-banner
         v-for="scenario in tracking.exception_scenarios"
@@ -80,10 +107,32 @@
               :icon="segmentIcon(segment)"
             >
               <div class="column q-gutter-xs">
-                <div v-if="segment.tracking_ref">
-                  <q-icon name="qr_code" size="xs" class="q-mr-xs" />
-                  Référence transporteur :
-                  <span class="text-weight-medium">{{ segment.tracking_ref }}</span>
+                <div v-if="legLabel(segment)" class="text-weight-medium text-grey-9">
+                  <q-icon name="route" size="xs" class="q-mr-xs" />
+                  {{ legLabel(segment) }}
+                </div>
+                <div v-if="segment.tracking_ref || segment.carrier_name" class="row items-center">
+                  <q-icon name="local_shipping" size="xs" class="q-mr-xs" />
+                  <span v-if="segment.carrier_name">{{ segment.carrier_name }}</span>
+                  <span v-if="segment.carrier_name && segment.tracking_ref" class="q-mx-xs">—</span>
+                  <span v-if="segment.tracking_ref" class="text-weight-medium">{{
+                    segment.tracking_ref
+                  }}</span>
+                  <q-btn
+                    v-if="segment.tracking_url"
+                    flat
+                    dense
+                    no-caps
+                    size="sm"
+                    color="primary"
+                    icon-right="open_in_new"
+                    label="Suivre le colis"
+                    type="a"
+                    :href="segment.tracking_url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="q-ml-sm"
+                  />
                 </div>
                 <div v-if="segment.estimated_delivery">
                   <q-icon name="event" size="xs" class="q-mr-xs" />
@@ -124,8 +173,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { formatXpf } from '@app/utils';
 import { useAuthStore } from 'src/stores/auth';
-import { getMyOrderTracking, type OrderTracking, type OrderTrackingSegment } from 'src/api/orders';
+import {
+  getMyOrder,
+  getMyOrderTracking,
+  type Order,
+  type OrderTracking,
+  type OrderTrackingSegment,
+} from 'src/api/orders';
 
 const route = useRoute();
 const router = useRouter();
@@ -137,6 +193,25 @@ const shortId = computed(() => orderId.value.slice(0, 8));
 const loading = ref(true);
 const errorMessage = ref<string | null>(null);
 const tracking = ref<OrderTracking | null>(null);
+const order = ref<Order | null>(null);
+
+const DELIVERY_LABELS: Record<string, string> = {
+  pickup: 'Retrait en magasin',
+  home_delivery: 'Livraison à domicile',
+  air_freight: 'Fret aérien',
+};
+const deliveryLabel = computed(() => {
+  const dt = order.value?.delivery_type;
+  return dt ? (DELIVERY_LABELS[dt] ?? prettify(dt)) : null;
+});
+
+function money(raw: string): string {
+  const n = Number.parseFloat(raw);
+  return Number.isFinite(n) ? formatXpf(n) : raw;
+}
+function hasFee(raw: string): boolean {
+  return Number.parseFloat(raw) > 0;
+}
 
 const sortedSegments = computed(() =>
   [...(tracking.value?.trackings ?? [])].sort((a, b) => a.sequence_order - b.sequence_order),
@@ -186,6 +261,23 @@ function statusIcon(code: string): string {
 function segmentIcon(segment: OrderTrackingSegment): string {
   if (segment.estimated_delivery) return 'local_shipping';
   return 'place';
+}
+
+// Transport mode → customer-facing French label.
+const MODE_LABELS: Record<string, string> = {
+  air: 'avion',
+  sea: 'bateau',
+  road: 'route',
+  pickup: 'retrait',
+};
+
+/** e.g. "France → Papeete (avion)" — falls back to the route label or null. */
+function legLabel(segment: OrderTrackingSegment): string | null {
+  const from = segment.from_place_name;
+  const to = segment.to_place_name;
+  if (!from || !to) return segment.route_label;
+  const mode = segment.mode ? (MODE_LABELS[segment.mode] ?? segment.mode) : null;
+  return mode ? `${from} → ${to} (${mode})` : `${from} → ${to}`;
 }
 
 /**
@@ -242,7 +334,19 @@ async function load() {
   loading.value = true;
   errorMessage.value = null;
   try {
-    tracking.value = await getMyOrderTracking(orderId.value);
+    // Tracking drives the page; the order (for the cost recap) is best-effort.
+    const [trackingResult, orderResult] = await Promise.allSettled([
+      getMyOrderTracking(orderId.value),
+      getMyOrder(orderId.value),
+    ]);
+    if (trackingResult.status === 'fulfilled') {
+      tracking.value = trackingResult.value;
+    } else {
+      throw trackingResult.reason;
+    }
+    if (orderResult.status === 'fulfilled') {
+      order.value = orderResult.value;
+    }
   } catch (err) {
     errorMessage.value = extractError(err) ?? 'Impossible de charger le suivi de cette commande.';
   } finally {

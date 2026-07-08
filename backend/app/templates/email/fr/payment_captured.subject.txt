@@ -1,1 +1,1 @@
-Votre paiement pour la commande {{ order_id }} a été validé
+Votre paiement pour la commande {{ order_id | short_ref }} a été validé

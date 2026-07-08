@@ -19,6 +19,7 @@ const routes: RouteRecordRaw[] = [
         path: 'logistics-routes',
         component: () => import('pages/LogisticsRoutesPage.vue'),
       },
+      { path: 'inventory', component: () => import('pages/InventoryPage.vue') },
       { path: 'tax-rates', component: () => import('pages/TaxRatesPage.vue') },
       { path: 'currency-rates', component: () => import('pages/CurrencyRatesPage.vue') },
       { path: 'spec-definitions', component: () => import('pages/SpecDefinitionsPage.vue') },
@@ -28,6 +29,7 @@ const routes: RouteRecordRaw[] = [
         path: 'group-upgrade-requests',
         component: () => import('pages/GroupUpgradeRequestsPage.vue'),
       },
+      { path: 'addresses', component: () => import('pages/AddressesPage.vue') },
       {
         path: 'payment-eligibility',
         component: () => import('pages/PaymentEligibilityPage.vue'),

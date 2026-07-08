@@ -70,8 +70,8 @@ def validate_ipn_signature(fields_dict: dict[str, Any]) -> dict[str, Any]:
         hashlib.sha256,
     ).hexdigest()  # ← HEXADECIMAL (like PHP hash_hmac)
 
-    # Verify signature
-    if signature_calculated != kr_hash:
+    # Verify signature — constant-time comparison (timing-safe)
+    if not hmac.compare_digest(signature_calculated, kr_hash):
         logger.error(
             f"Invalid IPN signature - Expected: {signature_calculated[:20]}..., "
             f"Received: {kr_hash[:20]}..."

@@ -18,6 +18,7 @@ export interface Address {
   postal_code: string;
   country: string;
   type: string;
+  place_id: string | null;
   is_validated: boolean;
 }
 
@@ -29,6 +30,11 @@ export interface AddressInput {
   postal_code: string;
   country: string;
   type: AddressType;
+  /**
+   * Geographic zone (island…) of the address. Omit to let the backend deduce
+   * it from country + postal code; set it only for an explicit manual choice.
+   */
+  place_id?: string | null;
 }
 
 interface AddressesResponse {
@@ -56,4 +62,64 @@ export async function updateMyAddress(
 
 export async function deleteMyAddress(id: string): Promise<void> {
   await api.delete(`/address/users/me/addresses/${id}`);
+}
+
+// ---------------------------------------------------------------------------
+// Geographic zones (island deduction from postal code, manual fallback)
+// ---------------------------------------------------------------------------
+
+export interface PlaceSummary {
+  id: string;
+  name: string;
+  type: string;
+  code: string | null;
+}
+
+export interface ResolvePostalResponse {
+  place: PlaceSummary | null;
+  /** Parent chain of the resolved place, nearest first (île → archipel → pays). */
+  ancestors: PlaceSummary[];
+}
+
+/** Deduce the delivery zone (island…) from an exact postal code. */
+export async function resolvePostalZone(
+  country: string,
+  postalCode: string,
+): Promise<ResolvePostalResponse> {
+  const { data } = await api.get<ResolvePostalResponse>('/place/geo/resolve-postal', {
+    params: { country, postal_code: postalCode },
+  });
+  return data;
+}
+
+export interface PostalCodeEntry {
+  postal_code: string;
+  place_id: string;
+  place_name: string;
+  place_type: string;
+}
+
+/** Every registered postal code of a country (address-form autocomplete). */
+export async function listPostalCodes(country: string): Promise<PostalCodeEntry[]> {
+  const { data } = await api.get<{ country: string; entries: PostalCodeEntry[] }>(
+    '/place/geo/postal-codes',
+    { params: { country } },
+  );
+  return data.entries;
+}
+
+export interface PlaceTreeNode {
+  id: string;
+  name: string;
+  type: string;
+  code: string | null;
+  children: PlaceTreeNode[];
+}
+
+/** Geographic zone tree of a country (empty when none is defined). */
+export async function getGeoTree(country: string): Promise<PlaceTreeNode[]> {
+  const { data } = await api.get<{ roots: PlaceTreeNode[] }>('/place/geo/tree', {
+    params: { country },
+  });
+  return data.roots;
 }

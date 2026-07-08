@@ -31,6 +31,35 @@ class OrderRouter(
 ):
     """Represents order router."""
 
+    def generate_read_multi_endpoint(self) -> Callable[..., Any]:
+        """Generate the list endpoint, scoped to the caller's own orders.
+
+        The base implementation returns every order to any authenticated
+        user; here non-superusers only ever see theirs.
+        """
+
+        async def read_multi(
+            session: SessionDep,
+            skip: int = 0,
+            limit: int = 100,
+            current_user: CurrentUser | None = Depends(get_current_user_optional),
+        ) -> Any:
+            """List orders (own orders unless superuser)."""
+            await self._check_auth(session, "read", current_user)
+            if current_user is not None and not current_user.is_superuser:
+                orders = await crud_order.get_by_user(
+                    session=session, user_id=current_user.id, skip=skip, limit=limit
+                )
+                data = [OrderPublic.model_validate(order) for order in orders]
+                return OrdersPublic(data=data, count=len(data))
+            result = await self.crud.read_multi(
+                session, skip=skip, limit=limit, filter=None, user=current_user
+            )
+            return result
+
+        read_multi.__name__ = f"get_multiple_{self.name}s"
+        return read_multi
+
     def generate_read_endpoint(self) -> Callable[..., Any]:
         """Generate read endpoint with order-specific error codes."""
 
@@ -124,12 +153,16 @@ class OrderRouter(
 
 
 class Auth:
-    """Represents auth."""
+    """Reads are ownership-scoped (see overrides); writes are superuser-only —
+    customer orders are created by the checkout flow, never by direct POST."""
 
-    read = True  # Authentification requise pour lire les commandes
-    create = True  # Authentification requise pour créer
-    update = True  # Authentification requise pour modifier
-    delete = True  # Authentification requise pour supprimer
+    read = True
+    create = True
+    update = True
+    delete = True
+    create_superuser = True
+    update_superuser = True
+    delete_superuser = True
 
 
 router = OrderRouter(

@@ -11,10 +11,22 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
 from app.features.place.models import (
+    GEO_PLACE_TYPES,
+    MAX_PLACE_DEPTH,
     Place,
     PlaceCreate,
+    PlacePostalCode,
+    PlaceTreeNode,
     PlaceUpdate,
 )
+
+
+class PostalCodeConflictError(Exception):
+    """A postal code is already mapped to another place."""
+
+    def __init__(self, postal_codes: list[str]) -> None:
+        self.postal_codes = postal_codes
+        super().__init__(f"Postal codes already mapped: {', '.join(postal_codes)}")
 
 
 class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
@@ -195,6 +207,169 @@ class PlaceCrud(CrudBase[Place, PlaceCreate, PlaceUpdate]):
 
         result = await session.exec(statement)
         return list(result.all())
+
+    async def get_ancestor_chain(
+        self,
+        session: AsyncSession,
+        place_id: uuid.UUID,
+        include_self: bool = True,
+    ) -> list[Place]:
+        """Parent chain of a place, nearest first (île → archipel → pays).
+
+        This ordered chain is the customer's "destination chain" used to match
+        last-leg routes: a route serving any zone of the chain serves the
+        address, and the lower the index the more specific the match.
+        """
+        chain: list[Place] = []
+        current_id: uuid.UUID | None = place_id
+        for _ in range(MAX_PLACE_DEPTH):
+            if current_id is None:
+                break
+            result = await session.exec(
+                select(Place).where(
+                    Place.id == current_id,
+                    col(Place.is_active).is_(True),
+                )
+            )
+            place = result.first()
+            if place is None:
+                break
+            chain.append(place)
+            current_id = place.parent_id
+        if not include_self and chain:
+            chain = chain[1:]
+        return chain
+
+    async def get_geo_tree(
+        self,
+        session: AsyncSession,
+        country: str | None = None,
+    ) -> list[PlaceTreeNode]:
+        """Nested tree of geographic zones (country → region → island → ...).
+
+        Only geo types are included — operational nodes (warehouses, shops...)
+        are not part of the destination tree.
+        """
+        conditions = [
+            col(Place.type).in_(GEO_PLACE_TYPES),
+            col(Place.is_active).is_(True),
+        ]
+        if country:
+            conditions.append(Place.country == country)
+        result = await session.exec(
+            select(Place).where(and_(*conditions)).order_by(col(Place.name).asc())
+        )
+        places = list(result.all())
+
+        nodes = {
+            place.id: PlaceTreeNode(
+                id=place.id, name=place.name, type=place.type, code=place.code
+            )
+            for place in places
+        }
+        roots: list[PlaceTreeNode] = []
+        for place in places:
+            node = nodes[place.id]
+            if place.parent_id is not None and place.parent_id in nodes:
+                nodes[place.parent_id].children.append(node)
+            else:
+                roots.append(node)
+        return roots
+
+    async def resolve_by_postal_code(
+        self,
+        session: AsyncSession,
+        country: str,
+        postal_code: str,
+    ) -> Place | None:
+        """Zone (island, municipality...) matching an exact postal code."""
+        normalized = postal_code.strip()
+        if not normalized:
+            return None
+        result = await session.exec(
+            select(Place)
+            .join(PlacePostalCode, col(PlacePostalCode.place_id) == col(Place.id))
+            .where(
+                PlacePostalCode.country == country.strip().upper(),
+                PlacePostalCode.postal_code == normalized,
+                col(Place.is_active).is_(True),
+            )
+            .limit(1)
+        )
+        return result.first()
+
+    async def list_postal_codes_by_country(
+        self,
+        session: AsyncSession,
+        country: str,
+    ) -> list[tuple[PlacePostalCode, Place]]:
+        """Every registered postal code of a country with its (active) zone."""
+        result = await session.exec(
+            select(PlacePostalCode, Place)
+            .join(Place, col(PlacePostalCode.place_id) == col(Place.id))
+            .where(
+                PlacePostalCode.country == country.strip().upper(),
+                col(Place.is_active).is_(True),
+            )
+            .order_by(col(PlacePostalCode.postal_code).asc())
+        )
+        return [(row[0], row[1]) for row in result.all()]
+
+    async def get_postal_codes(
+        self,
+        session: AsyncSession,
+        place_id: uuid.UUID,
+    ) -> list[PlacePostalCode]:
+        """Postal codes attached to a place."""
+        result = await session.exec(
+            select(PlacePostalCode)
+            .where(PlacePostalCode.place_id == place_id)
+            .order_by(col(PlacePostalCode.postal_code).asc())
+        )
+        return list(result.all())
+
+    async def set_postal_codes(
+        self,
+        session: AsyncSession,
+        place_id: uuid.UUID,
+        country: str,
+        postal_codes: list[str],
+    ) -> list[PlacePostalCode]:
+        """Replace the postal codes of a place (idempotent full set)."""
+        normalized_country = country.strip().upper()
+        wanted = {code.strip() for code in postal_codes if code.strip()}
+
+        if wanted:
+            conflict_result = await session.exec(
+                select(PlacePostalCode).where(
+                    PlacePostalCode.country == normalized_country,
+                    col(PlacePostalCode.postal_code).in_(wanted),
+                    PlacePostalCode.place_id != place_id,
+                )
+            )
+            conflicts = sorted({row.postal_code for row in conflict_result.all()})
+            if conflicts:
+                raise PostalCodeConflictError(conflicts)
+
+        existing = await self.get_postal_codes(session, place_id=place_id)
+        for row in existing:
+            if row.country != normalized_country or row.postal_code not in wanted:
+                await session.delete(row)
+        kept = {
+            row.postal_code
+            for row in existing
+            if row.country == normalized_country and row.postal_code in wanted
+        }
+        for code in sorted(wanted - kept):
+            session.add(
+                PlacePostalCode(
+                    place_id=place_id,
+                    country=normalized_country,
+                    postal_code=code,
+                )
+            )
+        await session.flush()
+        return await self.get_postal_codes(session, place_id=place_id)
 
     async def get_capacity_info(
         self,

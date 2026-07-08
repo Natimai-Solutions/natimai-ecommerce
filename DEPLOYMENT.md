@@ -222,6 +222,11 @@ is needed — the seed migration inserts the initial value.
 | `CLAMAV_HOST` | `clamav` | ClamAV daemon host |
 | `CLAMAV_PORT` | `3310` | ClamAV daemon port |
 | `ENABLE_GROUP_PERMISSIONS` | `false` | Enable RBAC group checks (turn on after security groups are seeded and verified) |
+| `CLIENT_IP_HEADER` | *(empty)* | **Set this whenever the API sits behind Cloudflare or a reverse proxy.** Name of the trusted header carrying the real client IP: `CF-Connecting-IP` (Cloudflare) or `X-Forwarded-For` (Caddy/nginx/traefik). Used by the login rate limiter — left empty, all requests share the proxy's IP and the per-IP throttle (10 login attempts/min) becomes a **global** throttle for every customer. Leave empty **only** when the API is directly exposed (a forged header would otherwise bypass the throttle). |
+| `LOGIN_RATE_LIMIT_ATTEMPTS` | `10` | Login attempts per IP per window (Redis-backed, fail-open) |
+| `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | `60` | Throttle window |
+| `LOGIN_LOCKOUT_MAX_FAILURES` | `5` | Consecutive wrong passwords before the account locks |
+| `LOGIN_LOCKOUT_MINUTES` | `15` | Account lock duration |
 
 ---
 
@@ -406,6 +411,11 @@ routing.
 | `www.${DOMAIN}` | 301 redirect → bare domain | — |
 | `api.${DOMAIN}` | `api` (FastAPI) | 8000 |
 | `admin.${DOMAIN}` | `admin-frontend` (nginx) | 80 |
+
+> **Real client IP behind the proxy** — once the API is served through Caddy
+> (or Cloudflare in front of it), set `CLIENT_IP_HEADER=X-Forwarded-For`
+> (`CF-Connecting-IP` with Cloudflare) in the backend environment so the login
+> rate limiter throttles the actual client, not the proxy. See §3.10.
 
 ### Prerequisites
 

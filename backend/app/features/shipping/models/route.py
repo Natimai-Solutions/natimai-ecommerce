@@ -112,6 +112,24 @@ class ShippingRouteBase(Base):
         default=False,
         description="Pre-selected import route for anonymous / preference-less users",
     )
+    last_leg_delivery_type: str | None = Field(
+        default=None,
+        max_length=50,
+        index=True,
+        description=(
+            "For last-leg routes (is_to_customer=True): the delivery mode this "
+            "route serves and prices — pickup | home_delivery | air_freight. "
+            "Maps the checkout delivery_type to a priced route. Null = untyped."
+        ),
+    )
+    always_available: bool = Field(
+        default=False,
+        description=(
+            "Last-leg routes only: offered whatever the customer's destination "
+            "(e.g. in-store pickup). Routes that are neither always_available "
+            "nor linked to served zones remain visible everywhere (legacy)."
+        ),
+    )
 
     # Status and management
     status_code: str | None = Field(
@@ -199,6 +217,8 @@ class ShippingRouteUpdate(ShippingRouteBase, BaseUpdate):
     service_level: str | None = None
     customer_label: str | None = None
     is_default_import: bool | None = None
+    last_leg_delivery_type: str | None = None
+    always_available: bool | None = None
     status_code: str | None = None
     priority: int | None = None
     frequency_days: int | None = None

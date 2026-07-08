@@ -46,8 +46,11 @@ def override_dependencies(
 def test_order_update_not_found_returns_error_payload(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    current_user: SimpleNamespace,
 ) -> None:
     order_id = uuid.uuid4()
+    # Order writes are superuser-only since the gating pass.
+    current_user.is_superuser = True
 
     monkeypatch.setattr(
         crud_order,
@@ -70,8 +73,10 @@ def test_order_update_not_found_returns_error_payload(
 def test_order_delete_not_found_returns_error_payload(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    current_user: SimpleNamespace,
 ) -> None:
     order_id = uuid.uuid4()
+    current_user.is_superuser = True
 
     monkeypatch.setattr(
         crud_order,

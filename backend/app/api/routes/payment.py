@@ -28,12 +28,17 @@ class PaymentRouter(
 
 
 class Auth:
-    """Represents auth."""
+    """Superuser-only: raw payment records are financial data. Customers go
+    through the dedicated checkout/payments flows, never this CRUD."""
 
     read: bool = True
     create: bool = True
     update: bool = True
     delete: bool = True
+    read_superuser: bool = True
+    create_superuser: bool = True
+    update_superuser: bool = True
+    delete_superuser: bool = True
 
 
 router = PaymentRouter(

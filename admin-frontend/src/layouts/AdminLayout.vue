@@ -77,6 +77,7 @@ const nav: NavSection[] = [
     links: [
       { label: 'Commandes clients', icon: 'receipt_long', to: '/orders' },
       { label: 'Logistique', icon: 'inventory_2', to: '/shipping' },
+      { label: 'Inventaire', icon: 'warehouse', to: '/inventory' },
       { label: 'Trajets & Lieux', icon: 'route', to: '/logistics-routes' },
       { label: 'Commandes fournisseurs', icon: 'local_shipping', to: '/supplier-orders' },
     ],
@@ -90,7 +91,10 @@ const nav: NavSection[] = [
   },
   {
     label: 'Clients',
-    links: [{ label: 'Demandes de groupe', icon: 'group_add', to: '/group-upgrade-requests' }],
+    links: [
+      { label: 'Demandes de groupe', icon: 'group_add', to: '/group-upgrade-requests' },
+      { label: 'Adresses', icon: 'location_on', to: '/addresses' },
+    ],
   },
   {
     label: 'Système',

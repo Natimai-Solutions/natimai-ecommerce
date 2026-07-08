@@ -70,8 +70,11 @@ def test_validate_coupon_invalid_returns_error_payload(
 def test_use_discount_not_found_returns_error_payload(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    current_user: SimpleNamespace,
 ) -> None:
     discount_id = uuid.uuid4()
+    # Consuming a usage is admin-only since the gating pass.
+    current_user.is_superuser = True
 
     monkeypatch.setattr(
         crud_discount,
