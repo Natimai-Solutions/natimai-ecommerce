@@ -14,7 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.routes.cart import _resolve_last_leg_route
 from app.features.place.crud import crud_place
-from app.features.place.models import Place, PlacePostalCode
+from app.features.place.models import Place, PlacePostalCode, PlaceTreeNode
 from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.models.route_served_place import RouteServedPlace
 from app.features.shipping.services.last_leg import resolve_last_leg_candidates
@@ -112,7 +112,7 @@ async def test_geo_tree_excludes_operational_nodes(db_session: AsyncSession) -> 
 
     tree_ids = set()
 
-    def collect(nodes) -> None:
+    def collect(nodes: list[PlaceTreeNode]) -> None:
         for node in nodes:
             tree_ids.add(node.id)
             collect(node.children)
