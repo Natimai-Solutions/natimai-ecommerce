@@ -96,8 +96,6 @@ async def resolve_last_leg_candidates(
         current = best_by_mode.get(mode)
         # Routes arrive priority-ordered, so on equal specificity the first wins.
         if current is None or specificity < current.specificity:
-            best_by_mode[mode] = LastLegCandidate(
-                route=route, specificity=specificity
-            )
+            best_by_mode[mode] = LastLegCandidate(route=route, specificity=specificity)
 
     return best_by_mode

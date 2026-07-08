@@ -156,9 +156,7 @@ async def adjust_inventory(
         product_id=payload.product_id,
         place_id=payload.place_id,
     )
-    previous_quantity = (
-        inventory.quantity if inventory is not None else Decimal("0.00")
-    )
+    previous_quantity = inventory.quantity if inventory is not None else Decimal("0.00")
     delta = payload.quantity - previous_quantity
 
     if inventory is None:

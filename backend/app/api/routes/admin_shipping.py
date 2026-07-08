@@ -306,9 +306,7 @@ async def list_pending_grouping(
                 func.max(ShippingRouteTracking.sequence_order),
             )
             .where(
-                col(ShippingRouteTracking.order_id).in_(
-                    {t.order_id for t in trackings}
-                )
+                col(ShippingRouteTracking.order_id).in_({t.order_id for t in trackings})
             )
             .group_by(col(ShippingRouteTracking.order_id))
         )
