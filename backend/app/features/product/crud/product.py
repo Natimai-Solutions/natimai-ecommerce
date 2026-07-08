@@ -4,7 +4,7 @@ import json
 import logging
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -295,9 +295,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         hours_threshold: int = 24,
     ) -> list[Product]:
         """Get supplier products that need synchronization (old or never synced)"""
-        from datetime import datetime, timedelta
-
-        threshold_time = datetime.utcnow() - timedelta(hours=hours_threshold)
+        threshold_time = datetime.now(timezone.utc) - timedelta(hours=hours_threshold)
 
         conditions = [
             col(Product.is_supplier_managed).is_(True),
@@ -322,7 +320,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
     ) -> Product | None:
         """Update the last sync time for a supplier product"""
         if sync_time is None:
-            sync_time = datetime.utcnow()
+            sync_time = datetime.now(timezone.utc)
 
         product = await session.get(self.model, product_id)
         if not product:
@@ -361,7 +359,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         limit: int = 10,
     ) -> list[Product]:
         """Get featured products ordered by explicit position first."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         statement = (
             select(Product)
             .where(

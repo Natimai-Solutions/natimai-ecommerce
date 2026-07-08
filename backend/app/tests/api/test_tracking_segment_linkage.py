@@ -211,6 +211,12 @@ async def test_checkout_calls_tracking_linker_with_segment_totals(
         "create_draft",
         AsyncMock(return_value=payment),
     )
+    # resolve_default_price_group queries through the raw session, which an
+    # AsyncMock cannot serve (result.first() would be a stray coroutine).
+    monkeypatch.setattr(
+        "app.api.routes.cart.resolve_default_price_group",
+        AsyncMock(return_value=None),
+    )
 
     await checkout_my_cart(
         session=session,

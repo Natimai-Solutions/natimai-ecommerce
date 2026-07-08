@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.api.routes.product_phase1 import (
+from app.api.routes.product_catalog import (
     feature_product,
     get_featured_products,
     search_products,

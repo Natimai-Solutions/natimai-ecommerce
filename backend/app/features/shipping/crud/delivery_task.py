@@ -5,7 +5,7 @@ CRUD for delivery tasks and packages.
 # mypy: disable-error-code="arg-type,attr-defined"
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlmodel import and_, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -213,7 +213,7 @@ class DeliveryTaskCrud(CrudBase[DeliveryTask, DeliveryTaskCreate, DeliveryTaskUp
 
         update_data = {
             "status_code": "delivered",
-            "delivered_at": datetime.utcnow(),
+            "delivered_at": datetime.now(timezone.utc),
         }
 
         if proof_url:

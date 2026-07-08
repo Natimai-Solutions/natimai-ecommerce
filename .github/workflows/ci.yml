@@ -27,6 +27,10 @@ jobs:
       REDIS_SERVER: localhost
       TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/fastapi_ecommerce_test
       STRICT_INTEGRATION_DB: "1"
+      # Quiet the config UserWarnings — CI-only values, not secrets.
+      SECRET_KEY: ci-only-not-a-secret
+      FIRST_SUPERUSER: ci-superuser@example.com
+      FIRST_SUPERUSER_PASSWORD: ci-only-password
     services:
       postgres:
         image: postgres:16-alpine

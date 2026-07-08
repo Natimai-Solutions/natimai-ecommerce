@@ -246,7 +246,7 @@ After changing outbox behavior, validate at least:
 
 Useful test files:
 
-- `app/tests/api/test_phase_c7_outbox_consumer_idempotency.py`
+- `app/tests/api/test_outbox_consumer_idempotency.py`
 - `app/tests/test_outbox_integration.py`
 - `app/tests/validate_outbox.py`
 - `app/tests/test_real_outbox.py`
