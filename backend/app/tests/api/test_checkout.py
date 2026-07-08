@@ -106,6 +106,12 @@ async def test_checkout_creates_order_payment_and_marks_cart_checked_out(
         "create_draft",
         AsyncMock(return_value=payment),
     )
+    # resolve_default_price_group queries through the raw session, which an
+    # AsyncMock cannot serve (result.first() would be a stray coroutine).
+    monkeypatch.setattr(
+        "app.api.routes.cart.resolve_default_price_group",
+        AsyncMock(return_value=None),
+    )
 
     response = await checkout_my_cart(
         session=session,
@@ -223,6 +229,10 @@ async def test_checkout_with_payment_method_runs_single_payment_initiation(
         )
     )
     monkeypatch.setattr("app.api.routes.cart.initiate_payment_for_method", init_mock)
+    monkeypatch.setattr(
+        "app.api.routes.cart.resolve_default_price_group",
+        AsyncMock(return_value=None),
+    )
 
     response = await checkout_my_cart(
         session=session,
@@ -383,6 +393,12 @@ async def test_checkout_rolls_back_when_stock_reservation_fails(
                 details={"product_id": str(product_id)},
             )
         ),
+    )
+    # Reached before the stock reservation raises; queries the raw session,
+    # which an AsyncMock cannot serve (result.first() would be a stray coroutine).
+    monkeypatch.setattr(
+        "app.api.routes.cart.resolve_default_price_group",
+        AsyncMock(return_value=None),
     )
 
     with pytest.raises(AppError) as exc_info:

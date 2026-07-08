@@ -245,7 +245,7 @@ async def test_tracking_update_status_passes_harmonized_signature(
         update_status_mock,
     )
 
-    # Phase 3: the route resolves the new status code and publishes a
+    # The route resolves the new status code and publishes a
     # tracking.status_changed outbox event. Stub both collaborators (string
     # targets keep mypy's implicit-reexport check happy).
     status_def = SimpleNamespace(id=new_status_id, code="shipped", name="Expédié")

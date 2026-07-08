@@ -26,6 +26,15 @@ def override_db_dependency() -> Generator[None, None, None]:
     app.dependency_overrides.clear()
 
 
+@pytest.fixture(autouse=True)
+def reset_client_cookies(client: TestClient) -> Generator[None, None, None]:
+    # Cookies are set on the client instance (per-request cookies= is
+    # deprecated); the client is module-scoped, so isolate each test's jar.
+    client.cookies.clear()
+    yield
+    client.cookies.clear()
+
+
 def test_login_access_token_invalid_credentials_returns_error_payload(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -80,10 +89,8 @@ def test_refresh_access_token_decode_failure_returns_error_payload(
         lambda _token: (_ for _ in ()).throw(InvalidTokenError("invalid")),
     )
 
-    response = client.post(
-        "/api/v1/login/refresh-token",
-        cookies={settings.REFRESH_COOKIE_NAME: "bad-token"},
-    )
+    client.cookies.set(settings.REFRESH_COOKIE_NAME, "bad-token")
+    response = client.post("/api/v1/login/refresh-token")
 
     assert response.status_code == 401
     assert response.json() == {
@@ -118,10 +125,8 @@ def test_refresh_access_token_missing_session_returns_error_payload(
         AsyncMock(return_value=None),
     )
 
-    response = client.post(
-        "/api/v1/login/refresh-token",
-        cookies={settings.REFRESH_COOKIE_NAME: refresh_token},
-    )
+    client.cookies.set(settings.REFRESH_COOKIE_NAME, refresh_token)
+    response = client.post("/api/v1/login/refresh-token")
 
     assert response.status_code == 401
     assert response.json() == {
@@ -174,10 +179,8 @@ def test_refresh_access_token_revoked_returns_error_payload(
         revoke_all_mock,
     )
 
-    response = client.post(
-        "/api/v1/login/refresh-token",
-        cookies={settings.REFRESH_COOKIE_NAME: refresh_token},
-    )
+    client.cookies.set(settings.REFRESH_COOKIE_NAME, refresh_token)
+    response = client.post("/api/v1/login/refresh-token")
 
     assert response.status_code == 401
     assert response.json() == {
@@ -227,10 +230,8 @@ def test_refresh_access_token_expired_returns_error_payload(
     )
     monkeypatch.setattr(crud_user_refresh_token, "revoke_token", revoke_mock)
 
-    response = client.post(
-        "/api/v1/login/refresh-token",
-        cookies={settings.REFRESH_COOKIE_NAME: refresh_token},
-    )
+    client.cookies.set(settings.REFRESH_COOKIE_NAME, refresh_token)
+    response = client.post("/api/v1/login/refresh-token")
 
     assert response.status_code == 401
     assert response.json() == {

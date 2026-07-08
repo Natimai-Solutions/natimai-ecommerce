@@ -49,7 +49,7 @@ from app.api.routes.place import router as place_router
 from app.api.routes.product import (
     router as product_router,
 )
-from app.api.routes.product_phase1 import router as product_phase1_router
+from app.api.routes.product_catalog import router as product_catalog_router
 from app.api.routes.shipping import shipping_router
 from app.api.routes.signup import router as signup_router
 from app.api.routes.stock_movement import router as stock_movement_router
@@ -88,7 +88,7 @@ api_router.include_router(admin_tax_rates_router)
 api_router.include_router(admin_supplier_orders_router)
 api_router.include_router(admin_spec_definitions_router)
 api_router.include_router(internal_storage_router)
-api_router.include_router(product_phase1_router)
+api_router.include_router(product_catalog_router)
 api_router.include_router(product_router)
 api_router.include_router(discount_router)
 api_router.include_router(cart_router)

@@ -119,6 +119,12 @@ async def test_checkout_freezes_subtotal_and_fees_into_order_and_payment(
         AsyncMock(return_value=payment_status),
     )
     monkeypatch.setattr(crud_payment, "create_draft", create_payment_mock)
+    # resolve_default_price_group queries through the raw session, which an
+    # AsyncMock cannot serve (result.first() would be a stray coroutine).
+    monkeypatch.setattr(
+        "app.api.routes.cart.resolve_default_price_group",
+        AsyncMock(return_value=None),
+    )
 
     response = await checkout_my_cart(
         session=session,
@@ -243,6 +249,10 @@ async def test_checkout_calculates_shipping_from_selected_routes(
         AsyncMock(return_value=payment_status),
     )
     monkeypatch.setattr(crud_payment, "create_draft", create_payment_mock)
+    monkeypatch.setattr(
+        "app.api.routes.cart.resolve_default_price_group",
+        AsyncMock(return_value=None),
+    )
 
     response = await checkout_my_cart(
         session=session,

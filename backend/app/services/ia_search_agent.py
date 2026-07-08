@@ -22,7 +22,7 @@ Example usage in your main router:
 
 import json
 import pickle
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -434,7 +434,7 @@ async def ai_product_search(
             "query": query.query,
             "intent": search_intent,
             "results_count": len(matching_products),
-            "timestamp": str(datetime.utcnow()),
+            "timestamp": str(datetime.now(timezone.utc)),
         }
 
         # Get existing history

@@ -1,4 +1,4 @@
-"""Phase B6 — payment amount alignment on Decimal.
+"""Payment amount alignment on Decimal.
 
 Verifies that the PayZen → Payment conversion preserves the Decimal
 representation expected by the rest of the domain (Order, OrderLine,

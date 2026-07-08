@@ -25,6 +25,15 @@ def override_db_dependency() -> Generator[None, None, None]:
     app.dependency_overrides.clear()
 
 
+@pytest.fixture(autouse=True)
+def reset_client_cookies(client: TestClient) -> Generator[None, None, None]:
+    # Cookies are set on the client instance (per-request cookies= is
+    # deprecated); the client is module-scoped, so isolate each test's jar.
+    client.cookies.clear()
+    yield
+    client.cookies.clear()
+
+
 @pytest.mark.asyncio
 async def test_login_access_token_persists_refresh_session(
     client: TestClient,
@@ -104,10 +113,8 @@ async def test_refresh_token_rotates_and_returns_new_pair(
     )
     monkeypatch.setattr(crud_user_refresh_token, "rotate_token", rotate_mock)
 
-    response = client.post(
-        "/api/v1/login/refresh-token",
-        cookies={settings.REFRESH_COOKIE_NAME: refresh_token},
-    )
+    client.cookies.set(settings.REFRESH_COOKIE_NAME, refresh_token)
+    response = client.post("/api/v1/login/refresh-token")
 
     assert response.status_code == 200
     new_refresh_cookie = response.cookies.get(settings.REFRESH_COOKIE_NAME)
@@ -159,10 +166,8 @@ async def test_refresh_token_expired_is_revoked_and_rejected(
     )
     monkeypatch.setattr(crud_user_refresh_token, "revoke_token", revoke_mock)
 
-    response = client.post(
-        "/api/v1/login/refresh-token",
-        cookies={settings.REFRESH_COOKIE_NAME: refresh_token},
-    )
+    client.cookies.set(settings.REFRESH_COOKIE_NAME, refresh_token)
+    response = client.post("/api/v1/login/refresh-token")
 
     assert response.status_code == 401
     assert response.json() == {
@@ -220,10 +225,8 @@ async def test_refresh_token_reuse_revokes_all_active_sessions(
         revoke_all_mock,
     )
 
-    response = client.post(
-        "/api/v1/login/refresh-token",
-        cookies={settings.REFRESH_COOKIE_NAME: refresh_token},
-    )
+    client.cookies.set(settings.REFRESH_COOKIE_NAME, refresh_token)
+    response = client.post("/api/v1/login/refresh-token")
 
     assert response.status_code == 401
     assert response.json() == {
@@ -261,10 +264,8 @@ async def test_logout_revokes_session_and_clears_cookie(
     monkeypatch.setattr(crud_user_refresh_token, "get_by_user_and_jti", get_mock)
     monkeypatch.setattr(crud_user_refresh_token, "revoke_token", revoke_mock)
 
-    response = client.post(
-        "/api/v1/login/logout",
-        cookies={settings.REFRESH_COOKIE_NAME: refresh_token},
-    )
+    client.cookies.set(settings.REFRESH_COOKIE_NAME, refresh_token)
+    response = client.post("/api/v1/login/logout")
 
     assert response.status_code == 204
     revoke_mock.assert_awaited_once()

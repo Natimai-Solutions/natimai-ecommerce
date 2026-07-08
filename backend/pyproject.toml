@@ -50,6 +50,13 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.pytest.ini_options]
+filterwarnings = [
+    # passlib imports the stdlib crypt module removed in Python 3.13; not
+    # fixable on our side (bcrypt is already pinned for passlib compatibility).
+    "ignore:'crypt' is deprecated:DeprecationWarning",
+]
+
 [tool.mypy]
 strict = true
 exclude = ["venv", ".venv", "alembic"]

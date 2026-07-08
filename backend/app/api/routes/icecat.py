@@ -3,7 +3,7 @@ API routes for Icecat product enrichment management.
 Provides endpoints for manual enrichment and monitoring.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -90,7 +90,7 @@ async def enrich_product(
             job_id=job_id,
             status="queued",
             message=f"Icecat enrichment job queued for product {request.product_id}",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
     except Exception as e:
@@ -128,7 +128,7 @@ async def batch_enrich_products(
             job_id=job_id,
             status="queued",
             message=f"Batch Icecat enrichment job queued for up to {request.limit} products",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
         )
 
     except Exception as e:
