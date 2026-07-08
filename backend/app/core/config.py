@@ -275,6 +275,21 @@ class Settings(BaseSettings):
     # When False, all authenticated users pass permission checks (current behavior).
     ENABLE_GROUP_PERMISSIONS: bool = False
 
+    # --- Login hardening -------------------------------------------------
+    # Per-IP throttle on POST /login/access-token (Redis-backed, fail-open).
+    LOGIN_RATE_LIMIT_ATTEMPTS: int = 10
+    LOGIN_RATE_LIMIT_WINDOW_SECONDS: int = 60
+    # Per-account lockout: after N consecutive wrong passwords the account is
+    # locked for LOGIN_LOCKOUT_MINUTES (counter resets on successful login).
+    LOGIN_LOCKOUT_MAX_FAILURES: int = 5
+    LOGIN_LOCKOUT_MINUTES: int = 15
+    # Behind Cloudflare / a reverse proxy the socket IP is the proxy's, not the
+    # client's: name the trusted header carrying the real client IP —
+    # "CF-Connecting-IP" (Cloudflare) or "X-Forwarded-For" (nginx/traefik with
+    # a sanitized XFF). Leave None when the app is directly exposed, otherwise
+    # the header could be spoofed to bypass the per-IP throttle.
+    CLIENT_IP_HEADER: str | None = None
+
     # Shop branding
     SHOP_NAME: str = "Natimai"
 

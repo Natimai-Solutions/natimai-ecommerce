@@ -18,7 +18,8 @@ export interface paths {
          * @description OAuth2 compatible password login.
          *
          *     Returns the access token in the body (held in SPA memory) and sets the
-         *     refresh token as an HttpOnly cookie.
+         *     refresh token as an HttpOnly cookie. Per-IP throttled + per-account
+         *     lockout against brute force.
          */
         post: operations["login-login_access_token"];
         delete?: never;
@@ -1053,6 +1054,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Inventory
+         * @description Product-centric stock view (local stock + supplier availability).
+         */
+        get: operations["admin-inventory-list_inventory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/inventory/adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Adjust Inventory
+         * @description Set a product's local stock, with a mandatory audited reason.
+         *
+         *     Creates the ``Inventory`` row on first use. Writes an ``adjustment``
+         *     movement carrying the delta so the history stays reconstructible.
+         */
+        post: operations["admin-inventory-adjust_inventory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payment-methods/{payment_method_id}/groups": {
         parameters: {
             query?: never;
@@ -1720,7 +1764,9 @@ export interface paths {
         put?: never;
         /**
          * Use Discount
-         * @description Execute use discount.
+         * @description Increment a discount's usage counter (admin/server flows only).
+         *
+         *     Left open, any customer could exhaust a coupon's max_uses on purpose.
          */
         post: operations["discount-use_discount"];
         delete?: never;
@@ -2315,7 +2361,7 @@ export interface paths {
         };
         /**
          * Get Multiple Orders
-         * @description Read multi.
+         * @description List orders (own orders unless superuser).
          */
         get: operations["order-get_multiple_Orders"];
         put?: never;
@@ -2499,7 +2545,7 @@ export interface paths {
         };
         /**
          * Get Order Lines
-         * @description Get order lines.
+         * @description Get the lines of an order (owner or superuser only).
          */
         get: operations["order-line-get_order_lines"];
         put?: never;
@@ -3534,7 +3580,7 @@ export interface paths {
         };
         /**
          * Get Observability Dashboard
-         * @description Get observability dashboard.
+         * @description Get observability dashboard (superuser only — business metrics).
          */
         get: operations["utils-get_observability_dashboard"];
         put?: never;
@@ -5121,6 +5167,41 @@ export interface components {
             tracking_ref?: string | null;
         };
         /**
+         * AdminInventoryItem
+         * @description A product with its local stock and (read-only) supplier availability.
+         */
+        AdminInventoryItem: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Product Name */
+            product_name: string;
+            /** Is Supplier Managed */
+            is_supplier_managed: boolean;
+            /** Supplier Name */
+            supplier_name?: string | null;
+            /** Supplier Quantity */
+            supplier_quantity: string;
+            /** Local Quantity */
+            local_quantity: string;
+            /** Inventory Id */
+            inventory_id?: string | null;
+            /** Place Id */
+            place_id?: string | null;
+        };
+        /**
+         * AdminInventoryList
+         * @description Paginated inventory listing.
+         */
+        AdminInventoryList: {
+            /** Data */
+            data: components["schemas"]["AdminInventoryItem"][];
+            /** Count */
+            count: number;
+        };
+        /**
          * AdminJourneyLeg
          * @description One leg (tronçon) of an order's multi-hop journey, with resolved names.
          */
@@ -5292,6 +5373,12 @@ export interface components {
             status_name?: string | null;
             /** Tracking Ref */
             tracking_ref?: string | null;
+            /**
+             * Is Final Leg
+             * @description Last leg of the order's journey (customer delivery route or highest sequence) — close it with « Livrer », not « Tronçon suivant ».
+             * @default false
+             */
+            is_final_leg: boolean;
         };
         /**
          * AdminReviewBody
@@ -7587,6 +7674,32 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * InventoryAdjustRequest
+         * @description Set the local stock of a product to an absolute quantity.
+         */
+        InventoryAdjustRequest: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Place Id
+             * @description Warehouse place (None = default/unspecified warehouse)
+             */
+            place_id?: string | null;
+            /**
+             * Quantity
+             * @description New absolute local quantity
+             */
+            quantity: number | string;
+            /**
+             * Reason
+             * @description Why (audit trail)
+             */
+            reason: string;
         };
         /**
          * InventoryCreate
@@ -15900,6 +16013,74 @@ export interface operations {
             };
         };
     };
+    "admin-inventory-list_inventory": {
+        parameters: {
+            query?: {
+                search?: string | null;
+                /** @description Only products holding local stock */
+                only_local?: boolean;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminInventoryList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-inventory-adjust_inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryAdjustRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminInventoryItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-payment-list_eligible_groups": {
         parameters: {
             query?: never;
@@ -18717,9 +18898,6 @@ export interface operations {
             query?: {
                 skip?: number;
                 limit?: number;
-                filter?: string | null;
-                order_by?: string | null;
-                include_archived?: boolean;
             };
             header?: never;
             path?: never;

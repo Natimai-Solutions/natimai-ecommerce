@@ -1,12 +1,27 @@
+import datetime
 import uuid
 from typing import Any
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.core.security import verify_password
 from app.features.base.crud import CrudBase
 from app.features.user.models.user import User, UserCreate, UserUpdate
+
+
+class AccountLockedError(Exception):
+    """Raised when authentication is attempted on a temporarily locked account."""
+
+    def __init__(self, locked_until: datetime.datetime) -> None:
+        self.locked_until = locked_until
+        super().__init__(f"Account locked until {locked_until.isoformat()}")
+
+
+def _utcnow_naive() -> datetime.datetime:
+    """Naive UTC now — the DB columns are TIMESTAMP WITHOUT TIME ZONE."""
+    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
 
 
 class CrudUser(CrudBase[User, UserCreate, UserUpdate]):
@@ -51,8 +66,15 @@ class CrudUser(CrudBase[User, UserCreate, UserUpdate]):
     async def authenticate(
         self, session: AsyncSession, *, email: str, password: str
     ) -> User | None:
-        """
-        Authenticate user by email and password.
+        """Authenticate user by email and password, with account lockout.
+
+        After ``LOGIN_LOCKOUT_MAX_FAILURES`` consecutive wrong passwords the
+        account is locked for ``LOGIN_LOCKOUT_MINUTES`` (brute-force guard);
+        a successful login resets the counter.
+
+        Raises:
+            AccountLockedError: while the lock is active (also on a correct
+                password — otherwise the lock would leak password validity).
         """
         stmt = select(User).where(User.email == email)
         result = await session.exec(stmt)
@@ -60,8 +82,35 @@ class CrudUser(CrudBase[User, UserCreate, UserUpdate]):
 
         if not user:
             return None
+
+        now = _utcnow_naive()
+        if user.locked_until is not None and user.locked_until > now:
+            raise AccountLockedError(user.locked_until)
+
         if not verify_password(password, user.hashed_password):
+            user.failed_login_attempts += 1
+            locked_until: datetime.datetime | None = None
+            if user.failed_login_attempts >= settings.LOGIN_LOCKOUT_MAX_FAILURES:
+                locked_until = now + datetime.timedelta(
+                    minutes=settings.LOGIN_LOCKOUT_MINUTES
+                )
+                user.locked_until = locked_until
+                user.failed_login_attempts = 0
+            session.add(user)
+            await session.commit()
+            if locked_until is not None:
+                raise AccountLockedError(locked_until)
             return None
+
+        # Successful login: clear any stale counter/expired lock. The commit
+        # expires the instance, so refresh before handing it to the caller
+        # (post-commit attribute reads would MissingGreenlet).
+        if user.failed_login_attempts or user.locked_until is not None:
+            user.failed_login_attempts = 0
+            user.locked_until = None
+            session.add(user)
+            await session.commit()
+            await session.refresh(user)
         return user
 
     async def get_by_email(self, session: AsyncSession, *, email: str) -> User | None:

@@ -1,8 +1,8 @@
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 import sentry_sdk
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.routing import APIRoute
 from starlette.middleware.cors import CORSMiddleware
 
@@ -41,12 +41,39 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    # No /docs, /redoc nor openapi.json in production: the schema documents
+    # the whole attack surface. They stay available in local/staging (the
+    # api-types generator reads openapi.json from a local instance).
+    openapi_url=(
+        None
+        if settings.ENVIRONMENT == "production"
+        else f"{settings.API_V1_STR}/openapi.json"
+    ),
     generate_unique_id_function=custom_generate_unique_id,
     lifespan=lifespan,
 )
 
 register_error_handlers(app)
+
+
+@app.middleware("http")
+async def security_headers_middleware(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    """Baseline security headers on every response.
+
+    HSTS is only meaningful over HTTPS, hence gated on non-local (TLS is
+    terminated by Cloudflare / the reverse proxy in staging & production).
+    """
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    if settings.ENVIRONMENT != "local":
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
+    return response
 
 # Set all CORS enabled origins
 if settings.BACKEND_CORS_ORIGINS:

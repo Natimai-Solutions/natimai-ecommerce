@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.routes.address import router as address_router
 from app.api.routes.admin_currency_rates import router as admin_currency_rates_router
+from app.api.routes.admin_inventory import router as admin_inventory_router
 from app.api.routes.admin_orders import router as admin_orders_router
 from app.api.routes.admin_payment_eligibility import (
     router as admin_payment_eligibility_router,
@@ -78,6 +79,7 @@ api_router.include_router(payments_router)
 api_router.include_router(admin_payments_router)
 api_router.include_router(admin_orders_router)
 api_router.include_router(admin_shipping_router)
+api_router.include_router(admin_inventory_router)
 api_router.include_router(admin_payment_eligibility_router)
 api_router.include_router(admin_product_router)
 api_router.include_router(admin_price_groups_router)
