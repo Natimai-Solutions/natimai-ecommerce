@@ -4,6 +4,7 @@ import importlib
 import logging
 from typing import Any
 
+from arq.worker import Retry
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import engine
@@ -11,6 +12,14 @@ from app.core.db import engine
 logger = logging.getLogger(__name__)
 
 OUTBOX_CONSUMER_IDEMPOTENCY_TTL_SECONDS = 60 * 60 * 24 * 30  # 30 days
+
+# Transient-failure retry policy: a handler that raises is re-enqueued with an
+# exponential backoff (10 s, 20 s, 40 s, 80 s) before being abandoned. Handlers
+# are at-least-once by design (idempotency key set only on success), so a retry
+# after a partial failure is safe. Keep in sync with WorkerSettings.max_tries.
+OUTBOX_HANDLER_MAX_TRIES = 5
+OUTBOX_HANDLER_RETRY_BASE_SECONDS = 10
+OUTBOX_HANDLER_RETRY_MAX_DEFER_SECONDS = 300
 
 
 def build_outbox_consumer_key(event_id: str, handler_path: str) -> str:
@@ -64,6 +73,34 @@ async def execute_outbox_handler(
 
         logger.debug("Successfully executed handler %s", handler_path)
 
-    except Exception as e:
-        logger.error("Failed to execute handler %s: %s", handler_path, str(e))
+    except Retry:
         raise
+    except Exception as e:
+        # Retry with exponential backoff: a transient outage (ClamAV, Mailgun,
+        # supplier API…) must not permanently lose the AV scan / email / PO.
+        job_try = int(ctx.get("job_try") or 1)
+        if job_try >= OUTBOX_HANDLER_MAX_TRIES:
+            logger.error(
+                "Failed to execute handler %s for event_id=%s after %s tries "
+                "— giving up: %s",
+                handler_path,
+                event_id,
+                job_try,
+                str(e),
+            )
+            raise
+        defer_seconds = min(
+            OUTBOX_HANDLER_RETRY_BASE_SECONDS * 2 ** (job_try - 1),
+            OUTBOX_HANDLER_RETRY_MAX_DEFER_SECONDS,
+        )
+        logger.warning(
+            "Failed to execute handler %s for event_id=%s (try %s/%s), "
+            "retrying in %ss: %s",
+            handler_path,
+            event_id,
+            job_try,
+            OUTBOX_HANDLER_MAX_TRIES,
+            defer_seconds,
+            str(e),
+        )
+        raise Retry(defer=defer_seconds) from e

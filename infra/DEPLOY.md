@@ -1,5 +1,13 @@
 # Guide de déploiement — Kubernetes sur Akamai LKE
 
+> ⚠️ **OBSOLÈTE — NE PAS UTILISER (audit du 25/08/2026).** La voie de
+> déploiement supportée est **docker compose sur le serveur** — voir
+> [DEPLOYMENT.md §8](../DEPLOYMENT.md). Ce guide décrit un pipeline qui
+> n'existe plus dans `deploy.yml`, et les manifests `infra/k8s/` sont cassés :
+> `01-secrets.yaml` fournit `DATABASE_URL`/`REDIS_URL` que `config.py` ignore
+> (il lit `POSTGRES_*`/`REDIS_SERVER`) et `FIRST_SUPERUSER` manque → crash-loop
+> en `ENVIRONMENT=production`. À réhabiliter entièrement avant tout usage.
+
 Ce document décrit la procédure complète pour déployer l'application sur un cluster Kubernetes
 Akamai LKE et configurer l'intégration continue via GitHub Actions.
 

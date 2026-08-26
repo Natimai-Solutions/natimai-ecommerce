@@ -83,7 +83,10 @@ services:
       - CLAMAV_HOST=clamav
       - CLAMAV_PORT=3310
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/utils/health-check"]
+      # Liveness (process up). La readiness DB/Redis est sur /healthz/ready (503
+      # si dégradé) — un restart du conteneur ne réparant pas une panne DB, on ne
+      # gate pas le healthcheck dessus.
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/healthz/liveness"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -121,8 +124,18 @@ services:
       - CLAMAV_HOST=clamav
       - CLAMAV_PORT=3310
     restart: unless-stopped
+    healthcheck:
+      # Le worker écrit une clé de santé dans Redis toutes les 60 s
+      # (WorkerSettings.health_check_interval) ; `arq --check` la lit.
+      test: ["CMD", "arq", "--check", "app.core.arq_worker.WorkerSettings"]
+      interval: 90s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
 
   # Service Outbox Poller
+  # ⚠️ 1 réplique MAX : la sélection des events n'utilise pas FOR UPDATE SKIP
+  # LOCKED — plusieurs pollers dispatcheraient les mêmes events en double.
   outbox-poller:
     build: 
       context: ./backend
@@ -168,6 +181,10 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+      args:
+        # URL publique de l'API vue par le NAVIGATEUR (figée au build Vite).
+        # Prod : VITE_API_URL=https://api.<DOMAIN> dans le .env racine.
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
     ports:
       - "3000:3000"
     environment:
@@ -181,6 +198,8 @@ services:
     build:
       context: .
       dockerfile: admin-frontend/Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
     ports:
       - "3001:80"
     environment:

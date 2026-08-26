@@ -1,3 +1,8 @@
+# NOTE (audit 25/08/2026) : ce workflow ne DÉPLOIE rien — il build et pousse des
+# images GHCR génériques. La voie de déploiement supportée est docker compose
+# AVEC BUILD SUR LE SERVEUR (DEPLOYMENT.md §8) : les images frontends poussées
+# ici embarquent le VITE_API_URL par défaut (localhost:8000) et ne sont pas
+# utilisables en production telles quelles.
 name: Build & Deploy
 
 on:

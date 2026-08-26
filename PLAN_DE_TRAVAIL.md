@@ -21,6 +21,8 @@ Ce plan couvre **tout le monorepo**, pas seulement le backend. Trois surfaces so
 
 > ⚠️ **État au 08/06/2026 (audit des fronts)** : le **backend est nettement en avance**. La **vitrine** couvre catalogue / fiche / panier / checkout / retour paiement. L'**`admin-frontend` ne contient à ce jour que `LoginPage` + `ProductsPage`** — tous les écrans d'administration livrés côté API (taux TVA, devises, catalogue specs, demandes de groupe, éligibilité paiement, commandes fournisseurs, system-settings, consolidation, remboursement) **restent à construire**. Les matrices par phase rendent ce backlog explicite.
 
+> 🔍 **État au 25/08/2026 (audit de production complet — sécurité, tests/CI, infra, complétude)** : Phases 0–4 **vérifiées livrées** conformes au plan (le code est même en avance : desserte par île, stock/inventaire, devis invité). Le reste à faire avant mise en production est consolidé dans la section **« Chantier pré-production — audit du 25/08/2026 »** (bloquants sécurité S1-S4, légal L1-L3, facturation, exploitation I1-I8, qualité Q1-Q4, fonctionnel F). La fiscalité douanière fine (TDL, positions tarifaires, défauts `customs_rate_pct`) est traitée dans la décision transverse **fret import & assiette douane (CAF)**, sous-section *Vérification implémentation & écarts fiscalité*.
+
 ---
 
 ## Décision transverse : tarification par groupe utilisateur
@@ -211,7 +213,7 @@ sale_price = landed × (1 + margin_rate_pct/100) × (1 + tax_rate.rate_pct/100)
 
 - `fret_import_variable` = **part variable uniquement** : `route.price_per_kg × billable_weight` (voir *Poids taxable* ci-dessous). Le forfait par envoi (`route.base_price`) et le handling restent des frais d'expédition au niveau du panier (non attribuables à l'unité).
 - `assurance` = `insurance_rate_pct × cost_in_xpf` (config globale, défaut 0 → n'empêche pas de démarrer).
-- L'ancienne formule (douane sur coût seul) est **caduque** ; `calculate_sale_price()` et `shared/utils/src/pricing.ts` sont à reprendre.
+- L'ancienne formule (douane sur coût seul) est **caduque** ; `calculate_sale_price()` et `shared/utils/src/pricing.ts` ont été repris (✅ livré P1, conformité vérifiée à l'audit du 25/08/2026 — voir *Vérification implémentation & écarts fiscalité* ci-dessous).
 
 ### Poids taxable : poids réel vs volume (poids volumétrique)
 
@@ -269,6 +271,25 @@ Le dropdown bascule **en local** via `shared/utils/src/pricing.ts` (étendu pour
 
 - Identification import : **pas de flag dédié** — une route est « import » si `to_place.customs_clearance = True` (`Place` l'a déjà).
 - **Mapping produit → corridor** (évolution multi-fournisseurs) : un produit doit savoir de quel corridor il dépend. Aujourd'hui `Product.supplier_name` est un texte libre — prévoir un FK `Product.supplier_partner_id` (ou table `supplier_name → from_place_id`) reliant le produit à un `Partner`/`Place` d'origine. **Reporté Phase 3** (cf. jalons).
+
+### Vérification implémentation & écarts fiscalité (audit + discussion du 25/08/2026)
+
+**Vérifié conforme au plan** (lecture du code, 25/08/2026) :
+- Formule CAF opérationnelle dans [pricing.py](backend/app/features/product/services/pricing.py) (`calculate_sale_price`) : coût converti au taux actif + fret import variable + assurance → × (1 + douane) × (1 + marge du groupe) × (1 + TGC résolue produit → catégorie → défaut territoire). Prix **par mode de transport** via `calculate_price_by_mode` → payload `shipping_modes`, bascule locale côté front sans refetch.
+- Poids volumétrique : `resolve_billable_weight` = max(poids réel, volume × facteur), défauts 167 kg/m³ (air, IATA) / 1000 kg/m³ (mer, W/M), `dim_factor_kg_per_m3` / `billing_basis` lus de `route_metadata`, fallback poids réel si dimensions incomplètes — conforme.
+- Linéarité panier : part fixe des tronçons au niveau expédition (une fois par envoi), poids et volumes **totaux** consolidés dans `calculate_shipping_for_routes` — pas de sur-facturation des paniers multiples.
+
+**Écarts à corriger** (bloquants avant vente réelle, sauf F3/F7 à instruire) :
+
+| # | Écart | Détail / correctif |
+|---|-------|--------------------|
+| F1 🔲 | `customs_rate_pct` = **0,00 par défaut**, jamais renseigné par la sync fournisseur | Tout produit synchronisé a une douane nulle → prix sous-évalué de 16-30+ points, silencieusement. Ajouter un **taux par défaut par catégorie** (résolution produit → catégorie, comme la TGC) + backfill du catalogue + garde-fou de publication (pas de taux résolu → produit non publiable) |
+| F2 🔲 | Pas de position tarifaire, pas de TDL en cascade | Fiscalité PF réelle = droits de douane + **TDL** (assiette = **CAF + droits**, non déductible, très variable par position tarifaire) + TVA d'import 16 % (déductible si assujetti). Encoder un **taux effectif** par catégorie/position : `taux_eff = dd + tdl × (1 + dd)`, calculé au **simulateur officiel des douanes PF** position par position pour les catégories cibles — jamais un forfait global |
+| F3 🔲 | Frais fixes par déclaration non modélisés | Redevances/participations dues **par déclaration** (pas par article) : à porter au niveau expédition consolidée (comme le forfait fret), jamais au prorata article — sinon le prix unitaire est faux dans les deux sens selon la taille du panier |
+| F4 🔲 | Assurance : `INSURANCE_RATE_PCT` défaut **0** ; assiette = coût seul | Non configurée → aucune assurance dans le prix. L'assiette CAF officielle inclut fret + assurance : configurer le taux réel, envisager coût+fret. **Souscrire une assurance ad valorem réelle** — les plafonds de responsabilité transitaires au kilo n'indemnisent presque rien sur du dense/cher (GPU = article le plus volé du fret aérien), et son coût entre dans le prix de revient |
+| F5 🔲 | Produit **sans poids** → fret variable = 0, silencieusement | `weight` absent → billable 0 → prix affiché sans fret. En faire un **critère d'éligibilité** : poids + dimensions requis pour publication (cf. *Whitelist catalogue*, backlog) |
+| F6 🔲 | Double comptage possible du tronçon import au checkout | `_resolve_selected_checkout_routes` ([cart.py](backend/app/api/routes/cart.py)) accepte **toute route active** passée par le client : une route import (fret déjà dans le prix unitaire) peut être re-tarifée dans les frais d'envoi. Filtrer côté serveur (exclure `to_place.customs_clearance = True` des routes facturables au panier) |
+| F7 🔲 | TVA d'import supposée déductible | Le modèle applique la TGC une seule fois sur le prix de vente : correct **si** l'entreprise est assujettie et récupère la TVA d'import à la douane. À valider avec le comptable ; sinon, l'intégrer au taux effectif F2 |
 
 ### Jalons par phase
 
@@ -1198,6 +1219,61 @@ avant de démarrer l'item 8 de Phase 2.
 
 ---
 
+## Chantier pré-production — audit du 25/08/2026
+
+Audit complet (sécurité, tests/CI, infra, complétude) mené le 25/08/2026. Phases 0–4 vérifiées livrées ; les items ci-dessous sont le **reste à faire avant mise en production**, groupés par jalon de lancement. Stratégie de lancement retenue : ouvrir d'abord avec un **catalogue restreint** et des commandes fournisseur passées **à la main dans le portail Ingram** (pas besoin de l'API prod pour les premières ventes — on demande l'accès prod ensuite, chiffres à l'appui, en se présentant comme revendeur à adresse de livraison unique, sans parler de dropshipping).
+
+### PP-A — Bloquants sécurité (avant toute exposition publique)
+
+| # | Item | Détail |
+|---|------|--------|
+| S1 ✅ | **Revalidation serveur de `POST /payments/initiate`** — livré 25/08/2026 | Faille d'origine : montant et `order_id` client acceptés tels quels (sous-paiement + rattachement à la commande d'autrui). Correctif en **3 couches** : ① `_validate_order_for_initiation` ([payments.py](backend/app/api/routes/payments.py)) — commande existante et appartenant à l'appelant (404 indistinct sinon), statut payable (409 `payment.order.not_payable` si Paid/Refunded/PartiallyRefunded), devise = celle du paiement checkout (409 `payment.currency.mismatch`), montant = total commande quantifié (409 `payment.amount.mismatch`) ; ② garde IPN — un IPN PAID/AUTHORISED dont le montant ≠ `payment.amount` n'est jamais complété : anomalie `amount_mismatch` posée dans `provider_data`, aucun event `payment.captured`, réponse 200 status=error (stoppe les retries PayZen) ; ③ `_captured_amount_covers_order` ([handlers/payment.py](backend/app/handlers/payment.py)) — le handler refuse de passer la commande à « Paid » (et de consommer le stock) si le paiement ne couvre pas le total. Tests : [test_payments_initiate_order_guard.py](backend/app/tests/api/test_payments_initiate_order_guard.py) (6 cas), [test_payzen_ipn_amount_guard.py](backend/app/tests/api/test_payzen_ipn_amount_guard.py) (PAID + AUTHORISED), mismatch handler dans [test_payment_outbox_handlers.py](backend/app/tests/test_payment_outbox_handlers.py). ruff + mypy strict OK ; suite pytest à valider en CI |
+| S2 ✅ | Ré-authentifier les 3 endpoints Icecat — livré 25/08/2026 | Dépendance `get_current_active_superuser` **restaurée** sur `/icecat/test`, `/icecat/search/upc/{upc}`, `/icecat/search/ean/{ean}` ([icecat.py](backend/app/api/routes/icecat.py)), même pattern que `/icecat/status`. Test 401 sans token ajouté dans [test_icecat_error_http_contract.py](backend/app/tests/api/test_icecat_error_http_contract.py) |
+| S3 ✅ | ClamAV effectif hors local — livré 25/08/2026 | Garde de démarrage `_check_clamav_enabled` dans [config.py](backend/app/core/config.py) (même modèle que les secrets) : `CLAMAV_ENABLED=False` → warning en local, **refus de démarrer** en staging/prod. Compose et k8s le forçaient déjà à `true` ; la garde couvre les déploiements hors Docker / mal configurés. `.env.example` documenté (`CLAMAV_ENABLED=true`), DEPLOYMENT.md §3.10 et checklist prod mis à jour. Tests : [test_config_guards.py](backend/app/tests/test_config_guards.py) |
+| S4 🔲 | Durcissements auth | `SECRET_KEY` vide → clé aléatoire + simple warning : lever hors local. Dummy-verify bcrypt quand l'email n'existe pas (oracle timing sur le login). `GET /groups/{id}/users` accessible à tout authentifié (énumération de membres). Rate-limit login : prendre la valeur XFF posée par Caddy, pas la première (forgeable par le client) |
+
+### PP-B — Bloquants légaux (avant ouverture vitrine, jalon Phase 1)
+
+| # | Item | Détail |
+|---|------|--------|
+| L1 ✅⚠️ | CGV + mentions légales + politique de confidentialité — squelettes livrés 25/08/2026 | 3 pages vitrine ([CgvPage](frontend/src/pages/legal/CgvPage.vue), [MentionsLegalesPage](frontend/src/pages/legal/MentionsLegalesPage.vue), [ConfidentialitePage](frontend/src/pages/legal/ConfidentialitePage.vue)) + routes `/cgv`, `/mentions-legales`, `/confidentialite` + **footer** avec liens ([MainLayout](frontend/src/layouts/MainLayout.vue)) + **case d'acceptation des CGV obligatoire au checkout** ([CheckoutPage](frontend/src/pages/CheckoutPage.vue)). ⚠️ Reste : compléter les `[À COMPLÉTER : …]` (grep-able) — identité société, RC/TAHITI, hébergeur, régime de rétractation PF — et **faire valider le tout par un conseil juridique** avant ouverture |
+| L2 ✅ | Cookies — livré 25/08/2026 | Politique cookies documentée dans la page confidentialité (tableau refresh_token + stockage local). **Pas de bandeau** : seuls des cookies/stockages strictement nécessaires existent → exemptés de consentement. Si des cookies de mesure d'audience ou pub sont ajoutés un jour, un consentement PRÉALABLE devient obligatoire (noté dans la page) |
+| L3 🔲 | Achat Ingram HT export — **action commerciale (hors code)** | Vérifier avec le commercial la facturation **hors TVA française** (exportation) — sinon 20 % de coût pour rien. Verrouiller aussi le paiement à la commande (virement/CB) en l'absence d'encours |
+
+### PP-C — Bloquants facturation (avant ouverture des ventes, jalon Phase 2+)
+
+Promotion des items **M3** (factures PDF + numérotation légale) et **M5** (numéro de commande séquentiel) de la Phase 5 en **pré-requis de la première vente** — rien n'existe aujourd'hui (aucun modèle `Invoice`, pas d'`order_number`). S'y ajoute la **validation sandbox PayZen** (capture manuelle + refund implémentés mais jamais testés contre la sandbox — cf. backlog *Capture CB à l'expédition*).
+
+### PP-D — Bloquants exploitation / infra
+
+| # | Item | Détail |
+|---|------|--------|
+| I1 ✅⚠️ | Sauvegardes — outillage livré 25/08/2026 | [scripts/backup/backup.sh](scripts/backup/backup.sh) (`pg_dump -Fc` + tar du volume uploads + vérif magic + rotation 14 j) + **DEPLOYMENT.md §12** (quoi sauvegarder, cron, procédure de restore pas-à-pas + répétition à blanc). ⚠️ Reste **sur le serveur** : planifier le cron, configurer la copie hors site (rclone/scp), et **exécuter un restore réel** avant la première commande |
+| I2 ✅ | `restart: unless-stopped` postgres/redis — livré 25/08/2026 | Ajouté dans [docker-compose.prod.yml](docker-compose.prod.yml) |
+| I3 ✅ | Chaîne de déploiement **tranchée : compose sur serveur** — 25/08/2026 | **DEPLOYMENT.md §8 réécrit** : voie unique = build sur le serveur, `run --rm migrate` (upgrade + seed) avant `up -d`, rollback par git sha (la divergence §8 vs service migrate est résolue). [infra/DEPLOY.md](infra/DEPLOY.md) marqué **OBSOLÈTE** (manifests k8s cassés, détail en bannière), `deploy.yml` annoté (images GHCR génériques non consommées — gating CI = Q1). Réhabilitation k8s = backlog si besoin futur |
+| I4 ✅ | `ARG VITE_API_URL` — livré 25/08/2026 | `ARG`/`ENV` dans les 2 Dockerfiles frontends + `build.args` câblés dans [docker-compose.yml](docker-compose.yml) depuis `VITE_API_URL` du `.env` racine (documenté `.env.example` + DEPLOYMENT §4/§6) |
+| I5 ✅⚠️ | Retries ARQ — livré 25/08/2026 | [consumer.py](backend/app/outbox/consumer.py) : toute exception d'un handler outbox → `Retry(defer=backoff expo 10→80 s)`, 5 tentatives max (`WorkerSettings.max_tries=5`) — les commentaires « ARQ retries it » sont désormais vrais. ⚠️ Un échec **après 5 tentatives** reste un event `DONE` non rejoué (log error) : le filet final = alerting (reste I8) + `--mode retry` du runbook |
+| I6 ✅ | Healthchecks réels — livré 25/08/2026 | `/healthz/ready` renvoie **503** si db/redis KO ([health.py](backend/app/api/routes/health.py) + test) ; healthcheck compose de l'api → `/healthz/liveness` (au lieu du `/utils/health-check` factice) ; **healthcheck `arq --check` sur le worker** (clé santé Redis, `health_check_interval=60`). Poller : pas de healthcheck propre — couvert par le service outbox-health-checker |
+| I7 ✅ | Caddy durci — livré 25/08/2026 | [Caddyfile](infra/caddy/Caddyfile) : snippet `security_headers` (HSTS, nosniff, X-Frame-Options DENY, Referrer-Policy) sur vitrine + admin, `request_body max_size 16MB` sur l'API. CSP volontairement absente (SmartForm PayZen injecte scripts/iframes) → backlog |
+| I8 ✅⚠️ | Divers exploitation — livré 25/08/2026 (sauf alerting) | Rotation des logs Docker (anchor `x-app-logging` sur api/worker/poller, prod) ; timeouts `aiohttp` explicites (60 s total / 10 s connect) Ingram + Icecat ; `adminer` derrière `--profile debug` en prod ; « poller = 1 réplique max » documenté dans les 2 compose ; ordre migrate→rollout documenté §8 (plutôt qu'un `depends_on` inter-profils fragile). ⚠️ Restent : **alerting minimal** (webhook sur health-checker), rotation du `outbox_poller.log` interne, bump périodique des images de base (scanner Docker : vulnérabilités critiques dans node:22-alpine / nginx:1.27-alpine) |
+
+### PP-E — Qualité / CI
+
+| # | Item | Détail |
+|---|------|--------|
+| Q1 🔲 | Gater `deploy.yml` sur la CI verte | Aujourd'hui les images `:latest` sont poussées même CI rouge (`workflow_run` ou job unique avec `needs`) |
+| Q2 🔲 | Réactiver `fail_under` coverage | Commenté dans [backend/pyproject.toml](backend/pyproject.toml) ; couverture ~60 %, non gatée, peut régresser silencieusement |
+| Q3 🔲 | Tests sur les modules critiques les moins couverts | `payment/services/eligibility.py` (~20 % — précisément le filtrage devise × moyen de paiement), `utils/payzen.py` (~48 %), webhooks Ingram (~20 %), `discount/crud` (~19 %), `cart/crud` (~23 %) |
+| Q4 🔲 | Un e2e minimal du checkout | 0 test navigateur aujourd'hui (les deux fronts n'ont aucun test). Un parcours Playwright catalogue → panier → checkout → paiement mock |
+
+### PP-F — Fonctionnel minimal de lancement
+
+- 🔲 **Écran admin des demandes de devis (A11)** — les `QuoteRequest` sont persistées mais sans écran ni endpoint admin : le devis ne vit que par email. Bloquant pour le lancement « vitrine + devis ».
+- 🔲 **Endpoint « mot de passe oublié »** — colonnes `password_reset_token*` présentes sur `User`, aucune route branchée.
+- 🔲 Vérifications prévues au plan, à tracer faites avant ouverture : taux d'enrichissement Icecat sur le catalogue réel (filtre `is_enriched`), backfill `category_id`, check mensuel des taux FX manuels, volumétrie storage en prod.
+
+---
+
 ## Risques / points d'attention transverses
 
 | Risque | Mitigation |
@@ -1219,6 +1295,10 @@ avant de démarrer l'item 8 de Phase 2.
 | Filtre `is_enriched=True` exclut tout le catalogue si Icecat a peu de matches | Avant déploiement : mesurer le taux d'enrichissement sur le catalogue Ingram réel ; si < 80%, prévoir un fallback (afficher sans specs filtrables) ou élargir Icecat Full |
 | Aliases YAML incomplets → specs non projetées | Job `reproject_product_specs` idempotent + monitoring du % de produits enrichis qui ont au moins 5 specs projetées |
 | Bouclage projection × volume catalogue Ingram | Mesurer le temps de re-projection sur le catalogue cible avant déploiement ; si > 30 min, paralléliser par batch ARQ |
+| Prix volatils (GPU/mémoire, marché à ±15 %/trimestre) : écart entre prix affiché (sync 2 h) et coût réel à la commande ; juridiquement le prix affiché engage envers un particulier | Refresh **stratifié** (cf. backlog) ; **re-vérification P&A synchrone au checkout** ; pour les références très volatiles, basculer en **flux devis** (prix ferme 24-48 h, autorisation CB sans capture — déjà livrée —, commande fournisseur immédiate) ; cibler ces références vers le **B2B pro** (RTX PRO / stations), canal fort d'Ingram, plutôt que le gamer |
+| Rupture entre deux syncs : la dispo vérifiée au checkout est le **snapshot local** ([cart.py](backend/app/api/routes/cart.py) `_plan_checkout_fulfillment_segments`), aucun appel Ingram temps réel | Appel P&A synchrone au checkout (1 appel/commande, négligeable vs quota) ; demander au commercial l'activation de la **réservation d'inventaire** Ingram |
+| SAV/garantie : l'importateur est le garant légal ; un RMA Tahiti → Europe coûte souvent plus que la marge du produit, fenêtres RMA courtes | Provisionner **2-3 % du CA** en réserve garantie ; privilégier les marques à **garantie constructeur internationale** (Dell/HP/Lenovo pro) ; critère whitelist |
+| Compte Ingram neuf = dernier servi sur les allocations (stocks faibles affichés → course perdue) | Ne pas exposer les références à allocation ; flux devis + paiement d'avance ; construire l'historique de volume avant d'élargir |
 
 ---
 
@@ -1290,6 +1370,18 @@ Stripe **indisponible en PF** → cible **PayPal** comme moyen CB alternatif. À
 - **Auto-capture à l'expédition** : aujourd'hui la capture est **manuelle** (l'admin clique « Capturer » au moment d'expédier). Câbler la capture **automatique** sur l'action ship (best-effort, par commande) — non fait pour éviter le couplage logistique↔paiement + la question de la **capture partielle** (livraisons multi-tronçons).
 - **Void d'autorisation** (annulation d'empreinte avant capture, distinct du refund) + **alerte** si l'autorisation approche de l'expiration (≈ 7 j) sans expédition.
 - **Capture partielle** (une partie de la commande expédiée).
+
+### Whitelist catalogue & éligibilité automatique 🔲 (discussion du 25/08/2026)
+Ne jamais exposer le catalogue Ingram brut (~centaines de milliers de SKU) : viser 3 000–8 000 références via des **critères d'éligibilité automatiques** câblés dans la sync :
+- dispo > 0 sur les entrepôts pertinents ; **poids ET dimensions présents** (sans eux le fret est incalculable → inéligible par définition — corrige aussi l'écart F5 de la section CAF) ; pas de flag EOL/discontinued ; marques whitelistées ; match Icecat de qualité suffisante.
+- **Règle valeur/poids (XPF/kg)** comme seuil d'éligibilité automatique : exclure sans état d'âme les catégories jamais compétitives au fret (écrans, boîtiers, imprimantes), même si Ingram les propose.
+- En faire une fonctionnalité produit : flux **« nouveautés »** alimenté par les entrées récentes du catalogue — différenciant face aux revendeurs locaux. L'argument vitrine n° 1 reste toutefois « **prix final rendu, taxes et livraison comprises, avant de commander** » (personne ne fait ça localement) — à mettre en avant sur la page d'accueil.
+
+### Rafraîchissement stratifié des prix 🔲 (discussion du 25/08/2026)
+Aujourd'hui : cron toutes les 2 h, balayage **uniforme** de tout ce qui a > 1 h de retard, par lots au rate-limit ([supplier_tasks.py](backend/app/tasks/supplier_tasks.py)). La fraîcheur réelle par SKU dépend de la durée d'un cycle complet. À budget d'appels constant, stratifier : références **haute valeur / stock faible** toutes les heures, ventre du catalogue quotidien, longue traîne hebdomadaire (tri par `last_supplier_sync` + score valeur/volatilité).
+
+### Commandes groupées cadencées 🔲 (discussion du 25/08/2026)
+Annoncer un **départ consolidé hebdomadaire ou bimensuel** : les clients commandent d'ici la date, un seul envoi → le fret unitaire s'effondre et le délai devient une promesse claire au lieu d'un aléa. S'appuie sur la machinerie consolidation existante (P4) ; le chantier restant est surtout vitrine (affichage de la prochaine date de départ, compte à rebours) + process interne.
 
 ### Déjà présents (à finir / exposer si besoin)
 - **Avis produits** (`Review` + CRUD + route `user_review`) 🟡 — vérifier modération / affichage vitrine.

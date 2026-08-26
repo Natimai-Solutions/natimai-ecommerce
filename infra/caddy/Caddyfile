@@ -11,8 +11,22 @@
 	email {$ACME_EMAIL}
 }
 
+# En-têtes de sécurité pour les pages servies par les frontends (l'API pose les
+# siens elle-même dans main.py). Pas de CSP ici : le SmartForm PayZen injecte
+# scripts/iframes — une CSP devra être construite avec ses domaines (backlog).
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
 # Vitrine (Quasar SSR — Node) sur le domaine nu
 {$DOMAIN} {
+	import security_headers
 	encode zstd gzip
 	reverse_proxy frontend:3000
 }
@@ -22,14 +36,20 @@ www.{$DOMAIN} {
 	redir https://{$DOMAIN}{uri} permanent
 }
 
-# API (FastAPI)
+# API (FastAPI) — corps limité : l'application accepte des uploads de 10 Mo max,
+# la limite proxy (16 Mo, marge incluse) évite de recevoir des corps arbitraires
+# avant que l'application ne les rejette.
 api.{$DOMAIN} {
 	encode zstd gzip
+	request_body {
+		max_size 16MB
+	}
 	reverse_proxy api:8000
 }
 
 # Back-office admin (SPA servie par nginx, écoute sur :80)
 admin.{$DOMAIN} {
+	import security_headers
 	encode zstd gzip
 	reverse_proxy admin-frontend:80
 }

@@ -218,7 +218,7 @@ is needed — the seed migration inserts the initial value.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CLAMAV_ENABLED` | `false` | Scan uploaded attachments (`true` if ClamAV deployed) |
+| `CLAMAV_ENABLED` | `false` | Scan uploaded attachments. **Mandatory outside `ENVIRONMENT=local`**: with `false` the NoOp scanner marks every file clean, so the backend refuses to start (warning only in local). The compose files and k8s manifests already set it to `true` |
 | `CLAMAV_HOST` | `clamav` | ClamAV daemon host |
 | `CLAMAV_PORT` | `3310` | ClamAV daemon port |
 | `ENABLE_GROUP_PERMISSIONS` | `false` | Enable RBAC group checks (turn on after security groups are seeded and verified) |
@@ -231,6 +231,12 @@ is needed — the seed migration inserts the initial value.
 ---
 
 ## 4. Frontend (Vite, build‑time)
+
+> **Docker build**: both frontend images accept a `VITE_API_URL` build arg
+> (wired by `docker-compose.yml` from the root `.env`). Set
+> `VITE_API_URL=https://api.<DOMAIN>` in the root `.env` before
+> `docker compose build` — without it the images embed `localhost:8000`.
+> The per-app `.env` files below apply to non‑Docker (dev) builds.
 
 ### Storefront (`frontend/`)
 
@@ -282,6 +288,8 @@ FIRST_SUPERUSER_PASSWORD=replace-with-strong-password
 # --- URLs / CORS ---
 FRONTEND_HOST=https://shop.example.com
 BACKEND_CORS_ORIGINS=https://shop.example.com,https://admin.example.com
+# Public API origin baked into the frontends at `docker compose build`
+VITE_API_URL=https://api.example.com
 
 # --- Email (Mailgun example) ---
 EMAILS_FROM_EMAIL=no-reply@example.com
@@ -359,20 +367,39 @@ in-memory access token. Inactive users are rejected with `?oauth_error=user_inac
 
 ---
 
-## 8. First deployment
+## 8. Deployment chain — docker compose on the server (the single supported path)
+
+**Decision (2026‑08‑25 production audit):** the stack is built and run **on the
+server** with docker compose. The GHCR images pushed by
+`.github/workflows/deploy.yml` are generic build artifacts (frontends built
+without a real `VITE_API_URL`) and are **not** consumed by this path. The
+Kubernetes manifests under `infra/k8s/` are **unmaintained** — do not deploy
+from them (their secrets do not match `config.py` and `FIRST_SUPERUSER` is
+missing, which crash‑loops the pods).
 
 ```bash
-# 1. Apply database migrations
-docker compose exec api alembic upgrade head
-docker compose exec api alembic current   # expect a single head
+# 0. Prerequisites: root .env complete — including VITE_API_URL=https://api.<DOMAIN>
+COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.proxy.yml"
 
-# 2. Seed initial data (superuser, payment statuses, price groups,
-#    TGC tax rates, FX rates, security groups)
-docker compose exec api python -m app.initial_data
+# 1. Get the code and build the images on the server
+git pull
+$COMPOSE build
 
-# 3. Bring up the async workers
-docker compose up -d arq-worker outbox-poller
+# 2. Migrations + seed via the one-shot migrate service
+#    (runs `alembic upgrade head` then `app/initial_data.py` — idempotent).
+#    Always BEFORE rolling out the new code.
+$COMPOSE run --rm migrate
+
+# 3. Roll out
+$COMPOSE up -d
+
+# 4. Post-deployment checks (section 10)
 ```
+
+**Rollback:** `git checkout <previous-tag-or-sha>` then repeat build → up. A
+migration rollback (`docker compose run --rm --entrypoint "" migrate uv run
+alembic downgrade -1`) is only safe for reversible migrations — prefer
+roll‑forward fixes, and restore from backup (section 12) as the last resort.
 
 Then run the [post‑deployment checks](#10-postdeployment-checks).
 
@@ -384,7 +411,7 @@ Then run the [post‑deployment checks](#10-postdeployment-checks).
 | `INGRAM_ENVIRONMENT` | `sandbox` | `production` |
 | `FILE_STORAGE_BACKEND` | `local` | `s3` |
 | `PAYZEN_MODE` | `TEST` | `PRODUCTION` |
-| `CLAMAV_ENABLED` | `false` | `true` (if ClamAV deployed) |
+| `CLAMAV_ENABLED` | `false` | `true` (**required** — startup fails otherwise) |
 | `INGRAM_ORDER_CREATION_ENABLED` | `false` | `true` (after ship‑to set) |
 ```
 
@@ -399,9 +426,9 @@ By default the docker‑compose deployment only exposes "raw" ports
 point on `80`/`443`, **automatic Let's Encrypt TLS termination** and per‑subdomain
 routing.
 
-> The Kubernetes deployment (`infra/k8s/`, [`infra/DEPLOY.md`](infra/DEPLOY.md))
-> remains an alternative with nginx‑ingress + cert‑manager. This section covers the
-> **docker‑compose** path.
+> ⚠️ The Kubernetes manifests (`infra/k8s/`, [`infra/DEPLOY.md`](infra/DEPLOY.md))
+> are **unmaintained and currently broken** (see section 8) — docker‑compose is
+> the only supported deployment path.
 
 ### Routing
 
@@ -549,3 +576,60 @@ python app/scripts/replay_payzen_ipn.py --base-url $API \
 the outbox stays degraded after `app.outbox.health`, or supplier jobs keep erroring.
 Provide: ARQ `job_id`s, the `payment_id`/`provider_reference`, and `api` /
 `arq-worker` / `outbox-poller` log excerpts + the observability dashboard output.
+
+---
+
+## 12. Backups & restore
+
+**Nothing is backed up automatically until you wire this up.** Before accepting
+the first real order: schedule the backup script, configure the offsite copy,
+and **run the restore procedure once for real** — an untested backup is not a
+backup.
+
+### What to back up
+
+| Data | Where | How |
+|------|-------|-----|
+| PostgreSQL (orders, payments, catalog) | `postgres` service | `pg_dump -Fc` via the script below |
+| Uploaded documents (purchase orders…) | `storage_data` volume | tar streamed from the `api` container |
+| Caddy certificates | `caddy_data` volume | nice‑to‑have (Let's Encrypt reissues, but reissue is rate‑limited) |
+| Root `.env` | server filesystem | copy it to your password manager / secret store — without it nothing restarts |
+
+### Schedule
+
+[`scripts/backup/backup.sh`](scripts/backup/backup.sh) dumps the database
+(custom format), archives the uploads volume, verifies the dump magic, and
+rotates old files (14 days by default). Cron example (as the deploy user):
+
+```bash
+0 2 * * * cd /opt/fastapi-ecommerce && ./scripts/backup/backup.sh >> /var/log/ecommerce-backup.log 2>&1
+```
+
+**Offsite copy is mandatory** (disk failure and ransomware both take the local
+backups with them). Uncomment and configure the `rclone` line in the script, or
+add your own `scp`/object‑storage push.
+
+### Restore procedure (test it BEFORE go‑live)
+
+```bash
+COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.proxy.yml"
+
+# 1. Stop everything that writes to the DB (keep postgres up)
+$COMPOSE stop api arq-worker outbox-poller outbox-health-checker
+
+# 2. Restore the database (drops and recreates objects from the dump)
+$COMPOSE exec -T postgres pg_restore -U postgres -d fastapi_ecommerce \
+  --clean --if-exists --no-owner < backups/db_<STAMP>.dump
+
+# 3. Restore the uploads volume
+$COMPOSE exec -T api tar xzf - -C /tmp < backups/storage_<STAMP>.tar.gz
+
+# 4. Restart and check
+$COMPOSE up -d
+curl -fsS https://api.<DOMAIN>/api/v1/healthz/ready
+```
+
+For a **blank-slate rehearsal** (recommended): restore into a throwaway
+container instead — `docker run --rm -d --name pg-restore-test postgres:16-alpine`,
+`pg_restore` into it, and spot‑check row counts (`orders`, `payments`,
+`products`) against production.

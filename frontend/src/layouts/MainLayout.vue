@@ -1,5 +1,6 @@
 <template>
-  <q-layout view="hHh lpR fFf">
+  <!-- fff : le footer défile avec le contenu (non fixé) -->
+  <q-layout view="hHh lpR fff">
     <q-header elevated class="bg-white text-dark">
       <q-toolbar>
         <q-btn flat dense round icon="menu" aria-label="Menu" class="lt-md" @click="toggleDrawer" />
@@ -102,6 +103,23 @@
     <q-page-container>
       <router-view />
     </q-page-container>
+
+    <q-footer bordered class="bg-grey-2 text-grey-8">
+      <div class="footer-content q-pa-md row items-center justify-between q-col-gutter-sm">
+        <div class="col-12 col-sm-auto text-caption">
+          © {{ currentYear }} Natimai Solutions — Tous droits réservés
+        </div>
+        <nav class="col-12 col-sm-auto row q-gutter-md text-caption">
+          <router-link :to="{ name: 'cgv' }" class="footer-link">CGV</router-link>
+          <router-link :to="{ name: 'mentions-legales' }" class="footer-link">
+            Mentions légales
+          </router-link>
+          <router-link :to="{ name: 'confidentialite' }" class="footer-link">
+            Confidentialité &amp; cookies
+          </router-link>
+        </nav>
+      </div>
+    </q-footer>
   </q-layout>
 </template>
 
@@ -118,6 +136,7 @@ const authStore = useAuthStore();
 const currencyStore = useCurrencyStore();
 const router = useRouter();
 const cartCount = computed(() => cartStore.totalItems);
+const currentYear = new Date().getFullYear();
 
 function toggleDrawer() {
   drawerOpen.value = !drawerOpen.value;
@@ -141,5 +160,19 @@ onMounted(() => {
 <style scoped lang="scss">
 .no-underline {
   text-decoration: none;
+}
+
+.footer-content {
+  width: min(1200px, 100%);
+  margin: 0 auto;
+}
+
+.footer-link {
+  color: inherit;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
 }
 </style>

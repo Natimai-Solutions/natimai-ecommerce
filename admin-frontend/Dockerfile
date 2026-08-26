@@ -22,6 +22,12 @@ COPY admin-frontend/ ./admin-frontend/
 # Install only admin + workspace deps (skips frontend's postinstall)
 RUN pnpm install --frozen-lockfile --filter "admin..."
 
+# Public API origin baked into the Vite build (the browser calls this URL).
+# MUST be provided for any non-local build — e.g. https://api.example.com —
+# otherwise the image ships with localhost:8000 and is unusable in production.
+ARG VITE_API_URL=http://localhost:8000
+ENV VITE_API_URL=$VITE_API_URL
+
 # Build SPA (run from workspace root with explicit filter)
 RUN pnpm --filter admin run build
 

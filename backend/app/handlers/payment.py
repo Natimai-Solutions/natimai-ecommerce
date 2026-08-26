@@ -6,6 +6,7 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.features.base.crud import RecordNotFoundError
 from app.features.inventory.services.stock_release import (
     confirm_order_stock,
     release_order_stock,
@@ -13,6 +14,7 @@ from app.features.inventory.services.stock_release import (
 from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_status_crud import crud_order_status
 from app.features.order.models.order_status import OrderStatusCreate
+from app.features.payment.crud.payment import crud_payment
 from app.features.payment.services.notifications import (
     send_payment_event_notifications,
 )
@@ -36,6 +38,7 @@ EVENT_DOCUMENT_INFECTED = "payment.document_infected"
 __all__ = [
     "crud_order",
     "crud_order_status",
+    "crud_payment",
     "on_payment_awaiting_validation",
     "on_payment_captured",
     "on_payment_refunded",
@@ -158,6 +161,47 @@ async def on_payment_awaiting_validation(
     )
 
 
+async def _captured_amount_covers_order(
+    session: AsyncSession, *, payload: dict[str, Any]
+) -> bool:
+    """Last line of defence before flipping an order to Paid.
+
+    When both the payment and the order can be loaded and their amounts differ,
+    the order is left untouched for manual review instead of being marked Paid.
+    Missing/unloadable records keep the historical behaviour (no new failure
+    mode for replayed or partial payloads).
+    """
+    order_id = _parse_order_id(payload)
+    raw_payment_id = payload.get("payment_id")
+    if order_id is None or not raw_payment_id:
+        return True
+
+    try:
+        payment_id = uuid.UUID(str(raw_payment_id))
+    except (TypeError, ValueError):
+        return True
+
+    try:
+        payment = await crud_payment.read(session, id=payment_id)
+        order = await crud_order.read(session, id=order_id)
+    except RecordNotFoundError:
+        return True
+    if payment is None or order is None:
+        return True
+
+    if payment.amount != order.total_amount:
+        logger.error(
+            "payment.captured amount mismatch: payment %s amount=%s does not "
+            "cover order %s total=%s — order left un-paid for manual review",
+            payment_id,
+            payment.amount,
+            order_id,
+            order.total_amount,
+        )
+        return False
+    return True
+
+
 @outbox_handler("payment.captured")
 async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) -> None:
     """Handle the payment captured event."""
@@ -166,6 +210,8 @@ async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) ->
         payload.get("payment_id"),
         payload.get("order_id"),
     )
+    if not await _captured_amount_covers_order(session, payload=payload):
+        return
     await _sync_order_status(
         session, payload=payload, target_status_name=ORDER_STATUS_PAID
     )

@@ -279,6 +279,15 @@
                     </q-item>
                   </q-list>
 
+                  <q-checkbox v-model="cgvAccepted" dense class="q-mb-sm">
+                    <span class="text-body2">
+                      J'ai lu et j'accepte les
+                      <router-link :to="{ name: 'cgv' }" target="_blank" @click.stop>
+                        conditions générales de vente
+                      </router-link>
+                    </span>
+                  </q-checkbox>
+
                   <q-btn
                     color="primary"
                     icon="check_circle"
@@ -288,6 +297,7 @@
                     :loading="initiating"
                     :disable="
                       initiating ||
+                      !cgvAccepted ||
                       !selectedMethodId ||
                       !selectedAddressId ||
                       (deliveryOptions.length > 0 && !selectedDeliveryType)
@@ -333,6 +343,8 @@ const loadingMethods = ref(true);
 const methods = ref<PaymentMethod[]>([]);
 const selectedMethodId = ref<string | null>(null);
 const initiating = ref(false);
+// Acceptation des CGV — requise avant de pouvoir valider la commande.
+const cgvAccepted = ref(false);
 const orderPlaced = ref(false);
 const formToken = ref<string | null>(null);
 const instructions = ref<string | null>(null);

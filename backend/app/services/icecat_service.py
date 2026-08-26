@@ -16,6 +16,10 @@ from app.features.integrations.models.icecat_sync import IcecatProductData
 
 logger = logging.getLogger(__name__)
 
+# Explicit HTTP timeout: aiohttp's default (300 s total) would let a slow
+# Icecat response pin an ARQ enrichment job until its 600 s job_timeout.
+_HTTP_TIMEOUT = aiohttp.ClientTimeout(total=60, connect=10)
+
 
 class IcecatService:
     """Service for interacting with Icecat API"""
@@ -66,7 +70,7 @@ class IcecatService:
         logger.debug(f"Parameters: {params}")
         logger.debug(f"Using Open Icecat: {self.use_open_icecat}")
 
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=_HTTP_TIMEOUT) as session:
             async with session.get(
                 url, headers=headers, params=params, auth=auth
             ) as response:

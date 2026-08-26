@@ -87,3 +87,10 @@ class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(str(settings.REDIS_URL))
     job_timeout = 600  # Augmenté pour les tâches de sync qui peuvent prendre du temps
     keep_result = 3600
+    # Nombre max de tentatives par job — les handlers outbox lèvent Retry avec
+    # backoff exponentiel sur erreur transitoire (cf. app/outbox/consumer.py,
+    # OUTBOX_HANDLER_MAX_TRIES doit rester ≤ cette valeur).
+    max_tries = 5
+    # Le worker écrit une clé de santé dans Redis à cet intervalle — utilisée
+    # par le healthcheck compose (`arq ... --check`).
+    health_check_interval = 60

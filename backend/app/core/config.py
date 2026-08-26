@@ -310,7 +310,10 @@ class Settings(BaseSettings):
     # Tokens are appended as query params: ?access_token=...&refresh_token=...
     FRONTEND_OAUTH_REDIRECT_URL: str = ""
 
-    # ClamAV antivirus
+    # ClamAV antivirus. When disabled the NoOpScanner marks every uploaded
+    # document as clean — acceptable for local development only: the backend
+    # refuses to start with CLAMAV_ENABLED=False outside ENVIRONMENT=local
+    # (the compose and k8s manifests both set it to true).
     CLAMAV_ENABLED: bool = False
     CLAMAV_HOST: str = "clamav"
     CLAMAV_PORT: int = 3310
@@ -385,6 +388,25 @@ class Settings(BaseSettings):
             else:
                 raise ValueError(message)
 
+    def _check_clamav_enabled(self) -> None:
+        """Antivirus scanning of uploads is mandatory outside local.
+
+        With CLAMAV_ENABLED=False the NoOpScanner declares every uploaded
+        document clean, so payment documents would never be scanned.
+        Warn in local development, refuse to start elsewhere.
+        """
+        if not self.CLAMAV_ENABLED:
+            message = (
+                "CLAMAV_ENABLED is False: uploaded documents are NOT scanned "
+                "(the NoOpScanner marks everything clean). This is only "
+                "acceptable in local development — set CLAMAV_ENABLED=true "
+                "for any staging/production deployment."
+            )
+            if self.ENVIRONMENT == "local":
+                warnings.warn(message, stacklevel=1)
+            else:
+                raise ValueError(message)
+
     @model_validator(mode="after")
     def _enforce_non_default_secrets(self) -> Self:
         """Execute enforce non default secrets."""
@@ -397,6 +419,7 @@ class Settings(BaseSettings):
         self._check_required_override(
             "FIRST_SUPERUSER", self.FIRST_SUPERUSER, "admin@example.com"
         )
+        self._check_clamav_enabled()
 
         return self
 

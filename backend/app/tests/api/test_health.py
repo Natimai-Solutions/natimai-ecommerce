@@ -1,9 +1,11 @@
+import json
 from types import TracebackType
 from unittest.mock import AsyncMock
 
 import pytest
+from fastapi.responses import JSONResponse
 
-from app.api.routes.health import healthz_liveness, healthz_ready
+from app.api.routes.health import ReadinessResponse, healthz_liveness, healthz_ready
 
 
 class _RedisOk:
@@ -60,15 +62,17 @@ async def test_healthz_ready_returns_ready_when_dependencies_are_up(
 
     response = await healthz_ready(session=session)
 
+    assert isinstance(response, ReadinessResponse)
     assert response.status == "ready"
     assert response.database is True
     assert response.redis is True
 
 
 @pytest.mark.anyio
-async def test_healthz_ready_returns_degraded_when_dependency_fails(
+async def test_healthz_ready_returns_503_when_dependency_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A degraded readiness must be a 503 so LB/orchestrator probes see it."""
     session = AsyncMock()
     session.execute = AsyncMock(side_effect=RuntimeError("db down"))
 
@@ -76,6 +80,9 @@ async def test_healthz_ready_returns_degraded_when_dependency_fails(
 
     response = await healthz_ready(session=session)
 
-    assert response.status == "degraded"
-    assert response.database is False
-    assert response.redis is False
+    assert isinstance(response, JSONResponse)
+    assert response.status_code == 503
+    payload = json.loads(bytes(response.body).decode("utf-8"))
+    assert payload["status"] == "degraded"
+    assert payload["database"] is False
+    assert payload["redis"] is False

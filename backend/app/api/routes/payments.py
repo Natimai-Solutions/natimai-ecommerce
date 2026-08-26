@@ -16,6 +16,8 @@ from app.features.attachment.service import (
     register_uploaded_attachment,
 )
 from app.features.base.crud import RecordNotFoundError
+from app.features.order.models.order import Order
+from app.features.order.models.order_status import OrderStatus
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_status import crud_payment_status
 from app.features.payment.models.payment import Payment
@@ -40,6 +42,7 @@ from app.features.payment.services.provider_dispatch import (
     resolve_api_provider,
 )
 from app.outbox.registry import outbox_registry
+from app.utils.money import minor_units_to_decimal, parse_minor_units, quantize_amount
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +51,11 @@ _PAID_TRANS_STATUS = "PAID"
 _AUTHORISED_TRANS_STATUS = "AUTHORISED"
 _FAILED_TRANS_STATUSES = {"REFUSED", "ABANDONED", "CANCELLED"}
 _TERMINAL_TRANS_STATUSES = {_PAID_TRANS_STATUS, *_FAILED_TRANS_STATUSES}
+_SUCCESS_TRANS_STATUSES = {_PAID_TRANS_STATUS, _AUTHORISED_TRANS_STATUS}
+# Order statuses that must not accept a new client-initiated payment.
+_NON_PAYABLE_ORDER_STATUS_NAMES: frozenset[str] = frozenset(
+    {"Paid", "Refunded", "PartiallyRefunded"}
+)
 _WEBHOOK_RECEIVED_EVENT = "payment.webhook_received"
 
 _PAYMENT_STATUS_COMPLETED = "Completed"
@@ -403,6 +411,43 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
                 },
             )
 
+        # Defence in depth: a success IPN must charge exactly the amount the
+        # payment was created with (derived from the order total at initiation).
+        # The IPN is signed, so a mismatch means a tampered initiation or a
+        # provider misconfiguration — record it and never complete the payment.
+        raw_ipn_amount = fields.get("amount")
+        if trans_status in _SUCCESS_TRANS_STATUSES and raw_ipn_amount is not None:
+            ipn_amount = minor_units_to_decimal(
+                parse_minor_units(raw_ipn_amount), payment.currency
+            )
+            if ipn_amount != payment.amount:
+                logger.error(
+                    "PayZen IPN amount mismatch for payment_id=%s: "
+                    "expected=%s received=%s trans_status=%s trans_id=%s "
+                    "— payment left un-completed for manual review",
+                    payment.id,
+                    payment.amount,
+                    ipn_amount,
+                    trans_status,
+                    trans_id,
+                )
+                provider_data = dict(_provider_data_as_dict(payment))
+                provider_data["amount_mismatch"] = {
+                    "expected": str(payment.amount),
+                    "received": str(ipn_amount),
+                    "trans_status": trans_status,
+                    "trans_id": trans_id,
+                }
+                payment.provider_data = provider_data
+                session.add(payment)
+                await session.commit()
+                return JSONResponse(
+                    content={
+                        "status": "error",
+                        "message": "Montant IPN inattendu — paiement non complete",
+                    },
+                )
+
         if trans_status is not None:
             fields["trans_status"] = trans_status
 
@@ -488,6 +533,72 @@ class PaymentsInitiateResponse(BaseModel):
 router = APIRouter(prefix="/payments", tags=["payment"])
 
 
+async def _validate_order_for_initiation(
+    session: SessionDep,
+    *,
+    order_id: uuid.UUID,
+    amount: Decimal,
+    currency: str,
+    current_user: Any,
+) -> None:
+    """Server-side revalidation of a client-initiated payment tied to an order.
+
+    The client-supplied amount and currency are never trusted: the order must
+    exist and belong to the caller, must still be payable, and the amount must
+    equal the order total snapshotted at checkout. A foreign order is reported
+    exactly like a missing one so ids cannot be probed.
+    """
+    order = await session.get(Order, order_id)
+    if order is None or order.user_id != current_user.id:
+        raise AppError(
+            code="payment.order.not_found",
+            status_code=404,
+            message="Order not found",
+            details={"order_id": str(order_id)},
+        )
+
+    order_status = await session.get(OrderStatus, order.order_status_id)
+    if (
+        order_status is not None
+        and order_status.name in _NON_PAYABLE_ORDER_STATUS_NAMES
+    ):
+        raise AppError(
+            code="payment.order.not_payable",
+            status_code=409,
+            message=f"Order does not accept payments in status '{order_status.name}'",
+            details={
+                "order_id": str(order_id),
+                "order_status": order_status.name,
+            },
+        )
+
+    # The checkout always creates a payment carrying the order currency; use it
+    # as the currency reference (the order itself does not store a currency).
+    checkout_payment = await crud_payment.get_by_order_id(session, order_id=order_id)
+    if checkout_payment is not None and currency != checkout_payment.currency:
+        raise AppError(
+            code="payment.currency.mismatch",
+            status_code=409,
+            message="Payment currency does not match the order currency",
+            details={
+                "order_id": str(order_id),
+                "expected_currency": checkout_payment.currency,
+            },
+        )
+
+    expected_amount = quantize_amount(order.total_amount, currency)
+    if quantize_amount(amount, currency) != expected_amount:
+        raise AppError(
+            code="payment.amount.mismatch",
+            status_code=409,
+            message="Payment amount does not match the order total",
+            details={
+                "order_id": str(order_id),
+                "expected_amount": str(expected_amount),
+            },
+        )
+
+
 @router.post("/initiate", response_model=PaymentsInitiateResponse)
 async def initiate_payment(
     session: SessionDep,
@@ -496,6 +607,15 @@ async def initiate_payment(
 ) -> PaymentsInitiateResponse:
     """Initiate a standalone payment for a method (CB SmartForm / manual / document)."""
     try:
+        if request.order_id is not None:
+            await _validate_order_for_initiation(
+                session,
+                order_id=request.order_id,
+                amount=request.amount,
+                currency=request.currency,
+                current_user=current_user,
+            )
+
         result = await initiate_payment_for_method(
             session,
             payment_method_id=request.payment_method_id,

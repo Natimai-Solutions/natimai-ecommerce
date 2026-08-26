@@ -61,6 +61,21 @@ const routes: RouteRecordRaw[] = [
         name: 'payment-return',
         component: () => import('pages/PaymentReturnPage.vue'),
       },
+      {
+        path: 'cgv',
+        name: 'cgv',
+        component: () => import('pages/legal/CgvPage.vue'),
+      },
+      {
+        path: 'mentions-legales',
+        name: 'mentions-legales',
+        component: () => import('pages/legal/MentionsLegalesPage.vue'),
+      },
+      {
+        path: 'confidentialite',
+        name: 'confidentialite',
+        component: () => import('pages/legal/ConfidentialitePage.vue'),
+      },
     ],
   },
 
