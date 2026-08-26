@@ -57,13 +57,17 @@ def get_client_ip(request: Request) -> str:
     """Real client IP, proxy-aware.
 
     When ``CLIENT_IP_HEADER`` is configured (Cloudflare / reverse proxy in
-    front), that header wins — for an ``X-Forwarded-For`` chain the first
-    entry is the original client. Otherwise the socket peer address is used;
-    never trust forwarded headers when directly exposed (spoofable).
+    front), that header wins. For an ``X-Forwarded-For`` chain the **last**
+    entry is used: it is the one appended by our own proxy (Caddy/nginx append
+    the peer address), while earlier entries are client-supplied and forgeable
+    — taking the first would let a client bypass the per-IP login throttle
+    with an arbitrary header. Single-value headers written by the edge
+    (``CF-Connecting-IP``) are unaffected. Otherwise the socket peer address
+    is used; never trust forwarded headers when directly exposed (spoofable).
     """
     header_name = settings.CLIENT_IP_HEADER
     if header_name:
         raw = request.headers.get(header_name)
         if raw:
-            return raw.split(",")[0].strip()
+            return raw.split(",")[-1].strip()
     return request.client.host if request.client else "unknown"

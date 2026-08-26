@@ -1,3 +1,4 @@
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, Mock
@@ -72,6 +73,8 @@ async def test_payzen_ipn_uses_provider_parser_path(
             provider_reference=None,
             provider_data=None,
             payment_status_id=None,
+            amount=Decimal("1500"),
+            currency="XPF",
         ),
     )
 

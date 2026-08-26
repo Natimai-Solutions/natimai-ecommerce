@@ -1,4 +1,5 @@
 import datetime
+import secrets
 import uuid
 from typing import Any
 
@@ -6,9 +7,21 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.core.security import verify_password
+from app.core.security import get_password_hash, verify_password
 from app.features.base.crud import CrudBase
 from app.features.user.models.user import User, UserCreate, UserUpdate
+
+# Lazily-built dummy hash used to equalize the timing of failed logins on
+# unknown emails (see CrudUser.authenticate). Computed once per process.
+_dummy_password_hash: str | None = None
+
+
+def _get_dummy_password_hash() -> str:
+    """Return a process-wide dummy bcrypt hash for timing equalization."""
+    global _dummy_password_hash
+    if _dummy_password_hash is None:
+        _dummy_password_hash = get_password_hash(secrets.token_urlsafe(16))
+    return _dummy_password_hash
 
 
 class AccountLockedError(Exception):
@@ -81,6 +94,9 @@ class CrudUser(CrudBase[User, UserCreate, UserUpdate]):
         user = result.first()
 
         if not user:
+            # Timing equalization: run a bcrypt verify for unknown emails too,
+            # so the response time does not reveal whether the account exists.
+            verify_password(password, _get_dummy_password_hash())
             return None
 
         now = _utcnow_naive()

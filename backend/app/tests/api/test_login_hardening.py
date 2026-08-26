@@ -49,11 +49,13 @@ def test_client_ip_reads_configured_proxy_header(
     assert get_client_ip(request) == "203.0.113.7"  # type: ignore[arg-type]
 
 
-def test_client_ip_takes_first_entry_of_forwarded_chain(
+def test_client_ip_takes_last_entry_of_forwarded_chain(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """The LAST XFF entry is the one appended by our own proxy; earlier
+    entries are client-supplied and forgeable (throttle bypass otherwise)."""
     monkeypatch.setattr(settings, "CLIENT_IP_HEADER", "X-Forwarded-For")
-    request = _request({"X-Forwarded-For": "203.0.113.7, 172.16.0.1, 10.0.0.1"})
+    request = _request({"X-Forwarded-For": "spoofed.invalid, 172.16.0.1, 203.0.113.7"})
     assert get_client_ip(request) == "203.0.113.7"  # type: ignore[arg-type]
 
 

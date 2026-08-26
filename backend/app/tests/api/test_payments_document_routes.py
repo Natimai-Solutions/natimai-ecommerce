@@ -80,6 +80,12 @@ async def test_payments_initiate_dispatches_po_provider(
         "app.features.payment.services.payment_initiation.check_payment_method_eligible",
         AsyncMock(return_value=True),
     )
+    # Order revalidation is covered by test_payments_initiate_order_guard.py;
+    # this test focuses on the document-provider dispatch.
+    monkeypatch.setattr(
+        "app.api.routes.payments._validate_order_for_initiation",
+        AsyncMock(return_value=None),
+    )
 
     request = PaymentsInitiateRequest(
         payment_method_id=uuid4(),

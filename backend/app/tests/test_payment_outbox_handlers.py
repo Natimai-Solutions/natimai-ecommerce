@@ -1,3 +1,4 @@
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, Mock
@@ -22,8 +23,12 @@ def test_payment_handlers_registered() -> None:
     assert "payment.webhook_received" in types
 
 
-def _make_order(status_id: Any = None) -> Any:
-    return SimpleNamespace(id=uuid4(), order_status_id=status_id)
+def _make_order(status_id: Any = None, total_amount: Decimal | None = None) -> Any:
+    return SimpleNamespace(
+        id=uuid4(),
+        order_status_id=status_id,
+        total_amount=total_amount if total_amount is not None else Decimal("100.00"),
+    )
 
 
 def _make_status(name: str) -> Any:
@@ -39,6 +44,11 @@ async def test_payment_captured_handler_syncs_order_paid(
 
     order = _make_order()
     monkeypatch.setattr(handlers.crud_order, "read", AsyncMock(return_value=order))
+    monkeypatch.setattr(
+        handlers.crud_payment,
+        "read",
+        AsyncMock(return_value=SimpleNamespace(amount=order.total_amount)),
+    )
 
     paid_status = _make_status("Paid")
     monkeypatch.setattr(
@@ -63,6 +73,43 @@ async def test_payment_captured_handler_syncs_order_paid(
     assert order.order_status_id == paid_status.id
     confirm_stock.assert_awaited_once_with(session, order_id=order.id)
     session.commit.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_payment_captured_handler_skips_on_amount_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A captured payment that does not cover the order total must never
+    flip the order to Paid nor consume the reserved stock."""
+    session = AsyncMock()
+    session.add = Mock()
+
+    order = _make_order(total_amount=Decimal("100.00"))
+    monkeypatch.setattr(handlers.crud_order, "read", AsyncMock(return_value=order))
+    monkeypatch.setattr(
+        handlers.crud_payment,
+        "read",
+        AsyncMock(return_value=SimpleNamespace(amount=Decimal("1.00"))),
+    )
+
+    status_mock = AsyncMock()
+    monkeypatch.setattr(handlers.crud_order_status, "get_by_name", status_mock)
+
+    confirm_stock = AsyncMock(return_value=0)
+    monkeypatch.setattr(handlers, "confirm_order_stock", confirm_stock)
+
+    payload = {
+        "payment_id": str(uuid4()),
+        "order_id": str(order.id),
+        "provider_code": "payzen",
+    }
+
+    await handlers.on_payment_captured(cast(Any, session), payload)
+
+    assert order.order_status_id is None
+    status_mock.assert_not_awaited()
+    confirm_stock.assert_not_awaited()
+    session.commit.assert_not_awaited()
 
 
 @pytest.mark.anyio

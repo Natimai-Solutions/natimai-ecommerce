@@ -63,18 +63,27 @@ class Settings(BaseSettings):
             return self.REFRESH_COOKIE_SECURE
         return self.ENVIRONMENT != "local"
 
-    @model_validator(mode="after")
-    def _check_secret_key(self) -> Self:
-        """Check secret key."""
+    def _check_secret_key(self) -> None:
+        """Empty SECRET_KEY: generated (with a warning) in local, fatal elsewhere.
+
+        A random per-process key outside local would silently invalidate every
+        JWT at each restart — and across replicas — while masking the missing
+        configuration. Called from ``_enforce_non_default_secrets``.
+        """
         if not self.SECRET_KEY:
-            # Generate a random key only if not provided (for development)
+            if self.ENVIRONMENT != "local":
+                raise ValueError(
+                    "SECRET_KEY is not set. Generate one (`openssl rand -base64 32`) "
+                    "and set it in the environment — required for any non-local "
+                    "deployment."
+                )
+            # Generate a random key only if not provided (local development)
             self.SECRET_KEY = secrets.token_urlsafe(32)
             warnings.warn(
                 "SECRET_KEY not set in environment. Using a random key. "
                 "This will invalidate tokens on restart!",
                 stacklevel=1,
             )
-        return self
 
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
@@ -90,6 +99,10 @@ class Settings(BaseSettings):
 
     PROJECT_NAME: str = "FastAPI Ecommerce"
     SENTRY_DSN: HttpUrl | None = None
+    # Webhook d'alerte opérationnelle (format Slack `{"text": …}`) — utilisé par
+    # le health-checker outbox et par l'abandon définitif d'un job ARQ.
+    # Vide = pas d'alerte (log uniquement).
+    ALERT_WEBHOOK_URL: str | None = None
     POSTGRES_SERVER: str = "db"
     POSTGRES_PORT: int = 5432
     POSTGRES_USER: str = "postgres"
@@ -310,7 +323,10 @@ class Settings(BaseSettings):
     # Tokens are appended as query params: ?access_token=...&refresh_token=...
     FRONTEND_OAUTH_REDIRECT_URL: str = ""
 
-    # ClamAV antivirus
+    # ClamAV antivirus. When disabled the NoOpScanner marks every uploaded
+    # document as clean — acceptable for local development only: the backend
+    # refuses to start with CLAMAV_ENABLED=False outside ENVIRONMENT=local
+    # (the compose and k8s manifests both set it to true).
     CLAMAV_ENABLED: bool = False
     CLAMAV_HOST: str = "clamav"
     CLAMAV_PORT: int = 3310
@@ -385,9 +401,29 @@ class Settings(BaseSettings):
             else:
                 raise ValueError(message)
 
+    def _check_clamav_enabled(self) -> None:
+        """Antivirus scanning of uploads is mandatory outside local.
+
+        With CLAMAV_ENABLED=False the NoOpScanner declares every uploaded
+        document clean, so payment documents would never be scanned.
+        Warn in local development, refuse to start elsewhere.
+        """
+        if not self.CLAMAV_ENABLED:
+            message = (
+                "CLAMAV_ENABLED is False: uploaded documents are NOT scanned "
+                "(the NoOpScanner marks everything clean). This is only "
+                "acceptable in local development — set CLAMAV_ENABLED=true "
+                "for any staging/production deployment."
+            )
+            if self.ENVIRONMENT == "local":
+                warnings.warn(message, stacklevel=1)
+            else:
+                raise ValueError(message)
+
     @model_validator(mode="after")
     def _enforce_non_default_secrets(self) -> Self:
         """Execute enforce non default secrets."""
+        self._check_secret_key()
         self._check_default_secret("SECRET_KEY", self.SECRET_KEY)
         self._check_default_secret("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD)
         self._check_default_secret(
@@ -397,6 +433,7 @@ class Settings(BaseSettings):
         self._check_required_override(
             "FIRST_SUPERUSER", self.FIRST_SUPERUSER, "admin@example.com"
         )
+        self._check_clamav_enabled()
 
         return self
 

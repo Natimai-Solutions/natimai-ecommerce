@@ -30,6 +30,10 @@ logger = logging.getLogger(__name__)
 
 INGRAM_URL = "https://api.ingrammicro.com:443"
 
+# Explicit HTTP timeout: aiohttp's default (300 s total) would let a slow
+# supplier API pin an ARQ job until its 600 s job_timeout.
+_HTTP_TIMEOUT = aiohttp.ClientTimeout(total=60, connect=10)
+
 
 class IngramProductData(BaseModel):
     """Model for Ingram Micro product data (raw shape from the catalog API)."""
@@ -91,7 +95,7 @@ class IngramMicroService:
             "client_secret": self.client_secret,
         }
 
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=_HTTP_TIMEOUT) as session:
             async with session.post(auth_url, headers=headers, data=data) as response:
                 if response.status == 200:
                     token_data = await response.json()
@@ -135,7 +139,7 @@ class IngramMicroService:
         logger.debug(f"Making API request to: {url}")
         logger.debug(f"Parameters: {params}")
 
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=_HTTP_TIMEOUT) as session:
             async with session.get(url, headers=headers, params=params) as response:
                 logger.debug(f"Final URL with params: {response.url}")
                 if response.status == 200:
@@ -180,7 +184,7 @@ class IngramMicroService:
             logger.debug(f"Query params: {params}")
         logger.debug(f"Request body: {body}")
 
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=_HTTP_TIMEOUT) as session:
             async with session.post(
                 url, headers=headers, json=body, params=params
             ) as response:

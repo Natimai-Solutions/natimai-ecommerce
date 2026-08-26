@@ -197,3 +197,23 @@ def test_icecat_search_ean_failure_returns_error_payload(
             },
         }
     }
+
+
+def test_icecat_admin_endpoints_require_authentication(client: TestClient) -> None:
+    """S2 audit fix: /test and /search/* had their superuser dependency
+    commented out and were reachable anonymously."""
+    app.dependency_overrides.pop(get_current_active_superuser, None)
+
+    response = client.post(
+        "/api/v1/icecat/test",
+        json={
+            "vendor_part_number": "VP-123",
+            "manufacturer": "Acme",
+            "ean": "1234567890123",
+            "upc": "123456789012",
+        },
+    )
+    assert response.status_code == 401
+
+    assert client.get("/api/v1/icecat/search/upc/123456789012").status_code == 401
+    assert client.get("/api/v1/icecat/search/ean/1234567890123").status_code == 401

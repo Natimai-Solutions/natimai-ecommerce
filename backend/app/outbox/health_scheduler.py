@@ -20,6 +20,7 @@ import signal
 from datetime import datetime, timezone
 from typing import Any, TypedDict
 
+from app.core.alerting import send_alert
 from app.outbox.health import health_checker
 
 # Configuration depuis les variables d'environnement
@@ -45,6 +46,9 @@ class SchedulerStats(TypedDict):
     total_recoveries: int
     last_check: str | None
     last_recovery: str | None
+    # Dernier statut ALERTÉ (pas observé) — l'alerte webhook ne part que sur
+    # changement d'état, pas à chaque cycle de 5 min (anti-spam).
+    last_alerted_status: str
 
 
 class HealthCheckScheduler:
@@ -84,6 +88,7 @@ class HealthCheckScheduler:
             "total_recoveries": 0,
             "last_check": None,
             "last_recovery": None,
+            "last_alerted_status": "healthy",
         }
 
         while self.running:
@@ -145,7 +150,8 @@ class HealthCheckScheduler:
                     else:
                         logger.warning("Recovery attempted but no jobs recovered")
 
-            # 3. Alerting pour les cas critiques
+            # 3. Alerting pour les cas critiques — webhook sur CHANGEMENT
+            # d'état uniquement (sinon une panne = une alerte toutes les 5 min).
             if status == "error":
                 logger.error(
                     "Health check failed: %s",
@@ -156,6 +162,28 @@ class HealthCheckScheduler:
                     "High number of orphaned jobs detected: %d",
                     stats_data["orphaned_jobs"],
                 )
+
+            if status != stats["last_alerted_status"]:
+                if status == "error":
+                    await send_alert(
+                        "health check en erreur : "
+                        f"{health_status.get('error', 'Unknown error')}",
+                        source="outbox-health-checker",
+                    )
+                elif status == "degraded":
+                    await send_alert(
+                        f"outbox dégradé : {stats_data.get('orphaned_jobs', 0)} "
+                        f"job(s) orphelin(s), {stats_data.get('missing_jobs', 0)} "
+                        "job(s) manquant(s) (recovery "
+                        f"{'active' if RECOVERY_ENABLED else 'DÉSACTIVÉE'})",
+                        source="outbox-health-checker",
+                    )
+                elif stats["last_alerted_status"] in {"degraded", "error"}:
+                    await send_alert(
+                        "outbox rétabli (healthy)",
+                        source="outbox-health-checker",
+                    )
+                stats["last_alerted_status"] = status
 
         except Exception as e:
             logger.error("Health check execution failed: %s", str(e), exc_info=True)

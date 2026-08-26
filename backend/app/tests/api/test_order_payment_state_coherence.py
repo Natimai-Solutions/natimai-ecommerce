@@ -1,3 +1,4 @@
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock, Mock
@@ -235,6 +236,8 @@ async def test_payzen_ipn_updates_payment_inline_and_publishes_outbox_event(
             provider_reference="tx-1",
             payment_status_id=None,
             provider_data={"trans_id": "tx-1"},
+            amount=Decimal("1500"),
+            currency="XPF",
         ),
     )
 

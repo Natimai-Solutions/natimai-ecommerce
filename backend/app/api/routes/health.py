@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import text
 
@@ -33,8 +35,13 @@ async def healthz_liveness() -> LivenessResponse:
 
 
 @router.get("/healthz/ready", response_model=ReadinessResponse)
-async def healthz_ready(session: SessionDep) -> ReadinessResponse:
-    """Readiness probe checking DB and Redis dependencies."""
+async def healthz_ready(session: SessionDep) -> ReadinessResponse | JSONResponse:
+    """Readiness probe checking DB and Redis dependencies.
+
+    Returns 200 when both dependencies answer, 503 otherwise — so a load
+    balancer or orchestrator probe actually takes the instance out of rotation
+    instead of reading a 200 "degraded".
+    """
     database_ok = False
     redis_ok = False
 
@@ -52,9 +59,12 @@ async def healthz_ready(session: SessionDep) -> ReadinessResponse:
 
     overall_status = "ready" if database_ok and redis_ok else "degraded"
 
-    return ReadinessResponse(
+    response = ReadinessResponse(
         status=overall_status,
         timestamp=datetime.now(timezone.utc),
         database=database_ok,
         redis=redis_ok,
     )
+    if overall_status != "ready":
+        return JSONResponse(status_code=503, content=jsonable_encoder(response))
+    return response

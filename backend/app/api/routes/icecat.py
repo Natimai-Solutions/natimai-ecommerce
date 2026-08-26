@@ -146,7 +146,7 @@ async def batch_enrich_products(
 @router.post("/test", response_model=dict[str, Any])
 async def test_icecat_enrichment(
     request: TestEnrichmentRequest,
-    #    current_user=Depends(get_current_active_superuser),
+    _current_user: Any = Depends(get_current_active_superuser),
 ) -> dict[str, Any]:
     """
     Test Icecat API connection and data retrieval.
@@ -218,7 +218,7 @@ async def get_enrichment_status(
 @router.get("/search/upc/{upc}", response_model=dict[str, Any])
 async def search_by_upc(
     upc: str,
-    #    current_user=Depends(get_current_active_superuser),
+    _current_user: Any = Depends(get_current_active_superuser),
 ) -> dict[str, Any]:
     """
     Search Icecat product by UPC code.
@@ -272,7 +272,7 @@ async def search_by_upc(
 @router.get("/search/ean/{ean}", response_model=dict[str, Any])
 async def search_by_ean(
     ean: str,
-    #    current_user=Depends(get_current_active_superuser),
+    _current_user: Any = Depends(get_current_active_superuser),
 ) -> dict[str, Any]:
     """
     Search Icecat product by EAN code.

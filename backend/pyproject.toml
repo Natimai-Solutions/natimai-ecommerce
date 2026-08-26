@@ -108,5 +108,6 @@ omit = [
 
 [tool.coverage.report]
 show_missing = true
-# Raise once the suite stabilizes to gate the build (CI fails under this %).
-# fail_under = 60
+# Gate the build: CI fails when coverage regresses under this % (audit Q2,
+# 25/08/2026 — measured ~64.8 % at the current omit scope; raise over time).
+fail_under = 60
