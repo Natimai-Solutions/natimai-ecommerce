@@ -6,7 +6,7 @@
 {% block content %}
       <p>Bonjour {{ full_name }},</p>
       <span class="badge">Paiement refusé</span>
-      <p>Malheureusement, votre paiement pour la commande <strong>{{ order_id | short_ref }}</strong> n'a pas pu être traité.</p>
+      <p>Malheureusement, votre paiement pour la commande <strong>{{ order_ref or (order_id | short_ref) }}</strong> n'a pas pu être traité.</p>
       {% if reason %}<div class="reason">{{ reason }}</div>{% endif %}
       <p>Veuillez réessayer ou contacter notre support si le problème persiste.</p>
       <p>L'équipe {{ shop_name }}</p>

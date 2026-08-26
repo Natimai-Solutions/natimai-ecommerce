@@ -55,6 +55,7 @@ from app.features.order.crud.order_status_crud import crud_order_status
 from app.features.order.models.order import OrderCreate
 from app.features.order.models.order_line import OrderLineCreate
 from app.features.order.models.order_status import OrderStatus, OrderStatusCreate
+from app.features.order.services.order_number import allocate_order_number
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_status import crud_payment_status
 from app.features.payment.models.payment import PaymentCreate
@@ -1720,6 +1721,9 @@ async def checkout_my_cart(
         price_group = await resolve_default_price_group(session)
 
         order_status = await _get_or_create_order_pending_status(session)
+        # Human-readable reference allocated up-front (server-side only — the
+        # field is not part of OrderCreate, cf. Order.order_number).
+        order_number = await allocate_order_number(session)
         order = await crud_order.create_draft(
             session=session,
             data=OrderCreate(
@@ -1730,6 +1734,7 @@ async def checkout_my_cart(
                 shipping_fee_amount=shipping_fee_amount,
                 payment_fee_amount=payment_fee_amount,
                 total_fees_amount=total_fees_amount,
+                currency=cart.currency,
                 shipping_address=payload.shipping_address,
                 shipping_cost_breakdown=shipping_cost_breakdown_payload,
                 notes=payload.notes,
@@ -1737,6 +1742,8 @@ async def checkout_my_cart(
             ),
             user=current_user,
         )
+        order.order_number = order_number
+        session.add(order)
 
         # Keyed by (segment, origin place) so each distinct origin (own warehouse,
         # supplier A, supplier B…) gets its own tracking with its own first leg.
@@ -1876,6 +1883,7 @@ async def checkout_my_cart(
             event_type=EVENT_ORDER_CREATED,
             payload={
                 "order_id": str(order.id),
+                "order_number": order_number,
                 "user_id": str(current_user.id),
                 "payment_id": str(payment.id),
                 "total_amount": str(total_amount),

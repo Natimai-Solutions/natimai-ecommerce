@@ -11,6 +11,7 @@ from app.features.inventory.services.stock_release import (
     confirm_order_stock,
     release_order_stock,
 )
+from app.features.invoice.services.invoice_service import issue_invoice_for_order
 from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_status_crud import crud_order_status
 from app.features.order.models.order_status import OrderStatusCreate
@@ -41,6 +42,7 @@ __all__ = [
     "crud_payment",
     "on_payment_awaiting_validation",
     "on_payment_captured",
+    "on_payment_captured_issue_invoice",
     "on_payment_refunded",
     "on_payment_rejected",
     "on_payment_document_required",
@@ -226,6 +228,35 @@ async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) ->
                 order_id,
                 confirmed,
             )
+
+
+@outbox_handler("payment.captured")
+async def on_payment_captured_issue_invoice(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    """Issue the accounting invoice once the payment is captured (M3).
+
+    Separate handler on purpose: an invoicing failure retries on its own
+    (ARQ backoff) without re-running the order status sync or the stock
+    confirmation. Issuance is idempotent, so a retry never duplicates the
+    document.
+    """
+    order_id = _parse_order_id(payload)
+    if order_id is None:
+        return
+
+    # Same guard as the status sync: never invoice an order whose captured
+    # payment does not cover its total.
+    if not await _captured_amount_covers_order(session, payload=payload):
+        logger.error(
+            "Invoice not issued for order %s: captured amount does not cover "
+            "the order total",
+            order_id,
+        )
+        return
+
+    invoice = await issue_invoice_for_order(session, order_id=order_id)
+    logger.info("Invoice %s available for order %s", invoice.invoice_number, order_id)
 
 
 @outbox_handler("payment.refunded")

@@ -4,11 +4,13 @@ from unittest.mock import AsyncMock, Mock
 from uuid import UUID, uuid4
 
 import pytest
+from arq.worker import Retry
 from sqlmodel import Field, SQLModel
 
 from app.features.base.crud import CrudBase
 from app.outbox.consumer import (
     OUTBOX_CONSUMER_IDEMPOTENCY_TTL_SECONDS,
+    OUTBOX_HANDLER_MAX_TRIES,
     execute_outbox_handler,
 )
 from app.outbox.models import OutboxEvent
@@ -288,7 +290,9 @@ async def test_execute_outbox_handler_does_not_set_key_on_failure(
     )
     ctx = {"redis": redis}
 
-    with pytest.raises(RuntimeError, match="handler failed"):
+    # A transient failure is re-enqueued with backoff (ARQ Retry signal) and
+    # must NOT mark the delivery as processed.
+    with pytest.raises(Retry):
         await execute_outbox_handler(
             ctx,
             handler_path="app.handlers.any:test_handler",
@@ -298,3 +302,46 @@ async def test_execute_outbox_handler_does_not_set_key_on_failure(
         )
 
     redis.set.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_execute_outbox_handler_gives_up_and_alerts_after_max_tries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """On the last attempt the original error propagates and an alert is sent."""
+    handler_mock = AsyncMock(side_effect=RuntimeError("handler failed"))
+    monkeypatch.setattr(
+        "app.outbox.consumer.importlib.import_module",
+        Mock(return_value=SimpleNamespace(test_handler=handler_mock)),
+    )
+
+    class _FakeSessionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    monkeypatch.setattr(
+        "app.outbox.consumer.AsyncSession",
+        Mock(return_value=_FakeSessionContext()),
+    )
+    alert_mock = AsyncMock(return_value=True)
+    monkeypatch.setattr("app.outbox.consumer.send_alert", alert_mock)
+
+    redis = SimpleNamespace(
+        get=AsyncMock(return_value=None),
+        set=AsyncMock(return_value=True),
+    )
+
+    with pytest.raises(RuntimeError, match="handler failed"):
+        await execute_outbox_handler(
+            {"redis": redis, "job_try": OUTBOX_HANDLER_MAX_TRIES},
+            handler_path="app.handlers.any:test_handler",
+            event_id="evt-4",
+            event_type="create.product",
+            payload={"id": "p-1"},
+        )
+
+    redis.set.assert_not_awaited()
+    alert_mock.assert_awaited_once()

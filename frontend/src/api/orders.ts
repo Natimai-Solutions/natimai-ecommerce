@@ -5,6 +5,8 @@ export interface Order {
   id: string;
   user_id: string;
   order_status_id: string;
+  /** Human-readable reference (CMD-2026-00042). Null for orders placed before M5. */
+  order_number: string | null;
   /** Human-readable status name (Pending / AwaitingPayment / Paid / PaymentFailed…). */
   order_status_name: string | null;
   total_amount: string;

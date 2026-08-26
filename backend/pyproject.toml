@@ -34,6 +34,11 @@ dependencies = [
     "boto3>=1.34.0",  # S3 file storage for payment attachments
     "clamd>=1.0.2",  # ClamAV antivirus scanner for uploaded documents
     "pyyaml>=6.0.0",  # Lecture de spec_definitions.yaml pour les specs filtrables
+    # Rendu PDF des factures (M3). Nécessite des libs système (pango, cairo,
+    # gdk-pixbuf) présentes dans l'image backend ; l'import est paresseux dans
+    # app/features/invoice/services/pdf.py pour qu'un poste dev sans GTK
+    # (Windows) ne casse que le rendu PDF.
+    "weasyprint>=62.0",
 ]
 
 [dependency-groups]
@@ -60,6 +65,12 @@ filterwarnings = [
 [tool.mypy]
 strict = true
 exclude = ["venv", ".venv", "alembic"]
+
+[[tool.mypy.overrides]]
+# WeasyPrint ships no type stubs; it is imported lazily in one place
+# (app/features/invoice/services/pdf.py) behind a typed wrapper.
+module = ["weasyprint.*"]
+ignore_missing_imports = true
 
 [tool.ruff]
 target-version = "py310"

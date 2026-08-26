@@ -3,9 +3,15 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
+from sqlalchemy import Sequence
 from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
+
+# Backs Order.order_number (M5). Attached to the metadata so it is created by
+# both Alembic (migration e4b1c7d9a250) and SQLModel.metadata.create_all —
+# the integration-test harness builds its schema from the metadata alone.
+order_number_seq = Sequence("order_number_seq", metadata=SQLModel.metadata)
 
 
 class DeliveryType(str, Enum):
@@ -64,6 +70,14 @@ class OrderBase(Base):
         decimal_places=2,
         description="Total des frais figes au checkout",
     )
+    currency: str | None = Field(
+        default=None,
+        max_length=8,
+        description=(
+            "Devise de facturation figée au checkout (null pour les commandes "
+            "antérieures — on retombe alors sur la devise du paiement)"
+        ),
+    )
     shipping_address: str | None = Field(
         default=None,
         max_length=500,
@@ -105,6 +119,7 @@ class OrderUpdate(BaseUpdate):
     shipping_fee_amount: Decimal | None = None
     payment_fee_amount: Decimal | None = None
     total_fees_amount: Decimal | None = None
+    currency: str | None = None
     shipping_address: str | None = None
     shipping_cost_breakdown: dict[str, Any] | None = None
     notes: str | None = None
@@ -121,12 +136,23 @@ class Order(OrderBase, table=True):
         index=True,
         description="Identifiant unique de la commande",
     )
+    # Deliberately NOT on OrderBase: server-allocated at checkout, never
+    # accepted from an OrderCreate payload (no mass assignment). Nullable —
+    # orders created before M5 have none.
+    order_number: str | None = Field(
+        default=None,
+        max_length=32,
+        unique=True,
+        index=True,
+        description="Numéro de commande lisible (CMD-AAAA-NNNNN)",
+    )
 
 
 class OrderPublic(OrderBase, BasePublic):
     """Represents order public."""
 
     id: uuid.UUID
+    order_number: str | None = None
 
 
 class OrdersPublic(SQLModel):

@@ -6,7 +6,7 @@
       <p>Votre commande a bien été enregistrée. Vous recevrez une confirmation dès que votre paiement aura été validé.</p>
       <div class="summary">
         <table>
-          <tr><td>Numéro de commande</td><td>{{ order_id | short_ref }}</td></tr>
+          <tr><td>Numéro de commande</td><td>{{ order_ref or (order_id | short_ref) }}</td></tr>
           <tr><td>Montant total</td><td>{{ total_amount }} {{ currency }}</td></tr>
           <tr><td>Nombre d'articles</td><td>{{ item_count }}</td></tr>
         </table>

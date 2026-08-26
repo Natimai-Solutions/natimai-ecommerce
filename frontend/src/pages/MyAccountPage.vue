@@ -193,52 +193,70 @@
           Vous n'avez pas encore passé de commande.
         </q-banner>
 
-        <q-list v-else bordered separator class="rounded-borders">
-          <q-item v-for="order in orders" :key="order.id">
-            <q-item-section avatar>
-              <q-icon name="receipt_long" color="primary" />
-            </q-item-section>
-            <q-item-section>
-              <q-item-label>Commande #{{ order.id.slice(0, 8) }}</q-item-label>
-              <q-item-label caption>
-                {{ formatDate(order.created_at) ?? '—' }}
-              </q-item-label>
-              <q-item-label class="q-mt-xs">
-                <q-chip
+        <template v-else>
+          <q-banner v-if="invoiceError" dense rounded class="bg-orange-1 text-orange-9 q-mb-md">
+            <template #avatar><q-icon name="warning" /></template>
+            {{ invoiceError }}
+          </q-banner>
+
+          <q-list bordered separator class="rounded-borders">
+            <q-item v-for="order in orders" :key="order.id">
+              <q-item-section avatar>
+                <q-icon name="receipt_long" color="primary" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label>Commande {{ orderRef(order) }}</q-item-label>
+                <q-item-label caption>
+                  {{ formatDate(order.created_at) ?? '—' }}
+                </q-item-label>
+                <q-item-label class="q-mt-xs">
+                  <q-chip
+                    dense
+                    size="sm"
+                    :color="paymentBadge(order.order_status_name).color"
+                    text-color="white"
+                    :icon="paymentBadge(order.order_status_name).icon"
+                    :label="paymentBadge(order.order_status_name).label"
+                  />
+                  <q-chip
+                    v-if="deliveryBadge(order.order_status_name)"
+                    dense
+                    size="sm"
+                    :color="deliveryBadge(order.order_status_name)?.color"
+                    text-color="white"
+                    :icon="deliveryBadge(order.order_status_name)?.icon"
+                    :label="deliveryBadge(order.order_status_name)?.label"
+                  />
+                </q-item-label>
+              </q-item-section>
+              <q-item-section side class="text-right">
+                <q-item-label class="text-weight-medium">
+                  {{ formatMoney(order.total_amount) }}
+                </q-item-label>
+                <q-btn
+                  flat
                   dense
-                  size="sm"
-                  :color="paymentBadge(order.order_status_name).color"
-                  text-color="white"
-                  :icon="paymentBadge(order.order_status_name).icon"
-                  :label="paymentBadge(order.order_status_name).label"
+                  no-caps
+                  color="primary"
+                  icon="local_shipping"
+                  label="Suivre"
+                  :to="{ name: 'order-tracking', params: { id: order.id } }"
                 />
-                <q-chip
-                  v-if="deliveryBadge(order.order_status_name)"
+                <q-btn
+                  v-if="invoiceByOrderId.get(order.id)"
+                  flat
                   dense
-                  size="sm"
-                  :color="deliveryBadge(order.order_status_name)?.color"
-                  text-color="white"
-                  :icon="deliveryBadge(order.order_status_name)?.icon"
-                  :label="deliveryBadge(order.order_status_name)?.label"
+                  no-caps
+                  color="primary"
+                  icon="picture_as_pdf"
+                  :label="invoiceByOrderId.get(order.id)?.invoice_number"
+                  :loading="downloadingInvoiceId === invoiceByOrderId.get(order.id)?.id"
+                  @click="onDownloadInvoice(invoiceByOrderId.get(order.id)!)"
                 />
-              </q-item-label>
-            </q-item-section>
-            <q-item-section side class="text-right">
-              <q-item-label class="text-weight-medium">
-                {{ formatMoney(order.total_amount) }}
-              </q-item-label>
-              <q-btn
-                flat
-                dense
-                no-caps
-                color="primary"
-                icon="local_shipping"
-                label="Suivre"
-                :to="{ name: 'order-tracking', params: { id: order.id } }"
-              />
-            </q-item-section>
-          </q-item>
-        </q-list>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </template>
       </q-tab-panel>
 
       <!-- ============================ Groupe tarifaire ============================ -->
@@ -524,6 +542,7 @@ import {
   type PlaceTreeNode,
 } from 'src/api/addresses';
 import { listMyOrders, type Order } from 'src/api/orders';
+import { downloadInvoicePdf, listMyInvoices, type Invoice } from 'src/api/invoices';
 import {
   getUpgradeOptions,
   listMyUpgradeRequests,
@@ -660,8 +679,8 @@ function filterCountries(val: string, update: (fn: () => void) => void) {
 function normalizeCountry(raw: string): string {
   const trimmed = raw.trim();
   if (/^[A-Za-z]{2}$/.test(trimmed)) return trimmed.toUpperCase();
-  const match = allCountryOptions.find(
-    (o) => o.label.toLowerCase().startsWith(trimmed.toLowerCase()),
+  const match = allCountryOptions.find((o) =>
+    o.label.toLowerCase().startsWith(trimmed.toLowerCase()),
   );
   return match?.value ?? trimmed;
 }
@@ -742,13 +761,9 @@ const manualPlaceId = ref<string | null>(null);
 
 // La ville n'est exigée que si le code postal ne suffit pas à situer la
 // livraison (code inconnu et aucune île choisie à la main).
-const cityRequired = computed(
-  () => !detectedZoneLabel.value && !manualPlaceId.value,
-);
+const cityRequired = computed(() => !detectedZoneLabel.value && !manualPlaceId.value);
 const cityRules = computed(() =>
-  cityRequired.value
-    ? [(v: string) => !!v?.trim() || 'Requis — code postal non reconnu']
-    : [],
+  cityRequired.value ? [(v: string) => !!v?.trim() || 'Requis — code postal non reconnu'] : [],
 );
 
 // Valeurs posées par l'auto-remplissage : on ne les efface / remplace que si
@@ -769,8 +784,7 @@ function applyZoneAutofill(place: PlaceSummary, ancestors: PlaceSummary[]): void
     addressForm.city = place.name;
     lastAutoCity = place.name;
     const geo =
-      ancestors.find((a) => a.type === 'island') ??
-      ancestors.find((a) => a.type === 'region');
+      ancestors.find((a) => a.type === 'island') ?? ancestors.find((a) => a.type === 'region');
     if (geo) {
       addressForm.state = geo.name;
       lastAutoState = geo.name;
@@ -962,6 +976,47 @@ async function loadOrders() {
 }
 
 // --------------------------------------------------------------------------
+// Invoices (M3) — one per paid order, downloadable as PDF
+// --------------------------------------------------------------------------
+const invoices = ref<Invoice[]>([]);
+const invoiceError = ref<string | null>(null);
+const downloadingInvoiceId = ref<string | null>(null);
+
+/** Invoice issued for an order, if any (invoices only exist once paid). */
+const invoiceByOrderId = computed(() => {
+  const map = new Map<string, Invoice>();
+  for (const invoice of invoices.value) map.set(invoice.order_id, invoice);
+  return map;
+});
+
+async function loadInvoices() {
+  // A failure here must not hide the orders list: the error is reported
+  // inline and the page keeps working without the download buttons.
+  try {
+    invoices.value = await listMyInvoices();
+  } catch (err) {
+    invoiceError.value = extractError(err) ?? 'Impossible de charger vos factures.';
+  }
+}
+
+async function onDownloadInvoice(invoice: Invoice) {
+  downloadingInvoiceId.value = invoice.id;
+  invoiceError.value = null;
+  try {
+    await downloadInvoicePdf(invoice);
+  } catch (err) {
+    invoiceError.value = extractError(err) ?? 'Le téléchargement de la facture a échoué.';
+  } finally {
+    downloadingInvoiceId.value = null;
+  }
+}
+
+/** Human-readable order reference: CMD-2026-00042, else the legacy short id. */
+function orderRef(order: Order): string {
+  return order.order_number ?? `#${order.id.slice(0, 8)}`;
+}
+
+// --------------------------------------------------------------------------
 // Group upgrade
 // --------------------------------------------------------------------------
 const loadingGroup = ref(true);
@@ -1140,6 +1195,12 @@ onMounted(async () => {
   if (requestedTab === 'addresses' || requestedTab === 'orders' || requestedTab === 'group') {
     tab.value = requestedTab;
   }
-  await Promise.all([loadPreferences(), loadAddresses(), loadOrders(), loadGroup()]);
+  await Promise.all([
+    loadPreferences(),
+    loadAddresses(),
+    loadOrders(),
+    loadInvoices(),
+    loadGroup(),
+  ]);
 });
 </script>

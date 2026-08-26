@@ -4,7 +4,7 @@
 {% block heading %}Votre colis progresse 📦{% endblock %}
 {% block content %}
       <p>Bonjour {{ full_name }},</p>
-      <p>Votre commande <strong>{{ order_id | short_ref }}</strong> vient de passer à l'étape de transport suivante.</p>
+      <p>Votre commande <strong>{{ order_ref or (order_id | short_ref) }}</strong> vient de passer à l'étape de transport suivante.</p>
       <div class="summary">
         <table>
           {% if tracking_ref %}<tr><td>Référence de suivi</td><td>{{ tracking_ref }}</td></tr>{% endif %}

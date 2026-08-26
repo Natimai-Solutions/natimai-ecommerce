@@ -28,6 +28,7 @@ from app.features.notification.providers import (
     UnknownNotificationProviderError,
     get_notification_provider,
 )
+from app.features.order.services.order_number import resolve_order_ref
 from app.features.user.models.user import User
 from app.outbox.decorators import outbox_handler
 
@@ -111,6 +112,10 @@ async def _resolve_user_from_payload(
         return None
 
 
+# Customer-facing order reference (M5) — shared with the shipping handlers.
+_resolve_order_ref = resolve_order_ref
+
+
 @outbox_handler(EVENT_ORDER_CREATED)
 async def on_order_created(session: AsyncSession, payload: dict[str, Any]) -> None:
     """Send 'Commande reçue' email to the customer after checkout."""
@@ -123,10 +128,13 @@ async def on_order_created(session: AsyncSession, payload: dict[str, Any]) -> No
     user = await _resolve_user_from_payload(session, payload)
     full_name = (user.full_name or user.email or "") if user else ""
 
+    order_ref = await _resolve_order_ref(session, payload)
+
     email = render_email(
         "order_created",
         full_name=full_name or "client",
         order_id=payload.get("order_id", ""),
+        order_ref=order_ref,
         total_amount=payload.get("total_amount", ""),
         currency=payload.get("currency", ""),
         item_count=payload.get("item_count", ""),
@@ -158,10 +166,13 @@ async def on_payment_captured_customer(
     user = await _resolve_user_from_payload(session, payload)
     full_name = (user.full_name or user.email or "") if user else ""
 
+    order_ref = await _resolve_order_ref(session, payload)
+
     email = render_email(
         "payment_captured",
         full_name=full_name or "client",
         order_id=payload.get("order_id", ""),
+        order_ref=order_ref,
         total_amount=payload.get("total_amount", ""),
         currency=payload.get("currency", ""),
         shop_name=_shop_name(),
@@ -193,10 +204,13 @@ async def on_payment_rejected_customer(
     user = await _resolve_user_from_payload(session, payload)
     full_name = (user.full_name or user.email or "") if user else ""
 
+    order_ref = await _resolve_order_ref(session, payload)
+
     email = render_email(
         "payment_rejected",
         full_name=full_name or "client",
         order_id=payload.get("order_id", ""),
+        order_ref=order_ref,
         reason=payload.get("reason") or "",
         shop_name=_shop_name(),
     )
@@ -227,10 +241,13 @@ async def on_payment_refunded_customer(
     user = await _resolve_user_from_payload(session, payload)
     full_name = (user.full_name or user.email or "") if user else ""
 
+    order_ref = await _resolve_order_ref(session, payload)
+
     email = render_email(
         "payment_refunded",
         full_name=full_name or "client",
         order_id=payload.get("order_id", ""),
+        order_ref=order_ref,
         amount=payload.get("amount", ""),
         currency=payload.get("currency", ""),
         reason=payload.get("reason") or "",

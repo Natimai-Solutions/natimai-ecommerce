@@ -1,6 +1,6 @@
 Bonjour {{ full_name }},
 
-Un remboursement a été effectué pour votre commande {{ order_id | short_ref }}.
+Un remboursement a été effectué pour votre commande {{ order_ref or (order_id | short_ref) }}.
 
 Montant remboursé : {{ amount }} {{ currency }}{% if fully_refunded %} (remboursement total){% else %} (remboursement partiel){% endif %}
 {% if reason %}Motif : {{ reason }}

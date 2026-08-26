@@ -215,6 +215,23 @@ is needed — the seed migration inserts the initial value.
 | `S3_BUCKET_NAME` | — | S3 bucket |
 | `S3_REGION` | `us-east-1` | S3 region |
 
+### 3.9bis Invoicing (M3)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `INVOICE_SELLER_NAME` | `Natimai Solutions` | Seller name printed on invoices |
+| `INVOICE_SELLER_ADDRESS` | *(empty)* | **Required before issuing real invoices** — an invoice without a complete seller identity is not compliant. Issuance logs a warning while empty |
+| `INVOICE_SELLER_REGISTRATION` | *(empty)* | **Required** — RC Papeete number + n° TAHITI |
+| `INVOICE_SELLER_EMAIL` / `INVOICE_SELLER_PHONE` | *(empty)* | Contact details on the document |
+| `INVOICE_LEGAL_FOOTER` | *(empty)* | Legal mentions printed at the bottom of the invoice |
+| `INVOICE_FEES_TAX_CODE` | `TGC_NORMAL` | `TaxRate.code` used to ventilate shipping/payment fees in the tax breakdown. ⚠️ Confirm with your accountant |
+
+> **PDF rendering** relies on WeasyPrint and its system libraries (pango,
+> cairo, gdk-pixbuf) — present in the backend image. The import is lazy: on a
+> host without them, invoices are still **issued and stored** (the snapshot is
+> the source of truth) and only the PDF endpoints answer `503`
+> (`invoice.pdf.unavailable`).
+
 ### 3.10 Antivirus & security
 
 | Variable | Default | Description |

@@ -1,6 +1,6 @@
 Bonjour {{ full_name }},
 
-Votre paiement a été validé pour la commande {{ order_id | short_ref }}.
+Votre paiement a été validé pour la commande {{ order_ref or (order_id | short_ref) }}.
 
 Montant débité : {{ total_amount }} {{ currency }}
 

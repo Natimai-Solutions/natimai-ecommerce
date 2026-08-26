@@ -1,6 +1,6 @@
 Bonjour {{ full_name }},
 
-Votre commande {{ order_id | short_ref }} progresse : elle vient de passer à l'étape de transport suivante.
+Votre commande {{ order_ref or (order_id | short_ref) }} progresse : elle vient de passer à l'étape de transport suivante.
 
 {% if tracking_ref %}Référence de suivi : {{ tracking_ref }}
 {% endif %}Vous pouvez suivre l'avancement de votre livraison dans votre espace client.
