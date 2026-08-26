@@ -57,6 +57,7 @@ When `ENVIRONMENT != local`, the app refuses to start if `SECRET_KEY`,
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | Access token TTL — do **not** increase |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `30` | Refresh token TTL |
 | `SENTRY_DSN` | — | Error monitoring DSN |
+| `ALERT_WEBHOOK_URL` | — | Ops alert webhook (Slack-style `{"text": …}`; Mattermost-compatible, Discord via `/slack` suffix). Fired on outbox degraded/recovered state changes and when an ARQ outbox job is abandoned after 5 tries. Empty = log only. **Recommended in production** |
 
 > **Authentication model (cookie).** The **refresh token** is delivered as an
 > **HttpOnly, Secure, SameSite=Lax** cookie (unreadable by JS → XSS-resistant);
@@ -222,7 +223,7 @@ is needed — the seed migration inserts the initial value.
 | `CLAMAV_HOST` | `clamav` | ClamAV daemon host |
 | `CLAMAV_PORT` | `3310` | ClamAV daemon port |
 | `ENABLE_GROUP_PERMISSIONS` | `false` | Enable RBAC group checks (turn on after security groups are seeded and verified) |
-| `CLIENT_IP_HEADER` | *(empty)* | **Set this whenever the API sits behind Cloudflare or a reverse proxy.** Name of the trusted header carrying the real client IP: `CF-Connecting-IP` (Cloudflare) or `X-Forwarded-For` (Caddy/nginx/traefik). Used by the login rate limiter — left empty, all requests share the proxy's IP and the per-IP throttle (10 login attempts/min) becomes a **global** throttle for every customer. Leave empty **only** when the API is directly exposed (a forged header would otherwise bypass the throttle). |
+| `CLIENT_IP_HEADER` | *(empty)* | **Set this whenever the API sits behind Cloudflare or a reverse proxy.** Name of the trusted header carrying the real client IP: `CF-Connecting-IP` (Cloudflare) or `X-Forwarded-For` (Caddy/nginx/traefik — the **last**, proxy-appended entry of the chain is used; earlier entries are client-forgeable). Used by the login rate limiter — left empty, all requests share the proxy's IP and the per-IP throttle (10 login attempts/min) becomes a **global** throttle for every customer. Leave empty **only** when the API is directly exposed (a forged header would otherwise bypass the throttle). |
 | `LOGIN_RATE_LIMIT_ATTEMPTS` | `10` | Login attempts per IP per window (Redis-backed, fail-open) |
 | `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | `60` | Throttle window |
 | `LOGIN_LOCKOUT_MAX_FAILURES` | `5` | Consecutive wrong passwords before the account locks |

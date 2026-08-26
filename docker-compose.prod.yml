@@ -99,9 +99,10 @@ services:
           memory: 128M
           cpus: '0.1'
     
-    # Health check pour le health checker lui-même
+    # Health check pour le health checker lui-même — exit 1 si le check outbox
+    # est en statut "error" (avant : toujours exit 0, check inopérant).
     healthcheck:
-      test: ["CMD", "python", "-c", "import asyncio; from app.outbox.health import health_checker; asyncio.run(health_checker.check_orphaned_jobs())"]
+      test: ["CMD", "python", "-c", "import asyncio, sys; from app.outbox.health import health_checker; r = asyncio.run(health_checker.check_orphaned_jobs()); sys.exit(1 if r.get('status') == 'error' else 0)"]
       interval: 60s
       timeout: 30s
       retries: 3

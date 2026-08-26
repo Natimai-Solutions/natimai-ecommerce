@@ -63,18 +63,27 @@ class Settings(BaseSettings):
             return self.REFRESH_COOKIE_SECURE
         return self.ENVIRONMENT != "local"
 
-    @model_validator(mode="after")
-    def _check_secret_key(self) -> Self:
-        """Check secret key."""
+    def _check_secret_key(self) -> None:
+        """Empty SECRET_KEY: generated (with a warning) in local, fatal elsewhere.
+
+        A random per-process key outside local would silently invalidate every
+        JWT at each restart — and across replicas — while masking the missing
+        configuration. Called from ``_enforce_non_default_secrets``.
+        """
         if not self.SECRET_KEY:
-            # Generate a random key only if not provided (for development)
+            if self.ENVIRONMENT != "local":
+                raise ValueError(
+                    "SECRET_KEY is not set. Generate one (`openssl rand -base64 32`) "
+                    "and set it in the environment — required for any non-local "
+                    "deployment."
+                )
+            # Generate a random key only if not provided (local development)
             self.SECRET_KEY = secrets.token_urlsafe(32)
             warnings.warn(
                 "SECRET_KEY not set in environment. Using a random key. "
                 "This will invalidate tokens on restart!",
                 stacklevel=1,
             )
-        return self
 
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
@@ -90,6 +99,10 @@ class Settings(BaseSettings):
 
     PROJECT_NAME: str = "FastAPI Ecommerce"
     SENTRY_DSN: HttpUrl | None = None
+    # Webhook d'alerte opérationnelle (format Slack `{"text": …}`) — utilisé par
+    # le health-checker outbox et par l'abandon définitif d'un job ARQ.
+    # Vide = pas d'alerte (log uniquement).
+    ALERT_WEBHOOK_URL: str | None = None
     POSTGRES_SERVER: str = "db"
     POSTGRES_PORT: int = 5432
     POSTGRES_USER: str = "postgres"
@@ -410,6 +423,7 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _enforce_non_default_secrets(self) -> Self:
         """Execute enforce non default secrets."""
+        self._check_secret_key()
         self._check_default_secret("SECRET_KEY", self.SECRET_KEY)
         self._check_default_secret("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD)
         self._check_default_secret(

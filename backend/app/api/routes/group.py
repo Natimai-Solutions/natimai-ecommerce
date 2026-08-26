@@ -159,9 +159,17 @@ async def remove_user_from_group(
 async def get_group_users(
     session: SessionDep,
     group_id: uuid.UUID,
-    _current_user: CurrentUser,
+    current_user: CurrentUser,
 ) -> UserGroupsPublic:
-    """Get all users in a specific group"""
+    """Get all users in a specific group — admin only (membership enumeration)."""
+    if not current_user.is_superuser:
+        raise AppError(
+            code="group.admin_required",
+            status_code=403,
+            message="Admin access required",
+            details={"resource": "group.users.list"},
+        )
+
     user_groups = await crud_user_group.get_group_users(
         session,
         group_id=group_id,

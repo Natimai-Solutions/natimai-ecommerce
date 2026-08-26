@@ -195,3 +195,39 @@ def test_get_group_security_permissions_admin_required_returns_error_payload(
             "details": {"resource": "group_security.group_permissions"},
         }
     }
+
+
+def test_get_group_users_admin_required_returns_error_payload(
+    client: TestClient,
+) -> None:
+    """S4 audit fix: listing a group's members enumerates user ids — admin only."""
+    group_id = uuid.uuid4()
+
+    response = client.get(f"/api/v1/group/{group_id}/users")
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "error": {
+            "code": "group.admin_required",
+            "message": "Admin access required",
+            "details": {"resource": "group.users.list"},
+        }
+    }
+
+
+def test_get_group_users_allows_admin(
+    client: TestClient,
+    current_user: SimpleNamespace,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    current_user.is_superuser = True
+    monkeypatch.setattr(
+        crud_user_group,
+        "get_group_users",
+        AsyncMock(return_value=[]),
+    )
+
+    response = client.get(f"/api/v1/group/{uuid.uuid4()}/users")
+
+    assert response.status_code == 200
+    assert response.json() == {"data": [], "count": 0}

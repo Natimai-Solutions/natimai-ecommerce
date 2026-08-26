@@ -3,10 +3,15 @@
 # AVEC BUILD SUR LE SERVEUR (DEPLOYMENT.md §8) : les images frontends poussées
 # ici embarquent le VITE_API_URL par défaut (localhost:8000) et ne sont pas
 # utilisables en production telles quelles.
+#
+# Gating (audit Q1) : déclenché à la FIN du workflow CI sur main, et le job ne
+# tourne que si la CI est verte — plus de push d'images `:latest` cassées.
 name: Build & Deploy
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
 
 env:
@@ -18,6 +23,8 @@ env:
 jobs:
   build:
     name: Build & push Docker images
+    # Ne tourne que si la CI (workflow déclencheur) est verte.
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -25,6 +32,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Le commit exact validé par la CI (github.sha pointerait sur le
+          # dernier commit de main au moment du déclenchement, pas forcément lui).
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Compute lowercase image prefix
         run: echo "IMAGE_PREFIX=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
@@ -44,7 +55,7 @@ jobs:
         with:
           context: ./backend
           push: true
-          tags: ${{ env.IMAGE_PREFIX }}/api:latest,${{ env.IMAGE_PREFIX }}/api:${{ github.sha }}
+          tags: ${{ env.IMAGE_PREFIX }}/api:latest,${{ env.IMAGE_PREFIX }}/api:${{ github.event.workflow_run.head_sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -54,7 +65,7 @@ jobs:
           context: .
           file: frontend/Dockerfile
           push: true
-          tags: ${{ env.IMAGE_PREFIX }}/frontend:latest,${{ env.IMAGE_PREFIX }}/frontend:${{ github.sha }}
+          tags: ${{ env.IMAGE_PREFIX }}/frontend:latest,${{ env.IMAGE_PREFIX }}/frontend:${{ github.event.workflow_run.head_sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -64,6 +75,6 @@ jobs:
           context: .
           file: admin-frontend/Dockerfile
           push: true
-          tags: ${{ env.IMAGE_PREFIX }}/admin:latest,${{ env.IMAGE_PREFIX }}/admin:${{ github.sha }}
+          tags: ${{ env.IMAGE_PREFIX }}/admin:latest,${{ env.IMAGE_PREFIX }}/admin:${{ github.event.workflow_run.head_sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
