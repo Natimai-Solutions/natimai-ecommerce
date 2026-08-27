@@ -20,14 +20,19 @@ from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.errors import AppError
+from app.features.system.legal_identity import LEGAL_SETTING_KEYS
 from app.features.system.models.system_setting import (
     SystemSetting,
     SystemSettingPublic,
     SystemSettingUpdate,
 )
 
-# Keys exposed to any caller (no auth required)
-_PUBLIC_KEYS = frozenset({"default_display_currency"})
+# Keys exposed to any caller (no auth required).
+#
+# The legal identity is public by nature — publishing it is a legal obligation,
+# and the storefront renders it on the CGV / mentions légales / privacy pages
+# without requiring a login.
+_PUBLIC_KEYS = frozenset({"default_display_currency"}) | LEGAL_SETTING_KEYS
 
 router = APIRouter(tags=["system"])
 

@@ -1,22 +1,27 @@
 <!--
   Conditions générales de vente — DOCUMENT À FAIRE VALIDER PAR UN CONSEIL
   JURIDIQUE avant mise en ligne (en particulier : régime de rétractation et
-  médiation applicables en Polynésie française). Compléter les [À COMPLÉTER : …].
+  médiation applicables en Polynésie française).
+
+  Les données d'identité viennent de la base (system_settings, clés legal_*),
+  éditables depuis le back-office et partagées avec les factures.
 -->
 <template>
   <q-page class="legal-page q-pa-md">
     <div class="legal-page__content">
       <h1 class="text-h4 text-weight-bold q-mb-xs">Conditions générales de vente</h1>
       <p class="text-caption text-grey-7 q-mb-lg">
-        Version du [À COMPLÉTER : date de mise en vigueur].
+        Version du <LegalValue :value="legalEntity.cgvVersionDate" />.
       </p>
 
       <h2 class="text-h6 q-mt-lg q-mb-sm">Article 1 — Identité du vendeur</h2>
       <p>
-        <strong>Natimai Solutions</strong>, [À COMPLÉTER : forme juridique], siège social
-        [À COMPLÉTER : adresse, Polynésie française], RC Papeete n° [À COMPLÉTER],
-        n° TAHITI [À COMPLÉTER], email [À COMPLÉTER : email de contact] (ci-après « le
-        Vendeur »).
+        <strong>{{ legalEntity.tradingName }}</strong>,
+        <LegalValue :value="legalEntity.legalForm" />, siège social
+        <LegalValue :value="legalEntity.headOfficeAddress" />, RC Papeete n°
+        <LegalValue :value="legalEntity.rcNumber" />, n° TAHITI
+        <LegalValue :value="legalEntity.tahitiNumber" />, email
+        <LegalValue :value="legalEntity.contactEmail" /> (ci-après « le Vendeur »).
       </p>
 
       <h2 class="text-h6 q-mt-lg q-mb-sm">Article 2 — Champ d'application</h2>
@@ -82,15 +87,18 @@
       <p>
         Le client vérifie l'état du colis à la réception et formule toute réserve auprès du
         transporteur et du Vendeur dans les meilleurs délais, au plus tard sous
-        [À COMPLÉTER : délai de réserve, ex. 3 jours ouvrés].
+        <LegalValue :value="legalEntity.deliveryReservationDelay" />.
       </p>
 
       <h2 class="text-h6 q-mt-lg q-mb-sm">Article 8 — Droit de rétractation</h2>
+      <!--
+        À arrêter avec le conseil juridique : délai, modalités d'exercice,
+        exclusions (produits déscellés, logiciels, produits personnalisés…),
+        frais de retour. À défaut de régime obligatoire en Polynésie française,
+        énoncer la politique commerciale de retour du Vendeur.
+      -->
       <p>
-        [À COMPLÉTER / À VALIDER PAR UN CONSEIL : régime de rétractation applicable à la vente à
-        distance en Polynésie française — délai, modalités d'exercice, exclusions (produits
-        déscellés, logiciels, produits personnalisés…), frais de retour. À défaut de régime
-        obligatoire, préciser la politique commerciale de retour du Vendeur.]
+        <LegalValue :value="legalEntity.withdrawalRegime" />
       </p>
 
       <h2 class="text-h6 q-mt-lg q-mb-sm">Article 9 — Garanties et SAV</h2>
@@ -99,7 +107,8 @@
         la garantie commerciale du fabricant (dont la durée et les conditions figurent sur la
         fiche produit ou la documentation constructeur). Le Vendeur, en qualité d'importateur,
         est l'interlocuteur du client pour la mise en œuvre des garanties&nbsp;: la demande est
-        formulée auprès du service client à [À COMPLÉTER : email SAV]. Les délais de traitement
+        formulée auprès du service client à <LegalValue :value="legalEntity.supportEmail" />.
+        Les délais de traitement
         peuvent inclure un retour du matériel vers le fabricant ou son centre agréé hors de
         Polynésie française.
       </p>
@@ -123,8 +132,8 @@
       <p>
         Les présentes CGV sont soumises au droit applicable en Polynésie française. En cas de
         litige, le client s'adresse en priorité au service client afin de rechercher une
-        solution amiable. [À COMPLÉTER : dispositif de médiation de la consommation applicable,
-        le cas échéant.] À défaut, les tribunaux de Papeete sont compétents, sous réserve des
+        solution amiable. <LegalValue :value="legalEntity.mediationScheme" />
+        À défaut, les tribunaux de Papeete sont compétents, sous réserve des
         règles d'ordre public applicables.
       </p>
     </div>
@@ -132,7 +141,17 @@
 </template>
 
 <script setup lang="ts">
-// Page statique — aucun script nécessaire.
+import { computed, onServerPrefetch } from 'vue';
+import LegalValue from 'src/components/LegalValue.vue';
+import { useLegalEntityStore } from 'src/stores/legalEntity';
+
+const store = useLegalEntityStore();
+// Chargé côté serveur pendant le rendu SSR : la page arrive complète, sans
+// clignotement de placeholders puis remplacement à l'hydratation.
+onServerPrefetch(() => store.load());
+void store.load();
+
+const legalEntity = computed(() => store.entity);
 </script>
 
 <style scoped lang="scss">

@@ -35,6 +35,7 @@ from app.features.order.models.order_line import OrderLine
 from app.features.payment.models.payment import Payment
 from app.features.product.models.product import Product
 from app.features.product.models.tax_rate import TaxRate
+from app.features.system.legal_identity import load_legal_identity
 from app.features.user.models.address import Address
 from app.features.user.models.user import User
 from app.utils.money import quantize_amount
@@ -113,23 +114,36 @@ def _split_incl_tax(
     return excl, amount_incl - excl
 
 
-def _seller_identity() -> dict[str, str]:
-    """Seller block printed on the invoice, from configuration."""
+async def _seller_identity(session: AsyncSession) -> dict[str, str]:
+    """Seller block printed on the invoice.
+
+    Read from the back-office legal identity first, falling back to the
+    ``INVOICE_SELLER_*`` environment values. Those are deployment data, not
+    code: keeping a second copy in the environment is how an invoice and the
+    published mentions légales end up announcing different addresses. The
+    fallback only covers a deployment whose settings have not been filled in
+    yet — the seed in ``initial_data`` primes them from the same variables.
+    """
+    legal = await load_legal_identity(session)
     identity = {
-        "name": settings.INVOICE_SELLER_NAME,
-        "address": settings.INVOICE_SELLER_ADDRESS,
-        "registration": settings.INVOICE_SELLER_REGISTRATION,
-        "email": settings.INVOICE_SELLER_EMAIL,
-        "phone": settings.INVOICE_SELLER_PHONE,
+        "name": legal.get("legal_trading_name") or settings.INVOICE_SELLER_NAME,
+        "address": (
+            legal.get("legal_head_office_address") or settings.INVOICE_SELLER_ADDRESS
+        ),
+        "registration": (
+            legal.get("legal_tahiti_number") or settings.INVOICE_SELLER_REGISTRATION
+        ),
+        "email": legal.get("legal_contact_email") or settings.INVOICE_SELLER_EMAIL,
+        "phone": legal.get("legal_contact_phone") or settings.INVOICE_SELLER_PHONE,
         "legal_footer": settings.INVOICE_LEGAL_FOOTER,
     }
     missing = [key for key in ("address", "registration") if not identity[key]]
     if missing:
         logger.warning(
-            "Invoice seller identity incomplete (%s not configured) — the "
-            "issued document is not legally compliant. Set INVOICE_SELLER_* "
-            "in the environment.",
-            ", ".join(f"INVOICE_SELLER_{key.upper()}" for key in missing),
+            "Invoice seller identity incomplete (%s) — the issued document is "
+            "not legally compliant. Fill it in the back-office (Réglages / "
+            "identité légale) or set INVOICE_SELLER_* in the environment.",
+            ", ".join(missing),
         )
     return identity
 
@@ -279,7 +293,7 @@ async def build_invoice_snapshot(
         )
 
     return {
-        "seller": _seller_identity(),
+        "seller": await _seller_identity(session),
         "buyer": await _build_buyer_identity(session, order=order, user=user),
         "order": {
             "id": str(order.id),
