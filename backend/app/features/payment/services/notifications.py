@@ -32,6 +32,7 @@ _EVENT_LABELS = {
     "payment.failed": "Paiement échoué",
     "payment.refunded": "Remboursement effectué",
     "payment.cancelled": "Paiement annulé",
+    "payment.amount_mismatch": "⚠ Montant encaissé incohérent — action requise",
 }
 
 # EmailStr validates user emails at write time, but payload values (UUIDs) and

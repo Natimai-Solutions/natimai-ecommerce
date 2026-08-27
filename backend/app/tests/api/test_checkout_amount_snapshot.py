@@ -146,6 +146,7 @@ async def test_checkout_freezes_subtotal_and_fees_into_order_and_payment(
         payload=CheckoutRequest(
             shipping_fee_amount=Decimal("2.50"),
             payment_fee_amount=Decimal("1.25"),
+            cgv_accepted=True,
         ),
     )
 
@@ -275,6 +276,7 @@ async def test_checkout_calculates_shipping_from_selected_routes(
             shipping_fee_amount=Decimal("999.99"),
             payment_fee_amount=Decimal("1.25"),
             shipping_route_ids=[selected_route.id],
+            cgv_accepted=True,
         ),
     )
 

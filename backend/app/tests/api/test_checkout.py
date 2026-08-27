@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 
 from app.api.routes.cart import checkout_my_cart
+from app.core.config import settings
 from app.core.errors import AppError
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
 from app.features.cart.models.cart import CheckoutRequest
@@ -130,7 +131,9 @@ async def test_checkout_creates_order_payment_and_marks_cart_checked_out(
     response = await checkout_my_cart(
         session=session,
         current_user=current_user,
-        payload=CheckoutRequest(shipping_address="Papeete", notes="RAS"),
+        payload=CheckoutRequest(
+            shipping_address="Papeete", notes="RAS", cgv_accepted=True
+        ),
     )
 
     assert response.order_id == order_id
@@ -146,11 +149,87 @@ async def test_checkout_creates_order_payment_and_marks_cart_checked_out(
     assert order_create.subtotal_amount == Decimal("20")
     assert order_create.total_fees_amount == Decimal("0")
     assert order_create.total_amount == Decimal("20")
+    # Proof of acceptance is snapshotted on the order, not just in the SPA.
+    assert order_create.cgv_accepted_at is not None
+    assert order_create.cgv_version == settings.CGV_VERSION
     assert cart.is_checked_out is True
     assert item.is_active is False
 
     session.commit.assert_awaited_once()
     session.rollback.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_checkout_refuses_without_cgv_acceptance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The checkbox in the SPA is not the guard — the API is.
+
+    Nothing must be written: no order, no payment, no stock reservation. The
+    refusal happens before the transaction opens.
+    """
+    user_id = uuid4()
+    cart_id = uuid4()
+    product_id = uuid4()
+
+    session = AsyncMock()
+    session.add = Mock()
+    current_user = cast(User, SimpleNamespace(id=user_id))
+
+    cart = SimpleNamespace(
+        id=cart_id,
+        user_id=user_id,
+        currency="XPF",
+        total_amount=Decimal("0.00"),
+        is_checked_out=False,
+    )
+    item = SimpleNamespace(
+        id=uuid4(),
+        cart_id=cart_id,
+        product_id=product_id,
+        quantity=2,
+        unit_price=Decimal("10.00"),
+        is_active=True,
+    )
+    product = SimpleNamespace(
+        id=product_id,
+        base_price=Decimal("10.00"),
+        is_active=True,
+        is_admin_active=True,
+        is_supplier_managed=False,
+        supplier_quantity=Decimal("0.00"),
+    )
+
+    monkeypatch.setattr(
+        crud_cart, "get_active_cart_by_user", AsyncMock(return_value=cart)
+    )
+    monkeypatch.setattr(
+        crud_cart_item, "get_by_cart_id", AsyncMock(return_value=[item])
+    )
+    monkeypatch.setattr(
+        "app.api.routes.cart._get_active_product_or_404",
+        AsyncMock(return_value=product),
+    )
+    create_order_mock = AsyncMock()
+    monkeypatch.setattr(crud_order, "create_draft", create_order_mock)
+    reserve_stock = AsyncMock(return_value=[])
+    monkeypatch.setattr(
+        "app.api.routes.cart._reserve_stock_for_checkout", reserve_stock
+    )
+
+    with pytest.raises(AppError) as exc_info:
+        await checkout_my_cart(
+            session=session,
+            current_user=current_user,
+            payload=CheckoutRequest(shipping_address="Papeete"),
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.code == "cart.cgv.not_accepted"
+    create_order_mock.assert_not_awaited()
+    reserve_stock.assert_not_awaited()
+    session.commit.assert_not_awaited()
+    assert cart.is_checked_out is False
 
 
 @pytest.mark.anyio
@@ -252,7 +331,9 @@ async def test_checkout_with_payment_method_runs_single_payment_initiation(
         session=session,
         current_user=current_user,
         payload=CheckoutRequest(
-            shipping_address="Papeete", payment_method_id=method_id
+            shipping_address="Papeete",
+            payment_method_id=method_id,
+            cgv_accepted=True,
         ),
     )
 
@@ -419,7 +500,7 @@ async def test_checkout_rolls_back_when_stock_reservation_fails(
         await checkout_my_cart(
             session=session,
             current_user=current_user,
-            payload=CheckoutRequest(),
+            payload=CheckoutRequest(cgv_accepted=True),
         )
 
     assert exc_info.value.status_code == 409

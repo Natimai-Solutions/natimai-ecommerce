@@ -1717,6 +1717,17 @@ async def checkout_my_cart(
             },
         )
 
+    # Acceptation des CGV : refusée ici et pas seulement grisée dans le front,
+    # sinon un appel direct à l'API commande sans jamais les accepter.
+    if not payload.cgv_accepted:
+        raise AppError(
+            code="cart.cgv.not_accepted",
+            status_code=400,
+            message="Les conditions générales de vente doivent être acceptées",
+            details={"cart_id": str(cart.id), "cgv_version": settings.CGV_VERSION},
+        )
+    cgv_accepted_at = datetime.now(timezone.utc)
+
     try:
         price_group = await resolve_default_price_group(session)
 
@@ -1739,6 +1750,8 @@ async def checkout_my_cart(
                 shipping_cost_breakdown=shipping_cost_breakdown_payload,
                 notes=payload.notes,
                 delivery_type=payload.delivery_type,
+                cgv_accepted_at=cgv_accepted_at,
+                cgv_version=settings.CGV_VERSION,
             ),
             user=current_user,
         )

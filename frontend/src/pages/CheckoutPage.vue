@@ -522,6 +522,7 @@ async function startPayment() {
       shipping_address_id: selectedAddressId.value,
       payment_method_id: method.id,
       return_url: returnUrl,
+      cgv_accepted: cgvAccepted.value,
     });
     orderPlaced.value = true;
 

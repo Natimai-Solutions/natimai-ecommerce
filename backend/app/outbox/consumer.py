@@ -14,11 +14,20 @@ logger = logging.getLogger(__name__)
 
 OUTBOX_CONSUMER_IDEMPOTENCY_TTL_SECONDS = 60 * 60 * 24 * 30  # 30 days
 
-# Transient-failure retry policy: a handler that raises is re-enqueued with an
-# exponential backoff (10 s, 20 s, 40 s, 80 s) before being abandoned. Handlers
-# are at-least-once by design (idempotency key set only on success), so a retry
-# after a partial failure is safe. Keep in sync with WorkerSettings.max_tries.
-OUTBOX_HANDLER_MAX_TRIES = 5
+# Transient-failure retry policy. A handler that raises is re-enqueued with an
+# exponential backoff capped at OUTBOX_HANDLER_RETRY_MAX_DEFER_SECONDS:
+# 10 s, 20 s, 40 s, 80 s, 160 s, 300 s, 300 s — about 15 minutes of coverage,
+# enough to ride out a ClamAV / Mailgun / supplier-API outage. (The previous
+# 5 tries gave up after 2 min 30 and never reached the 300 s cap at all.)
+#
+# ``WorkerSettings.functions`` registers this entrypoint with max_tries set from
+# OUTBOX_HANDLER_MAX_TRIES, so arq and this module cannot drift apart.
+#
+# Retrying is safe because handlers are at-least-once by design: the consumer
+# idempotency key is only written once a handler returns, and every registered
+# handler is written to tolerate a replay (status writes are assignments,
+# stock confirm/release skip movements that already left PENDING).
+OUTBOX_HANDLER_MAX_TRIES = 8
 OUTBOX_HANDLER_RETRY_BASE_SECONDS = 10
 OUTBOX_HANDLER_RETRY_MAX_DEFER_SECONDS = 300
 
@@ -81,11 +90,15 @@ async def execute_outbox_handler(
         # supplier API…) must not permanently lose the AV scan / email / PO.
         job_try = int(ctx.get("job_try") or 1)
         if job_try >= OUTBOX_HANDLER_MAX_TRIES:
+            # Stable marker for alerting: past this point nothing replays the
+            # delivery on its own — it needs `outbox.health.recover_missing_jobs`
+            # or a manual re-enqueue.
             logger.error(
-                "Failed to execute handler %s for event_id=%s after %s tries "
-                "— giving up: %s",
+                "OUTBOX_DELIVERY_ABANDONED handler=%s event_id=%s event_type=%s "
+                "tries=%s error=%s — no further retry, manual replay required",
                 handler_path,
                 event_id,
+                event_type,
                 job_try,
                 str(e),
             )

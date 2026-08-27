@@ -47,7 +47,9 @@ async def test_payment_captured_handler_syncs_order_paid(
     monkeypatch.setattr(
         handlers.crud_payment,
         "read",
-        AsyncMock(return_value=SimpleNamespace(amount=order.total_amount)),
+        AsyncMock(
+            return_value=SimpleNamespace(amount=order.total_amount, currency="XPF")
+        ),
     )
 
     paid_status = _make_status("Paid")
@@ -76,11 +78,16 @@ async def test_payment_captured_handler_syncs_order_paid(
 
 
 @pytest.mark.anyio
-async def test_payment_captured_handler_skips_on_amount_mismatch(
+async def test_payment_captured_handler_parks_order_on_amount_mismatch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A captured payment that does not cover the order total must never
-    flip the order to Paid nor consume the reserved stock."""
+    """A captured payment that does not cover the order total must never flip
+    the order to Paid nor consume the reserved stock.
+
+    Returning silently was not enough: the outbox marks the delivery processed
+    and never replays it, so the incident has to be visible somewhere. The order
+    is parked in PaymentReview and the admins are notified.
+    """
     session = AsyncMock()
     session.add = Mock()
 
@@ -89,14 +96,20 @@ async def test_payment_captured_handler_skips_on_amount_mismatch(
     monkeypatch.setattr(
         handlers.crud_payment,
         "read",
-        AsyncMock(return_value=SimpleNamespace(amount=Decimal("1.00"))),
+        AsyncMock(return_value=SimpleNamespace(amount=Decimal("1.00"), currency="XPF")),
     )
 
-    status_mock = AsyncMock()
+    review_status = _make_status(handlers.ORDER_STATUS_PAYMENT_REVIEW)
+    status_mock = AsyncMock(return_value=review_status)
     monkeypatch.setattr(handlers.crud_order_status, "get_by_name", status_mock)
 
     confirm_stock = AsyncMock(return_value=0)
     monkeypatch.setattr(handlers, "confirm_order_stock", confirm_stock)
+    release_stock = AsyncMock(return_value=0)
+    monkeypatch.setattr(handlers, "release_order_stock", release_stock)
+
+    notify = AsyncMock(return_value=None)
+    monkeypatch.setattr(handlers, "send_payment_event_notifications", notify)
 
     payload = {
         "payment_id": str(uuid4()),
@@ -106,10 +119,22 @@ async def test_payment_captured_handler_skips_on_amount_mismatch(
 
     await handlers.on_payment_captured(cast(Any, session), payload)
 
-    assert order.order_status_id is None
-    status_mock.assert_not_awaited()
+    # Parked for human arbitration, not Paid.
+    status_mock.assert_awaited_once_with(session, name="PaymentReview")
+    assert order.order_status_id == review_status.id
+
+    # Reservations stay PENDING: not confirmed (unfulfillable) and not released
+    # (the customer has paid).
     confirm_stock.assert_not_awaited()
-    session.commit.assert_not_awaited()
+    release_stock.assert_not_awaited()
+
+    # The admins get told, since nothing will replay this event.
+    notify.assert_awaited_once()
+    assert notify.await_args is not None
+    assert notify.await_args.kwargs["event_type"] == "payment.amount_mismatch"
+    notified = notify.await_args.kwargs["payload"]
+    assert notified["amount"] == "1.00"
+    assert "100.00" in notified["reason"]
 
 
 @pytest.mark.anyio

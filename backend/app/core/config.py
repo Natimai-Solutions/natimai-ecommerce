@@ -306,6 +306,11 @@ class Settings(BaseSettings):
     # Shop branding
     SHOP_NAME: str = "Natimai"
 
+    # Version des CGV figée sur chaque commande au checkout (preuve opposable).
+    # À incrémenter à CHAQUE révision du contenu de /cgv, sinon on ne peut plus
+    # savoir quel texte le client a accepté.
+    CGV_VERSION: str = "2026-08"
+
     # OAuth 2.0 — Google
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""

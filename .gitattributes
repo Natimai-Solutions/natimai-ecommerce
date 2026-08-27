@@ -1,0 +1,17 @@
+# Fins de ligne : LF dans l'index comme dans les copies de travail.
+#
+# Le projet a démarré sous Windows : 79 fichiers historiques étaient en CRLF
+# (main.py, config.py, deps.py, l'arborescence Alembic, les docker-compose…)
+# alors que tout ce qui a été ajouté depuis est en LF — 618 fichiers contre 79.
+# Rien n'appliquait la convention (pas de core.autocrlf, pas de pre-commit, et
+# ruff est en line-ending = "auto" donc il préserve l'existant), si bien que
+# l'incohérence se figeait. Cette règle acte la convention majoritaire.
+#
+# Conséquence pour un contributeur sous Windows : git checkout produit des LF.
+# Les éditeurs modernes (VS Code, PyCharm, Notepad++) les gèrent sans réglage.
+* text=auto eol=lf
+
+# Images : aucune conversion. Git les détecte déjà comme binaires, on l'écrit
+# explicitement pour que ça reste vrai si un jour `text=auto` était retiré.
+*.png binary
+*.ico binary

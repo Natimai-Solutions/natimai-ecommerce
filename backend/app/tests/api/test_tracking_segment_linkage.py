@@ -235,7 +235,7 @@ async def test_checkout_calls_tracking_linker_with_segment_totals(
     await checkout_my_cart(
         session=session,
         current_user=current_user,
-        payload=CheckoutRequest(shipping_address="Paris, France"),
+        payload=CheckoutRequest(shipping_address="Paris, France", cgv_accepted=True),
     )
 
     assert tracking_linker_mock.await_args is not None

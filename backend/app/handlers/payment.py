@@ -28,6 +28,10 @@ ORDER_STATUS_PAYMENT_FAILED = "PaymentFailed"
 ORDER_STATUS_AWAITING_PAYMENT = "AwaitingPayment"
 ORDER_STATUS_REFUNDED = "Refunded"
 ORDER_STATUS_PARTIALLY_REFUNDED = "PartiallyRefunded"
+# Terminal-for-automation status: money was taken but the amounts disagree, so a
+# human must decide. Never set by the nominal flow — see
+# ``_handle_captured_amount_mismatch``.
+ORDER_STATUS_PAYMENT_REVIEW = "PaymentReview"
 
 EVENT_WEBHOOK_RECEIVED = "payment.webhook_received"
 EVENT_AWAITING_VALIDATION = "payment.awaiting_validation"
@@ -35,6 +39,7 @@ EVENT_DOCUMENT_REQUIRED = "payment.document_required"
 EVENT_CAPTURED = "payment.captured"
 EVENT_REJECTED = "payment.rejected"
 EVENT_DOCUMENT_INFECTED = "payment.document_infected"
+EVENT_AMOUNT_MISMATCH = "payment.amount_mismatch"
 
 __all__ = [
     "crud_order",
@@ -163,45 +168,91 @@ async def on_payment_awaiting_validation(
     )
 
 
-async def _captured_amount_covers_order(
+async def _captured_amount_mismatch(
     session: AsyncSession, *, payload: dict[str, Any]
-) -> bool:
+) -> dict[str, str] | None:
     """Last line of defence before flipping an order to Paid.
 
-    When both the payment and the order can be loaded and their amounts differ,
-    the order is left untouched for manual review instead of being marked Paid.
-    Missing/unloadable records keep the historical behaviour (no new failure
-    mode for replayed or partial payloads).
+    Returns the mismatch details when the captured payment amount differs from
+    the order total, or ``None`` when the capture is consistent — or simply
+    cannot be checked. Missing/unloadable records keep the historical behaviour
+    (no new failure mode for replayed or partial payloads).
     """
     order_id = _parse_order_id(payload)
     raw_payment_id = payload.get("payment_id")
     if order_id is None or not raw_payment_id:
-        return True
+        return None
 
     try:
         payment_id = uuid.UUID(str(raw_payment_id))
     except (TypeError, ValueError):
-        return True
+        return None
 
     try:
         payment = await crud_payment.read(session, id=payment_id)
         order = await crud_order.read(session, id=order_id)
     except RecordNotFoundError:
-        return True
+        return None
     if payment is None or order is None:
-        return True
+        return None
 
-    if payment.amount != order.total_amount:
-        logger.error(
-            "payment.captured amount mismatch: payment %s amount=%s does not "
-            "cover order %s total=%s — order left un-paid for manual review",
-            payment_id,
-            payment.amount,
-            order_id,
-            order.total_amount,
-        )
-        return False
-    return True
+    if payment.amount == order.total_amount:
+        return None
+
+    return {
+        "expected_amount": str(order.total_amount),
+        "received_amount": str(payment.amount),
+        "currency": str(payment.currency),
+    }
+
+
+async def _handle_captured_amount_mismatch(
+    session: AsyncSession,
+    *,
+    payload: dict[str, Any],
+    mismatch: dict[str, str],
+) -> None:
+    """Park the order for human arbitration instead of marking it Paid.
+
+    The money was taken but the amounts disagree, so three things must happen —
+    and silently returning did none of them:
+
+    * the order moves to ``PaymentReview`` so the incident is visible in the
+      back-office (and so ``POST /payments/initiate`` refuses a second charge);
+    * the checkout stock reservations stay PENDING — neither confirmed (the
+      order is not fulfillable) nor released (the customer has paid);
+    * the admins are notified, because the outbox marks this delivery as
+      processed and will never replay it.
+    """
+    logger.error(
+        "payment.captured amount mismatch: payment %s amount=%s does not cover "
+        "order %s total=%s — order parked in %s for manual review",
+        payload.get("payment_id"),
+        mismatch["received_amount"],
+        payload.get("order_id"),
+        mismatch["expected_amount"],
+        ORDER_STATUS_PAYMENT_REVIEW,
+    )
+    await _sync_order_status(
+        session,
+        payload=payload,
+        target_status_name=ORDER_STATUS_PAYMENT_REVIEW,
+    )
+    await _notify_payment_event(
+        session,
+        event_type=EVENT_AMOUNT_MISMATCH,
+        payload={
+            **payload,
+            "amount": mismatch["received_amount"],
+            "currency": mismatch["currency"],
+            "reason": (
+                f"Montant encaisse {mismatch['received_amount']} "
+                f"{mismatch['currency']} != total commande "
+                f"{mismatch['expected_amount']} — commande bloquee en "
+                f"{ORDER_STATUS_PAYMENT_REVIEW}, stock non confirme."
+            ),
+        },
+    )
 
 
 @outbox_handler("payment.captured")
@@ -212,7 +263,11 @@ async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) ->
         payload.get("payment_id"),
         payload.get("order_id"),
     )
-    if not await _captured_amount_covers_order(session, payload=payload):
+    mismatch = await _captured_amount_mismatch(session, payload=payload)
+    if mismatch is not None:
+        await _handle_captured_amount_mismatch(
+            session, payload=payload, mismatch=mismatch
+        )
         return
     await _sync_order_status(
         session, payload=payload, target_status_name=ORDER_STATUS_PAID

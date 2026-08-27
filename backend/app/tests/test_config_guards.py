@@ -13,6 +13,16 @@ import pytest
 
 from app.core.config import Settings
 
+# Values that satisfy every *other* startup guard, so a failure below can only
+# come from the ClamAV one.
+_VALID_BASE_SETTINGS: dict[str, Any] = {
+    "SECRET_KEY": "unit-test-secret-key-not-changethis",
+    "POSTGRES_PASSWORD": "unit-test-password",
+    "POSTGRES_DB": "unit_test_db",
+    "FIRST_SUPERUSER": "ops@unit.test",
+    "FIRST_SUPERUSER_PASSWORD": "unit-test-admin-password",
+}
+
 
 def test_secret_key_empty_raises_outside_local() -> None:
     for env in ("staging", "production"):
@@ -56,3 +66,40 @@ def test_clamav_enabled_passes_everywhere() -> None:
     for env in ("local", "staging", "production"):
         fake = _fake_settings(env, clamav_enabled=True)
         Settings._check_clamav_enabled(cast(Settings, fake))
+
+
+# ── Full-model tests ──────────────────────────────────────────────────────────
+# The three tests above call the guard in isolation, so they stay green even if
+# `_enforce_non_default_secrets` stops calling it. These build a real Settings
+# and therefore cover the wiring too.
+
+
+def test_settings_refuses_to_build_without_clamav_in_production() -> None:
+    with pytest.raises(ValueError, match="CLAMAV_ENABLED"):
+        Settings(
+            ENVIRONMENT="production",
+            CLAMAV_ENABLED=False,
+            **_VALID_BASE_SETTINGS,
+        )
+
+
+def test_settings_builds_with_clamav_in_production() -> None:
+    settings = Settings(
+        ENVIRONMENT="production",
+        CLAMAV_ENABLED=True,
+        **_VALID_BASE_SETTINGS,
+    )
+
+    assert settings.CLAMAV_ENABLED is True
+    assert settings.ENVIRONMENT == "production"
+
+
+def test_settings_only_warns_without_clamav_in_local() -> None:
+    with pytest.warns(UserWarning, match="CLAMAV_ENABLED"):
+        settings = Settings(
+            ENVIRONMENT="local",
+            CLAMAV_ENABLED=False,
+            **_VALID_BASE_SETTINGS,
+        )
+
+    assert settings.CLAMAV_ENABLED is False
