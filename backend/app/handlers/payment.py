@@ -302,11 +302,14 @@ async def on_payment_captured_issue_invoice(
 
     # Same guard as the status sync: never invoice an order whose captured
     # payment does not cover its total.
-    if not await _captured_amount_covers_order(session, payload=payload):
+    mismatch = await _captured_amount_mismatch(session, payload=payload)
+    if mismatch is not None:
         logger.error(
-            "Invoice not issued for order %s: captured amount does not cover "
-            "the order total",
+            "Invoice not issued for order %s: captured amount %s does not cover "
+            "the order total %s",
             order_id,
+            mismatch["received_amount"],
+            mismatch["expected_amount"],
         )
         return
 
