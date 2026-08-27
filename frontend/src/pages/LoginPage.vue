@@ -16,6 +16,7 @@
           <q-input
             v-model="email"
             type="email"
+            data-testid="login-email"
             outlined
             dense
             label="Email"
@@ -26,6 +27,7 @@
           <q-input
             v-model="password"
             :type="showPassword ? 'text' : 'password'"
+            data-testid="login-password"
             outlined
             dense
             label="Mot de passe"
@@ -44,12 +46,25 @@
 
           <q-btn
             type="submit"
+            data-testid="login-submit"
             color="primary"
             label="Se connecter"
             class="full-width"
             :loading="authStore.loggingIn"
           />
         </q-form>
+
+        <div class="text-center q-mt-sm">
+          <q-btn
+            flat
+            dense
+            no-caps
+            size="sm"
+            color="grey-7"
+            label="Mot de passe oublié ?"
+            :to="{ name: 'forgot-password' }"
+          />
+        </div>
       </q-card-section>
 
       <q-card-section v-if="oauthEnabled" class="q-pt-none">

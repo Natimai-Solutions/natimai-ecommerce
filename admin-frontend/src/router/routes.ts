@@ -15,6 +15,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'orders', component: () => import('pages/OrdersPage.vue') },
       { path: 'orders/:id', component: () => import('pages/OrderDetailPage.vue') },
       { path: 'invoices', component: () => import('pages/InvoicesPage.vue') },
+      { path: 'quote-requests', component: () => import('pages/QuoteRequestsPage.vue') },
       { path: 'shipping', component: () => import('pages/ShippingPage.vue') },
       {
         path: 'logistics-routes',

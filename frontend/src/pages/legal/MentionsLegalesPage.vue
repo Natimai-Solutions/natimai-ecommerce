@@ -1,6 +1,11 @@
 <!--
   Mentions légales — DOCUMENT À FAIRE VALIDER PAR UN CONSEIL JURIDIQUE avant
-  mise en ligne. Compléter tous les champs [À COMPLÉTER : …] (grep-able).
+  mise en ligne.
+
+  Les données d'identité viennent de la base (system_settings, clés legal_*),
+  éditables depuis le back-office et partagées avec les factures. Les valeurs
+  non renseignées s'affichent en rouge et font échouer
+  scripts/release/check-legal-placeholders.sh.
 -->
 <template>
   <q-page class="legal-page q-pa-md">
@@ -9,31 +14,32 @@
 
       <h2 class="text-h6 q-mt-lg q-mb-sm">Éditeur du site</h2>
       <p>
-        Le présent site est édité par <strong>Natimai Solutions</strong>,
-        [À COMPLÉTER : forme juridique] au capital de [À COMPLÉTER : capital social] XPF,
-        dont le siège social est situé [À COMPLÉTER : adresse complète, Polynésie française],
-        immatriculée au Registre du commerce de Papeete sous le numéro
-        [À COMPLÉTER : n° RC], numéro TAHITI [À COMPLÉTER : n° TAHITI].
+        Le présent site est édité par <strong>{{ legalEntity.tradingName }}</strong>,
+        <LegalValue :value="legalEntity.legalForm" /> au capital de
+        <LegalValue :value="legalEntity.shareCapital" />&nbsp;XPF, dont le siège social est
+        situé <LegalValue :value="legalEntity.headOfficeAddress" />, immatriculée au Registre
+        du commerce de Papeete sous le numéro <LegalValue :value="legalEntity.rcNumber" />,
+        numéro TAHITI <LegalValue :value="legalEntity.tahitiNumber" />.
       </p>
       <p>
-        Contact&nbsp;: [À COMPLÉTER : email de contact] — Téléphone&nbsp;:
-        [À COMPLÉTER : téléphone].
+        Contact&nbsp;: <LegalValue :value="legalEntity.contactEmail" /> —
+        Téléphone&nbsp;: <LegalValue :value="legalEntity.contactPhone" />.
       </p>
 
       <h2 class="text-h6 q-mt-lg q-mb-sm">Directeur de la publication</h2>
-      <p>[À COMPLÉTER : nom du directeur de la publication].</p>
+      <p><LegalValue :value="legalEntity.publicationDirector" />.</p>
 
       <h2 class="text-h6 q-mt-lg q-mb-sm">Hébergement</h2>
       <p>
-        Le site est hébergé par [À COMPLÉTER : raison sociale de l'hébergeur],
-        [À COMPLÉTER : adresse de l'hébergeur] — [À COMPLÉTER : site web / téléphone de
-        l'hébergeur].
+        Le site est hébergé par <LegalValue :value="legalEntity.hostName" />,
+        <LegalValue :value="legalEntity.hostAddress" /> —
+        <LegalValue :value="legalEntity.hostContact" />.
       </p>
 
       <h2 class="text-h6 q-mt-lg q-mb-sm">Propriété intellectuelle</h2>
       <p>
         L'ensemble des éléments du site (structure, textes, logos, charte graphique) est la
-        propriété de Natimai Solutions ou fait l'objet d'une autorisation d'utilisation. Toute
+        propriété de {{ legalEntity.tradingName }} ou fait l'objet d'une autorisation d'utilisation. Toute
         reproduction non autorisée constitue une contrefaçon.
       </p>
       <p>
@@ -61,7 +67,17 @@
 </template>
 
 <script setup lang="ts">
-// Page statique — aucun script nécessaire.
+import { computed, onServerPrefetch } from 'vue';
+import LegalValue from 'src/components/LegalValue.vue';
+import { useLegalEntityStore } from 'src/stores/legalEntity';
+
+const store = useLegalEntityStore();
+// Chargé côté serveur pendant le rendu SSR : la page arrive complète, sans
+// clignotement de placeholders puis remplacement à l'hydratation.
+onServerPrefetch(() => store.load());
+void store.load();
+
+const legalEntity = computed(() => store.entity);
 </script>
 
 <style scoped lang="scss">

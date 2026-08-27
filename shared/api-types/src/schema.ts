@@ -72,6 +72,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/login/forgot-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Forgot Password
+         * @description Envoyer un lien de réinitialisation, sans révéler si le compte existe.
+         */
+        post: operations["login-forgot_password"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/login/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Password
+         * @description Poser un nouveau mot de passe à partir du jeton reçu par email.
+         */
+        post: operations["login-reset_password"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/{provider}/login": {
         parameters: {
             query?: never;
@@ -762,6 +802,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/quote-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Quote Requests
+         * @description Lister les demandes, les plus récentes d'abord.
+         *
+         *     ``open_only`` masque les demandes closes : c'est la vue de travail
+         *     quotidienne, où une demande traitée n'a plus à encombrer la file.
+         *     ``search`` cherche dans l'email et le nom, en insensible à la casse.
+         */
+        get: operations["admin-quote-requests-list_quote_requests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/quote-requests/{quote_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Quote Request
+         * @description Le détail d'une demande, panier figé compris.
+         */
+        get: operations["admin-quote-requests-get_quote_request"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Quote Request
+         * @description Faire avancer le suivi d'une demande.
+         *
+         *     Le contenu de la demande (contact, panier figé, message du client) n'est
+         *     jamais modifiable : c'est ce que le client a effectivement envoyé.
+         */
+        patch: operations["admin-quote-requests-update_quote_request"];
+        trace?: never;
+    };
     "/api/v1/admin/orders": {
         parameters: {
             query?: never;
@@ -794,6 +885,90 @@ export interface paths {
          * @description Return the enriched detail of one order: client, status, lines, payments.
          */
         get: operations["admin-order-get_order_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Invoices
+         * @description List issued invoices, most recent first (optionally one fiscal year).
+         */
+        get: operations["admin-invoices-list_invoices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/invoices/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Invoices Csv
+         * @description Accounting export of the issued invoices (CSV, semicolon-separated).
+         *
+         *     Ordered by invoice number so the accountant can check sequence continuity
+         *     at a glance. Amounts use a comma decimal separator, as expected by French
+         *     accounting software.
+         */
+        get: operations["admin-invoices-export_invoices_csv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/invoices/{invoice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Invoice
+         * @description Return one invoice's metadata.
+         */
+        get: operations["admin-invoices-get_invoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/invoices/{invoice_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Invoice Pdf
+         * @description Download an invoice PDF.
+         */
+        get: operations["admin-invoices-download_invoice_pdf"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1874,7 +2049,11 @@ export interface paths {
         put?: never;
         /**
          * Create Guest Quote Request
-         * @description Send a quote request email for a guest cart without authentication.
+         * @description Enregistrer puis transmettre une demande de devis d'un visiteur.
+         *
+         *     La demande est **persistée avant l'envoi** : auparavant elle n'existait que
+         *     sous forme d'email, et un échec d'envoi la perdait définitivement alors que
+         *     l'endpoint répondait 201. Le back-office (A11) est désormais le filet.
          */
         post: operations["cart-create_guest_quote_request"];
         delete?: never;
@@ -2133,7 +2312,7 @@ export interface paths {
         };
         /**
          * Get Group Users
-         * @description Get all users in a specific group
+         * @description Get all users in a specific group — admin only (membership enumeration).
          */
         get: operations["group-get_group_users"];
         put?: never;
@@ -2476,6 +2655,66 @@ export interface paths {
          * @description Return aggregated tracking information for one of the authenticated user's orders.
          */
         get: operations["order-get_my_order_tracking"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Invoices
+         * @description List the authenticated customer's invoices, most recent first.
+         */
+        get: operations["invoice-list_my_invoices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/me/by-order/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Invoice For Order
+         * @description Return the invoice issued for one of the customer's orders.
+         */
+        get: operations["invoice-get_my_invoice_for_order"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/me/{invoice_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download My Invoice Pdf
+         * @description Download the PDF of one of the customer's invoices.
+         */
+        get: operations["invoice-download_my_invoice_pdf"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5385,6 +5624,78 @@ export interface components {
             is_final_leg: boolean;
         };
         /**
+         * AdminQuoteRequestDetail
+         * @description Le détail, avec le panier figé au moment de la demande.
+         */
+        AdminQuoteRequestDetail: {
+            /**
+             * Quote Request Id
+             * Format: uuid
+             */
+            quote_request_id: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Email */
+            email: string;
+            /** Full Name */
+            full_name?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Status */
+            status: string;
+            /** Is Registered Customer */
+            is_registered_customer: boolean;
+            /** Item Count */
+            item_count: number;
+            /** Currency */
+            currency?: string | null;
+            /** Subtotal Amount */
+            subtotal_amount?: string | null;
+            /** Handled At */
+            handled_at?: string | null;
+            /** Shipping Address */
+            shipping_address?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Admin Comment */
+            admin_comment?: string | null;
+            /** Items */
+            items?: {
+                [key: string]: string | null;
+            }[];
+        };
+        /**
+         * AdminQuoteRequestListItem
+         * @description Une ligne de la liste des demandes de devis.
+         */
+        AdminQuoteRequestListItem: {
+            /**
+             * Quote Request Id
+             * Format: uuid
+             */
+            quote_request_id: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Email */
+            email: string;
+            /** Full Name */
+            full_name?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Status */
+            status: string;
+            /** Is Registered Customer */
+            is_registered_customer: boolean;
+            /** Item Count */
+            item_count: number;
+            /** Currency */
+            currency?: string | null;
+            /** Subtotal Amount */
+            subtotal_amount?: string | null;
+            /** Handled At */
+            handled_at?: string | null;
+        };
+        /**
          * AdminReviewBody
          * @description Optional comment when approving or rejecting.
          */
@@ -6503,6 +6814,8 @@ export interface components {
              * Format: uuid
              */
             order_id: string;
+            /** Order Number */
+            order_number?: string | null;
             /**
              * Payment Id
              * Format: uuid
@@ -7224,6 +7537,17 @@ export interface components {
              * @description Operation timestamp
              */
             timestamp: string;
+        };
+        /**
+         * ForgotPasswordRequest
+         * @description Demande d'envoi d'un lien de réinitialisation.
+         */
+        ForgotPasswordRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
         };
         /**
          * GroupCreate
@@ -8070,6 +8394,54 @@ export interface components {
             compute_from_movements?: boolean | null;
         };
         /**
+         * InvoicePublic
+         * @description Invoice metadata exposed by the API (the PDF has its own endpoint).
+         */
+        InvoicePublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Number */
+            invoice_number: string;
+            /** Fiscal Year */
+            fiscal_year: number;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+            /** Currency */
+            currency: string;
+            /** Total Excl Tax */
+            total_excl_tax: string;
+            /** Total Tax */
+            total_tax: string;
+            /** Total Incl Tax */
+            total_incl_tax: string;
+            /** Order Number */
+            order_number?: string | null;
+        };
+        /**
+         * InvoicesPublic
+         * @description Paginated list of invoices.
+         */
+        InvoicesPublic: {
+            /** Data */
+            data?: components["schemas"]["InvoicePublic"][];
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+        };
+        /**
          * LastLegOption
          * @description Priced last-leg (zone C) delivery option for the current cart.
          */
@@ -8188,6 +8560,11 @@ export interface components {
              */
             total_fees_amount: string;
             /**
+             * Currency
+             * @description Devise de facturation figée au checkout (null pour les commandes antérieures — on retombe alors sur la devise du paiement)
+             */
+            currency?: string | null;
+            /**
              * Shipping Address
              * @description Adresse de livraison
              */
@@ -8224,6 +8601,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Order Number */
+            order_number?: string | null;
             /** Order Status Name */
             order_status_name?: string | null;
         };
@@ -8446,14 +8825,6 @@ export interface components {
             checkout: components["schemas"]["CheckoutObservabilityMetrics"];
         };
         /**
-         * OkMessage
-         * @description Generic acknowledgement.
-         */
-        OkMessage: {
-            /** Message */
-            message: string;
-        };
-        /**
          * OkResponse
          * @description Generic acknowledgement.
          */
@@ -8526,6 +8897,11 @@ export interface components {
              * @default 0.00
              */
             total_fees_amount: number | string;
+            /**
+             * Currency
+             * @description Devise de facturation figée au checkout (null pour les commandes antérieures — on retombe alors sur la devise du paiement)
+             */
+            currency?: string | null;
             /**
              * Shipping Address
              * @description Adresse de livraison
@@ -8853,6 +9229,11 @@ export interface components {
              */
             total_fees_amount: string;
             /**
+             * Currency
+             * @description Devise de facturation figée au checkout (null pour les commandes antérieures — on retombe alors sur la devise du paiement)
+             */
+            currency?: string | null;
+            /**
              * Shipping Address
              * @description Adresse de livraison
              */
@@ -8889,6 +9270,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Order Number */
+            order_number?: string | null;
         };
         /**
          * OrderStatusCreate
@@ -9035,6 +9418,8 @@ export interface components {
             payment_fee_amount?: number | string | null;
             /** Total Fees Amount */
             total_fees_amount?: number | string | null;
+            /** Currency */
+            currency?: string | null;
             /** Shipping Address */
             shipping_address?: string | null;
             /** Shipping Cost Breakdown */
@@ -11251,6 +11636,16 @@ export interface components {
             message: string;
         };
         /**
+         * QuoteRequestStatus
+         * @description Cycle de vie d'une demande de devis, côté back-office.
+         *
+         *     Volontairement court : le devis lui-même se négocie hors de l'application
+         *     (email, téléphone). Ce qui doit être traçable ici, c'est qu'une demande a
+         *     bien été prise en charge et comment elle s'est terminée.
+         * @enum {string}
+         */
+        QuoteRequestStatus: "requested" | "email_failed" | "in_progress" | "quoted" | "won" | "lost" | "cancelled";
+        /**
          * QuoteRequestSubmit
          * @description Represents quote request submit payload.
          */
@@ -11259,6 +11654,15 @@ export interface components {
             shipping_address?: string | null;
             /** Notes */
             notes?: string | null;
+        };
+        /**
+         * QuoteRequestUpdateBody
+         * @description Mise à jour du suivi. Les deux champs sont indépendants.
+         */
+        QuoteRequestUpdateBody: {
+            status?: components["schemas"]["QuoteRequestStatus"] | null;
+            /** Admin Comment */
+            admin_comment?: string | null;
         };
         /**
          * ReadinessResponse
@@ -11344,6 +11748,16 @@ export interface components {
              * Format: uuid
              */
             id: string;
+        };
+        /**
+         * ResetPasswordRequest
+         * @description Nouveau mot de passe, accompagné du jeton reçu par email.
+         */
+        ResetPasswordRequest: {
+            /** Token */
+            token: string;
+            /** Password */
+            password: string;
         };
         /**
          * ReviewCreate
@@ -14088,6 +14502,22 @@ export interface components {
              */
             count: number;
         };
+        /**
+         * OkMessage
+         * @description Acquittement générique.
+         */
+        app__api__routes__password_reset__OkMessage: {
+            /** Message */
+            message: string;
+        };
+        /**
+         * OkMessage
+         * @description Generic acknowledgement.
+         */
+        app__api__routes__signup__OkMessage: {
+            /** Message */
+            message: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -14165,6 +14595,72 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    "login-forgot_password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForgotPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__api__routes__password_reset__OkMessage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "login-reset_password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__api__routes__password_reset__OkMessage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
@@ -14253,7 +14749,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OkMessage"];
+                    "application/json": components["schemas"]["app__api__routes__signup__OkMessage"];
                 };
             };
             /** @description Validation Error */
@@ -15602,6 +16098,107 @@ export interface operations {
             };
         };
     };
+    "admin-quote-requests-list_quote_requests": {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+                status?: components["schemas"]["QuoteRequestStatus"] | null;
+                search?: string | null;
+                open_only?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminQuoteRequestListItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-quote-requests-get_quote_request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                quote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminQuoteRequestDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-quote-requests-update_quote_request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                quote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuoteRequestUpdateBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminQuoteRequestDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-order-list_orders": {
         parameters: {
             query?: {
@@ -15652,6 +16249,132 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminOrderDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-invoices-list_invoices": {
+        parameters: {
+            query?: {
+                fiscal_year?: number | null;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoicesPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-invoices-export_invoices_csv": {
+        parameters: {
+            query?: {
+                fiscal_year?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-invoices-get_invoice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoicePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-invoices-download_invoice_pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -19213,6 +19936,100 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CustomerOrderTrackingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "invoice-list_my_invoices": {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoicesPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "invoice-get_my_invoice_for_order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoicePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "invoice-download_my_invoice_pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

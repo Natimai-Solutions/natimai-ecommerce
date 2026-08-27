@@ -49,6 +49,14 @@ def _extract_bearer_token(request: Request) -> str | None:
     return None
 
 
+def _is_shipped_label(label: str | None) -> bool:
+    """Whether an Ingram status label means the goods have left the warehouse."""
+    if not label:
+        return False
+    normalised = label.strip().lower()
+    return any(known in normalised for known in _SHIPPED_STATUS_LABELS)
+
+
 def _parse_estimated_delivery(raw: Any) -> datetime | None:
     """Try to parse a date/datetime string from the webhook payload."""
     if not raw:
@@ -144,6 +152,12 @@ async def ingram_order_status_webhook(
 
     # Update fields
     was_submitted = supplier_order.status == SupplierOrderStatus.SUBMITTED
+    # Ingram retries callbacks, and nothing here moves `status` off SUBMITTED,
+    # so `was_submitted` alone would re-publish on every retry. The previous
+    # label is the only record of "we already saw the shipment", so compare
+    # against it before overwriting. The downstream handler is idempotent, so
+    # this is about not queueing pointless work rather than about correctness.
+    was_already_shipped = _is_shipped_label(supplier_order.supplier_status_label)
     if new_status_label:
         supplier_order.supplier_status_label = new_status_label
 
@@ -153,9 +167,10 @@ async def ingram_order_status_webhook(
 
     session.add(supplier_order)
 
-    # Publish outbox if this is a "shipped" milestone
-    is_shipped = any(label in new_status_label for label in _SHIPPED_STATUS_LABELS)
-    if is_shipped and was_submitted:
+    # Publish outbox on the *transition* into a shipped state, not on every
+    # callback that reports one.
+    is_shipped = _is_shipped_label(new_status_label)
+    if is_shipped and was_submitted and not was_already_shipped:
         await outbox_registry.publish(
             session=session,
             event_type="supplier_order.shipped",

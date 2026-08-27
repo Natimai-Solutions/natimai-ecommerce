@@ -3,7 +3,10 @@
   CONSEIL JURIDIQUE avant mise en ligne. En Polynésie française, la loi
   Informatique et Libertés s'applique dans sa version étendue au territoire
   (le RGPD n'y est pas directement applicable) ; la CNIL reste l'autorité de
-  référence. Compléter les [À COMPLÉTER : …].
+  référence.
+
+  Les données d'identité viennent de la base (system_settings, clés legal_*),
+  éditables depuis le back-office et partagées avec les factures.
 
   Note technique : le site n'utilise aujourd'hui que des cookies et stockages
   strictement nécessaires (authentification, panier) — exemptés de recueil de
@@ -19,8 +22,9 @@
       <h2 class="text-h6 q-mt-lg q-mb-sm">Responsable de traitement</h2>
       <p>
         Le responsable du traitement des données collectées sur ce site est
-        <strong>Natimai Solutions</strong>, [À COMPLÉTER : adresse du siège, Polynésie
-        française] — contact&nbsp;: [À COMPLÉTER : email de contact].
+        <strong>{{ legalEntity.tradingName }}</strong>,
+        <LegalValue :value="legalEntity.headOfficeAddress" /> — contact&nbsp;:
+        <LegalValue :value="legalEntity.contactEmail" />.
       </p>
 
       <h2 class="text-h6 q-mt-lg q-mb-sm">Données collectées et finalités</h2>
@@ -51,7 +55,7 @@
       <p>
         Les données sont destinées aux services internes du Vendeur et, pour les seules
         opérations qui les concernent, à nos prestataires&nbsp;: hébergeur
-        ([À COMPLÉTER : hébergeur]), prestataire de paiement (PayZen&nbsp;/&nbsp;Lyra),
+        (<LegalValue :value="legalEntity.hostName" />), prestataire de paiement (PayZen&nbsp;/&nbsp;Lyra),
         service d'envoi d'emails transactionnels (Mailgun), fournisseurs et transporteurs pour
         la préparation et l'acheminement des commandes. Certains de ces prestataires sont situés
         hors de Polynésie française&nbsp;; les transferts sont limités aux données nécessaires à
@@ -63,9 +67,12 @@
         <li>Compte client&nbsp;: pendant la durée de vie du compte, puis archivage limité.</li>
         <li>
           Commandes, factures et justificatifs de paiement&nbsp;: durées légales comptables et
-          fiscales applicables ([À COMPLÉTER : durée retenue, ex. 10 ans]).
+          fiscales applicables (<LegalValue :value="legalEntity.invoiceRetention" />).
         </li>
-        <li>Journaux techniques&nbsp;: [À COMPLÉTER : durée, ex. 12 mois] au maximum.</li>
+        <li>
+          Journaux techniques&nbsp;:
+          <LegalValue :value="legalEntity.technicalLogRetention" /> au maximum.
+        </li>
       </ul>
 
       <h2 class="text-h6 q-mt-lg q-mb-sm">Vos droits</h2>
@@ -73,7 +80,8 @@
         Conformément à la loi Informatique et Libertés applicable en Polynésie française, vous
         disposez de droits d'accès, de rectification, d'effacement, de limitation et
         d'opposition sur vos données. Vous pouvez les exercer en écrivant à
-        [À COMPLÉTER : email de contact], en justifiant de votre identité. Vous disposez
+        <LegalValue :value="legalEntity.contactEmail" />, en justifiant de votre identité.
+        Vous disposez
         également du droit d'introduire une réclamation auprès de la CNIL
         (<a href="https://www.cnil.fr" target="_blank" rel="noopener">www.cnil.fr</a>).
       </p>
@@ -125,14 +133,24 @@
       </p>
 
       <p class="text-caption text-grey-7 q-mt-lg">
-        Dernière mise à jour&nbsp;: [À COMPLÉTER : date].
+        Dernière mise à jour&nbsp;: <LegalValue :value="legalEntity.privacyUpdatedDate" />.
       </p>
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-// Page statique — aucun script nécessaire.
+import { computed, onServerPrefetch } from 'vue';
+import LegalValue from 'src/components/LegalValue.vue';
+import { useLegalEntityStore } from 'src/stores/legalEntity';
+
+const store = useLegalEntityStore();
+// Chargé côté serveur pendant le rendu SSR : la page arrive complète, sans
+// clignotement de placeholders puis remplacement à l'hydratation.
+onServerPrefetch(() => store.load());
+void store.load();
+
+const legalEntity = computed(() => store.entity);
 </script>
 
 <style scoped lang="scss">

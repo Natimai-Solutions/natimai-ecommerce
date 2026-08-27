@@ -77,6 +77,7 @@ const nav: NavSection[] = [
     links: [
       { label: 'Commandes clients', icon: 'receipt_long', to: '/orders' },
       { label: 'Factures', icon: 'request_quote', to: '/invoices' },
+      { label: 'Demandes de devis', icon: 'request_page', to: '/quote-requests' },
       { label: 'Logistique', icon: 'inventory_2', to: '/shipping' },
       { label: 'Inventaire', icon: 'warehouse', to: '/inventory' },
       { label: 'Trajets & Lieux', icon: 'route', to: '/logistics-routes' },

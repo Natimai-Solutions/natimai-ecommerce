@@ -184,3 +184,80 @@ jobs:
           name: coverage-frontend
           path: coverage
           if-no-files-found: ignore
+
+  e2e:
+    name: E2E — checkout journey (Playwright)
+    runs-on: ubuntu-latest
+    # Le seul parcours qui doit toujours marcher : catalogue → panier →
+    # checkout → commande. Paiement par virement manuel, donc aucune
+    # passerelle réelle dans la boucle.
+    env:
+      # La vitrine tourne sur :3000 ; sans cette origine l'API rejette les
+      # appels du NAVIGATEUR en CORS (curl passe, ce qui rend le symptôme
+      # trompeur).
+      FRONTEND_HOST: http://localhost:3000
+      VITE_API_URL: http://localhost:8000
+      SECRET_KEY: ci-only-not-a-secret
+      POSTGRES_PASSWORD: ci-only-password
+      POSTGRES_DB: fastapi_ecommerce
+      FIRST_SUPERUSER: ci-superuser@example.com
+      FIRST_SUPERUSER_PASSWORD: ci-only-password
+      CLAMAV_ENABLED: "false"
+      ENVIRONMENT: local
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write the root .env consumed by compose
+        run: |
+          cat > .env <<EOF
+          ENVIRONMENT=$ENVIRONMENT
+          SECRET_KEY=$SECRET_KEY
+          POSTGRES_SERVER=postgres
+          POSTGRES_PORT=5432
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+          POSTGRES_DB=$POSTGRES_DB
+          REDIS_SERVER=redis
+          FIRST_SUPERUSER=$FIRST_SUPERUSER
+          FIRST_SUPERUSER_PASSWORD=$FIRST_SUPERUSER_PASSWORD
+          FRONTEND_HOST=$FRONTEND_HOST
+          VITE_API_URL=$VITE_API_URL
+          CLAMAV_ENABLED=$CLAMAV_ENABLED
+          EOF
+
+      - name: Start the stack
+        run: docker compose -f docker-compose.yml up -d --wait postgres redis api frontend
+
+      - name: Migrate & seed
+        run: |
+          docker compose -f docker-compose.yml run --rm migrate
+          docker compose -f docker-compose.yml cp e2e/seed_e2e_data.py api:/app/e2e_seed.py
+          docker compose -f docker-compose.yml exec -T api python /app/e2e_seed.py
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install the browser
+        run: pnpm --filter e2e exec playwright install --with-deps chromium
+
+      - name: Run the journey
+        run: pnpm --filter e2e test
+
+      - name: Upload the report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report
+          if-no-files-found: ignore
+
+      - name: Stack logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.yml logs --tail=200

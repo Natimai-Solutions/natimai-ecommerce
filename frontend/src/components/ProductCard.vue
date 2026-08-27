@@ -1,5 +1,5 @@
 <template>
-  <q-card class="product-card" flat bordered>
+  <q-card class="product-card" flat bordered data-testid="product-card">
     <q-img
       :src="product.image_url ?? product.supplier_image_url ?? placeholderImg"
       :ratio="4 / 3"
@@ -66,6 +66,7 @@
       />
       <q-btn
         unelevated
+        data-testid="product-add-to-cart"
         color="primary"
         icon="add_shopping_cart"
         label="Ajouter"
