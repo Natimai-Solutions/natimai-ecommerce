@@ -50,6 +50,18 @@
             :loading="authStore.loggingIn"
           />
         </q-form>
+
+        <div class="text-center q-mt-sm">
+          <q-btn
+            flat
+            dense
+            no-caps
+            size="sm"
+            color="grey-7"
+            label="Mot de passe oublié ?"
+            :to="{ name: 'forgot-password' }"
+          />
+        </div>
       </q-card-section>
 
       <q-card-section v-if="oauthEnabled" class="q-pt-none">

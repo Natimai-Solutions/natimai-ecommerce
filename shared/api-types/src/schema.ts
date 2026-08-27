@@ -72,6 +72,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/login/forgot-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Forgot Password
+         * @description Envoyer un lien de réinitialisation, sans révéler si le compte existe.
+         */
+        post: operations["login-forgot_password"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/login/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Password
+         * @description Poser un nouveau mot de passe à partir du jeton reçu par email.
+         */
+        post: operations["login-reset_password"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/{provider}/login": {
         parameters: {
             query?: never;
@@ -7370,6 +7410,17 @@ export interface components {
             timestamp: string;
         };
         /**
+         * ForgotPasswordRequest
+         * @description Demande d'envoi d'un lien de réinitialisation.
+         */
+        ForgotPasswordRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+        };
+        /**
          * GroupCreate
          * @description Schema for creating a new group
          */
@@ -8643,14 +8694,6 @@ export interface components {
             commerce: components["schemas"]["CommerceObservabilityMetrics"];
             outbox_jobs: components["schemas"]["OutboxObservabilityMetrics"];
             checkout: components["schemas"]["CheckoutObservabilityMetrics"];
-        };
-        /**
-         * OkMessage
-         * @description Generic acknowledgement.
-         */
-        OkMessage: {
-            /** Message */
-            message: string;
         };
         /**
          * OkResponse
@@ -11559,6 +11602,16 @@ export interface components {
             id: string;
         };
         /**
+         * ResetPasswordRequest
+         * @description Nouveau mot de passe, accompagné du jeton reçu par email.
+         */
+        ResetPasswordRequest: {
+            /** Token */
+            token: string;
+            /** Password */
+            password: string;
+        };
+        /**
          * ReviewCreate
          * @description Represents review create.
          */
@@ -14301,6 +14354,22 @@ export interface components {
              */
             count: number;
         };
+        /**
+         * OkMessage
+         * @description Acquittement générique.
+         */
+        app__api__routes__password_reset__OkMessage: {
+            /** Message */
+            message: string;
+        };
+        /**
+         * OkMessage
+         * @description Generic acknowledgement.
+         */
+        app__api__routes__signup__OkMessage: {
+            /** Message */
+            message: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -14378,6 +14447,72 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    "login-forgot_password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForgotPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__api__routes__password_reset__OkMessage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "login-reset_password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__api__routes__password_reset__OkMessage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
@@ -14466,7 +14601,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OkMessage"];
+                    "application/json": components["schemas"]["app__api__routes__signup__OkMessage"];
                 };
             };
             /** @description Validation Error */

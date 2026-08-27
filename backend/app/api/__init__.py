@@ -42,6 +42,7 @@ from app.api.routes.order_line import router as order_line_router
 from app.api.routes.order_status import router as order_status_router
 from app.api.routes.orders_me import router as orders_me_router
 from app.api.routes.partner import router as partner_router
+from app.api.routes.password_reset import router as password_reset_router
 from app.api.routes.payment import router as payment_router
 from app.api.routes.payment_method import (
     router as payment_method_router,
@@ -71,6 +72,7 @@ from app.api.routes.webhooks import router as webhooks_router
 api_router = APIRouter()
 
 api_router.include_router(login_router, tags=["login"])
+api_router.include_router(password_reset_router)
 api_router.include_router(oauth_router)
 api_router.include_router(signup_router)
 api_router.include_router(partner_router)
