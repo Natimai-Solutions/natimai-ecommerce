@@ -9,7 +9,7 @@
       <p>Votre paiement a bien été reçu. Votre commande est maintenant en cours de traitement.</p>
       <div class="summary">
         <table>
-          <tr><td>Numéro de commande</td><td>{{ order_id | short_ref }}</td></tr>
+          <tr><td>Numéro de commande</td><td>{{ order_ref or (order_id | short_ref) }}</td></tr>
           <tr><td>Montant débité</td><td>{{ total_amount }} {{ currency }}</td></tr>
         </table>
       </div>

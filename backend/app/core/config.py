@@ -306,6 +306,11 @@ class Settings(BaseSettings):
     # Shop branding
     SHOP_NAME: str = "Natimai"
 
+    # Version des CGV figée sur chaque commande au checkout (preuve opposable).
+    # À incrémenter à CHAQUE révision du contenu de /cgv, sinon on ne peut plus
+    # savoir quel texte le client a accepté.
+    CGV_VERSION: str = "2026-08"
+
     # OAuth 2.0 — Google
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
@@ -352,6 +357,22 @@ class Settings(BaseSettings):
     # Insurance rate applied on cost_in_reference before customs (CIF basis).
     # Expressed as a percentage (e.g. 1.0 = 1 %). Default 0 = no insurance.
     INSURANCE_RATE_PCT: float = 0.0
+
+    # --- Facturation (M3) : identité du vendeur imprimée sur les factures ---
+    # OBLIGATOIRE légalement avant d'émettre une facture réelle : une facture
+    # sans identification complète du vendeur n'est pas conforme. L'émission
+    # loggue un warning tant que ces champs sont vides (elle n'échoue pas, pour
+    # ne pas bloquer un environnement de test).
+    INVOICE_SELLER_NAME: str = "Natimai Solutions"
+    INVOICE_SELLER_ADDRESS: str = ""
+    INVOICE_SELLER_REGISTRATION: str = ""  # RC Papeete / n° TAHITI
+    INVOICE_SELLER_EMAIL: str = ""
+    INVOICE_SELLER_PHONE: str = ""
+    INVOICE_LEGAL_FOOTER: str = ""  # mentions de pied de facture
+    # Taux appliqué aux frais (livraison, paiement) pour la ventilation de
+    # taxe. Code de TaxRate résolu sur le territoire de référence.
+    # ⚠️ À faire confirmer par le comptable (cf. PLAN_DE_TRAVAIL, écart F3).
+    INVOICE_FEES_TAX_CODE: str = "TGC_NORMAL"
     PAYZEN_CURRENCY: str = "XPF"  # Default currency for French Polynesia
     PAYZEN_IPN_URL: str | None = None  # Will be computed based on backend URL
     PAYZEN_RETURN_URL: str | None = None  # Frontend URL to return after payment

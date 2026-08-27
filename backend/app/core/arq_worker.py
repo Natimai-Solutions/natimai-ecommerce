@@ -1,11 +1,13 @@
 import logging
+import socket
 import sys
 from typing import Any
 
 from arq.connections import RedisSettings, create_pool
+from arq.worker import func
 
 from app.core.config import settings
-from app.outbox.consumer import execute_outbox_handler
+from app.outbox.consumer import OUTBOX_HANDLER_MAX_TRIES, execute_outbox_handler
 from app.tasks.icecat_tasks import (
     batch_enrich_products_task,
     enrich_product_with_icecat_task,
@@ -63,7 +65,14 @@ class WorkerSettings:
     """Represents worker settings."""
 
     functions = [
-        execute_outbox_handler,  # Fonction générique pour les handlers outbox
+        # Fonction générique pour les handlers outbox. `max_tries` lui est propre :
+        # la politique de retry vit dans app/outbox/consumer.py et ne doit pas
+        # dépendre du défaut global (qui s'applique aux tâches de sync).
+        func(
+            execute_outbox_handler,
+            name="execute_outbox_handler",
+            max_tries=OUTBOX_HANDLER_MAX_TRIES,
+        ),
         example_handler,
         # Tâches fournisseurs (multi-distributeurs)
         sync_supplier_products_task,
@@ -87,10 +96,15 @@ class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(str(settings.REDIS_URL))
     job_timeout = 600  # Augmenté pour les tâches de sync qui peuvent prendre du temps
     keep_result = 3600
-    # Nombre max de tentatives par job — les handlers outbox lèvent Retry avec
-    # backoff exponentiel sur erreur transitoire (cf. app/outbox/consumer.py,
-    # OUTBOX_HANDLER_MAX_TRIES doit rester ≤ cette valeur).
+    # Défaut pour les tâches sans politique propre (sync fournisseurs, Icecat).
+    # Les handlers outbox ont le leur, cf. `functions` ci-dessus.
     max_tries = 5
-    # Le worker écrit une clé de santé dans Redis à cet intervalle — utilisée
-    # par le healthcheck compose (`arq ... --check`).
-    health_check_interval = 60
+    # Le worker écrit une clé de santé dans Redis à cet intervalle ; arq lui donne
+    # un TTL de `interval + 1` s. À 60 s la marge était d'une seconde, donc des
+    # « unhealthy » fantômes dès que la boucle prenait du retard sous charge.
+    health_check_interval = 20
+    # Une clé PAR CONTENEUR. La clé arq par défaut est dérivée du seul nom de
+    # queue : avec `replicas: 2`, une réplique vivante rafraîchissait la clé de
+    # sa jumelle morte et le healthcheck ne voyait jamais la panne. `arq --check`
+    # s'exécute dans le conteneur qu'il teste, il recalcule donc le même nom.
+    health_check_key = f"arq:queue:health-check:{socket.gethostname()}"

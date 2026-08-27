@@ -1,6 +1,6 @@
 Bonjour {{ full_name }},
 
-Bonne nouvelle : votre commande {{ order_id | short_ref }} est en route !
+Bonne nouvelle : votre commande {{ order_ref or (order_id | short_ref) }} est en route !
 
 {% if tracking_ref %}Référence de suivi : {{ tracking_ref }}
 {% endif %}{% if estimated_delivery %}Livraison estimée : {{ estimated_delivery }}

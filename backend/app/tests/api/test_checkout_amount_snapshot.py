@@ -15,6 +15,20 @@ from app.features.payment.crud.payment import crud_payment
 from app.features.user.models.user import User
 
 
+@pytest.fixture(autouse=True)
+def _stub_order_number(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Checkout draws its order number from a PostgreSQL sequence (M5).
+
+    These tests run on a mocked session, so the allocation is stubbed here;
+    the numbering itself is covered by test_invoice_numbering_and_pdf.py and
+    the integration suite.
+    """
+    monkeypatch.setattr(
+        "app.api.routes.cart.allocate_order_number",
+        AsyncMock(return_value="CMD-2026-00001"),
+    )
+
+
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
@@ -132,6 +146,7 @@ async def test_checkout_freezes_subtotal_and_fees_into_order_and_payment(
         payload=CheckoutRequest(
             shipping_fee_amount=Decimal("2.50"),
             payment_fee_amount=Decimal("1.25"),
+            cgv_accepted=True,
         ),
     )
 
@@ -261,6 +276,7 @@ async def test_checkout_calculates_shipping_from_selected_routes(
             shipping_fee_amount=Decimal("999.99"),
             payment_fee_amount=Decimal("1.25"),
             shipping_route_ids=[selected_route.id],
+            cgv_accepted=True,
         ),
     )
 

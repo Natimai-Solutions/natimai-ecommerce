@@ -24,6 +24,20 @@ from app.features.product.models.product import Product
 from app.features.user.models.user import User
 
 
+@pytest.fixture(autouse=True)
+def _stub_order_number(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Checkout draws its order number from a PostgreSQL sequence (M5).
+
+    These tests run on a mocked session, so the allocation is stubbed here;
+    the numbering itself is covered by test_invoice_numbering_and_pdf.py and
+    the integration suite.
+    """
+    monkeypatch.setattr(
+        "app.api.routes.cart.allocate_order_number",
+        AsyncMock(return_value="CMD-2026-00001"),
+    )
+
+
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
@@ -224,7 +238,7 @@ async def test_checkout_persists_segment_note_from_orchestration(
     await checkout_my_cart(
         session=session,
         current_user=current_user,
-        payload=CheckoutRequest(shipping_address="Paris, France"),
+        payload=CheckoutRequest(shipping_address="Paris, France", cgv_accepted=True),
     )
 
     assert reserve_mock.await_args is not None

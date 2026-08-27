@@ -1088,8 +1088,8 @@ Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/my
 | Feature | Backend | Vitrine (`frontend`) | Admin (`admin-frontend`) |
 |---------|---------|----------------------|--------------------------|
 | M1 — produits les plus vus | 🔲 | 🔲 section accueil / carrousel | — |
-| M3 — factures PDF (**WeasyPrint**) + export FEC | 🔲 | 🔲 téléchargement facture (compte) | 🔲 écran factures + export comptable |
-| M5 — numéro de commande séquentiel | 🔲 | 🔲 affichage (compte, suivi, checkout) | 🔲 affichage (commandes, logistique) |
+| M3 — factures PDF (**WeasyPrint**) + export comptable | ✅ (25/08/2026) | ✅ téléchargement facture (compte) | ✅ écran factures + export CSV |
+| M5 — numéro de commande séquentiel | ✅ (25/08/2026) | ✅ affichage (compte) | ✅ affichage (factures) |
 | Z2 — avoir comptable | 🔲 | 🔲 affichage avoir | 🔲 écran avoir |
 | Z3 — relance paniers abandonnés | 🔲 | — | 🔲 dashboard relances |
 | Z4 — recherche IA | 🔲 | 🔲 UI recherche sémantique | — |
@@ -1100,19 +1100,19 @@ Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/my
 |----|----------------|-------|
 | M1 | Produits les plus vus | Tracking de vues + endpoint top-N |
 | M2 | Déploiement Kubernetes | Helm chart à partir du `docker-compose.prod.yml` |
-| M3 | Factures + export comptable | Modèle Invoice + numérotation + PDF **WeasyPrint** (avec ventilation TVA par taux via `OrderLine.tax_rate_id`) + export FEC/CSV Sage — cf. *Note technique — génération PDF des factures* ci-dessous |
+| M3 ✅ | Factures + export comptable | **Livré 25/08/2026** (cf. PP-C). Modèle Invoice + numérotation + PDF **WeasyPrint** (avec ventilation TVA par taux via `OrderLine.tax_rate_id`) + export FEC/CSV Sage — cf. *Note technique — génération PDF des factures* ci-dessous |
 | M4 | Alerting actif | Job ARQ surveille dashboard → Slack/email sur seuils |
 | Z1 | Paiement en plusieurs fois | Dépend Phase 4 (tokenisation Payzen) |
-| Z2 | Avoir comptable | Dépend M3 (facture) + Phase 4 (refund) |
+| Z2 | Avoir comptable | Dépend M3 (facture ✅ livrée) + Phase 4 (refund) — **débloqué** |
 | Z3 | Relance paniers abandonnés | Cron horaire + handler outbox `cart.abandoned` |
 | Z4 | Recherche IA | Refonte du draft `ia_search_agent.py` (placeholders à remplacer) ; pgvector recommandé |
-| M5 | Numéro de commande séquentiel | Cf. *Note technique — numéro de commande séquentiel (M5)* ci-dessous |
+| M5 ✅ | Numéro de commande séquentiel | **Livré 25/08/2026** (cf. PP-C). Cf. *Note technique — numéro de commande séquentiel (M5)* ci-dessous |
 
 ### Note technique — génération PDF des factures (M3)
 
 **Bibliothèque retenue : WeasyPrint** (rendu HTML/CSS → PDF), cohérent avec l'approche HTML déjà utilisée pour les emails (`_build_quote_email_html` dans `cart.py`) et avec Jinja2 déjà présent dans les dépendances. Un template Jinja2 de facture (HTML + CSS print) sera rendu puis converti en PDF.
 
-⚠️ **État actuel à corriger en début de Phase 5a** : les dépendances **système** de WeasyPrint sont déjà installées dans le [Dockerfile](backend/Dockerfile) (libpango, libpangocairo, libgdk-pixbuf, libffi, shared-mime-info), **mais le paquet Python `weasyprint` n'est ni dans `pyproject.toml` ni dans `uv.lock`**, et aucun code ne l'importe encore. Prérequis M3 :
+✅ **Fait le 25/08/2026** : `weasyprint` ajouté aux `dependencies` + `uv.lock` (les libs système étaient déjà dans le [Dockerfile](backend/Dockerfile)). L'import est **paresseux** dans [pdf.py](backend/app/features/invoice/services/pdf.py) : un poste dev Windows sans GTK n'empêche ni l'émission des factures ni les tests, seuls les endpoints PDF renvoient 503. Prérequis initiaux (pour mémoire) :
 
 1. Ajouter `weasyprint` aux `dependencies` de `pyproject.toml`, puis `uv lock` / `uv sync`.
 2. Vérifier la disponibilité des libs système hors Docker (dev Windows : WeasyPrint nécessite GTK/Pango — documenter dans le runbook, ou rendre la génération PDF dépendante du worker conteneurisé).
@@ -1141,7 +1141,7 @@ Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/my
 
 ### Sous-phases possibles
 
-- **Phase 5a** : M3 (factures) + M5 (numéro de commande — prérequis léger, livrable isolément avant le reste de la 5a) — bloque la facturation B2B Polynésie.
+- **Phase 5a** : M3 (factures) + M5 (numéro de commande) — ✅ **livrés le 25/08/2026** (cf. *Chantier pré-production*, PP-C).
 - **Phase 5b** : M4 (alerting actif) + M2 (K8s) — fiabilité prod.
 - **Phase 5c** : Z3 (relance panier) + M1 (produits populaires) — leviers commerciaux.
 - **Phase 5d** : Z1 + Z2 (paiement N×, avoir).
@@ -1240,9 +1240,28 @@ Audit complet (sécurité, tests/CI, infra, complétude) mené le 25/08/2026. Ph
 | L2 ✅ | Cookies — livré 25/08/2026 | Politique cookies documentée dans la page confidentialité (tableau refresh_token + stockage local). **Pas de bandeau** : seuls des cookies/stockages strictement nécessaires existent → exemptés de consentement. Si des cookies de mesure d'audience ou pub sont ajoutés un jour, un consentement PRÉALABLE devient obligatoire (noté dans la page) |
 | L3 🔲 | Achat Ingram HT export — **action commerciale (hors code)** | Vérifier avec le commercial la facturation **hors TVA française** (exportation) — sinon 20 % de coût pour rien. Verrouiller aussi le paiement à la commande (virement/CB) en l'absence d'encours |
 
-### PP-C — Bloquants facturation (avant ouverture des ventes, jalon Phase 2+)
+### PP-C — Facturation ✅⚠️ livrée le 25/08/2026 (M3 + M5)
 
-Promotion des items **M3** (factures PDF + numérotation légale) et **M5** (numéro de commande séquentiel) de la Phase 5 en **pré-requis de la première vente** — rien n'existe aujourd'hui (aucun modèle `Invoice`, pas d'`order_number`). S'y ajoute la **validation sandbox PayZen** (capture manuelle + refund implémentés mais jamais testés contre la sandbox — cf. backlog *Capture CB à l'expédition*).
+**M5 — numéro de commande séquentiel ✅**
+- `Order.order_number` (`CMD-AAAA-NNNNN`), alloué au checkout depuis la **séquence PostgreSQL** `order_number_seq` — trous acceptés, c'est une référence de communication. Champ **hors `OrderCreate`** (pas d'affectation de masse) ; séquence déclarée dans les métadonnées SQLModel pour exister aussi sous `create_all` (tests d'intégration).
+- Ajout de **`Order.currency`** (figée au checkout) — prérequis facturation, la commande ne portait aucune devise.
+- Exposé dans `OrderPublic` + payload outbox `order.created` ; les **emails** basculent sur `order_ref` (`resolve_order_ref` partagé handlers commande/expédition, repli `short_ref` pour les commandes antérieures) ; affiché dans la vitrine (compte) et l'admin.
+
+**M3 — factures ✅**
+- Modèle **`Invoice` immuable** (pas de `Base`, pas de CRUD générique → ni PATCH ni DELETE) + `snapshot` JSON figé à l'émission (vendeur, client, lignes, ventilation) : re-rendre une vieille facture reproduit le document d'origine.
+- **Numérotation légale sans trou** : `invoice_counters` verrouillée `SELECT … FOR UPDATE` dans la transaction d'émission (`FAC-AAAA-NNNNN`, remise à 1 par exercice) — un rollback rend le numéro au lieu de le brûler, contrairement à la séquence de M5.
+- **Ventilation TVA/TGC** : les prix stockés étant TTC, la facture remonte `HT = TTC / (1+taux)` **par groupe de taux**, la taxe étant le reste → `HT + taxe == total commande` exactement. Refus d'émettre si le total ne tombe pas juste.
+- **Émission** sur `payment.captured` via un **handler outbox dédié** (`on_payment_captured_issue_invoice`), idempotent (contrainte unique `order_id`) et protégé par la même garde de montant que S1.
+- **PDF WeasyPrint** (dépendance ajoutée + `uv.lock`), template Jinja2 A4 avec ventilation et typographie française. Import **paresseux** : sans les libs système, la facture est quand même émise et stockée, seuls les endpoints PDF renvoient 503.
+- **Endpoints** : client `GET /invoices/me`, `/me/by-order/{id}`, `/me/{id}/pdf` (contrôle d'appartenance, 404 indistinct) ; admin `GET /admin/invoices[?fiscal_year]`, `/{id}`, `/{id}/pdf` et **`/export.csv`** (export comptable trié par numéro pour vérifier la continuité).
+- **Surfaces** : vitrine = n° de commande + bouton de téléchargement de facture par commande (compte) ; admin = page **Factures** (filtre exercice, PDF, export CSV).
+- **Tests** : 16 unitaires (ventilation, équilibre des totaux, idempotence, formats, rendu HTML, échappement XSS) + 4 d'intégration (continuité de la numérotation, unicité par commande, séquence) — ces derniers s'exécutent en CI (base requise).
+
+**⚠️ Reste avant la première facture réelle**
+- Renseigner `INVOICE_SELLER_*` (adresse, RC/TAHITI, mentions) — l'émission loggue un warning tant qu'ils sont vides, et le document n'est pas conforme.
+- Faire **confirmer par le comptable** le traitement de taxe des frais (`INVOICE_FEES_TAX_CODE`, cf. écart F3) et la conservation/archivage légal.
+- **Validation sandbox PayZen** (capture manuelle + refund implémentés mais jamais testés contre la sandbox — cf. backlog *Capture CB à l'expédition*).
+- Backlog associé : avoir comptable (**Z2**) désormais débloqué par M3 ; export FEC strict si l'expert-comptable l'exige (le CSV actuel couvre le besoin courant).
 
 ### PP-D — Bloquants exploitation / infra
 

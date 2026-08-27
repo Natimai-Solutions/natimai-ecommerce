@@ -240,6 +240,15 @@ class CheckoutRequest(SQLModel):
         decimal_places=2,
         description="Payment fees snapshot applied at checkout",
     )
+    cgv_accepted: bool = Field(
+        default=False,
+        description=(
+            "Explicit acceptance of the terms of sale. Required: the checkbox "
+            "in the SPA is not proof — the acceptance is recorded on the order "
+            "(cgv_accepted_at / cgv_version) so it is opposable, and an API "
+            "call that bypasses the UI is refused."
+        ),
+    )
     shipping_route_ids: list[uuid.UUID] = Field(
         default_factory=list,
         description=("Ordered list of selected shipping routes for this checkout path"),

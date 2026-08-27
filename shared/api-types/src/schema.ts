@@ -3643,6 +3643,10 @@ export interface paths {
         /**
          * Healthz Ready
          * @description Readiness probe checking DB and Redis dependencies.
+         *
+         *     Returns 200 when both dependencies answer, 503 otherwise — so a load
+         *     balancer or orchestrator probe actually takes the instance out of rotation
+         *     instead of reading a 200 "degraded".
          */
         get: operations["utils-healthz_ready"];
         put?: never;
@@ -6461,6 +6465,12 @@ export interface components {
              */
             payment_fee_amount: number | string;
             /**
+             * Cgv Accepted
+             * @description Explicit acceptance of the terms of sale. Required: the checkbox in the SPA is not proof — the acceptance is recorded on the order (cgv_accepted_at / cgv_version) so it is opposable, and an API call that bypasses the UI is refused.
+             * @default false
+             */
+            cgv_accepted: boolean;
+            /**
              * Shipping Route Ids
              * @description Ordered list of selected shipping routes for this checkout path
              */
@@ -8200,6 +8210,16 @@ export interface components {
              */
             delivery_type?: string | null;
             /**
+             * Cgv Accepted At
+             * @description Horodatage UTC de l'acceptation des CGV au checkout
+             */
+            cgv_accepted_at?: string | null;
+            /**
+             * Cgv Version
+             * @description Version des CGV acceptée au checkout
+             */
+            cgv_version?: string | null;
+            /**
              * Id
              * Format: uuid
              */
@@ -8528,6 +8548,16 @@ export interface components {
              * @description Mode de livraison du dernier tronçon choisi au checkout
              */
             delivery_type?: string | null;
+            /**
+             * Cgv Accepted At
+             * @description Horodatage UTC de l'acceptation des CGV au checkout
+             */
+            cgv_accepted_at?: string | null;
+            /**
+             * Cgv Version
+             * @description Version des CGV acceptée au checkout
+             */
+            cgv_version?: string | null;
         };
         /**
          * OrderLineCreate
@@ -8844,6 +8874,16 @@ export interface components {
              * @description Mode de livraison du dernier tronçon choisi au checkout
              */
             delivery_type?: string | null;
+            /**
+             * Cgv Accepted At
+             * @description Horodatage UTC de l'acceptation des CGV au checkout
+             */
+            cgv_accepted_at?: string | null;
+            /**
+             * Cgv Version
+             * @description Version des CGV acceptée au checkout
+             */
+            cgv_version?: string | null;
             /**
              * Id
              * Format: uuid

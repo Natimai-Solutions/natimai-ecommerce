@@ -215,6 +215,23 @@ is needed — the seed migration inserts the initial value.
 | `S3_BUCKET_NAME` | — | S3 bucket |
 | `S3_REGION` | `us-east-1` | S3 region |
 
+### 3.9bis Invoicing (M3)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `INVOICE_SELLER_NAME` | `Natimai Solutions` | Seller name printed on invoices |
+| `INVOICE_SELLER_ADDRESS` | *(empty)* | **Required before issuing real invoices** — an invoice without a complete seller identity is not compliant. Issuance logs a warning while empty |
+| `INVOICE_SELLER_REGISTRATION` | *(empty)* | **Required** — RC Papeete number + n° TAHITI |
+| `INVOICE_SELLER_EMAIL` / `INVOICE_SELLER_PHONE` | *(empty)* | Contact details on the document |
+| `INVOICE_LEGAL_FOOTER` | *(empty)* | Legal mentions printed at the bottom of the invoice |
+| `INVOICE_FEES_TAX_CODE` | `TGC_NORMAL` | `TaxRate.code` used to ventilate shipping/payment fees in the tax breakdown. ⚠️ Confirm with your accountant |
+
+> **PDF rendering** relies on WeasyPrint and its system libraries (pango,
+> cairo, gdk-pixbuf) — present in the backend image. The import is lazy: on a
+> host without them, invoices are still **issued and stored** (the snapshot is
+> the source of truth) and only the PDF endpoints answer `503`
+> (`invoice.pdf.unavailable`).
+
 ### 3.10 Antivirus & security
 
 | Variable | Default | Description |
@@ -514,8 +531,10 @@ After the first deploy (migrations + `initial_data` + workers up), verify:
 
 **Health**
 ```bash
-curl -s $API/api/v1/healthz/liveness   # {"status":"ok"}
-curl -s $API/api/v1/healthz/ready      # {"status":"ok","checks":{"db":"ok","redis":"ok"}}
+curl -s $API/api/v1/healthz/liveness   # {"status":"alive","timestamp":...}
+# 200 + {"status":"ready","database":true,"redis":true} si tout répond,
+# 503 + {"status":"degraded",...} sinon (d'où le -f ci-dessous qui échoue).
+curl -fsS $API/api/v1/healthz/ready
 ```
 
 **Database** — migrations applied and the full‑text search extension present:
@@ -599,16 +618,24 @@ backup.
 ### Schedule
 
 [`scripts/backup/backup.sh`](scripts/backup/backup.sh) dumps the database
-(custom format), archives the uploads volume, verifies the dump magic, and
-rotates old files (14 days by default). Cron example (as the deploy user):
-
-```bash
-0 2 * * * cd /opt/fastapi-ecommerce && ./scripts/backup/backup.sh >> /var/log/ecommerce-backup.log 2>&1
-```
+(custom format), archives the uploads volume, verifies **both** artefacts
+(`PGDMP` magic for the dump, `tar tzf` for the archive), pushes them offsite,
+and only then rotates old files (14 days by default). Each artefact is written
+to a `.part` file and renamed only once verified, so a truncated dump can never
+masquerade as a good backup.
 
 **Offsite copy is mandatory** (disk failure and ransomware both take the local
-backups with them). Uncomment and configure the `rclone` line in the script, or
-add your own `scp`/object‑storage push.
+backups with them), so it gates the rotation: with no `OFFSITE_RCLONE_REMOTE`
+the script warns and **skips the rotation entirely** rather than deleting
+archives that never left this disk.
+
+```bash
+0 2 * * * cd /opt/fastapi-ecommerce && OFFSITE_RCLONE_REMOTE=remote:ecommerce-backups \
+  ./scripts/backup/backup.sh >> /var/log/ecommerce-backup.log 2>&1
+```
+
+Local-only rotation can be forced with `RETENTION_LOCAL_ONLY=true` if you push
+the backups elsewhere by another means (`scp`, object storage, snapshots).
 
 ### Restore procedure (test it BEFORE go‑live)
 
@@ -623,7 +650,9 @@ $COMPOSE exec -T postgres pg_restore -U postgres -d fastapi_ecommerce \
   --clean --if-exists --no-owner < backups/db_<STAMP>.dump
 
 # 3. Restore the uploads volume
-$COMPOSE exec -T api tar xzf - -C /tmp < backups/storage_<STAMP>.tar.gz
+#    --index : `api` runs with replicas: 2 in production, so a bare `exec` is
+#    ambiguous. Both replicas share the same volume, index 1 is fine.
+$COMPOSE exec --index 1 -T api tar xzf - -C /tmp < backups/storage_<STAMP>.tar.gz
 
 # 4. Restart and check
 $COMPOSE up -d

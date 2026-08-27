@@ -4,6 +4,6 @@
 {% block heading %}Commande livrée ✓{% endblock %}
 {% block content %}
       <p>Bonjour {{ full_name }},</p>
-      <p>Votre commande <strong>{{ order_id | short_ref }}</strong> a bien été livrée. Nous espérons que vous êtes satisfait(e) de votre achat.</p>
+      <p>Votre commande <strong>{{ order_ref or (order_id | short_ref) }}</strong> a bien été livrée. Nous espérons que vous êtes satisfait(e) de votre achat.</p>
       <p>L'équipe {{ shop_name }}</p>
 {% endblock %}

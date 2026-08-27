@@ -37,6 +37,20 @@ from app.features.user.models.user import User
 from app.main import app
 
 
+@pytest.fixture(autouse=True)
+def _stub_order_number(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Checkout draws its order number from a PostgreSQL sequence (M5).
+
+    These tests run on a mocked session, so the allocation is stubbed here;
+    the numbering itself is covered by test_invoice_numbering_and_pdf.py and
+    the integration suite.
+    """
+    monkeypatch.setattr(
+        "app.api.routes.cart.allocate_order_number",
+        AsyncMock(return_value="CMD-2026-00001"),
+    )
+
+
 @dataclass(frozen=True)
 class StatusRef:
     id: uuid.UUID
@@ -530,6 +544,7 @@ def test_e1_critical_journey_login_catalog_cart_checkout_payment_tracking_histor
             "shipping_address": "Papeete, PF",
             "shipping_fee_amount": "1.00",
             "payment_fee_amount": "0.50",
+            "cgv_accepted": True,
         },
     )
     assert checkout_response.status_code == 201

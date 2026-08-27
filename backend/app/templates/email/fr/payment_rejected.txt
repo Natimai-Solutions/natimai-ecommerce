@@ -1,6 +1,6 @@
 Bonjour {{ full_name }},
 
-Votre paiement pour la commande {{ order_id | short_ref }} n'a pas pu être traité.
+Votre paiement pour la commande {{ order_ref or (order_id | short_ref) }} n'a pas pu être traité.
 {% if reason %}
 Motif : {{ reason }}
 {% endif %}

@@ -53,8 +53,10 @@ _FAILED_TRANS_STATUSES = {"REFUSED", "ABANDONED", "CANCELLED"}
 _TERMINAL_TRANS_STATUSES = {_PAID_TRANS_STATUS, *_FAILED_TRANS_STATUSES}
 _SUCCESS_TRANS_STATUSES = {_PAID_TRANS_STATUS, _AUTHORISED_TRANS_STATUS}
 # Order statuses that must not accept a new client-initiated payment.
+# "PaymentReview" is set by app.handlers.payment when a capture does not match
+# the order total: the order is under human arbitration, never re-payable.
 _NON_PAYABLE_ORDER_STATUS_NAMES: frozenset[str] = frozenset(
-    {"Paid", "Refunded", "PartiallyRefunded"}
+    {"Paid", "Refunded", "PartiallyRefunded", "PaymentReview"}
 )
 _WEBHOOK_RECEIVED_EVENT = "payment.webhook_received"
 
@@ -63,6 +65,17 @@ _PAYMENT_STATUS_FAILED = "Failed"
 _PAYMENT_STATUS_AUTHORIZED = "Authorized"
 _TERMINAL_PAYMENT_STATUS_NAMES: frozenset[str] = frozenset(
     {_PAYMENT_STATUS_COMPLETED, _PAYMENT_STATUS_FAILED}
+)
+# Payment statuses meaning "this order has already been charged". The order
+# status alone cannot be trusted here: it only flips to Paid asynchronously
+# (outbox), leaving a window where a second charge would pass the status guard.
+_SETTLED_PAYMENT_STATUS_NAMES: frozenset[str] = frozenset(
+    {
+        _PAYMENT_STATUS_COMPLETED,
+        _PAYMENT_STATUS_AUTHORIZED,
+        "Refunded",
+        "PartiallyRefunded",
+    }
 )
 # Order status names live in app.handlers.payment now — they are derived
 # from the outbox event types this module publishes (payment.captured /
@@ -417,24 +430,42 @@ async def payzen_ipn(session: SessionDep, request: Request) -> JSONResponse:
         # provider misconfiguration — record it and never complete the payment.
         raw_ipn_amount = fields.get("amount")
         if trans_status in _SUCCESS_TRANS_STATUSES and raw_ipn_amount is not None:
-            ipn_amount = minor_units_to_decimal(
-                parse_minor_units(raw_ipn_amount), payment.currency
-            )
+            try:
+                ipn_amount: Decimal | None = minor_units_to_decimal(
+                    parse_minor_units(raw_ipn_amount), payment.currency
+                )
+            except ValueError as parse_error:
+                # An unreadable amount is handled exactly like a mismatch. The
+                # payload is signed, so the error is deterministic: letting it
+                # bubble up would answer 500 to every replay and PayZen would
+                # retry the same IPN forever without ever succeeding.
+                logger.error(
+                    "PayZen IPN unreadable amount %r for payment_id=%s: %s",
+                    raw_ipn_amount,
+                    payment.id,
+                    parse_error,
+                )
+                ipn_amount = None
+
             if ipn_amount != payment.amount:
+                received_repr = (
+                    str(ipn_amount) if ipn_amount is not None else str(raw_ipn_amount)
+                )
                 logger.error(
                     "PayZen IPN amount mismatch for payment_id=%s: "
                     "expected=%s received=%s trans_status=%s trans_id=%s "
                     "— payment left un-completed for manual review",
                     payment.id,
                     payment.amount,
-                    ipn_amount,
+                    received_repr,
                     trans_status,
                     trans_id,
                 )
                 provider_data = dict(_provider_data_as_dict(payment))
                 provider_data["amount_mismatch"] = {
                     "expected": str(payment.amount),
-                    "received": str(ipn_amount),
+                    "received": received_repr,
+                    "unreadable": ipn_amount is None,
                     "trans_status": trans_status,
                     "trans_id": trans_id,
                 }
@@ -544,9 +575,14 @@ async def _validate_order_for_initiation(
     """Server-side revalidation of a client-initiated payment tied to an order.
 
     The client-supplied amount and currency are never trusted: the order must
-    exist and belong to the caller, must still be payable, and the amount must
-    equal the order total snapshotted at checkout. A foreign order is reported
-    exactly like a missing one so ids cannot be probed.
+    exist and belong to the caller, must still be payable, must not already
+    carry a settled payment, and the amount must equal the order total
+    snapshotted at checkout. A foreign order is reported exactly like a missing
+    one so ids cannot be probed.
+
+    Caveat kept explicit: ``order.total_amount`` embeds the ``payment_fee_amount``
+    the client sent at checkout (``routes/cart.py``), so this guard pins the
+    payment to the order snapshot — it does not re-derive the fee itself.
     """
     order = await session.get(Order, order_id)
     if order is None or order.user_id != current_user.id:
@@ -572,17 +608,60 @@ async def _validate_order_for_initiation(
             },
         )
 
-    # The checkout always creates a payment carrying the order currency; use it
-    # as the currency reference (the order itself does not store a currency).
-    checkout_payment = await crud_payment.get_by_order_id(session, order_id=order_id)
-    if checkout_payment is not None and currency != checkout_payment.currency:
+    # Every order gets a payment at checkout, oldest-first here, soft-deleted
+    # rows included: that first payment is the currency reference (the order
+    # itself does not store a currency) and the whole list tells us whether the
+    # order has already been charged.
+    order_payments = await crud_payment.list_with_status_by_order_id(
+        session, order_id=order_id
+    )
+
+    settled = next(
+        (
+            (payment, status_name)
+            for payment, status_name in order_payments
+            if status_name in _SETTLED_PAYMENT_STATUS_NAMES
+        ),
+        None,
+    )
+    if settled is not None:
+        settled_payment, settled_status = settled
+        raise AppError(
+            code="payment.order.already_paid",
+            status_code=409,
+            message="Order already has a settled payment",
+            details={
+                "order_id": str(order_id),
+                "payment_id": str(settled_payment.id),
+                "payment_status": settled_status,
+            },
+        )
+
+    if not order_payments:
+        # Fail closed: without a reference payment the currency cannot be
+        # checked, and an unchecked currency lets a XPF amount settle an EUR
+        # total (or the reverse).
+        logger.error(
+            "No payment found for order %s — refusing to initiate a payment "
+            "whose currency cannot be validated",
+            order_id,
+        )
+        raise AppError(
+            code="payment.order.no_reference",
+            status_code=409,
+            message="Order has no reference payment to validate against",
+            details={"order_id": str(order_id)},
+        )
+
+    reference_currency = order_payments[0][0].currency
+    if currency != reference_currency:
         raise AppError(
             code="payment.currency.mismatch",
             status_code=409,
             message="Payment currency does not match the order currency",
             details={
                 "order_id": str(order_id),
-                "expected_currency": checkout_payment.currency,
+                "expected_currency": reference_currency,
             },
         )
 

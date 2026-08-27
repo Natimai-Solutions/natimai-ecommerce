@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.routes.address import router as address_router
 from app.api.routes.admin_currency_rates import router as admin_currency_rates_router
 from app.api.routes.admin_inventory import router as admin_inventory_router
+from app.api.routes.admin_invoices import router as admin_invoices_router
 from app.api.routes.admin_orders import router as admin_orders_router
 from app.api.routes.admin_payment_eligibility import (
     router as admin_payment_eligibility_router,
@@ -33,6 +34,7 @@ from app.api.routes.health import router as health_router
 from app.api.routes.icecat import router as icecat_router
 from app.api.routes.internal_storage import router as internal_storage_router
 from app.api.routes.inventory import router as inventory_router
+from app.api.routes.invoices_me import router as invoices_me_router
 from app.api.routes.login import router as login_router
 from app.api.routes.oauth import router as oauth_router
 from app.api.routes.order import router as order_router
@@ -78,6 +80,7 @@ api_router.include_router(payment_method_router)
 api_router.include_router(payments_router)
 api_router.include_router(admin_payments_router)
 api_router.include_router(admin_orders_router)
+api_router.include_router(admin_invoices_router)
 api_router.include_router(admin_shipping_router)
 api_router.include_router(admin_inventory_router)
 api_router.include_router(admin_payment_eligibility_router)
@@ -104,6 +107,7 @@ api_router.include_router(group_security_router)
 api_router.include_router(order_status_router)
 api_router.include_router(order_router)
 api_router.include_router(orders_me_router)
+api_router.include_router(invoices_me_router)
 api_router.include_router(order_line_router)
 
 api_router.include_router(address_router)

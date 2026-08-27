@@ -1,11 +1,18 @@
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Any
 
+from sqlalchemy import Sequence
 from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
+
+# Backs Order.order_number (M5). Attached to the metadata so it is created by
+# both Alembic (migration e4b1c7d9a250) and SQLModel.metadata.create_all —
+# the integration-test harness builds its schema from the metadata alone.
+order_number_seq = Sequence("order_number_seq", metadata=SQLModel.metadata)
 
 
 class DeliveryType(str, Enum):
@@ -64,6 +71,14 @@ class OrderBase(Base):
         decimal_places=2,
         description="Total des frais figes au checkout",
     )
+    currency: str | None = Field(
+        default=None,
+        max_length=8,
+        description=(
+            "Devise de facturation figée au checkout (null pour les commandes "
+            "antérieures — on retombe alors sur la devise du paiement)"
+        ),
+    )
     shipping_address: str | None = Field(
         default=None,
         max_length=500,
@@ -87,6 +102,18 @@ class OrderBase(Base):
         max_length=50,
         description="Mode de livraison du dernier tronçon choisi au checkout",
     )
+    # Preuve d'acceptation des CGV. La case cochée dans le front n'engage rien :
+    # sans trace serveur, l'acceptation n'est pas opposable et un appel direct
+    # à l'API la contourne. Horodatage + version des CGV figés au checkout.
+    cgv_accepted_at: datetime | None = Field(
+        default=None,
+        description="Horodatage UTC de l'acceptation des CGV au checkout",
+    )
+    cgv_version: str | None = Field(
+        default=None,
+        max_length=50,
+        description="Version des CGV acceptée au checkout",
+    )
 
 
 class OrderCreate(OrderBase, BaseCreate):
@@ -105,10 +132,14 @@ class OrderUpdate(BaseUpdate):
     shipping_fee_amount: Decimal | None = None
     payment_fee_amount: Decimal | None = None
     total_fees_amount: Decimal | None = None
+    currency: str | None = None
     shipping_address: str | None = None
     shipping_cost_breakdown: dict[str, Any] | None = None
     notes: str | None = None
     delivery_type: str | None = None
+    # cgv_accepted_at / cgv_version sont volontairement absents : la preuve
+    # d'acceptation est figée au checkout et ne doit pas être modifiable via
+    # la route de mise à jour générique.
 
 
 class Order(OrderBase, table=True):
@@ -121,12 +152,23 @@ class Order(OrderBase, table=True):
         index=True,
         description="Identifiant unique de la commande",
     )
+    # Deliberately NOT on OrderBase: server-allocated at checkout, never
+    # accepted from an OrderCreate payload (no mass assignment). Nullable —
+    # orders created before M5 have none.
+    order_number: str | None = Field(
+        default=None,
+        max_length=32,
+        unique=True,
+        index=True,
+        description="Numéro de commande lisible (CMD-AAAA-NNNNN)",
+    )
 
 
 class OrderPublic(OrderBase, BasePublic):
     """Represents order public."""
 
     id: uuid.UUID
+    order_number: str | None = None
 
 
 class OrdersPublic(SQLModel):

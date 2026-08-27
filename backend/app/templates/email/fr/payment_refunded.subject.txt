@@ -1,1 +1,1 @@
-Remboursement effectué — commande {{ order_id | short_ref }}
+Remboursement effectué — commande {{ order_ref or (order_id | short_ref) }}
