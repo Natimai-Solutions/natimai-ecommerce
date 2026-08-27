@@ -11,6 +11,7 @@ from app.api.routes.admin_payment_eligibility import (
 from app.api.routes.admin_payments import router as admin_payments_router
 from app.api.routes.admin_price_groups import router as admin_price_groups_router
 from app.api.routes.admin_product import router as admin_product_router
+from app.api.routes.admin_quote_requests import router as admin_quote_requests_router
 from app.api.routes.admin_shipping import router as admin_shipping_router
 from app.api.routes.admin_spec_definitions import (
     router as admin_spec_definitions_router,
@@ -81,6 +82,7 @@ api_router.include_router(payment_router)
 api_router.include_router(payment_method_router)
 api_router.include_router(payments_router)
 api_router.include_router(admin_payments_router)
+api_router.include_router(admin_quote_requests_router)
 api_router.include_router(admin_orders_router)
 api_router.include_router(admin_invoices_router)
 api_router.include_router(admin_shipping_router)

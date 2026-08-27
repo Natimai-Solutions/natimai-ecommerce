@@ -802,6 +802,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/quote-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Quote Requests
+         * @description Lister les demandes, les plus récentes d'abord.
+         *
+         *     ``open_only`` masque les demandes closes : c'est la vue de travail
+         *     quotidienne, où une demande traitée n'a plus à encombrer la file.
+         *     ``search`` cherche dans l'email et le nom, en insensible à la casse.
+         */
+        get: operations["admin-quote-requests-list_quote_requests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/quote-requests/{quote_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Quote Request
+         * @description Le détail d'une demande, panier figé compris.
+         */
+        get: operations["admin-quote-requests-get_quote_request"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Quote Request
+         * @description Faire avancer le suivi d'une demande.
+         *
+         *     Le contenu de la demande (contact, panier figé, message du client) n'est
+         *     jamais modifiable : c'est ce que le client a effectivement envoyé.
+         */
+        patch: operations["admin-quote-requests-update_quote_request"];
+        trace?: never;
+    };
     "/api/v1/admin/orders": {
         parameters: {
             query?: never;
@@ -1998,7 +2049,11 @@ export interface paths {
         put?: never;
         /**
          * Create Guest Quote Request
-         * @description Send a quote request email for a guest cart without authentication.
+         * @description Enregistrer puis transmettre une demande de devis d'un visiteur.
+         *
+         *     La demande est **persistée avant l'envoi** : auparavant elle n'existait que
+         *     sous forme d'email, et un échec d'envoi la perdait définitivement alors que
+         *     l'endpoint répondait 201. Le back-office (A11) est désormais le filet.
          */
         post: operations["cart-create_guest_quote_request"];
         delete?: never;
@@ -5567,6 +5622,78 @@ export interface components {
              * @default false
              */
             is_final_leg: boolean;
+        };
+        /**
+         * AdminQuoteRequestDetail
+         * @description Le détail, avec le panier figé au moment de la demande.
+         */
+        AdminQuoteRequestDetail: {
+            /**
+             * Quote Request Id
+             * Format: uuid
+             */
+            quote_request_id: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Email */
+            email: string;
+            /** Full Name */
+            full_name?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Status */
+            status: string;
+            /** Is Registered Customer */
+            is_registered_customer: boolean;
+            /** Item Count */
+            item_count: number;
+            /** Currency */
+            currency?: string | null;
+            /** Subtotal Amount */
+            subtotal_amount?: string | null;
+            /** Handled At */
+            handled_at?: string | null;
+            /** Shipping Address */
+            shipping_address?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Admin Comment */
+            admin_comment?: string | null;
+            /** Items */
+            items?: {
+                [key: string]: string | null;
+            }[];
+        };
+        /**
+         * AdminQuoteRequestListItem
+         * @description Une ligne de la liste des demandes de devis.
+         */
+        AdminQuoteRequestListItem: {
+            /**
+             * Quote Request Id
+             * Format: uuid
+             */
+            quote_request_id: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Email */
+            email: string;
+            /** Full Name */
+            full_name?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Status */
+            status: string;
+            /** Is Registered Customer */
+            is_registered_customer: boolean;
+            /** Item Count */
+            item_count: number;
+            /** Currency */
+            currency?: string | null;
+            /** Subtotal Amount */
+            subtotal_amount?: string | null;
+            /** Handled At */
+            handled_at?: string | null;
         };
         /**
          * AdminReviewBody
@@ -11507,6 +11634,16 @@ export interface components {
             message: string;
         };
         /**
+         * QuoteRequestStatus
+         * @description Cycle de vie d'une demande de devis, côté back-office.
+         *
+         *     Volontairement court : le devis lui-même se négocie hors de l'application
+         *     (email, téléphone). Ce qui doit être traçable ici, c'est qu'une demande a
+         *     bien été prise en charge et comment elle s'est terminée.
+         * @enum {string}
+         */
+        QuoteRequestStatus: "requested" | "email_failed" | "in_progress" | "quoted" | "won" | "lost" | "cancelled";
+        /**
          * QuoteRequestSubmit
          * @description Represents quote request submit payload.
          */
@@ -11515,6 +11652,15 @@ export interface components {
             shipping_address?: string | null;
             /** Notes */
             notes?: string | null;
+        };
+        /**
+         * QuoteRequestUpdateBody
+         * @description Mise à jour du suivi. Les deux champs sont indépendants.
+         */
+        QuoteRequestUpdateBody: {
+            status?: components["schemas"]["QuoteRequestStatus"] | null;
+            /** Admin Comment */
+            admin_comment?: string | null;
         };
         /**
          * ReadinessResponse
@@ -15937,6 +16083,107 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AttachmentDownloadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-quote-requests-list_quote_requests": {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+                status?: components["schemas"]["QuoteRequestStatus"] | null;
+                search?: string | null;
+                open_only?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminQuoteRequestListItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-quote-requests-get_quote_request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                quote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminQuoteRequestDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-quote-requests-update_quote_request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                quote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuoteRequestUpdateBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminQuoteRequestDetail"];
                 };
             };
             /** @description Validation Error */
