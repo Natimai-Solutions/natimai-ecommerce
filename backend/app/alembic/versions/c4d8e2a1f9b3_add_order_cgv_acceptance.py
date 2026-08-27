@@ -6,7 +6,7 @@ bypasses it entirely. Nullable on purpose — orders created before this change
 have no acceptance to backfill, and inventing one would be worse than a NULL.
 
 Revision ID: c4d8e2a1f9b3
-Revises: a9c5e1f3b7d2
+Revises: f6d3a8b1c472
 Create Date: 2026-08-27 00:00:00.000000
 
 """
@@ -16,7 +16,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "c4d8e2a1f9b3"
-down_revision = "a9c5e1f3b7d2"
+down_revision = "f6d3a8b1c472"
 branch_labels = None
 depends_on = None
 
