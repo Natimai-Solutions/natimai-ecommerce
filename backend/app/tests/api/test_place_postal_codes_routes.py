@@ -35,7 +35,24 @@ def _unique_code() -> str:
 async def real_user_auth(db: AsyncSession) -> AsyncGenerator[None, None]:
     result = await db.exec(select(User).where(col(User.is_active).is_(True)).limit(1))
     user = result.first()
-    assert user is not None, "dev database has no user to authenticate as"
+
+    # A freshly migrated database has no user, and the fixture used to assert
+    # its way out of that — the test then errored on any clean checkout instead
+    # of running. It creates its own user in that case, and removes it
+    # afterwards so the run leaves no trace.
+    created_user_id: uuid.UUID | None = None
+    if user is None:
+        user = User(
+            email=f"postal-codes-test-{uuid.uuid4().hex[:8]}@example.invalid",
+            hashed_password="not-a-usable-hash",
+            is_active=True,
+            is_superuser=True,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        created_user_id = user.id
+
     user_id = user.id  # capture before rollback — the instance expires with it
     # End the read transaction: the session-scoped ``db`` fixture would
     # otherwise sit idle-in-transaction for the rest of the run, and its
@@ -47,8 +64,16 @@ async def real_user_auth(db: AsyncSession) -> AsyncGenerator[None, None]:
         return stub
 
     app.dependency_overrides[get_current_user_optional] = _override
-    yield
-    app.dependency_overrides.pop(get_current_user_optional, None)
+    try:
+        yield
+    finally:
+        app.dependency_overrides.pop(get_current_user_optional, None)
+        if created_user_id is not None:
+            # Only the row this fixture created — never a real dev user.
+            to_delete = await db.get(User, created_user_id)
+            if to_delete is not None:
+                await db.delete(to_delete)
+                await db.commit()
 
 
 def test_put_then_get_postal_codes_roundtrip(
