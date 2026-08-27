@@ -2,3 +2,4 @@ packages:
   - "frontend"
   - "admin-frontend"
   - "shared/*"
+  - "e2e"

@@ -5,7 +5,9 @@ import { defineConfig } from 'vitest/config'
 // covered by typecheck + lint in CI; this is the "frontend" coverage badge.
 export default defineConfig({
   test: {
-    include: ['shared/**/src/**/*.test.ts'],
+    // Le moteur partagé, plus les tests unitaires purement TS de la vitrine
+    // (config légale…) : il n'existait aucun point d'entrée pour eux.
+    include: ['shared/**/src/**/*.test.ts', 'frontend/src/**/*.test.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'json'],

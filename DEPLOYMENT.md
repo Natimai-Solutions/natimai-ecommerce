@@ -40,7 +40,11 @@ Create the root `.env` from the template in section 6 before the first start.
 | `ENVIRONMENT` | `local` / `staging` / `production` — enables the non‑default‑secret guards | `production` |
 
 When `ENVIRONMENT != local`, the app refuses to start if `SECRET_KEY`,
-`POSTGRES_PASSWORD` or `FIRST_SUPERUSER_PASSWORD` are left at `changethis`.
+`POSTGRES_PASSWORD` or `FIRST_SUPERUSER_PASSWORD` are left at `changethis` —
+or, for `SECRET_KEY`, left **empty**. An empty key used to be silently replaced
+by a random one: every token then died on restart and each replica signed with
+a different key, so no session survived a rolling update. In `local` only, that
+random fallback still applies, with a warning.
 
 ---
 
@@ -399,9 +403,12 @@ missing, which crash‑loops the pods).
 # 0. Prerequisites: root .env complete — including VITE_API_URL=https://api.<DOMAIN>
 COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.proxy.yml"
 
-# 1. Get the code and build the images on the server
+# 1. Get the code and build the images on the server.
+#    --pull is not optional: base images are floating tags (node:22-alpine,
+#    python:3.12-slim), and without it Docker keeps reusing whatever it pulled
+#    months ago — which is how a "floating" tag ends up carrying known CVEs.
 git pull
-$COMPOSE build
+$COMPOSE build --pull
 
 # 2. Migrations + seed via the one-shot migrate service
 #    (runs `alembic upgrade head` then `app/initial_data.py` — idempotent).
@@ -461,6 +468,12 @@ routing.
 > (or Cloudflare in front of it), set `CLIENT_IP_HEADER=X-Forwarded-For`
 > (`CF-Connecting-IP` with Cloudflare) in the backend environment so the login
 > rate limiter throttles the actual client, not the proxy. See §3.10.
+>
+> The `api.` site sets `header_up X-Forwarded-For {remote_host}`, which
+> **replaces** any chain sent by the client instead of appending to it — a
+> caller cannot pad the header to push its real address out of the trusted hop
+> window. Keep `TRUSTED_PROXY_HOPS=1` with this setup; if you put a CDN in
+> front of Caddy, drop that `header_up` line and set `TRUSTED_PROXY_HOPS=2`.
 
 ### Prerequisites
 
@@ -479,7 +492,7 @@ routing.
 ### Start
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.proxy.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.proxy.yml up -d --build --pull always
 ```
 
 - Caddy obtains and renews certificates automatically (Let's Encrypt).
@@ -637,6 +650,13 @@ archives that never left this disk.
 Local-only rotation can be forced with `RETENTION_LOCAL_ONLY=true` if you push
 the backups elsewhere by another means (`scp`, object storage, snapshots).
 
+Any failure exits non-zero and, when `ALERT_WEBHOOK_URL` is set, posts to the
+alerting webhook — a backup that fails silently is worse than none, because you
+believe you are covered. A ready-to-install crontab lives at
+[`scripts/backup/ecommerce-backup.cron`](scripts/backup/ecommerce-backup.cron),
+and [`scripts/backup/restore.sh`](scripts/backup/restore.sh) automates the
+restore rehearsal described below.
+
 ### Restore procedure (test it BEFORE go‑live)
 
 ```bash
@@ -659,7 +679,135 @@ $COMPOSE up -d
 curl -fsS https://api.<DOMAIN>/api/v1/healthz/ready
 ```
 
-For a **blank-slate rehearsal** (recommended): restore into a throwaway
-container instead — `docker run --rm -d --name pg-restore-test postgres:16-alpine`,
-`pg_restore` into it, and spot‑check row counts (`orders`, `payments`,
-`products`) against production.
+### Rehearsal — do this before the first order
+
+[`scripts/backup/restore.sh`](scripts/backup/restore.sh) automates both the
+rehearsal and the real restore. **The default mode is the rehearsal**: it spins
+up a throwaway PostgreSQL container, restores the dump into it, prints the row
+counts of the tables you would most regret losing (`orders`, `order_lines`,
+`payments`, `invoices`, `products`, `users`) and removes the container. Nothing
+in production is touched.
+
+```bash
+# Rehearsal (safe) — compare the printed counts against production
+./scripts/backup/restore.sh backups/db_20260827_020000.dump
+
+# Real restore (destructive, asks for confirmation, stops the writers first)
+./scripts/backup/restore.sh --production backups/db_20260827_020000.dump
+```
+
+The script refuses a file that is not a custom‑format dump before doing
+anything, so a truncated or half‑transferred backup fails fast rather than
+half‑way through a production restore.
+
+---
+
+## 13. Legal identity — fill before opening (L1)
+
+The company's identity is a **launch blocker**: incomplete legal notices expose
+the publisher, and an invoice without a company name and registration number is
+not a valid accounting document.
+
+It is **not stored in the repository** — this codebase is a template, and a
+company's details are deployment data. The values live in the `system_settings`
+table under `legal_*` keys, editable from the back-office (**Réglages système**)
+without a redeploy. Both surfaces read the same rows:
+
+- the storefront legal pages (CGV, mentions légales, confidentialité), served
+  publicly via `GET /system/settings` — publishing this information is a legal
+  obligation, so no authentication is required;
+- the invoice header, which freezes a copy at issuance. Editing a value later
+  never rewrites an invoice already issued.
+
+One source at runtime, so an invoice and the legal notices cannot quote
+different addresses.
+
+### Filling them in
+
+The keys are created empty by `app.initial_data` (run by the `migrate`
+service), so they appear in the back-office ready to fill. Either:
+
+- **Back-office** → Réglages système → edit each `legal_*` row (its description
+  says what belongs in it); or
+- `PUT /api/v1/admin/system-settings/{key}` with `{"value": "…"}`.
+
+`INVOICE_ISSUER_*` in the root `.env` are now only **bootstrap** values: when a
+key is created for the first time and the matching variable is set, it becomes
+the initial value. They never overwrite anything already saved — the seed runs
+on every deploy, and clobbering the owner's text with a forgotten environment
+variable is exactly the silent regression to avoid.
+
+| Key | What it is | Bootstrapped from |
+|-----|-----------|-------------------|
+| `legal_trading_name` | Trading name | `INVOICE_ISSUER_NAME` |
+| `legal_form` | Legal form (SARL, SAS…) | `INVOICE_ISSUER_LEGAL_FORM` |
+| `legal_share_capital` | Share capital, XPF (amount only) | — |
+| `legal_head_office_address` | Head-office address | `INVOICE_ISSUER_ADDRESS` |
+| `legal_rc_number` | Papeete Registre du commerce number | — |
+| `legal_tahiti_number` | TAHITI number (local SIRET equivalent) | `INVOICE_ISSUER_REGISTRATION_NUMBER` |
+| `legal_tax_id` | Tax identifier | `INVOICE_ISSUER_TAX_ID` |
+| `legal_contact_email` / `legal_contact_phone` | General contact | `INVOICE_ISSUER_EMAIL` / `_PHONE` |
+| `legal_publication_director` | Publication director | — |
+| `legal_host_name` / `_address` / `_contact` | Site host | — |
+| `legal_support_email` | After-sales contact | — |
+| `legal_cgv_version_date` | CGV effective date | — |
+| `legal_privacy_updated_date` | Privacy policy update date | — |
+| `legal_delivery_reservation_delay` | Window to raise a delivery reservation | — |
+| `legal_invoice_retention` / `legal_technical_log_retention` | Retention periods | — |
+| `legal_payment_terms` / `legal_late_penalty_terms` | Invoice footer | `INVOICE_PAYMENT_TERMS` / `_LATE_PENALTY_TERMS` |
+| `legal_withdrawal_regime` | Withdrawal regime | — |
+| `legal_mediation_scheme` | Consumer mediation scheme | — |
+
+Three of these are **legal questions, not data entry** — they need counsel:
+
+- `legal_withdrawal_regime` — the withdrawal regime applicable to distance
+  selling in French Polynesia (the French Code de la consommation does not
+  apply directly there): period, how it is exercised, exclusions, return
+  shipping costs. If no mandatory regime applies, state the seller's commercial
+  return policy instead.
+- `legal_mediation_scheme` — the consumer mediation scheme applicable locally,
+  if any.
+- `legal_invoice_retention` / `legal_technical_log_retention` — retention
+  periods to agree with the accountant.
+
+### Check it
+
+```bash
+./scripts/release/check-legal-placeholders.sh                       # localhost
+API_URL=https://api.example.pf ./scripts/release/check-legal-placeholders.sh
+```
+
+It queries the API, so it checks the **environment you point it at**, not what
+is written in the repository. It separates the keys that block invoicing from
+those that only affect the legal pages. Exit codes: `0` complete, `1`
+incomplete, `2` API unreachable or keys never seeded.
+
+Unfilled values render **in red, underlined** on the public pages, and the
+invoice PDF shows an `[À COMPLÉTER]` marker — a gap is visible, not silent.
+
+> The script only checks that the fields are **filled**. It says nothing about
+> whether the wording is legally sound — the three documents still have to be
+> reviewed by a lawyer before opening (L1 in the work plan).
+
+---
+
+## 14. Opening readiness report (PP-F)
+
+Four checks the work plan requires to be **done and recorded** before opening.
+A reminder nobody knows today's value of is not a check, so they are measured:
+
+```bash
+docker compose exec -T api python -m app.scripts.release_readiness
+```
+
+Read-only, exits non‑zero when a threshold is crossed.
+
+| Check | Threshold | Why it matters |
+|-------|-----------|----------------|
+| Icecat enrichment rate | ≥ 80 % of active products | The public search filters on `is_enriched`: an unenriched product is invisible whatever its stock. Below the threshold the storefront is nearly empty — widen Icecat (Full) or plan a specs‑less display. |
+| Products without `category_id` | 0 | No category means no filters and no default tax rate. |
+| Manual FX rate age | ≤ 30 days | Supplier costs are converted with these rates; one frozen for months skews every displayed price. |
+| Attachment storage volume | informational | Compare against the storage volume's capacity. |
+
+Run it again after the first supplier sync, and whenever the catalogue is
+reloaded.

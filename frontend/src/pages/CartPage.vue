@@ -141,6 +141,7 @@
 
           <q-btn
             unelevated
+            data-testid="cart-checkout"
             color="positive"
             icon="shopping_cart_checkout"
             label="Passer commande"

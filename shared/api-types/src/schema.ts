@@ -6814,6 +6814,8 @@ export interface components {
              * Format: uuid
              */
             order_id: string;
+            /** Order Number */
+            order_number?: string | null;
             /**
              * Payment Id
              * Format: uuid

@@ -16,6 +16,7 @@
           <q-input
             v-model="email"
             type="email"
+            data-testid="login-email"
             outlined
             dense
             label="Email"
@@ -26,6 +27,7 @@
           <q-input
             v-model="password"
             :type="showPassword ? 'text' : 'password'"
+            data-testid="login-password"
             outlined
             dense
             label="Mot de passe"
@@ -44,6 +46,7 @@
 
           <q-btn
             type="submit"
+            data-testid="login-submit"
             color="primary"
             label="Se connecter"
             class="full-width"
