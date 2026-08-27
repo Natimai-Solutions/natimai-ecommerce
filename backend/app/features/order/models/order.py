@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Any
@@ -87,6 +88,18 @@ class OrderBase(Base):
         max_length=50,
         description="Mode de livraison du dernier tronçon choisi au checkout",
     )
+    # Preuve d'acceptation des CGV. La case cochée dans le front n'engage rien :
+    # sans trace serveur, l'acceptation n'est pas opposable et un appel direct
+    # à l'API la contourne. Horodatage + version des CGV figés au checkout.
+    cgv_accepted_at: datetime | None = Field(
+        default=None,
+        description="Horodatage UTC de l'acceptation des CGV au checkout",
+    )
+    cgv_version: str | None = Field(
+        default=None,
+        max_length=50,
+        description="Version des CGV acceptée au checkout",
+    )
 
 
 class OrderCreate(OrderBase, BaseCreate):
@@ -109,6 +122,9 @@ class OrderUpdate(BaseUpdate):
     shipping_cost_breakdown: dict[str, Any] | None = None
     notes: str | None = None
     delivery_type: str | None = None
+    # cgv_accepted_at / cgv_version sont volontairement absents : la preuve
+    # d'acceptation est figée au checkout et ne doit pas être modifiable via
+    # la route de mise à jour générique.
 
 
 class Order(OrderBase, table=True):

@@ -12,6 +12,7 @@ from app.features.payment.models.payment import (
     PaymentUpdate,
 )
 from app.features.payment.models.payment_log import PaymentLog
+from app.features.payment.models.payment_status import PaymentStatus
 from app.utils.money import minor_units_to_decimal, parse_minor_units
 
 
@@ -77,6 +78,32 @@ class PaymentCrud(CrudBase[Payment, PaymentCreate, PaymentUpdate]):
         )
         exec_result = await session.exec(statement)
         return exec_result.first()
+
+    async def list_with_status_by_order_id(
+        self,
+        session: AsyncSession,
+        *,
+        order_id: uuid.UUID,
+    ) -> list[tuple[Payment, str | None]]:
+        """All payments of an order with their status name, oldest first.
+
+        Deliberately ignores ``is_active`` / ``is_admin_active`` (unlike
+        :meth:`get_by_order_id`): this feeds the ``/payments/initiate`` guards,
+        where a soft-deleted row must not become a blind spot that lets a second
+        charge through.
+        """
+        statement = (
+            select(self.model, PaymentStatus.name)
+            .join(
+                PaymentStatus,
+                col(self.model.payment_status_id) == col(PaymentStatus.id),
+                isouter=True,
+            )
+            .where(self.model.order_id == order_id)
+            .order_by(col(self.model.created_at))
+        )
+        exec_result = await session.exec(statement)
+        return [(payment, status_name) for payment, status_name in exec_result.all()]
 
     async def get_by_provider_reference(
         self,

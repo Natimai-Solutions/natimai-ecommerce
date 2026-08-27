@@ -513,8 +513,10 @@ After the first deploy (migrations + `initial_data` + workers up), verify:
 
 **Health**
 ```bash
-curl -s $API/api/v1/healthz/liveness   # {"status":"ok"}
-curl -s $API/api/v1/healthz/ready      # {"status":"ok","checks":{"db":"ok","redis":"ok"}}
+curl -s $API/api/v1/healthz/liveness   # {"status":"alive","timestamp":...}
+# 200 + {"status":"ready","database":true,"redis":true} si tout répond,
+# 503 + {"status":"degraded",...} sinon (d'où le -f ci-dessous qui échoue).
+curl -fsS $API/api/v1/healthz/ready
 ```
 
 **Database** — migrations applied and the full‑text search extension present:
@@ -598,16 +600,24 @@ backup.
 ### Schedule
 
 [`scripts/backup/backup.sh`](scripts/backup/backup.sh) dumps the database
-(custom format), archives the uploads volume, verifies the dump magic, and
-rotates old files (14 days by default). Cron example (as the deploy user):
-
-```bash
-0 2 * * * cd /opt/fastapi-ecommerce && ./scripts/backup/backup.sh >> /var/log/ecommerce-backup.log 2>&1
-```
+(custom format), archives the uploads volume, verifies **both** artefacts
+(`PGDMP` magic for the dump, `tar tzf` for the archive), pushes them offsite,
+and only then rotates old files (14 days by default). Each artefact is written
+to a `.part` file and renamed only once verified, so a truncated dump can never
+masquerade as a good backup.
 
 **Offsite copy is mandatory** (disk failure and ransomware both take the local
-backups with them). Uncomment and configure the `rclone` line in the script, or
-add your own `scp`/object‑storage push.
+backups with them), so it gates the rotation: with no `OFFSITE_RCLONE_REMOTE`
+the script warns and **skips the rotation entirely** rather than deleting
+archives that never left this disk.
+
+```bash
+0 2 * * * cd /opt/fastapi-ecommerce && OFFSITE_RCLONE_REMOTE=remote:ecommerce-backups \
+  ./scripts/backup/backup.sh >> /var/log/ecommerce-backup.log 2>&1
+```
+
+Local-only rotation can be forced with `RETENTION_LOCAL_ONLY=true` if you push
+the backups elsewhere by another means (`scp`, object storage, snapshots).
 
 ### Restore procedure (test it BEFORE go‑live)
 
@@ -622,7 +632,9 @@ $COMPOSE exec -T postgres pg_restore -U postgres -d fastapi_ecommerce \
   --clean --if-exists --no-owner < backups/db_<STAMP>.dump
 
 # 3. Restore the uploads volume
-$COMPOSE exec -T api tar xzf - -C /tmp < backups/storage_<STAMP>.tar.gz
+#    --index : `api` runs with replicas: 2 in production, so a bare `exec` is
+#    ambiguous. Both replicas share the same volume, index 1 is fine.
+$COMPOSE exec --index 1 -T api tar xzf - -C /tmp < backups/storage_<STAMP>.tar.gz
 
 # 4. Restart and check
 $COMPOSE up -d

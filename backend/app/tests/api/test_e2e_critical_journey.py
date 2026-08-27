@@ -530,6 +530,7 @@ def test_e1_critical_journey_login_catalog_cart_checkout_payment_tracking_histor
             "shipping_address": "Papeete, PF",
             "shipping_fee_amount": "1.00",
             "payment_fee_amount": "0.50",
+            "cgv_accepted": True,
         },
     )
     assert checkout_response.status_code == 201

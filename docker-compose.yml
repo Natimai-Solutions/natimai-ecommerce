@@ -125,10 +125,11 @@ services:
       - CLAMAV_PORT=3310
     restart: unless-stopped
     healthcheck:
-      # Le worker écrit une clé de santé dans Redis toutes les 60 s
-      # (WorkerSettings.health_check_interval) ; `arq --check` la lit.
+      # Le worker écrit une clé de santé dans Redis toutes les 20 s
+      # (WorkerSettings.health_check_interval, TTL 21 s) sous une clé propre au
+      # conteneur ; `arq --check` la relit depuis CE conteneur.
       test: ["CMD", "arq", "--check", "app.core.arq_worker.WorkerSettings"]
-      interval: 90s
+      interval: 60s
       timeout: 15s
       retries: 3
       start_period: 30s
@@ -157,6 +158,11 @@ services:
       - POSTGRES_DB=fastapi_ecommerce
       - REDIS_URL=redis://redis:6379
       - LOG_LEVEL=INFO
+      # Le poller instancie Settings au démarrage : sans cette valeur, le
+      # garde-fou de config.py fait crash-looper le service hors ENVIRONMENT=local.
+      - CLAMAV_ENABLED=true
+      - CLAMAV_HOST=clamav
+      - CLAMAV_PORT=3310
     restart: unless-stopped
 
   # Migration (optionnel, pour les déploiements)
@@ -177,6 +183,10 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=fastapi_ecommerce
+      # Idem : `migrate` construit Settings avant d'ouvrir la connexion. Sans
+      # cette valeur les migrations échouent au démarrage en staging/production.
+      - CLAMAV_ENABLED=true
+
   frontend:
     build:
       context: .

@@ -224,7 +224,7 @@ async def test_checkout_persists_segment_note_from_orchestration(
     await checkout_my_cart(
         session=session,
         current_user=current_user,
-        payload=CheckoutRequest(shipping_address="Paris, France"),
+        payload=CheckoutRequest(shipping_address="Paris, France", cgv_accepted=True),
     )
 
     assert reserve_mock.await_args is not None
