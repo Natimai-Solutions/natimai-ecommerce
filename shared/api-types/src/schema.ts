@@ -802,6 +802,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Invoices
+         * @description List issued invoices, most recent first (optionally one fiscal year).
+         */
+        get: operations["admin-invoices-list_invoices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/invoices/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Invoices Csv
+         * @description Accounting export of the issued invoices (CSV, semicolon-separated).
+         *
+         *     Ordered by invoice number so the accountant can check sequence continuity
+         *     at a glance. Amounts use a comma decimal separator, as expected by French
+         *     accounting software.
+         */
+        get: operations["admin-invoices-export_invoices_csv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/invoices/{invoice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Invoice
+         * @description Return one invoice's metadata.
+         */
+        get: operations["admin-invoices-get_invoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/invoices/{invoice_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Invoice Pdf
+         * @description Download an invoice PDF.
+         */
+        get: operations["admin-invoices-download_invoice_pdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/shipping/pending-grouping": {
         parameters: {
             query?: never;
@@ -2133,7 +2217,7 @@ export interface paths {
         };
         /**
          * Get Group Users
-         * @description Get all users in a specific group
+         * @description Get all users in a specific group — admin only (membership enumeration).
          */
         get: operations["group-get_group_users"];
         put?: never;
@@ -2476,6 +2560,66 @@ export interface paths {
          * @description Return aggregated tracking information for one of the authenticated user's orders.
          */
         get: operations["order-get_my_order_tracking"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Invoices
+         * @description List the authenticated customer's invoices, most recent first.
+         */
+        get: operations["invoice-list_my_invoices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/me/by-order/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Invoice For Order
+         * @description Return the invoice issued for one of the customer's orders.
+         */
+        get: operations["invoice-get_my_invoice_for_order"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/me/{invoice_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download My Invoice Pdf
+         * @description Download the PDF of one of the customer's invoices.
+         */
+        get: operations["invoice-download_my_invoice_pdf"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8070,6 +8214,54 @@ export interface components {
             compute_from_movements?: boolean | null;
         };
         /**
+         * InvoicePublic
+         * @description Invoice metadata exposed by the API (the PDF has its own endpoint).
+         */
+        InvoicePublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Number */
+            invoice_number: string;
+            /** Fiscal Year */
+            fiscal_year: number;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+            /** Currency */
+            currency: string;
+            /** Total Excl Tax */
+            total_excl_tax: string;
+            /** Total Tax */
+            total_tax: string;
+            /** Total Incl Tax */
+            total_incl_tax: string;
+            /** Order Number */
+            order_number?: string | null;
+        };
+        /**
+         * InvoicesPublic
+         * @description Paginated list of invoices.
+         */
+        InvoicesPublic: {
+            /** Data */
+            data?: components["schemas"]["InvoicePublic"][];
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+        };
+        /**
          * LastLegOption
          * @description Priced last-leg (zone C) delivery option for the current cart.
          */
@@ -8188,6 +8380,11 @@ export interface components {
              */
             total_fees_amount: string;
             /**
+             * Currency
+             * @description Devise de facturation figée au checkout (null pour les commandes antérieures — on retombe alors sur la devise du paiement)
+             */
+            currency?: string | null;
+            /**
              * Shipping Address
              * @description Adresse de livraison
              */
@@ -8224,6 +8421,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Order Number */
+            order_number?: string | null;
             /** Order Status Name */
             order_status_name?: string | null;
         };
@@ -8526,6 +8725,11 @@ export interface components {
              * @default 0.00
              */
             total_fees_amount: number | string;
+            /**
+             * Currency
+             * @description Devise de facturation figée au checkout (null pour les commandes antérieures — on retombe alors sur la devise du paiement)
+             */
+            currency?: string | null;
             /**
              * Shipping Address
              * @description Adresse de livraison
@@ -8853,6 +9057,11 @@ export interface components {
              */
             total_fees_amount: string;
             /**
+             * Currency
+             * @description Devise de facturation figée au checkout (null pour les commandes antérieures — on retombe alors sur la devise du paiement)
+             */
+            currency?: string | null;
+            /**
              * Shipping Address
              * @description Adresse de livraison
              */
@@ -8889,6 +9098,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Order Number */
+            order_number?: string | null;
         };
         /**
          * OrderStatusCreate
@@ -9035,6 +9246,8 @@ export interface components {
             payment_fee_amount?: number | string | null;
             /** Total Fees Amount */
             total_fees_amount?: number | string | null;
+            /** Currency */
+            currency?: string | null;
             /** Shipping Address */
             shipping_address?: string | null;
             /** Shipping Cost Breakdown */
@@ -15665,6 +15878,132 @@ export interface operations {
             };
         };
     };
+    "admin-invoices-list_invoices": {
+        parameters: {
+            query?: {
+                fiscal_year?: number | null;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoicesPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-invoices-export_invoices_csv": {
+        parameters: {
+            query?: {
+                fiscal_year?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-invoices-get_invoice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoicePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-invoices-download_invoice_pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-shipping-list_pending_grouping": {
         parameters: {
             query?: never;
@@ -19213,6 +19552,100 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CustomerOrderTrackingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "invoice-list_my_invoices": {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoicesPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "invoice-get_my_invoice_for_order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoicePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "invoice-download_my_invoice_pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
