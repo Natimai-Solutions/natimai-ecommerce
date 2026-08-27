@@ -18,7 +18,14 @@ def custom_generate_unique_id(route: APIRoute) -> str:
 
 
 if settings.SENTRY_DSN and settings.ENVIRONMENT != "local":
-    sentry_sdk.init(dsn=str(settings.SENTRY_DSN), enable_tracing=True)
+    sentry_sdk.init(
+        dsn=str(settings.SENTRY_DSN),
+        # `enable_tracing` est déprécié depuis sentry-sdk 2.x ; il valait
+        # traces_sample_rate=1.0, valeur reprise telle quelle par défaut.
+        traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
+        # Sans ça staging et production se mélangent dans la même vue.
+        environment=settings.ENVIRONMENT,
+    )
 
 
 @asynccontextmanager

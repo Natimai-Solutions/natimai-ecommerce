@@ -60,8 +60,9 @@ random fallback still applies, with a warning.
 | `BACKEND_CORS_ORIGINS` | `[]` | Extra CORS origins (comma list or JSON array) |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | Access token TTL — do **not** increase |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `30` | Refresh token TTL |
-| `SENTRY_DSN` | — | Error monitoring DSN |
-| `ALERT_WEBHOOK_URL` | — | Ops alert webhook (Slack-style `{"text": …}`; Mattermost-compatible, Discord via `/slack` suffix). Fired on outbox degraded/recovered state changes and when an ARQ outbox job is abandoned after 5 tries. Empty = log only. **Recommended in production** |
+| `SENTRY_DSN` | — | Error monitoring DSN. Ignored when `ENVIRONMENT=local`. The Sentry `environment` tag is set from `ENVIRONMENT`, so staging and production stay separable in the same project. |
+| `SENTRY_TRACES_SAMPLE_RATE` | `1.0` | Share of transactions traced. `1.0` means **every** request is sent — fine to start, expensive once traffic grows. Lower it (e.g. `0.1`) once you know your volume. |
+| `ALERT_WEBHOOK_URL` | — | Ops alert webhook (Slack-style `{"text": …}`; Mattermost-compatible, Discord via `/slack` suffix). Fired on outbox degraded/recovered state changes and when an ARQ outbox job is abandoned after 8 tries (~15 min of backoff). Empty = log only. **Recommended in production** |
 
 > **Authentication model (cookie).** The **refresh token** is delivered as an
 > **HttpOnly, Secure, SameSite=Lax** cookie (unreadable by JS → XSS-resistant);

@@ -99,6 +99,11 @@ class Settings(BaseSettings):
 
     PROJECT_NAME: str = "FastAPI Ecommerce"
     SENTRY_DSN: HttpUrl | None = None
+    # Proportion de transactions tracées. 1.0 reproduit l'ancien
+    # `enable_tracing=True` (100 %) : c'est beaucoup de volume — et donc de
+    # quota — dès que le trafic monte. À baisser (0.1 par exemple) une fois
+    # la volumétrie de production connue.
+    SENTRY_TRACES_SAMPLE_RATE: float = 1.0
     # Webhook d'alerte opérationnelle (format Slack `{"text": …}`) — utilisé par
     # le health-checker outbox et par l'abandon définitif d'un job ARQ.
     # Vide = pas d'alerte (log uniquement).
