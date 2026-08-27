@@ -327,12 +327,24 @@ class IngramMicroService:
 
             results: dict[str, dict[str, Any]] = {}
 
+            products_data: list[Any]
             if isinstance(response, list):
                 products_data = response
             elif isinstance(response, dict):
-                products_data = response.get(
-                    "data", response.get("products", response.get("catalog", []))
+                # `.get(cle, defaut)` ne renvoie le defaut que si la cle est
+                # ABSENTE : une reponse {"data": null} rendait None, et
+                # l'iteration plus bas levait TypeError. Le `or` suivant traite
+                # aussi une cle presente a null.
+                raw = (
+                    response.get("data")
+                    or response.get("products")
+                    or response.get("catalog")
                 )
+                products_data = raw if isinstance(raw, list) else []
+                if raw is not None and not isinstance(raw, list):
+                    logger.error(
+                        "Unexpected Ingram payload shape: %s", type(raw).__name__
+                    )
             else:
                 logger.error(f"Unexpected response type: {type(response)}")
                 products_data = []
@@ -422,12 +434,12 @@ class IngramMicroAdapter(SupplierAdapter):
     # -- configuration ----------------------------------------------------
 
     @property
-    def default_categories(self) -> list[str]:  # type: ignore[override]
+    def default_categories(self) -> list[str]:
         """Execute default categories."""
         return list(settings.INGRAM_SYNC_CATEGORIES)
 
     @property
-    def origin_place_code(self) -> str | None:  # type: ignore[override]
+    def origin_place_code(self) -> str | None:
         """Place code where Ingram products ship from (drives the first leg)."""
         return settings.INGRAM_ORIGIN_PLACE_CODE or None
 

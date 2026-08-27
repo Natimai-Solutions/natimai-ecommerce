@@ -253,7 +253,8 @@ async def test_snapshot_refuses_to_issue_when_totals_do_not_tie_out(
 async def test_issue_invoice_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     """A replayed payment.captured must never produce a second invoice."""
     order_id = uuid.uuid4()
-    existing = SimpleNamespace(invoice_number="FAC-2026-00001", order_id=order_id)
+    # Annotée Any : voir ci-dessus, la doublure tient lieu d'Invoice.
+    existing: Any = SimpleNamespace(invoice_number="FAC-2026-00001", order_id=order_id)
     session = _FakeSession(exec_results=[[existing]])
 
     allocate = _async_return(("FAC-2026-00002", 2))

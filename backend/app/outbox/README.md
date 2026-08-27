@@ -132,8 +132,7 @@ Current handler call signature used by the worker:
 
 ```python
 @outbox_handler("create.product")
-async def create_notification(session: Any, payload: dict[str, Any]) -> None:
-    ...
+async def create_notification(session: Any, payload: dict[str, Any]) -> None: ...
 ```
 
 Important:

@@ -84,36 +84,26 @@ This allows the system to know which route comes next and automatically progress
     "name": "Client Bora Bora",
     "type": "address",
     "city": "Bora Bora",
-    "country": "PF"
+    "country": "PF",
 }
 
 # Our warehouse in Papeete
 {
-    "id": "papeete-warehouse-uuid", 
+    "id": "papeete-warehouse-uuid",
     "name": "Entrepôt Papeete",
     "type": "warehouse",
     "city": "Papeete",
-    "country": "PF"
+    "country": "PF",
 }
 ```
 
 ### Partner
 ```python
 # Ingram supplier partner
-{
-    "id": "ingram-uuid",
-    "name": "Ingram Micro",
-    "city": "Paris", 
-    "country": "FR"
-}
+{"id": "ingram-uuid", "name": "Ingram Micro", "city": "Paris", "country": "FR"}
 
 # Air Tahiti carrier
-{
-    "id": "air-tahiti-uuid",
-    "name": "Air Tahiti",
-    "city": "Papeete",
-    "country": "PF"
-}
+{"id": "air-tahiti-uuid", "name": "Air Tahiti", "city": "Papeete", "country": "PF"}
 ```
 
 ### StatusDefinition
@@ -126,17 +116,17 @@ This allows the system to know which route comes next and automatically progress
     "name": "En attente",
     "sequence_order": 1,
     "ui_color": "orange",
-    "ui_icon": "clock"
+    "ui_icon": "clock",
 }
 
 {
-    "id": "status-dispatched-uuid", 
+    "id": "status-dispatched-uuid",
     "entity": "route_tracking",
     "code": "dispatched",
     "name": "Expédié",
     "sequence_order": 2,
     "ui_color": "blue",
-    "ui_icon": "truck"
+    "ui_icon": "truck",
 }
 ```
 
@@ -146,10 +136,10 @@ This allows the system to know which route comes next and automatically progress
 {
     "entity": "route_tracking",
     "from_code": "pending",
-    "to_code": "dispatched", 
+    "to_code": "dispatched",
     "guard_name": "has_consolidation",
     "auto_advance": False,
-    "requires_confirmation": False
+    "requires_confirmation": False,
 }
 
 {
@@ -158,7 +148,7 @@ This allows the system to know which route comes next and automatically progress
     "to_code": "in_transit",
     "guard_name": null,
     "auto_advance": True,  # Automatic when flight departs
-    "requires_confirmation": False
+    "requires_confirmation": False,
 }
 ```
 
@@ -169,23 +159,23 @@ This allows the system to know which route comes next and automatically progress
     "id": "route-1-uuid",
     "name": "Ingram to Warehouse",
     "from_place_id": "ingram-warehouse-uuid",
-    "to_place_id": "papeete-warehouse-uuid", 
+    "to_place_id": "papeete-warehouse-uuid",
     "from_partner_id": "ingram-uuid",
     "mode": "air",
     "operator": "Air France Cargo",
-    "allow_consolidation": True
+    "allow_consolidation": True,
 }
 
 # Route 2: Warehouse → Bora Bora
 {
-    "id": "route-2-uuid", 
+    "id": "route-2-uuid",
     "name": "Warehouse to Bora Bora",
     "from_place_id": "papeete-warehouse-uuid",
     "to_place_id": "bora-bora-address-uuid",
-    "to_partner_id": "air-tahiti-uuid", 
+    "to_partner_id": "air-tahiti-uuid",
     "mode": "air",
     "operator": "Air Tahiti",
-    "is_to_customer": True
+    "is_to_customer": True,
 }
 ```
 
@@ -196,20 +186,20 @@ This allows the system to know which route comes next and automatically progress
     "id": "tracking-1-uuid",
     "order_id": "order-123",
     "route_id": "route-1-uuid",
-    "status_id": "status-pending-uuid",    # FK to StatusDefinition
+    "status_id": "status-pending-uuid",  # FK to StatusDefinition
     "sequence_order": 1,
     "selected_at": "2025-09-30T10:00:00Z",
-    "consolidation_id": "consol-1-uuid"
+    "consolidation_id": "consol-1-uuid",
 }
 
 # Route 2 tracking (waiting for route 1 completion)
 {
-    "id": "tracking-2-uuid", 
+    "id": "tracking-2-uuid",
     "order_id": "order-123",
     "route_id": "route-2-uuid",
-    "status_id": "status-waiting-uuid",    # FK to StatusDefinition
+    "status_id": "status-waiting-uuid",  # FK to StatusDefinition
     "sequence_order": 2,
-    "selected_at": "2025-09-30T10:00:00Z"
+    "selected_at": "2025-09-30T10:00:00Z",
 }
 ```
 
@@ -223,7 +213,7 @@ This allows the system to know which route comes next and automatically progress
     "consolidation_code": "AF-20250930-001",
     "status_id": "status-dispatched-uuid",  # FK to StatusDefinition
     "tracking_ref": "AF1234567",
-    "total_orders": 15
+    "total_orders": 15,
 }
 ```
 
@@ -233,22 +223,22 @@ This allows the system to know which route comes next and automatically progress
 {
     "id": "log-1-uuid",
     "tracking_id": "tracking-1-uuid",
-    "from_status_id": null,                    # Initial status
-    "to_status_id": "status-pending-uuid",     # FK to StatusDefinition
+    "from_status_id": null,  # Initial status
+    "to_status_id": "status-pending-uuid",  # FK to StatusDefinition
     "change_type": "manual",
     "changed_by": "customer",
-    "reason": "Route selected by customer"
+    "reason": "Route selected by customer",
 }
 
 {
-    "id": "log-2-uuid", 
+    "id": "log-2-uuid",
     "tracking_id": "tracking-1-uuid",
-    "from_status_id": "status-pending-uuid",   # FK to StatusDefinition
-    "to_status_id": "status-dispatched-uuid", # FK to StatusDefinition
+    "from_status_id": "status-pending-uuid",  # FK to StatusDefinition
+    "to_status_id": "status-dispatched-uuid",  # FK to StatusDefinition
     "change_type": "consolidation_override",
     "consolidation_id": "consol-1-uuid",
     "changed_by": "system",
-    "reason": "Status updated from consolidation: AF-20250930-001"
+    "reason": "Status updated from consolidation: AF-20250930-001",
 }
 ```
 
@@ -262,7 +252,7 @@ This allows the system to know which route comes next and automatically progress
     "delivery_type": "home_delivery",
     "assignee": "Air Tahiti Delivery",
     "status_code": "pending",
-    "scheduled_at": "2025-10-02T14:00:00Z"
+    "scheduled_at": "2025-10-02T14:00:00Z",
 }
 ```
 
@@ -271,22 +261,22 @@ This allows the system to know which route comes next and automatically progress
 #### 1. Order Placed & Route Selected
 ```python
 # Customer selects routes with sequence and StatusDefinition
-POST /api/shipping/tracking
+POST / api / shipping / tracking
 [
     {
         "order_id": "order-123",
-        "route_id": "route-1-uuid",      # Ingram → Warehouse
+        "route_id": "route-1-uuid",  # Ingram → Warehouse
         "status_id": "status-pending-uuid",
         "sequence_order": 1,
-        "selected_at": "2025-09-30T10:00:00Z"
+        "selected_at": "2025-09-30T10:00:00Z",
     },
     {
-        "order_id": "order-123", 
-        "route_id": "route-2-uuid",      # Warehouse → Bora Bora
+        "order_id": "order-123",
+        "route_id": "route-2-uuid",  # Warehouse → Bora Bora
         "status_id": "status-waiting-uuid",
         "sequence_order": 2,
-        "selected_at": "2025-09-30T10:00:00Z"
-    }
+        "selected_at": "2025-09-30T10:00:00Z",
+    },
 ]
 
 # Result: 2 ShippingRouteTracking entries created + audit logs
@@ -295,53 +285,45 @@ POST /api/shipping/tracking
 #### 2. Consolidation Created
 ```python
 # Orders grouped for efficiency with StatusDefinition
-POST /api/shipping/consolidations
+POST / api / shipping / consolidations
 {
     "route_id": "route-1-uuid",
     "name": "AF Cargo Oct 1st",
     "consolidation_code": "AF-20250930-001",
-    "status_id": "status-pending-uuid"
+    "status_id": "status-pending-uuid",
 }
 
 # Add our order to consolidation
-POST /api/shipping/consolidations/{consol_id}/add-tracking/{tracking_id}
+POST / api / shipping / consolidations / {consol_id} / add - tracking / {tracking_id}
 ```
 
 #### 3. Consolidation Dispatched 
 ```python
 # Update consolidation status → affects all orders
-PUT /api/shipping/consolidations/{consol_id}/status
-{
-    "status_id": "status-dispatched-uuid",
-    "tracking_ref": "AF1234567"
-}
+PUT / api / shipping / consolidations / {consol_id} / status
+{"status_id": "status-dispatched-uuid", "tracking_ref": "AF1234567"}
 
 # Result: All orders → "dispatched" + audit logs with consolidation_override
 ```
 
 #### 4. In Transit to Warehouse
 ```python
-PUT /api/shipping/consolidations/{consol_id}/status
-{
-    "status_id": "status-in-transit-uuid",
-    "tracking_ref": "AF1234567"
-}
+PUT / api / shipping / consolidations / {consol_id} / status
+{"status_id": "status-in-transit-uuid", "tracking_ref": "AF1234567"}
 
 # Result: All orders → "in_transit" + automatic logs
 ```
 
 #### 5. Arrival at Warehouse
 ```python
-PUT /api/shipping/consolidations/{consol_id}/status
-{
-    "status_id": "status-arrived-uuid"
-}
+PUT / api / shipping / consolidations / {consol_id} / status
+{"status_id": "status-arrived-uuid"}
 
 # Auto-Route Progression: Route 1 completed → Activate Route 2
-POST /api/shipping/tracking/{tracking-1-uuid}/activate-next
+POST / api / shipping / tracking / {tracking - 1 - uuid} / activate - next
 
 # System automatically:
-# 1. Marks route 1 (Ingram → Warehouse) as "completed" 
+# 1. Marks route 1 (Ingram → Warehouse) as "completed"
 # 2. Finds next route (sequence_order = 2)
 # 3. Activates route 2 (Warehouse → Bora Bora) with "in_progress"
 # 4. Creates detailed audit logs for both changes
@@ -349,21 +331,19 @@ POST /api/shipping/tracking/{tracking-1-uuid}/activate-next
 
 #### 6. Create Final Delivery Task
 ```python
-POST /api/shipping/delivery-tasks
+POST / api / shipping / delivery - tasks
 {
     "order_id": "order-123",
     "address_place_id": "bora-bora-address-uuid",
     "delivery_type": "home_delivery",
-    "assignee": "Air Tahiti Delivery"
+    "assignee": "Air Tahiti Delivery",
 }
 ```
 
 #### 7. Final Delivery
 ```python
-PUT /api/shipping/delivery-tasks/{task_id}/status
-{
-    "status_code": "delivered"
-}
+PUT / api / shipping / delivery - tasks / {task_id} / status
+{"status_code": "delivered"}
 ```
 
 ## Quick Start
@@ -373,13 +353,13 @@ PUT /api/shipping/delivery-tasks/{task_id}/status
 ```python
 # For API development
 from app.features.place.models import Place
-from app.features.partner.models import Partner  
+from app.features.partner.models import Partner
 from app.features.shipping.models.status import StatusDefinition, StatusTransition
 from app.features.shipping.models.shipping_route import ShippingRoute
 from app.features.shipping.models.shipping_route_tracking import (
     ShippingRouteTracking,
     ShippingRouteTrackingConsolidation,
-    ShippingRouteTrackingLogs
+    ShippingRouteTrackingLogs,
 )
 from app.features.shipping.models.delivery_task import DeliveryTask
 ```
@@ -482,15 +462,15 @@ Each `ShippingRouteTracking` entry has a `sequence_order` field:
     {
         "order_id": "order-123",
         "route_id": "ingram-to-warehouse-route",
-        "sequence_order": 1,           # First step
-        "status_id": "status-pending-uuid"
+        "sequence_order": 1,  # First step
+        "status_id": "status-pending-uuid",
     },
     {
-        "order_id": "order-123", 
+        "order_id": "order-123",
         "route_id": "warehouse-to-borabora-route",
-        "sequence_order": 2,           # Second step
-        "status_id": "status-waiting-uuid"       # Waits for step 1
-    }
+        "sequence_order": 2,  # Second step
+        "status_id": "status-waiting-uuid",  # Waits for step 1
+    },
 ]
 ```
 
@@ -500,13 +480,11 @@ When route 1 completes:
 ```python
 # System automatically calls:
 await crud_shipping_route_tracking.activate_next_route(
-    session=session,
-    order_id=order_id,
-    current_tracking_id=route_1_tracking_id
+    session=session, order_id=order_id, current_tracking_id=route_1_tracking_id
 )
 
 # Result:
-# 1. Route 1 → status "completed"  
+# 1. Route 1 → status "completed"
 # 2. Route 2 → status "in_progress"
 # 3. Complete audit trail in ShippingRouteTrackingLogs
 # 4. Customer gets seamless progression
@@ -522,14 +500,14 @@ Instead of simple strings, the system now uses proper FK relations:
 # Old approach (string-based)
 status_code: str = "pending"
 
-# New approach (relation-based)  
+# New approach (relation-based)
 status_id: uuid.UUID = Field(foreign_key="status_definitions.id")
 status: StatusDefinition = Relationship(...)
 
 # Access rich metadata
-tracking.status.name           # "En attente"
-tracking.status.ui_color       # "orange"  
-tracking.status.sequence_order # 1
+tracking.status.name  # "En attente"
+tracking.status.ui_color  # "orange"
+tracking.status.sequence_order  # 1
 ```
 
 ### Complete Audit Trail
@@ -540,13 +518,13 @@ Every status change creates a log entry:
 # Automatic logging on every status update
 {
     "tracking_id": "tracking-uuid",
-    "from_status_id": "status-pending-uuid",     # FK relation
-    "to_status_id": "status-dispatched-uuid",   # FK relation
-    "change_type": "consolidation_override",    # Context
-    "consolidation_id": "consol-uuid",          # Related consolidation
-    "changed_by": "system",                     # Who/what made change
-    "was_auto_advance": False,                  # Transition metadata
-    "required_confirmation": False              # Workflow metadata
+    "from_status_id": "status-pending-uuid",  # FK relation
+    "to_status_id": "status-dispatched-uuid",  # FK relation
+    "change_type": "consolidation_override",  # Context
+    "consolidation_id": "consol-uuid",  # Related consolidation
+    "changed_by": "system",  # Who/what made change
+    "was_auto_advance": False,  # Transition metadata
+    "required_confirmation": False,  # Workflow metadata
 }
 ```
 
@@ -558,18 +536,18 @@ StatusTransition defines allowed workflows:
 # Guard-protected transition
 {
     "from_code": "pending",
-    "to_code": "dispatched", 
-    "guard_name": "has_consolidation",      # Business rule
-    "auto_advance": False,                  # Manual trigger
-    "requires_confirmation": False          # No confirmation needed
+    "to_code": "dispatched",
+    "guard_name": "has_consolidation",  # Business rule
+    "auto_advance": False,  # Manual trigger
+    "requires_confirmation": False,  # No confirmation needed
 }
 
 # Automatic transition
 {
     "from_code": "dispatched",
     "to_code": "in_transit",
-    "auto_advance": True,                   # Triggers automatically
-    "requires_confirmation": False          # No confirmation
+    "auto_advance": True,  # Triggers automatically
+    "requires_confirmation": False,  # No confirmation
 }
 ```
 

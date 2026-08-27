@@ -512,7 +512,7 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         else:
             statement = statement.order_by(order_by)
         if ids and len(ids):
-            statement = statement.where(self.model.id.in_(ids))  # type: ignore
+            statement = statement.where(self.model.id.in_(ids))
         if include_archived is False and self.default_filter is not None:
             statement = statement.where(self.default_filter)
         if filter is not None:

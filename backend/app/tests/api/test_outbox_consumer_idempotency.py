@@ -8,6 +8,7 @@ from arq.worker import Retry
 from sqlmodel import Field, SQLModel
 
 from app.features.base.crud import CrudBase
+from app.outbox import consumer as consumer_module
 from app.outbox.consumer import (
     OUTBOX_CONSUMER_IDEMPOTENCY_TTL_SECONDS,
     OUTBOX_HANDLER_MAX_TRIES,
@@ -182,9 +183,7 @@ async def test_execute_outbox_handler_skips_already_processed_delivery(
     import_module_mock = Mock(
         side_effect=AssertionError("handler import should be skipped")
     )
-    monkeypatch.setattr(
-        "app.outbox.consumer.importlib.import_module", import_module_mock
-    )
+    monkeypatch.setattr(consumer_module.importlib, "import_module", import_module_mock)
 
     await execute_outbox_handler(
         ctx,
@@ -208,7 +207,8 @@ async def test_execute_outbox_handler_sets_idempotency_key_after_success(
     fake_module = SimpleNamespace(test_handler=handler_mock)
 
     monkeypatch.setattr(
-        "app.outbox.consumer.importlib.import_module",
+        consumer_module.importlib,
+        "import_module",
         Mock(return_value=fake_module),
     )
 
@@ -225,7 +225,8 @@ async def test_execute_outbox_handler_sets_idempotency_key_after_success(
             return None
 
     monkeypatch.setattr(
-        "app.outbox.consumer.AsyncSession",
+        consumer_module,
+        "AsyncSession",
         Mock(return_value=_FakeSessionContext()),
     )
 
@@ -263,7 +264,8 @@ async def test_execute_outbox_handler_does_not_set_key_on_failure(
     fake_module = SimpleNamespace(test_handler=handler_mock)
 
     monkeypatch.setattr(
-        "app.outbox.consumer.importlib.import_module",
+        consumer_module.importlib,
+        "import_module",
         Mock(return_value=fake_module),
     )
 
@@ -280,7 +282,8 @@ async def test_execute_outbox_handler_does_not_set_key_on_failure(
             return None
 
     monkeypatch.setattr(
-        "app.outbox.consumer.AsyncSession",
+        consumer_module,
+        "AsyncSession",
         Mock(return_value=_FakeSessionContext()),
     )
 
@@ -311,7 +314,8 @@ async def test_execute_outbox_handler_gives_up_and_alerts_after_max_tries(
     """On the last attempt the original error propagates and an alert is sent."""
     handler_mock = AsyncMock(side_effect=RuntimeError("handler failed"))
     monkeypatch.setattr(
-        "app.outbox.consumer.importlib.import_module",
+        consumer_module.importlib,
+        "import_module",
         Mock(return_value=SimpleNamespace(test_handler=handler_mock)),
     )
 
@@ -323,11 +327,12 @@ async def test_execute_outbox_handler_gives_up_and_alerts_after_max_tries(
             return None
 
     monkeypatch.setattr(
-        "app.outbox.consumer.AsyncSession",
+        consumer_module,
+        "AsyncSession",
         Mock(return_value=_FakeSessionContext()),
     )
     alert_mock = AsyncMock(return_value=True)
-    monkeypatch.setattr("app.outbox.consumer.send_alert", alert_mock)
+    monkeypatch.setattr(consumer_module, "send_alert", alert_mock)
 
     redis = SimpleNamespace(
         get=AsyncMock(return_value=None),

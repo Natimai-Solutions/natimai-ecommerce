@@ -13,7 +13,7 @@ class RedisCache:
     async def __aenter__(self) -> redis.Redis:
         """Enter the async context manager."""
         self.cache = redis.from_url(str(settings.REDIS_URL))  # type: ignore[no-untyped-call]
-        return self.cache  # type: ignore[return-value]
+        return self.cache
 
     async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None:
         """Exit the async context manager."""
