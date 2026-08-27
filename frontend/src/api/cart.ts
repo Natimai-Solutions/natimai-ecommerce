@@ -21,12 +21,6 @@ type CheckoutRequest = Omit<
   delivery_type?: string | null;
   /** Id of the saved shipping address to link (avoids duplicate creation). */
   shipping_address_id?: string | null;
-  /**
-   * Acceptance of the terms of sale. The backend refuses the checkout without
-   * it and records the proof on the order (cgv_accepted_at / cgv_version).
-   * Declared here until the OpenAPI schema is regenerated.
-   */
-  cgv_accepted?: boolean;
 };
 type CheckoutResponse = components['schemas']['CheckoutResponse'] & {
   provider_code?: string | null;
