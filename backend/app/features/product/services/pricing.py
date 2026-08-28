@@ -244,6 +244,43 @@ async def resolve_tax_rate(
     return None
 
 
+async def resolve_customs_rate_pct(
+    session: AsyncSession,
+    product: Product,
+) -> Decimal | None:
+    """Resolve the applicable customs rate for a product.
+
+    Resolution order, mirroring resolve_tax_rate:
+    1) Product.customs_rate_pct
+    2) Category.default_customs_rate_pct
+
+    Returns None when neither is set. Callers must treat None as "unknown",
+    never as zero: the supplier sync never fills this rate, so a silent zero
+    would under-price every synced product by the whole customs bracket.
+    Publication is gated on this resolving (see services/publication.py).
+    """
+    product_rate = getattr(product, "customs_rate_pct", None)
+    if product_rate is not None:
+        return _as_decimal(product_rate)
+
+    category_id = getattr(product, "category_id", None)
+    if category_id is None:
+        return None
+
+    try:
+        category = await session.get(Category, category_id)
+    except Exception:
+        return None
+
+    if category is None:
+        return None
+
+    category_rate = getattr(category, "default_customs_rate_pct", None)
+    if category_rate is None:
+        return None
+    return _as_decimal(category_rate)
+
+
 def _compute_volume_m3(product: Product) -> Decimal | None:
     """Return product volume in m³ from dimensions in cm, or None if any dim is missing."""
     length = getattr(product, "dimensions_length", None)
@@ -299,7 +336,11 @@ async def calculate_sale_price(
     cost_currency = (
         getattr(product, "cost_currency", None) or settings.REFERENCE_CURRENCY
     )
-    customs_rate_pct = _as_decimal(getattr(product, "customs_rate_pct", None))
+    # None (neither product nor category rate) prices as 0 here, but such a
+    # product is not publishable and cannot reach the cart — see
+    # services/publication.py. Keeping this total avoids breaking admin
+    # previews of products still being set up.
+    customs_rate_pct = _as_decimal(await resolve_customs_rate_pct(session, product))
 
     cost_in_reference, _fx_rate = await convert_to_reference_currency(
         session, raw_cost, cost_currency

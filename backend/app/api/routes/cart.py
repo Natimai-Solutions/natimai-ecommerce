@@ -74,9 +74,11 @@ from app.features.place.models import Place
 from app.features.product.models.product import Product
 from app.features.product.services.pricing import (
     calculate_sale_price,
+    resolve_customs_rate_pct,
     resolve_default_price_group,
     resolve_tax_rate,
 )
+from app.features.product.services.publication import publication_blockers
 from app.features.shipping.crud import (
     crud_shipping_route,
     crud_shipping_route_tracking,
@@ -290,6 +292,31 @@ def _route_preference_sort_key(
     return (route_cost, eta_days, route_priority)
 
 
+async def _import_route_ids(
+    session: SessionDep,
+    routes: list[ShippingRoute],
+) -> set[uuid.UUID]:
+    """Ids of the routes among ``routes`` that cross the customs border.
+
+    A route is an import leg when its destination clears customs
+    (``Place.customs_clearance``). Its variable freight already sits inside the
+    product's CAF unit price (see product/services/pricing.py), so billing it
+    again as a cart shipping fee would charge the import twice.
+    """
+    if not routes:
+        return set()
+
+    to_place_ids = {route.to_place_id for route in routes}
+    result = await session.exec(
+        select(col(Place.id)).where(
+            col(Place.id).in_(to_place_ids),
+            col(Place.customs_clearance).is_(True),
+        )
+    )
+    customs_place_ids = set(result.all())
+    return {route.id for route in routes if route.to_place_id in customs_place_ids}
+
+
 async def _resolve_selected_checkout_routes(
     session: SessionDep,
     *,
@@ -328,6 +355,19 @@ async def _resolve_selected_checkout_routes(
             details={"route_ids": missing_route_ids},
         )
 
+    import_route_ids = await _import_route_ids(session, routes)
+    if import_route_ids:
+        raise AppError(
+            code="shipping.route.import_not_billable",
+            status_code=400,
+            message=(
+                "Import routes are already priced into the product and cannot "
+                "be charged as shipping: "
+                + ", ".join(sorted(str(rid) for rid in import_route_ids))
+            ),
+            details={"route_ids": sorted(str(rid) for rid in import_route_ids)},
+        )
+
     return [route_by_id[route_id] for route_id in ordered_route_ids]
 
 
@@ -358,6 +398,9 @@ async def _select_checkout_routes_by_preference(
     intermediary_routes = await crud_shipping_route.get_intermediary_routes(
         session=session,
     )
+    # Drop the import legs: their freight is already in the product price.
+    import_ids = await _import_route_ids(session, intermediary_routes)
+    intermediary_routes = [r for r in intermediary_routes if r.id not in import_ids]
     if intermediary_routes:
         selected_routes.append(min(intermediary_routes, key=sort_key))
 
@@ -1000,6 +1043,19 @@ async def _get_active_product_or_404(
             status_code=404,
             message=f"Product '{product_id}' not found",
             details={"product_id": str(product_id)},
+        )
+
+    # A product whose customs rate or weight is missing prices below cost
+    # (see services/publication.py). Refuse the sale rather than honour a
+    # price we know to be wrong — this also covers carts filled before the
+    # product lost its rate.
+    blockers = await publication_blockers(session, product)
+    if blockers:
+        raise AppError(
+            code="cart.product.not_purchasable",
+            status_code=409,
+            message=f"Product '{product_id}' is not available for sale",
+            details={"product_id": str(product_id), "blockers": blockers},
         )
 
     product.base_price = await calculate_sale_price(session, product)
@@ -1808,6 +1864,9 @@ async def checkout_my_cart(
         for item in items:
             product = products_by_id[item.product_id]
             resolved_tax_rate = await resolve_tax_rate(session, product)
+            # Snapshot the *effective* rate: it may come from the category, in
+            # which case the product column is NULL and would freeze a wrong 0.
+            resolved_customs_rate_pct = await resolve_customs_rate_pct(session, product)
 
             line_segments = await _reserve_stock_for_checkout(
                 session=session,
@@ -1843,9 +1902,7 @@ async def checkout_my_cart(
                     cost_currency_snapshot=getattr(product, "cost_currency", None)
                     or settings.REFERENCE_CURRENCY,
                     fx_rate_used=getattr(item, "fx_rate_used", None),
-                    customs_rate_pct_snapshot=getattr(
-                        product, "customs_rate_pct", None
-                    ),
+                    customs_rate_pct_snapshot=resolved_customs_rate_pct,
                     margin_rate_pct_snapshot=getattr(
                         price_group,
                         "margin_rate_pct",

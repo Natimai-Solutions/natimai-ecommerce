@@ -57,11 +57,15 @@ class ProductBase(Base):
         max_length=10,
         description="Currency of the product cost amount",
     )
-    customs_rate_pct: Decimal = Field(
-        default=Decimal("0.00"),
+    customs_rate_pct: Decimal | None = Field(
+        default=None,
         ge=0,
         decimal_places=2,
-        description="Customs rate percentage applied before margin",
+        description=(
+            "Customs rate percentage applied before margin. "
+            "None → inherit Category.default_customs_rate_pct; "
+            "unresolved rate makes the product non-publishable."
+        ),
     )
     has_variants: bool = Field(
         default=False,

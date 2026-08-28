@@ -1,13 +1,22 @@
-"""Admin endpoints for tax-rate management.
+"""Admin endpoints for catalog fiscality — consumption tax and customs duty.
 
 GET  /admin/tax-rates                      — list rates (filters: territory_code, valid)
 POST /admin/tax-rates                      — create a new rate (never mutates existing)
 PUT  /admin/tax-rates/{id}                 — update label or set valid_until (close)
 PUT  /admin/products/{id}/tax-rate         — assign a tax rate to a product
 PUT  /admin/categories/{id}/tax-rate       — assign a tax rate to a category
+PUT  /admin/products/{id}/customs-rate     — set/clear a product's customs rate
+PUT  /admin/categories/{id}/customs-rate   — set/clear a category's default customs rate
+GET  /admin/catalog/publication-report     — what blocks products from the storefront
 
 Invariant: rate_pct is immutable once created. To change a rate create a new one
 and set valid_until on the old one to close it.
+
+Customs rates follow the same product → category resolution as tax rates, but
+are plain percentages rather than dated records: they are an input of the CAF
+price, not a fiscal document line. A product whose rate resolves nowhere is not
+publishable (see product/services/publication.py) — the report endpoint exists
+to size that backlog before opening the storefront.
 """
 
 from __future__ import annotations
@@ -15,9 +24,12 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import date
+from decimal import Decimal
+from typing import Any
 
 from fastapi import APIRouter, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
@@ -25,14 +37,19 @@ from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.product.crud.category import crud_category
 from app.features.product.crud.product import crud_product
-from app.features.product.models.category import CategoryPublic
-from app.features.product.models.product import ProductPublic
+from app.features.product.models.category import Category, CategoryPublic
+from app.features.product.models.product import Product, ProductPublic
 from app.features.product.models.tax_rate import (
     TaxRate,
     TaxRateCreate,
     TaxRatePublic,
     TaxRatesPublic,
     TaxRateUpdate,
+)
+from app.features.product.services.publication import (
+    customs_rate_condition,
+    publication_conditions,
+    weight_condition,
 )
 
 logger = logging.getLogger(__name__)
@@ -251,3 +268,172 @@ async def assign_tax_rate_to_category(
     await session.commit()
     await session.refresh(category)
     return CategoryPublic.model_validate(category)
+
+
+# ---------------------------------------------------------------------------
+# Customs rates (CAF price input — see product/services/publication.py)
+# ---------------------------------------------------------------------------
+
+
+class CustomsRateAssignBody(BaseModel):
+    """Set (or clear, with null) a customs rate percentage."""
+
+    customs_rate_pct: Decimal | None = Field(default=None, ge=0)
+
+
+@router.put("/products/{product_id}/customs-rate", response_model=ProductPublic)
+async def assign_customs_rate_to_product(
+    product_id: uuid.UUID,
+    payload: CustomsRateAssignBody,
+    session: SessionDep,
+    current_user: CurrentSuperUser,
+) -> ProductPublic:
+    """Set the product's own customs rate; null falls back to its category."""
+    try:
+        product = await crud_product.read(session, id=product_id, user=current_user)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="product.not_found",
+            status_code=404,
+            message=f"Product '{product_id}' not found",
+            details={"product_id": str(product_id)},
+        ) from exc
+
+    product.customs_rate_pct = payload.customs_rate_pct
+    session.add(product)
+    await session.commit()
+    await session.refresh(product)
+    return ProductPublic.model_validate(product)
+
+
+@router.put("/categories/{category_id}/customs-rate", response_model=CategoryPublic)
+async def assign_customs_rate_to_category(
+    category_id: uuid.UUID,
+    payload: CustomsRateAssignBody,
+    session: SessionDep,
+    current_user: CurrentSuperUser,
+) -> CategoryPublic:
+    """Set the default customs rate inherited by the category's products."""
+    try:
+        category = await crud_category.read(session, id=category_id, user=current_user)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="category.not_found",
+            status_code=404,
+            message=f"Category '{category_id}' not found",
+            details={"category_id": str(category_id)},
+        ) from exc
+
+    category.default_customs_rate_pct = payload.customs_rate_pct
+    session.add(category)
+    await session.commit()
+    await session.refresh(category)
+    return CategoryPublic.model_validate(category)
+
+
+# ---------------------------------------------------------------------------
+# Publication report
+# ---------------------------------------------------------------------------
+
+
+class CategoryPublicationRow(BaseModel):
+    """Per-category publication readiness."""
+
+    category_id: uuid.UUID | None = None
+    category_name: str | None = None
+    default_customs_rate_pct: Decimal | None = None
+    default_tax_rate_id: uuid.UUID | None = None
+    product_count: int = 0
+    blocked_count: int = 0
+
+
+class PublicationReport(BaseModel):
+    """How much of the enriched catalog is publishable, and what blocks the rest."""
+
+    enriched_count: int = 0
+    publishable_count: int = 0
+    blocked_customs_rate_unresolved: int = 0
+    blocked_weight_missing: int = 0
+    categories: list[CategoryPublicationRow] = Field(default_factory=list)
+
+
+@router.get("/catalog/publication-report", response_model=PublicationReport)
+async def get_publication_report(
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+) -> PublicationReport:
+    """Size the pre-opening backlog: which products the storefront hides, and why.
+
+    Counts the enriched, active catalog only — a product still waiting for Icecat
+    is invisible for an unrelated reason and would drown the signal.
+    """
+    base_conditions = [
+        col(Product.is_active).is_(True),
+        col(Product.is_admin_active).is_(True),
+        col(Product.is_enriched).is_(True),
+    ]
+
+    async def _count(*extra: Any) -> int:
+        stmt = select(func.count()).select_from(Product).where(*base_conditions, *extra)
+        return int((await session.exec(stmt)).one())
+
+    customs_ok = customs_rate_condition()
+    weight_ok = weight_condition()
+
+    enriched_count = await _count()
+    publishable_count = await _count(*publication_conditions())
+    blocked_customs = await _count(~customs_ok)
+    blocked_weight = await _count(~weight_ok)
+
+    category_rows = (
+        await session.exec(
+            select(
+                col(Product.category_id),
+                func.count(),
+            )
+            .where(*base_conditions)
+            .group_by(col(Product.category_id))
+        )
+    ).all()
+    blocked_rows = dict(
+        (
+            await session.exec(
+                select(col(Product.category_id), func.count())
+                .where(*base_conditions)
+                .where(~customs_ok | ~weight_ok)
+                .group_by(col(Product.category_id))
+            )
+        ).all()
+    )
+
+    categories: list[CategoryPublicationRow] = []
+    for category_id, product_count in category_rows:
+        category = (
+            await session.get(Category, category_id)
+            if category_id is not None
+            else None
+        )
+        categories.append(
+            CategoryPublicationRow(
+                category_id=category_id,
+                category_name=category.name if category is not None else None,
+                default_customs_rate_pct=(
+                    category.default_customs_rate_pct if category is not None else None
+                ),
+                default_tax_rate_id=(
+                    category.default_tax_rate_id if category is not None else None
+                ),
+                product_count=int(product_count),
+                blocked_count=int(blocked_rows.get(category_id, 0)),
+            )
+        )
+
+    categories.sort(key=lambda row: (-row.blocked_count, row.category_name or ""))
+
+    return PublicationReport(
+        enriched_count=enriched_count,
+        publishable_count=publishable_count,
+        blocked_customs_rate_unresolved=blocked_customs,
+        blocked_weight_missing=blocked_weight,
+        categories=categories,
+    )

@@ -26,6 +26,7 @@ from app.features.product.services.pricing import (
     calculate_price_by_mode,
     resolve_default_price_group,
 )
+from app.features.product.services.publication import publication_blockers
 from app.features.product.services.spec_projection import (
     get_effective_spec_definitions,
 )
@@ -95,6 +96,20 @@ async def get_product_shipping_modes(
             message="Product not found",
             details={"product_id": str(product_id), "reason": "not_enriched"},
         )
+
+    if not is_admin:
+        blockers = await publication_blockers(session, product)
+        if blockers:
+            raise AppError(
+                code="product.not_found",
+                status_code=404,
+                message="Product not found",
+                details={
+                    "product_id": str(product_id),
+                    "reason": "not_publishable",
+                    "blockers": blockers,
+                },
+            )
 
     # Load import routes ordered by priority asc (highest priority first = lowest number)
     route_stmt = (

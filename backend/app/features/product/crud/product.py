@@ -23,6 +23,7 @@ from app.features.product.services.pricing import (
     calculate_sale_price,
     resolve_default_price_group,
 )
+from app.features.product.services.publication import publication_conditions
 
 logger = logging.getLogger(__name__)
 _DECIMAL_PATTERN = re.compile(r"[-+]?\d*\.?\d+")
@@ -371,6 +372,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
                     col(Product.featured_until).is_(None)
                     | (Product.featured_until >= now)
                 ),
+                *publication_conditions(),
             )
             .order_by(
                 col(Product.featured_position).is_(None),
@@ -447,6 +449,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             col(Product.is_active).is_(True),
             col(Product.is_admin_active).is_(True),
             col(Product.is_enriched).is_(True),
+            *publication_conditions(),
         )
 
         query_text = (q or "").strip()

@@ -95,6 +95,11 @@ async def _seed(session: AsyncSession) -> None:
             # is invisible to the storefront, and the journey would start on an
             # empty page.
             is_enriched=True,
+            # Same for the publication guard: a product whose customs rate does
+            # not resolve, or that has no weight, is priced below cost and is
+            # therefore hidden (see product/services/publication.py).
+            customs_rate_pct=Decimal("5.00"),
+            weight=2.5,
             is_active=True,
             is_admin_active=True,
         )
@@ -117,8 +122,12 @@ async def _seed(session: AsyncSession) -> None:
         inventory.quantity = Decimal("50")
         session.add(inventory)
 
-    # Same for the catalogue-facing quantity, which repeated checkouts drain.
+    # Same for the catalogue-facing quantity, which repeated checkouts drain,
+    # and for the publication inputs, which a product seeded by an older
+    # revision would be missing.
     product.supplier_quantity = Decimal("50")
+    product.customs_rate_pct = Decimal("5.00")
+    product.weight = 2.5
     session.add(product)
 
     await session.commit()

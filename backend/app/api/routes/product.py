@@ -20,6 +20,10 @@ from app.features.product.models.product import (
     ProductsPublic,
     ProductUpdate,
 )
+from app.features.product.services.publication import (
+    publication_blockers,
+    publication_conditions,
+)
 
 
 class ProductRouter(
@@ -62,6 +66,20 @@ class ProductRouter(
                     details={"product_id": str(id), "reason": "not_enriched"},
                 )
 
+            if not is_admin:
+                blockers = await publication_blockers(session, cast(Product, record))
+                if blockers:
+                    raise AppError(
+                        code="product.not_found",
+                        status_code=404,
+                        message="Product not found",
+                        details={
+                            "product_id": str(id),
+                            "reason": "not_publishable",
+                            "blockers": blockers,
+                        },
+                    )
+
             return cast(ProductPublic, record)
 
         read.__name__ = "get_one_product"
@@ -89,6 +107,7 @@ class ProductRouter(
                     col(Product.is_active).is_(True),
                     col(Product.is_admin_active).is_(True),
                     col(Product.is_enriched).is_(True),
+                    *publication_conditions(),
                 )
             else:
                 conditions: list[Any] = []

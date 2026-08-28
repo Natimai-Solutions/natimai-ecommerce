@@ -1,6 +1,7 @@
 # mypy: disable-error-code="assignment,misc,override"
 
 import uuid
+from decimal import Decimal
 
 from sqlmodel import Field, SQLModel
 
@@ -30,6 +31,15 @@ class CategoryBase(Base):
         foreign_key="tax_rates.id",
         index=True,
         description="Default tax rate applied to products in this category",
+    )
+    default_customs_rate_pct: Decimal | None = Field(
+        default=None,
+        ge=0,
+        decimal_places=2,
+        description=(
+            "Default customs rate percentage for products in this category "
+            "(used when Product.customs_rate_pct is not set)"
+        ),
     )
 
 
