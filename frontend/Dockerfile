@@ -1,5 +1,5 @@
 # ── Build stage ────────────────────────────────────────────────────────────────
-FROM node:22-alpine AS builder
+FROM node:25-alpine AS builder
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
@@ -36,7 +36,7 @@ RUN pnpm --filter frontend run build
 RUN node -e "const fs=require('fs');const p='/workspace/frontend/dist/ssr/package.json';const pkg=JSON.parse(fs.readFileSync(p,'utf8'));for(const k of Object.keys(pkg.dependencies||{})){if(String(pkg.dependencies[k]).startsWith('workspace:'))delete pkg.dependencies[k];}fs.writeFileSync(p,JSON.stringify(pkg,null,2));"
 
 # ── Production stage ────────────────────────────────────────────────────────────
-FROM node:22-alpine AS runner
+FROM node:25-alpine AS runner
 
 ENV NODE_ENV=production
 WORKDIR /app
