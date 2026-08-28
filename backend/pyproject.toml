@@ -27,7 +27,12 @@ dependencies = [
     "pytest-asyncio>=1.0.0",
     "pytest-mock>=3.14.0",
     "arq>=0.26.3",
-    "redis>=5.0.0",  # Version plus récente compatible avec Python 3.12
+    # Borne haute alignée sur ce qu'arq autorise réellement : toutes ses
+    # versions, 0.28.0 comprise, exigent `redis[hiredis]>=4.2.0,<6`. Sans cette
+    # borne, la déclaration laisse croire que redis 6/7/8 est possible et
+    # Dependabot échoue en boucle à résoudre le fichier. Ne la retirer que le
+    # jour où arq élargira sa propre contrainte.
+    "redis>=5.0.0,<6.0.0",
     "aiohttp>=3.8.0",  # Pour les appels API REST Ingram Micro
     "boto3>=1.34.0",  # S3 file storage for payment attachments
     "clamd>=1.0.2",  # ClamAV antivirus scanner for uploaded documents
