@@ -274,7 +274,7 @@ requires-dist = [
     { name = "python-multipart", specifier = ">=0.0.7,<1.0.0" },
     { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "redis", specifier = ">=5.0.0" },
-    { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.0.0" },
+    { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.68.1" },
     { name = "sqlmodel", specifier = ">=0.0.21,<1.0.0" },
     { name = "tenacity", specifier = ">=8.2.3,<9.0.0" },
     { name = "weasyprint", specifier = ">=62.0" },
