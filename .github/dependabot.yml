@@ -1,0 +1,69 @@
+# Surveillance des dépendances.
+#
+# Ce dépôt n'en avait aucune : au 28/08/2026, `pnpm audit` remontait 23
+# vulnérabilités hautes dont 9 dans les dépendances de production (axios,
+# dompurify, quasar…), sans que rien ne l'ait jamais signalé.
+#
+# ⚠️ Ce fichier ne pilote que les mises à jour de VERSION. Les *security
+# updates* (correctifs poussés en urgence sur une faille connue) dépendent d'un
+# réglage du dépôt : Settings → Code security → Dependabot alerts + Dependabot
+# security updates. Les activer est au moins aussi important que ce fichier.
+#
+# Les mises à jour sont groupées pour éviter la noyade sous les PR : une PR par
+# écosystème pour les patchs et mineures, mais les majeures restent séparées —
+# elles demandent un arbitrage, pas une fusion réflexe.
+version: 2
+
+updates:
+  # ── JavaScript (workspace pnpm) ────────────────────────────────────────────
+  # Un seul pnpm-lock.yaml à la racine couvre frontend, admin-frontend, shared/*
+  # et e2e : inutile de déclarer chaque paquet du workspace.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      js-mineures-et-patchs:
+        update-types: ["minor", "patch"]
+    labels: ["dépendances", "javascript"]
+
+  # ── Python (backend) ───────────────────────────────────────────────────────
+  # Écosystème `uv` et non `pip` : le projet est verrouillé par uv.lock, que
+  # seul cet écosystème sait régénérer de façon cohérente avec pyproject.toml.
+  - package-ecosystem: "uv"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      python-mineures-et-patchs:
+        update-types: ["minor", "patch"]
+    labels: ["dépendances", "python"]
+
+  # ── Images de base Docker ──────────────────────────────────────────────────
+  # Le scanner signalait des vulnérabilités dans node:22-alpine et
+  # nginx:1.27-alpine (cf. I8 du plan de travail) : ces trois entrées sont ce
+  # qui fera remonter les prochaines.
+  - package-ecosystem: "docker"
+    directories:
+      - "/backend"
+      - "/frontend"
+      - "/admin-frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    labels: ["dépendances", "docker"]
+
+  # ── Actions GitHub ─────────────────────────────────────────────────────────
+  # Une action compromise s'exécute avec les secrets du dépôt ; les tenir à jour
+  # n'est pas de l'hygiène décorative.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    labels: ["dépendances", "ci"]
