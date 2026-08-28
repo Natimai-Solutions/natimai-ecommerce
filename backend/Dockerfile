@@ -1,6 +1,6 @@
 # Python 3.13 : possible depuis le retrait de passlib, qui importait le module
 # stdlib `crypt` supprimé en 3.13. Toute la suite tourne déjà sur 3.13 en local.
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 ENV PYTHONUNBUFFERED=1
 
