@@ -32,7 +32,7 @@ ENV VITE_API_URL=$VITE_API_URL
 RUN pnpm --filter admin run build
 
 # ── Production stage ────────────────────────────────────────────────────────────
-FROM nginx:1.27-alpine AS runner
+FROM nginx:1.31-alpine AS runner
 
 COPY --from=builder /workspace/admin-frontend/dist/spa /usr/share/nginx/html
 COPY admin-frontend/nginx.conf /etc/nginx/conf.d/default.conf
