@@ -44,6 +44,11 @@ api.{$DOMAIN} {
 	request_body {
 		max_size 16MB
 	}
+	# X-Forwarded-For est *remplacé* (et non complété) par l'IP du pair réel :
+	# le backend lit la chaîne par la droite, et réécrire ici garantit qu'un
+	# client ne peut pas l'allonger pour repousser sa vraie IP hors de portée
+	# et contourner le throttle par IP. Si un CDN est ajouté devant Caddy,
+	# retirer cette ligne.
 	# `api` tourne en replicas: 2. Un upstream statique `api:8000` ne cible
 	# qu'une adresse résolue au démarrage : la seconde réplique ne recevait
 	# quasiment rien. `dynamic a` re-résout le DNS Docker et expose les deux
@@ -59,6 +64,7 @@ api.{$DOMAIN} {
 			port 8000
 			refresh 10s
 		}
+		header_up X-Forwarded-For {remote_host}
 		lb_policy round_robin
 		lb_try_duration 5s
 		fail_duration 10s

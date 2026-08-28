@@ -32,8 +32,10 @@ from app.features.cart.models.cart import (
 from app.features.cart.models.quote_request import (
     GuestQuoteRequestResponse,
     GuestQuoteRequestSubmit,
+    QuoteRequest,
     QuoteRequestCreate,
     QuoteRequestResponse,
+    QuoteRequestStatus,
     QuoteRequestSubmit,
 )
 from app.features.inventory.crud import crud_inventory, crud_stock_movement
@@ -1373,7 +1375,7 @@ async def create_quote_request(
             full_name=current_user.full_name,
             shipping_address=payload.shipping_address,
             notes=payload.notes,
-            status="requested",
+            status=QuoteRequestStatus.REQUESTED,
             items_snapshot={
                 "currency": cart.currency,
                 "subtotal_amount": str(subtotal_amount),
@@ -1396,7 +1398,7 @@ async def create_quote_request(
     )
 
     if not email_delivered:
-        quote_request.status = "email_failed"
+        quote_request.status = QuoteRequestStatus.EMAIL_FAILED
         session.add(quote_request)
 
     await session.commit()
@@ -1420,8 +1422,14 @@ async def create_quote_request(
 )
 async def create_guest_quote_request(
     payload: GuestQuoteRequestSubmit,
+    session: SessionDep,
 ) -> GuestQuoteRequestResponse:
-    """Send a quote request email for a guest cart without authentication."""
+    """Enregistrer puis transmettre une demande de devis d'un visiteur.
+
+    La demande est **persistée avant l'envoi** : auparavant elle n'existait que
+    sous forme d'email, et un échec d'envoi la perdait définitivement alors que
+    l'endpoint répondait 201. Le back-office (A11) est désormais le filet.
+    """
     support_email = (settings.EMAIL_SUPPORT or "").strip()
     if not support_email:
         raise AppError(
@@ -1478,6 +1486,32 @@ async def create_guest_quote_request(
         notes=payload.notes,
     )
 
+    # Persistée d'abord, et committée : si l'envoi échoue ensuite, la demande
+    # reste consultable dans le back-office avec le statut qui le dit.
+    quote_request = await crud_quote_request.create_draft(
+        session=session,
+        data=QuoteRequestCreate(
+            user_id=None,
+            cart_id=None,
+            email=customer_email,
+            phone=payload.customer_phone,
+            full_name=payload.customer_name,
+            shipping_address=payload.shipping_address,
+            notes=payload.notes,
+            status=QuoteRequestStatus.REQUESTED,
+            items_snapshot={
+                "currency": currency,
+                "subtotal_amount": str(subtotal_amount),
+                "items": item_snapshots,
+            },
+        ),
+        user=None,
+    )
+    # Capturé AVANT le commit : celui-ci expire l'instance, et relire un
+    # attribut expiré depuis du code asynchrone lève MissingGreenlet.
+    quote_request_id = quote_request.id
+    await session.commit()
+
     email_delivered = await _send_quote_support_email(
         recipient=support_email,
         subject=subject,
@@ -1485,10 +1519,19 @@ async def create_guest_quote_request(
         html=email_html,
         metadata={
             "event_type": "quote.requested.guest",
+            "quote_request_id": str(quote_request_id),
             "customer_email": customer_email,
             "item_count": len(item_snapshots),
         },
     )
+
+    if not email_delivered:
+        # Rechargée plutôt que réutilisée, pour la même raison.
+        failed = await session.get(QuoteRequest, quote_request_id)
+        if failed is not None:
+            failed.status = QuoteRequestStatus.EMAIL_FAILED
+            session.add(failed)
+            await session.commit()
 
     return GuestQuoteRequestResponse(
         email_delivered=email_delivered,
@@ -1946,6 +1989,7 @@ async def checkout_my_cart(
 
         return CheckoutResponse(
             order_id=order.id,
+            order_number=order.order_number,
             payment_id=payment.id,
             cart_id=cart.id,
             subtotal_amount=subtotal_amount,

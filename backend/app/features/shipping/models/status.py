@@ -68,13 +68,13 @@ class StatusDefinitionCreate(StatusDefinitionBase, BaseCreate):
 class StatusDefinitionUpdate(StatusDefinitionBase, BaseUpdate):
     """Represents status definition update."""
 
-    entity: str | None = None  # type: ignore[assignment]
-    code: str | None = None  # type: ignore[assignment]
-    name: str | None = None  # type: ignore[assignment]
+    entity: str | None = None
+    code: str | None = None
+    name: str | None = None
     description: str | None = None
     rank: int | None = None
-    is_terminal: bool | None = None  # type: ignore[assignment]
-    is_error: bool | None = None  # type: ignore[assignment]
+    is_terminal: bool | None = None
+    is_error: bool | None = None
     ui_color: str | None = None
     ui_icon: str | None = None
 
@@ -123,13 +123,13 @@ class StatusTransitionCreate(StatusTransitionBase, BaseCreate):
 class StatusTransitionUpdate(StatusTransitionBase, BaseUpdate):
     """Represents status transition update."""
 
-    entity: str | None = None  # type: ignore[assignment]
-    from_code: str | None = None  # type: ignore[assignment]
-    to_code: str | None = None  # type: ignore[assignment]
+    entity: str | None = None
+    from_code: str | None = None
+    to_code: str | None = None
     guard_name: str | None = None
-    auto_advance: bool | None = None  # type: ignore[assignment]
-    requires_confirmation: bool | None = None  # type: ignore[assignment]
-    requires_scan: bool | None = None  # type: ignore[assignment]
+    auto_advance: bool | None = None
+    requires_confirmation: bool | None = None
+    requires_scan: bool | None = None
 
 
 class StatusTransitionPublic(StatusTransitionBase, BasePublic):

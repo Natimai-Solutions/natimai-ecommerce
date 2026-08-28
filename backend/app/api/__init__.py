@@ -11,6 +11,7 @@ from app.api.routes.admin_payment_eligibility import (
 from app.api.routes.admin_payments import router as admin_payments_router
 from app.api.routes.admin_price_groups import router as admin_price_groups_router
 from app.api.routes.admin_product import router as admin_product_router
+from app.api.routes.admin_quote_requests import router as admin_quote_requests_router
 from app.api.routes.admin_shipping import router as admin_shipping_router
 from app.api.routes.admin_spec_definitions import (
     router as admin_spec_definitions_router,
@@ -42,6 +43,7 @@ from app.api.routes.order_line import router as order_line_router
 from app.api.routes.order_status import router as order_status_router
 from app.api.routes.orders_me import router as orders_me_router
 from app.api.routes.partner import router as partner_router
+from app.api.routes.password_reset import router as password_reset_router
 from app.api.routes.payment import router as payment_router
 from app.api.routes.payment_method import (
     router as payment_method_router,
@@ -71,6 +73,7 @@ from app.api.routes.webhooks import router as webhooks_router
 api_router = APIRouter()
 
 api_router.include_router(login_router, tags=["login"])
+api_router.include_router(password_reset_router)
 api_router.include_router(oauth_router)
 api_router.include_router(signup_router)
 api_router.include_router(partner_router)
@@ -79,6 +82,7 @@ api_router.include_router(payment_router)
 api_router.include_router(payment_method_router)
 api_router.include_router(payments_router)
 api_router.include_router(admin_payments_router)
+api_router.include_router(admin_quote_requests_router)
 api_router.include_router(admin_orders_router)
 api_router.include_router(admin_invoices_router)
 api_router.include_router(admin_shipping_router)

@@ -18,7 +18,14 @@ def custom_generate_unique_id(route: APIRoute) -> str:
 
 
 if settings.SENTRY_DSN and settings.ENVIRONMENT != "local":
-    sentry_sdk.init(dsn=str(settings.SENTRY_DSN), enable_tracing=True)
+    sentry_sdk.init(
+        dsn=str(settings.SENTRY_DSN),
+        # `enable_tracing` est déprécié depuis sentry-sdk 2.x ; il valait
+        # traces_sample_rate=1.0, valeur reprise telle quelle par défaut.
+        traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
+        # Sans ça staging et production se mélangent dans la même vue.
+        environment=settings.ENVIRONMENT,
+    )
 
 
 @asynccontextmanager
@@ -76,13 +83,18 @@ async def security_headers_middleware(
     return response
 
 
-# Set all CORS enabled origins
-if settings.BACKEND_CORS_ORIGINS:
+# Set all CORS enabled origins.
+#
+# Driven by ``all_cors_origins`` (BACKEND_CORS_ORIGINS + FRONTEND_HOST), not by
+# BACKEND_CORS_ORIGINS alone. The storefront and the API live on different
+# subdomains in production, so every browser call is cross-origin: gating the
+# middleware on BACKEND_CORS_ORIGINS meant that setting only FRONTEND_HOST —
+# which the deployment guide describes as the CORS origin — left the middleware
+# uninstalled and the storefront unable to reach the API at all.
+if settings.all_cors_origins:
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            str(origin).strip("/") for origin in settings.BACKEND_CORS_ORIGINS
-        ],
+        allow_origins=settings.all_cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

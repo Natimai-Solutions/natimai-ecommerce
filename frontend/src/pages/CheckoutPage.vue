@@ -101,7 +101,14 @@
                 <template v-if="instructions">
                   <q-banner class="bg-green-1 text-green-9 q-mb-md" rounded>
                     <template #avatar><q-icon name="check_circle" /></template>
-                    Votre demande de paiement a bien été enregistrée.
+                    <div>Votre demande de paiement a bien été enregistrée.</div>
+                    <div
+                      v-if="placedOrderRef"
+                      data-testid="checkout-order-ref"
+                      class="text-weight-medium q-mt-xs"
+                    >
+                      Commande {{ placedOrderRef }}
+                    </div>
                   </q-banner>
                   <div class="text-body2 q-mb-md" style="white-space: pre-line">
                     {{ instructions }}
@@ -179,6 +186,7 @@
                       :key="a.id"
                       v-ripple
                       clickable
+                      :data-testid="`checkout-address-${a.id}`"
                       :active="selectedAddressId === a.id"
                       active-class="bg-blue-1"
                       @click="selectedAddressId = a.id"
@@ -225,6 +233,7 @@
                         :key="d.value"
                         v-ripple
                         clickable
+                        :data-testid="`checkout-delivery-${d.value}`"
                         :active="selectedDeliveryType === d.value"
                         active-class="bg-blue-1"
                         @click="selectedDeliveryType = d.value"
@@ -257,6 +266,7 @@
                       :key="m.id"
                       v-ripple
                       clickable
+                      :data-testid="`checkout-method-${m.provider_code}`"
                       :active="selectedMethodId === m.id"
                       active-class="bg-blue-1"
                       @click="selectedMethodId = m.id"
@@ -279,7 +289,12 @@
                     </q-item>
                   </q-list>
 
-                  <q-checkbox v-model="cgvAccepted" dense class="q-mb-sm">
+                  <q-checkbox
+                    v-model="cgvAccepted"
+                    data-testid="checkout-cgv"
+                    dense
+                    class="q-mb-sm"
+                  >
                     <span class="text-body2">
                       J'ai lu et j'accepte les
                       <router-link :to="{ name: 'cgv' }" target="_blank" @click.stop>
@@ -289,6 +304,7 @@
                   </q-checkbox>
 
                   <q-btn
+                    data-testid="checkout-submit"
                     color="primary"
                     icon="check_circle"
                     label="Valider la commande"
@@ -321,7 +337,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { countryLabel, formatXpf } from '@app/utils';
+import { countryLabel, formatXpf, orderRef } from '@app/utils';
 import { useCartStore } from 'src/stores/cart';
 import { useAuthStore } from 'src/stores/auth';
 import {
@@ -348,6 +364,9 @@ const cgvAccepted = ref(false);
 const orderPlaced = ref(false);
 const formToken = ref<string | null>(null);
 const instructions = ref<string | null>(null);
+// Reference of the order just created, shown on the confirmation so the
+// customer can quote it before the email arrives (M5).
+const placedOrderRef = ref<string | null>(null);
 const errorMessage = ref<string | null>(null);
 // Payment is tied to a user account (POST /payments/initiate requires auth).
 const isAuthenticated = computed(() => authStore.isAuthenticated);
@@ -525,6 +544,7 @@ async function startPayment() {
       cgv_accepted: cgvAccepted.value,
     });
     orderPlaced.value = true;
+    placedOrderRef.value = orderRef(checkout.order_number, checkout.order_id);
 
     // 3. Clear the local cart now that the order exists.
     cartStore.clearCart();

@@ -62,6 +62,17 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/PaymentReturnPage.vue'),
       },
       {
+        path: 'mot-de-passe-oublie',
+        name: 'forgot-password',
+        component: () => import('pages/ForgotPasswordPage.vue'),
+      },
+      {
+        // Cible du lien envoyé par email ; le jeton est en query string.
+        path: 'reinitialiser',
+        name: 'reset-password',
+        component: () => import('pages/ResetPasswordPage.vue'),
+      },
+      {
         path: 'cgv',
         name: 'cgv',
         component: () => import('pages/legal/CgvPage.vue'),

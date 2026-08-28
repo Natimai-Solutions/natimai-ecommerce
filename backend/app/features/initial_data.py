@@ -29,6 +29,8 @@ from app.features.product.models.tax_rate import TaxRate
 from app.features.shipping.models.carrier import Carrier
 from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.models.status import StatusDefinition, StatusTransition
+from app.features.system.legal_identity import LEGAL_SETTINGS, seed_value_for
+from app.features.system.models.system_setting import SystemSetting
 from app.features.user.models.group import Group
 from app.features.user.models.group_security import GroupSecurity
 
@@ -721,6 +723,42 @@ async def _seed_security_groups(session: AsyncSession) -> None:
             )
 
 
+async def _seed_legal_identity_settings(session: AsyncSession) -> None:
+    """Créer les clés d'identité légale, vides, pour qu'elles soient éditables.
+
+    Le back-office ne montre que les lignes existantes : sans ce seed, les
+    champs n'apparaîtraient nulle part et personne ne saurait qu'ils sont à
+    remplir. Les valeurs sont amorcées depuis les réglages ``INVOICE_SELLER_*``
+    quand ils existent, pour qu'un déploiement antérieur ne reparte pas de
+    zéro.
+
+    Idempotent, et **ne réécrit jamais une valeur déjà saisie** : ce seed
+    tourne à chaque déploiement, écraser le texte légal saisi par le
+    propriétaire avec la valeur d'une variable d'environnement oubliée serait
+    exactement le genre de régression silencieuse à éviter.
+    """
+    for spec in LEGAL_SETTINGS:
+        result = await session.exec(
+            select(SystemSetting).where(SystemSetting.key == spec.key)
+        )
+        existing = result.first()
+        if existing is not None:
+            # Seule la description est rafraîchie : elle sert d'aide de saisie
+            # dans l'écran admin et peut être améliorée d'une version à l'autre.
+            if existing.description != spec.description:
+                existing.description = spec.description
+                session.add(existing)
+            continue
+
+        session.add(
+            SystemSetting(
+                key=spec.key,
+                value=seed_value_for(spec),
+                description=spec.description,
+            )
+        )
+
+
 async def initial_data(session: AsyncSession) -> None:
     """Execute initial data."""
     await _seed_payment_statuses(session)
@@ -733,3 +771,4 @@ async def initial_data(session: AsyncSession) -> None:
     await _seed_french_polynesia_geography(session)
     await _seed_shipping_statuses(session)
     await _seed_security_groups(session)
+    await _seed_legal_identity_settings(session)

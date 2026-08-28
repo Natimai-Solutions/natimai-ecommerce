@@ -1,5 +1,6 @@
 import uuid
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -35,7 +36,9 @@ async def test_update_status_accepts_new_status_id() -> None:
     )
 
     tracking = SimpleNamespace(id=tracking_id, status=old_status)
-    updated_tracking = SimpleNamespace(id=tracking_id, status=new_status)
+    # Annotée Any : la doublure remplace un ShippingRouteTracking, et sans ça
+    # l'assertion d'identité plus bas est un comparison-overlap pour mypy.
+    updated_tracking: Any = SimpleNamespace(id=tracking_id, status=new_status)
     session = AsyncMock()
     session.get = AsyncMock(return_value=new_status)
 
@@ -87,7 +90,9 @@ async def test_update_status_keeps_legacy_new_status_code() -> None:
     )
 
     tracking = SimpleNamespace(id=tracking_id, status=old_status)
-    updated_tracking = SimpleNamespace(id=tracking_id, status=new_status)
+    # Annotée Any : la doublure remplace un ShippingRouteTracking, et sans ça
+    # l'assertion d'identité plus bas est un comparison-overlap pour mypy.
+    updated_tracking: Any = SimpleNamespace(id=tracking_id, status=new_status)
 
     crud.read = AsyncMock(return_value=tracking)  # type: ignore[method-assign]
     crud.get_status_by_code = AsyncMock(return_value=new_status)  # type: ignore[method-assign]

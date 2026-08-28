@@ -1,5 +1,7 @@
+import datetime
 import uuid
 from decimal import Decimal
+from enum import Enum
 from typing import Any
 
 from sqlalchemy import JSON, Column
@@ -8,18 +10,57 @@ from sqlmodel import Field, SQLModel
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
+class QuoteRequestStatus(str, Enum):
+    """Cycle de vie d'une demande de devis, côté back-office.
+
+    Volontairement court : le devis lui-même se négocie hors de l'application
+    (email, téléphone). Ce qui doit être traçable ici, c'est qu'une demande a
+    bien été prise en charge et comment elle s'est terminée.
+    """
+
+    REQUESTED = "requested"
+    #: L'email vers le support a échoué — la demande existe malgré tout en base,
+    #: c'est justement le cas où l'écran admin est l'unique filet.
+    EMAIL_FAILED = "email_failed"
+    IN_PROGRESS = "in_progress"
+    QUOTED = "quoted"
+    WON = "won"
+    LOST = "lost"
+    CANCELLED = "cancelled"
+
+
+#: Statuts terminaux : ils figent `handled_at`.
+CLOSED_QUOTE_STATUSES = frozenset(
+    {QuoteRequestStatus.WON, QuoteRequestStatus.LOST, QuoteRequestStatus.CANCELLED}
+)
+
+
 class QuoteRequestBase(Base):
     """Represents quote request base."""
 
-    user_id: uuid.UUID = Field(foreign_key="users.id", index=True)
-    cart_id: uuid.UUID = Field(foreign_key="carts.id", index=True)
+    # Nullable : une demande de devis peut venir d'un visiteur non connecté, qui
+    # n'a ni compte ni panier serveur. Ces demandes n'étaient auparavant pas
+    # persistées du tout et disparaissaient avec l'email.
+    user_id: uuid.UUID | None = Field(default=None, foreign_key="users.id", index=True)
+    cart_id: uuid.UUID | None = Field(default=None, foreign_key="carts.id", index=True)
     email: str = Field(max_length=255)
     phone: str | None = Field(default=None, max_length=255)
     full_name: str | None = Field(default=None, max_length=255)
     shipping_address: str | None = Field(default=None, max_length=500)
     notes: str | None = Field(default=None, max_length=1000)
-    status: str = Field(default="requested", max_length=50)
+    status: str = Field(default=QuoteRequestStatus.REQUESTED, max_length=50)
     items_snapshot: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
+    admin_comment: str | None = Field(
+        default=None,
+        max_length=2000,
+        description="Suivi interne : pourquoi le devis a été perdu, relances…",
+    )
+    handled_at: datetime.datetime | None = Field(
+        default=None, description="Date de clôture de la demande"
+    )
+    handled_by_id: uuid.UUID | None = Field(
+        default=None, foreign_key="users.id", nullable=True
+    )
 
 
 class QuoteRequestCreate(QuoteRequestBase, BaseCreate):
@@ -32,6 +73,7 @@ class QuoteRequestUpdate(BaseUpdate):
     """Represents quote request update."""
 
     status: str | None = None
+    admin_comment: str | None = None
 
 
 class QuoteRequest(QuoteRequestBase, table=True):

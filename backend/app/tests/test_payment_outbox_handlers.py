@@ -285,3 +285,65 @@ async def test_payment_captured_notification_handler_dispatches_notifications(
         event_type="payment.captured",
         payload=payload,
     )
+
+
+@pytest.mark.anyio
+async def test_invoice_handler_issues_when_amounts_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: this handler called a helper that no longer existed.
+
+    The amount guard was renamed (_captured_amount_covers_order ->
+    _captured_amount_mismatch, with inverted semantics) while the invoicing
+    handler was written on another branch against the old name. The merge kept
+    both, so every payment.captured raised NameError at call time and no
+    invoice was ever issued — the module still imported fine, and no test
+    exercised this handler.
+    """
+    session = AsyncMock()
+    session.add = Mock()
+
+    order = _make_order(total_amount=Decimal("100.00"))
+    monkeypatch.setattr(handlers.crud_order, "read", AsyncMock(return_value=order))
+    monkeypatch.setattr(
+        handlers.crud_payment,
+        "read",
+        AsyncMock(
+            return_value=SimpleNamespace(amount=Decimal("100.00"), currency="XPF")
+        ),
+    )
+    issue = AsyncMock(return_value=SimpleNamespace(invoice_number="FA-2026-0001"))
+    monkeypatch.setattr(handlers, "issue_invoice_for_order", issue)
+
+    await handlers.on_payment_captured_issue_invoice(
+        cast(Any, session),
+        {"payment_id": str(uuid4()), "order_id": str(order.id)},
+    )
+
+    issue.assert_awaited_once_with(session, order_id=order.id)
+
+
+@pytest.mark.anyio
+async def test_invoice_handler_skips_on_amount_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An order whose capture does not cover its total must not be invoiced."""
+    session = AsyncMock()
+    session.add = Mock()
+
+    order = _make_order(total_amount=Decimal("100.00"))
+    monkeypatch.setattr(handlers.crud_order, "read", AsyncMock(return_value=order))
+    monkeypatch.setattr(
+        handlers.crud_payment,
+        "read",
+        AsyncMock(return_value=SimpleNamespace(amount=Decimal("1.00"), currency="XPF")),
+    )
+    issue = AsyncMock()
+    monkeypatch.setattr(handlers, "issue_invoice_for_order", issue)
+
+    await handlers.on_payment_captured_issue_invoice(
+        cast(Any, session),
+        {"payment_id": str(uuid4()), "order_id": str(order.id)},
+    )
+
+    issue.assert_not_awaited()

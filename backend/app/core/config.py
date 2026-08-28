@@ -99,6 +99,11 @@ class Settings(BaseSettings):
 
     PROJECT_NAME: str = "FastAPI Ecommerce"
     SENTRY_DSN: HttpUrl | None = None
+    # Proportion de transactions tracées. 1.0 reproduit l'ancien
+    # `enable_tracing=True` (100 %) : c'est beaucoup de volume — et donc de
+    # quota — dès que le trafic monte. À baisser (0.1 par exemple) une fois
+    # la volumétrie de production connue.
+    SENTRY_TRACES_SAMPLE_RATE: float = 1.0
     # Webhook d'alerte opérationnelle (format Slack `{"text": …}`) — utilisé par
     # le health-checker outbox et par l'abandon définitif d'un job ARQ.
     # Vide = pas d'alerte (log uniquement).
@@ -296,6 +301,11 @@ class Settings(BaseSettings):
     # locked for LOGIN_LOCKOUT_MINUTES (counter resets on successful login).
     LOGIN_LOCKOUT_MAX_FAILURES: int = 5
     LOGIN_LOCKOUT_MINUTES: int = 15
+    # Throttle sur la demande de réinitialisation. Il protège autant la boîte
+    # du client (harcèlement par renvois) que le quota du fournisseur d'emails.
+    # Fenêtre plus large que le login : une demande légitime est rare.
+    PASSWORD_RESET_RATE_LIMIT_ATTEMPTS: int = 5
+    PASSWORD_RESET_RATE_LIMIT_WINDOW_SECONDS: int = 900
     # Behind Cloudflare / a reverse proxy the socket IP is the proxy's, not the
     # client's: name the trusted header carrying the real client IP —
     # "CF-Connecting-IP" (Cloudflare) or "X-Forwarded-For" (nginx/traefik with

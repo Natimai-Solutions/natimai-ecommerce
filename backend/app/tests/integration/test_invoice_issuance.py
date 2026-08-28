@@ -12,6 +12,7 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.features.invoice.models.invoice import Invoice, InvoiceCounter
 from app.features.invoice.services.invoice_service import issue_invoice_for_order
 from app.features.invoice.services.numbering import allocate_invoice_number
@@ -47,7 +48,18 @@ async def _seed_paid_order(
         territory_code="PF",
         valid_from="2020-01-01",
     )
-    session.add_all([user, status, tax_rate])
+    # Les frais (port, paiement) sont taxés sous le code configuré, pas sous
+    # celui du produit. Sans cette ligne ils tombaient à 0 %, ce qui ajoutait un
+    # second groupe au tax_breakdown — trié avant celui à 16 % — et faisait
+    # échouer l'assertion positionnelle plus bas.
+    fees_tax_rate = TaxRate(
+        code=settings.INVOICE_FEES_TAX_CODE,
+        label="TGC normal (frais)",
+        rate_pct=tax_rate_pct,
+        territory_code="PF",
+        valid_from="2020-01-01",
+    )
+    session.add_all([user, status, tax_rate, fees_tax_rate])
     await session.flush()
 
     product = Product(
@@ -142,7 +154,15 @@ async def test_issue_invoice_persists_a_balanced_document(
     assert snapshot["buyer"]["name"] == "Jean Client"
     assert len(snapshot["lines"]) == 1
     assert snapshot["lines"][0]["description"] == "Carte graphique RTX PRO"
-    assert snapshot["tax_breakdown"][0]["rate_pct"] == "16.00"
+
+    # Recherché par taux et non par position : tax_breakdown est trié par taux
+    # croissant, donc un indice figé se déplace dès qu'un groupe s'ajoute.
+    rates = {entry["rate_pct"]: entry for entry in snapshot["tax_breakdown"]}
+    assert set(rates) == {"16.00"}, snapshot["tax_breakdown"]
+    taxed = rates["16.00"]
+    assert Decimal(taxed["base_excl_tax"]) + Decimal(taxed["tax_amount"]) == Decimal(
+        taxed["total_incl_tax"]
+    )
 
 
 @pytest.mark.asyncio

@@ -282,6 +282,10 @@ class CheckoutResponse(SQLModel):
     """Represents checkout response."""
 
     order_id: uuid.UUID
+    # Référence lisible affichée sur l'écran de confirmation. Elle est déjà
+    # allouée au checkout (allocate_order_number) ; ne pas la renvoyer obligeait
+    # le front à refaire un appel pour afficher le numéro de la commande.
+    order_number: str | None = None
     payment_id: uuid.UUID
     cart_id: uuid.UUID
     subtotal_amount: Decimal

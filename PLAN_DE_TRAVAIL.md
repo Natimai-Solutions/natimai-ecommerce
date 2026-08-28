@@ -1227,7 +1227,7 @@ Audit complet (sécurité, tests/CI, infra, complétude) mené le 25/08/2026. Ph
 
 | # | Item | Détail |
 |---|------|--------|
-| S1 ✅ | **Revalidation serveur de `POST /payments/initiate`** — livré 25/08/2026 | Faille d'origine : montant et `order_id` client acceptés tels quels (sous-paiement + rattachement à la commande d'autrui). Correctif en **3 couches** : ① `_validate_order_for_initiation` ([payments.py](backend/app/api/routes/payments.py)) — commande existante et appartenant à l'appelant (404 indistinct sinon), statut payable (409 `payment.order.not_payable` si Paid/Refunded/PartiallyRefunded), devise = celle du paiement checkout (409 `payment.currency.mismatch`), montant = total commande quantifié (409 `payment.amount.mismatch`) ; ② garde IPN — un IPN PAID/AUTHORISED dont le montant ≠ `payment.amount` n'est jamais complété : anomalie `amount_mismatch` posée dans `provider_data`, aucun event `payment.captured`, réponse 200 status=error (stoppe les retries PayZen) ; ③ `_captured_amount_covers_order` ([handlers/payment.py](backend/app/handlers/payment.py)) — le handler refuse de passer la commande à « Paid » (et de consommer le stock) si le paiement ne couvre pas le total. Tests : [test_payments_initiate_order_guard.py](backend/app/tests/api/test_payments_initiate_order_guard.py) (6 cas), [test_payzen_ipn_amount_guard.py](backend/app/tests/api/test_payzen_ipn_amount_guard.py) (PAID + AUTHORISED), mismatch handler dans [test_payment_outbox_handlers.py](backend/app/tests/test_payment_outbox_handlers.py). ruff + mypy strict OK ; suite pytest à valider en CI |
+| S1 ✅ | **Revalidation serveur de `POST /payments/initiate`** — livré 25/08/2026 | Faille d'origine : montant et `order_id` client acceptés tels quels (sous-paiement + rattachement à la commande d'autrui). Correctif en **3 couches** : ① `_validate_order_for_initiation` ([payments.py](backend/app/api/routes/payments.py)) — commande existante et appartenant à l'appelant (404 indistinct sinon), statut payable (409 `payment.order.not_payable` si Paid/Refunded/PartiallyRefunded), devise = celle du paiement checkout (409 `payment.currency.mismatch`), montant = total commande quantifié (409 `payment.amount.mismatch`) ; ② garde IPN — un IPN PAID/AUTHORISED dont le montant ≠ `payment.amount` n'est jamais complété : anomalie `amount_mismatch` posée dans `provider_data`, aucun event `payment.captured`, réponse 200 status=error (stoppe les retries PayZen) ; ③ `_captured_amount_covers_order` ([handlers/payment.py](backend/app/handlers/payment.py)) — le handler refuse de passer la commande à « Paid » (et de consommer le stock) si le paiement ne couvre pas le total. Tests : [test_payments_initiate_order_guard.py](backend/app/tests/api/test_payments_initiate_order_guard.py) (6 cas), [test_payzen_ipn_amount_guard.py](backend/app/tests/api/test_payzen_ipn_amount_guard.py) (PAID + AUTHORISED), mismatch handler dans [test_payment_outbox_handlers.py](backend/app/tests/test_payment_outbox_handlers.py). **Renforcé le 28/08/2026** : `_captured_amount_covers_order` est devenue `_captured_amount_mismatch` — une commande dont l'encaissement ne couvre pas le total passe désormais en statut **`PaymentReview`** avec **alerte admin** (auparavant le handler sortait en silence, laissant le stock réservé sans que personne ne le sache) ; la couche ① rejette en plus toute commande portant déjà un paiement **réglé** (409 `payment.order.already_paid` — le statut de commande ne bascule qu'en asynchrone, d'où une fenêtre de double débit) et **refuse** au lieu de passer outre quand aucun paiement de référence ne permet de contrôler la devise (409 `payment.order.no_reference`) |
 | S2 ✅ | Ré-authentifier les 3 endpoints Icecat — livré 25/08/2026 | Dépendance `get_current_active_superuser` **restaurée** sur `/icecat/test`, `/icecat/search/upc/{upc}`, `/icecat/search/ean/{ean}` ([icecat.py](backend/app/api/routes/icecat.py)), même pattern que `/icecat/status`. Test 401 sans token ajouté dans [test_icecat_error_http_contract.py](backend/app/tests/api/test_icecat_error_http_contract.py) |
 | S3 ✅ | ClamAV effectif hors local — livré 25/08/2026 | Garde de démarrage `_check_clamav_enabled` dans [config.py](backend/app/core/config.py) (même modèle que les secrets) : `CLAMAV_ENABLED=False` → warning en local, **refus de démarrer** en staging/prod. Compose et k8s le forçaient déjà à `true` ; la garde couvre les déploiements hors Docker / mal configurés. `.env.example` documenté (`CLAMAV_ENABLED=true`), DEPLOYMENT.md §3.10 et checklist prod mis à jour. Tests : [test_config_guards.py](backend/app/tests/test_config_guards.py) |
 | S4 ✅ | Durcissements auth — livré 25/08/2026 | ① `SECRET_KEY` vide → **refus de démarrer** hors local (warning + génération en local ; [config.py](backend/app/core/config.py), tests dans test_config_guards.py). ② **Dummy-verify bcrypt** sur email inconnu ([crud/user.py](backend/app/features/user/crud/user.py)) — le temps de réponse ne révèle plus l'existence du compte. ③ `GET /group/{id}/users` **admin only** (403 `group.admin_required`, tests contract). ④ XFF : la **dernière** entrée (posée par notre proxy) est utilisée, plus la première (forgeable → contournement du throttle) — [rate_limit.py](backend/app/core/rate_limit.py), test mis à jour, doc CLIENT_IP_HEADER précisée |
@@ -1271,10 +1271,10 @@ Audit complet (sécurité, tests/CI, infra, complétude) mené le 25/08/2026. Ph
 | I2 ✅ | `restart: unless-stopped` postgres/redis — livré 25/08/2026 | Ajouté dans [docker-compose.prod.yml](docker-compose.prod.yml) |
 | I3 ✅ | Chaîne de déploiement **tranchée : compose sur serveur** — 25/08/2026 | **DEPLOYMENT.md §8 réécrit** : voie unique = build sur le serveur, `run --rm migrate` (upgrade + seed) avant `up -d`, rollback par git sha (la divergence §8 vs service migrate est résolue). [infra/DEPLOY.md](infra/DEPLOY.md) marqué **OBSOLÈTE** (manifests k8s cassés, détail en bannière), `deploy.yml` annoté (images GHCR génériques non consommées — gating CI = Q1). Réhabilitation k8s = backlog si besoin futur |
 | I4 ✅ | `ARG VITE_API_URL` — livré 25/08/2026 | `ARG`/`ENV` dans les 2 Dockerfiles frontends + `build.args` câblés dans [docker-compose.yml](docker-compose.yml) depuis `VITE_API_URL` du `.env` racine (documenté `.env.example` + DEPLOYMENT §4/§6) |
-| I5 ✅⚠️ | Retries ARQ — livré 25/08/2026 | [consumer.py](backend/app/outbox/consumer.py) : toute exception d'un handler outbox → `Retry(defer=backoff expo 10→80 s)`, 5 tentatives max (`WorkerSettings.max_tries=5`) — les commentaires « ARQ retries it » sont désormais vrais. ⚠️ Un échec **après 5 tentatives** reste un event `DONE` non rejoué (log error) : le filet final = alerting (reste I8) + `--mode retry` du runbook |
-| I6 ✅ | Healthchecks réels — livré 25/08/2026 | `/healthz/ready` renvoie **503** si db/redis KO ([health.py](backend/app/api/routes/health.py) + test) ; healthcheck compose de l'api → `/healthz/liveness` (au lieu du `/utils/health-check` factice) ; **healthcheck `arq --check` sur le worker** (clé santé Redis, `health_check_interval=60`). Poller : pas de healthcheck propre — couvert par le service outbox-health-checker |
+| I5 ✅⚠️ | Retries ARQ — livré 25/08/2026 | [consumer.py](backend/app/outbox/consumer.py) : toute exception d'un handler outbox → `Retry(defer=backoff expo 10→300 s)`, 8 tentatives max (`max_tries` porté par la fonction, cf. `OUTBOX_HANDLER_MAX_TRIES`) — les commentaires « ARQ retries it » sont désormais vrais. ⚠️ Un échec **après 8 tentatives (~15 min)** reste un event `DONE` non rejoué (log error) : le filet final = alerting (reste I8) + `--mode retry` du runbook |
+| I6 ✅ | Healthchecks réels — livré 25/08/2026 | `/healthz/ready` renvoie **503** si db/redis KO ([health.py](backend/app/api/routes/health.py) + test) ; healthcheck compose de l'api → `/healthz/liveness` (au lieu du `/utils/health-check` factice) ; **healthcheck `arq --check` sur le worker**. ⚠️ Corrigé le 28/08/2026 : la clé de santé arq est dérivée du **nom de queue seul**, si bien qu'avec `replicas: 2` une réplique vivante rafraîchissait celle d'une réplique morte et la panne restait invisible → clé désormais **par conteneur** (`arq:queue:health-check:$hostname`), et `health_check_interval` ramené de 60 à **20 s** (le TTL vaut `intervalle + 1` s : à 60 s la marge était d'une seconde, d'où des « unhealthy » fantômes sous charge). Poller : pas de healthcheck propre — couvert par le service outbox-health-checker |
 | I7 ✅ | Caddy durci — livré 25/08/2026 | [Caddyfile](infra/caddy/Caddyfile) : snippet `security_headers` (HSTS, nosniff, X-Frame-Options DENY, Referrer-Policy) sur vitrine + admin, `request_body max_size 16MB` sur l'API. CSP volontairement absente (SmartForm PayZen injecte scripts/iframes) → backlog |
-| I8 ✅⚠️ | Divers exploitation — livré 25/08/2026 | Rotation des logs Docker (anchor `x-app-logging` sur api/worker/poller, prod) ; timeouts `aiohttp` explicites (60 s total / 10 s connect) Ingram + Icecat ; `adminer` derrière `--profile debug` en prod ; « poller = 1 réplique max » documenté dans les 2 compose ; ordre migrate→rollout documenté §8. **Alerting minimal livré** : [core/alerting.py](backend/app/core/alerting.py) (webhook `ALERT_WEBHOOK_URL` façon Slack, fail-safe, testé) câblé sur le health-checker outbox (alerte sur **changement d'état** dégradé/erreur/rétabli — anti-spam) et sur l'**abandon définitif d'un job ARQ** après 5 tentatives ; healthcheck du health-checker corrigé (exit 1 sur statut error — avant toujours 0). ⚠️ Restent : rotation du `outbox_poller.log` interne, bump périodique des images de base (scanner Docker : vulnérabilités dans node:22-alpine / nginx:1.27-alpine) |
+| I8 ✅⚠️ | Divers exploitation — livré 25/08/2026 | Rotation des logs Docker (anchor `x-app-logging` sur api/worker/poller, prod) ; timeouts `aiohttp` explicites (60 s total / 10 s connect) Ingram + Icecat ; `adminer` derrière `--profile debug` en prod ; « poller = 1 réplique max » documenté dans les 2 compose ; ordre migrate→rollout documenté §8. **Alerting minimal livré** : [core/alerting.py](backend/app/core/alerting.py) (webhook `ALERT_WEBHOOK_URL` façon Slack, fail-safe, testé) câblé sur le health-checker outbox (alerte sur **changement d'état** dégradé/erreur/rétabli — anti-spam) et sur l'**abandon définitif d'un job ARQ** après 8 tentatives ; healthcheck du health-checker corrigé (exit 1 sur statut error — avant toujours 0). ⚠️ Restent : rotation du `outbox_poller.log` interne, bump périodique des images de base (scanner Docker : vulnérabilités dans node:22-alpine / nginx:1.27-alpine) |
 
 ### PP-E — Qualité / CI
 
@@ -1283,12 +1283,12 @@ Audit complet (sécurité, tests/CI, infra, complétude) mené le 25/08/2026. Ph
 | Q1 ✅ | `deploy.yml` gaté sur la CI verte — livré 25/08/2026 | Déclencheur passé en `workflow_run` (fin du workflow CI sur main) + `if: conclusion == 'success'` ; checkout et tags d'images sur `workflow_run.head_sha` (le commit exactement validé par la CI, pas la tête de main au moment du build) |
 | Q2 ✅ | `fail_under = 60` réactivé — livré 25/08/2026 | Décommenté dans [backend/pyproject.toml](backend/pyproject.toml) (mesuré ~64,8 % au périmètre d'omission actuel → marge ; à remonter progressivement). ⚠️ Si la CI passe au rouge sur ce seuil, prioriser Q3 plutôt que de le redescendre |
 | Q3 🔲 | Tests sur les modules critiques les moins couverts | `payment/services/eligibility.py` (~20 % — précisément le filtrage devise × moyen de paiement), `utils/payzen.py` (~48 %), webhooks Ingram (~20 %), `discount/crud` (~19 %), `cart/crud` (~23 %) |
-| Q4 🔲 | Un e2e minimal du checkout | 0 test navigateur aujourd'hui (les deux fronts n'ont aucun test). Un parcours Playwright catalogue → panier → checkout → paiement mock |
+| Q4 ✅ | Un e2e minimal du checkout — livré 28/08/2026 | Parcours Playwright catalogue → panier → checkout → commande ([e2e/tests/checkout.spec.ts](e2e/tests/checkout.spec.ts)), paiement par virement manuel donc aucune passerelle réelle dans la boucle. `data-testid` posés sur les pages traversées, seed dédié ([e2e/seed_e2e_data.py](e2e/seed_e2e_data.py)), et **job CI** qui le fait tourner sur le stack compose |
 
 ### PP-F — Fonctionnel minimal de lancement
 
-- 🔲 **Écran admin des demandes de devis (A11)** — les `QuoteRequest` sont persistées mais sans écran ni endpoint admin : le devis ne vit que par email. Bloquant pour le lancement « vitrine + devis ».
-- 🔲 **Endpoint « mot de passe oublié »** — colonnes `password_reset_token*` présentes sur `User`, aucune route branchée.
+- ✅ **Écran admin des demandes de devis (A11)** — livré 28/08/2026 : [admin_quote_requests.py](backend/app/api/routes/admin_quote_requests.py) + [QuoteRequestsPage](admin-frontend/src/pages/QuoteRequestsPage.vue) + migration `e5f9c3a7b2d8` (statuts, commentaire interne, clôture). Les demandes de **visiteurs non connectés** sont désormais persistées **avant** l'envoi de l'email : auparavant un échec d'envoi les perdait définitivement alors que l'endpoint répondait 201.
+- ✅ **Endpoint « mot de passe oublié »** — livré 28/08/2026 : [password_reset.py](backend/app/api/routes/password_reset.py), emails dédiés, pages `/mot-de-passe-oublie` et `/reinitialiser`. Réponse identique que l'adresse existe ou non, stockage du seul SHA-256 du jeton, révocation des refresh tokens au changement.
 - 🔲 Vérifications prévues au plan, à tracer faites avant ouverture : taux d'enrichissement Icecat sur le catalogue réel (filtre `is_enriched`), backfill `category_id`, check mensuel des taux FX manuels, volumétrie storage en prod.
 
 ---
@@ -1413,3 +1413,50 @@ Annoncer un **départ consolidé hebdomadaire ou bimensuel** : les clients comma
 - **Cartes cadeaux** (gift cards).
 - **Comparateur de produits**.
 - **Programme de fidélité / points**.
+
+---
+
+## Évolutions techniques à prévoir (dettes et veille)
+
+Points **techniques** différés en connaissance de cause, avec le déclencheur qui
+doit les faire remonter en priorité. À distinguer des deux backlogs ci-dessus,
+qui portent sur le produit.
+
+### httpx → httpx2 🔲 (relevé le 28/08/2026)
+
+`starlette` 1.6 déprécie l'usage de `httpx` par son `TestClient` au profit de
+**`httpx2`**, repris par Pydantic sous [pydantic/httpx2](https://github.com/pydantic/httpx2).
+Ce n'est pas une refonte : l'API reste compatible, l'objectif affiché est la
+maintenance et les correctifs de sécurité.
+
+**Pourquoi ça compte ici.** `httpx` n'a rien publié depuis le **6 décembre
+2024** (0.28.1), alors qu'il porte les appels **PayZen, Mailgun, Slack et
+OAuth** — [payzen.py](backend/app/features/payment/utils/payzen.py),
+[mailgun.py](backend/app/features/notification/providers/mailgun.py),
+[slack_webhook.py](backend/app/features/notification/providers/slack_webhook.py),
+[oauth.py](backend/app/api/routes/oauth.py). Une faille sur le client HTTP du
+chemin de paiement n'attendrait pas 20 mois son correctif.
+
+**Pourquoi ne pas migrer tout de suite.** L'extra `standard` de FastAPI 0.141
+exige toujours `httpx<1.0.0,>=0.23.0` ; `starlette[full]` accepte les deux.
+Basculer le code applicatif dès maintenant reviendrait donc à **embarquer deux
+piles HTTP** dans l'image — l'inverse du nettoyage de dépendances mené les
+27–28/08. L'avertissement ne vise par ailleurs que `TestClient`, donc les tests,
+pas le code de production.
+
+**Déclencheurs :** FastAPI bascule son extra `standard` vers httpx2 (la
+migration devient alors mécanique, 5 fichiers), **ou** un avis de sécurité sur
+`httpx` sans correctif publié — auquel cas on migre en acceptant le doublon.
+
+⚠️ **Point de vigilance au moment de migrer :** httpx2 remplace `certifi` par
+`truststore`, c'est-à-dire le magasin de certificats du **système** au lieu d'un
+bundle CA embarqué. Plus sain sur le fond (une révocation prend effet
+immédiatement), mais l'image `python:3.12-slim` devra avoir `ca-certificates` à
+jour, sans quoi **toutes** les connexions TLS sortantes tomberont.
+
+### Autres points différés
+
+- **`session.execute()` dans [order_number.py](backend/app/features/order/services/order_number.py)** 🔲 — sqlmodel 0.0.39 suggère `session.exec()`. L'usage y est pourtant légitime (une séquence SQL brute `nextval`, pas un modèle) ; laissé tel quel pour ne pas retoucher l'allocation des numéros de commande au détour d'une montée de version. À trancher si l'avertissement devient une erreur.
+- **Longueur minimale de `SECRET_KEY`** 🔲 — `pyjwt` avertit désormais sous 32 octets (HMAC/SHA-256). [config.py](backend/app/core/config.py) vérifie que la valeur n'est pas le placeholder, mais pas sa longueur : une clé courte passe en production sans un mot. Un garde-fou serait cohérent avec ceux déjà en place.
+- **Troncature bcrypt à 72 octets** 🔲 — héritée de passlib et **conservée volontairement** lors de son retrait (28/08), sans quoi les comptes concernés auraient été enfermés dehors. Conséquence assumée et testée : deux mots de passe partageant leurs 72 premiers octets sont équivalents. La corriger (pré-hachage SHA-256 avant bcrypt) changerait **toutes** les empreintes et imposerait une réinitialisation générale — donc seulement dans le cadre d'une opération prévue pour ça.
+- **Seuil de couverture `fail_under = 60`** 🔲 — la ligne PP-F l'avait mesurée à 70,2 % sur sa propre branche ; le seuil n'a pas été relevé faute d'avoir mesuré la couverture du résultat fusionné. À remonter une fois la mesure faite, jamais à baisser pour faire passer une PR.
