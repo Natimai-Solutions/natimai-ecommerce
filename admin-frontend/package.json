@@ -20,7 +20,7 @@
     "@app/api-client": "workspace:*",
     "@app/api-types": "workspace:*",
     "@app/utils": "workspace:*",
-    "@quasar/extras": "^1.18.0",
+    "@quasar/extras": "^2.0.4",
     "pinia": "^3.0.4",
     "quasar": "^2.27.0",
     "vue": "^3.5.42",
