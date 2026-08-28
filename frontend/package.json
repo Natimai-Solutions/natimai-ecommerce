@@ -20,7 +20,7 @@
     "@app/api-client": "workspace:*",
     "@app/api-types": "workspace:*",
     "@app/utils": "workspace:*",
-    "@quasar/extras": "^1.18.0",
+    "@quasar/extras": "^2.0.4",
     "compression": "^1.8.1",
     "dompurify": "^3.4.14",
     "express": "^4.22.2",
