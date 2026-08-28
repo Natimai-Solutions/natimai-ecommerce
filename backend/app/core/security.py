@@ -2,12 +2,28 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import bcrypt
 import jwt
-from passlib.context import CryptContext
 
 from app.core.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt ne prend en compte que les 72 premiers octets du mot de passe.
+# passlib tronquait au-delà **en silence** : les empreintes déjà en base ont
+# donc été calculées sur ces 72 octets uniquement. bcrypt >= 5 lève une
+# ValueError à la place, si bien que reproduire la troncature à l'identique
+# n'est pas un détail : sans elle, tout compte dont le mot de passe dépasse
+# 72 octets deviendrait invérifiable — l'utilisateur serait enfermé dehors.
+#
+# La troncature porte sur les OCTETS et non les caractères, exactement comme
+# avant : un mot de passe accentué peut donc être coupé au milieu d'un
+# caractère UTF-8. bcrypt travaille sur des octets, cela lui est indifférent,
+# et c'est ce qui rend les anciennes empreintes reproductibles.
+_BCRYPT_MAX_BYTES = 72
+
+
+def _bcrypt_input(password: str) -> bytes:
+    """Le mot de passe sous la forme exacte qui était donnée à bcrypt."""
+    return password.encode("utf-8")[:_BCRYPT_MAX_BYTES]
 
 
 ALGORITHM = "HS256"
@@ -44,10 +60,17 @@ def decode_token(token: str) -> dict[str, Any]:
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Execute verify password."""
-    return pwd_context.verify(plain_password, hashed_password)
+    """Vérifie un mot de passe contre son empreinte bcrypt."""
+    try:
+        return bcrypt.checkpw(
+            _bcrypt_input(plain_password), hashed_password.encode("utf-8")
+        )
+    except ValueError:
+        # Empreinte illisible (colonne vide, tronquée, autre format) :
+        # c'est un échec d'authentification, pas une erreur 500.
+        return False
 
 
 def get_password_hash(password: str) -> str:
-    """Get password hash."""
-    return pwd_context.hash(password)
+    """Empreinte bcrypt du mot de passe (coût 12, inchangé)."""
+    return bcrypt.hashpw(_bcrypt_input(password), bcrypt.gensalt()).decode("utf-8")
