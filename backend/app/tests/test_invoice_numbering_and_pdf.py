@@ -47,6 +47,16 @@ def test_order_number_format_is_zero_padded() -> None:
     assert format_order_number(42, year=2026) == "CMD-2026-00042"
 
 
+def test_order_number_grows_past_the_padding_width() -> None:
+    """Au-delà de 99999 le compteur doit s'élargir, jamais tronquer ni boucler.
+
+    Deux commandes portant le même numéro seraient indétectables côté client
+    comme côté comptabilité.
+    """
+    assert format_order_number(123456, year=2026) == "CMD-2026-123456"
+    assert len(format_order_number(123456, year=2026)) <= 32  # largeur colonne
+
+
 def test_invoice_and_order_numbers_never_collide() -> None:
     """Two independent counters — the prefixes keep the documents distinct."""
     assert format_invoice_number(7, fiscal_year=2026) != format_order_number(
