@@ -1,4 +1,4 @@
-"""Admin invoice endpoints (M3): listing, PDF and accounting export.
+"""Admin invoice endpoints (M3): listing, PDF and accounting exports.
 
 Read-only by design — an issued invoice is never edited or deleted. A
 cancelled sale is handled by a credit note (Z2), not by touching the original
@@ -21,6 +21,9 @@ from app.features.invoice.models.invoice import (
     Invoice,
     InvoicePublic,
     InvoicesPublic,
+)
+from app.features.invoice.services.accounting_export import (
+    export_invoices_to_fec,
 )
 from app.features.invoice.services.pdf import (
     PdfRenderingUnavailableError,
@@ -155,6 +158,40 @@ async def export_invoices_csv(
         # BOM so Excel opens the accented columns in UTF-8 without prompting.
         content=buffer.getvalue().encode("utf-8-sig"),
         media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/export-fec.txt")
+async def export_invoices_fec(
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+    fiscal_year: int | None = None,
+) -> Response:
+    """Export au format FEC — écritures comptables importables.
+
+    Complémentaire de ``/export.csv`` et non redondant : le CSV liste les
+    factures à plat pour contrôler la continuité de la numérotation, tandis que
+    celui-ci produit le journal de ventes en écritures équilibrées, tel que les
+    logiciels comptables l'attendent.
+
+    Encodage ISO-8859-15 comme le veut la spécification, avec repli sur les
+    caractères translittérables : un nom de client exotique ne doit pas faire
+    échouer tout l'export.
+    """
+    statement = select(Invoice)
+    if fiscal_year is not None:
+        statement = statement.where(Invoice.fiscal_year == fiscal_year)
+    statement = statement.order_by(col(Invoice.invoice_number).asc())
+
+    result = await session.exec(statement)
+    invoices = list(result.all())
+
+    payload = export_invoices_to_fec(invoices)
+    filename = f"FEC-{fiscal_year}.txt" if fiscal_year is not None else "FEC.txt"
+    return Response(
+        content=payload.encode("iso-8859-15", errors="replace"),
+        media_type="text/plain; charset=iso-8859-15",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
