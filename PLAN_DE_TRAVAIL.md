@@ -1454,7 +1454,21 @@ bundle CA embarqué. Plus sain sur le fond (une révocation prend effet
 immédiatement), mais l'image `python:3.12-slim` devra avoir `ca-certificates` à
 jour, sans quoi **toutes** les connexions TLS sortantes tomberont.
 
-### Deux majeures JS bloquées en amont 🔲 (relevé le 28/08/2026)
+### Trois majeures JS bloquées en amont 🔲 (relevé le 28/08/2026)
+
+**`typescript` 6 → 7** — la 6 est en place, la 7 est bloquée par l'outillage et
+non par notre code :
+
+```
+Error [ERR_PACKAGE_PATH_NOT_EXPORTED]: './lib/tsc' is not defined by
+"exports" in typescript/package.json          (vue-tsc 3.3.11)
+Error: typescript-eslint does not support TS 7.0.
+```
+
+`vue-tsc` résout `typescript/lib/tsc`, sous-chemin que TS 7 n'exporte plus, et
+`typescript-eslint` refuse explicitement la 7.0 ; typecheck, lint et les deux
+builds tombent. **Déclencheur :** ces deux paquets annoncent la prise en charge
+de TS 7.
 
 **`@quasar/app-vite` 2 → 3** — la v3 supprime l'alias `#q-app`, que la v2
 injecte dans la configuration du bundler (`lib/quasar-config-file.js:317`), et
@@ -1483,6 +1497,46 @@ n'aura de sens qu'une fois `@quasar/app-vite` en v3, si elle y passe à express 
 À noter au passage : `@types/express` est en **5** alors que le runtime est en
 **4**. Ça typecheck parce que la couche SSR n'utilise que des API basiques, mais
 les types décrivent une API qui n'est pas celle qui s'exécute.
+
+### Surveillance des dépendances — ce qui reste à câbler 🔲 (28/08/2026)
+
+Le chantier dépendances du 27–28/08 a fermé **35 vulnérabilités** (23 hautes en
+JavaScript, 12 paquets côté Python) et posé un
+[`dependabot.yml`](.github/dependabot.yml) pour quatre écosystèmes. Ce qui reste
+tient en quatre points, dont le premier n'est pas du code.
+
+**① Activer les *Dependabot security updates* — sur le dépôt AMONT.** Le
+`dependabot.yml` ne pilote que les mises à jour de version, à cadence
+hebdomadaire. Les *security updates* réagissent à la publication d'un avis,
+immédiatement, et ne montent que le minimum. C'est le réglage qui manquait
+quand les 35 vulnérabilités ont dormi sans que rien ne les signale.
+
+⚠️ Le réglage est à faire sur **`Natimai-Solutions/fastapi-ecommerce`**
+(`Settings → Code security`, ou directement `.../settings/security_analysis`),
+pas sur le fork `jburckel/fastapi-ecommerce` : les PR Dependabot proviennent de
+branches `Natimai-Solutions/dependabot/*`, et Dependabot est désactivé par
+défaut sur un fork. Penser aussi à *Grouped security updates*, qui évite
+l'avalanche de PR.
+
+**② Les majeures de Node sont redevenues un arbitrage manuel.** Dependabot
+proposait node 25 — une ligne « Current » au support court, les LTS étant les
+majeures **paires**. Il n'y a pas moyen de le lui apprendre, d'où la règle
+d'exclusion posée dans `dependabot.yml`. Contrepartie : **la prochaine LTS (26,
+attendue fin 2026) ne sera pas proposée non plus** — il faudra y penser. Les
+images python et nginx gardent leurs majeures, elles n'ont pas cette
+distinction.
+
+**③ Onze dépendances Python sont déclarées sans borne haute.** `sentry-sdk`,
+`aiohttp`, `boto3`, `weasyprint`, `arq`, `clamd`, `pyyaml`, plus l'outillage.
+Aucune n'est en conflit aujourd'hui, mais c'est exactement ce qui a fait échouer
+Dependabot sur redis : notre `redis>=5.0.0` sans plafond laissait viser la 8
+alors qu'arq exige `<6`. Poser des bornes hautes partout protège des surprises
+mais fige aussi les mises à jour — **c'est un choix de politique à trancher**,
+pas une correction évidente.
+
+**④ Python 3.14.** L'image est passée en 3.13 (possible depuis le retrait de
+passlib) ; la 3.14 existe et Dependabot la proposera. Saut d'une version
+supplémentaire, non testé — à traiter comme une montée à part entière.
 
 ### Autres points différés
 
