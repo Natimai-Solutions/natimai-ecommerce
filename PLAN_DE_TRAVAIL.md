@@ -1454,6 +1454,36 @@ bundle CA embarqué. Plus sain sur le fond (une révocation prend effet
 immédiatement), mais l'image `python:3.12-slim` devra avoir `ca-certificates` à
 jour, sans quoi **toutes** les connexions TLS sortantes tomberont.
 
+### Deux majeures JS bloquées en amont 🔲 (relevé le 28/08/2026)
+
+**`@quasar/app-vite` 2 → 3** — la v3 supprime l'alias `#q-app`, que la v2
+injecte dans la configuration du bundler (`lib/quasar-config-file.js:317`), et
+retire l'export `./wrappers`. Le build s'arrête net :
+
+```
+[RESOLVE_ERROR] Could not resolve '#q-app/wrappers' in quasar.config.ts
+```
+
+L'alias est utilisé dans **une dizaine d'endroits** — les deux `quasar.config.ts`,
+les boots, le router, les stores, et la couche SSR (`declare module '#q-app'`,
+type `RenderError`). `defineConfig` et consorts existent toujours en v3, mais à
+la racine du paquet. La migration est donc mécanique mais large, et se ferait en
+déduisant le comportement de la v3 depuis son code source. À reprendre avec la
+documentation de migration officielle sous les yeux.
+
+**`express` 4 → 5** — inutile en l'état, et surtout **trompeur**. Quasar génère
+son propre `dist/ssr/package.json` et y recopie sa propre dépendance
+(`lib/modes/ssr/ssr-builder.js:118` → `express: cliPkg.dependencies.express`),
+soit `^4.0.0`. Vérifié en démarrant le conteneur SSR construit : il tourne bien
+en **express 4.22.2** alors que `frontend/package.json` déclarait la 5. Monter
+express côté source ne change donc que le typage et le dev local, pas le runtime
+déployé — ça ferait croire à une mise à jour qui n'a pas lieu. Cette montée
+n'aura de sens qu'une fois `@quasar/app-vite` en v3, si elle y passe à express 5.
+
+À noter au passage : `@types/express` est en **5** alors que le runtime est en
+**4**. Ça typecheck parce que la couche SSR n'utilise que des API basiques, mais
+les types décrivent une API qui n'est pas celle qui s'exécute.
+
 ### Autres points différés
 
 - **`session.execute()` dans [order_number.py](backend/app/features/order/services/order_number.py)** 🔲 — sqlmodel 0.0.39 suggère `session.exec()`. L'usage y est pourtant légitime (une séquence SQL brute `nextval`, pas un modèle) ; laissé tel quel pour ne pas retoucher l'allocation des numéros de commande au détour d'une montée de version. À trancher si l'avertissement devient une erreur.
