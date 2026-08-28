@@ -57,6 +57,18 @@ updates:
       day: "monday"
     open-pull-requests-limit: 3
     labels: ["dépendances", "docker"]
+    ignore:
+      # Node : les lignes LTS sont les majeures PAIRES (24 « Krypton », 22
+      # « Jod »…). Dependabot ne suit que « la plus récente » et a donc proposé
+      # node 25, qui est une ligne « Current » au support court — à refuser en
+      # production. Il aurait ensuite proposé 27, et ainsi de suite.
+      #
+      # Les majeures de node deviennent donc un arbitrage manuel. Contrepartie
+      # assumée : la prochaine LTS (26, attendue fin 2026) ne sera pas proposée
+      # non plus, il faudra y penser. Les autres images gardent leurs majeures —
+      # python et nginx n'ont pas cette distinction LTS/Current.
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
 
   # ── Actions GitHub ─────────────────────────────────────────────────────────
   # Une action compromise s'exécute avec les secrets du dépôt ; les tenir à jour

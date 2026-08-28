@@ -67,7 +67,12 @@ jobs:
 
       - name: Install dependencies
         working-directory: backend
-        run: uv sync
+        # --locked : échoue si uv.lock n'est plus cohérent avec pyproject.toml,
+        # au lieu de le régénérer en silence. Sans ce garde-fou, la fusion de
+        # deux PR Dependabot touchant toutes deux le lock a produit un fichier
+        # désynchronisé sans que rien ne le signale. Équivalent du
+        # `pnpm install --frozen-lockfile` déjà utilisé côté JavaScript.
+        run: uv sync --locked
 
       - name: Ruff lint
         working-directory: backend
