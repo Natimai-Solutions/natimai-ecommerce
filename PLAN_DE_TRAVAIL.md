@@ -1413,3 +1413,50 @@ Annoncer un **départ consolidé hebdomadaire ou bimensuel** : les clients comma
 - **Cartes cadeaux** (gift cards).
 - **Comparateur de produits**.
 - **Programme de fidélité / points**.
+
+---
+
+## Évolutions techniques à prévoir (dettes et veille)
+
+Points **techniques** différés en connaissance de cause, avec le déclencheur qui
+doit les faire remonter en priorité. À distinguer des deux backlogs ci-dessus,
+qui portent sur le produit.
+
+### httpx → httpx2 🔲 (relevé le 28/08/2026)
+
+`starlette` 1.6 déprécie l'usage de `httpx` par son `TestClient` au profit de
+**`httpx2`**, repris par Pydantic sous [pydantic/httpx2](https://github.com/pydantic/httpx2).
+Ce n'est pas une refonte : l'API reste compatible, l'objectif affiché est la
+maintenance et les correctifs de sécurité.
+
+**Pourquoi ça compte ici.** `httpx` n'a rien publié depuis le **6 décembre
+2024** (0.28.1), alors qu'il porte les appels **PayZen, Mailgun, Slack et
+OAuth** — [payzen.py](backend/app/features/payment/utils/payzen.py),
+[mailgun.py](backend/app/features/notification/providers/mailgun.py),
+[slack_webhook.py](backend/app/features/notification/providers/slack_webhook.py),
+[oauth.py](backend/app/api/routes/oauth.py). Une faille sur le client HTTP du
+chemin de paiement n'attendrait pas 20 mois son correctif.
+
+**Pourquoi ne pas migrer tout de suite.** L'extra `standard` de FastAPI 0.141
+exige toujours `httpx<1.0.0,>=0.23.0` ; `starlette[full]` accepte les deux.
+Basculer le code applicatif dès maintenant reviendrait donc à **embarquer deux
+piles HTTP** dans l'image — l'inverse du nettoyage de dépendances mené les
+27–28/08. L'avertissement ne vise par ailleurs que `TestClient`, donc les tests,
+pas le code de production.
+
+**Déclencheurs :** FastAPI bascule son extra `standard` vers httpx2 (la
+migration devient alors mécanique, 5 fichiers), **ou** un avis de sécurité sur
+`httpx` sans correctif publié — auquel cas on migre en acceptant le doublon.
+
+⚠️ **Point de vigilance au moment de migrer :** httpx2 remplace `certifi` par
+`truststore`, c'est-à-dire le magasin de certificats du **système** au lieu d'un
+bundle CA embarqué. Plus sain sur le fond (une révocation prend effet
+immédiatement), mais l'image `python:3.12-slim` devra avoir `ca-certificates` à
+jour, sans quoi **toutes** les connexions TLS sortantes tomberont.
+
+### Autres points différés
+
+- **`session.execute()` dans [order_number.py](backend/app/features/order/services/order_number.py)** 🔲 — sqlmodel 0.0.39 suggère `session.exec()`. L'usage y est pourtant légitime (une séquence SQL brute `nextval`, pas un modèle) ; laissé tel quel pour ne pas retoucher l'allocation des numéros de commande au détour d'une montée de version. À trancher si l'avertissement devient une erreur.
+- **Longueur minimale de `SECRET_KEY`** 🔲 — `pyjwt` avertit désormais sous 32 octets (HMAC/SHA-256). [config.py](backend/app/core/config.py) vérifie que la valeur n'est pas le placeholder, mais pas sa longueur : une clé courte passe en production sans un mot. Un garde-fou serait cohérent avec ceux déjà en place.
+- **Troncature bcrypt à 72 octets** 🔲 — héritée de passlib et **conservée volontairement** lors de son retrait (28/08), sans quoi les comptes concernés auraient été enfermés dehors. Conséquence assumée et testée : deux mots de passe partageant leurs 72 premiers octets sont équivalents. La corriger (pré-hachage SHA-256 avant bcrypt) changerait **toutes** les empreintes et imposerait une réinitialisation générale — donc seulement dans le cadre d'une opération prévue pour ça.
+- **Seuil de couverture `fail_under = 60`** 🔲 — la ligne PP-F l'avait mesurée à 70,2 % sur sa propre branche ; le seuil n'a pas été relevé faute d'avoir mesuré la couverture du résultat fusionné. À remonter une fois la mesure faite, jamais à baisser pour faire passer une PR.
