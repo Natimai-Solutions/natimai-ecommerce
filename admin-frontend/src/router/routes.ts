@@ -23,6 +23,7 @@ const routes: RouteRecordRaw[] = [
       },
       { path: 'inventory', component: () => import('pages/InventoryPage.vue') },
       { path: 'tax-rates', component: () => import('pages/TaxRatesPage.vue') },
+      { path: 'customs-rates', component: () => import('pages/CustomsRatesPage.vue') },
       { path: 'currency-rates', component: () => import('pages/CurrencyRatesPage.vue') },
       { path: 'spec-definitions', component: () => import('pages/SpecDefinitionsPage.vue') },
       { path: 'supplier-orders', component: () => import('pages/SupplierOrdersPage.vue') },

@@ -67,6 +67,7 @@
             <q-input
               v-model="form.customs_rate_pct"
               label="Douane (%)"
+              hint="Vide = taux par défaut de la catégorie"
               type="number"
               step="0.01"
               outlined
@@ -180,7 +181,12 @@
           </div>
 
           <div class="row justify-end q-mt-md" style="gap: 8px">
-            <q-btn flat label="Annuler" :disable="saving" @click="emit('update:modelValue', false)" />
+            <q-btn
+              flat
+              label="Annuler"
+              :disable="saving"
+              @click="emit('update:modelValue', false)"
+            />
             <q-btn
               type="submit"
               color="primary"
@@ -230,7 +236,15 @@ interface FormState {
 }
 
 /** Fields sent as decimal strings — never null (backend columns are non-nullable). */
-const MONEY_FIELDS = ['cost_amount', 'customs_rate_pct', 'base_price'] as const;
+const MONEY_FIELDS = ['cost_amount', 'base_price'] as const;
+
+/**
+ * Sent as a decimal string too, but blank means null: the product then inherits
+ * its category's default customs rate. Defaulting it to '0.00' like the other
+ * money fields would freeze a duty-free price on every product the admin ever
+ * opens — the very bug the category default was introduced to fix.
+ */
+const NULLABLE_RATE_FIELDS = ['customs_rate_pct'] as const;
 
 function emptyForm(): FormState {
   return {
@@ -239,7 +253,7 @@ function emptyForm(): FormState {
     long_description: '',
     cost_amount: '0.00',
     cost_currency: 'XPF',
-    customs_rate_pct: '0.00',
+    customs_rate_pct: '',
     base_price: '0.00',
     category_id: null,
     tax_rate_id: null,
@@ -296,7 +310,7 @@ function loadFromProduct(p: ProductPublic | null) {
     base.long_description = str(rec.long_description);
     base.cost_amount = str(rec.cost_amount) || '0.00';
     base.cost_currency = str(rec.cost_currency) || 'XPF';
-    base.customs_rate_pct = str(rec.customs_rate_pct) || '0.00';
+    base.customs_rate_pct = str(rec.customs_rate_pct);
     base.base_price = str(rec.base_price) || '0.00';
     base.category_id = (rec.category_id as string | null) ?? null;
     base.tax_rate_id = (rec.tax_rate_id as string | null) ?? null;
@@ -322,6 +336,8 @@ function buildPayload(): Record<string, unknown> {
     if (isEdit.value && value === original[key]) continue;
     if (MONEY_FIELDS.includes(key as (typeof MONEY_FIELDS)[number])) {
       out[key] = str(value).trim() || '0.00';
+    } else if (NULLABLE_RATE_FIELDS.includes(key as (typeof NULLABLE_RATE_FIELDS)[number])) {
+      out[key] = str(value).trim() || null;
     } else if (typeof value === 'string') {
       out[key] = value.trim() === '' ? null : value.trim();
     } else {

@@ -1,6 +1,6 @@
 """Rapport de préparation à l'ouverture (PP-F).
 
-Le plan liste quatre vérifications « à tracer faites avant ouverture ». Une
+Le plan liste les vérifications « à tracer faites avant ouverture ». Une
 consigne dont personne ne connaît la valeur du jour n'est pas une vérification :
 ce script les mesure, et sort en code non nul quand un seuil est franchi.
 
@@ -16,6 +16,7 @@ import asyncio
 import datetime
 import sys
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy import func
 from sqlmodel import col, select
@@ -25,6 +26,11 @@ from app.core.db import engine
 from app.features.payment.models.payment_attachment import PaymentAttachment
 from app.features.product.models.currency_rate import CurrencyRate
 from app.features.product.models.product import Product
+from app.features.product.services.publication import (
+    customs_rate_condition,
+    publication_conditions,
+    weight_condition,
+)
 
 #: Sous ce taux, le filtre `is_enriched` de la vitrine vide le catalogue : le
 #: plan prévoit alors soit d'élargir Icecat, soit d'afficher sans specs.
@@ -150,6 +156,58 @@ async def _check_fx_rates(session: AsyncSession) -> Check:
     )
 
 
+async def _check_publication(session: AsyncSession) -> Check:
+    """Produits enrichis que la garde de publication masque encore (F1 / F5).
+
+    Un produit dont le taux de douane ne se résout nulle part, ou qui n'a pas de
+    poids, serait vendu sous son prix de revient : la vitrine le cache au lieu
+    d'afficher un prix faux. Tant que ce compteur n'est pas nul, une partie du
+    catalogue enrichi reste invisible — et c'est une saisie à faire, pas un bug.
+    """
+    base = [
+        col(Product.is_active).is_(True),
+        col(Product.is_admin_active).is_(True),
+        col(Product.is_enriched).is_(True),
+    ]
+
+    async def _count(*extra: Any) -> int:
+        return int(
+            (
+                await session.exec(
+                    select(func.count()).select_from(Product).where(*base, *extra)
+                )
+            ).one()
+        )
+
+    enriched = await _count()
+    if not enriched:
+        return Check(
+            "Publication du catalogue",
+            "aucun produit enrichi",
+            False,
+            "Rien à publier : voir le contrôle d'enrichissement ci-dessus.",
+        )
+
+    no_customs = await _count(~customs_rate_condition())
+    no_weight = await _count(~weight_condition())
+    blocked = enriched - await _count(*publication_conditions())
+
+    return Check(
+        "Publication du catalogue",
+        (
+            f"{blocked}/{enriched} produit(s) enrichi(s) masqué(s) — "
+            f"{no_customs} sans taux de douane résolu, {no_weight} sans poids"
+        ),
+        blocked == 0,
+        (
+            "Saisir le taux de douane par catégorie "
+            "(PUT /admin/categories/{id}/customs-rate, taux effectif droits + "
+            "TDL) et compléter les poids manquants. Détail par catégorie : "
+            "GET /admin/catalog/publication-report."
+        ),
+    )
+
+
 async def _check_storage(session: AsyncSession) -> Check:
     """Volumétrie des pièces jointes — informatif, pas bloquant."""
     count = (
@@ -173,6 +231,7 @@ async def main() -> None:
         checks = [
             await _check_enrichment(session),
             await _check_categories(session),
+            await _check_publication(session),
             await _check_fx_rates(session),
             await _check_storage(session),
         ]

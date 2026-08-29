@@ -937,6 +937,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/invoices/export-fec.txt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Invoices Fec
+         * @description Export au format FEC — écritures comptables importables.
+         *
+         *     Complémentaire de ``/export.csv`` et non redondant : le CSV liste les
+         *     factures à plat pour contrôler la continuité de la numérotation, tandis que
+         *     celui-ci produit le journal de ventes en écritures équilibrées, tel que les
+         *     logiciels comptables l'attendent.
+         *
+         *     Encodage ISO-8859-15 comme le veut la spécification, avec repli sur les
+         *     caractères translittérables : un nom de client exotique ne doit pas faire
+         *     échouer tout l'export.
+         */
+        get: operations["admin-invoices-export_invoices_fec"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/invoices/{invoice_id}": {
         parameters: {
             query?: never;
@@ -1506,6 +1535,69 @@ export interface paths {
          * @description Assign (or clear) the default tax rate on a category.
          */
         put: operations["admin-tax-rates-assign_tax_rate_to_category"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/products/{product_id}/customs-rate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Assign Customs Rate To Product
+         * @description Set the product's own customs rate; null falls back to its category.
+         */
+        put: operations["admin-tax-rates-assign_customs_rate_to_product"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/categories/{category_id}/customs-rate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Assign Customs Rate To Category
+         * @description Set the default customs rate inherited by the category's products.
+         */
+        put: operations["admin-tax-rates-assign_customs_rate_to_category"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/catalog/publication-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Publication Report
+         * @description Size the pre-opening backlog: which products the storefront hides, and why.
+         *
+         *     Counts the enriched, active catalog only — a product still waiting for Icecat
+         *     is invisible for an unrelated reason and would drown the signal.
+         */
+        get: operations["admin-tax-rates-get_publication_report"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -6295,7 +6387,10 @@ export interface components {
             grant_type?: string | null;
             /** Username */
             username: string;
-            /** Password */
+            /**
+             * Password
+             * Format: password
+             */
             password: string;
             /**
              * Scope
@@ -6304,7 +6399,10 @@ export interface components {
             scope: string;
             /** Client Id */
             client_id?: string | null;
-            /** Client Secret */
+            /**
+             * Client Secret
+             * Format: password
+             */
             client_secret?: string | null;
         };
         /**
@@ -6616,6 +6714,11 @@ export interface components {
              * @description Default tax rate applied to products in this category
              */
             default_tax_rate_id?: string | null;
+            /**
+             * Default Customs Rate Pct
+             * @description Default customs rate percentage for products in this category (used when Product.customs_rate_pct is not set)
+             */
+            default_customs_rate_pct?: number | string | null;
         };
         /**
          * CategoryPublic
@@ -6661,10 +6764,39 @@ export interface components {
              */
             default_tax_rate_id?: string | null;
             /**
+             * Default Customs Rate Pct
+             * @description Default customs rate percentage for products in this category (used when Product.customs_rate_pct is not set)
+             */
+            default_customs_rate_pct?: string | null;
+            /**
              * Id
              * Format: uuid
              */
             id: string;
+        };
+        /**
+         * CategoryPublicationRow
+         * @description Per-category publication readiness.
+         */
+        CategoryPublicationRow: {
+            /** Category Id */
+            category_id?: string | null;
+            /** Category Name */
+            category_name?: string | null;
+            /** Default Customs Rate Pct */
+            default_customs_rate_pct?: string | null;
+            /** Default Tax Rate Id */
+            default_tax_rate_id?: string | null;
+            /**
+             * Product Count
+             * @default 0
+             */
+            product_count: number;
+            /**
+             * Blocked Count
+             * @default 0
+             */
+            blocked_count: number;
         };
         /**
          * CategorySpecFacetsResponse
@@ -6719,6 +6851,11 @@ export interface components {
             image_url?: string | null;
             /** Default Tax Rate Id */
             default_tax_rate_id?: string | null;
+            /**
+             * Default Customs Rate Pct
+             * @description Default customs rate percentage for products in this category (used when Product.customs_rate_pct is not set)
+             */
+            default_customs_rate_pct?: number | string | null;
         };
         /**
          * CheckoutObservabilityMetrics
@@ -7035,6 +7172,14 @@ export interface components {
             exception_scenarios?: string[];
             /** Consolidations */
             consolidations?: components["schemas"]["ShippingRouteTrackingConsolidationPublic"][];
+        };
+        /**
+         * CustomsRateAssignBody
+         * @description Set (or clear, with null) a customs rate percentage.
+         */
+        CustomsRateAssignBody: {
+            /** Customs Rate Pct */
+            customs_rate_pct?: number | string | null;
         };
         /**
          * DeliveryTaskCreate
@@ -10954,10 +11099,9 @@ export interface components {
             cost_currency: string;
             /**
              * Customs Rate Pct
-             * @description Customs rate percentage applied before margin
-             * @default 0.00
+             * @description Customs rate percentage applied before margin. None → inherit Category.default_customs_rate_pct; unresolved rate makes the product non-publishable.
              */
-            customs_rate_pct: number | string;
+            customs_rate_pct?: number | string | null;
             /**
              * Has Variants
              * @description Indicates if the product has variants
@@ -11214,10 +11358,9 @@ export interface components {
             cost_currency: string;
             /**
              * Customs Rate Pct
-             * @description Customs rate percentage applied before margin
-             * @default 0.00
+             * @description Customs rate percentage applied before margin. None → inherit Category.default_customs_rate_pct; unresolved rate makes the product non-publishable.
              */
-            customs_rate_pct: string;
+            customs_rate_pct?: string | null;
             /**
              * Has Variants
              * @description Indicates if the product has variants
@@ -11619,6 +11762,34 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * PublicationReport
+         * @description How much of the enriched catalog is publishable, and what blocks the rest.
+         */
+        PublicationReport: {
+            /**
+             * Enriched Count
+             * @default 0
+             */
+            enriched_count: number;
+            /**
+             * Publishable Count
+             * @default 0
+             */
+            publishable_count: number;
+            /**
+             * Blocked Customs Rate Unresolved
+             * @default 0
+             */
+            blocked_customs_rate_unresolved: number;
+            /**
+             * Blocked Weight Missing
+             * @default 0
+             */
+            blocked_weight_missing: number;
+            /** Categories */
+            categories?: components["schemas"]["CategoryPublicationRow"][];
         };
         /**
          * QuoteRequestResponse
@@ -14289,6 +14460,10 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
         /**
          * VerifyOtpRequest
@@ -16326,6 +16501,37 @@ export interface operations {
             };
         };
     };
+    "admin-invoices-export_invoices_fec": {
+        parameters: {
+            query?: {
+                fiscal_year?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-invoices-get_invoice": {
         parameters: {
             query?: never;
@@ -17297,6 +17503,96 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-tax-rates-assign_customs_rate_to_product": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomsRateAssignBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-tax-rates-assign_customs_rate_to_category": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomsRateAssignBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-tax-rates-get_publication_report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationReport"];
                 };
             };
         };

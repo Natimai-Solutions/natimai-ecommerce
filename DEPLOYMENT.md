@@ -794,7 +794,7 @@ invoice PDF shows an `[À COMPLÉTER]` marker — a gap is visible, not silent.
 
 ## 14. Opening readiness report (PP-F)
 
-Four checks the work plan requires to be **done and recorded** before opening.
+The checks the work plan requires to be **done and recorded** before opening.
 A reminder nobody knows today's value of is not a check, so they are measured:
 
 ```bash
@@ -806,9 +806,169 @@ Read-only, exits non‑zero when a threshold is crossed.
 | Check | Threshold | Why it matters |
 |-------|-----------|----------------|
 | Icecat enrichment rate | ≥ 80 % of active products | The public search filters on `is_enriched`: an unenriched product is invisible whatever its stock. Below the threshold the storefront is nearly empty — widen Icecat (Full) or plan a specs‑less display. |
-| Products without `category_id` | 0 | No category means no filters and no default tax rate. |
+| Products without `category_id` | 0 | No category means no filters, no default tax rate — and, since the customs rate is inherited from the category, no resolvable customs rate either. |
+| Enriched products hidden by the publication guard | 0 | A product whose customs rate resolves nowhere, or that has no weight, would sell below cost, so the storefront hides it instead of showing a wrong price. Fix by entering the per-category customs rate (**§15** — how to establish it) and filling the missing weights; `GET /admin/catalog/publication-report` breaks the backlog down by category. **Expect this to fail on a freshly synced catalogue** — the supplier feed never carries a customs rate. |
 | Manual FX rate age | ≤ 30 days | Supplier costs are converted with these rates; one frozen for months skews every displayed price. |
 | Attachment storage volume | informational | Compare against the storage volume's capacity. |
 
 Run it again after the first supplier sync, and whenever the catalogue is
 reloaded.
+
+---
+
+## 15. Establishing the per‑category customs rates
+
+Section 14 refuses to go green until every enriched product resolves a customs
+rate, and the supplier feed never carries one. This section is the procedure to
+produce those numbers. It is data entry, not code — but it is the entry that
+decides whether every price on the storefront is right.
+
+### What the number has to be
+
+`Category.default_customs_rate_pct` is a **single effective ad‑valorem rate**
+applied to the CAF value (cost + freight + insurance) in
+`calculate_sale_price`. Real Polynesian import taxation is not a single rate: it
+stacks customs duty, the local development tax (TDL) — whose base is **CAF plus
+the duty**, so it cascades — and, depending on the tariff position, further
+levies (PID, TS, TEAP, PEAGE, SETIL, CPS…). The rate you enter must be the
+**aggregate of all of them expressed as one percentage of CAF**.
+
+Do not try to reconstruct that stack by hand. The CCISM, which trains customs
+declarants for a living, describes the number of taxes and their interaction as
+complex enough to warrant a course. Derive the rate from the official simulator
+instead, which applies the real cascade for you.
+
+### Procedure, per category
+
+1. **Find the tariff position.** Open the
+   [simulateur de taxation](https://simulateur-douane-polynesie.com/) (Direction
+   régionale des douanes de Polynésie française). You can either enter a customs
+   code directly or pick from its 97 product chapters. Work from a real,
+   representative product of the category — a specific laptop, not "laptops in
+   general".
+2. **Simulate a round CAF value.** Enter a value in XPF that is representative of
+   what you actually import in that category (say 200 000 XPF for a laptop, not
+   1 000). Set **origin** to match your corridor — the France → Papeete corridor
+   is EU origin, and origin changes the rate — and set the **transport mode** to
+   the one most of that category travels by.
+3. **Read the total, then take out the VAT.** ⚠️ **This is the step that goes
+   wrong.** The simulator returns *droits et taxes* — duties **and** taxes — and
+   import VAT (16 % normal rate) is levied on imports, so expect it in there.
+   The application already applies the consumption tax separately, from
+   `TaxRate` resolved product → category → territory. Fold the simulator's VAT
+   into `customs_rate_pct` and **every price carries VAT twice**. So: find the
+   VAT line in the simulated breakdown and exclude it. If the output gives only
+   a lump sum with no breakdown, do not guess — ask the douanes or a broker for
+   the detail before entering anything.
+4. **Derive the percentage.** `taux_eff = (duties excluding VAT ÷ simulated CAF)
+   × 100`. Enter it in the admin, **Douane par catégorie**.
+5. **Check it is genuinely ad valorem.** Re‑run the same simulation at a very
+   different value (say ×5). If the ratio moves, the position carries a
+   *specific* levy (per unit or per kilo) that a percentage cannot represent
+   exactly. Derive the rate at the value closest to your real basket and write
+   down that the category is approximate — and re‑derive it if your price points
+   shift.
+
+### Worked example — and why step 3 matters this much
+
+The price is built as two **separate** multipliers:
+
+```
+price = CAF × (1 + customs) × (1 + margin) × (1 + tax)
+                   ↑                              ↑
+        "Douane par catégorie"          TaxRate (TGC/VAT 16 %)
+```
+
+The tax is already applied at the end. The customs field is not meant to carry it.
+
+Take a CAF of 100 000 XPF on a position bearing 5 % of duties, sold to a price
+group carrying a 30 % margin. The simulator reports what you actually pay at the
+border:
+
+| Line | Amount |
+|------|--------|
+| Duties (customs + TDL + other levies) | 5 000 |
+| Import VAT, 16 % on 105 000 | 16 800 |
+| **Simulator total** | **21 800** — i.e. 21.8 % of CAF |
+
+Enter **21.8** and the application computes
+`100 000 × 1.218 × 1.30 × 1.16 = 183 674`.
+Enter **5** and it computes
+`100 000 × 1.05 × 1.30 × 1.16 = 158 340`.
+
+The gap is not an approximation, it is exactly ×1.16. The simulator total equals
+`(1 + duties) × (1 + VAT)` by construction, so folding it into the customs field
+applies VAT there **and** again at the end: `(1 + duties) × (1 + VAT)²`. Every
+price in the catalogue would be 16 % too expensive. Hence: take the total, drop
+the VAT line, enter `5`.
+
+### When a category spans several tariff positions
+
+Categories here come from supplier subcategories ("Ordinateur Portable"), which
+are coarser than tariff positions — so one category can legitimately cover
+several rates. **Simulate the two or three positions the category realistically
+covers**, then:
+
+- **Spread ≤ 2 points** → enter the **highest** of them.
+- **Spread > 2 points** → **split the category** rather than average it. The
+  supplier subcategory allowlist (`SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST`) and the
+  per‑product override (`PUT /admin/products/{id}/customs-rate`, which wins over
+  the category) are both available for that.
+
+Take the highest rather than the average, because the two errors are not
+symmetric: under‑pricing is invisible and costs margin on every unit sold, while
+over‑pricing is visible and costs at most a sale you can still win back. This is
+the same reasoning that makes an unresolved rate hide a product instead of
+defaulting to zero.
+
+> **Open question, to settle with the accountant before entering anything:**
+> whether import VAT is genuinely recoverable for the company (F7 in the work
+> plan).
+>
+> Step 3 assumes it is: you pay VAT at the border, reclaim it as a registered
+> business, then charge VAT to the customer and remit it. On that reading import
+> VAT is a **cash‑flow item, not a cost**, and has no business being in the cost
+> base — which is exactly why it gets dropped from the simulator total.
+>
+> If the answer is the opposite, import VAT becomes a real cost that has to be
+> carried *inside* the effective rate, and step 3 changes. **The number you type
+> differs either way** — so get the answer before deriving forty categories at
+> the simulator, not after.
+
+### Record what you did
+
+The rate alone is unauditable: six months on, nobody can tell which position it
+came from or whether it still holds. Keep this table filled as you go, and
+re‑check it at least once a year and whenever the tariff is revised.
+
+| Category | Tariff position used | Origin | Effective rate | Derived on | Notes |
+|----------|---------------------|--------|----------------|-----------|-------|
+| _e.g. Ordinateur Portable_ | _8471.30_ | _UE_ | _x.xx %_ | _YYYY‑MM‑DD_ | _specific levy? split?_ |
+
+If this table outgrows the document, the natural next step is a
+`Category.customs_tariff_position` column so the justification lives next to the
+rate instead of in a file beside it.
+
+> The simulator's own output is explicitly **indicative and non‑contractual**.
+> For the positions carrying most of your volume, have the numbers confirmed by
+> a customs broker or by the douanes directly before opening — the whole
+> catalogue's pricing rests on them.
+
+### Sources
+
+Checked on 2026‑08‑29 — verify before relying on them, tariffs get revised.
+
+- [Simulateur de taxation — douanes de Polynésie française](https://simulateur-douane-polynesie.com/)
+  (tariff code or 97 chapters, value in XPF, origin, transport mode; output explicitly indicative)
+- [Le calcul des droits de douanes — CCISM](https://www.ccism.pf/la-ccism/exporter/effectuer-ses-formalites-l-import/le-calcul-des-droits-de-douanes)
+  (customs value = commercial price + transport + insurance; the four inputs; complexity warning)
+- [Tarif des douanes de Polynésie française](https://www.polynesie-francaise.pref.gouv.fr/contenu/telechargement/50120/319486/file/Annexe.pdf)
+  (full tariff, common rate DC and reduced rate TR for EU origin)
+- [La TVA — DICP Polynésie française](https://www.service-public.pf/dicp/professionnels/vos-impots/taxe-sur-la-valeur-ajoutee/)
+  (16 % normal rate, applies to imports)
+
+Two points that shaped the procedure above and are worth re‑checking directly:
+the **TDL base is the CAF value plus the customs duty** (hence the cascade), and
+the TDL is a **protective tax targeting a list of tariff positions** competing
+with local production — so it may simply not apply to IT equipment. Confirm per
+position rather than assuming either way.
