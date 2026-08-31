@@ -51,6 +51,15 @@
                 <span>Total</span>
                 <span>{{ formatMoney(String(cartStore.totalAmount)) }}</span>
               </div>
+              <!-- Charge douanière due une fois par expédition : affichée ici
+                   pour qu'elle ne surgisse pas au moment de payer. -->
+              <div
+                v-if="hasFee(customsDeclarationFee)"
+                class="row justify-between text-caption text-grey-8 q-mt-sm"
+              >
+                <span>Frais de dédouanement<br />(une fois par expédition)</span>
+                <span>+ {{ formatMoney(customsDeclarationFee) }}</span>
+              </div>
             </q-card-section>
           </q-card>
         </div>
@@ -394,6 +403,9 @@ interface DeliveryChoice {
 }
 const deliveryOptions = ref<DeliveryChoice[]>([]);
 const selectedDeliveryType = ref<string | null>(null);
+// Frais de dédouanement : facturés une fois par expédition, indépendamment du
+// mode de livraison et du nombre d'articles.
+const customsDeclarationFee = ref('0');
 
 function iconForMode(mode: string): string {
   if (mode === 'pickup') return 'store';
@@ -485,6 +497,7 @@ onMounted(async () => {
 async function loadDeliveryOptions() {
   try {
     const res = await getLastLegOptions(selectedAddressId.value);
+    customsDeclarationFee.value = String(res.customs_declaration_fee ?? '0');
     deliveryOptions.value = res.options.map((o) => ({
       value: o.delivery_type,
       label: o.label || prettifyMode(o.delivery_type),
@@ -500,6 +513,7 @@ async function loadDeliveryOptions() {
     // Non-blocking: the delivery section is hidden if options can't be loaded.
     deliveryOptions.value = [];
     selectedDeliveryType.value = null;
+    customsDeclarationFee.value = '0';
   }
 }
 

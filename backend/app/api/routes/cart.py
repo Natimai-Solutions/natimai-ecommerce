@@ -92,6 +92,7 @@ from app.features.shipping.models.route_tracking import (
 )
 from app.features.shipping.models.status import StatusDefinition, StatusDefinitionCreate
 from app.features.shipping.services import (
+    CustomsDeclarationFee,
     calculate_shipping_for_routes,
     serialize_shipping_cost_summary,
 )
@@ -315,6 +316,46 @@ async def _import_route_ids(
     )
     customs_place_ids = set(result.all())
     return {route.id for route in routes if route.to_place_id in customs_place_ids}
+
+
+async def _customs_declaration_fees(
+    session: SessionDep,
+) -> list[CustomsDeclarationFee]:
+    """Fixed charges owed once per customs declaration for this shipment.
+
+    The fee lives on the customs ``Place`` and not on the route: several
+    corridors (France, US, Asie…) landing at the same border still produce a
+    single declaration, and deduplicating by place is what keeps it that way.
+    Only borders actually served by an active route are billed, and an unset
+    (or zero) fee bills nothing — the amount is a deployment parameter, like
+    the customs rates of F1/F2.
+
+    Two known limitations, both erring on the over-charging side (which is
+    visible and refundable, unlike under-charging): an order served entirely
+    from local stock clears no customs yet pays the fee — the line-to-segment
+    allocation only happens later, inside the checkout transaction — and when
+    several orders are consolidated into one declaration, each carries the
+    whole fee. Set the amount to the expected per-order share until the
+    logistics phase makes the billing consolidation-aware.
+    """
+    active_route_destinations = select(col(ShippingRoute.to_place_id)).where(
+        col(ShippingRoute.is_active).is_(True)
+    )
+    result = await session.exec(
+        select(Place).where(
+            col(Place.customs_clearance).is_(True),
+            col(Place.customs_declaration_fee) > 0,
+            col(Place.id).in_(active_route_destinations),
+        )
+    )
+    return [
+        CustomsDeclarationFee(
+            place_id=place.id,
+            place_name=place.name,
+            amount=Decimal(str(place.customs_declaration_fee)),
+        )
+        for place in result.all()
+    ]
 
 
 async def _resolve_selected_checkout_routes(
@@ -1653,6 +1694,13 @@ async def get_last_leg_options(
         session, destination_chain=destination_chain
     )
 
+    # Shown next to the delivery modes so the customs charge is not a surprise
+    # discovered on the payment page (it is billed once per shipment, F3).
+    declaration_fee_total = sum(
+        (fee.amount for fee in await _customs_declaration_fees(session)),
+        Decimal("0.00"),
+    )
+
     options: list[LastLegOption] = []
     for mode in sorted(candidates):
         route = candidates[mode].route
@@ -1673,7 +1721,11 @@ async def get_last_leg_options(
             )
         )
 
-    return LastLegOptionsResponse(currency=cart.currency, options=options)
+    return LastLegOptionsResponse(
+        currency=cart.currency,
+        options=options,
+        customs_declaration_fee=quantize_amount(declaration_fee_total, cart.currency),
+    )
 
 
 @router.post(
@@ -1777,15 +1829,20 @@ async def checkout_my_cart(
     ):
         priced_routes.append(last_leg_route)
 
+    # Per-declaration customs charges: once per shipment, whatever the routing
+    # and the number of lines (F3).
+    declaration_fees = await _customs_declaration_fees(session)
+
     shipping_cost_summary = None
     shipping_cost_breakdown_payload: dict[str, Any] | None = None
     shipping_fee_input = payload.shipping_fee_amount or Decimal("0.00")
-    if priced_routes:
+    if priced_routes or declaration_fees:
         shipping_cost_summary = calculate_shipping_for_routes(
             routes=priced_routes,
             total_weight_kg=total_weight_kg,
             declared_value=declared_value,
             currency=cart.currency,
+            customs_declaration_fees=declaration_fees,
         )
         shipping_fee_input = shipping_cost_summary.total_fee
         shipping_cost_breakdown_payload = serialize_shipping_cost_summary(

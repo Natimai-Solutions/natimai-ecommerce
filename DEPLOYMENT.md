@@ -133,7 +133,7 @@ returns `503 oauth.provider.not_configured`. See section 7 to enable end‑to‑
 | `PAYZEN_RETURN_URL` | — | Default browser return URL after payment |
 | `PAYZEN_CURRENCY` | `XPF` | Billing currency |
 | `REFERENCE_CURRENCY` | `XPF` | Pivot currency for cost/price normalisation |
-| `INSURANCE_RATE_PCT` | `0.0` | Insurance % added before customs (CIF basis) |
+| `INSURANCE_RATE_PCT` | `0.0` | Insurance %, applied on **cost + variable import freight** (CAF/CIF basis) before customs. `0` = no insurance in the price: set the rate actually billed by the insurer, otherwise the premium is paid and never recovered. |
 
 The `api_password` and `public_key` actually used follow `PAYZEN_MODE`
 (`*_TEST` vs `*_PROD`).
@@ -809,6 +809,7 @@ Read-only, exits non‑zero when a threshold is crossed.
 | Products without `category_id` | 0 | No category means no filters, no default tax rate — and, since the customs rate is inherited from the category, no resolvable customs rate either. |
 | Enriched products hidden by the publication guard | 0 | A product whose customs rate resolves nowhere, or that has no weight, would sell below cost, so the storefront hides it instead of showing a wrong price. Fix by entering the per-category customs rate (**§15** — how to establish it) and filling the missing weights; `GET /admin/catalog/publication-report` breaks the backlog down by category. **Expect this to fail on a freshly synced catalogue** — the supplier feed never carries a customs rate. |
 | Manual FX rate age | ≤ 30 days | Supplier costs are converted with these rates; one frozen for months skews every displayed price. |
+| Import cost parameters (declaration fee, insurance) | informational | Both are paid whether or not they are billed: at zero they come straight out of the margin, silently. Zero is a legitimate choice (fees bundled by the forwarder, no policy taken) — but a deliberate one, set in **§16**. |
 | Attachment storage volume | informational | Compare against the storage volume's capacity. |
 
 Run it again after the first supplier sync, and whenever the catalogue is
@@ -972,3 +973,84 @@ the **TDL base is the CAF value plus the customs duty** (hence the cascade), and
 the TDL is a **protective tax targeting a list of tariff positions** competing
 with local production — so it may simply not apply to IT equipment. Confirm per
 position rather than assuming either way.
+
+---
+
+## 16. Per‑declaration customs charges and freight insurance
+
+Two costs of importing that the ad‑valorem rate of §15 does **not** cover. Both
+are paid whether or not they are billed: left at zero they come out of the
+margin without raising anything. Neither is code — they are numbers to obtain
+and enter, and the mechanism that receives them exists.
+
+### 16.1 Charges owed per declaration (F3)
+
+Customs redevances, participations and the forwarder's file fee are owed **per
+declaration**, not per article. Spreading them over the lines would make the
+unit price wrong in both directions depending on cart size — small carts
+over‑charged, large ones under‑charged — so they are billed once per shipment,
+like a leg's fixed forfait.
+
+They are carried by the **customs place**, not by the route:
+
+```bash
+# Find the customs place: the one this corridor's import leg lands on,
+# flagged customs_clearance = true (Papeete, on the seeded corridor)
+curl -H "Authorization: Bearer $ADMIN_TOKEN" "$API/place/?limit=200" \
+  | jq '.data[] | select(.customs_clearance) | {id, name}'
+
+# Set the aggregate per-declaration amount (reference currency, XPF)
+curl -X PUT -H "Authorization: Bearer $ADMIN_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"customs_declaration_fee": "3500.00"}' \
+     "$API/place/{place_id}"
+```
+
+Consequences of that placement, all deliberate:
+
+- Several corridors (France, US, Asia) clearing at the same border are **one**
+  declaration, because the fee is deduplicated by place. Two distinct customs
+  places mean two territories, hence genuinely two declarations.
+- The amount is billed even when no leg is charged to the customer — the import
+  leg's freight is already inside the unit price (F6), the declaration is not.
+- `NULL` or `0` bills nothing, and that is the shipped default: nothing changes
+  until you enter a number.
+
+**Where to find the numbers**: the forwarder's fee schedule (file fee, customs
+brokerage) and the customs charges listed on a real declaration. Take them from
+an actual invoice rather than from the simulator — the simulator prices the
+goods, not the paperwork.
+
+> **Do not fold these into the §15 category rate.** That rate is ad valorem: a
+> fixed charge encoded as a percentage over‑bills a large shipment and
+> under‑bills a small one, which is exactly the defect this separation removes.
+
+**Known limitations**, both erring on the over‑charging side — visible and
+refundable, unlike under‑charging:
+
+- An order served entirely from **local stock** clears no customs yet pays the
+  fee: which lines come from the supplier is only decided later, inside the
+  checkout transaction, after the total is frozen.
+- When several orders are **consolidated** into one declaration, each carries
+  the whole fee.
+
+Until the logistics phase makes the billing consolidation‑aware, set the amount
+to the expected **per‑order share**, not the full declaration cost.
+
+### 16.2 Freight insurance (F4)
+
+`INSURANCE_RATE_PCT` is applied to **cost + variable import freight** — the CAF
+basis an ad valorem policy actually covers — before customs duty. The default
+`0.0` means no insurance in the price.
+
+1. **Take out a real ad valorem policy.** Carrier and forwarder liability caps
+   are per kilo and indemnify almost nothing on dense, expensive goods — a
+   stolen GPU is the textbook case.
+2. **Enter the rate the insurer bills**, in the API's `.env`
+   (`INSURANCE_RATE_PCT=0.35` for 0.35 %), then restart the API. A policy paid
+   for but not entered here is a premium that never comes back through sales.
+3. Check it landed: the readiness report (§14) prints the current rate.
+
+Storefront prices are recomputed from the CAF formula, so a rate change takes
+effect on the next price computation — verify a product's price moved as
+expected before considering the change applied.
