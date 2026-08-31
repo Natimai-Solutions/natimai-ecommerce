@@ -33,6 +33,7 @@ Examples:
 import argparse
 import asyncio
 import logging
+import logging.handlers
 import signal
 import sys
 import time
@@ -47,14 +48,35 @@ from app.core.db import engine
 from app.outbox.loader import load_handlers
 from app.outbox.poller import OutboxPoller, poll_outbox_once
 
-# Configure logging
+# Le fichier de log double la sortie standard : stdout est récupéré et tourné
+# par Docker (anchor x-app-logging), le fichier ne l'est par personne. Sans
+# bornes il grossit tant que le service tourne — c'est-à-dire indéfiniment —
+# et remplit la couche inscriptible du conteneur. 5 Mo × 3 archives couvrent
+# largement la fenêtre de diagnostic d'un incident outbox.
+_LOG_FILE = "outbox_poller.log"
+_LOG_MAX_BYTES = 5 * 1024 * 1024
+_LOG_BACKUP_COUNT = 3
+
+# `force=True` n'est pas décoratif : les imports ci-dessus finissent par
+# atteindre app.features.base.crud, qui appelle logging.basicConfig() au chargement
+# du module. Le root logger a donc déjà un handler quand on arrive ici, et sans
+# `force` cet appel est un no-op silencieux — ni le niveau, ni le format, ni le
+# fichier ne s'appliquaient, le fichier étant créé vide puis jamais écrit.
+# Ce processus est un service autonome : il a le droit de configurer son propre
+# logging (il n'initialise pas Sentry, aucun handler tiers n'est écrasé).
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler("outbox_poller.log"),
+        logging.handlers.RotatingFileHandler(
+            _LOG_FILE,
+            maxBytes=_LOG_MAX_BYTES,
+            backupCount=_LOG_BACKUP_COUNT,
+            encoding="utf-8",
+        ),
     ],
+    force=True,
 )
 logger = logging.getLogger(__name__)
 
