@@ -8613,6 +8613,12 @@ export interface components {
             currency: string;
             /** Options */
             options?: components["schemas"]["LastLegOption"][];
+            /**
+             * Customs Declaration Fee
+             * @description Frais de dédouanement facturés une fois par expédition, quel que soit le nombre d'articles (0 = aucun frais paramétré). Ils s'ajoutent au total au checkout, en plus du mode de livraison.
+             * @default 0.00
+             */
+            customs_declaration_fee: string;
         };
         /**
          * LivenessResponse
@@ -10622,6 +10628,11 @@ export interface components {
              */
             customs_clearance: boolean;
             /**
+             * Customs Declaration Fee
+             * @description Frais fixes dus par déclaration en douane franchie ici (redevances, participations, frais de dossier transitaire), exprimés dans la devise de référence. Facturés UNE FOIS par expédition, jamais au prorata des articles (écart F3). NULL = non renseigné, donc rien n'est facturé.
+             */
+            customs_declaration_fee?: number | string | null;
+            /**
              * Consolidation Service
              * @description Consolidation service
              * @default false
@@ -10765,6 +10776,11 @@ export interface components {
              */
             customs_clearance: boolean;
             /**
+             * Customs Declaration Fee
+             * @description Frais fixes dus par déclaration en douane franchie ici (redevances, participations, frais de dossier transitaire), exprimés dans la devise de référence. Facturés UNE FOIS par expédition, jamais au prorata des articles (écart F3). NULL = non renseigné, donc rien n'est facturé.
+             */
+            customs_declaration_fee?: string | null;
+            /**
              * Consolidation Service
              * @description Consolidation service
              * @default false
@@ -10894,6 +10910,8 @@ export interface components {
             current_capacity_m3?: number | null;
             /** Customs Clearance */
             customs_clearance?: boolean | null;
+            /** Customs Declaration Fee */
+            customs_declaration_fee?: number | string | null;
             /** Consolidation Service */
             consolidation_service?: boolean | null;
             /** Repackaging Service */
