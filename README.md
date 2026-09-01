@@ -196,7 +196,7 @@ The most important variables — see [`.env.example`](.env.example) and [`DEPLOY
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and on every PR:
 
-- **Backend**: `ruff` (lint + format) + `mypy` + `pytest` **under coverage**, against a throwaway PostgreSQL service. Coverage config (`source = app`, exclusions) lives in [`backend/pyproject.toml`](backend/pyproject.toml) (`[tool.coverage.*]`); uncomment `fail_under` to gate the build.
+- **Backend**: `ruff` (lint + format) + `mypy` + `pytest` **under coverage**, against a throwaway PostgreSQL service. Coverage config (`source = app`, exclusions) lives in [`backend/pyproject.toml`](backend/pyproject.toml) (`[tool.coverage.*]`); `fail_under` gates the build (65 %).
 - **Frontend**: `lint` + `typecheck` for both apps + **unit tests of the shared engine** (`@app/utils`: currency / pricing / date) via **vitest**, under coverage.
 
 Coverage reports (`coverage.xml` / `coverage.json` / the vitest summary) are uploaded as CI artifacts.

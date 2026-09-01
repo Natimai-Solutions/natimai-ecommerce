@@ -117,4 +117,8 @@ omit = [
 show_missing = true
 # Gate the build: CI fails when coverage regresses under this % (audit Q2,
 # 25/08/2026 — measured ~64.8 % at the current omit scope; raise over time).
-fail_under = 60
+# 31/08/2026 (Q3): 67 % measured on the unit suite alone, integration tests
+# excluded — CI, which runs them too, can only be higher. Threshold moved to
+# 65 to keep the ratchet ahead of the previous measurement. Never lower it to
+# make a PR pass: cover the code the PR adds instead.
+fail_under = 65
