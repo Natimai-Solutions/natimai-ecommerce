@@ -364,8 +364,11 @@ class Settings(BaseSettings):
     # prices are computed and orders are billed. One per deployment. Override
     # per territory via the environment, never hardcode it in the code.
     REFERENCE_CURRENCY: str = "XPF"
-    # Insurance rate applied on cost_in_reference before customs (CIF basis).
-    # Expressed as a percentage (e.g. 1.0 = 1 %). Default 0 = no insurance.
+    # Insurance rate applied on (cost + variable import freight) before customs
+    # — the CAF/CIF basis, which is what an ad valorem policy actually covers.
+    # Expressed as a percentage (e.g. 1.0 = 1 %). Default 0 = no insurance in
+    # the price: set the rate actually paid to the insurer, otherwise the
+    # premium is paid but never recovered (audit item F4).
     INSURANCE_RATE_PCT: float = 0.0
 
     # --- Facturation (M3) : identité du vendeur imprimée sur les factures ---

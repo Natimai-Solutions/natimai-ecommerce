@@ -106,6 +106,8 @@ export interface LastLegOption {
 interface LastLegOptionsResponse {
   currency: string;
   options: LastLegOption[];
+  /** Frais de dédouanement facturés une fois par expédition ('0' si aucun). */
+  customs_declaration_fee: string;
 }
 
 /** Priced last-leg delivery options for the current cart (shown at checkout).

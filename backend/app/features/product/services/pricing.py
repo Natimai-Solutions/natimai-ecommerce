@@ -310,6 +310,7 @@ async def calculate_sale_price(
     """Calculate product sale price using the CAF customs base.
 
     Formula:
+        insurance = (cost_in_reference + freight_variable) × insurance_rate
         caf       = cost_in_reference + freight_variable + insurance
         landed    = caf × (1 + customs_rate_pct / 100)
         sale_price = landed × (1 + margin_rate_pct / 100) × (1 + tax_rate_pct / 100)
@@ -362,9 +363,14 @@ async def calculate_sale_price(
         )
         freight_variable = _as_decimal(import_route.price_per_kg) * billable_weight_kg
 
-    # Insurance on cost only (not on freight, to avoid circularity).
+    # Insurance is priced on what is actually insured: the goods *and* the
+    # freight paid to bring them here (ad valorem premiums are quoted on the
+    # CIF/CAF value, not on the invoice value alone). Charging it on the cost
+    # only under-recovers on exactly the items where the freight weighs most —
+    # the heavy and the far-shipped. There is no circularity: the variable
+    # freight is known before the customs base is assembled.
     insurance_rate = Decimal(str(settings.INSURANCE_RATE_PCT)) / Decimal("100")
-    insurance = cost_in_reference * insurance_rate
+    insurance = (cost_in_reference + freight_variable) * insurance_rate
 
     caf = cost_in_reference + freight_variable + insurance
 

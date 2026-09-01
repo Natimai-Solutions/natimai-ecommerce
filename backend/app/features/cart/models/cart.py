@@ -334,3 +334,11 @@ class LastLegOptionsResponse(SQLModel):
 
     currency: str
     options: list[LastLegOption] = Field(default_factory=list)
+    customs_declaration_fee: Decimal = Field(
+        default=Decimal("0.00"),
+        description=(
+            "Frais de dédouanement facturés une fois par expédition, quel que "
+            "soit le nombre d'articles (0 = aucun frais paramétré). Ils "
+            "s'ajoutent au total au checkout, en plus du mode de livraison."
+        ),
+    )
