@@ -27,6 +27,7 @@ from typing import Any
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.alerting import send_alert
 from app.core.config import settings
 from app.features.invoice.models.invoice import Invoice
 from app.features.invoice.services.numbering import allocate_invoice_number
@@ -137,15 +138,28 @@ async def _seller_identity(session: AsyncSession) -> dict[str, str]:
         "phone": legal.get("legal_contact_phone") or settings.INVOICE_SELLER_PHONE,
         "legal_footer": settings.INVOICE_LEGAL_FOOTER,
     }
-    missing = [key for key in ("address", "registration") if not identity[key]]
-    if missing:
-        logger.warning(
-            "Invoice seller identity incomplete (%s) — the issued document is "
-            "not legally compliant. Fill it in the back-office (Réglages / "
-            "identité légale) or set INVOICE_SELLER_* in the environment.",
-            ", ".join(missing),
-        )
-    return identity
+    missing = [key for key in ("name", "address", "registration") if not identity[key]]
+    if not missing:
+        return identity
+
+    message = (
+        f"Invoice seller identity incomplete ({', '.join(missing)}). A document "
+        "without a trading name, an address and a registration number is not a "
+        "valid accounting invoice. Fill it in the back-office (Réglages / "
+        "identité légale) or set INVOICE_SELLER_* in the environment."
+    )
+    if settings.ENVIRONMENT == "local":
+        # A dev stack has no reason to carry a real company's details.
+        logger.warning("%s (tolerated in local development)", message)
+        return identity
+
+    # Fail closed. Issuing a non-compliant document is worse than not issuing
+    # one: the order stays payable and invoiceable once the identity is filled,
+    # whereas a bad invoice has already burned a number in a legally gap-free
+    # sequence and cannot be edited or deleted.
+    logger.error(message)
+    await send_alert(message, source="invoice")
+    raise InvoiceIssuanceError(message)
 
 
 async def _build_buyer_identity(
