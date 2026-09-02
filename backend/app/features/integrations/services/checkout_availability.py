@@ -85,9 +85,10 @@ async def refresh_supplier_availability(
                 adapter.fetch_price_and_availability(list(products_by_sku)),
                 timeout=settings.CHECKOUT_SUPPLIER_CHECK_TIMEOUT_SECONDS,
             )
-        except (asyncio.TimeoutError, Exception) as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             # Deliberately broad and deliberately non-fatal: the checkout must
-            # survive anything the supplier client can throw.
+            # survive anything the supplier client can throw, including the
+            # TimeoutError raised by wait_for above.
             logger.warning(
                 "Checkout availability check against %s failed (%s) — falling "
                 "back to the last synced quantities",
