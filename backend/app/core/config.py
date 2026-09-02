@@ -432,6 +432,28 @@ class Settings(BaseSettings):
             else:
                 raise ValueError(message)
 
+    def _check_weak_database_password(self) -> None:
+        """Refuse the well-known development database passwords outside local.
+
+        ``docker-compose.yml`` ships ``postgres`` as the default so a bare
+        ``docker compose up`` works with no ``.env``. That default used to be
+        hardcoded in every service, which meant a production stack silently ran
+        on it while ``_check_default_secret`` — which only knows about
+        ``changethis`` — stayed quiet.
+        """
+        weak = {"postgres", "password", "postgres_password"}
+        if self.POSTGRES_PASSWORD.strip().lower() in weak:
+            message = (
+                f"POSTGRES_PASSWORD is a well-known development default "
+                f"('{self.POSTGRES_PASSWORD}'). Set a real password in your "
+                ".env: it is read by the database, the API, the worker, the "
+                "poller and the outbox health checker alike."
+            )
+            if self.ENVIRONMENT == "local":
+                warnings.warn(message, stacklevel=1)
+            else:
+                raise ValueError(message)
+
     def _check_clamav_enabled(self) -> None:
         """Antivirus scanning of uploads is mandatory outside local.
 
@@ -457,6 +479,7 @@ class Settings(BaseSettings):
         self._check_secret_key()
         self._check_default_secret("SECRET_KEY", self.SECRET_KEY)
         self._check_default_secret("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD)
+        self._check_weak_database_password()
         self._check_default_secret(
             "FIRST_SUPERUSER_PASSWORD", self.FIRST_SUPERUSER_PASSWORD
         )
