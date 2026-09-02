@@ -241,6 +241,13 @@ class Settings(BaseSettings):
     # after this many hours. 0 disables it.
     STOCK_RESERVATION_TTL_HOURS: int = 48
 
+    # A SKU the supplier stops returning used to stay active forever with its
+    # last known price and stock. The first absence is recorded, and the
+    # product deactivated only once the gap exceeds this many hours — a
+    # transient supplier fault must not delist the catalog. 0 disables
+    # delisting (the absence is still recorded).
+    SUPPLIER_DELISTING_GRACE_HOURS: int = 72
+
     ICECAT_USERNAME: str | None = None
     ICECAT_API_KEY: str | None = None
     ICECAT_LANGUAGE: str = "fr"  # Default language

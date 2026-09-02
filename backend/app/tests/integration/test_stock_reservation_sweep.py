@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.features.inventory.crud import crud_stock_movement
 from app.features.inventory.models.inventory import Inventory
 from app.features.inventory.models.stock_movement import (
@@ -251,9 +252,7 @@ async def test_sweep_disabled_by_a_zero_ttl(
     )
     await db_session.commit()
 
-    monkeypatch.setattr(
-        inventory_tasks.settings, "STOCK_RESERVATION_TTL_HOURS", 0, raising=False
-    )
+    monkeypatch.setattr(settings, "STOCK_RESERVATION_TTL_HOURS", 0, raising=False)
     result = await inventory_tasks.release_expired_stock_reservations_task({})
 
     assert result["status"] == "disabled"
@@ -266,17 +265,13 @@ async def test_sweep_disabled_by_a_zero_ttl(
 def test_cron_job_is_registered_when_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        inventory_tasks.settings, "STOCK_RESERVATION_TTL_HOURS", 48, raising=False
-    )
+    monkeypatch.setattr(settings, "STOCK_RESERVATION_TTL_HOURS", 48, raising=False)
     jobs = inventory_tasks.get_stock_reservation_cron_jobs()
     assert len(jobs) == 1
 
 
 def test_cron_job_absent_when_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        inventory_tasks.settings, "STOCK_RESERVATION_TTL_HOURS", 0, raising=False
-    )
+    monkeypatch.setattr(settings, "STOCK_RESERVATION_TTL_HOURS", 0, raising=False)
     assert inventory_tasks.get_stock_reservation_cron_jobs() == []
 
 
@@ -292,8 +287,6 @@ async def _run_sweep(
         async def __aexit__(self, *_exc: object) -> None:
             return None
 
-    monkeypatch.setattr(
-        inventory_tasks.settings, "STOCK_RESERVATION_TTL_HOURS", 48, raising=False
-    )
+    monkeypatch.setattr(settings, "STOCK_RESERVATION_TTL_HOURS", 48, raising=False)
     monkeypatch.setattr(inventory_tasks, "AsyncSession", lambda _engine: _SessionCtx())
     return await inventory_tasks.release_expired_stock_reservations_task({})
