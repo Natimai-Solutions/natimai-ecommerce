@@ -1006,6 +1006,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/credit-notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Credit Notes
+         * @description List issued credit notes, most recent first (optionally one year).
+         */
+        get: operations["admin-credit-notes-list_credit_notes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/credit-notes/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Credit Notes Csv
+         * @description Accounting export of the issued credit notes (CSV, semicolon-separated).
+         *
+         *     Ordered by number so the accountant can check sequence continuity at a
+         *     glance, exactly as for the invoice export.
+         */
+        get: operations["admin-credit-notes-export_credit_notes_csv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/credit-notes/{credit_note_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Credit Note
+         * @description Return one issued credit note.
+         */
+        get: operations["admin-credit-notes-get_credit_note"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/credit-notes/{credit_note_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Credit Note Pdf
+         * @description Download the PDF of an issued credit note.
+         */
+        get: operations["admin-credit-notes-download_credit_note_pdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/shipping/pending-grouping": {
         parameters: {
             query?: never;
@@ -2821,6 +2904,69 @@ export interface paths {
          * @description Download the PDF of one of the customer's invoices.
          */
         get: operations["invoice-download_my_invoice_pdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/me/credit-notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Credit Notes
+         * @description List the authenticated customer's credit notes, most recent first.
+         */
+        get: operations["invoice-list_my_credit_notes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/me/credit-notes/by-order/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Credit Notes For Order
+         * @description Credit notes issued against one of the customer's orders.
+         *
+         *     A list, not a single document: a partial refund can be followed by another,
+         *     each producing its own credit note.
+         */
+        get: operations["invoice-list_my_credit_notes_for_order"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/me/credit-notes/{credit_note_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download My Credit Note Pdf
+         * @description Download the PDF of one of the customer's credit notes.
+         */
+        get: operations["invoice-download_my_credit_note_pdf"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7080,6 +7226,46 @@ export interface components {
             name: string;
             /** Notes */
             notes?: string | null;
+        };
+        /**
+         * CreditNotePublic
+         * @description Credit note metadata exposed by the API (the PDF has its own endpoint).
+         */
+        CreditNotePublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Credit Note Number */
+            credit_note_number: string;
+            /** Fiscal Year */
+            fiscal_year: number;
+            /**
+             * Invoice Id
+             * Format: uuid
+             */
+            invoice_id: string;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+            /** Currency */
+            currency: string;
+            /** Total Excl Tax */
+            total_excl_tax: string;
+            /** Total Tax */
+            total_tax: string;
+            /** Total Incl Tax */
+            total_incl_tax: string;
+            /** Reason */
+            reason: string | null;
         };
         /**
          * CurrencyRatePublic
@@ -16627,6 +16813,132 @@ export interface operations {
             };
         };
     };
+    "admin-credit-notes-list_credit_notes": {
+        parameters: {
+            query?: {
+                fiscal_year?: number | null;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditNotePublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-credit-notes-export_credit_notes_csv": {
+        parameters: {
+            query?: {
+                fiscal_year?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-credit-notes-get_credit_note": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                credit_note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditNotePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-credit-notes-download_credit_note_pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                credit_note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-shipping-list_pending_grouping": {
         parameters: {
             query?: never;
@@ -20380,6 +20692,100 @@ export interface operations {
             header?: never;
             path: {
                 invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "invoice-list_my_credit_notes": {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditNotePublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "invoice-list_my_credit_notes_for_order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditNotePublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "invoice-download_my_credit_note_pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                credit_note_id: string;
             };
             cookie?: never;
         };

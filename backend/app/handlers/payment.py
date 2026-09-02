@@ -11,6 +11,10 @@ from app.features.inventory.services.stock_release import (
     confirm_order_stock,
     release_order_stock,
 )
+from app.features.invoice.services.credit_note_service import (
+    CreditNoteIssuanceError,
+    issue_credit_note_for_refund,
+)
 from app.features.invoice.services.invoice_service import issue_invoice_for_order
 from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_status_crud import crud_order_status
@@ -378,6 +382,46 @@ async def on_payment_refunded(session: AsyncSession, payload: dict[str, Any]) ->
                 order_id,
                 released,
             )
+
+
+@outbox_handler("payment.refunded")
+async def on_payment_refunded_issue_credit_note(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    """Issue the credit note that corrects the invoice (Z2).
+
+    A refund used to move money and a payment status, leaving the invoice in
+    the books claiming a sale that no longer held. An issued invoice cannot be
+    edited — its sequence is gap-free by law — so the correction is a separate
+    document pointing at it.
+
+    Separate handler on purpose, like the invoice issuance: a failure here
+    retries on its own without re-running the status sync or the stock release.
+    """
+    raw_refund_id = payload.get("refund_id")
+    if not raw_refund_id:
+        # Pre-existing events carry no refund id; nothing to key idempotency on.
+        logger.warning("credit note: no refund_id in payload, skipping")
+        return
+    try:
+        refund_id = uuid.UUID(str(raw_refund_id))
+    except (TypeError, ValueError):
+        logger.warning("credit note: invalid refund_id %r", raw_refund_id)
+        return
+
+    try:
+        credit_note = await issue_credit_note_for_refund(session, refund_id=refund_id)
+    except CreditNoteIssuanceError as exc:
+        # An order refunded before it was ever invoiced has nothing to correct;
+        # retrying would never succeed, so log loudly and stop.
+        logger.error("Credit note not issued for refund %s: %s", refund_id, exc)
+        return
+
+    logger.info(
+        "Credit note %s issued for refund %s",
+        credit_note.credit_note_number,
+        refund_id,
+    )
 
 
 @outbox_handler("payment.rejected")
