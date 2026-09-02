@@ -552,11 +552,15 @@ async function startPayment() {
     if (checkout.form_token && checkout.server_url && checkout.public_key) {
       localStorage.setItem(PENDING_PAYMENT_KEY, checkout.payment_id);
       formToken.value = checkout.form_token;
+      // Carry the payment id in the redirect URL, not only in localStorage.
+      // 3-D Secure often finishes in the bank's app or another browser, and the
+      // customer then lands on the return page with an empty local store —
+      // which used to greet a successful payment with "no pending transaction".
       await loadPayzenSmartForm({
         serverUrl: checkout.server_url,
         publicKey: checkout.public_key,
         token: checkout.form_token,
-        returnUrl,
+        returnUrl: `${returnUrl}?payment=${encodeURIComponent(checkout.payment_id)}`,
       });
       return;
     }
