@@ -536,7 +536,6 @@ async function startPayment() {
     const checkout = await checkoutMyCart({
       shipping_preference: 'fastest',
       delivery_type: selectedDeliveryType.value,
-      payment_fee_amount: '0.00',
       shipping_address: formatAddress(selectedAddress.value),
       shipping_address_id: selectedAddressId.value,
       payment_method_id: method.id,
@@ -574,11 +573,38 @@ async function startPayment() {
     errorMessage.value =
       "Le moyen de paiement sélectionné n'est pas disponible pour le moment. Veuillez réessayer.";
   } catch (err: unknown) {
+    // The backend refuses to bill a price that moved since the line was added.
+    // Adopt the prices it just returned so the recap shows what is actually
+    // being asked, then let the customer confirm the new total.
+    const drifted = extractPriceDrift(err);
+    if (drifted) {
+      cartStore.applyServerPrices(drifted);
+    }
     errorMessage.value =
       extractError(err) ?? 'Une erreur est survenue lors de la finalisation de la commande.';
   } finally {
     initiating.value = false;
   }
+}
+
+type PriceDriftItem = { product_id: string; current_unit_price: string };
+
+/** Read the per-line new prices carried by a `cart.price.changed` refusal. */
+function extractPriceDrift(err: unknown): PriceDriftItem[] | null {
+  if (!err || typeof err !== 'object' || !('response' in err)) return null;
+  const data = (err as { response?: { data?: unknown } }).response?.data;
+  if (typeof data !== 'object' || data === null) return null;
+  const errorObj = (data as { error?: { code?: unknown; details?: unknown } }).error;
+  if (!errorObj || errorObj.code !== 'cart.price.changed') return null;
+  const items = (errorObj.details as { items?: unknown } | undefined)?.items;
+  if (!Array.isArray(items)) return null;
+  return items.filter(
+    (row): row is PriceDriftItem =>
+      typeof row === 'object' &&
+      row !== null &&
+      typeof (row as PriceDriftItem).product_id === 'string' &&
+      typeof (row as PriceDriftItem).current_unit_price === 'string',
+  );
 }
 
 /** Mirror the client-side cart into the backend cart (reset then re-add). */

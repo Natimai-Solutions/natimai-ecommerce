@@ -233,12 +233,17 @@ class CheckoutRequest(SQLModel):
             "Used only if no shipping routes are selected"
         ),
     )
-    payment_fee_amount: Decimal = Field(
-        default=Decimal("0.00"),
+    payment_fee_amount: Decimal | None = Field(
+        default=None,
         ge=0,
         max_digits=12,
         decimal_places=2,
-        description="Payment fees snapshot applied at checkout",
+        description=(
+            "Ignored. The fee is read server-side from the selected "
+            "PaymentMethod: it is a property of the method, not something the "
+            "caller gets to decide. Kept optional so existing clients that "
+            "still send it are not rejected."
+        ),
     )
     cgv_accepted: bool = Field(
         default=False,

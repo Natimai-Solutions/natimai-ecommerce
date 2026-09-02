@@ -61,6 +61,7 @@ from app.features.order.services.order_number import allocate_order_number
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_status import crud_payment_status
 from app.features.payment.models.payment import PaymentCreate
+from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.models.payment_status import (
     PaymentStatus,
     PaymentStatusCreate,
@@ -865,6 +866,88 @@ def _snapshot_checkout_amounts(
         total_fees_amount,
         total_amount,
     )
+
+
+async def _revalidate_checkout_prices(
+    session: SessionDep,
+    *,
+    items: list[CartItem],
+    products_by_id: dict[uuid.UUID, Product],
+    currency: str,
+) -> None:
+    """Refuse to bill a stale price, and refresh the cart so the client sees why.
+
+    ``CartItem.unit_price`` is snapshotted when the line is added, but the
+    catalog moves under it: a supplier sync every two hours rewrites the cost,
+    and FX or customs changes re-derive the sale price. The checkout used to
+    sum those snapshots and bill them, discarding the freshly computed price it
+    had just resolved for every product.
+
+    Billing more than the displayed price is not something the customer agreed
+    to; billing less quietly loses margin. So any drift, in either direction,
+    stops the checkout — the cart is updated first, so the customer sees the
+    new price and re-confirms.
+    """
+    drifted: list[dict[str, str]] = []
+    for item in items:
+        product = products_by_id[item.product_id]
+        # base_price was recomputed by _get_active_product_or_404.
+        current = quantize_amount(product.base_price, currency)
+        snapshot = quantize_amount(item.unit_price, currency)
+        if current == snapshot:
+            continue
+
+        drifted.append(
+            {
+                "product_id": str(item.product_id),
+                "product_name": product.name,
+                "previous_unit_price": str(snapshot),
+                "current_unit_price": str(current),
+            }
+        )
+        item.unit_price = current
+        session.add(item)
+
+    if not drifted:
+        return
+
+    # Persist the refreshed prices before bailing out: the client re-reads the
+    # cart on this error, and must be shown the price it is being asked to
+    # accept, not the stale one it just tried to pay.
+    await session.commit()
+
+    raise AppError(
+        code="cart.price.changed",
+        status_code=409,
+        message=(
+            "Le prix de certains articles a changé depuis leur ajout au panier. "
+            "Vérifiez le nouveau montant avant de valider."
+        ),
+        details={"currency": currency, "items": drifted},
+    )
+
+
+async def _resolve_payment_fee(
+    session: SessionDep,
+    *,
+    payment_method_id: uuid.UUID | None,
+    currency: str,
+) -> Decimal:
+    """Read the payment fee from the chosen method, never from the client.
+
+    The storefront used to send ``payment_fee_amount`` and the backend took it
+    at face value, so the amount charged for the payment method was decided by
+    the caller. The fee is a property of the method — it is read here.
+    """
+    if payment_method_id is None:
+        return Decimal("0.00")
+
+    method = await session.get(PaymentMethod, payment_method_id)
+    if method is None:
+        # Not our error to raise: initiate_payment_for_method reports the
+        # unknown/ineligible method with its own contract.
+        return Decimal("0.00")
+    return quantize_amount(method.fee, currency)
 
 
 async def _get_or_create_order_pending_status(session: SessionDep) -> OrderStatus:
@@ -1792,6 +1875,20 @@ async def checkout_my_cart(
             shipping_cost_summary
         )
 
+    # Server-authoritative amounts: the fee belongs to the payment method, and
+    # a line whose price moved since it was added stops the checkout.
+    await _revalidate_checkout_prices(
+        session,
+        items=items,
+        products_by_id=products_by_id,
+        currency=cart.currency,
+    )
+    resolved_payment_fee = await _resolve_payment_fee(
+        session,
+        payment_method_id=payload.payment_method_id,
+        currency=cart.currency,
+    )
+
     (
         subtotal_amount,
         shipping_fee_amount,
@@ -1802,7 +1899,7 @@ async def checkout_my_cart(
         items=items,
         currency=cart.currency,
         shipping_fee_amount=shipping_fee_input,
-        payment_fee_amount=payload.payment_fee_amount,
+        payment_fee_amount=resolved_payment_fee,
     )
     if total_amount <= 0:
         raise AppError(

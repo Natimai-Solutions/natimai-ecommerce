@@ -6908,10 +6908,9 @@ export interface components {
             shipping_fee_amount?: number | string | null;
             /**
              * Payment Fee Amount
-             * @description Payment fees snapshot applied at checkout
-             * @default 0.00
+             * @description Ignored. The fee is read server-side from the selected PaymentMethod: it is a property of the method, not something the caller gets to decide. Kept optional so existing clients that still send it are not rejected.
              */
-            payment_fee_amount: number | string;
+            payment_fee_amount?: number | string | null;
             /**
              * Cgv Accepted
              * @description Explicit acceptance of the terms of sale. Required: the checkbox in the SPA is not proof — the acceptance is recorded on the order (cgv_accepted_at / cgv_version) so it is opposable, and an API call that bypasses the UI is refused.
@@ -11191,6 +11190,11 @@ export interface components {
              */
             last_supplier_sync?: string | null;
             /**
+             * Supplier Missing Since
+             * @description First time the supplier stopped returning this SKU in a price & availability response. Cleared as soon as it reappears; past the delisting grace period the product is deactivated.
+             */
+            supplier_missing_since?: string | null;
+            /**
              * Is Supplier Managed
              * @description Indicates if this product is managed by a supplier
              * @default false
@@ -11410,6 +11414,8 @@ export interface components {
             supplier_price_currency?: string | null;
             /** Last Supplier Sync */
             last_supplier_sync?: string | null;
+            /** Supplier Missing Since */
+            supplier_missing_since?: string | null;
             /**
              * Is Supplier Managed
              * @default false
@@ -11678,6 +11684,8 @@ export interface components {
             supplier_price_currency?: string | null;
             /** Last Supplier Sync */
             last_supplier_sync?: string | null;
+            /** Supplier Missing Since */
+            supplier_missing_since?: string | null;
             /** Is Supplier Managed */
             is_supplier_managed?: boolean | null;
             /** Supplier Place Id */

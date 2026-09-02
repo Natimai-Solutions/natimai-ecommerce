@@ -327,6 +327,14 @@ async def test_checkout_with_payment_method_runs_single_payment_initiation(
         AsyncMock(return_value=None),
     )
 
+    # The fee is now read from the PaymentMethod row; a mocked session cannot
+    # serve that lookup, and the resolution itself is covered by
+    # test_checkout_payment_fee.py.
+    monkeypatch.setattr(
+        "app.api.routes.cart._resolve_payment_fee",
+        AsyncMock(return_value=Decimal("0.00")),
+    )
+
     response = await checkout_my_cart(
         session=session,
         current_user=current_user,
