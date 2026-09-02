@@ -335,6 +335,24 @@ async def on_payment_refunded(session: AsyncSession, payload: dict[str, Any]) ->
             ORDER_STATUS_REFUNDED if fully else ORDER_STATUS_PARTIALLY_REFUNDED
         ),
     )
+    # Only a *fully* refunded order gives its stock back, and only the
+    # reservations still PENDING. A captured payment has already confirmed its
+    # movements (COMPLETED), so this is a no-op on the normal flow — it exists
+    # for the authorise-then-refund case, where the funds were never captured
+    # and the reservation would otherwise be held forever.
+    if not fully:
+        return
+    order_id = _parse_order_id(payload)
+    if order_id is not None:
+        released = await release_order_stock(session, order_id=order_id)
+        if released:
+            await session.commit()
+            logger.info(
+                "Stock released for fully refunded order %s (%d uncaptured "
+                "reservation(s))",
+                order_id,
+                released,
+            )
 
 
 @outbox_handler("payment.rejected")

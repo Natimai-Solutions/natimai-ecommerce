@@ -235,6 +235,12 @@ class Settings(BaseSettings):
     INGRAM_WEBHOOK_SECRET: str | None = None
 
     # Icecat API Configuration
+    # Stock reservations are taken at order-draft time and were only ever
+    # compensated by payment.rejected: a checkout abandoned on the payment page
+    # held its stock forever. The sweep releases orders still in "Pending"
+    # after this many hours. 0 disables it.
+    STOCK_RESERVATION_TTL_HOURS: int = 48
+
     ICECAT_USERNAME: str | None = None
     ICECAT_API_KEY: str | None = None
     ICECAT_LANGUAGE: str = "fr"  # Default language
