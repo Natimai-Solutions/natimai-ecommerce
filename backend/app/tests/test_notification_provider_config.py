@@ -9,13 +9,15 @@ nothing but a warning buried in the logs.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from pydantic import ValidationError
 
 from app.core.config import Settings
 from app.features.notification.providers import SUPPORTED_NOTIFICATION_PROVIDERS
 
-_VALID_BASE: dict[str, object] = {
+_VALID_BASE: dict[str, Any] = {
     "SECRET_KEY": "unit-test-secret-key-not-changethis",
     "POSTGRES_PASSWORD": "unit-test-password",
     "POSTGRES_DB": "unit_test_db",
@@ -27,10 +29,11 @@ _VALID_BASE: dict[str, object] = {
 
 @pytest.mark.parametrize("provider", sorted(SUPPORTED_NOTIFICATION_PROVIDERS))
 def test_every_supported_provider_is_accepted(provider: str) -> None:
+    # Passed through the kwargs dict: the point of the test is that the value
+    # is validated at runtime, which a statically-typed literal would hide.
     settings = Settings(
         ENVIRONMENT="production",
-        PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER=provider,
-        **_VALID_BASE,
+        **{"PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER": provider, **_VALID_BASE},
     )
     assert settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER == provider
 
@@ -40,8 +43,7 @@ def test_an_unknown_provider_fails_at_startup(typo: str) -> None:
     with pytest.raises(ValidationError, match="PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER"):
         Settings(
             ENVIRONMENT="production",
-            PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER=typo,
-            **_VALID_BASE,
+            **{"PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER": typo, **_VALID_BASE},
         )
 
 

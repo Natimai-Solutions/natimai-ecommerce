@@ -248,6 +248,15 @@ class Settings(BaseSettings):
     # delisting (the absence is still recorded).
     SUPPLIER_DELISTING_GRACE_HOURS: int = 72
 
+    # product.supplier_quantity is a two-hour-old snapshot; the checkout used
+    # to reserve against it alone, which on drop-shipped stock is a structural
+    # oversell risk. One price & availability call per order closes that
+    # window. A supplier outage never blocks the sale — the snapshot stands.
+    CHECKOUT_SUPPLIER_AVAILABILITY_CHECK: bool = True
+    # Short on purpose: this runs on the checkout critical path, unlike the
+    # 60 s the background sync can afford.
+    CHECKOUT_SUPPLIER_CHECK_TIMEOUT_SECONDS: float = 8.0
+
     ICECAT_USERNAME: str | None = None
     ICECAT_API_KEY: str | None = None
     ICECAT_LANGUAGE: str = "fr"  # Default language

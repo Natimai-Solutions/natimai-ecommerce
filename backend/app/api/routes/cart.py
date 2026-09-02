@@ -39,6 +39,9 @@ from app.features.cart.models.quote_request import (
     QuoteRequestStatus,
     QuoteRequestSubmit,
 )
+from app.features.integrations.services.checkout_availability import (
+    refresh_supplier_availability,
+)
 from app.features.inventory.crud import crud_inventory, crud_stock_movement
 from app.features.inventory.models.stock_movement import (
     InventoryStockMovementCreate,
@@ -1928,6 +1931,11 @@ async def checkout_my_cart(
         shipping_cost_breakdown_payload = serialize_shipping_cost_summary(
             shipping_cost_summary
         )
+
+    # Ask the supplier what it actually has, rather than trusting a snapshot
+    # that can be two hours old. Best-effort: an unreachable supplier leaves
+    # the snapshot in place instead of refusing the sale.
+    await refresh_supplier_availability(session, list(products_by_id.values()))
 
     # Server-authoritative amounts: the fee belongs to the payment method, and
     # a line whose price moved since it was added stops the checkout.
