@@ -312,8 +312,18 @@ async def test_invoice_handler_issues_when_amounts_match(
             return_value=SimpleNamespace(amount=Decimal("100.00"), currency="XPF")
         ),
     )
-    issue = AsyncMock(return_value=SimpleNamespace(invoice_number="FA-2026-0001"))
+    invoice = SimpleNamespace(
+        id=uuid4(),
+        invoice_number="FA-2026-0001",
+        user_id=uuid4(),
+        currency="XPF",
+        total_incl_tax=Decimal("100.00"),
+        total_tax=Decimal("0.00"),
+    )
+    issue = AsyncMock(return_value=invoice)
     monkeypatch.setattr(handlers, "issue_invoice_for_order", issue)
+    publish = AsyncMock()
+    monkeypatch.setattr("app.outbox.registry.outbox_registry.publish", publish)
 
     await handlers.on_payment_captured_issue_invoice(
         cast(Any, session),
@@ -321,6 +331,12 @@ async def test_invoice_handler_issues_when_amounts_match(
     )
 
     issue.assert_awaited_once_with(session, order_id=order.id)
+    # Issuing is not delivering: the invoice e-mail rides its own event so it
+    # can retry without re-running the issuance.
+    publish.assert_awaited_once()
+    assert publish.await_args is not None
+    assert publish.await_args.kwargs["event_type"] == handlers.EVENT_INVOICE_ISSUED
+    assert publish.await_args.kwargs["payload"]["invoice_number"] == "FA-2026-0001"
 
 
 @pytest.mark.anyio

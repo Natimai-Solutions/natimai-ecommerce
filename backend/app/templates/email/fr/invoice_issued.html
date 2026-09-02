@@ -1,0 +1,22 @@
+{% extends "_layout.html" %}
+{% block title %}Votre facture{% endblock %}
+{% block header_color %}#1a4a7a{% endblock %}
+{% block extra_style %}.badge { background: #e6eef4; color: #1a4a7a; }{% endblock %}
+{% block heading %}Votre facture est disponible{% endblock %}
+{% block content %}
+      <p>Bonjour {{ full_name }},</p>
+      <span class="badge">Facture {{ invoice_number }}</span>
+      <p>Votre facture est disponible pour la commande {{ order_ref or (order_id | short_ref) }}.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Numéro de facture</td><td>{{ invoice_number }}</td></tr>
+          <tr><td>Numéro de commande</td><td>{{ order_ref or (order_id | short_ref) }}</td></tr>
+          <tr><td>Montant total</td><td>{{ total_incl_tax }} {{ currency }}</td></tr>
+          <tr><td>dont taxes</td><td>{{ total_tax }} {{ currency }}</td></tr>
+        </table>
+      </div>
+      <p>Vous pouvez la télécharger depuis votre espace client, rubrique « Mes commandes » :<br>
+        <a href="{{ invoice_url }}">{{ invoice_url }}</a></p>
+      <p>Conservez ce document : il vaut justificatif d'achat.</p>
+      <p>Merci pour votre confiance,<br><strong>L'équipe {{ shop_name }}</strong></p>
+{% endblock %}
