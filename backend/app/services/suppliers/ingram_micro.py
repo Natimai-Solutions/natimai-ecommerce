@@ -19,6 +19,13 @@ import aiohttp
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
+from app.core.http_retry import (
+    RETRYABLE_STATUSES,
+    AsyncRateLimiter,
+    RetryableHTTPError,
+    parse_retry_after,
+    request_with_retry,
+)
 from app.services.suppliers.base import (
     NormalizedPricing,
     NormalizedProductData,
@@ -33,6 +40,15 @@ INGRAM_URL = "https://api.ingrammicro.com:443"
 # Explicit HTTP timeout: aiohttp's default (300 s total) would let a slow
 # supplier API pin an ARQ job until its 600 s job_timeout.
 _HTTP_TIMEOUT = aiohttp.ClientTimeout(total=60, connect=10)
+
+# Politeness floor on our own outbound rate. Ingram documents per-contract
+# quotas rather than a public number, so this is deliberately conservative:
+# a full catalog sweep is a background job, nothing waits on it.
+INGRAM_REQUESTS_PER_MINUTE = 120
+
+# Shared across every IngramMicroService instance in the process — the point
+# is to cap what the *worker* sends, not what one client object sends.
+_RATE_LIMITER = AsyncRateLimiter(INGRAM_REQUESTS_PER_MINUTE)
 
 
 class IngramProductData(BaseModel):
@@ -95,24 +111,40 @@ class IngramMicroService:
             "client_secret": self.client_secret,
         }
 
-        async with aiohttp.ClientSession(timeout=_HTTP_TIMEOUT) as session:
-            async with session.post(auth_url, headers=headers, data=data) as response:
-                if response.status == 200:
-                    token_data = await response.json()
-                    self.access_token = token_data["access_token"]
-                    expires_in = int(token_data.get("expires_in", 3600))
-                    self.token_expires_at = datetime.now(timezone.utc).replace(
-                        second=0, microsecond=0
-                    ) + timedelta(seconds=expires_in - 300)  # 5 min buffer
+        async def _attempt() -> str:
+            async with aiohttp.ClientSession(timeout=_HTTP_TIMEOUT) as session:
+                async with session.post(
+                    auth_url, headers=headers, data=data
+                ) as response:
+                    if response.status == 200:
+                        token_data = await response.json()
+                        self.access_token = token_data["access_token"]
+                        expires_in = int(token_data.get("expires_in", 3600))
+                        self.token_expires_at = datetime.now(timezone.utc).replace(
+                            second=0, microsecond=0
+                        ) + timedelta(seconds=expires_in - 300)  # 5 min buffer
 
-                    logger.debug("Successfully obtained Ingram Micro access token")
-                    return self.access_token
-                else:
+                        logger.debug("Successfully obtained Ingram Micro access token")
+                        return self.access_token
                     error_text = await response.text()
+                    if response.status in RETRYABLE_STATUSES:
+                        raise RetryableHTTPError(
+                            response.status,
+                            f"Authentication failed: {response.status} - {error_text}",
+                            retry_after=parse_retry_after(
+                                response.headers.get("Retry-After")
+                            ),
+                        )
                     logger.error(
                         f"Failed to get access token: {response.status} - {error_text}"
                     )
                     raise Exception(f"Authentication failed: {response.status}")
+
+        return await request_with_retry(
+            _attempt,
+            description="Ingram OAuth token",
+            rate_limiter=_RATE_LIMITER,
+        )
 
     async def _make_api_request(
         self, endpoint: str, params: dict | None = None
@@ -139,17 +171,31 @@ class IngramMicroService:
         logger.debug(f"Making API request to: {url}")
         logger.debug(f"Parameters: {params}")
 
-        async with aiohttp.ClientSession(timeout=_HTTP_TIMEOUT) as session:
-            async with session.get(url, headers=headers, params=params) as response:
-                logger.debug(f"Final URL with params: {response.url}")
-                if response.status == 200:
-                    return await response.json()
-                else:
+        async def _attempt() -> dict[str, Any]:
+            async with aiohttp.ClientSession(timeout=_HTTP_TIMEOUT) as session:
+                async with session.get(url, headers=headers, params=params) as response:
+                    logger.debug(f"Final URL with params: {response.url}")
+                    if response.status == 200:
+                        return await response.json()
                     error_text = await response.text()
+                    if response.status in RETRYABLE_STATUSES:
+                        raise RetryableHTTPError(
+                            response.status,
+                            f"API request failed: {response.status} - {error_text}",
+                            retry_after=parse_retry_after(
+                                response.headers.get("Retry-After")
+                            ),
+                        )
                     logger.error(
                         f"API request failed: {response.status} - {error_text}"
                     )
                     raise Exception(f"API request failed: {response.status}")
+
+        return await request_with_retry(
+            _attempt,
+            description=f"Ingram GET {endpoint}",
+            rate_limiter=_RATE_LIMITER,
+        )
 
     async def _make_api_post_request(
         self,
@@ -184,19 +230,39 @@ class IngramMicroService:
             logger.debug(f"Query params: {params}")
         logger.debug(f"Request body: {body}")
 
-        async with aiohttp.ClientSession(timeout=_HTTP_TIMEOUT) as session:
-            async with session.post(
-                url, headers=headers, json=body, params=params
-            ) as response:
-                logger.debug(f"Final URL with params: {response.url}")
-                if response.status in expected_statuses:
-                    return await response.json()
-                else:
+        async def _attempt() -> dict[str, Any]:
+            async with aiohttp.ClientSession(timeout=_HTTP_TIMEOUT) as session:
+                async with session.post(
+                    url, headers=headers, json=body, params=params
+                ) as response:
+                    logger.debug(f"Final URL with params: {response.url}")
+                    if response.status in expected_statuses:
+                        return await response.json()
                     error_text = await response.text()
+                    # Only 429 is replayed: it means the request was refused
+                    # outright. A 5xx or a dropped connection on a POST may
+                    # have created the purchase order anyway, and placing it
+                    # twice costs real money — those surface to the caller,
+                    # which persists an ERROR SupplierOrder for admin retry.
+                    if response.status == 429:
+                        raise RetryableHTTPError(
+                            response.status,
+                            f"API POST throttled: {response.status} - {error_text}",
+                            retry_after=parse_retry_after(
+                                response.headers.get("Retry-After")
+                            ),
+                        )
                     logger.error(
                         f"API POST request failed: {response.status} - {error_text}"
                     )
                     raise Exception(f"API request failed: {response.status}")
+
+        return await request_with_retry(
+            _attempt,
+            description=f"Ingram POST {endpoint}",
+            rate_limiter=_RATE_LIMITER,
+            retry_connection_errors=False,
+        )
 
     async def create_purchase_order(
         self,
@@ -418,6 +484,9 @@ class IngramMicroAdapter(SupplierAdapter):
     name = "ingram_micro"
     display_name = "Ingram Micro"
     price_batch_size = 50
+    # Enforced by the shared limiter in this module, which every
+    # IngramMicroService call goes through.
+    requests_per_minute = INGRAM_REQUESTS_PER_MINUTE
 
     def __init__(self, service: IngramMicroService | None = None) -> None:
         """Initialize the ingram micro adapter instance."""
