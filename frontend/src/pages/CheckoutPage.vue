@@ -347,7 +347,7 @@ import {
   uploadFileToPresignedUrl,
   type PaymentMethod,
 } from 'src/api/payments';
-import { addCartItem, checkoutMyCart, clearMyCart, getLastLegOptions } from 'src/api/cart';
+import { checkoutMyCart, getLastLegOptions, replaceMyCartItems } from 'src/api/cart';
 import { listMyAddresses, type Address } from 'src/api/addresses';
 
 const PENDING_PAYMENT_KEY = 'payzen.pending_payment_id';
@@ -607,12 +607,20 @@ function extractPriceDrift(err: unknown): PriceDriftItem[] | null {
   );
 }
 
-/** Mirror the client-side cart into the backend cart (reset then re-add). */
+/**
+ * Mirror the client-side cart into the backend cart, atomically.
+ *
+ * This used to be a clear followed by one POST per line. Nothing made that
+ * sequence transactional: a failure in the middle left a truncated backend
+ * cart, and the checkout that followed ordered it as if it were complete.
+ */
 async function syncCartToBackend() {
-  await clearMyCart();
-  for (const { item } of cartStore.detailedItems) {
-    await addCartItem({ product_id: item.product_id, quantity: item.quantity });
-  }
+  await replaceMyCartItems({
+    items: cartStore.detailedItems.map(({ item }) => ({
+      product_id: item.product_id,
+      quantity: item.quantity,
+    })),
+  });
 }
 
 async function uploadDocument() {

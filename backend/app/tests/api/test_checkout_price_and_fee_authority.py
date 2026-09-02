@@ -190,9 +190,7 @@ async def test_fee_is_read_from_the_selected_method() -> None:
     session = AsyncMock()
     session.get = AsyncMock(return_value=SimpleNamespace(fee=Decimal("1.25")))
 
-    fee = await _resolve_payment_fee(
-        session, payment_method_id=uuid4(), currency="EUR"
-    )
+    fee = await _resolve_payment_fee(session, payment_method_id=uuid4(), currency="EUR")
 
     assert fee == Decimal("1.25")
 
@@ -213,9 +211,7 @@ async def test_unknown_method_yields_no_fee_and_defers_the_error() -> None:
     session = AsyncMock()
     session.get = AsyncMock(return_value=None)
 
-    fee = await _resolve_payment_fee(
-        session, payment_method_id=uuid4(), currency="EUR"
-    )
+    fee = await _resolve_payment_fee(session, payment_method_id=uuid4(), currency="EUR")
 
     assert fee == Decimal("0.00")
 
@@ -225,8 +221,6 @@ async def test_fee_is_quantized_to_the_currency() -> None:
     session = AsyncMock()
     session.get = AsyncMock(return_value=SimpleNamespace(fee=Decimal("1.49")))
 
-    fee = await _resolve_payment_fee(
-        session, payment_method_id=uuid4(), currency="XPF"
-    )
+    fee = await _resolve_payment_fee(session, payment_method_id=uuid4(), currency="XPF")
 
     assert fee == Decimal("1")

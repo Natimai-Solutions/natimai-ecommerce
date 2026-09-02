@@ -23,6 +23,7 @@ from app.features.cart.models.cart import (
     CartItemAddRequest,
     CartItemDetail,
     CartItemQuantityUpdateRequest,
+    CartReplaceRequest,
     CheckoutRequest,
     CheckoutResponse,
     CheckoutShippingPreference,
@@ -1267,6 +1268,59 @@ async def remove_cart_item(
         )
 
     items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart.id)
+    return _build_cart_detail(cart, items)
+
+
+@router.put("/items", response_model=CartDetailPublic)
+async def replace_my_cart_items(
+    session: SessionDep,
+    current_user: CurrentUser,
+    payload: CartReplaceRequest,
+) -> CartDetailPublic:
+    """Install a whole cart content in one transaction.
+
+    The storefront cart lives in the browser; mirroring it into the backend
+    used to mean a DELETE followed by one POST per line. That sequence is not
+    atomic: a failure in the middle left a truncated server cart, which the
+    checkout then ordered as if it were complete. It was not a merge either —
+    the clear destroyed whatever the account already had, so a cart built on
+    one device was wiped by a checkout started on another.
+
+    Products are resolved and validated first (existence, availability,
+    sellability, current price), then written in a single transaction.
+    """
+    # Merge repeats before touching anything: two lines for the same product
+    # would otherwise violate the one-row-per-product invariant of the cart.
+    merged: dict[uuid.UUID, int] = {}
+    for entry in payload.items:
+        merged[entry.product_id] = merged.get(entry.product_id, 0) + entry.quantity
+
+    # Resolve the cart BEFORE the products: get_or_create_active_cart commits,
+    # and a commit expires every loaded instance. Resolving products first
+    # would leave them expired — and, worse, would discard the sale price
+    # _get_active_product_or_404 just computed onto product.base_price.
+    cart = await crud_cart.get_or_create_active_cart(
+        session=session,
+        user_id=current_user.id,
+    )
+    # Capture before replace/sync_total commit (which expire `cart`) — reading
+    # cart.id from an expired instance triggers a sync lazy-load (MissingGreenlet).
+    cart_id = cart.id
+
+    entries: list[tuple[Product, int]] = []
+    for product_id, quantity in merged.items():
+        product = await _get_active_product_or_404(session, product_id=product_id)
+        entries.append((product, quantity))
+
+    await crud_cart_item.replace_cart_items(
+        session=session,
+        cart_id=cart_id,
+        entries=entries,
+    )
+    await crud_cart.sync_total(session=session, cart_id=cart_id)
+    await session.refresh(cart)
+
+    items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart_id)
     return _build_cart_detail(cart, items)
 
 

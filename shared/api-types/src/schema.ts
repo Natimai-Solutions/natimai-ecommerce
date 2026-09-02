@@ -2070,7 +2070,21 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /**
+         * Replace My Cart Items
+         * @description Install a whole cart content in one transaction.
+         *
+         *     The storefront cart lives in the browser; mirroring it into the backend
+         *     used to mean a DELETE followed by one POST per line. That sequence is not
+         *     atomic: a failure in the middle left a truncated server cart, which the
+         *     checkout then ordered as if it were complete. It was not a merge either —
+         *     the clear destroyed whatever the account already had, so a cart built on
+         *     one device was wiped by a checkout started on another.
+         *
+         *     Products are resolved and validated first (existence, availability,
+         *     sellability, current price), then written in a single transaction.
+         */
+        put: operations["cart-replace_my_cart_items"];
         /**
          * Add Cart Item
          * @description Execute add cart item.
@@ -6653,6 +6667,17 @@ export interface components {
              * @description New quantity
              */
             quantity: number;
+        };
+        /**
+         * CartReplaceRequest
+         * @description Full replacement of the cart content, applied atomically.
+         */
+        CartReplaceRequest: {
+            /**
+             * Items
+             * @description The cart content to install. Every product is resolved and validated before anything is written, so the call either applies in full or changes nothing. Repeated product ids are merged by summing their quantities.
+             */
+            items?: components["schemas"]["CartItemAddRequest"][];
         };
         /**
          * CategoriesPublic
@@ -18591,6 +18616,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CartDetailPublic"];
+                };
+            };
+        };
+    };
+    "cart-replace_my_cart_items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CartReplaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CartDetailPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

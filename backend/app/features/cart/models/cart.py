@@ -167,6 +167,21 @@ class CartItemAddRequest(SQLModel):
     quantity: int = Field(default=1, ge=1, description="Quantity to add")
 
 
+class CartReplaceRequest(SQLModel):
+    """Full replacement of the cart content, applied atomically."""
+
+    items: list[CartItemAddRequest] = Field(
+        default_factory=list,
+        max_length=200,
+        description=(
+            "The cart content to install. Every product is resolved and "
+            "validated before anything is written, so the call either applies "
+            "in full or changes nothing. Repeated product ids are merged by "
+            "summing their quantities."
+        ),
+    )
+
+
 class CartItemQuantityUpdateRequest(SQLModel):
     """Represents cart item quantity update request."""
 
