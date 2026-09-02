@@ -288,7 +288,15 @@ class Settings(BaseSettings):
 
     # Payment event notifications
     PAYMENT_NOTIFICATIONS_EMAIL_ENABLED: bool = True
-    PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER: str = "noop"
+    # Typed rather than a free string: a misspelt provider used to fall back
+    # to "noop" at the first send, so every transactional e-mail was silently
+    # discarded until somebody noticed customers were not receiving anything.
+    # Pydantic now rejects the value at startup, in every environment.
+    # Kept in sync with SUPPORTED_NOTIFICATION_PROVIDERS (a literal here rather
+    # than an import: the providers package reads these settings).
+    PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER: Literal[
+        "noop", "mailgun", "slack_webhook"
+    ] = "noop"
     PAYMENT_NOTIFICATIONS_SLACK_ENABLED: bool = False
     PAYMENT_NOTIFICATIONS_SLACK_PROVIDER: str = "slack_webhook"
     PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL: HttpUrl | None = None

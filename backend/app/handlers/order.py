@@ -85,7 +85,13 @@ async def _send_order_email(
             settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER
         )
     except UnknownNotificationProviderError:
-        provider = get_notification_provider("noop")
+        # Unreachable now that the setting is a Literal validated at startup.
+        # If it ever fires, say so loudly: noop throws the e-mail away.
+        logger.error(
+            "Unknown notification provider '%s' — e-mail discarded",
+            settings.PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER,
+        )
+        return False
 
     result = await provider.send(
         NotificationMessage(
