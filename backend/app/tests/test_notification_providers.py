@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from typing import Any
+
+import httpx
 import pytest
 
 from app.core.config import settings
@@ -144,3 +147,90 @@ async def test_slack_provider_returns_error_when_webhook_missing(
     assert result.delivered is False
     assert result.provider_code == "slack_webhook"
     assert result.error is not None
+
+
+class _SlackClient:
+    """httpx.AsyncClient factice : ``post`` renvoie la réponse préparée."""
+
+    response: Any = None
+    calls: list[dict[str, Any]] = []
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        _ = (args, kwargs)
+
+    async def __aenter__(self) -> _SlackClient:
+        return self
+
+    async def __aexit__(self, *exc: Any) -> bool:
+        return False
+
+    async def post(self, url: str, **kwargs: Any) -> Any:
+        _SlackClient.calls.append({"url": url, **kwargs})
+        if isinstance(_SlackClient.response, Exception):
+            raise _SlackClient.response
+        return _SlackClient.response
+
+
+@pytest.mark.anyio
+async def test_slack_provider_posts_the_message_and_reports_delivery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        settings,
+        "PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL",
+        "https://hooks.slack.test/services/x",
+    )
+    _SlackClient.calls = []
+    _SlackClient.response = httpx.Response(
+        200, request=httpx.Request("POST", "https://hooks.slack.test/services/x")
+    )
+    monkeypatch.setattr(
+        "app.features.notification.providers.slack_webhook.httpx.AsyncClient",
+        _SlackClient,
+    )
+
+    result = await SlackWebhookNotificationProvider().send(
+        NotificationMessage(
+            channel="slack",
+            recipient="payment-alerts",
+            subject="Paiement",
+            text="Paiement refusé",
+            metadata={"event_type": "payment.rejected"},
+        )
+    )
+
+    assert result.delivered is True
+    assert result.error is None
+    body = _SlackClient.calls[0]["json"]
+    assert body["text"] == "Paiement refusé"
+    assert body["metadata"] == {"event_type": "payment.rejected"}
+
+
+@pytest.mark.anyio
+async def test_slack_provider_never_raises_on_transport_or_http_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Une alerte qui échoue ne doit jamais faire tomber le flux qui l'émet."""
+    monkeypatch.setattr(
+        settings,
+        "PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL",
+        "https://hooks.slack.test/services/x",
+    )
+    monkeypatch.setattr(
+        "app.features.notification.providers.slack_webhook.httpx.AsyncClient",
+        _SlackClient,
+    )
+    provider = SlackWebhookNotificationProvider()
+    message = NotificationMessage(
+        channel="slack", recipient="payment-alerts", subject="x", text="y"
+    )
+
+    _SlackClient.response = httpx.Response(
+        500, request=httpx.Request("POST", "https://hooks.slack.test/services/x")
+    )
+    failed = await provider.send(message)
+    assert failed.delivered is False and failed.error
+
+    _SlackClient.response = httpx.ConnectError("refused")
+    down = await provider.send(message)
+    assert down.delivered is False and "refused" in (down.error or "")
