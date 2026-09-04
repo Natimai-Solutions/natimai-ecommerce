@@ -103,3 +103,35 @@ def test_settings_only_warns_without_clamav_in_local() -> None:
         )
 
     assert settings.CLAMAV_ENABLED is False
+
+
+def _fake_db_password(environment: str, password: str) -> Any:
+    return SimpleNamespace(ENVIRONMENT=environment, POSTGRES_PASSWORD=password)
+
+
+def test_weak_database_password_raises_outside_local() -> None:
+    """The compose default must never reach a deployed environment."""
+    for env in ("staging", "production"):
+        for password in ("postgres", "POSTGRES", " postgres ", "password"):
+            fake = _fake_db_password(env, password)
+            with pytest.raises(ValueError, match="POSTGRES_PASSWORD"):
+                Settings._check_weak_database_password(cast(Settings, fake))
+
+
+def test_weak_database_password_warns_in_local() -> None:
+    """`docker compose up` with no .env stays usable, but says so."""
+    fake = _fake_db_password("local", "postgres")
+    with pytest.warns(UserWarning, match="POSTGRES_PASSWORD"):
+        Settings._check_weak_database_password(cast(Settings, fake))
+
+
+def test_real_database_password_passes_everywhere() -> None:
+    for env in ("local", "staging", "production"):
+        fake = _fake_db_password(env, "a-real-database-password")
+        Settings._check_weak_database_password(cast(Settings, fake))
+
+
+def test_settings_refuses_to_build_with_compose_default_password() -> None:
+    base = {**_VALID_BASE_SETTINGS, "POSTGRES_PASSWORD": "postgres"}
+    with pytest.raises(ValueError, match="POSTGRES_PASSWORD"):
+        Settings(ENVIRONMENT="production", CLAMAV_ENABLED=True, **base)

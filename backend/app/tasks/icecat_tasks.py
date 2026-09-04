@@ -20,7 +20,8 @@ from app.features.integrations.services.supplier_data_normalization import (
     evaluate_product_filters,
 )
 from app.features.product.crud.product import crud_product
-from app.features.product.models.product import ProductUpdate
+from app.features.product.models.product import Product, ProductUpdate
+from app.features.product.services.overrides import strip_locked
 from app.services.icecat_service import icecat_service
 
 logger = logging.getLogger(__name__)
@@ -82,6 +83,22 @@ def update_product_with_icecat_data(
     update_data.last_enrichment_sync = datetime.datetime.now(tz=datetime.timezone.utc)
 
     return update_data
+
+
+def enrichment_payload(
+    product: Product, icecat_product_data: IcecatProductData
+) -> dict[str, Any]:
+    """Champs à appliquer sur ``product`` : l'enrichissement moins les verrous.
+
+    Un admin qui a corrigé la description ou l'image (A14) ne doit pas la voir
+    revenir à la valeur Icecat au prochain passage — même règle que la sync
+    fournisseur, voir ``product/services/overrides.py``. Les marqueurs
+    ``is_enriched`` / ``last_enrichment_sync`` ne sont jamais verrouillés.
+    """
+    update_data = update_product_with_icecat_data(icecat_product_data)
+    return strip_locked(
+        update_data.model_dump(exclude_unset=True), product.overridden_fields
+    )
 
 
 async def enrich_product_with_icecat_task(
@@ -149,8 +166,8 @@ async def enrich_product_with_icecat_task(
                 logger.warning(f"No Icecat data found for product {product_id}")
                 return {"status": "not_found", "message": "No Icecat data available"}
 
-            # Prepare update data
-            update_data = update_product_with_icecat_data(enrichment_data)
+            # Prepare update data (admin-locked fields left untouched)
+            update_data = enrichment_payload(product, enrichment_data)
 
             # Level 2 filter: check UNSPSC codes returned by Icecat
             unspsc_codes = [
@@ -164,7 +181,7 @@ async def enrich_product_with_icecat_task(
                 rules=settings.SUPPLIER_PRODUCT_FILTER_RULES,
             )
             if filter_action in ("skip", "deactivate"):
-                update_data.is_active = False
+                update_data["is_active"] = False
                 logger.info(
                     "Product %s deactivated post-enrichment — UNSPSC codes %s matched a filter rule",
                     product_id,
@@ -192,9 +209,7 @@ async def enrich_product_with_icecat_task(
                 return {
                     "status": "success",
                     "product_id": product_id,
-                    "enriched_fields": list(
-                        update_data.dict(exclude_unset=True).keys()
-                    ),
+                    "enriched_fields": list(update_data.keys()),
                     "specs_projected": specs_count,
                 }
             else:
@@ -307,6 +322,10 @@ async def batch_enrich_products_task(
                         vendor_part_number=product.vendor_part_number,
                         manufacturer=product.manufacturer,
                         ean=product.ean if hasattr(product, "ean") else None,
+                        # The single-product task has always passed this; the
+                        # batch did not, so the same product matched when
+                        # enriched by hand and missed in the nightly run.
+                        upc=product.upc if hasattr(product, "upc") else None,
                     )
 
                     if not enrichment_data:
@@ -316,8 +335,8 @@ async def batch_enrich_products_task(
                         await _stamp_enrichment_attempt(session, product_id)
                         continue
 
-                    # Prepare update data
-                    update_data = update_product_with_icecat_data(enrichment_data)
+                    # Prepare update data (admin-locked fields left untouched)
+                    update_data = enrichment_payload(product, enrichment_data)
 
                     # Level 2 filter: check UNSPSC codes returned by Icecat
                     unspsc_codes = [
@@ -331,7 +350,7 @@ async def batch_enrich_products_task(
                         rules=settings.SUPPLIER_PRODUCT_FILTER_RULES,
                     )
                     if filter_action in ("skip", "deactivate"):
-                        update_data.is_active = False
+                        update_data["is_active"] = False
                         logger.info(
                             "Product %s deactivated post-enrichment — UNSPSC %s matched a filter rule",
                             product.id,

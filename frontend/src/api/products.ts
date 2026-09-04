@@ -3,7 +3,13 @@ import { api } from 'src/boot/api';
 
 type ProductSearchRequest = components['schemas']['ProductSearchRequest'];
 type ProductSearchResponse = components['schemas']['ProductSearchResponse'];
-type CategoryPublic = components['schemas']['CategoryPublic'];
+// `display_name` / `title` (A17) are served by the backend but the generated
+// schema may lag — declare them locally. Always render `title`: it is the
+// admin's storefront title, falling back to the supplier name.
+export type CategoryPublic = components['schemas']['CategoryPublic'] & {
+  display_name?: string | null;
+  title?: string;
+};
 type ProductPublic = components['schemas']['ProductPublic'];
 type CategorySpecFacetsResponse = components['schemas']['CategorySpecFacetsResponse'];
 

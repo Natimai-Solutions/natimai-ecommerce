@@ -15,6 +15,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.core.config import settings
 from app.features.product.services.pricing import (
     ShippingModePrice,
     _compute_volume_m3,
@@ -275,3 +276,55 @@ async def test_calculate_price_by_mode_empty_routes_returns_empty() -> None:
     results = await calculate_price_by_mode(session, product, [], group=group)
 
     assert results == []
+
+
+# ---------------------------------------------------------------------------
+# calculate_sale_price — insurance basis (audit item F4)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_insurance_is_charged_on_cost_plus_freight(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The premium covers the goods *and* the freight, so it applies to both.
+
+    cost=100 000, weight=2.5 kg × 1 500/kg → freight=3 750
+    insurance = (100 000 + 3 750) × 1 % = 1 037.50
+    caf = 100 000 + 3 750 + 1 037.50 = 104 787.50
+    """
+    monkeypatch.setattr(settings, "INSURANCE_RATE_PCT", 1.0)
+    product = _product(weight=2.5)
+    group = _group()
+    route = _route(price_per_kg="1500", mode="air")
+    session = _mock_session()
+
+    price = await calculate_sale_price(
+        session, product, group=group, import_route=route
+    )
+
+    caf = Decimal("104787.50")
+    expected = caf * Decimal("1.05") * Decimal("1.30") * Decimal("1.16")
+    assert price == expected.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+@pytest.mark.anyio
+async def test_insurance_on_freight_costs_more_than_on_cost_alone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression guard for F4: insuring the cost only under-prices the freight."""
+    monkeypatch.setattr(settings, "INSURANCE_RATE_PCT", 1.0)
+    product = _product(weight=2.5)
+    group = _group()
+    route = _route(price_per_kg="1500", mode="air")
+    session = _mock_session()
+
+    price = await calculate_sale_price(
+        session, product, group=group, import_route=route
+    )
+
+    cost_only_caf = Decimal("100000") * Decimal("1.01") + Decimal("3750")
+    cost_only_price = (
+        cost_only_caf * Decimal("1.05") * Decimal("1.30") * Decimal("1.16")
+    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    assert price > cost_only_price

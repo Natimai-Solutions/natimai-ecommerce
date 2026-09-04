@@ -235,6 +235,28 @@ class Settings(BaseSettings):
     INGRAM_WEBHOOK_SECRET: str | None = None
 
     # Icecat API Configuration
+    # Stock reservations are taken at order-draft time and were only ever
+    # compensated by payment.rejected: a checkout abandoned on the payment page
+    # held its stock forever. The sweep releases orders still in "Pending"
+    # after this many hours. 0 disables it.
+    STOCK_RESERVATION_TTL_HOURS: int = 48
+
+    # A SKU the supplier stops returning used to stay active forever with its
+    # last known price and stock. The first absence is recorded, and the
+    # product deactivated only once the gap exceeds this many hours — a
+    # transient supplier fault must not delist the catalog. 0 disables
+    # delisting (the absence is still recorded).
+    SUPPLIER_DELISTING_GRACE_HOURS: int = 72
+
+    # product.supplier_quantity is a two-hour-old snapshot; the checkout used
+    # to reserve against it alone, which on drop-shipped stock is a structural
+    # oversell risk. One price & availability call per order closes that
+    # window. A supplier outage never blocks the sale — the snapshot stands.
+    CHECKOUT_SUPPLIER_AVAILABILITY_CHECK: bool = True
+    # Short on purpose: this runs on the checkout critical path, unlike the
+    # 60 s the background sync can afford.
+    CHECKOUT_SUPPLIER_CHECK_TIMEOUT_SECONDS: float = 8.0
+
     ICECAT_USERNAME: str | None = None
     ICECAT_API_KEY: str | None = None
     ICECAT_LANGUAGE: str = "fr"  # Default language
@@ -275,7 +297,15 @@ class Settings(BaseSettings):
 
     # Payment event notifications
     PAYMENT_NOTIFICATIONS_EMAIL_ENABLED: bool = True
-    PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER: str = "noop"
+    # Typed rather than a free string: a misspelt provider used to fall back
+    # to "noop" at the first send, so every transactional e-mail was silently
+    # discarded until somebody noticed customers were not receiving anything.
+    # Pydantic now rejects the value at startup, in every environment.
+    # Kept in sync with SUPPORTED_NOTIFICATION_PROVIDERS (a literal here rather
+    # than an import: the providers package reads these settings).
+    PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER: Literal[
+        "noop", "mailgun", "slack_webhook"
+    ] = "noop"
     PAYMENT_NOTIFICATIONS_SLACK_ENABLED: bool = False
     PAYMENT_NOTIFICATIONS_SLACK_PROVIDER: str = "slack_webhook"
     PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL: HttpUrl | None = None
@@ -364,8 +394,11 @@ class Settings(BaseSettings):
     # prices are computed and orders are billed. One per deployment. Override
     # per territory via the environment, never hardcode it in the code.
     REFERENCE_CURRENCY: str = "XPF"
-    # Insurance rate applied on cost_in_reference before customs (CIF basis).
-    # Expressed as a percentage (e.g. 1.0 = 1 %). Default 0 = no insurance.
+    # Insurance rate applied on (cost + variable import freight) before customs
+    # — the CAF/CIF basis, which is what an ad valorem policy actually covers.
+    # Expressed as a percentage (e.g. 1.0 = 1 %). Default 0 = no insurance in
+    # the price: set the rate actually paid to the insurer, otherwise the
+    # premium is paid but never recovered (audit item F4).
     INSURANCE_RATE_PCT: float = 0.0
 
     # --- Facturation (M3) : identité du vendeur imprimée sur les factures ---
@@ -432,6 +465,28 @@ class Settings(BaseSettings):
             else:
                 raise ValueError(message)
 
+    def _check_weak_database_password(self) -> None:
+        """Refuse the well-known development database passwords outside local.
+
+        ``docker-compose.yml`` ships ``postgres`` as the default so a bare
+        ``docker compose up`` works with no ``.env``. That default used to be
+        hardcoded in every service, which meant a production stack silently ran
+        on it while ``_check_default_secret`` — which only knows about
+        ``changethis`` — stayed quiet.
+        """
+        weak = {"postgres", "password", "postgres_password"}
+        if self.POSTGRES_PASSWORD.strip().lower() in weak:
+            message = (
+                f"POSTGRES_PASSWORD is a well-known development default "
+                f"('{self.POSTGRES_PASSWORD}'). Set a real password in your "
+                ".env: it is read by the database, the API, the worker, the "
+                "poller and the outbox health checker alike."
+            )
+            if self.ENVIRONMENT == "local":
+                warnings.warn(message, stacklevel=1)
+            else:
+                raise ValueError(message)
+
     def _check_clamav_enabled(self) -> None:
         """Antivirus scanning of uploads is mandatory outside local.
 
@@ -457,6 +512,7 @@ class Settings(BaseSettings):
         self._check_secret_key()
         self._check_default_secret("SECRET_KEY", self.SECRET_KEY)
         self._check_default_secret("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD)
+        self._check_weak_database_password()
         self._check_default_secret(
             "FIRST_SUPERUSER_PASSWORD", self.FIRST_SUPERUSER_PASSWORD
         )

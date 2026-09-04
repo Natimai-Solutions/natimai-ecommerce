@@ -277,7 +277,7 @@ const priceMax = ref<number | null>(null);
 const cartFeedback = ref<{ ok: boolean; message: string } | null>(null);
 
 const categoryOptions = computed(() =>
-  store.categories.map((c) => ({ label: c.name, value: c.id })),
+  store.categories.map((c) => ({ label: c.title ?? c.name, value: c.id })),
 );
 
 function numericOptions(facet: SpecFacet): { label: string; value: number }[] {

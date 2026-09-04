@@ -15,6 +15,10 @@ from app.tasks.icecat_tasks import (
     reproject_product_specs_task,
     scheduled_batch_enrich_task,
 )
+from app.tasks.inventory_tasks import (
+    get_stock_reservation_cron_jobs,
+    release_expired_stock_reservations_task,
+)
 from app.tasks.supplier_tasks import (
     check_supplier_health_task,
     get_supplier_sync_cron_jobs,
@@ -83,12 +87,19 @@ class WorkerSettings:
         batch_enrich_products_task,
         scheduled_batch_enrich_task,
         reproject_product_specs_task,
+        # Hygiène du stock : libération des réservations sans issue de paiement
+        release_expired_stock_reservations_task,
         # ... tes autres handlers
     ]
 
     # Cron jobs : synchronisation fournisseurs (un jeu par fournisseur enregistré)
-    # + enrichissement Icecat récurrent (drainage du backlog non-enrichi).
-    cron_jobs = get_supplier_sync_cron_jobs() + get_enrichment_cron_jobs()
+    # + enrichissement Icecat récurrent (drainage du backlog non-enrichi)
+    # + balayage horaire des réservations de stock expirées.
+    cron_jobs = (
+        get_supplier_sync_cron_jobs()
+        + get_enrichment_cron_jobs()
+        + get_stock_reservation_cron_jobs()
+    )
 
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)
     # pas besoin de cron job ici

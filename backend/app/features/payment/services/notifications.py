@@ -171,8 +171,13 @@ def _resolve_provider(provider_code: str) -> NotificationProvider:
     try:
         return get_notification_provider(provider_code)
     except UnknownNotificationProviderError:
-        logger.warning(
-            "Unknown notification provider '%s', fallback to noop",
+        # Unreachable through configuration since
+        # PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER became a Literal, which pydantic
+        # rejects at startup. Kept for callers that pass a code from data, and
+        # logged as an error: falling back to noop discards the message.
+        logger.error(
+            "Unknown notification provider '%s' — falling back to noop, "
+            "this notification is discarded",
             provider_code,
         )
         return get_notification_provider("noop")

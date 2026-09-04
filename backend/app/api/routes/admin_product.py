@@ -1,10 +1,11 @@
 """Admin endpoints: create manual products and edit products with sync-safe overrides.
 
 Editing a product here records every edited field in ``Product.overridden_fields``
-so a later supplier sync will not overwrite the admin's values (see
-``SupplierSyncOrchestrator.upsert_product``). Manual products
+so a later supplier sync or Icecat enrichment will not overwrite the admin's
+values (rule in ``product/services/overrides.py``). Manual products
 (``is_supplier_managed=False``) are never synced, so their overrides are moot but
-recorded uniformly.
+recorded uniformly. A lock can be released field by field: the supplier value
+then comes back with the next sync/enrichment, it is not restored on the spot.
 """
 
 from __future__ import annotations
@@ -23,11 +24,9 @@ from app.features.product.models.product import (
     ProductPublic,
     ProductUpdate,
 )
+from app.features.product.services.overrides import merge_locks, release_lock
 
 router = APIRouter(prefix="/admin/products", tags=["admin-product"])
-
-# Flags / bookkeeping that must never be recorded as content overrides.
-_NON_OVERRIDE_FIELDS = {"is_active", "is_admin_active", "overridden_fields"}
 
 
 @router.post("", response_model=ProductPublic)
@@ -68,14 +67,53 @@ async def admin_update_product(
         ) from exc
 
     changed = payload.model_dump(exclude_unset=True)
-    edited = [key for key in changed if key not in _NON_OVERRIDE_FIELDS]
-    merged = sorted(set(product.overridden_fields or []) | set(edited))
+    merged = merge_locks(product.overridden_fields, changed)
 
     update_data: dict[str, Any] = {**changed, "overridden_fields": merged}
     updated = await crud_product.update(
         session=session,
         id=product_id,
         data=update_data,
+        user=current_user,
+        record=product,
+    )
+    return ProductPublic.model_validate(updated)
+
+
+@router.delete("/{product_id}/overrides/{field}", response_model=ProductPublic)
+async def admin_release_override(
+    session: SessionDep,
+    current_user: CurrentSuperUser,
+    product_id: uuid.UUID,
+    field: str,
+) -> ProductPublic:
+    """Release one field lock so the supplier/enrichment value can come back.
+
+    The current (admin) value stays until the next sync or enrichment rewrites
+    it — no supplier copy is kept alongside.
+    """
+    try:
+        product = await crud_product.read(session=session, id=product_id)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="product.not_found",
+            status_code=404,
+            message=f"Product '{product_id}' not found",
+            details={"product_id": str(product_id)},
+        ) from exc
+
+    if field not in (product.overridden_fields or []):
+        raise AppError(
+            code="product.override.not_locked",
+            status_code=404,
+            message=f"Field '{field}' is not locked on this product",
+            details={"product_id": str(product_id), "field": field},
+        )
+
+    updated = await crud_product.update(
+        session=session,
+        id=product_id,
+        data={"overridden_fields": release_lock(product.overridden_fields, field)},
         user=current_user,
         record=product,
     )

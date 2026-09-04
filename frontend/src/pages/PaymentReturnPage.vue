@@ -50,6 +50,7 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import { getMyPaymentStatus } from 'src/api/payments';
 
 const PENDING_PAYMENT_KEY = 'payzen.pending_payment_id';
@@ -64,8 +65,24 @@ const errorMessage = ref('');
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
+const route = useRoute();
+
+/**
+ * The payment being polled.
+ *
+ * The query string comes first: 3-D Secure often completes in the bank's own
+ * app or another browser, so the tab that lands here may never have written
+ * the local key. Falling back to localStorage keeps older links working.
+ */
+function resolvePaymentId(): string | null {
+  const fromQuery = route.query.payment;
+  const queryValue = Array.isArray(fromQuery) ? fromQuery[0] : fromQuery;
+  if (typeof queryValue === 'string' && queryValue.trim()) return queryValue.trim();
+  return localStorage.getItem(PENDING_PAYMENT_KEY);
+}
+
 onMounted(() => {
-  const paymentId = localStorage.getItem(PENDING_PAYMENT_KEY);
+  const paymentId = resolvePaymentId();
 
   if (!paymentId) {
     state.value = 'error';

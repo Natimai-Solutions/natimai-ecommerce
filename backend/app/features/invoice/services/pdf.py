@@ -18,6 +18,7 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from app.features.invoice.models.credit_note import CreditNote
 from app.features.invoice.models.invoice import Invoice
 
 # app/features/invoice/services/pdf.py → app/templates/invoice
@@ -103,3 +104,48 @@ def render_invoice_pdf(invoice: Invoice, *, lang: str = DEFAULT_LANG) -> bytes:
 def invoice_pdf_filename(invoice: Invoice) -> str:
     """Download filename for an invoice PDF."""
     return f"{invoice.invoice_number}.pdf"
+
+
+def render_credit_note_html(
+    credit_note: CreditNote, *, lang: str = DEFAULT_LANG
+) -> str:
+    """Render the credit note HTML from its frozen snapshot."""
+    template = _env.get_template(f"{lang}/credit_note.html")
+    context: dict[str, Any] = dict(credit_note.snapshot)
+    context.update(
+        credit_note_number=credit_note.credit_note_number,
+        issued_at=credit_note.issued_at,
+        currency=credit_note.currency,
+        totals={
+            "excl_tax": credit_note.total_excl_tax,
+            "tax": credit_note.total_tax,
+            "incl_tax": credit_note.total_incl_tax,
+        },
+    )
+    return template.render(**context)
+
+
+def render_credit_note_pdf(
+    credit_note: CreditNote, *, lang: str = DEFAULT_LANG
+) -> bytes:
+    """Render the credit note as a PDF document.
+
+    Same lazy WeasyPrint import as the invoice: a missing system library must
+    cost the PDF only, never the issuance of the accounting document.
+    """
+    html = render_credit_note_html(credit_note, lang=lang)
+    try:
+        from weasyprint import HTML  # noqa: PLC0415 — lazy on purpose
+    except Exception as exc:  # noqa: BLE001 — missing lib or missing system deps
+        raise PdfRenderingUnavailableError(
+            "WeasyPrint is unavailable in this environment "
+            "(package or system libraries missing): "
+            f"{exc}"
+        ) from exc
+
+    return bytes(HTML(string=html).write_pdf())
+
+
+def credit_note_pdf_filename(credit_note: CreditNote) -> str:
+    """Download filename for a credit note PDF."""
+    return f"{credit_note.credit_note_number}.pdf"

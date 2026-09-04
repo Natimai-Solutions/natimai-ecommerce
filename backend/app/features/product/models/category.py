@@ -3,6 +3,7 @@
 import uuid
 from decimal import Decimal
 
+from pydantic import computed_field
 from sqlmodel import Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
@@ -14,7 +15,19 @@ class CategoryBase(Base):
     name: str = Field(
         index=True,
         max_length=100,
-        description="Name of the category",
+        description=(
+            "Name of the category — the supplier sync's matching key, never "
+            "rewritten by the sync itself, so an admin rename must go through "
+            "display_name instead"
+        ),
+    )
+    display_name: str | None = Field(
+        default=None,
+        max_length=100,
+        description=(
+            "Storefront title chosen by an admin; None → name. Kept apart from "
+            "name so the sync keeps finding the category (A17)"
+        ),
     )
     description: str | None = Field(
         default=None,
@@ -65,12 +78,29 @@ class Category(CategoryBase, table=True):
         index=True,
         description="Unique identifier for the category",
     )
+    merged_into_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="categories.id",
+        index=True,
+        description=(
+            "Set when this category was merged into another (A12): the row "
+            "stays, inactive, so the supplier sync keeps resolving its name "
+            "to the target instead of recreating it"
+        ),
+    )
 
 
 class CategoryPublic(CategoryBase, BasePublic):
     """Represents category public."""
 
     id: uuid.UUID
+    merged_into_id: uuid.UUID | None = None
+
+    @computed_field
+    @property
+    def title(self) -> str:
+        """What the storefront shows: the admin's display_name, else name."""
+        return self.display_name or self.name
 
 
 class CategoriesPublic(SQLModel):

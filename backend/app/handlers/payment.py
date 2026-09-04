@@ -11,6 +11,10 @@ from app.features.inventory.services.stock_release import (
     confirm_order_stock,
     release_order_stock,
 )
+from app.features.invoice.services.credit_note_service import (
+    CreditNoteIssuanceError,
+    issue_credit_note_for_refund,
+)
 from app.features.invoice.services.invoice_service import issue_invoice_for_order
 from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_status_crud import crud_order_status
@@ -20,6 +24,7 @@ from app.features.payment.services.notifications import (
     send_payment_event_notifications,
 )
 from app.outbox.decorators import outbox_handler
+from app.outbox.registry import outbox_registry
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +37,10 @@ ORDER_STATUS_PARTIALLY_REFUNDED = "PartiallyRefunded"
 # human must decide. Never set by the nominal flow — see
 # ``_handle_captured_amount_mismatch``.
 ORDER_STATUS_PAYMENT_REVIEW = "PaymentReview"
+
+#: Emitted once the accounting invoice exists, so its delivery e-mail retries
+#: independently of the issuance itself.
+EVENT_INVOICE_ISSUED = "invoice.issued"
 
 EVENT_WEBHOOK_RECEIVED = "payment.webhook_received"
 EVENT_AWAITING_VALIDATION = "payment.awaiting_validation"
@@ -316,6 +325,26 @@ async def on_payment_captured_issue_invoice(
     invoice = await issue_invoice_for_order(session, order_id=order_id)
     logger.info("Invoice %s available for order %s", invoice.invoice_number, order_id)
 
+    # Issuing is not delivering. The invoice used to sit in the database until
+    # the customer thought to look for it; the law expects it to be handed
+    # over. A dedicated event keeps the e-mail retrying on its own without
+    # re-running the (already idempotent) issuance.
+    await outbox_registry.publish(
+        session=session,
+        event_type=EVENT_INVOICE_ISSUED,
+        payload={
+            "invoice_id": str(invoice.id),
+            "invoice_number": invoice.invoice_number,
+            "order_id": str(order_id),
+            "user_id": str(invoice.user_id),
+            "currency": invoice.currency,
+            "total_incl_tax": str(invoice.total_incl_tax),
+            "total_tax": str(invoice.total_tax),
+        },
+        correlation_id=order_id,
+    )
+    await session.commit()
+
 
 @outbox_handler("payment.refunded")
 async def on_payment_refunded(session: AsyncSession, payload: dict[str, Any]) -> None:
@@ -334,6 +363,64 @@ async def on_payment_refunded(session: AsyncSession, payload: dict[str, Any]) ->
         target_status_name=(
             ORDER_STATUS_REFUNDED if fully else ORDER_STATUS_PARTIALLY_REFUNDED
         ),
+    )
+    # Only a *fully* refunded order gives its stock back, and only the
+    # reservations still PENDING. A captured payment has already confirmed its
+    # movements (COMPLETED), so this is a no-op on the normal flow — it exists
+    # for the authorise-then-refund case, where the funds were never captured
+    # and the reservation would otherwise be held forever.
+    if not fully:
+        return
+    order_id = _parse_order_id(payload)
+    if order_id is not None:
+        released = await release_order_stock(session, order_id=order_id)
+        if released:
+            await session.commit()
+            logger.info(
+                "Stock released for fully refunded order %s (%d uncaptured "
+                "reservation(s))",
+                order_id,
+                released,
+            )
+
+
+@outbox_handler("payment.refunded")
+async def on_payment_refunded_issue_credit_note(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    """Issue the credit note that corrects the invoice (Z2).
+
+    A refund used to move money and a payment status, leaving the invoice in
+    the books claiming a sale that no longer held. An issued invoice cannot be
+    edited — its sequence is gap-free by law — so the correction is a separate
+    document pointing at it.
+
+    Separate handler on purpose, like the invoice issuance: a failure here
+    retries on its own without re-running the status sync or the stock release.
+    """
+    raw_refund_id = payload.get("refund_id")
+    if not raw_refund_id:
+        # Pre-existing events carry no refund id; nothing to key idempotency on.
+        logger.warning("credit note: no refund_id in payload, skipping")
+        return
+    try:
+        refund_id = uuid.UUID(str(raw_refund_id))
+    except (TypeError, ValueError):
+        logger.warning("credit note: invalid refund_id %r", raw_refund_id)
+        return
+
+    try:
+        credit_note = await issue_credit_note_for_refund(session, refund_id=refund_id)
+    except CreditNoteIssuanceError as exc:
+        # An order refunded before it was ever invoiced has nothing to correct;
+        # retrying would never succeed, so log loudly and stop.
+        logger.error("Credit note not issued for refund %s: %s", refund_id, exc)
+        return
+
+    logger.info(
+        "Credit note %s issued for refund %s",
+        credit_note.credit_note_number,
+        refund_id,
     )
 
 
