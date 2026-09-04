@@ -17,8 +17,28 @@
           dense
         >
           Produit synchronisé depuis un fournisseur. Les champs que vous modifiez ici seront
-          <strong>verrouillés</strong> et ne seront plus écrasés par la synchronisation.
+          <strong>verrouillés</strong> : ni la synchronisation ni l'enrichissement Icecat ne les
+          réécriront.
         </q-banner>
+
+        <div v-if="isEdit && lockedFields.length" class="q-mb-md">
+          <div class="text-caption text-grey-7 q-mb-xs">
+            Champs verrouillés — cliquez pour libérer (la valeur fournisseur reviendra à la
+            prochaine synchronisation ou au prochain enrichissement) :
+          </div>
+          <q-chip
+            v-for="field in lockedFields"
+            :key="field"
+            dense
+            removable
+            icon="lock"
+            color="orange-2"
+            text-color="orange-10"
+            :label="fieldLabel(field)"
+            :disable="releasing === field"
+            @remove="onRelease(field)"
+          />
+        </div>
 
         <q-form @submit="onSubmit">
           <q-input v-model="form.name" label="Nom *" outlined dense bottom-slots :rules="req" />
@@ -202,7 +222,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue';
-import { listCategories, type Category } from 'src/api/categories';
+import { categoryLabel, listCategories, type Category } from 'src/api/categories';
 import { listTaxRates, type TaxRate } from 'src/api/taxRates';
 import { listPlaces, type Place } from 'src/api/logistics';
 import { useProductsStore, type ProductPublic } from 'src/stores/products';
@@ -288,6 +308,48 @@ const taxRateOptions = ref<{ label: string; value: string }[]>([]);
 const placeOptions = ref<{ label: string; value: string }[]>([]);
 
 const isEdit = ref(false);
+
+/** Libellés des champs verrouillables, pour les puces de verrous. */
+const FIELD_LABELS: Record<string, string> = {
+  name: 'Nom',
+  description: 'Description courte',
+  long_description: 'Description longue',
+  cost_amount: 'Coût',
+  cost_currency: 'Devise du coût',
+  customs_rate_pct: 'Douane',
+  base_price: 'Prix de base',
+  category_id: 'Catégorie',
+  tax_rate_id: 'Taux de TVA',
+  supplier_place_id: 'Origine',
+  weight: 'Poids',
+  dimensions_length: 'Longueur',
+  dimensions_width: 'Largeur',
+  dimensions_height: 'Hauteur',
+  image_url: 'Image',
+  is_featured: 'Vedette',
+  featured_position: 'Position vedette',
+};
+function fieldLabel(field: string): string {
+  return FIELD_LABELS[field] ?? field;
+}
+
+const lockedFields = ref<string[]>([]);
+const releasing = ref<string | null>(null);
+
+async function onRelease(field: string) {
+  if (!props.product) return;
+  releasing.value = field;
+  error.value = null;
+  try {
+    const refreshed = await store.releaseOverride(props.product.id, field);
+    lockedFields.value = [...(refreshed.overridden_fields ?? [])];
+    emit('saved');
+  } catch (err: unknown) {
+    error.value = err instanceof Error ? err.message : 'Libération impossible.';
+  } finally {
+    releasing.value = null;
+  }
+}
 
 function str(v: unknown): string {
   if (v == null) return '';
@@ -375,7 +437,7 @@ async function loadLookups() {
       listTaxRates({ valid: true }),
       listPlaces(),
     ]);
-    categoryOptions.value = categories.value.map((c) => ({ label: c.name, value: c.id }));
+    categoryOptions.value = categories.value.map((c) => ({ label: categoryLabel(c), value: c.id }));
     taxRateOptions.value = taxRates.value.map((t) => ({
       label: `${t.label} (${t.rate_pct}%)`,
       value: t.id,
@@ -395,6 +457,7 @@ watch(
     if (open) {
       isEdit.value = !!props.product;
       error.value = null;
+      lockedFields.value = [...(props.product?.overridden_fields ?? [])];
       loadFromProduct(props.product);
     }
   },

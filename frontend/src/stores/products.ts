@@ -1,12 +1,16 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { components } from '@app/api-types';
-import { searchProducts, getCategories, getCategorySpecFacets } from 'src/api/products';
+import {
+  searchProducts,
+  getCategories,
+  getCategorySpecFacets,
+  type CategoryPublic,
+} from 'src/api/products';
 
 type ProductPublic = components['schemas']['ProductPublic'];
 type ProductSearchRequest = components['schemas']['ProductSearchRequest'];
 type ProductSearchFacets = components['schemas']['ProductSearchFacets'];
-type CategoryPublic = components['schemas']['CategoryPublic'];
 type SpecFacet = components['schemas']['SpecFacet'];
 
 const PAGE_SIZE = 24;
