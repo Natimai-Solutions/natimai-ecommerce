@@ -261,6 +261,33 @@ export const useCartStore = defineStore('cart', () => {
     }
   }
 
+  /**
+   * Adopt the server's prices after a `cart.price.changed` checkout refusal.
+   *
+   * The local cart snapshots the price at the moment the line is added, but
+   * the catalog moves under it (supplier sync, FX, customs). The backend
+   * refuses to bill a stale price and returns the current one per line; the
+   * customer must see that new price before confirming again.
+   *
+   * Returns true when at least one line actually moved.
+   */
+  function applyServerPrices(updates: { product_id: string; current_unit_price: string }[]) {
+    let changed = false;
+    for (const update of updates) {
+      const item = cart.value.items.find((entry) => entry.product_id === update.product_id);
+      if (!item) continue;
+      const nextPrice = toMoneyString(parseMoney(update.current_unit_price));
+      if (item.unit_price === nextPrice) continue;
+      item.unit_price = nextPrice;
+      changed = true;
+    }
+    if (changed) {
+      recomputeTotals();
+      persistCart(cart.value);
+    }
+    return changed;
+  }
+
   function recomputeTotals() {
     for (const item of cart.value.items) {
       item.line_total = toMoneyString(parseMoney(item.unit_price) * item.quantity);
@@ -293,6 +320,7 @@ export const useCartStore = defineStore('cart', () => {
     updateItemQuantity,
     removeItem,
     clearCart,
+    applyServerPrices,
     sendQuoteByEmail,
     clearMessages,
   };

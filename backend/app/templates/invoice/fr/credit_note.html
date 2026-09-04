@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <title>Avoir {{ credit_note_number }}</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 18mm 16mm 22mm 16mm;
+        @bottom-center {
+          content: "Avoir {{ credit_note_number }} — page " counter(page) "/" counter(pages);
+          font-family: Helvetica, Arial, sans-serif;
+          font-size: 8pt;
+          color: #666;
+        }
+      }
+
+      body {
+        font-family: Helvetica, Arial, sans-serif;
+        font-size: 9.5pt;
+        color: #1a1a1a;
+        line-height: 1.45;
+      }
+
+      h1 {
+        font-size: 18pt;
+        margin: 0 0 2mm 0;
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        border-bottom: 2px solid #1a1a1a;
+        padding-bottom: 4mm;
+        margin-bottom: 6mm;
+      }
+
+      .header__meta {
+        text-align: right;
+        font-size: 9pt;
+      }
+
+      .parties {
+        display: flex;
+        justify-content: space-between;
+        gap: 10mm;
+        margin-bottom: 7mm;
+      }
+
+      .party {
+        width: 48%;
+      }
+
+      .party__title {
+        font-size: 8pt;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #666;
+        margin-bottom: 1.5mm;
+      }
+
+      .party__name {
+        font-weight: bold;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .lines th {
+        text-align: left;
+        font-size: 8pt;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #444;
+        border-bottom: 1px solid #999;
+        padding: 2mm 1.5mm;
+      }
+
+      .lines td {
+        padding: 2mm 1.5mm;
+        border-bottom: 1px solid #e5e5e5;
+        vertical-align: top;
+      }
+
+      .num {
+        text-align: right;
+        white-space: nowrap;
+      }
+
+      .lines__reference {
+        display: block;
+        font-size: 8pt;
+        color: #666;
+      }
+
+      .summary {
+        margin-top: 6mm;
+        display: flex;
+        justify-content: space-between;
+        gap: 10mm;
+      }
+
+      .breakdown {
+        width: 52%;
+      }
+
+      .breakdown th,
+      .breakdown td {
+        padding: 1.5mm;
+        font-size: 8.5pt;
+        border-bottom: 1px solid #e5e5e5;
+      }
+
+      .breakdown th {
+        text-align: left;
+        color: #444;
+      }
+
+      .totals {
+        width: 44%;
+      }
+
+      .totals td {
+        padding: 1.5mm;
+      }
+
+      .totals tr.grand td {
+        border-top: 2px solid #1a1a1a;
+        font-weight: bold;
+        font-size: 11pt;
+        padding-top: 2.5mm;
+      }
+
+      .footer {
+        margin-top: 9mm;
+        padding-top: 3mm;
+        border-top: 1px solid #ccc;
+        font-size: 8pt;
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div>
+        <h1>Avoir</h1>
+        <div>{{ credit_note_number }}</div>
+      </div>
+      <div class="header__meta">
+        <div><strong>Date d'émission</strong> : {{ issued_at.strftime('%d/%m/%Y') }}</div>
+        {% if order.number %}<div><strong>Commande</strong> : {{ order.number }}</div>{% endif %}
+        <div><strong>Facture corrigée</strong> : {{ invoice.number }}</div>
+      </div>
+    </div>
+
+    <div class="parties">
+      <div class="party">
+        <div class="party__title">Vendeur</div>
+        <div class="party__name">{{ seller.name }}</div>
+        {% if seller.address %}<div>{{ seller.address }}</div>{% endif %}
+        {% if seller.registration %}<div>{{ seller.registration }}</div>{% endif %}
+        {% if seller.email %}<div>{{ seller.email }}</div>{% endif %}
+        {% if seller.phone %}<div>{{ seller.phone }}</div>{% endif %}
+      </div>
+      <div class="party">
+        <div class="party__title">Client</div>
+        <div class="party__name">{{ buyer.name or buyer.email }}</div>
+        {% if buyer.address %}<div>{{ buyer.address }}</div>{% endif %}
+        {% if buyer.name and buyer.email %}<div>{{ buyer.email }}</div>{% endif %}
+      </div>
+    </div>
+
+    <table class="lines">
+      <thead>
+        <tr>
+          <th>Désignation</th>
+          <th class="num">Montant TTC</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            {% if is_full_refund %}
+            Annulation totale de la facture {{ invoice.number }}
+            {% else %}
+            Remboursement partiel sur la facture {{ invoice.number }}
+            {% endif %}
+            {% if reason %}<span class="lines__reference">Motif : {{ reason }}</span>{% endif %}
+          </td>
+          <td class="num">{{ totals.incl_tax | amount(currency) }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="summary">
+      <table class="breakdown">
+        <thead>
+          <tr>
+            <th>Ventilation des taxes</th>
+            <th class="num">Base HT</th>
+            <th class="num">Taxe</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in tax_breakdown %}
+          <tr>
+            <td>{{ entry.rate_pct }} %</td>
+            <td class="num">{{ entry.base_excl_tax | amount(currency) }}</td>
+            <td class="num">{{ entry.tax_amount | amount(currency) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <table class="totals">
+        <tbody>
+          <tr>
+            <td>Total HT</td>
+            <td class="num">{{ totals.excl_tax | amount(currency) }}</td>
+          </tr>
+          <tr>
+            <td>Total taxes</td>
+            <td class="num">{{ totals.tax | amount(currency) }}</td>
+          </tr>
+          <tr class="grand">
+            <td>Total TTC</td>
+            <td class="num">{{ totals.incl_tax | amount(currency) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="footer">
+      <div>
+        Avoir émis en correction de la facture {{ invoice.number }} du
+        {{ invoice.issued_at[:10] }}. Les montants ci-dessus ont été remboursés au client.
+      </div>
+      {% if seller.legal_footer %}<div>{{ seller.legal_footer }}</div>{% endif %}
+    </div>
+  </body>
+</html>

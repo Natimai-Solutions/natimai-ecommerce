@@ -12,6 +12,13 @@ from typing import Any
 import aiohttp
 
 from app.core.config import settings
+from app.core.http_retry import (
+    RETRYABLE_STATUSES,
+    AsyncRateLimiter,
+    RetryableHTTPError,
+    parse_retry_after,
+    request_with_retry,
+)
 from app.features.integrations.models.icecat_sync import IcecatProductData
 
 logger = logging.getLogger(__name__)
@@ -19,6 +26,14 @@ logger = logging.getLogger(__name__)
 # Explicit HTTP timeout: aiohttp's default (300 s total) would let a slow
 # Icecat response pin an ARQ enrichment job until its 600 s job_timeout.
 _HTTP_TIMEOUT = aiohttp.ClientTimeout(total=60, connect=10)
+
+# Open Icecat throttles free accounts and answers 429 without warning. The
+# enrichment cron drains its backlog by re-enqueuing itself, so slowing the
+# client down costs nothing but keeps the account out of trouble.
+ICECAT_REQUESTS_PER_MINUTE = 60
+
+# Process-wide: one enrichment batch runs 50 lookups back to back.
+_RATE_LIMITER = AsyncRateLimiter(ICECAT_REQUESTS_PER_MINUTE)
 
 
 class IcecatService:
@@ -70,28 +85,44 @@ class IcecatService:
         logger.debug(f"Parameters: {params}")
         logger.debug(f"Using Open Icecat: {self.use_open_icecat}")
 
-        async with aiohttp.ClientSession(timeout=_HTTP_TIMEOUT) as session:
-            async with session.get(
-                url, headers=headers, params=params, auth=auth
-            ) as response:
-                if response.status == 200:
-                    return await response.json()
-                elif response.status == 403:
+        async def _attempt() -> dict[str, Any]:
+            async with aiohttp.ClientSession(timeout=_HTTP_TIMEOUT) as session:
+                async with session.get(
+                    url, headers=headers, params=params, auth=auth
+                ) as response:
+                    if response.status == 200:
+                        return await response.json()
                     error_text = await response.text()
-                    if self.use_open_icecat and "app_key" in error_text.lower():
-                        # Product exists in Full Icecat only — not an error, just out of scope
-                        logger.debug(
-                            f"Product not available in Open Icecat (Full Icecat only): {url}"
+                    if response.status == 403:
+                        # Not retryable: a missing entitlement will not appear
+                        # on a second call, and the caller stamps the product
+                        # so it is not looked up again for a week.
+                        if self.use_open_icecat and "app_key" in error_text.lower():
+                            # Full Icecat only — out of scope, not an error
+                            logger.debug(
+                                f"Product not available in Open Icecat (Full Icecat only): {url}"
+                            )
+                        else:
+                            logger.error(f"Icecat API Forbidden (403): {error_text}")
+                        raise Exception("Icecat API access denied: 403 Forbidden")
+                    if response.status in RETRYABLE_STATUSES:
+                        raise RetryableHTTPError(
+                            response.status,
+                            f"Icecat API request failed: {response.status} - {error_text}",
+                            retry_after=parse_retry_after(
+                                response.headers.get("Retry-After")
+                            ),
                         )
-                    else:
-                        logger.error(f"Icecat API Forbidden (403): {error_text}")
-                    raise Exception("Icecat API access denied: 403 Forbidden")
-                else:
-                    error_text = await response.text()
                     logger.error(
                         f"Icecat API request failed: {response.status} - {error_text}"
                     )
                     raise Exception(f"Icecat API request failed: {response.status}")
+
+        return await request_with_retry(
+            _attempt,
+            description=f"Icecat GET {endpoint}",
+            rate_limiter=_RATE_LIMITER,
+        )
 
     def _extract_product_data(
         self,

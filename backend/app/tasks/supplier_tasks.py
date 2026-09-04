@@ -17,6 +17,7 @@ from arq import cron
 from sqlmodel import and_, col, or_
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.core.db import engine
 from app.features.integrations.crud.supplier_sync import supplier_sync_log_crud
 from app.features.integrations.models.supplier_sync import SyncStatus, SyncType
@@ -36,6 +37,11 @@ from app.features.product.services.pricing import (
 from app.services.suppliers import all_adapters, get_adapter, has_supplier
 
 logger = logging.getLogger(__name__)
+
+
+def _as_utc(value: datetime) -> datetime:
+    """Read a stored timestamp as UTC-aware (the column is naive in Postgres)."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
 
 
 def _now() -> datetime:
@@ -132,6 +138,94 @@ async def sync_supplier_products_task(
         }
 
 
+async def _handle_missing_skus(
+    session: AsyncSession,
+    *,
+    supplier_name: str,
+    batch_skus: list[str],
+    returned_skus: set[str],
+) -> tuple[int, int]:
+    """Track SKUs the supplier stopped returning, and delist the persistent ones.
+
+    A SKU absent from a price & availability response is *not* deactivated on
+    the spot: a transient supplier fault would otherwise wipe the catalog. The
+    first absence stamps ``supplier_missing_since``; the product is only
+    deactivated once the gap exceeds ``SUPPLIER_DELISTING_GRACE_HOURS``.
+
+    Returns ``(newly_flagged, delisted)``.
+    """
+    missing = [sku for sku in batch_skus if sku not in returned_skus]
+    if not missing:
+        return 0, 0
+
+    # An entirely empty response for a full batch is an API problem, not fifty
+    # simultaneous delistings. Refuse to flag anything on that signal.
+    if not returned_skus:
+        logger.warning(
+            "%s returned no pricing at all for a batch of %d SKUs — "
+            "treating as a supplier fault, not a delisting",
+            supplier_name,
+            len(batch_skus),
+        )
+        return 0, 0
+
+    grace_hours = int(settings.SUPPLIER_DELISTING_GRACE_HOURS)
+    now = _now()
+    cutoff = now - timedelta(hours=grace_hours) if grace_hours > 0 else None
+
+    flagged = 0
+    delisted = 0
+    for sku in missing:
+        product = await crud_product.get_by_supplier_sku(
+            session=session,
+            supplier_sku=sku,
+            supplier_name=supplier_name,
+            supplier_managed_only=True,
+        )
+        if product is None or not getattr(product, "is_admin_active", True):
+            continue
+
+        missing_since = product.supplier_missing_since
+        if missing_since is None:
+            await crud_product.update(
+                session=session,
+                id=product.id,
+                data=ProductUpdate(supplier_missing_since=now),
+                record=product,
+                user=None,
+            )
+            flagged += 1
+            logger.info(
+                "%s no longer returns SKU %s — flagged, delisting in %dh if it "
+                "does not come back",
+                supplier_name,
+                sku,
+                grace_hours,
+            )
+            continue
+
+        if cutoff is None or _as_utc(missing_since) > cutoff or not product.is_active:
+            continue
+
+        await crud_product.update(
+            session=session,
+            id=product.id,
+            data=ProductUpdate(is_active=False),
+            record=product,
+            user=None,
+        )
+        delisted += 1
+        logger.warning(
+            "Delisting product %s (SKU %s): absent from %s since %s",
+            product.id,
+            sku,
+            supplier_name,
+            missing_since.isoformat(),
+        )
+
+    return flagged, delisted
+
+
 async def sync_supplier_inventory_task(
     _ctx: dict[str, Any],
     supplier_name: str,
@@ -181,6 +275,8 @@ async def sync_supplier_inventory_task(
 
             batch_size = adapter.price_batch_size
             total_updated = 0
+            total_flagged = 0
+            total_delisted = 0
             errors = 0
             # Cache FX rates within this sync run: currency_code → rate_to_reference (None = missing)
             _fx_rate_cache: dict[str, Decimal | None] = {}
@@ -260,6 +356,9 @@ async def sync_supplier_inventory_task(
                                         snapshot, price_in_xpf=price_in_xpf
                                     ),
                                     last_supplier_sync=_now(),
+                                    # The SKU answered: any pending delisting
+                                    # countdown is void.
+                                    supplier_missing_since=None,
                                 ),
                                 record=product,
                                 user=None,
@@ -273,6 +372,15 @@ async def sync_supplier_inventory_task(
                                 e,
                             )
                             errors += 1
+
+                    flagged, delisted = await _handle_missing_skus(
+                        session,
+                        supplier_name=supplier_name,
+                        batch_skus=batch_skus,
+                        returned_skus=set(pricing),
+                    )
+                    total_flagged += flagged
+                    total_delisted += delisted
                     await session.commit()
                 except Exception as e:  # noqa: BLE001
                     logger.error(
@@ -291,6 +399,8 @@ async def sync_supplier_inventory_task(
                 "supplier_name": supplier_name,
                 "total_skus": len(skus),
                 "updated": total_updated,
+                "flagged_missing": total_flagged,
+                "delisted": total_delisted,
                 "errors": errors,
                 "timestamp": _now().isoformat(),
             }

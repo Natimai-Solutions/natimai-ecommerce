@@ -1,7 +1,9 @@
-"""Customer-facing invoice endpoints (authenticated user — own invoices only).
+"""Customer-facing invoice endpoints (authenticated user — own documents only).
 
 Phase 5a / M3: listing and PDF download of the invoices issued for the
-customer's paid orders.
+customer's paid orders. Z2 adds the credit notes correcting them after a
+refund — a customer who has been refunded is entitled to the document that
+says so, not just to the money.
 """
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.core.errors import AppError
+from app.features.invoice.models.credit_note import CreditNote, CreditNotePublic
 from app.features.invoice.models.invoice import (
     Invoice,
     InvoicePublic,
@@ -20,7 +23,9 @@ from app.features.invoice.models.invoice import (
 )
 from app.features.invoice.services.pdf import (
     PdfRenderingUnavailableError,
+    credit_note_pdf_filename,
     invoice_pdf_filename,
+    render_credit_note_pdf,
     render_invoice_pdf,
 )
 from app.features.order.models.order import Order
@@ -140,6 +145,117 @@ async def download_my_invoice_pdf(
         headers={
             "Content-Disposition": (
                 f'attachment; filename="{invoice_pdf_filename(invoice)}"'
+            )
+        },
+    )
+
+
+def _credit_note_to_public(credit_note: CreditNote) -> CreditNotePublic:
+    return CreditNotePublic(
+        id=credit_note.id,
+        credit_note_number=credit_note.credit_note_number,
+        fiscal_year=credit_note.fiscal_year,
+        invoice_id=credit_note.invoice_id,
+        order_id=credit_note.order_id,
+        issued_at=credit_note.issued_at,
+        currency=credit_note.currency,
+        total_excl_tax=credit_note.total_excl_tax,
+        total_tax=credit_note.total_tax,
+        total_incl_tax=credit_note.total_incl_tax,
+        reason=credit_note.reason,
+    )
+
+
+async def _load_own_credit_note(
+    session: SessionDep, *, credit_note_id: uuid.UUID, user_id: uuid.UUID
+) -> CreditNote:
+    """Load a credit note owned by ``user_id`` (404 on a foreign one)."""
+    credit_note = await session.get(CreditNote, credit_note_id)
+    if credit_note is None or credit_note.user_id != user_id:
+        raise AppError(
+            code="credit_note.not_found",
+            status_code=404,
+            message="Credit note not found",
+            details={"credit_note_id": str(credit_note_id)},
+        )
+    return credit_note
+
+
+@router.get("/me/credit-notes", response_model=list[CreditNotePublic])
+async def list_my_credit_notes(
+    session: SessionDep,
+    current_user: CurrentUser,
+    skip: int = 0,
+    limit: int = 50,
+) -> list[CreditNotePublic]:
+    """List the authenticated customer's credit notes, most recent first."""
+    statement = (
+        select(CreditNote)
+        .where(CreditNote.user_id == current_user.id)
+        .order_by(col(CreditNote.issued_at).desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    result = await session.exec(statement)
+    return [_credit_note_to_public(note) for note in result.all()]
+
+
+@router.get(
+    "/me/credit-notes/by-order/{order_id}", response_model=list[CreditNotePublic]
+)
+async def list_my_credit_notes_for_order(
+    session: SessionDep,
+    order_id: uuid.UUID,
+    current_user: CurrentUser,
+) -> list[CreditNotePublic]:
+    """Credit notes issued against one of the customer's orders.
+
+    A list, not a single document: a partial refund can be followed by another,
+    each producing its own credit note.
+    """
+    order = await session.get(Order, order_id)
+    if order is None or order.user_id != current_user.id:
+        raise AppError(
+            code="invoice.order_not_found",
+            status_code=404,
+            message="Order not found",
+            details={"order_id": str(order_id)},
+        )
+
+    result = await session.exec(
+        select(CreditNote)
+        .where(CreditNote.order_id == order_id)
+        .order_by(col(CreditNote.issued_at).asc())
+    )
+    return [_credit_note_to_public(note) for note in result.all()]
+
+
+@router.get("/me/credit-notes/{credit_note_id}/pdf")
+async def download_my_credit_note_pdf(
+    session: SessionDep,
+    credit_note_id: uuid.UUID,
+    current_user: CurrentUser,
+) -> Response:
+    """Download the PDF of one of the customer's credit notes."""
+    credit_note = await _load_own_credit_note(
+        session, credit_note_id=credit_note_id, user_id=current_user.id
+    )
+    try:
+        pdf = render_credit_note_pdf(credit_note)
+    except PdfRenderingUnavailableError as exc:
+        raise AppError(
+            code="credit_note.pdf.unavailable",
+            status_code=503,
+            message="Credit note PDF rendering is unavailable on this deployment",
+            details={"credit_note_id": str(credit_note_id)},
+        ) from exc
+
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{credit_note_pdf_filename(credit_note)}"'
             )
         },
     )

@@ -1006,6 +1006,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/credit-notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Credit Notes
+         * @description List issued credit notes, most recent first (optionally one year).
+         */
+        get: operations["admin-credit-notes-list_credit_notes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/credit-notes/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Credit Notes Csv
+         * @description Accounting export of the issued credit notes (CSV, semicolon-separated).
+         *
+         *     Ordered by number so the accountant can check sequence continuity at a
+         *     glance, exactly as for the invoice export.
+         */
+        get: operations["admin-credit-notes-export_credit_notes_csv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/credit-notes/{credit_note_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Credit Note
+         * @description Return one issued credit note.
+         */
+        get: operations["admin-credit-notes-get_credit_note"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/credit-notes/{credit_note_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Credit Note Pdf
+         * @description Download the PDF of an issued credit note.
+         */
+        get: operations["admin-credit-notes-download_credit_note_pdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/shipping/pending-grouping": {
         parameters: {
             query?: never;
@@ -2070,7 +2153,21 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /**
+         * Replace My Cart Items
+         * @description Install a whole cart content in one transaction.
+         *
+         *     The storefront cart lives in the browser; mirroring it into the backend
+         *     used to mean a DELETE followed by one POST per line. That sequence is not
+         *     atomic: a failure in the middle left a truncated server cart, which the
+         *     checkout then ordered as if it were complete. It was not a merge either —
+         *     the clear destroyed whatever the account already had, so a cart built on
+         *     one device was wiped by a checkout started on another.
+         *
+         *     Products are resolved and validated first (existence, availability,
+         *     sellability, current price), then written in a single transaction.
+         */
+        put: operations["cart-replace_my_cart_items"];
         /**
          * Add Cart Item
          * @description Execute add cart item.
@@ -2807,6 +2904,69 @@ export interface paths {
          * @description Download the PDF of one of the customer's invoices.
          */
         get: operations["invoice-download_my_invoice_pdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/me/credit-notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Credit Notes
+         * @description List the authenticated customer's credit notes, most recent first.
+         */
+        get: operations["invoice-list_my_credit_notes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/me/credit-notes/by-order/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Credit Notes For Order
+         * @description Credit notes issued against one of the customer's orders.
+         *
+         *     A list, not a single document: a partial refund can be followed by another,
+         *     each producing its own credit note.
+         */
+        get: operations["invoice-list_my_credit_notes_for_order"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/me/credit-notes/{credit_note_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download My Credit Note Pdf
+         * @description Download the PDF of one of the customer's credit notes.
+         */
+        get: operations["invoice-download_my_credit_note_pdf"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6655,6 +6815,17 @@ export interface components {
             quantity: number;
         };
         /**
+         * CartReplaceRequest
+         * @description Full replacement of the cart content, applied atomically.
+         */
+        CartReplaceRequest: {
+            /**
+             * Items
+             * @description The cart content to install. Every product is resolved and validated before anything is written, so the call either applies in full or changes nothing. Repeated product ids are merged by summing their quantities.
+             */
+            items?: components["schemas"]["CartItemAddRequest"][];
+        };
+        /**
          * CategoriesPublic
          * @description Represents categories public.
          */
@@ -6908,10 +7079,9 @@ export interface components {
             shipping_fee_amount?: number | string | null;
             /**
              * Payment Fee Amount
-             * @description Payment fees snapshot applied at checkout
-             * @default 0.00
+             * @description Ignored. The fee is read server-side from the selected PaymentMethod: it is a property of the method, not something the caller gets to decide. Kept optional so existing clients that still send it are not rejected.
              */
-            payment_fee_amount: number | string;
+            payment_fee_amount?: number | string | null;
             /**
              * Cgv Accepted
              * @description Explicit acceptance of the terms of sale. Required: the checkbox in the SPA is not proof — the acceptance is recorded on the order (cgv_accepted_at / cgv_version) so it is opposable, and an API call that bypasses the UI is refused.
@@ -7056,6 +7226,46 @@ export interface components {
             name: string;
             /** Notes */
             notes?: string | null;
+        };
+        /**
+         * CreditNotePublic
+         * @description Credit note metadata exposed by the API (the PDF has its own endpoint).
+         */
+        CreditNotePublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Credit Note Number */
+            credit_note_number: string;
+            /** Fiscal Year */
+            fiscal_year: number;
+            /**
+             * Invoice Id
+             * Format: uuid
+             */
+            invoice_id: string;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+            /** Currency */
+            currency: string;
+            /** Total Excl Tax */
+            total_excl_tax: string;
+            /** Total Tax */
+            total_tax: string;
+            /** Total Incl Tax */
+            total_incl_tax: string;
+            /** Reason */
+            reason: string | null;
         };
         /**
          * CurrencyRatePublic
@@ -8613,6 +8823,12 @@ export interface components {
             currency: string;
             /** Options */
             options?: components["schemas"]["LastLegOption"][];
+            /**
+             * Customs Declaration Fee
+             * @description Frais de dédouanement facturés une fois par expédition, quel que soit le nombre d'articles (0 = aucun frais paramétré). Ils s'ajoutent au total au checkout, en plus du mode de livraison.
+             * @default 0.00
+             */
+            customs_declaration_fee: string;
         };
         /**
          * LivenessResponse
@@ -10622,6 +10838,11 @@ export interface components {
              */
             customs_clearance: boolean;
             /**
+             * Customs Declaration Fee
+             * @description Frais fixes dus par déclaration en douane franchie ici (redevances, participations, frais de dossier transitaire), exprimés dans la devise de référence. Facturés UNE FOIS par expédition, jamais au prorata des articles (écart F3). NULL = non renseigné, donc rien n'est facturé.
+             */
+            customs_declaration_fee?: number | string | null;
+            /**
              * Consolidation Service
              * @description Consolidation service
              * @default false
@@ -10765,6 +10986,11 @@ export interface components {
              */
             customs_clearance: boolean;
             /**
+             * Customs Declaration Fee
+             * @description Frais fixes dus par déclaration en douane franchie ici (redevances, participations, frais de dossier transitaire), exprimés dans la devise de référence. Facturés UNE FOIS par expédition, jamais au prorata des articles (écart F3). NULL = non renseigné, donc rien n'est facturé.
+             */
+            customs_declaration_fee?: string | null;
+            /**
              * Consolidation Service
              * @description Consolidation service
              * @default false
@@ -10894,6 +11120,8 @@ export interface components {
             current_capacity_m3?: number | null;
             /** Customs Clearance */
             customs_clearance?: boolean | null;
+            /** Customs Declaration Fee */
+            customs_declaration_fee?: number | string | null;
             /** Consolidation Service */
             consolidation_service?: boolean | null;
             /** Repackaging Service */
@@ -11191,6 +11419,11 @@ export interface components {
              */
             last_supplier_sync?: string | null;
             /**
+             * Supplier Missing Since
+             * @description First time the supplier stopped returning this SKU in a price & availability response. Cleared as soon as it reappears; past the delisting grace period the product is deactivated.
+             */
+            supplier_missing_since?: string | null;
+            /**
              * Is Supplier Managed
              * @description Indicates if this product is managed by a supplier
              * @default false
@@ -11410,6 +11643,8 @@ export interface components {
             supplier_price_currency?: string | null;
             /** Last Supplier Sync */
             last_supplier_sync?: string | null;
+            /** Supplier Missing Since */
+            supplier_missing_since?: string | null;
             /**
              * Is Supplier Managed
              * @default false
@@ -11678,6 +11913,8 @@ export interface components {
             supplier_price_currency?: string | null;
             /** Last Supplier Sync */
             last_supplier_sync?: string | null;
+            /** Supplier Missing Since */
+            supplier_missing_since?: string | null;
             /** Is Supplier Managed */
             is_supplier_managed?: boolean | null;
             /** Supplier Place Id */
@@ -16594,6 +16831,132 @@ export interface operations {
             };
         };
     };
+    "admin-credit-notes-list_credit_notes": {
+        parameters: {
+            query?: {
+                fiscal_year?: number | null;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditNotePublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-credit-notes-export_credit_notes_csv": {
+        parameters: {
+            query?: {
+                fiscal_year?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-credit-notes-get_credit_note": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                credit_note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditNotePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-credit-notes-download_credit_note_pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                credit_note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-shipping-list_pending_grouping": {
         parameters: {
             query?: never;
@@ -18587,6 +18950,39 @@ export interface operations {
             };
         };
     };
+    "cart-replace_my_cart_items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CartReplaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CartDetailPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "cart-add_cart_item": {
         parameters: {
             query?: never;
@@ -20314,6 +20710,100 @@ export interface operations {
             header?: never;
             path: {
                 invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "invoice-list_my_credit_notes": {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditNotePublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "invoice-list_my_credit_notes_for_order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditNotePublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "invoice-download_my_credit_note_pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                credit_note_id: string;
             };
             cookie?: never;
         };

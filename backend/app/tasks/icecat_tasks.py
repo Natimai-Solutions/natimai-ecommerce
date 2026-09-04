@@ -322,6 +322,10 @@ async def batch_enrich_products_task(
                         vendor_part_number=product.vendor_part_number,
                         manufacturer=product.manufacturer,
                         ean=product.ean if hasattr(product, "ean") else None,
+                        # The single-product task has always passed this; the
+                        # batch did not, so the same product matched when
+                        # enriched by hand and missed in the nightly run.
+                        upc=product.upc if hasattr(product, "upc") else None,
                     )
 
                     if not enrichment_data:

@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.services.pricing import (
+    CustomsDeclarationFee,
     calculate_shipping_for_routes,
     resolve_billable_weight,
     serialize_shipping_cost_summary,
@@ -280,3 +281,103 @@ def test_serialize_shipping_cost_summary_is_json_safe() -> None:
     assert payload["total_fee"] == "5000"
     assert payload["segments"][0]["route_name"] == "FR->PPT"
     assert payload["segments"][0]["total_fee"] == "5000"
+
+
+# ---------------------------------------------------------------------------
+# Per-declaration customs fees (audit item F3)
+# ---------------------------------------------------------------------------
+
+
+def _declaration_fee(amount: str, *, name: str = "Papeete") -> CustomsDeclarationFee:
+    return CustomsDeclarationFee(
+        place_id=uuid4(), place_name=name, amount=Decimal(amount)
+    )
+
+
+def test_customs_declaration_fee_is_added_once_to_the_total() -> None:
+    france_to_papeete = _route(base_price="1000", price_per_kg="2000")
+    papeete_to_home = _route(base_price="500", price_per_kg="0")
+
+    summary = calculate_shipping_for_routes(
+        routes=[france_to_papeete, papeete_to_home],
+        total_weight_kg=Decimal("2"),
+        declared_value=Decimal("100000"),
+        currency="XPF",
+        customs_declaration_fees=[_declaration_fee("3500")],
+    )
+
+    # 1000 + 2000×2 + 500 = 5500 de transport, + 3500 de déclaration.
+    assert summary.total_fee == Decimal("9000")
+    assert len(summary.customs_declaration_fees) == 1
+    assert summary.customs_declaration_fees[0].amount == Decimal("3500")
+
+
+def test_customs_declaration_fee_does_not_scale_with_weight_or_value() -> None:
+    """Per declaration means per shipment: a bigger cart pays the same fee."""
+    route = _route(base_price="0", price_per_kg="0")
+    fee = _declaration_fee("3500")
+
+    small = calculate_shipping_for_routes(
+        routes=[route],
+        total_weight_kg=Decimal("1"),
+        declared_value=Decimal("50000"),
+        currency="XPF",
+        customs_declaration_fees=[fee],
+    )
+    large = calculate_shipping_for_routes(
+        routes=[route],
+        total_weight_kg=Decimal("40"),
+        declared_value=Decimal("2000000"),
+        currency="XPF",
+        customs_declaration_fees=[fee],
+    )
+
+    assert small.total_fee == large.total_fee == Decimal("3500")
+
+
+def test_customs_declaration_fees_are_billed_without_any_route() -> None:
+    """Goods still clear customs when no leg is billed to the customer (F6)."""
+    summary = calculate_shipping_for_routes(
+        routes=[],
+        total_weight_kg=Decimal("2"),
+        declared_value=Decimal("100000"),
+        currency="XPF",
+        customs_declaration_fees=[_declaration_fee("3500")],
+    )
+
+    assert summary.total_fee == Decimal("3500")
+    assert summary.breakdown == []
+
+
+def test_non_positive_customs_declaration_fees_are_dropped() -> None:
+    summary = calculate_shipping_for_routes(
+        routes=[],
+        total_weight_kg=Decimal("2"),
+        declared_value=Decimal("100000"),
+        currency="XPF",
+        customs_declaration_fees=[_declaration_fee("0")],
+    )
+
+    assert summary.total_fee == Decimal("0")
+    assert summary.customs_declaration_fees == ()
+
+
+def test_serialize_shipping_cost_summary_keeps_declaration_fees_auditable() -> None:
+    fee = _declaration_fee("3500")
+    summary = calculate_shipping_for_routes(
+        routes=[_route(base_price="500", price_per_kg="0")],
+        total_weight_kg=Decimal("2"),
+        declared_value=Decimal("100000"),
+        currency="XPF",
+        customs_declaration_fees=[fee],
+    )
+
+    payload = serialize_shipping_cost_summary(summary)
+
+    assert payload["customs_declaration_fees"] == [
+        {
+            "place_id": str(fee.place_id),
+            "place_name": "Papeete",
+            "amount": "3500",
+        }
+    ]

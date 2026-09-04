@@ -29,6 +29,19 @@ def _stub_order_number(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+@pytest.fixture(autouse=True)
+def _stub_customs_declaration_fees(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Per-declaration customs fees (F3) query the raw session, which an
+    AsyncMock cannot serve. They are neutralised here so these tests keep
+    measuring the amount snapshot; the resolver has its own unit tests in
+    test_checkout_customs_declaration_fee.py.
+    """
+    monkeypatch.setattr(
+        "app.api.routes.cart._customs_declaration_fees",
+        AsyncMock(return_value=[]),
+    )
+
+
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
@@ -140,12 +153,21 @@ async def test_checkout_freezes_subtotal_and_fees_into_order_and_payment(
         AsyncMock(return_value=None),
     )
 
+    # The payment fee is a property of the PaymentMethod, read server-side.
+    # The value below is what the *method* costs; the payload deliberately
+    # sends a different one to prove it is ignored.
+    monkeypatch.setattr(
+        "app.api.routes.cart._resolve_payment_fee",
+        AsyncMock(return_value=Decimal("1.25")),
+    )
+
     response = await checkout_my_cart(
         session=session,
         current_user=current_user,
         payload=CheckoutRequest(
             shipping_fee_amount=Decimal("2.50"),
-            payment_fee_amount=Decimal("1.25"),
+            # Ignored: a caller does not get to price its own payment method.
+            payment_fee_amount=Decimal("99.00"),
             cgv_accepted=True,
         ),
     )
@@ -269,6 +291,14 @@ async def test_checkout_calculates_shipping_from_selected_routes(
         AsyncMock(return_value=None),
     )
 
+    # The payment fee is a property of the PaymentMethod, read server-side.
+    # The value below is what the *method* costs; the payload deliberately
+    # sends a different one to prove it is ignored.
+    monkeypatch.setattr(
+        "app.api.routes.cart._resolve_payment_fee",
+        AsyncMock(return_value=Decimal("1.25")),
+    )
+
     response = await checkout_my_cart(
         session=session,
         current_user=current_user,
@@ -312,6 +342,9 @@ async def test_checkout_calculates_shipping_from_selected_routes(
         "total_fee": "11.00",
         "eta_days": 4,
         "carbon_footprint_kg_co2e": 1.2,
+        # Aucun frais de déclaration paramétré ici : la clé reste présente pour
+        # que le snapshot dise explicitement ce qui n'a pas été facturé (F3).
+        "customs_declaration_fees": [],
         "segments": [
             {
                 "route_id": str(selected_route.id),
