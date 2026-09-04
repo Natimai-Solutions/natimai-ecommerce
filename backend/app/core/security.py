@@ -1,3 +1,4 @@
+import hashlib
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -74,3 +75,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     """Empreinte bcrypt du mot de passe (coût 12, inchangé)."""
     return bcrypt.hashpw(_bcrypt_input(password), bcrypt.gensalt()).decode("utf-8")
+
+
+def hash_reset_token(token: str) -> str:
+    """Condensat d'un jeton de reprise de compte (mot de passe oublié,
+    invitation). SHA-256 suffit : le jeton est déjà aléatoire (32 octets
+    d'entropie), un bcrypt ne protégerait que d'une attaque par dictionnaire
+    qui n'a pas de sens ici. Déterministe, donc recherchable en base.
+    """
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()

@@ -2,14 +2,18 @@
   <q-page class="flex flex-center q-pa-md">
     <q-card flat bordered style="width: min(420px, 100%)">
       <q-card-section>
-        <div class="text-h6">Nouveau mot de passe</div>
+        <div class="text-h6">
+          {{ invitation ? 'Activez votre compte' : 'Nouveau mot de passe' }}
+        </div>
+        <div v-if="invitation" class="text-body2 text-grey-8 q-mt-xs">
+          Un compte a été créé pour vous. Choisissez votre mot de passe pour l'ouvrir.
+        </div>
       </q-card-section>
 
       <q-card-section class="q-pt-none">
         <q-banner v-if="!token" class="bg-red-1 text-red-9" rounded>
           <template #avatar><q-icon name="error_outline" /></template>
-          Ce lien est incomplet. Demandez-en un nouveau depuis la page « mot de passe
-          oublié ».
+          Ce lien est incomplet. Demandez-en un nouveau depuis la page « mot de passe oublié ».
         </q-banner>
 
         <template v-else-if="doneMessage">
@@ -17,12 +21,7 @@
             <template #avatar><q-icon name="check_circle" /></template>
             {{ doneMessage }}
           </q-banner>
-          <q-btn
-            color="primary"
-            label="Se connecter"
-            class="full-width"
-            :to="{ name: 'login' }"
-          />
+          <q-btn color="primary" label="Se connecter" class="full-width" :to="{ name: 'login' }" />
         </template>
 
         <template v-else>
@@ -69,7 +68,7 @@
               type="submit"
               data-testid="reset-submit"
               color="primary"
-              label="Valider"
+              :label="invitation ? 'Activer mon compte' : 'Valider'"
               class="full-width"
               :loading="submitting"
             />
@@ -88,6 +87,9 @@ import { resetPassword } from 'src/api/passwordReset';
 const route = useRoute();
 // Le jeton arrive dans le lien de l'email.
 const token = computed(() => String(route.query.token ?? ''));
+// Même page, même endpoint pour un compte créé par un admin (A15) : seul le
+// vocabulaire change, la personne n'a jamais eu de mot de passe à « réinitialiser ».
+const invitation = computed(() => route.query.mode === 'invitation');
 
 const password = ref('');
 const confirmation = ref('');
@@ -104,8 +106,7 @@ async function onSubmit() {
     doneMessage.value = await resetPassword(token.value, password.value);
   } catch (err) {
     errorMessage.value =
-      extractError(err) ??
-      'Lien invalide ou expiré. Demandez un nouveau lien de réinitialisation.';
+      extractError(err) ?? 'Lien invalide ou expiré. Demandez un nouveau lien de réinitialisation.';
   } finally {
     submitting.value = false;
   }
