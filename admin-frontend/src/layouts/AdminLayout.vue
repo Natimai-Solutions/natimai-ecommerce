@@ -62,6 +62,7 @@ const nav: NavSection[] = [
     label: 'Catalogue',
     links: [
       { label: 'Produits', icon: 'inventory_2', to: '/products' },
+      { label: 'Catégories', icon: 'category', to: '/categories' },
       { label: 'Catalogue de specs', icon: 'tune', to: '/spec-definitions' },
     ],
   },

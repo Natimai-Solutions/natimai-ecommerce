@@ -85,6 +85,18 @@
           <div class="text-body2 ellipsis" :title="props.row.name">{{ props.row.name }}</div>
           <div class="text-caption text-grey-7">
             {{ props.row.manufacturer || '—' }}
+            <q-icon
+              v-if="props.row.overridden_fields?.length"
+              name="lock"
+              color="orange-8"
+              size="xs"
+              class="q-ml-xs"
+            >
+              <q-tooltip>
+                {{ props.row.overridden_fields.length }} champ(s) verrouillé(s) contre la
+                synchronisation
+              </q-tooltip>
+            </q-icon>
           </div>
         </q-td>
       </template>

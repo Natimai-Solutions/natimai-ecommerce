@@ -1,0 +1,288 @@
+"""Back-office des catégories (A17 + A12).
+
+GET   /admin/categories               — toutes les catégories, fusionnées comprises,
+                                        avec le nombre de produits
+PATCH /admin/categories/{id}          — titre vitrine, description, image, activation
+POST  /admin/categories/{id}/merge    — fusionner dans une autre catégorie
+
+Les catégories naissent de la synchronisation fournisseur (``get_or_create_by_name``
+sur la sous-catégorie Ingram) : leur ``name`` est la clé de rapprochement et ne se
+renomme pas. Ce que l'admin personnalise vit à côté — ``display_name`` pour le
+titre vitrine (résolu par ``CategoryPublic.title``), ``description`` et
+``image_url`` que la sync ne touche jamais. Le taux de TVA et le taux de douane
+par défaut ont déjà leurs endpoints dans ``admin_tax_rates.py``.
+"""
+
+from __future__ import annotations
+
+import logging
+import uuid
+from decimal import Decimal
+
+from fastapi import APIRouter
+from pydantic import BaseModel, Field
+from sqlalchemy import func
+from sqlalchemy import update as sa_update
+from sqlmodel import col, select
+
+from app.api.deps import CurrentSuperUser, SessionDep
+from app.core.errors import AppError
+from app.features.discount.models import Discount
+from app.features.product.models.category import Category
+from app.features.product.models.product import Product
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/admin/categories", tags=["admin-categories"])
+
+
+class AdminCategoryItem(BaseModel):
+    """Une catégorie vue du back-office."""
+
+    id: uuid.UUID
+    name: str
+    display_name: str | None
+    title: str
+    description: str | None
+    image_url: str | None
+    is_active: bool
+    default_tax_rate_id: uuid.UUID | None
+    default_customs_rate_pct: Decimal | None
+    merged_into_id: uuid.UUID | None
+    merged_into_name: str | None = None
+    product_count: int = 0
+
+
+class AdminCategoriesPublic(BaseModel):
+    """Liste complète (pas de pagination : quelques dizaines de lignes)."""
+
+    data: list[AdminCategoryItem]
+    count: int
+
+
+class AdminCategoryUpdate(BaseModel):
+    """Champs personnalisables. ``name`` n'en fait pas partie : c'est la clé
+    de rapprochement de la sync. Pour renommer côté vitrine, ``display_name``."""
+
+    display_name: str | None = Field(default=None, max_length=100)
+    description: str | None = Field(default=None, max_length=500)
+    image_url: str | None = Field(default=None, max_length=500)
+    is_active: bool | None = None
+
+
+class MergeBody(BaseModel):
+    """Cible d'une fusion."""
+
+    target_id: uuid.UUID
+
+
+class MergeResult(BaseModel):
+    """Bilan d'une fusion."""
+
+    source: AdminCategoryItem
+    target: AdminCategoryItem
+    moved_products: int
+    moved_discounts: int
+
+
+def _to_item(
+    category: Category, *, product_count: int, merged_into_name: str | None
+) -> AdminCategoryItem:
+    return AdminCategoryItem(
+        id=category.id,
+        name=category.name,
+        display_name=category.display_name,
+        title=category.display_name or category.name,
+        description=category.description,
+        image_url=category.image_url,
+        is_active=category.is_active,
+        default_tax_rate_id=category.default_tax_rate_id,
+        default_customs_rate_pct=category.default_customs_rate_pct,
+        merged_into_id=category.merged_into_id,
+        merged_into_name=merged_into_name,
+        product_count=product_count,
+    )
+
+
+async def _load(session: SessionDep, category_id: uuid.UUID) -> Category:
+    category = await session.get(Category, category_id)
+    if category is None:
+        raise AppError(
+            code="category.not_found",
+            status_code=404,
+            message=f"Category '{category_id}' not found",
+            details={"category_id": str(category_id)},
+        )
+    return category
+
+
+async def _product_count(session: SessionDep, category_id: uuid.UUID) -> int:
+    stmt = (
+        select(func.count())
+        .select_from(Product)
+        .where(Product.category_id == category_id)
+    )
+    return int((await session.exec(stmt)).one())
+
+
+async def _item_for(session: SessionDep, category: Category) -> AdminCategoryItem:
+    merged_name: str | None = None
+    if category.merged_into_id is not None:
+        target = await session.get(Category, category.merged_into_id)
+        merged_name = target.name if target is not None else None
+    return _to_item(
+        category,
+        product_count=await _product_count(session, category.id),
+        merged_into_name=merged_name,
+    )
+
+
+@router.get("", response_model=AdminCategoriesPublic)
+async def list_categories(
+    session: SessionDep, _current_user: CurrentSuperUser
+) -> AdminCategoriesPublic:
+    """Toutes les catégories, y compris inactives et fusionnées."""
+    categories = list(
+        (await session.exec(select(Category).order_by(col(Category.name)))).all()
+    )
+    counts_stmt = select(col(Product.category_id), func.count()).group_by(
+        col(Product.category_id)
+    )
+    counts = {row[0]: int(row[1]) for row in await session.exec(counts_stmt)}
+    names = {c.id: c.name for c in categories}
+
+    data = [
+        _to_item(
+            c,
+            product_count=counts.get(c.id, 0),
+            merged_into_name=names.get(c.merged_into_id) if c.merged_into_id else None,
+        )
+        for c in categories
+    ]
+    return AdminCategoriesPublic(data=data, count=len(data))
+
+
+@router.patch("/{category_id}", response_model=AdminCategoryItem)
+async def update_category(
+    category_id: uuid.UUID,
+    payload: AdminCategoryUpdate,
+    session: SessionDep,
+    current_user: CurrentSuperUser,
+) -> AdminCategoryItem:
+    """Personnaliser une catégorie sans toucher à sa clé de rapprochement."""
+    category = await _load(session, category_id)
+    fields = payload.model_dump(exclude_unset=True)
+
+    if fields.get("is_active") is True and category.merged_into_id is not None:
+        raise AppError(
+            code="category.merged",
+            status_code=409,
+            message="Cette catégorie a été fusionnée : elle ne peut pas être réactivée",
+            details={
+                "category_id": str(category_id),
+                "merged_into_id": str(category.merged_into_id),
+            },
+        )
+
+    if "display_name" in fields and fields["display_name"] is not None:
+        # Un titre vide ou égal au nom n'est pas une personnalisation.
+        cleaned = fields["display_name"].strip()
+        fields["display_name"] = (
+            cleaned if cleaned and cleaned != category.name else None
+        )
+
+    for name, value in fields.items():
+        setattr(category, name, value)
+    category.modify_by_id = current_user.id
+    session.add(category)
+    await session.commit()
+    await session.refresh(category)
+    logger.info(
+        "Admin updated category: category_id=%s fields=%s", category_id, sorted(fields)
+    )
+    return await _item_for(session, category)
+
+
+@router.post("/{category_id}/merge", response_model=MergeResult)
+async def merge_category(
+    category_id: uuid.UUID,
+    payload: MergeBody,
+    session: SessionDep,
+    current_user: CurrentSuperUser,
+) -> MergeResult:
+    """Fusionner ``category_id`` dans ``target_id``.
+
+    Les produits et les remises ciblant la source passent sur la cible ; la
+    source reste en base, inactive, avec ``merged_into_id`` posé, pour que la
+    prochaine synchronisation continue de résoudre son nom vers la cible au
+    lieu de la recréer. Les produits sans taux de douane propre héritent dès
+    lors de celui de la cible.
+    """
+    if payload.target_id == category_id:
+        raise AppError(
+            code="category.merge.self",
+            status_code=400,
+            message="Une catégorie ne peut pas être fusionnée dans elle-même",
+            details={"category_id": str(category_id)},
+        )
+    source = await _load(session, category_id)
+    target = await _load(session, payload.target_id)
+
+    if source.merged_into_id is not None:
+        raise AppError(
+            code="category.merged",
+            status_code=409,
+            message="Cette catégorie a déjà été fusionnée",
+            details={
+                "category_id": str(category_id),
+                "merged_into_id": str(source.merged_into_id),
+            },
+        )
+    if target.merged_into_id is not None or not target.is_active:
+        raise AppError(
+            code="category.merge.target_unavailable",
+            status_code=409,
+            message="La catégorie cible est inactive ou a elle-même été fusionnée",
+            details={"target_id": str(payload.target_id)},
+        )
+
+    admin_id = current_user.id
+    source_id, target_id = source.id, target.id
+
+    moved_products = (
+        await session.exec(
+            sa_update(Product)
+            .where(col(Product.category_id) == source_id)
+            .values(category_id=target_id)
+        )
+    ).rowcount
+    moved_discounts = (
+        await session.exec(
+            sa_update(Discount)
+            .where(col(Discount.category_id) == source_id)
+            .values(category_id=target_id)
+        )
+    ).rowcount
+
+    source.is_active = False
+    source.merged_into_id = target_id
+    source.modify_by_id = admin_id
+    session.add(source)
+    await session.commit()
+    await session.refresh(source)
+    await session.refresh(target)
+
+    logger.info(
+        "Category merged: source=%s target=%s products=%s discounts=%s admin=%s",
+        source_id,
+        target_id,
+        moved_products,
+        moved_discounts,
+        admin_id,
+    )
+    return MergeResult(
+        source=await _item_for(session, source),
+        target=await _item_for(session, target),
+        moved_products=int(moved_products),
+        moved_discounts=int(moved_discounts),
+    )
