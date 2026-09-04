@@ -39,9 +39,19 @@ Create the root `.env` from the template in section 6 before the first start.
 | `FIRST_SUPERUSER_PASSWORD` | Bootstrap admin password (≥ 12 chars, not `changethisA1`) | — |
 | `ENVIRONMENT` | `local` / `staging` / `production` — enables the non‑default‑secret guards | `production` |
 
+`POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB` are read both by the
+`postgres` container (which creates the role and the database) and by the API,
+the worker, the poller and the outbox health checker. They used to be hardcoded
+to `postgres` in `docker-compose.yml` and not overridden by the production
+file, so a deployed stack ran on that password while ignoring the `.env`
+entirely. Compose now interpolates them everywhere, with the old values as
+defaults so a bare `docker compose up` still works with no `.env`.
+
 When `ENVIRONMENT != local`, the app refuses to start if `SECRET_KEY`,
 `POSTGRES_PASSWORD` or `FIRST_SUPERUSER_PASSWORD` are left at `changethis` —
-or, for `SECRET_KEY`, left **empty**. An empty key used to be silently replaced
+or, for `SECRET_KEY`, left **empty**. `POSTGRES_PASSWORD` is additionally
+rejected when it is a well-known development default (`postgres`, `password`):
+the `changethis` check alone never saw the compose value. An empty key used to be silently replaced
 by a random one: every token then died on restart and each replica signed with
 a different key, so no session survived a rolling update. In `local` only, that
 random fallback still applies, with a warning.
@@ -98,6 +108,12 @@ Without `EMAILS_API_URL` + `EMAILS_API_KEY`, emails are silently disabled
 (`emails_enabled = False`). Mailgun provider variables (`MAILGUN_DOMAIN`,
 `MAILGUN_API_KEY`, `MAILGUN_FROM_EMAIL`, `MAILGUN_FROM_NAME`) are used when a
 notification provider is set to `mailgun`.
+
+`PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER` accepts `noop`, `mailgun` or
+`slack_webhook` and is **validated at startup**: an unknown value now stops
+the app instead of falling back to `noop`, which reports success and throws
+the message away. A single typo in the `.env` used to discard every order
+confirmation, payment receipt and invoice, leaving only a warning in the logs.
 
 ### 3.4 Authentication — social login (OAuth 2.0) · Phase 2
 
@@ -208,6 +224,18 @@ is needed — the seed migration inserts the initial value.
 | `ICECAT_USE_OPEN` | `true` | `false` = Full Icecat (paid) |
 | `ICECAT_LANGUAGE` | `fr` | Product sheet language |
 
+### 3.8 Catalogue freshness, stock reservations and checkout checks
+
+Three background/edge behaviours that decide whether the catalogue tells the
+truth. All three are safe to leave at their defaults.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `STOCK_RESERVATION_TTL_HOURS` | `48` | Stock is decremented when the order is drafted. A checkout abandoned on the payment page used to hold it forever — only `payment.rejected` ever gave it back. An hourly sweep releases orders still in `Pending` past this age. Orders in `AwaitingPayment` (bank transfer under validation) or `PaymentReview` are never touched: a human or an event still owns them. `0` disables the sweep. |
+| `SUPPLIER_DELISTING_GRACE_HOURS` | `72` | A SKU the supplier stops returning stays sellable with its last known price and stock. The first absence is only recorded (`products.supplier_missing_since`); the product is deactivated once the gap outlives this delay, so a transient supplier fault cannot empty the catalogue. `0` records the absence but never deactivates. |
+| `CHECKOUT_SUPPLIER_AVAILABILITY_CHECK` | `true` | Re-ask the supplier what it actually has before reserving, instead of trusting a snapshot up to two hours old. One request per order, on supplier-managed lines only. A supplier that answers "out of stock" refuses the order; a supplier that cannot be reached never blocks a sale — the snapshot stands. |
+| `CHECKOUT_SUPPLIER_CHECK_TIMEOUT_SECONDS` | `8` | Deliberately short: this runs on the checkout critical path, unlike the 60 s the background sync can afford. |
+
 ### 3.9 File storage (payment attachments)
 
 | Variable | Default | Description |
@@ -225,7 +253,7 @@ is needed — the seed migration inserts the initial value.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `INVOICE_SELLER_NAME` | `Natimai Solutions` | Seller name printed on invoices |
-| `INVOICE_SELLER_ADDRESS` | *(empty)* | **Required before issuing real invoices** — an invoice without a complete seller identity is not compliant. Issuance logs a warning while empty |
+| `INVOICE_SELLER_ADDRESS` | *(empty)* | **Required** — outside `ENVIRONMENT=local`, issuance is now **refused** (and an operational alert raised) while the trading name, the address or the registration number is missing. Not issuing is reversible: the order stays invoiceable once the identity is filled. Issuing a non-compliant document is not — the number is already burned in a gap-free sequence, and the invoice is immutable |
 | `INVOICE_SELLER_REGISTRATION` | *(empty)* | **Required** — RC Papeete number + n° TAHITI |
 | `INVOICE_SELLER_EMAIL` / `INVOICE_SELLER_PHONE` | *(empty)* | Contact details on the document |
 | `INVOICE_LEGAL_FOOTER` | *(empty)* | Legal mentions printed at the bottom of the invoice |
@@ -236,6 +264,21 @@ is needed — the seed migration inserts the initial value.
 > host without them, invoices are still **issued and stored** (the snapshot is
 > the source of truth) and only the PDF endpoints answer `503`
 > (`invoice.pdf.unavailable`).
+
+> **Delivery.** Issuing is not delivering: the invoice is e-mailed to the
+> customer on `invoice.issued`, carrying the amounts and a link to the account
+> page rather than the PDF (a missing font must not cost the customer the
+> notice that they have been invoiced). `invoices.emailed_at` makes it
+> idempotent — the outbox delivers at least once. This needs
+> `PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER` set to a real provider; the value is
+> validated at startup, an unknown one no longer falls back to `noop`.
+
+> **Credit notes (Z2).** A refund issues a credit note (`AV-AAAA-NNNNN`) on its
+> own gap-free counter, keyed on the refund id so a replayed event cannot burn
+> a second number. The tax split comes from the original invoice, never
+> recomputed, and is prorated on a partial refund. Endpoints: customer
+> `GET /invoices/me/credit-notes[…]`, admin `GET /admin/credit-notes[…]`
+> including `export.csv`.
 
 ### 3.10 Antivirus & security
 

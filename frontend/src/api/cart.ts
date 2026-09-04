@@ -4,6 +4,7 @@ import { api } from 'src/boot/api';
 type CartDetailPublic = components['schemas']['CartDetailPublic'];
 type CartItemAddRequest = components['schemas']['CartItemAddRequest'];
 type CartItemQuantityUpdateRequest = components['schemas']['CartItemQuantityUpdateRequest'];
+type CartReplaceRequest = components['schemas']['CartReplaceRequest'];
 type QuoteRequestSubmit = components['schemas']['QuoteRequestSubmit'];
 type QuoteRequestResponse = components['schemas']['QuoteRequestResponse'];
 // The generated schema lags the backend additions for the single-payment flow
@@ -76,6 +77,20 @@ export async function updateCartItemQuantity(
 
 export async function removeCartItem(itemId: string): Promise<CartDetailPublic> {
   const { data } = await api.delete<CartDetailPublic>(`/cart/items/${itemId}`);
+  return data;
+}
+
+/**
+ * Install the whole cart content in one transaction.
+ *
+ * Replaces the old clear-then-add-each-line sequence, which was not atomic:
+ * a failure midway left a truncated backend cart that the checkout then
+ * ordered as if it were complete.
+ */
+export async function replaceMyCartItems(
+  payload: CartReplaceRequest,
+): Promise<CartDetailPublic> {
+  const { data } = await api.put<CartDetailPublic>('/cart/items', payload);
   return data;
 }
 

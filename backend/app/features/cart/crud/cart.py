@@ -170,6 +170,98 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
         exec_result = await session.exec(statement)
         return exec_result.first()
 
+    async def _fx_snapshot(
+        self, session: AsyncSession, product: Product
+    ) -> tuple[Decimal | None, str | None]:
+        """Freeze the FX rate used to price this line, when there is one."""
+        cost_currency = (
+            getattr(product, "cost_currency", None) or settings.REFERENCE_CURRENCY
+        )
+        try:
+            _, rate = await convert_to_reference_currency(
+                session, Decimal("1"), cost_currency
+            )
+        except CurrencyRateMissing:
+            return None, None  # snapshot left null; does not block adding to cart
+        if cost_currency == settings.REFERENCE_CURRENCY:
+            return None, None
+        return rate, cost_currency
+
+    async def get_all_rows_for_cart(
+        self,
+        session: AsyncSession,
+        *,
+        cart_id: uuid.UUID,
+    ) -> list[CartItem]:
+        """Every row of the cart, active or not.
+
+        ``(cart_id, product_id)`` is unique in the database, and soft-deleting
+        a row does not free that key — so a replacement has to find and reuse
+        the deactivated rows instead of inserting alongside them.
+        """
+        statement = select(self.model).where(self.model.cart_id == cart_id)
+        exec_result = await session.exec(statement)
+        return list(exec_result.all())
+
+    async def replace_cart_items(
+        self,
+        session: AsyncSession,
+        *,
+        cart_id: uuid.UUID,
+        entries: list[tuple[Product, int]],
+    ) -> list[CartItem]:
+        """Swap the whole cart content in ONE transaction.
+
+        The storefront cart lives in the browser and used to be mirrored into
+        the backend cart at checkout time by a clear followed by one HTTP call
+        per line. Nothing made that sequence atomic: a failure midway left a
+        truncated server cart, which the checkout then happily ordered.
+
+        Every write here happens in a single transaction, and the caller has
+        already resolved and validated every product, so either the whole
+        content lands or none of it does.
+        """
+        existing = {
+            item.product_id: item
+            for item in await self.get_all_rows_for_cart(
+                session=session, cart_id=cart_id
+            )
+        }
+        wanted = {product.id for product, _ in entries}
+
+        for product_id, item in existing.items():
+            if product_id not in wanted and item.is_active:
+                item.is_active = False
+                session.add(item)
+
+        result: list[CartItem] = []
+        for product, quantity in entries:
+            fx_rate_used, fx_source_currency = await self._fx_snapshot(session, product)
+            item = existing.get(product.id)
+            if item is None:
+                item = self.model(
+                    cart_id=cart_id,
+                    product_id=product.id,
+                    quantity=quantity,
+                    unit_price=product.base_price,
+                    fx_rate_used=fx_rate_used,
+                    fx_source_currency=fx_source_currency,
+                )
+            else:
+                # Reuse the row: the unique key survives a soft delete.
+                item.is_active = True
+                item.quantity = quantity
+                item.unit_price = product.base_price
+                item.fx_rate_used = fx_rate_used
+                item.fx_source_currency = fx_source_currency
+            session.add(item)
+            result.append(item)
+
+        await session.commit()
+        for item in result:
+            await session.refresh(item)
+        return result
+
     async def add_or_increment(
         self,
         session: AsyncSession,
@@ -179,20 +271,7 @@ class CartItemCrud(CrudBase[CartItem, CartItemCreate, CartItemUpdate]):
         quantity: int,
     ) -> CartItem:
         """Execute add or increment."""
-        cost_currency = (
-            getattr(product, "cost_currency", None) or settings.REFERENCE_CURRENCY
-        )
-        fx_rate_used: Decimal | None = None
-        fx_source_currency: str | None = None
-        try:
-            _, rate = await convert_to_reference_currency(
-                session, Decimal("1"), cost_currency
-            )
-            if cost_currency != settings.REFERENCE_CURRENCY:
-                fx_rate_used = rate
-                fx_source_currency = cost_currency
-        except CurrencyRateMissing:
-            pass  # FX snapshot left null; does not block adding to cart
+        fx_rate_used, fx_source_currency = await self._fx_snapshot(session, product)
 
         existing_item = await self.get_by_cart_and_product(
             session=session,

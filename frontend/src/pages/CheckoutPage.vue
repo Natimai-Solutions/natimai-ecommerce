@@ -356,7 +356,7 @@ import {
   uploadFileToPresignedUrl,
   type PaymentMethod,
 } from 'src/api/payments';
-import { addCartItem, checkoutMyCart, clearMyCart, getLastLegOptions } from 'src/api/cart';
+import { checkoutMyCart, getLastLegOptions, replaceMyCartItems } from 'src/api/cart';
 import { listMyAddresses, type Address } from 'src/api/addresses';
 
 const PENDING_PAYMENT_KEY = 'payzen.pending_payment_id';
@@ -550,7 +550,6 @@ async function startPayment() {
     const checkout = await checkoutMyCart({
       shipping_preference: 'fastest',
       delivery_type: selectedDeliveryType.value,
-      payment_fee_amount: '0.00',
       shipping_address: formatAddress(selectedAddress.value),
       shipping_address_id: selectedAddressId.value,
       payment_method_id: method.id,
@@ -567,11 +566,15 @@ async function startPayment() {
     if (checkout.form_token && checkout.server_url && checkout.public_key) {
       localStorage.setItem(PENDING_PAYMENT_KEY, checkout.payment_id);
       formToken.value = checkout.form_token;
+      // Carry the payment id in the redirect URL, not only in localStorage.
+      // 3-D Secure often finishes in the bank's app or another browser, and the
+      // customer then lands on the return page with an empty local store —
+      // which used to greet a successful payment with "no pending transaction".
       await loadPayzenSmartForm({
         serverUrl: checkout.server_url,
         publicKey: checkout.public_key,
         token: checkout.form_token,
-        returnUrl,
+        returnUrl: `${returnUrl}?payment=${encodeURIComponent(checkout.payment_id)}`,
       });
       return;
     }
@@ -588,6 +591,13 @@ async function startPayment() {
     errorMessage.value =
       "Le moyen de paiement sélectionné n'est pas disponible pour le moment. Veuillez réessayer.";
   } catch (err: unknown) {
+    // The backend refuses to bill a price that moved since the line was added.
+    // Adopt the prices it just returned so the recap shows what is actually
+    // being asked, then let the customer confirm the new total.
+    const drifted = extractPriceDrift(err);
+    if (drifted) {
+      cartStore.applyServerPrices(drifted);
+    }
     errorMessage.value =
       extractError(err) ?? 'Une erreur est survenue lors de la finalisation de la commande.';
   } finally {
@@ -595,12 +605,40 @@ async function startPayment() {
   }
 }
 
-/** Mirror the client-side cart into the backend cart (reset then re-add). */
+type PriceDriftItem = { product_id: string; current_unit_price: string };
+
+/** Read the per-line new prices carried by a `cart.price.changed` refusal. */
+function extractPriceDrift(err: unknown): PriceDriftItem[] | null {
+  if (!err || typeof err !== 'object' || !('response' in err)) return null;
+  const data = (err as { response?: { data?: unknown } }).response?.data;
+  if (typeof data !== 'object' || data === null) return null;
+  const errorObj = (data as { error?: { code?: unknown; details?: unknown } }).error;
+  if (!errorObj || errorObj.code !== 'cart.price.changed') return null;
+  const items = (errorObj.details as { items?: unknown } | undefined)?.items;
+  if (!Array.isArray(items)) return null;
+  return items.filter(
+    (row): row is PriceDriftItem =>
+      typeof row === 'object' &&
+      row !== null &&
+      typeof (row as PriceDriftItem).product_id === 'string' &&
+      typeof (row as PriceDriftItem).current_unit_price === 'string',
+  );
+}
+
+/**
+ * Mirror the client-side cart into the backend cart, atomically.
+ *
+ * This used to be a clear followed by one POST per line. Nothing made that
+ * sequence transactional: a failure in the middle left a truncated backend
+ * cart, and the checkout that followed ordered it as if it were complete.
+ */
 async function syncCartToBackend() {
-  await clearMyCart();
-  for (const { item } of cartStore.detailedItems) {
-    await addCartItem({ product_id: item.product_id, quantity: item.quantity });
-  }
+  await replaceMyCartItems({
+    items: cartStore.detailedItems.map(({ item }) => ({
+      product_id: item.product_id,
+      quantity: item.quantity,
+    })),
+  });
 }
 
 async function uploadDocument() {

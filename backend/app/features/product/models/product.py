@@ -156,6 +156,15 @@ class ProductBase(Base):
         default=None,
         description="Last synchronization timestamp with supplier",
     )
+    supplier_missing_since: datetime | None = Field(
+        default=None,
+        index=True,
+        description=(
+            "First time the supplier stopped returning this SKU in a price & "
+            "availability response. Cleared as soon as it reappears; past the "
+            "delisting grace period the product is deactivated."
+        ),
+    )
     is_supplier_managed: bool = Field(
         default=False,
         description="Indicates if this product is managed by a supplier",
@@ -278,6 +287,7 @@ class ProductUpdate(ProductBase, BaseUpdate):
     supplier_image_url: str | None = None
     supplier_spec_url: str | None = None
     last_supplier_sync: datetime | None = None
+    supplier_missing_since: datetime | None = None
     is_supplier_managed: bool | None = None
     supplier_place_id: uuid.UUID | None = None
     overridden_fields: list[str] | None = None
@@ -334,6 +344,7 @@ class ProductPublic(ProductBase, BasePublic):
     supplier_image_url: str | None = None
     supplier_spec_url: str | None = None
     last_supplier_sync: datetime | None = None
+    supplier_missing_since: datetime | None = None
     is_supplier_managed: bool = False
 
 

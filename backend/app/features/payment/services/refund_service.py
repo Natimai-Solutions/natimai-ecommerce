@@ -147,6 +147,10 @@ async def refund_payment(
             session=session,
             event_type=EVENT_PAYMENT_REFUNDED,
             payload={
+                # The credit note keys its idempotency on this: the outbox
+                # delivers at least once, and two credit notes for one refund
+                # would each burn a number in a gap-free legal sequence.
+                "refund_id": str(refund.id),
                 "payment_id": str(payment_id),
                 "order_id": str(order_id) if order_id else None,
                 "user_id": str(user_id),

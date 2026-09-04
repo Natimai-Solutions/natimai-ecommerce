@@ -153,12 +153,21 @@ async def test_checkout_freezes_subtotal_and_fees_into_order_and_payment(
         AsyncMock(return_value=None),
     )
 
+    # The payment fee is a property of the PaymentMethod, read server-side.
+    # The value below is what the *method* costs; the payload deliberately
+    # sends a different one to prove it is ignored.
+    monkeypatch.setattr(
+        "app.api.routes.cart._resolve_payment_fee",
+        AsyncMock(return_value=Decimal("1.25")),
+    )
+
     response = await checkout_my_cart(
         session=session,
         current_user=current_user,
         payload=CheckoutRequest(
             shipping_fee_amount=Decimal("2.50"),
-            payment_fee_amount=Decimal("1.25"),
+            # Ignored: a caller does not get to price its own payment method.
+            payment_fee_amount=Decimal("99.00"),
             cgv_accepted=True,
         ),
     )
@@ -280,6 +289,14 @@ async def test_checkout_calculates_shipping_from_selected_routes(
     monkeypatch.setattr(
         "app.api.routes.cart.resolve_default_price_group",
         AsyncMock(return_value=None),
+    )
+
+    # The payment fee is a property of the PaymentMethod, read server-side.
+    # The value below is what the *method* costs; the payload deliberately
+    # sends a different one to prove it is ignored.
+    monkeypatch.setattr(
+        "app.api.routes.cart._resolve_payment_fee",
+        AsyncMock(return_value=Decimal("1.25")),
     )
 
     response = await checkout_my_cart(

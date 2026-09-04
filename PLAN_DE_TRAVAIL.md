@@ -1299,6 +1299,53 @@ Audit complet (sécurité, tests/CI, infra, complétude) mené le 25/08/2026. Ph
 
 ---
 
+## Chantier production-ready — audit et livraison du 02/09/2026
+
+Audit code (et non documentaire) des trois chantiers dont dépend l'ouverture :
+synchros Ingram/Icecat/stock, parcours client complet, infra. Les items
+ci-dessous ont été **livrés le 02/09/2026**, un commit par sujet.
+
+### PR-A — Synchronisation & stock
+
+| # | Item | Détail |
+|---|------|--------|
+| N1 ✅ | **Rate limits Ingram & Icecat** | Les deux clients levaient une `Exception` nue sur tout statut ≠ 200 : un seul 429 en pagination perdait la catégorie, et le retry ARQ repartait aussitôt sur le même endpoint. `requests_per_minute` était déclaré dans le contrat `SupplierAdapter` et **jamais lu**. Ajout de [core/http_retry.py](backend/app/core/http_retry.py) : limiteur de débit par processus (120 req/min Ingram, 60 Icecat) + backoff exponentiel à jitter complet respectant `Retry-After`, plafonné à 120 s. Seuls 429 et 5xx sont rejoués. **Les POST de commande fournisseur ne rejouent que sur 429**, jamais sur 5xx ni coupure : ces cas sont ambigus, la commande a pu partir, et la passer deux fois coûte de l'argent |
+| N2 ✅ | **Fuite de stock sur commandes non payées** | `release_order_stock` n'était appelé que sur `payment.rejected` : un panier abandonné sur la page de paiement retenait son stock indéfiniment. Balayage ARQ horaire ([tasks/inventory_tasks.py](backend/app/tasks/inventory_tasks.py)) libérant les commandes restées « Pending » au-delà de `STOCK_RESERVATION_TTL_HOURS` (48 h). `AwaitingPayment` (virement en validation) et `PaymentReview` sont **épargnés** : un humain ou un événement les pilote encore. Libération ajoutée aussi sur `payment.refunded` intégral (cas autorisation-puis-remboursement, fonds jamais capturés) |
+| N3 ✅ | **Delisting** | Une référence retirée du catalogue Ingram restait active avec son dernier prix et son dernier stock connus. Nouvelle colonne `products.supplier_missing_since` (migration `b7d4e9a2c518`) : la première absence est **enregistrée**, la désactivation n'intervient qu'au-delà de `SUPPLIER_DELISTING_GRACE_HOURS` (72 h). Un lot entier revenant vide est traité comme un incident d'API, pas comme cinquante disparitions |
+| N4 ✅ | **Disponibilité temps réel au checkout** | La dispo vérifiée était l'instantané local, vieux de 0 à 2 h. Appel prix/dispo synchrone avant réservation ([checkout_availability.py](backend/app/features/integrations/services/checkout_availability.py)), une requête par commande. **Asymétrie assumée** : un fournisseur qui répond « plus de stock » change l'issue, un fournisseur injoignable n'en change aucune (l'instantané fait foi) — refuser toutes les commandes pendant une panne Ingram coûterait plus cher que le risque réduit. Délai court (8 s), on est sur le chemin critique |
+| N5 ✅ | **Icecat : UPC absent du lot** | La tâche unitaire passait `upc`, le lot non. Le même produit trouvait sa fiche à la main et la ratait dans le cron horaire. Enjeu réel : la publication exige un poids qu'Ingram ne fournit jamais et qu'Icecat seul apporte, donc le taux de correspondance décide de la taille du catalogue vendable. Test de parité par AST des deux appels |
+
+### PR-B — Parcours client
+
+| # | Item | Détail |
+|---|------|--------|
+| N6 ✅ | **Prix non revalidé au checkout** | `CartItem.unit_price` est figé à l'ajout, mais la synchro réécrit le coût toutes les 2 h. Le checkout résolvait le prix courant puis **jetait le résultat** et facturait l'instantané. Toute dérive, dans un sens comme dans l'autre, arrête désormais le checkout (409 `cart.price.changed`), le panier étant mis à jour **avant** de lever l'erreur pour que le client relise le prix qu'on lui demande d'accepter. La vitrine adopte ces prix (`applyServerPrices`) avant d'afficher le message |
+| N7 ✅ | **Frais de paiement pilotés par le client** | `payment_fee_amount` arrivait dans le corps de la requête et était pris au pied de la lettre. Le montant est lu sur `PaymentMethod.fee` ; le champ de requête devient optionnel et documenté comme ignoré |
+| N8 ✅ | **Panier : recopie N+1 non transactionnelle** | Le checkout faisait `DELETE` puis un `POST` par ligne. Un échec au milieu laissait un panier serveur tronqué, commandé ensuite comme s'il était complet — et le `DELETE` détruisait ce que le compte contenait déjà (pas une fusion). Nouveau `PUT /cart/items` atomique : tous les produits résolus et validés d'abord, écriture en une transaction, identifiants répétés fusionnés. Deux pièges corrigés au passage : `get_or_create_active_cart` commite (donc périme les produits résolus avant lui, et jetait le prix calculé), et `(cart_id, product_id)` étant unique, une désactivation logique ne libère pas la clé — les lignes sont réutilisées |
+| N9 ✅ | **Facture jamais envoyée** | Émise, numérotée, stockée, et jamais délivrée. Événement `invoice.issued` + handler dédié + templates. L'email porte les montants et un lien vers l'espace client, **pas le PDF** : son rendu dépend des bibliothèques système de WeasyPrint, et une police manquante ne doit pas coûter au client l'information qu'il a été facturé. Colonne `invoices.emailed_at` pour l'idempotence (l'outbox livre au moins une fois) ; un envoi non délivré lève, pour que le retry ARQ reprenne |
+| N10 ✅ | **Avoirs (Z2)** | Un remboursement déplaçait de l'argent sans produire de document rectificatif. Modèle `CreditNote` (`AV-AAAA-NNNNN`) avec **son propre compteur** — les deux séquences sont légalement distinctes — émis sur `payment.refunded`, idempotent sur `refund_id` unique. Ventilation reprise de la facture d'origine, **jamais recalculée** (créditer au taux d'aujourd'hui une vente taxée au taux de l'an dernier ne tomberait pas juste), appliquée au prorata sur un remboursement partiel, le dernier groupe absorbant l'arrondi. Un cumul dépassant le total de la facture est refusé. PDF + endpoints client et admin + export CSV |
+| N11 ✅ | **Facture sans identité légale** | `_seller_identity` se contentait d'un warning. Le coût est asymétrique : ne pas émettre est réversible, émettre un document non conforme ne l'est pas (numéro consommé dans une séquence sans trou, facture immuable). Raison sociale, adresse et immatriculation deviennent bloquantes hors `local`, avec alerte opérationnelle |
+| N12 ✅ | **Retour 3-D Secure perdu** | L'identifiant du paiement ne vivait que dans le `localStorage` de l'onglet d'origine. Le 3-D Secure se terminant souvent dans l'app de la banque, un paiement réussi s'affichait « Aucune transaction en attente ». L'identifiant passe par l'URL de retour, le `localStorage` restant en repli |
+| N13 ✅ | **Emails jetés en silence** | `PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER` était une chaîne libre ; une valeur inconnue retombait sur `noop`, qui déclare réussir et jette le message. Une coquille dans le `.env` supprimait donc toutes les notifications transactionnelles. Le réglage devient un `Literal` refusé par pydantic au démarrage, avec un test comparant l'ensemble accepté au registre des fournisseurs |
+
+### PR-C — Infra
+
+| # | Item | Détail |
+|---|------|--------|
+| N14 ✅ | **Mot de passe Postgres en dur** | `postgres` était codé en dur sur le service base **et** dans l'environnement de api/worker/poller/migrate, sans être réécrit par `docker-compose.prod.yml` : la production tournait dessus en ignorant le `.env`, et `outbox-health-checker` (qui lisait `${POSTGRES_PASSWORD}`) n'aurait plus pu se connecter dès qu'une vraie valeur y était mise. Interpolation partout, et garde de démarrage refusant les mots de passe de développement connus hors `local` |
+
+### Reste à faire (non couvert le 02/09/2026)
+
+- 🔲 **Sauvegardes non branchées** : le script existe, le cron et un restore réel restent à faire **sur le serveur**.
+- 🔲 **`ALERT_WEBHOOK_URL` vide** : sans lui, perte d'un event outbox, health-check en erreur et échec de sauvegarde ne notifient personne. Devenu plus important avec N11, qui alerte sur identité légale incomplète.
+- 🔲 **Pas de 2FA back-office** et `ENABLE_GROUP_PERMISSIONS=False` (tout utilisateur authentifié passe les contrôles ; seul `is_superuser` protège l'admin).
+- 🔲 **Relecture juridique** des CGV / mentions / confidentialité, et formulaire de rétractation côté client.
+- 🔲 **Validation sandbox PayZen** de la capture différée et du refund, toujours jamais testés contre la sandbox.
+- 🔲 **Panier invité serveur** : le panier vitrine reste en `localStorage` (N8 rend sa recopie atomique, mais ne crée pas de panier invité persistant ni de fusion à la connexion).
+- 🔲 Conteneurs en root, pas de CSP, aucune métrique exportée, déploiement manuel sans rollback par image.
+
+---
+
 ## Risques / points d'attention transverses
 
 | Risque | Mitigation |
