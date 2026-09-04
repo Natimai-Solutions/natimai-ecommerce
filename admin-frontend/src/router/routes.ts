@@ -34,6 +34,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/GroupUpgradeRequestsPage.vue'),
       },
       { path: 'addresses', component: () => import('pages/AddressesPage.vue') },
+      { path: 'users', component: () => import('pages/UsersPage.vue') },
       {
         path: 'payment-eligibility',
         component: () => import('pages/PaymentEligibilityPage.vue'),

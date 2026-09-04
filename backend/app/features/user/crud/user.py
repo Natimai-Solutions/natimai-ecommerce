@@ -37,6 +37,17 @@ def _utcnow_naive() -> datetime.datetime:
     return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
 
 
+def mark_logged_in(user: User) -> None:
+    """Horodater une connexion réussie (mot de passe, OAuth, inscription).
+
+    Ne commit pas : l'appelant enchaîne sur l'émission du refresh token, dont
+    la création commit déjà. ``last_login`` existait en colonne sans jamais
+    être écrit ; le back-office (A15) s'appuie dessus pour savoir si un compte
+    invité a été ouvert.
+    """
+    user.last_login = _utcnow_naive()
+
+
 class CrudUser(CrudBase[User, UserCreate, UserUpdate]):
     """Represents crud user."""
 

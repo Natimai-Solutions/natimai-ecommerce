@@ -96,6 +96,7 @@ const nav: NavSection[] = [
   {
     label: 'Clients',
     links: [
+      { label: 'Utilisateurs', icon: 'people', to: '/users' },
       { label: 'Demandes de groupe', icon: 'group_add', to: '/group-upgrade-requests' },
       { label: 'Adresses', icon: 'location_on', to: '/addresses' },
     ],

@@ -1,0 +1,1 @@
+{{ shop_name }} — votre compte vous attend

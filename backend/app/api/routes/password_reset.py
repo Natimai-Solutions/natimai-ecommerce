@@ -21,7 +21,6 @@ Trois précautions structurent ce flux :
 from __future__ import annotations
 
 import datetime
-import hashlib
 import logging
 import secrets
 
@@ -33,7 +32,7 @@ from app.api.deps import SessionDep
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.rate_limit import get_client_ip, hit_rate_limit
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, hash_reset_token
 from app.features.notification.email_renderer import render_email
 from app.features.notification.providers import (
     NotificationMessage,
@@ -78,16 +77,6 @@ _NEUTRAL_RESPONSE = OkMessage(
         "vient d'être envoyé."
     )
 )
-
-
-def hash_reset_token(token: str) -> str:
-    """Condensat stocké en base. SHA-256 suffit : le jeton est déjà aléatoire.
-
-    Un bcrypt serait inutile ici — il protège des mots de passe devinables,
-    or ce jeton fait 32 octets d'entropie et n'est pas attaquable par
-    dictionnaire.
-    """
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def _utcnow_naive() -> datetime.datetime:
@@ -205,6 +194,11 @@ async def reset_password(
     # Jeton à usage unique.
     user.password_reset_token = None
     user.password_reset_token_expires = None
+    # Le lien n'a pu être suivi que depuis la boîte mail : l'adresse est donc
+    # prouvée. C'est ce qui active un compte créé par un admin (A15), dont
+    # l'invitation emprunte ce même flux ; pour un compte ordinaire non
+    # vérifié, c'est une preuve de plus, pas un contournement.
+    user.is_verified = True
     # Le compte a pu être verrouillé par les tentatives ratées qui ont mené
     # ici : reprendre la main doit lever le verrou.
     user.failed_login_attempts = 0

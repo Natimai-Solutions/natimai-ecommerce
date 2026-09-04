@@ -1,0 +1,15 @@
+Bonjour{% if full_name %} {{ full_name }}{% endif %},
+
+Un compte {{ shop_name }} vient d'être créé pour vous. Pour l'activer,
+choisissez votre mot de passe en ouvrant ce lien :
+
+{{ invitation_url }}
+
+Ce lien est valable {{ valid_hours }} heures et ne fonctionne qu'une fois.
+Passé ce délai, demandez-nous un nouveau lien ou utilisez « mot de passe
+oublié » depuis la page de connexion.
+
+Si vous n'attendiez pas ce message, ignorez-le : aucun accès n'est possible
+sans suivre le lien.
+
+L'équipe {{ shop_name }}

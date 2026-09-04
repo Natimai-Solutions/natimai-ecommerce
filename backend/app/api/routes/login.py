@@ -19,7 +19,7 @@ from app.core.errors import AppError
 from app.core.rate_limit import get_client_ip, hit_rate_limit
 from app.features.base.crud import RecordNotFoundError
 from app.features.user.crud.refresh_token import crud_user_refresh_token
-from app.features.user.crud.user import AccountLockedError, crud_user
+from app.features.user.crud.user import AccountLockedError, crud_user, mark_logged_in
 from app.features.user.models.user import (
     AccessTokenResponse,
     TokenPayload,
@@ -127,6 +127,11 @@ async def login_access_token(
         user.id
     )
 
+    # Trace de connexion : le back-office s'en sert pour distinguer un compte
+    # invité jamais ouvert d'un client actif. L'instance est déjà suivie par la
+    # session (chargée par authenticate) : le commit de create_for_user juste
+    # en dessous persiste la modification.
+    mark_logged_in(user)
     await crud_user_refresh_token.create_for_user(
         session=session,
         user_id=user.id,

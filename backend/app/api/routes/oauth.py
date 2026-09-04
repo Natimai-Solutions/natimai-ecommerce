@@ -37,7 +37,7 @@ from app.core.auth_cookies import set_refresh_cookie
 from app.core.config import settings
 from app.core.errors import AppError
 from app.features.user.crud.refresh_token import crud_user_refresh_token
-from app.features.user.crud.user import crud_user
+from app.features.user.crud.user import crud_user, mark_logged_in
 from app.features.user.models.oauth_link import UserOAuthLink
 from app.features.user.models.user import User, UserCreate
 
@@ -412,8 +412,10 @@ async def oauth_callback(
     _access_tok, refresh_tok, refresh_jti, refresh_expires_at = _build_token_bundle(
         user.id
     )
+    mark_logged_in(user)
     # create_for_user internally calls CrudBase.create which commits the transaction,
-    # flushing the pending user + oauth_link writes alongside the refresh token.
+    # flushing the pending user (last_login included) + oauth_link writes alongside
+    # the refresh token.
     await crud_user_refresh_token.create_for_user(
         session=session,
         user_id=user.id,

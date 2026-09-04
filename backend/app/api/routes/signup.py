@@ -26,7 +26,7 @@ from app.features.notification.providers import (
     get_notification_provider,
 )
 from app.features.user.crud.refresh_token import crud_user_refresh_token
-from app.features.user.crud.user import crud_user
+from app.features.user.crud.user import crud_user, mark_logged_in
 from app.features.user.models.user import AccessTokenResponse, User
 from app.features.user.services.otp_service import (
     OTP_VALID_MINUTES,
@@ -158,6 +158,7 @@ async def complete_signup(
         is_verified=True,
         hashed_password=get_password_hash(body.password),
     )
+    mark_logged_in(user)  # l'inscription connecte : c'est une première ouverture
     session.add(user)
     await session.flush()
 

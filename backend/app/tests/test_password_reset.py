@@ -22,10 +22,10 @@ from app.api.routes.password_reset import (
     ForgotPasswordRequest,
     ResetPasswordRequest,
     forgot_password,
-    hash_reset_token,
     reset_password,
 )
 from app.core.errors import AppError
+from app.core.security import hash_reset_token
 
 #: Le schéma impose 16 caractères minimum — un jeton court trahirait une
 #: génération affaiblie, donc les tests utilisent une valeur réaliste.
