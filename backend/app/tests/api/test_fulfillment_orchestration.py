@@ -234,6 +234,12 @@ async def test_checkout_persists_segment_note_from_orchestration(
         "app.api.routes.cart.resolve_default_price_group",
         AsyncMock(return_value=None),
     )
+    # Same for the per-declaration customs fees (F3) — covered on their own in
+    # test_checkout_customs_declaration_fee.py.
+    monkeypatch.setattr(
+        "app.api.routes.cart._customs_declaration_fees",
+        AsyncMock(return_value=[]),
+    )
 
     await checkout_my_cart(
         session=session,

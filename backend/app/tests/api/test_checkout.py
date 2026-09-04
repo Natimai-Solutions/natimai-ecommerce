@@ -127,6 +127,12 @@ async def test_checkout_creates_order_payment_and_marks_cart_checked_out(
         "app.api.routes.cart.resolve_default_price_group",
         AsyncMock(return_value=None),
     )
+    # Same for the per-declaration customs fees (F3) — covered on their own in
+    # test_checkout_customs_declaration_fee.py.
+    monkeypatch.setattr(
+        "app.api.routes.cart._customs_declaration_fees",
+        AsyncMock(return_value=[]),
+    )
 
     response = await checkout_my_cart(
         session=session,
@@ -215,6 +221,12 @@ async def test_checkout_refuses_without_cgv_acceptance(
     reserve_stock = AsyncMock(return_value=[])
     monkeypatch.setattr(
         "app.api.routes.cart._reserve_stock_for_checkout", reserve_stock
+    )
+    # Priced before the CGV check; queries the raw session, which an AsyncMock
+    # cannot serve (see test_checkout_customs_declaration_fee.py for its tests).
+    monkeypatch.setattr(
+        "app.api.routes.cart._customs_declaration_fees",
+        AsyncMock(return_value=[]),
     )
 
     with pytest.raises(AppError) as exc_info:
@@ -325,6 +337,18 @@ async def test_checkout_with_payment_method_runs_single_payment_initiation(
     monkeypatch.setattr(
         "app.api.routes.cart.resolve_default_price_group",
         AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.cart._customs_declaration_fees",
+        AsyncMock(return_value=[]),
+    )
+
+    # The fee is now read from the PaymentMethod row; a mocked session cannot
+    # serve that lookup, and the resolution itself is covered by
+    # test_checkout_payment_fee.py.
+    monkeypatch.setattr(
+        "app.api.routes.cart._resolve_payment_fee",
+        AsyncMock(return_value=Decimal("0.00")),
     )
 
     response = await checkout_my_cart(
@@ -494,6 +518,10 @@ async def test_checkout_rolls_back_when_stock_reservation_fails(
     monkeypatch.setattr(
         "app.api.routes.cart.resolve_default_price_group",
         AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.cart._customs_declaration_fees",
+        AsyncMock(return_value=[]),
     )
 
     with pytest.raises(AppError) as exc_info:

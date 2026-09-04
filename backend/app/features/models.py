@@ -11,6 +11,7 @@ from app.features.integrations.models.supplier_sync import (
 )
 from app.features.inventory.models.inventory import Inventory
 from app.features.inventory.models.stock_movement import InventoryStockMovement
+from app.features.invoice.models.credit_note import CreditNote, CreditNoteCounter
 from app.features.invoice.models.invoice import Invoice, InvoiceCounter
 from app.features.order.models.order import Order
 from app.features.order.models.order_line import OrderLine
@@ -112,6 +113,8 @@ __all__ = [
     "PaymentMethodEligibility",
     "SpecDefinition",
     "SystemSetting",
+    "CreditNote",
+    "CreditNoteCounter",
     "Invoice",
     "InvoiceCounter",
 ]

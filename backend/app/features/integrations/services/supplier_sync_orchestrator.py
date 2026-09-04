@@ -30,6 +30,7 @@ from app.features.integrations.services.supplier_data_normalization import (
 from app.features.place.crud import crud_place
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product, ProductCreate, ProductUpdate
+from app.features.product.services.overrides import strip_locked
 from app.services.suppliers import get_adapter
 from app.services.suppliers.base import NormalizedProductData, SupplierAdapter
 from app.tasks.icecat_tasks import trigger_batch_enrichment
@@ -254,9 +255,10 @@ class SupplierSyncOrchestrator:
 
         # Respect admin overrides: never overwrite fields the admin has locked.
         # Omitting them from the update dict preserves the persisted values.
-        if existing_product is not None and existing_product.overridden_fields:
-            for locked_field in existing_product.overridden_fields:
-                product_data_dict.pop(locked_field, None)
+        if existing_product is not None:
+            product_data_dict = strip_locked(
+                product_data_dict, existing_product.overridden_fields
+            )
 
         if existing_product:
             product = await crud_product.update_draft(

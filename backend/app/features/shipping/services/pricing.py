@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -38,6 +39,22 @@ class RouteShippingCostBreakdown:
 
 
 @dataclass(frozen=True)
+class CustomsDeclarationFee:
+    """Fixed charges owed once per customs declaration.
+
+    Redevances, participations and forwarder file fees are billed per
+    declaration, never per article: spreading them over the lines would make
+    the unit price wrong in both directions depending on cart size (audit item
+    F3). They are carried by the customs ``Place``, not by the route, so
+    several corridors clearing at the same border still mean one declaration.
+    """
+
+    place_id: uuid.UUID
+    place_name: str | None
+    amount: Decimal
+
+
+@dataclass(frozen=True)
 class ShippingCostSummary:
     """Represents shipping cost summary."""
 
@@ -46,6 +63,7 @@ class ShippingCostSummary:
     breakdown: list[RouteShippingCostBreakdown]
     eta_days: int | None
     carbon_footprint_kg_co2e: float | None
+    customs_declaration_fees: tuple[CustomsDeclarationFee, ...] = ()
 
 
 def _to_decimal(value: Any, default: Decimal = Decimal("0")) -> Decimal:
@@ -218,6 +236,7 @@ def calculate_shipping_for_routes(
     currency: str,
     total_volume_m3: Decimal | None = None,
     as_of: datetime | None = None,
+    customs_declaration_fees: Sequence[CustomsDeclarationFee] = (),
 ) -> ShippingCostSummary:
     """Calculate shipping for routes.
 
@@ -225,6 +244,12 @@ def calculate_shipping_for_routes(
     volumes). When provided together with ``dim_factor_kg_per_m3`` in
     ``route_metadata``, the billable weight is max(actual, volumetric).
     Omit (or pass None) to fall back to actual weight only.
+
+    ``customs_declaration_fees`` are shipment-level charges owed once per
+    customs declaration (F3). They are added to the total as-is — never scaled
+    by weight, value or line count — and are reported separately so the order
+    snapshot shows what was billed for the declaration rather than for
+    transport. Non-positive amounts are dropped.
     """
     normalized_weight_kg = max(total_weight_kg, Decimal("0"))
     normalized_declared_value = max(declared_value, Decimal("0"))
@@ -296,8 +321,19 @@ def calculate_shipping_for_routes(
             has_carbon_value = True
             carbon_total += route.carbon_footprint_kg_co2e
 
+    declaration_fees = tuple(
+        CustomsDeclarationFee(
+            place_id=fee.place_id,
+            place_name=fee.place_name,
+            amount=quantize_amount(fee.amount, currency),
+        )
+        for fee in customs_declaration_fees
+        if fee.amount > 0
+    )
+
     total_fee = quantize_amount(
-        sum((item.total_fee for item in breakdowns), Decimal("0")),
+        sum((item.total_fee for item in breakdowns), Decimal("0"))
+        + sum((fee.amount for fee in declaration_fees), Decimal("0")),
         currency,
     )
 
@@ -315,6 +351,7 @@ def calculate_shipping_for_routes(
         breakdown=breakdowns,
         eta_days=eta_days,
         carbon_footprint_kg_co2e=carbon_footprint,
+        customs_declaration_fees=declaration_fees,
     )
 
 
@@ -326,6 +363,14 @@ def serialize_shipping_cost_summary(summary: ShippingCostSummary) -> dict[str, A
         "total_fee": str(summary.total_fee),
         "eta_days": summary.eta_days,
         "carbon_footprint_kg_co2e": summary.carbon_footprint_kg_co2e,
+        "customs_declaration_fees": [
+            {
+                "place_id": str(fee.place_id),
+                "place_name": fee.place_name,
+                "amount": str(fee.amount),
+            }
+            for fee in summary.customs_declaration_fees
+        ],
         "segments": [
             {
                 "route_id": str(segment.route_id),

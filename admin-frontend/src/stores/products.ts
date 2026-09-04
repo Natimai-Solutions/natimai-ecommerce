@@ -95,6 +95,17 @@ export const useProductsStore = defineStore('products', () => {
     await fetchPage();
   }
 
+  /**
+   * Release one field lock. The admin value stays until the next supplier sync
+   * or Icecat enrichment brings the supplier value back — nothing is restored
+   * on the spot. Returns the refreshed product.
+   */
+  async function releaseOverride(id: string, field: string): Promise<ProductPublic> {
+    const { data } = await api.delete<ProductPublic>(`/admin/products/${id}/overrides/${field}`);
+    await fetchPage();
+    return data;
+  }
+
   function setPage(n: number) {
     page.value = n;
     void fetchPage();
@@ -123,6 +134,7 @@ export const useProductsStore = defineStore('products', () => {
     updateOriginPlace,
     createProduct,
     updateProduct,
+    releaseOverride,
     setPage,
     applyFilters,
   };

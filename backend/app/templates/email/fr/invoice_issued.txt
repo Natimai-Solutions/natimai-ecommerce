@@ -1,0 +1,14 @@
+Bonjour {{ full_name }},
+
+Votre facture {{ invoice_number }} est disponible pour la commande {{ order_ref or (order_id | short_ref) }}.
+
+Montant total : {{ total_incl_tax }} {{ currency }}
+dont taxes : {{ total_tax }} {{ currency }}
+
+Vous pouvez la télécharger depuis votre espace client, rubrique « Mes commandes » :
+{{ invoice_url }}
+
+Conservez ce document : il vaut justificatif d'achat.
+
+Merci pour votre confiance,
+L'équipe {{ shop_name }}

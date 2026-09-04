@@ -86,6 +86,15 @@ class Invoice(SQLModel, table=True):
             "ventilation de taxes) — source de vérité du rendu PDF"
         ),
     )
+    emailed_at: datetime | None = Field(
+        default=None,
+        description=(
+            "Date d'envoi de la facture au client. Métadonnée de distribution, "
+            "pas de contenu : le document lui-même reste figé. Sert "
+            "d'idempotence — l'outbox garantit au moins une livraison, et sans "
+            "cette marque un rejeu renverrait la facture au client."
+        ),
+    )
 
 
 class InvoiceCounter(SQLModel, table=True):

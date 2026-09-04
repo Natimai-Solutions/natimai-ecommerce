@@ -34,7 +34,7 @@ A full-stack e-commerce platform built with FastAPI, featuring async background 
 ## Key Features
 
 ### Supplier Catalog Synchronization
-Product catalogs are synchronized automatically from supplier APIs (e.g. Ingram Micro) via ARQ background tasks. Each sync run fetches pricing, availability, and product metadata, then updates the local catalog incrementally. Configurable filters allow restricting sync to specific categories, minimum quantities, and minimum prices.
+Product catalogs are synchronized automatically from supplier APIs (e.g. Ingram Micro) via ARQ background tasks. Each sync run fetches pricing, availability, and product metadata, then updates the local catalog incrementally. Configurable filters allow restricting sync to specific categories, minimum quantities, and minimum prices. Outbound calls are rate-limited and retried with jittered backoff that honours `Retry-After`; a SKU the supplier stops returning is recorded first and only deactivated once the gap outlives a grace period, so a transient outage cannot empty the catalog.
 
 ### Product Enrichment via Icecat
 Once synced, products are enriched asynchronously with detailed technical specifications, marketing descriptions, high-resolution images, and standardized attribute data pulled from the [Icecat](https://icecat.us/) open catalog. Enrichment runs as a separate ARQ task and is tracked per-product with a `last_enrichment_sync` timestamp.
@@ -44,6 +44,12 @@ Sale prices are computed at runtime from cost + customs rate + margin + tax, avo
 
 ### Payments
 Card payments via PayZen / Lyra (with optional deferred capture — authorise at checkout, debit at shipment) plus manual methods (cheque, bank transfer, purchase order) validated in the back office, with full and partial refunds.
+
+### Invoicing
+Invoices are issued on payment capture with a gap-free legal numbering sequence, rendered to PDF from a frozen snapshot, and e-mailed to the customer. A refund produces a credit note on its own sequence, referencing the original invoice — an issued invoice is never edited.
+
+### Server-authoritative checkout
+The order total is decided by the backend: line prices are re-validated against the catalog before billing (a drift stops the checkout rather than silently charging a different amount), payment fees are read from the selected payment method, and supplier stock is re-checked against the supplier itself before the reservation.
 
 ### Full-Text Search
 PostgreSQL GIN index on `to_tsvector` enables fast full-text product search across name, description, manufacturer, and part number fields.
@@ -184,6 +190,9 @@ The most important variables — see [`.env.example`](.env.example) and [`DEPLOY
 | `INGRAM_ENVIRONMENT` | `sandbox` \| `production` |
 | `INGRAM_ORDER_CREATION_ENABLED` | Auto-create supplier purchase orders on payment capture |
 | `ICECAT_USERNAME` / `ICECAT_API_KEY` | Icecat product enrichment |
+| `STOCK_RESERVATION_TTL_HOURS` | Release stock held by orders that never reached a payment outcome (0 disables) |
+| `SUPPLIER_DELISTING_GRACE_HOURS` | Grace period before deactivating a SKU the supplier stopped returning |
+| `CHECKOUT_SUPPLIER_AVAILABILITY_CHECK` | Re-check supplier stock at checkout instead of trusting the last sync |
 | `VITE_API_URL` (frontends) | Backend origin; the client appends `/api/v1` |
 
 > ⚠️ **Required secrets are enforced.** `SECRET_KEY`, `POSTGRES_PASSWORD`,
@@ -196,7 +205,7 @@ The most important variables — see [`.env.example`](.env.example) and [`DEPLOY
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and on every PR:
 
-- **Backend**: `ruff` (lint + format) + `mypy` + `pytest` **under coverage**, against a throwaway PostgreSQL service. Coverage config (`source = app`, exclusions) lives in [`backend/pyproject.toml`](backend/pyproject.toml) (`[tool.coverage.*]`); uncomment `fail_under` to gate the build.
+- **Backend**: `ruff` (lint + format) + `mypy` + `pytest` **under coverage**, against a throwaway PostgreSQL service. Coverage config (`source = app`, exclusions) lives in [`backend/pyproject.toml`](backend/pyproject.toml) (`[tool.coverage.*]`); `fail_under` gates the build (65 %).
 - **Frontend**: `lint` + `typecheck` for both apps + **unit tests of the shared engine** (`@app/utils`: currency / pricing / date) via **vitest**, under coverage.
 
 Coverage reports (`coverage.xml` / `coverage.json` / the vitest summary) are uploaded as CI artifacts.

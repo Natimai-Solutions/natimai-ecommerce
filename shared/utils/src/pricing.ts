@@ -11,7 +11,9 @@
  * ``freightInReference`` is the variable import-freight component
  * (price_per_kg × billable_weight) for the chosen service level.
  * ``insuranceInReference`` defaults to 0 (driven by INSURANCE_RATE_PCT on
- * the backend; include it here only when the server sends it).
+ * the backend; include it here only when the server sends it). It is computed
+ * server-side on cost + freight — the CAF basis an ad valorem policy covers —
+ * not on the cost alone.
  *
  * When no import route has been chosen yet (admin preview / no shipping data),
  * omit both fields — they default to 0 and the formula degrades gracefully.
@@ -27,7 +29,7 @@ export interface PricingInput {
   taxRatePct: number
   /** Variable import freight (price_per_kg × billable_weight). Default 0. */
   freightInReference?: number
-  /** Insurance on cost (driven by INSURANCE_RATE_PCT). Default 0. */
+  /** Insurance on cost + freight (driven by INSURANCE_RATE_PCT). Default 0. */
   insuranceInReference?: number
 }
 

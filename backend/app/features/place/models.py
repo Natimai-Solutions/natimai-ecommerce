@@ -6,6 +6,7 @@ Tout lieu physique (aéroport, port, entrepôt, adresse client, île...).
 # mypy: disable-error-code="assignment,misc,override"
 
 import uuid
+from decimal import Decimal
 
 from sqlalchemy import Column, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -89,6 +90,19 @@ class PlaceBase(Base):
     customs_clearance: bool = Field(
         default=False, description="Dédouanement disponible"
     )
+    customs_declaration_fee: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description=(
+            "Frais fixes dus par déclaration en douane franchie ici "
+            "(redevances, participations, frais de dossier transitaire), "
+            "exprimés dans la devise de référence. Facturés UNE FOIS par "
+            "expédition, jamais au prorata des articles (écart F3). "
+            "NULL = non renseigné, donc rien n'est facturé."
+        ),
+    )
     consolidation_service: bool = Field(
         default=False, description="Consolidation service"
     )
@@ -146,6 +160,7 @@ class PlaceUpdate(PlaceBase, BaseUpdate):
     max_capacity_m3: float | None = None
     current_capacity_m3: float | None = None
     customs_clearance: bool | None = None
+    customs_declaration_fee: Decimal | None = None
     consolidation_service: bool | None = None
     repackaging_service: bool | None = None
     operating_hours: str | None = None

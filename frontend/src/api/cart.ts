@@ -4,6 +4,7 @@ import { api } from 'src/boot/api';
 type CartDetailPublic = components['schemas']['CartDetailPublic'];
 type CartItemAddRequest = components['schemas']['CartItemAddRequest'];
 type CartItemQuantityUpdateRequest = components['schemas']['CartItemQuantityUpdateRequest'];
+type CartReplaceRequest = components['schemas']['CartReplaceRequest'];
 type QuoteRequestSubmit = components['schemas']['QuoteRequestSubmit'];
 type QuoteRequestResponse = components['schemas']['QuoteRequestResponse'];
 // The generated schema lags the backend additions for the single-payment flow
@@ -79,6 +80,20 @@ export async function removeCartItem(itemId: string): Promise<CartDetailPublic> 
   return data;
 }
 
+/**
+ * Install the whole cart content in one transaction.
+ *
+ * Replaces the old clear-then-add-each-line sequence, which was not atomic:
+ * a failure midway left a truncated backend cart that the checkout then
+ * ordered as if it were complete.
+ */
+export async function replaceMyCartItems(
+  payload: CartReplaceRequest,
+): Promise<CartDetailPublic> {
+  const { data } = await api.put<CartDetailPublic>('/cart/items', payload);
+  return data;
+}
+
 export async function clearMyCart(): Promise<CartDetailPublic> {
   const { data } = await api.delete<CartDetailPublic>('/cart/items');
   return data;
@@ -106,6 +121,8 @@ export interface LastLegOption {
 interface LastLegOptionsResponse {
   currency: string;
   options: LastLegOption[];
+  /** Frais de dédouanement facturés une fois par expédition ('0' si aucun). */
+  customs_declaration_fee: string;
 }
 
 /** Priced last-leg delivery options for the current cart (shown at checkout).

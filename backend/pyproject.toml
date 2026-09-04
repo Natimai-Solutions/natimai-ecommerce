@@ -117,4 +117,6 @@ omit = [
 show_missing = true
 # Gate the build: CI fails when coverage regresses under this % (audit Q2,
 # 25/08/2026 — measured ~64.8 % at the current omit scope; raise over time).
-fail_under = 60
+# 04/09/2026 (Q3): measured 71 % on main and 73 % with the Q3 tests — raised
+# to 68 to keep a few points of margin. Never lower it to get a PR through.
+fail_under = 68
