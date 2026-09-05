@@ -405,6 +405,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/place/{id}/set-main-warehouse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Flag this place as the main warehouse
+         * @description L'entrepôt principal est celui où convergent les articles fournisseur et d'où part le dernier tronçon vers le client. Il n'y en a qu'un : l'ancien est déflaggé.
+         */
+        post: operations["place-set_main_warehouse_endpoint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payment/": {
         parameters: {
             query?: never;
@@ -2438,6 +2458,30 @@ export interface paths {
          *     l'endpoint répondait 201. Le back-office (A11) est désormais le filet.
          */
         post: operations["cart-create_guest_quote_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/me/checkout-quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Checkout Quote
+         * @description The amounts ``POST /cart/checkout`` will bill for the current backend
+         *     cart and these choices — same computation, so the recap is the debit.
+         *
+         *     Read-only: nothing is reserved, revalidated or written. An empty cart
+         *     quotes zero rather than failing, so the recap can render early.
+         */
+        get: operations["cart-get_checkout_quote"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -7468,6 +7512,59 @@ export interface components {
             recent_failure_codes?: string[];
         };
         /**
+         * CheckoutQuoteResponse
+         * @description What ``POST /cart/checkout`` will bill for the current cart and choices.
+         *
+         *     Served by ``GET /cart/me/checkout-quote`` from the very same computation
+         *     as the checkout, so the recap the customer reads is the amount debited.
+         */
+        CheckoutQuoteResponse: {
+            /** Currency */
+            currency: string;
+            /**
+             * Subtotal Amount
+             * @description Articles, taxes incluses
+             */
+            subtotal_amount: string;
+            /**
+             * Shipping Fee Amount
+             * @description Livraison (tronçon choisi) + frais de dédouanement
+             */
+            shipping_fee_amount: string;
+            /**
+             * Customs Declaration Fee
+             * @description Part de shipping_fee_amount due au dédouanement (0 = aucun)
+             * @default 0.00
+             */
+            customs_declaration_fee: string;
+            /**
+             * Payment Fee Amount
+             * @description Frais du moyen de paiement
+             */
+            payment_fee_amount: string;
+            /** Total Fees Amount */
+            total_fees_amount: string;
+            /**
+             * Total Amount
+             * @description Montant qui sera débité
+             */
+            total_amount: string;
+            /** Delivery Type */
+            delivery_type?: string | null;
+            /** Shipping Eta Days */
+            shipping_eta_days?: number | null;
+            /**
+             * Free Shipping Applied
+             * @description Le franco a mis la livraison à 0
+             * @default false
+             */
+            free_shipping_applied: boolean;
+            /** Shipping Cost Breakdown */
+            shipping_cost_breakdown?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /**
          * CheckoutRequest
          * @description Represents checkout request.
          */
@@ -11269,6 +11366,23 @@ export interface components {
              */
             is_warehouse: boolean;
             /**
+             * Is Main Warehouse
+             * @description The shop's main warehouse — where supplier goods converge and from where the last leg to the customer starts. Exactly one place (partial unique index); set it through POST /place/{id}/set-main-warehouse.
+             * @default false
+             */
+            is_main_warehouse: boolean;
+            /**
+             * Customs Regime
+             * @description Origin place override: 'domestic' (no customs, no import freight) or 'import' (customs apply). Null = derived from the country vs the main warehouse and the customs_free_countries setting.
+             */
+            customs_regime?: string | null;
+            /**
+             * Dropship Enabled
+             * @description Supplier place ships straight to the customer (dropshipping): the order gets a supplier → customer leg instead of supplier → main warehouse → customer.
+             * @default false
+             */
+            dropship_enabled: boolean;
+            /**
              * Max Capacity M3
              * @description Capacité max en m³
              */
@@ -11417,6 +11531,23 @@ export interface components {
              */
             is_warehouse: boolean;
             /**
+             * Is Main Warehouse
+             * @description The shop's main warehouse — where supplier goods converge and from where the last leg to the customer starts. Exactly one place (partial unique index); set it through POST /place/{id}/set-main-warehouse.
+             * @default false
+             */
+            is_main_warehouse: boolean;
+            /**
+             * Customs Regime
+             * @description Origin place override: 'domestic' (no customs, no import freight) or 'import' (customs apply). Null = derived from the country vs the main warehouse and the customs_free_countries setting.
+             */
+            customs_regime?: string | null;
+            /**
+             * Dropship Enabled
+             * @description Supplier place ships straight to the customer (dropshipping): the order gets a supplier → customer leg instead of supplier → main warehouse → customer.
+             * @default false
+             */
+            dropship_enabled: boolean;
+            /**
              * Max Capacity M3
              * @description Capacité max en m³
              */
@@ -11561,6 +11692,16 @@ export interface components {
             region?: string | null;
             /** Is Warehouse */
             is_warehouse?: boolean | null;
+            /**
+             * Is Main Warehouse
+             * @description The shop's main warehouse — where supplier goods converge and from where the last leg to the customer starts. Exactly one place (partial unique index); set it through POST /place/{id}/set-main-warehouse.
+             * @default false
+             */
+            is_main_warehouse: boolean;
+            /** Customs Regime */
+            customs_regime?: string | null;
+            /** Dropship Enabled */
+            dropship_enabled?: boolean | null;
             /** Max Capacity M3 */
             max_capacity_m3?: number | null;
             /** Current Capacity M3 */
@@ -16209,6 +16350,37 @@ export interface operations {
             };
         };
     };
+    "place-set_main_warehouse_endpoint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "payment-get_multiple_Payments": {
         parameters: {
             query?: {
@@ -20002,6 +20174,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GuestQuoteRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "cart-get_checkout_quote": {
+        parameters: {
+            query?: {
+                /** @description Shipping address (must belong to the user) */
+                address_id?: string | null;
+                /** @description Chosen last-leg delivery mode */
+                delivery_type?: string | null;
+                /** @description Chosen payment method (its fee is added) */
+                payment_method_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutQuoteResponse"];
                 };
             };
             /** @description Validation Error */

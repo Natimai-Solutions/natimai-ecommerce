@@ -198,6 +198,14 @@ routes (one `last_leg_delivery_type` each, e.g. `home_delivery` /
 `express`), each with its own grid and franco; the customer picks one at
 checkout and that route becomes the order's single tracked leg.
 
+#### Origin of the goods (`services/origin.py`)
+
+| Fact | Where | Effect |
+|---|---|---|
+| Main warehouse | `Place.is_main_warehouse` (one, `set_main_warehouse`) | Supplier goods converge there; last leg starts there. |
+| Customs regime | `Place.customs_regime` on the supplier place, else country vs main warehouse, `customs_free_countries` setting | `DOMESTIC`: price = cost × margin × tax, no customs rate required, no declaration fee. `IMPORT`: CAF formula. `UNKNOWN`: import behaviour. |
+| Dropshipping | `Place.dropship_enabled` | Checkout segment `SUPPLIER_DIRECT`: one supplier → customer leg (the supplier's customer route, else the chosen delivery mode). Otherwise `VIA_MAIN_WAREHOUSE`: supplier → main warehouse legs, then the shared last leg. |
+
 ### ShippingRouteTracking
 ```python
 # Route 1 tracking with StatusDefinition relation
