@@ -32,7 +32,10 @@
       </template>
       <template #body-cell-warehouse="props">
         <q-td :props="props">
-          <q-icon v-if="props.row.is_warehouse" name="check" color="positive" />
+          <q-icon v-if="props.row.is_main_warehouse" name="star" color="amber-8" size="sm">
+            <q-tooltip>Entrepôt principal</q-tooltip>
+          </q-icon>
+          <q-icon v-else-if="props.row.is_warehouse" name="check" color="positive" />
           <span v-else>—</span>
         </q-td>
       </template>
@@ -42,8 +45,24 @@
           <span v-else>—</span>
         </q-td>
       </template>
+      <template #body-cell-origin="props">
+        <q-td :props="props">{{ originSummary(props.row) }}</q-td>
+      </template>
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
+          <q-btn
+            v-if="props.row.is_warehouse && !props.row.is_main_warehouse"
+            flat
+            dense
+            icon="star_outline"
+            color="amber-8"
+            @click="makeMainWarehouse(props.row)"
+          >
+            <q-tooltip max-width="300px">
+              Définir comme entrepôt principal : les articles fournisseur y convergent et le dernier
+              tronçon vers le client en part. L'ancien est déflaggé.
+            </q-tooltip>
+          </q-btn>
           <q-btn flat dense icon="edit" color="primary" @click="openPlaceEdit(props.row)">
             <q-tooltip>Modifier</q-tooltip>
           </q-btn>
@@ -197,6 +216,23 @@
             />
             <q-toggle v-model="placeForm.is_warehouse" label="Entrepôt" />
             <q-toggle v-model="placeForm.customs_clearance" label="Dédouanement" />
+            <template v-if="!isGeoType(placeForm.type)">
+              <q-select
+                v-model="placeForm.customs_regime"
+                :options="customsRegimeOptions"
+                label="Régime douanier (lieu d'origine fournisseur)"
+                outlined
+                dense
+                bottom-slots
+                emit-value
+                map-options
+                hint="Automatique : même pays que l'entrepôt principal (ou pays exempté dans les réglages) = local, sinon import. Forcez si ce pays fait exception."
+              />
+              <q-toggle
+                v-model="placeForm.dropship_enabled"
+                label="Dropshipping : ce fournisseur livre directement le client"
+              />
+            </template>
           </q-card-section>
           <q-card-actions align="right">
             <q-btn flat label="Annuler" v-close-popup />
@@ -444,6 +480,7 @@ import {
   updateRoute,
   type Place,
   type ShippingRoute,
+  setMainWarehouse,
 } from 'src/api/logistics';
 import type { WeightBand } from 'src/api/logistics';
 import { extractApiError } from 'src/api/errors';
@@ -559,8 +596,34 @@ const placeColumns: QTableColumn[] = [
   { name: 'country', label: 'Pays', field: 'country', align: 'left' },
   { name: 'warehouse', label: 'Entrepôt', field: 'is_warehouse', align: 'center' },
   { name: 'customs', label: 'Douane', field: 'customs_clearance', align: 'center' },
+  { name: 'origin', label: 'Origine', field: 'customs_regime', align: 'left' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
 ];
+
+const customsRegimeOptions = [
+  { label: 'Automatique (selon le pays)', value: null },
+  { label: 'Local — sans douane ni fret import', value: 'domestic' },
+  { label: 'Import — douane et fret import', value: 'import' },
+];
+
+function originSummary(p: Place): string {
+  const parts: string[] = [];
+  if (p.customs_regime === 'domestic') parts.push('local');
+  else if (p.customs_regime === 'import') parts.push('import');
+  if (p.dropship_enabled) parts.push('dropship');
+  return parts.length > 0 ? parts.join(' · ') : '—';
+}
+
+async function makeMainWarehouse(p: Place) {
+  error.value = null;
+  try {
+    await setMainWarehouse(p.id);
+    notice.value = `${p.name} est désormais l'entrepôt principal.`;
+    await load();
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Opération impossible.';
+  }
+}
 const routeColumns: QTableColumn[] = [
   { name: 'name', label: 'Nom', field: 'name', align: 'left' },
   { name: 'path', label: 'Trajet', field: 'from_place_id', align: 'left' },
@@ -604,6 +667,8 @@ const placeForm = reactive({
   parent_id: null as string | null,
   is_warehouse: true,
   customs_clearance: false,
+  customs_regime: null as string | null,
+  dropship_enabled: false,
 });
 const placePostalCodes = ref<string[]>([]);
 
@@ -616,6 +681,8 @@ function resetPlaceForm() {
   placeForm.parent_id = null;
   placeForm.is_warehouse = true;
   placeForm.customs_clearance = false;
+  placeForm.customs_regime = null;
+  placeForm.dropship_enabled = false;
   placePostalCodes.value = [];
 }
 
@@ -637,6 +704,8 @@ function openPlaceEdit(p: Place) {
   placeForm.parent_id = p.parent_id;
   placeForm.is_warehouse = p.is_warehouse;
   placeForm.customs_clearance = p.customs_clearance;
+  placeForm.customs_regime = p.customs_regime;
+  placeForm.dropship_enabled = p.dropship_enabled;
   placePostalCodes.value = [];
   if (isGeoType(p.type)) {
     getPlacePostalCodes(p.id)
@@ -668,6 +737,8 @@ async function submitPlace() {
     parent_id: placeForm.parent_id,
     is_warehouse: placeForm.is_warehouse,
     customs_clearance: placeForm.customs_clearance,
+    customs_regime: isGeoType(placeForm.type) ? null : placeForm.customs_regime,
+    dropship_enabled: isGeoType(placeForm.type) ? false : placeForm.dropship_enabled,
   };
   try {
     let saved: Place;

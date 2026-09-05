@@ -181,13 +181,74 @@ async def test_supplier_goods_travel_to_warehouse_then_to_customer(
         shipping_address="1 rue de la Paix, Paris, FR",
         segment_totals={
             (FulfillmentSegment.LOCAL, shop.warehouse_id): Decimal("1"),
-            (FulfillmentSegment.SUPPLIER_DIRECT, shop.supplier_id): Decimal("1"),
+            (FulfillmentSegment.VIA_MAIN_WAREHOUSE, shop.supplier_id): Decimal("1"),
         },
         last_leg_route=shop.standard,
     )
 
+    journey = await _journey(db_session, shop.order_id)
+    assert [(seq, route) for seq, route, _ in journey] == [
+        (1, shop.inbound.id),
+        (2, shop.standard.id),
+    ]
+    # Regrouped at the warehouse: the inbound leg carries a lot, the last leg none.
+    assert journey[0][2] is not None
+    assert journey[1][2] is None
+
+
+@pytest.mark.asyncio
+async def test_dropship_goods_go_straight_from_supplier_to_customer(
+    db_session: AsyncSession,
+) -> None:
+    shop = await _seed_shop(db_session)
+
+    # A dropshipping supplier with no customer route of its own: the parcel
+    # travels on the delivery mode the customer chose — as the ONLY leg.
+    await _link_fulfillment_segments_to_tracking(
+        session=db_session,
+        order_id=shop.order_id,
+        current_user=shop.user,
+        shipping_address="1 rue de la Paix, Paris, FR",
+        segment_totals={
+            (FulfillmentSegment.SUPPLIER_DIRECT, shop.supplier_id): Decimal("1"),
+        },
+        last_leg_route=shop.express,
+    )
+    assert await _journey(db_session, shop.order_id) == [(1, shop.express.id, None)]
+
+
+@pytest.mark.asyncio
+async def test_dropship_uses_the_supplier_customer_route_when_configured(
+    db_session: AsyncSession,
+) -> None:
+    shop = await _seed_shop(db_session)
+    customer_place_id = shop.express.to_place_id
+    direct = ShippingRoute(
+        from_place_id=shop.supplier_id,
+        to_place_id=customer_place_id,
+        name="Fournisseur → client (dropship)",
+        mode="road",
+        is_to_customer=True,
+    )
+    db_session.add(direct)
+    await db_session.flush()
+    direct_id = direct.id
+
+    # Mixed order: local stock takes the chosen carrier, the dropshipped item
+    # its supplier's own route — two parallel final legs, no warehouse hop.
+    await _link_fulfillment_segments_to_tracking(
+        session=db_session,
+        order_id=shop.order_id,
+        current_user=shop.user,
+        shipping_address="1 rue de la Paix, Paris, FR",
+        segment_totals={
+            (FulfillmentSegment.LOCAL, shop.warehouse_id): Decimal("1"),
+            (FulfillmentSegment.SUPPLIER_DIRECT, shop.supplier_id): Decimal("1"),
+        },
+        last_leg_route=shop.standard,
+    )
     assert await _journey(db_session, shop.order_id) == [
-        (1, shop.inbound.id, None),
+        (1, direct_id, None),
         (2, shop.standard.id, None),
     ]
 
@@ -204,7 +265,7 @@ async def test_consolidated_supplier_goods_keep_their_lot_upstream_only(
         current_user=shop.user,
         shipping_address="BP 1, Papeete, PF",
         segment_totals={
-            (FulfillmentSegment.CONSOLIDATION_PF, shop.supplier_id): Decimal("1"),
+            (FulfillmentSegment.VIA_MAIN_WAREHOUSE, shop.supplier_id): Decimal("1"),
         },
         last_leg_route=shop.express,
     )

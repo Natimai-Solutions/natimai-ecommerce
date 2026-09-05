@@ -24,6 +24,10 @@ from app.features.product.services.pricing import (
     resolve_default_price_group,
 )
 from app.features.product.services.publication import publication_conditions
+from app.features.shipping.services.origin import (
+    load_origin_context,
+    resolve_product_origin_regime,
+)
 
 logger = logging.getLogger(__name__)
 _DECIMAL_PATTERN = re.compile(r"[-+]?\d*\.?\d+")
@@ -43,11 +47,15 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
 
         try:
             default_group = await resolve_default_price_group(session)
+            origin_context = await load_origin_context(session)
             for product in products:
                 product.base_price = await calculate_sale_price(
                     session,
                     product,
                     group=default_group,
+                    origin_regime=await resolve_product_origin_regime(
+                        session, product, context=origin_context
+                    ),
                 )
         except CurrencyRateMissing:
             raise

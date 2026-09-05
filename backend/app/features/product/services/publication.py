@@ -28,8 +28,10 @@ from typing import Any
 from sqlmodel import and_, col, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.features.place.models import Place
 from app.features.product.models.category import Category
 from app.features.product.models.product import Product
+from app.features.shipping.services.origin import CUSTOMS_REGIME_DOMESTIC
 
 CUSTOMS_RATE_UNRESOLVED = "customs_rate_unresolved"
 WEIGHT_MISSING = "weight_missing"
@@ -46,9 +48,36 @@ def customs_rate_condition() -> Any:
         .where(col(Category.id) == col(Product.category_id))
         .scalar_subquery()
     )
+    # A domestic origin clears no border: the rate is not needed. Domestic =
+    # explicit 'domestic' regime on the supplier place, or same country as
+    # the main warehouse. (The customs-free countries setting is a runtime
+    # list; a product from such a supplier still needs a rate — or the
+    # place flagged 'domestic' — to pass this SQL gate.)
+    main_warehouse_country = (
+        select(col(Place.country))
+        .where(col(Place.is_main_warehouse).is_(True))
+        .limit(1)
+        .scalar_subquery()
+    )
+    domestic_origin = (
+        select(col(Place.id))
+        .where(
+            col(Place.id) == col(Product.supplier_place_id),
+            or_(
+                col(Place.customs_regime) == CUSTOMS_REGIME_DOMESTIC,
+                and_(
+                    col(Place.customs_regime).is_(None),
+                    col(Place.country).is_not(None),
+                    col(Place.country) == main_warehouse_country,
+                ),
+            ),
+        )
+        .exists()
+    )
     return or_(
         col(Product.customs_rate_pct).is_not(None),
         category_default_customs.is_not(None),
+        domestic_origin,
     )
 
 
@@ -72,11 +101,13 @@ async def publication_blockers(
     """Return the reasons a product may not be published, empty when publishable."""
     # Imported here: pricing imports nothing from this module, but keeping the
     # dependency one-way and lazy avoids any import cycle as both grow.
-    from app.features.product.services.pricing import resolve_customs_rate_pct
+    from app.features.product.services.pricing import (
+        resolve_effective_customs_rate_pct,
+    )
 
     blockers: list[str] = []
 
-    if await resolve_customs_rate_pct(session, product) is None:
+    if await resolve_effective_customs_rate_pct(session, product) is None:
         blockers.append(CUSTOMS_RATE_UNRESOLVED)
 
     weight = getattr(product, "weight", None)

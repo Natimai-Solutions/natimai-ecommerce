@@ -15,6 +15,10 @@ from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import Product
 from app.features.product.models.tax_rate import TaxRate
 from app.features.shipping.models.route import ShippingRoute
+from app.features.shipping.services.origin import (
+    OriginRegime,
+    resolve_product_origin_regime,
+)
 from app.features.shipping.services.pricing import (
     _route_metadata_to_dict,
     resolve_billable_weight,
@@ -299,6 +303,26 @@ def _compute_volume_m3(product: Product) -> Decimal | None:
         return None
 
 
+async def resolve_effective_customs_rate_pct(
+    session: AsyncSession,
+    product: Product,
+    *,
+    origin_regime: OriginRegime | None = None,
+) -> Decimal | None:
+    """Customs rate actually applied to this product: 0 for a domestic origin.
+
+    A supplier in the main warehouse's country (or a customs-free one) clears
+    no border, whatever rate the product or its category carries for the
+    import case. Otherwise the configured rate (None = unresolved) applies.
+    """
+    regime = origin_regime
+    if regime is None:
+        regime = await resolve_product_origin_regime(session, product)
+    if regime is OriginRegime.DOMESTIC:
+        return Decimal("0")
+    return await resolve_customs_rate_pct(session, product)
+
+
 async def calculate_sale_price(
     session: AsyncSession,
     product: Product,
@@ -306,6 +330,7 @@ async def calculate_sale_price(
     group: PriceGroup | None = None,
     territory: str = _DEFAULT_TERRITORY_CODE,
     import_route: ShippingRoute | None = None,
+    origin_regime: OriginRegime | None = None,
 ) -> Decimal:
     """Calculate product sale price using the CAF customs base.
 
@@ -320,8 +345,21 @@ async def calculate_sale_price(
     When None the freight component is zero (backward-compatible, useful for
     admin previews where no route has been chosen yet).
 
+    ``origin_regime``: where the product comes from (see shipping/services/
+    origin.py). A DOMESTIC origin — supplier in the main warehouse's country —
+    crosses no border: no import freight, no insurance, no customs; the price
+    is cost × margin × tax. Resolved from the product's supplier place when
+    not given; UNKNOWN keeps the import formula (visible over-pricing beats
+    silent under-pricing).
+
     Raises CurrencyRateMissing for unknown cost currencies.
     """
+    regime = origin_regime
+    if regime is None:
+        regime = await resolve_product_origin_regime(session, product)
+    if regime is OriginRegime.DOMESTIC:
+        import_route = None
+
     effective_group = group
     if effective_group is None:
         effective_group = await resolve_default_price_group(session)
@@ -341,7 +379,9 @@ async def calculate_sale_price(
     # product is not publishable and cannot reach the cart — see
     # services/publication.py. Keeping this total avoids breaking admin
     # previews of products still being set up.
-    customs_rate_pct = _as_decimal(await resolve_customs_rate_pct(session, product))
+    customs_rate_pct = _as_decimal(
+        await resolve_effective_customs_rate_pct(session, product, origin_regime=regime)
+    )
 
     cost_in_reference, _fx_rate = await convert_to_reference_currency(
         session, raw_cost, cost_currency
@@ -370,6 +410,8 @@ async def calculate_sale_price(
     # the heavy and the far-shipped. There is no circularity: the variable
     # freight is known before the customs base is assembled.
     insurance_rate = Decimal(str(settings.INSURANCE_RATE_PCT)) / Decimal("100")
+    if regime is OriginRegime.DOMESTIC:
+        insurance_rate = Decimal("0")
     insurance = (cost_in_reference + freight_variable) * insurance_rate
 
     caf = cost_in_reference + freight_variable + insurance

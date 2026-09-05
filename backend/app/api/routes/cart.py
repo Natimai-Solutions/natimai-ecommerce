@@ -1,5 +1,6 @@
 import logging
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -79,8 +80,8 @@ from app.features.place.models import Place
 from app.features.product.models.product import Product
 from app.features.product.services.pricing import (
     calculate_sale_price,
-    resolve_customs_rate_pct,
     resolve_default_price_group,
+    resolve_effective_customs_rate_pct,
     resolve_tax_rate,
 )
 from app.features.product.services.publication import publication_blockers
@@ -102,6 +103,11 @@ from app.features.shipping.services import (
     serialize_shipping_cost_summary,
 )
 from app.features.shipping.services.last_leg import resolve_last_leg_candidates
+from app.features.shipping.services.origin import (
+    get_main_warehouse,
+    load_origin_context,
+    resolve_product_origin_regime,
+)
 from app.features.user.crud.address import crud_address
 from app.features.user.models.address import Address, AddressCreate
 from app.features.user.models.user import User
@@ -117,11 +123,18 @@ logger = logging.getLogger(__name__)
 
 
 class FulfillmentSegment(str, Enum):
-    """Represents fulfillment segment."""
+    """Where an allocation is served from, and how it reaches the customer.
 
-    LOCAL = "local"
-    SUPPLIER_DIRECT = "supplier_direct"
-    CONSOLIDATION_PF = "consolidation_pf"
+    Values are frozen: they are written into ``OrderLine.notes``
+    (``fulfillment_segments=…``) and read back by reports and tests.
+    """
+
+    LOCAL = "local"  # own stock in the main warehouse
+    SUPPLIER_DIRECT = "supplier_direct"  # dropshipping: supplier → customer
+    # Supplier goods regrouped at the main warehouse before the last leg.
+    # Historical value: the flow was born on the Polynesia corridor.
+    VIA_MAIN_WAREHOUSE = "consolidation_pf"
+    CONSOLIDATION_PF = "consolidation_pf"  # alias, kept for older call sites
 
 
 @dataclass(frozen=True)
@@ -138,35 +151,20 @@ class FulfillmentAllocation:
 _FULFILLMENT_SEGMENT_PRIORITY: dict[FulfillmentSegment, int] = {
     FulfillmentSegment.LOCAL: 1,
     FulfillmentSegment.SUPPLIER_DIRECT: 2,
-    FulfillmentSegment.CONSOLIDATION_PF: 2,
+    FulfillmentSegment.VIA_MAIN_WAREHOUSE: 2,
 }
 
 
-_PF_ADDRESS_MARKERS = (
-    "PF",
-    "POLYNESIE",
-    "TAHITI",
-    "PAPEETE",
-    "MOOREA",
-    "BORA",
-    "RANGIROA",
-)
+def _supplier_segment_for_origin(origin: Place | None) -> FulfillmentSegment:
+    """How goods bought from this supplier reach the customer.
 
-
-def _is_polynesia_shipping_address(shipping_address: str | None) -> bool:
-    """Check whether polynesia shipping address."""
-    if not shipping_address:
-        return True
-
-    normalized_address = shipping_address.upper()
-    return any(marker in normalized_address for marker in _PF_ADDRESS_MARKERS)
-
-
-def _select_supplier_segment(shipping_address: str | None) -> FulfillmentSegment:
-    """Execute select supplier segment."""
-    if _is_polynesia_shipping_address(shipping_address):
-        return FulfillmentSegment.CONSOLIDATION_PF
-    return FulfillmentSegment.SUPPLIER_DIRECT
+    Read from the supplier's place, never from the address text: a place
+    flagged ``dropship_enabled`` ships straight to the customer; every other
+    supplier's goods regroup at the main warehouse first.
+    """
+    if origin is not None and origin.dropship_enabled is True:
+        return FulfillmentSegment.SUPPLIER_DIRECT
+    return FulfillmentSegment.VIA_MAIN_WAREHOUSE
 
 
 def _plan_checkout_fulfillment_segments(
@@ -175,11 +173,11 @@ def _plan_checkout_fulfillment_segments(
     quantity: int,
     local_available: Decimal,
     supplier_available: Decimal,
-    shipping_address: str | None,
+    supplier_segment: FulfillmentSegment = FulfillmentSegment.VIA_MAIN_WAREHOUSE,
     local_place_id: uuid.UUID | None = None,
     supplier_place_id: uuid.UUID | None = None,
 ) -> list[FulfillmentAllocation]:
-    """Execute plan checkout fulfillment segments."""
+    """Split a line between local stock and the supplier (``supplier_segment``)."""
     requested_quantity = Decimal(quantity)
     total_available = local_available + supplier_available
 
@@ -217,7 +215,7 @@ def _plan_checkout_fulfillment_segments(
     if supplier_to_reserve > 0:
         segments.append(
             FulfillmentAllocation(
-                segment=_select_supplier_segment(shipping_address),
+                segment=supplier_segment,
                 quantity=supplier_to_reserve,
                 origin_place_id=supplier_place_id,
             )
@@ -325,6 +323,7 @@ async def _import_route_ids(
 
 async def _customs_declaration_fees(
     session: SessionDep,
+    products: Sequence[Product] = (),
 ) -> list[CustomsDeclarationFee]:
     """Fixed charges owed once per customs declaration for this shipment.
 
@@ -335,6 +334,11 @@ async def _customs_declaration_fees(
     (or zero) fee bills nothing — the amount is a deployment parameter, like
     the customs rates of F1/F2.
 
+    Nothing is billed when every product comes from a domestic origin (a
+    supplier in the main warehouse's country — see shipping/services/
+    origin.py): such an order clears no customs. A product without a
+    configured origin keeps the historical behaviour and is billed.
+
     Two known limitations, both erring on the over-charging side (which is
     visible and refundable, unlike under-charging): an order served entirely
     from local stock clears no customs yet pays the fee — the line-to-segment
@@ -343,6 +347,17 @@ async def _customs_declaration_fees(
     whole fee. Set the amount to the expected per-order share until the
     logistics phase makes the billing consolidation-aware.
     """
+    if products:
+        origin_context = await load_origin_context(session)
+        regimes = [
+            await resolve_product_origin_regime(
+                session, product, context=origin_context
+            )
+            for product in products
+        ]
+        if not any(regime.applies_customs for regime in regimes):
+            return []
+
     active_route_destinations = select(col(ShippingRoute.to_place_id)).where(
         col(ShippingRoute.is_active).is_(True)
     )
@@ -597,31 +612,9 @@ async def _get_or_create_tracking_status(
 
 
 async def _get_main_warehouse_place_id(session: SessionDep) -> uuid.UUID | None:
-    """Resolve the main warehouse: the destination of the default import corridor,
-    else the first active warehouse Place."""
-    import_route = (
-        await session.exec(
-            select(ShippingRoute)
-            .where(
-                col(ShippingRoute.is_default_import).is_(True),
-                col(ShippingRoute.is_active).is_(True),
-            )
-            .limit(1)
-        )
-    ).first()
-    if import_route is not None:
-        return import_route.to_place_id
-
-    warehouse = (
-        await session.exec(
-            select(Place)
-            .where(
-                col(Place.is_warehouse).is_(True),
-                col(Place.is_active).is_(True),
-            )
-            .limit(1)
-        )
-    ).first()
+    """The main warehouse flagged in the database (``Place.is_main_warehouse``),
+    with the historical fallbacks — see shipping/services/origin.py."""
+    warehouse = await get_main_warehouse(session)
     return warehouse.id if warehouse is not None else None
 
 
@@ -742,7 +735,7 @@ async def _resolve_tracking_route_for_segment(
             if path:
                 return path[0]  # first leg of the resolved journey
 
-    if segment == FulfillmentSegment.CONSOLIDATION_PF:
+    if segment == FulfillmentSegment.VIA_MAIN_WAREHOUSE:
         intermediary_routes = await crud_shipping_route.get_intermediary_routes(
             session=session,
             allow_consolidation=True,
@@ -761,7 +754,7 @@ async def _resolve_tracking_route_for_segment(
                 return route
         if customer_routes:
             return customer_routes[0]
-    elif segment == FulfillmentSegment.CONSOLIDATION_PF:
+    elif segment == FulfillmentSegment.VIA_MAIN_WAREHOUSE:
         for route in customer_routes:
             if route.allow_consolidation:
                 return route
@@ -858,13 +851,29 @@ async def _link_fulfillment_segments_to_tracking(
         )
 
     sequence_order = 0
+    needs_shared_last_leg = False
     for (segment, origin_place_id), quantity in ordered_segments:
         if last_leg_route is not None and segment == FulfillmentSegment.LOCAL:
             # Goods already sit in the warehouse: the final leg below is their
             # whole journey.
+            needs_shared_last_leg = True
+            continue
+
+        if last_leg_route is not None and segment == FulfillmentSegment.SUPPLIER_DIRECT:
+            # Dropshipping: one leg from the supplier straight to the customer,
+            # on the supplier's own customer route when one is configured,
+            # else on the delivery mode the customer chose.
+            sequence_order += 1
+            direct_route = await _resolve_dropship_route(
+                session, origin_place_id=origin_place_id
+            )
+            await _create_leg(
+                direct_route or last_leg_route, sequence_order=sequence_order
+            )
             continue
 
         if last_leg_route is not None:
+            needs_shared_last_leg = True
             legs = await _resolve_tracking_path_for_segment(
                 session=session,
                 segment=segment,
@@ -894,13 +903,13 @@ async def _link_fulfillment_segments_to_tracking(
         for leg_index, leg in enumerate(legs):
             sequence_order += 1
             consolidation_id = None
-            if leg_index == 0 and segment == FulfillmentSegment.CONSOLIDATION_PF:
+            if leg_index == 0 and segment == FulfillmentSegment.VIA_MAIN_WAREHOUSE:
                 consolidation = (
                     await crud_shipping_route_tracking_consolidation.create_draft(
                         session=session,
                         data=ShippingRouteTrackingConsolidationCreate(
                             route_id=leg.id,
-                            name=f"PF consolidation {order_id}",
+                            name=f"Regroupement entrepôt {order_id}",
                             consolidation_code=(
                                 f"pf-{str(order_id)[:8]}-{sequence_order}"
                             ),
@@ -923,8 +932,20 @@ async def _link_fulfillment_segments_to_tracking(
                 consolidation_id=consolidation_id,
             )
 
-    if last_leg_route is not None:
+    if last_leg_route is not None and needs_shared_last_leg:
         await _create_leg(last_leg_route, sequence_order=sequence_order + 1)
+
+
+async def _resolve_dropship_route(
+    session: SessionDep, *, origin_place_id: uuid.UUID | None
+) -> ShippingRoute | None:
+    """Customer-delivery route leaving the supplier's place (dropshipping)."""
+    if origin_place_id is None:
+        return None
+    routes = await crud_shipping_route.get_customer_routes(
+        session=session, from_place_id=origin_place_id
+    )
+    return routes[0] if routes else None
 
 
 async def _link_selected_routes_to_tracking(
@@ -1129,9 +1150,8 @@ async def _reserve_stock_for_checkout(
     product: Product,
     quantity: int,
     current_user: User,
-    shipping_address: str | None = None,
 ) -> list[FulfillmentAllocation]:
-    """Execute reserve stock for checkout."""
+    """Reserve local stock first, then the supplier's; return the allocations."""
     quantity_decimal = Decimal(quantity)
     inventory = await crud_inventory.get_by_product_and_place(
         session=session,
@@ -1144,14 +1164,21 @@ async def _reserve_stock_for_checkout(
         product.supplier_quantity if product.is_supplier_managed else Decimal("0.00")
     )
 
+    supplier_place_id = getattr(product, "supplier_place_id", None)
+    supplier_place = (
+        await session.get(Place, supplier_place_id)
+        if supplier_place_id is not None
+        else None
+    )
+
     segments = _plan_checkout_fulfillment_segments(
         product=product,
         quantity=quantity,
         local_available=local_available,
         supplier_available=supplier_available,
-        shipping_address=shipping_address,
+        supplier_segment=_supplier_segment_for_origin(supplier_place),
         local_place_id=inventory.place_id if inventory is not None else None,
-        supplier_place_id=getattr(product, "supplier_place_id", None),
+        supplier_place_id=supplier_place_id,
     )
 
     for segment in segments:
@@ -1927,7 +1954,12 @@ async def get_last_leg_options(
     # Shown next to the delivery modes so the customs charge is not a surprise
     # discovered on the payment page (it is billed once per shipment, F3).
     declaration_fee_total = sum(
-        (fee.amount for fee in await _customs_declaration_fees(session)),
+        (
+            fee.amount
+            for fee in await _customs_declaration_fees(
+                session, list(products_by_id.values())
+            )
+        ),
         Decimal("0.00"),
     )
 
@@ -2067,7 +2099,9 @@ async def checkout_my_cart(
 
     # Per-declaration customs charges: once per shipment, whatever the routing
     # and the number of lines (F3).
-    declaration_fees = await _customs_declaration_fees(session)
+    declaration_fees = await _customs_declaration_fees(
+        session, list(products_by_id.values())
+    )
 
     shipping_cost_summary = None
     shipping_cost_breakdown_payload: dict[str, Any] | None = None
@@ -2177,8 +2211,11 @@ async def checkout_my_cart(
             product = products_by_id[item.product_id]
             resolved_tax_rate = await resolve_tax_rate(session, product)
             # Snapshot the *effective* rate: it may come from the category, in
-            # which case the product column is NULL and would freeze a wrong 0.
-            resolved_customs_rate_pct = await resolve_customs_rate_pct(session, product)
+            # which case the product column is NULL and would freeze a wrong 0 —
+            # and it is 0 for a domestic origin, whatever the category says.
+            resolved_customs_rate_pct = await resolve_effective_customs_rate_pct(
+                session, product
+            )
 
             line_segments = await _reserve_stock_for_checkout(
                 session=session,
@@ -2186,7 +2223,6 @@ async def checkout_my_cart(
                 product=product,
                 quantity=item.quantity,
                 current_user=current_user,
-                shipping_address=payload.shipping_address,
             )
             line_segments = line_segments or []
 

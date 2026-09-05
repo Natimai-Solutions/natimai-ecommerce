@@ -17,6 +17,7 @@ _ALWAYS = (
     "_seed_shipping_statuses",
     "_seed_security_groups",
     "_seed_legal_identity_settings",
+    "_seed_customs_free_countries_setting",
 )
 _POLYNESIA = (
     "_seed_france_papeete_import_corridor",
