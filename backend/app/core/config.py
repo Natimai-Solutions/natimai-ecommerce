@@ -400,6 +400,12 @@ class Settings(BaseSettings):
     # the price: set the rate actually paid to the insurer, otherwise the
     # premium is paid but never recovered (audit item F4).
     INSURANCE_RATE_PCT: float = 0.0
+    # Seed the French Polynesia logistics starter set (France → Papeete import
+    # corridor, PF zone tree + postal codes). True keeps the historical
+    # behaviour of existing deployments. Set false for a classic one-warehouse
+    # shop: it then starts with carriers and statuses only, and the admin
+    # creates its warehouse and its warehouse → customer routes.
+    SEED_FRENCH_POLYNESIA_LOGISTICS: bool = True
 
     # --- Facturation (M3) : identité du vendeur imprimée sur les factures ---
     # OBLIGATOIRE légalement avant d'émettre une facture réelle : une facture

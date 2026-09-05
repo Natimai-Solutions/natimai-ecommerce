@@ -288,6 +288,7 @@ truth. All three are safe to leave at their defaults.
 | `CLAMAV_HOST` | `clamav` | ClamAV daemon host |
 | `CLAMAV_PORT` | `3310` | ClamAV daemon port |
 | `ENABLE_GROUP_PERMISSIONS` | `false` | Enable RBAC group checks (turn on after security groups are seeded and verified) |
+| `SEED_FRENCH_POLYNESIA_LOGISTICS` | `true` | Seed the French Polynesia starter logistics (France → Papeete import corridor, PF zone tree + postal codes) on `initial_data`. Set `false` for a classic one-warehouse shop: only carriers and shipping statuses are seeded; create your warehouse and warehouse → customer routes (grid by weight band, franco) in *Trajets & Lieux* and your carriers in *Transporteurs* |
 | `CLIENT_IP_HEADER` | *(empty)* | **Set this whenever the API sits behind Cloudflare or a reverse proxy.** Name of the trusted header carrying the real client IP: `CF-Connecting-IP` (Cloudflare) or `X-Forwarded-For` (Caddy/nginx/traefik — the **last**, proxy-appended entry of the chain is used; earlier entries are client-forgeable). Used by the login rate limiter — left empty, all requests share the proxy's IP and the per-IP throttle (10 login attempts/min) becomes a **global** throttle for every customer. Leave empty **only** when the API is directly exposed (a forged header would otherwise bypass the throttle). |
 | `LOGIN_RATE_LIMIT_ATTEMPTS` | `10` | Login attempts per IP per window (Redis-backed, fail-open) |
 | `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | `60` | Throttle window |

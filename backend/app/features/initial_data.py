@@ -5,6 +5,7 @@ from typing import Any
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.features.payment.crud.payment_method import crud_payment_method
 from app.features.payment.crud.payment_status import crud_payment_status
 from app.features.payment.models.payment_method import (
@@ -767,8 +768,12 @@ async def initial_data(session: AsyncSession) -> None:
     await _seed_carriers(session)
     await _seed_tax_rates(session)
     await _seed_currency_rates(session)
-    await _seed_france_papeete_import_corridor(session)
-    await _seed_french_polynesia_geography(session)
+    # Territory-specific starter data: skipped for a classic shop
+    # (SEED_FRENCH_POLYNESIA_LOGISTICS=false), which only needs carriers,
+    # statuses and its own warehouse → customer routes.
+    if settings.SEED_FRENCH_POLYNESIA_LOGISTICS:
+        await _seed_france_papeete_import_corridor(session)
+        await _seed_french_polynesia_geography(session)
     await _seed_shipping_statuses(session)
     await _seed_security_groups(session)
     await _seed_legal_identity_settings(session)
