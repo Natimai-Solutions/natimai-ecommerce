@@ -19,6 +19,11 @@ from app.tasks.inventory_tasks import (
     get_stock_reservation_cron_jobs,
     release_expired_stock_reservations_task,
 )
+from app.tasks.pricing_tasks import (
+    get_pricing_cron_jobs,
+    refresh_sale_prices_task,
+    scheduled_sale_price_refresh_task,
+)
 from app.tasks.supplier_tasks import (
     check_supplier_health_task,
     get_supplier_sync_cron_jobs,
@@ -96,6 +101,9 @@ class WorkerSettings:
         reproject_product_specs_task,
         # Hygiène du stock : libération des réservations sans issue de paiement
         release_expired_stock_reservations_task,
+        # Prix vitrine matérialisés (rafraîchis quand un taux ou une marge change)
+        refresh_sale_prices_task,
+        scheduled_sale_price_refresh_task,
         # ... tes autres handlers
     ]
 
@@ -106,6 +114,7 @@ class WorkerSettings:
         get_supplier_sync_cron_jobs()
         + get_enrichment_cron_jobs()
         + get_stock_reservation_cron_jobs()
+        + get_pricing_cron_jobs()
     )
 
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)

@@ -21,6 +21,7 @@ from app.features.product.models.product import (
     Product,
     ProductSearchRequest,
 )
+from app.tasks.pricing_tasks import refresh_sale_prices
 
 
 def _product(
@@ -74,6 +75,8 @@ async def _seed(db_session: AsyncSession) -> dict[str, Product]:
     }
     db_session.add_all(products.values())
     await db_session.commit()
+    # Materialize the list prices the search groups and sorts on.
+    await refresh_sale_prices(db_session)
     for product in products.values():
         await db_session.refresh(product)
     return products
@@ -90,11 +93,12 @@ async def test_offers_lists_every_sibling_cheapest_first(
     )
 
     assert response.identity_key == "gtin:36000291452"
+    # Grouped on the indexed identity key: the barcode-less keyboard (keyed
+    # by manufacturer + part number) is not one of the barcode's offers.
     assert [o.name for o in response.offers] == [
         "Clavier (import)",
         "Clavier (zéro perdu)",
         "Clavier (local)",
-        "Clavier (sans EAN)",
     ]
     assert response.cheapest_product_id == products["import"].id
     current = next(o for o in response.offers if o.is_current)
@@ -158,16 +162,19 @@ async def test_search_groups_siblings_behind_the_cheapest(
 
 
 @pytest.mark.asyncio
-async def test_find_offers_matches_by_part_number_without_barcode(
+async def test_find_offers_without_barcode_matches_on_part_number_only(
     db_session: AsyncSession,
 ) -> None:
     products = await _seed(db_session)
+    twin = _product(
+        "Clavier (sans EAN, France)", supplier="france", price="6900", ean=None
+    )
+    db_session.add(twin)
+    await db_session.commit()
+    await db_session.refresh(products["mpn_only"])
 
     siblings = await crud_product.find_offers(db_session, products["mpn_only"])
 
-    # No barcode of its own: manufacturer + part number matches all keyboards.
-    assert {p.name for p in siblings} == {
-        "Clavier (local)",
-        "Clavier (import)",
-        "Clavier (zéro perdu)",
-    }
+    # One key per product: without a barcode, manufacturer + part number only
+    # matches products that are themselves without a barcode.
+    assert {p.name for p in siblings} == {"Clavier (sans EAN, France)"}

@@ -9,13 +9,10 @@ per API-backed supplier that is due. Adding, pausing or re-cadencing a
 supplier in the admin takes effect at the next tick — no worker restart.
 """
 
-import hashlib
-import json
 import logging
 from datetime import datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, cast
-from uuid import uuid4
+from typing import Any
 
 from arq import cron
 from sqlmodel import and_, col, or_
@@ -40,6 +37,7 @@ from app.features.product.services.pricing import (
 )
 from app.services.suppliers import api_suppliers, resolve_adapter
 from app.services.suppliers.base import SupplierAdapter
+from app.tasks.enqueue import enqueue_with_dedup
 
 logger = logging.getLogger(__name__)
 
@@ -582,50 +580,11 @@ def get_supplier_sync_cron_jobs() -> list[Any]:
 # -- manual triggers ------------------------------------------------------
 
 
-async def _enqueue_with_dedup(
-    function: str,
-    *,
-    dedup_namespace: str,
-    job_prefix: str,
-    payload_key: list[str] | None,
-    job_kwargs: dict[str, Any],
-) -> str:
-    """Execute enqueue with dedup."""
-    from app.core.arq_worker import get_redis_pool
-
-    redis = await get_redis_pool()
-
-    key_material = json.dumps(sorted(payload_key) if payload_key else []).encode()
-    dedup_key = f"{dedup_namespace}:{hashlib.md5(key_material).hexdigest()}"  # noqa: S324
-    job_id = (
-        f"{job_prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:8]}"
-    )
-
-    was_set = await redis.set(dedup_key, job_id.encode(), ex=10, nx=True)
-    if not was_set:
-        existing = await redis.get(dedup_key)
-        logger.debug(
-            "%s already queued/running: %s",
-            function,
-            existing.decode() if existing else "unknown",
-        )
-        return existing.decode() if existing else job_id
-
-    job = await redis.enqueue_job(
-        function,
-        _job_id=job_id,
-        _max_tries=1,  # manual jobs: no automatic retry
-        **job_kwargs,
-    )
-    logger.info("Manual %s triggered with job ID: %s", function, job.job_id)
-    return cast(str, job.job_id)
-
-
 async def trigger_manual_sync(
     supplier_name: str, categories: list[str] | None = None
 ) -> str:
     """Queue a catalog sync for ``supplier_name``; returns the ARQ job ID."""
-    return await _enqueue_with_dedup(
+    return await enqueue_with_dedup(
         "sync_supplier_products_task",
         dedup_namespace=f"manual_sync_dedup:{supplier_name}",
         job_prefix=f"manual_sync_{supplier_name}",
@@ -638,7 +597,7 @@ async def trigger_inventory_refresh(
     supplier_name: str, skus: list[str] | None = None
 ) -> str:
     """Queue an inventory refresh for ``supplier_name``; returns the ARQ job ID."""
-    return await _enqueue_with_dedup(
+    return await enqueue_with_dedup(
         "sync_supplier_inventory_task",
         dedup_namespace=f"manual_inventory_dedup:{supplier_name}",
         job_prefix=f"manual_inventory_{supplier_name}",

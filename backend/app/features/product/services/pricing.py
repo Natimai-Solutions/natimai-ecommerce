@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import inspect
-from dataclasses import dataclass
-from datetime import date
+import uuid
+from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
+from typing import ClassVar
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -514,3 +516,255 @@ async def calculate_price_by_mode(
             )
         )
     return results
+
+
+# ---------------------------------------------------------------------------
+# Bulk pricing: one load of the referentials, prices computed in memory
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _CategoryPricing:
+    default_customs_rate_pct: Decimal | None
+    default_margin_rate_pct: Decimal | None
+    default_tax_rate_id: uuid.UUID | None
+
+
+@dataclass
+class PricingContext:
+    """Referentials of :func:`calculate_sale_price` loaded once, prices in memory.
+
+    ``calculate_sale_price`` resolves category, tax and currency with three to
+    five queries per product; listing a few thousand products this way costs
+    tens of thousands of queries. This context loads the price group, tax
+    rates, currency rates and categories in four queries and reproduces the
+    exact same resolution and formula without touching the database.
+
+    Build one per request or per sync run (:meth:`for_session` caches it on
+    the session for a minute). ``calculate_sale_price`` remains the reference
+    for single products; parity is covered by an integration test.
+    """
+
+    group_margin_rate_pct: Decimal | None
+    tax_rates_by_id: dict[uuid.UUID, TaxRate]
+    default_tax_rate_pct: Decimal
+    fx_rates: dict[str, Decimal]
+    categories: dict[uuid.UUID, _CategoryPricing]
+    insurance_rate_pct: Decimal
+    reference_currency: str
+    at_date: date
+    loaded_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+    #: How long :meth:`for_session` keeps reusing an instance.
+    CACHE_TTL_SECONDS: ClassVar[int] = 60
+    _SESSION_KEY: ClassVar[str] = "pricing_context"
+
+    @classmethod
+    async def load(
+        cls,
+        session: AsyncSession,
+        *,
+        group: PriceGroup | None = None,
+        territory: str = _DEFAULT_TERRITORY_CODE,
+        at_date: date | None = None,
+    ) -> PricingContext:
+        """Load every referential the price formula reads."""
+        reference_date: date = at_date if at_date is not None else date.today()
+
+        effective_group = group
+        if effective_group is None:
+            effective_group = await resolve_default_price_group(session)
+        group_margin = (
+            _as_decimal(effective_group.margin_rate_pct)
+            if effective_group is not None
+            and getattr(effective_group, "margin_rate_pct", None) is not None
+            else None
+        )
+
+        tax_rows = list((await session.exec(select(TaxRate))).all())
+        tax_by_id = {row.id: row for row in tax_rows}
+        default_candidates = sorted(
+            (
+                row
+                for row in tax_rows
+                if row.code == _DEFAULT_TAX_CODE
+                and row.territory_code == territory
+                and _is_tax_rate_candidate_active(row, at_date=reference_date)
+            ),
+            key=lambda row: row.valid_from,
+            reverse=True,
+        )
+        default_tax_pct = (
+            _as_decimal(default_candidates[0].rate_pct)
+            if default_candidates
+            else Decimal("0")
+        )
+
+        fx_rows = list(
+            (
+                await session.exec(
+                    select(CurrencyRate).where(
+                        col(CurrencyRate.is_active).is_(True),
+                        CurrencyRate.valid_from <= reference_date,
+                        (
+                            col(CurrencyRate.valid_until).is_(None)
+                            | (col(CurrencyRate.valid_until) >= reference_date)
+                        ),
+                    )
+                )
+            ).all()
+        )
+        fx: dict[str, Decimal] = {}
+        fx_from: dict[str, date] = {}
+        for row in fx_rows:
+            previous = fx_from.get(row.currency_code)
+            if previous is None or row.valid_from > previous:
+                fx[row.currency_code] = _as_decimal(row.rate_to_reference)
+                fx_from[row.currency_code] = row.valid_from
+
+        category_rows = list((await session.exec(select(Category))).all())
+        categories = {
+            row.id: _CategoryPricing(
+                default_customs_rate_pct=(
+                    _as_decimal(row.default_customs_rate_pct)
+                    if row.default_customs_rate_pct is not None
+                    else None
+                ),
+                default_margin_rate_pct=(
+                    _as_decimal(row.default_margin_rate_pct)
+                    if row.default_margin_rate_pct is not None
+                    else None
+                ),
+                default_tax_rate_id=row.default_tax_rate_id,
+            )
+            for row in category_rows
+        }
+
+        return cls(
+            group_margin_rate_pct=group_margin,
+            tax_rates_by_id=tax_by_id,
+            default_tax_rate_pct=default_tax_pct,
+            fx_rates=fx,
+            categories=categories,
+            insurance_rate_pct=Decimal(str(settings.INSURANCE_RATE_PCT)),
+            reference_currency=settings.REFERENCE_CURRENCY,
+            at_date=reference_date,
+        )
+
+    @classmethod
+    async def for_session(cls, session: AsyncSession) -> PricingContext:
+        """Context cached on the session (``Session.info``) for a short while.
+
+        A sync run updating thousands of products shares one load; an admin
+        change to a rate is picked up within :attr:`CACHE_TTL_SECONDS`, and
+        the refresh task rebuilds its own context anyway.
+        """
+        info = getattr(session, "info", None)
+        if isinstance(info, dict):
+            cached = info.get(cls._SESSION_KEY)
+            if isinstance(cached, PricingContext) and (
+                datetime.now(timezone.utc) - cached.loaded_at
+            ) < timedelta(seconds=cls.CACHE_TTL_SECONDS):
+                return cached
+        context = await cls.load(session)
+        if isinstance(info, dict):
+            info[cls._SESSION_KEY] = context
+        return context
+
+    # -- resolution -------------------------------------------------------
+
+    def _category(self, product: Product) -> _CategoryPricing | None:
+        category_id = getattr(product, "category_id", None)
+        if category_id is None:
+            return None
+        return self.categories.get(category_id)
+
+    def margin_rate_pct(self, product: Product) -> Decimal:
+        """Product → category → price group → 30 %."""
+        own = getattr(product, "margin_rate_pct", None)
+        if own is not None:
+            return _as_decimal(own)
+        category = self._category(product)
+        if category is not None and category.default_margin_rate_pct is not None:
+            return category.default_margin_rate_pct
+        if self.group_margin_rate_pct is not None:
+            return self.group_margin_rate_pct
+        return _DEFAULT_MARGIN_RATE_PCT
+
+    def customs_rate_pct(self, product: Product) -> Decimal | None:
+        """Product → category; ``None`` when neither is set (unpublishable)."""
+        own = getattr(product, "customs_rate_pct", None)
+        if own is not None:
+            return _as_decimal(own)
+        category = self._category(product)
+        if category is None:
+            return None
+        return category.default_customs_rate_pct
+
+    def tax_rate_pct(self, product: Product) -> Decimal:
+        """Product tax rate → category default → territory default."""
+        own_id = getattr(product, "tax_rate_id", None)
+        if own_id is not None:
+            rate = self.tax_rates_by_id.get(own_id)
+            if _is_tax_rate_candidate_active(rate, at_date=self.at_date):
+                return _as_decimal(rate.rate_pct)  # type: ignore[union-attr]
+        category = self._category(product)
+        if category is not None and category.default_tax_rate_id is not None:
+            rate = self.tax_rates_by_id.get(category.default_tax_rate_id)
+            if _is_tax_rate_candidate_active(rate, at_date=self.at_date):
+                return _as_decimal(rate.rate_pct)  # type: ignore[union-attr]
+        return self.default_tax_rate_pct
+
+    def to_reference(self, amount: Decimal, currency: str) -> Decimal:
+        """Convert to the reference currency; raises CurrencyRateMissing."""
+        if currency == self.reference_currency:
+            return amount
+        rate = self.fx_rates.get(currency)
+        if rate is None:
+            raise CurrencyRateMissing(currency)
+        return _quantize_money(amount * rate)
+
+    def price(
+        self, product: Product, *, import_route: ShippingRoute | None = None
+    ) -> Decimal:
+        """Same formula as :func:`calculate_sale_price`, no database access."""
+        mode = resolve_pricing_mode(product)
+        if mode is PricingMode.FIXED:
+            return _quantize_money(_as_decimal(getattr(product, "base_price", None)))
+
+        margin = self.margin_rate_pct(product)
+        raw_cost = _as_decimal(
+            getattr(product, "cost_amount", None),
+            default=_as_decimal(getattr(product, "base_price", None)),
+        )
+        currency = getattr(product, "cost_currency", None) or self.reference_currency
+        cost = self.to_reference(raw_cost, currency)
+        tax = self.tax_rate_pct(product)
+
+        if mode is PricingMode.DOMESTIC:
+            return _quantize_money(
+                cost
+                * (Decimal("1.00") + margin / Decimal("100"))
+                * (Decimal("1.00") + tax / Decimal("100"))
+            )
+
+        customs = _as_decimal(self.customs_rate_pct(product))
+        freight = Decimal("0")
+        if import_route is not None:
+            weight_kg = _as_decimal(getattr(product, "weight", None))
+            volume_m3 = _compute_volume_m3(product)
+            billable = resolve_billable_weight(
+                weight_kg,
+                volume_m3,
+                metadata=_route_metadata_to_dict(import_route),
+                mode=getattr(import_route, "mode", None),
+            )
+            freight = _as_decimal(import_route.price_per_kg) * billable
+        insurance = (cost + freight) * (self.insurance_rate_pct / Decimal("100"))
+        caf = cost + freight + insurance
+        return _quantize_money(
+            caf
+            * (Decimal("1.00") + customs / Decimal("100"))
+            * (Decimal("1.00") + margin / Decimal("100"))
+            * (Decimal("1.00") + tax / Decimal("100"))
+        )

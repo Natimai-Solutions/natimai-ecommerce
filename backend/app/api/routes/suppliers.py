@@ -711,6 +711,26 @@ async def trigger_category_backfill(
     return {"status": "completed", **stats}
 
 
+@router.post("/admin/refresh-prices")
+async def trigger_price_refresh_inline(
+    _current_user: CurrentSuperUser,
+    category_id: str | None = None,
+) -> dict[str, Any]:
+    """Recompute the materialized storefront prices (``sale_price_cached``).
+
+    First fill after the migration, or after a change the write hooks and the
+    nightly refresh have not caught up with. Runs inline (blocking) — use for
+    maintenance windows. Optionally scope to one ``category_id``.
+
+    **Required permissions:** Superuser only
+    """
+    from app.tasks.pricing_tasks import refresh_sale_prices_task
+
+    return await refresh_sale_prices_task(
+        {}, category_id=category_id, reason="admin_inline"
+    )
+
+
 @router.post("/admin/reproject-specs")
 async def trigger_spec_reprojection(
     _current_user: CurrentSuperUser,

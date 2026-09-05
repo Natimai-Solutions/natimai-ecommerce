@@ -6,7 +6,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-from sqlalchemy import JSON, Column
+from sqlalchemy import JSON, Column, event
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -233,6 +233,32 @@ class ProductBase(Base):
             "Field names manually set by an admin. The supplier sync must not "
             "overwrite these — they are the admin's authoritative values."
         ),
+    )
+    identity_key: str | None = Field(
+        default=None,
+        max_length=200,
+        index=True,
+        description=(
+            "Same-physical-item key across suppliers: canonical barcode "
+            "('gtin:…'), else manufacturer + part number ('mpn:…'). Maintained "
+            "automatically on every write (see identity listeners); drives the "
+            "storefront grouping and the « autres offres »."
+        ),
+    )
+    sale_price_cached: Decimal | None = Field(
+        default=None,
+        ge=0,
+        decimal_places=2,
+        index=True,
+        description=(
+            "Storefront list price materialized by the pricing service (no import "
+            "leg): what the search filters, sorts and returns. Refreshed on every "
+            "product write, when a rate/margin changes and nightly; None = not "
+            "computed yet (the search prices it on the fly)."
+        ),
+    )
+    sale_price_cached_at: datetime | None = Field(
+        default=None, description="When sale_price_cached was last computed"
     )
     last_enrichment_sync: datetime | None = Field(
         default=None,
@@ -490,3 +516,20 @@ class ProductFeatureRequest(SQLModel):
 
     featured_position: int | None = Field(default=None, ge=0)
     featured_until: datetime | None = None
+
+
+# ---------------------------------------------------------------------------
+# identity_key maintenance: every write path (sync, import, admin, merge) goes
+# through the ORM, so a mapper event keeps the column right without each CRUD
+# having to know about it.
+# ---------------------------------------------------------------------------
+
+
+def _stamp_identity_key(_mapper: Any, _connection: Any, target: Product) -> None:
+    from app.features.product.services.identity import product_identity_key
+
+    target.identity_key = product_identity_key(target)
+
+
+event.listen(Product, "before_insert", _stamp_identity_key)
+event.listen(Product, "before_update", _stamp_identity_key)

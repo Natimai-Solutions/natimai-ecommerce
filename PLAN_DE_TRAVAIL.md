@@ -383,6 +383,73 @@ par ordre de fiabilité, le premier résultat non ambigu gagne :
     avec « Meilleur prix ». Un article dont le code-barres diffère n'est jamais une
     autre offre, même à référence fabricant égale.
 
+### Recherche vitrine à l'échelle (livré le 05/09/2026)
+
+**Constat.** `POST /product/search` chargeait toutes les lignes passant le filtre SQL,
+tarifait chacune à la volée (3 à 5 requêtes par produit : catégorie, taxe, change),
+filtrait prix et specs en Python, regroupait les « autres offres » en mémoire, calculait
+les facettes sur l'ensemble, puis découpait la page : un coût proportionnel au nombre de
+produits filtrés, pas à la page (plusieurs secondes vers 3 000 produits). Trois niveaux,
+livrés ensemble :
+
+1. **Référentiels préchargés — `PricingContext`** (`product/services/pricing.py`).
+   Groupe tarifaire, taxes, taux de change et catégories lus en quatre requêtes, puis
+   même formule et même ordre de résolution que `calculate_sale_price` (qui reste la
+   référence : parité vérifiée au centime par un test d'intégration). Un contexte par
+   requête ou par sync (`for_session`, cache d'une minute sur la session) : `read`,
+   `read_multi`, `get_featured`, `GET /product/{id}/offers` et les hooks d'écriture
+   passent par lui.
+2. **Clé d'identité en colonne — `products.identity_key`** (indexée). Posée par des
+   écouteurs ORM `before_insert` / `before_update` (`product_identity_key`), donc tenue
+   à jour par toutes les voies d'écriture ; remplie pour l'existant par la migration
+   `a7c3e9f1b2d4` (lots de 1 000). `find_offers` et le regroupement de la recherche
+   lisent la colonne.
+3. **Prix vitrine matérialisé — `products.sale_price_cached` (+ `_at`)** et recherche
+   100 % SQL. Sémantique : le prix de liste (sans tronçon import ; la fiche produit
+   garde ses niveaux de service à la volée, le checkout recalcule et reste autoritaire).
+   - Posé à **chaque écriture produit** par `ProductCrud.after_create` / `after_update`
+     (sync inventaire, import fichier, sync catalogue, écrans admin, affectation
+     taxe/douane à un produit — qui passe désormais par le CRUD).
+   - **Quand un paramètre change** : `app/tasks/pricing_tasks.py` — tâche
+     `refresh_sale_prices_task` (lots de 500, un contexte, un commit par lot), enfilée
+     avec dédup Redis par `schedule_price_refresh` (best-effort : une panne de file
+     ne fait jamais échouer l'édition) depuis création/clôture d'une taxe, nouveau taux
+     de change (tout le catalogue), taxe / douane / marge par défaut d'une catégorie et
+     fusion de catégories (catégorie ciblée). Cron `sale_price_nightly_refresh` à
+     00:05 : les `valid_from` / `valid_until` changent le prix sans aucune écriture.
+   - **Repli** : une ligne encore à `NULL` qui atterrit dans la page est tarifée à la
+     volée (≤ 24 produits) et persistée par une connexion séparée (la transaction de la
+     requête n'est pas touchée) ; en SQL elle trie en dernier.
+   - **Recherche** : filtres (dont `sale_price_cached BETWEEN`, specs par `EXISTS` sur
+     `product_specs`), `DISTINCT ON (coalesce(identity_key, id))` trié prix croissant /
+     en stock d'abord pour ne garder que l'offre la moins chère, `count() over
+     (partition by …)` pour `offers_count`, `count(*)` puis page `ORDER BY rank,
+     created_at LIMIT/OFFSET`, facettes en trois agrégats (fabricants regroupés par
+     `lower(trim())`, catégories, tranches de prix par `CASE`). Contrat de
+     `POST /product/search` inchangé (`data`, `count`, `facets`, `offers_count`).
+   - Endpoint de maintenance `POST /suppliers/admin/refresh-prices?category_id=`
+     (inline, superuser) : **à lancer une fois après le déploiement** pour le premier
+     remplissage — tant que les prix ne sont pas matérialisés, le filtre prix et le
+     choix de l'offre la moins chère ne voient que des `NULL`.
+
+**Changements assumés.**
+- Un produit sans code-barres (clé `mpn:`) ne se regroupe qu'avec des produits sans
+  code-barres ; à code-barres égal, la clé ne regarde plus la référence fabricant.
+- Fin de la recherche floue dans le JSON brut Icecat (`_matches_specs`) : les filtres
+  `specs` lisent la projection `product_specs` (mêmes clés que `spec-facets`) ; un
+  produit non projeté n'est pas filtrable par spec (`POST /suppliers/admin/reproject-specs`).
+- Le prix de liste peut retarder d'au plus une minute (cache du contexte) après la
+  modification d'un taux, et jusqu'au passage de la tâche de rafraîchissement pour les
+  produits non réécrits.
+
+**Tests.** Unitaires : `test_pricing_context.py` (modes, chaîne de résolution, devise,
+cache), `test_pricing_tasks.py` (dédup, best-effort, hooks admin), écouteurs
+`identity_key` ; la suite tourne sans Redis grâce à la file ARQ factice autouse
+(`tests/utils/fake_arq.py`). Intégration : `test_sale_price_cache.py` (parité, hooks
+CRUD, tâche après changement de taux), `test_product_search_sql.py` (filtres prix /
+stock / specs, regroupement, pagination, facettes, repli `NULL`), `test_product_offers.py`
+adapté.
+
 ### Ajouter un fournisseur
 
 | Cas | Marche à suivre |

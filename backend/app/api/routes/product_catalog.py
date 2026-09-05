@@ -28,8 +28,9 @@ from app.features.product.models.product_spec import (
 )
 from app.features.product.services.identity import product_identity_key
 from app.features.product.services.pricing import (
+    CurrencyRateMissing,
+    PricingContext,
     calculate_price_by_mode,
-    calculate_sale_price,
     resolve_default_price_group,
     resolve_pricing_mode,
 )
@@ -228,7 +229,7 @@ async def get_product_offers(
             .limit(1)
         )
     ).first()
-    group = await resolve_default_price_group(session)
+    context = await PricingContext.for_session(session)
 
     codes = {p.supplier_name for p in everyone if p.supplier_name}
     suppliers: dict[str, Supplier] = {}
@@ -240,9 +241,11 @@ async def get_product_offers(
     for candidate in everyone:
         mode = resolve_pricing_mode(candidate)
         route = default_route if mode is PricingMode.IMPORT else None
-        sale_price = await calculate_sale_price(
-            session, candidate, group=group, import_route=route
-        )
+        try:
+            sale_price = context.price(candidate, import_route=route)
+        except CurrencyRateMissing:
+            # No rate for the cost currency: shown as unpriced, sorted last.
+            sale_price = Decimal("0")
         supplier = suppliers.get(candidate.supplier_name or "")
         quantity = Decimal(str(candidate.supplier_quantity or 0))
         offers.append(

@@ -30,8 +30,14 @@ from app.core.errors import AppError
 from app.features.discount.models import Discount
 from app.features.product.models.category import Category
 from app.features.product.models.product import Product
+from app.tasks.pricing_tasks import schedule_price_refresh
 
 logger = logging.getLogger(__name__)
+
+#: Category fields that feed the price formula (see ``PricingContext``).
+PRICING_FIELDS = frozenset(
+    {"default_margin_rate_pct", "default_customs_rate_pct", "default_tax_rate_id"}
+)
 
 router = APIRouter(prefix="/admin/categories", tags=["admin-categories"])
 
@@ -205,6 +211,12 @@ async def update_category(
     logger.info(
         "Admin updated category: category_id=%s fields=%s", category_id, sorted(fields)
     )
+    if PRICING_FIELDS & set(fields):
+        # Margin, customs or tax default changed: the list prices of the
+        # category's products are stale until refreshed.
+        await schedule_price_refresh(
+            reason="category_pricing_defaults", category_id=category_id
+        )
     return await _item_for(session, category)
 
 
@@ -276,6 +288,9 @@ async def merge_category(
     await session.commit()
     await session.refresh(source)
     await session.refresh(target)
+    if moved_products:
+        # Moved products now inherit the target's margin / customs / tax.
+        await schedule_price_refresh(reason="category_merge", category_id=target_id)
 
     logger.info(
         "Category merged: source=%s target=%s products=%s discounts=%s admin=%s",

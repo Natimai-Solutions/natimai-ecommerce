@@ -67,33 +67,23 @@ def test_canonical_gtin_and_identity_key() -> None:
     del Decimal
 
 
-def test_group_offers_keeps_the_cheapest_and_counts_siblings() -> None:
-    from decimal import Decimal
-    from types import SimpleNamespace
-    from uuid import uuid4
+def test_orm_listeners_stamp_identity_key_on_write() -> None:
+    from app.features.product.models.product import Product, _stamp_identity_key
 
-    from app.features.product.crud.product import ProductCrud
+    product = Product(name="Clavier", ean="0036000291452")
+    assert product.identity_key is None  # nothing until the flush
 
-    def _p(
-        price: str, qty: str = "1", ean: str | None = "3663970012345"
-    ) -> SimpleNamespace:
-        return SimpleNamespace(
-            id=uuid4(),
-            ean=ean,
-            upc=None,
-            manufacturer=None,
-            vendor_part_number=None,
-            base_price=Decimal(price),
-            supplier_quantity=Decimal(qty),
-        )
+    _stamp_identity_key(None, None, product)
+    assert product.identity_key == "gtin:36000291452"
 
-    lonely = _p("500", ean=None)
-    dear = _p("1000")
-    cheap_out = _p("800", qty="0")
-    cheap_in = _p("800", qty="3")
-    other = _p("300", ean="5099206020276")
+    # The barcode goes away: the key follows the manufacturer part number…
+    product.ean = None
+    product.manufacturer = "Logi"
+    product.vendor_part_number = "K120"
+    _stamp_identity_key(None, None, product)
+    assert product.identity_key == "mpn:logi|k120"
 
-    kept, counts = ProductCrud.group_offers([lonely, dear, cheap_out, cheap_in, other])  # type: ignore[list-item]
-
-    assert [p.id for p in kept] == [lonely.id, cheap_in.id, other.id]
-    assert counts == {str(cheap_in.id): 3}
+    # …and is cleared when nothing identifies the item any more.
+    product.vendor_part_number = None
+    _stamp_identity_key(None, None, product)
+    assert product.identity_key is None

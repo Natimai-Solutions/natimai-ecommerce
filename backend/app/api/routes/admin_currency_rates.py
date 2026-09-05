@@ -23,6 +23,7 @@ from app.features.product.models.currency_rate import (
     CurrencyRatesPublic,
     CurrencyRateUpsertRequest,
 )
+from app.tasks.pricing_tasks import schedule_price_refresh
 
 router = APIRouter(prefix="/admin/currency-rates", tags=["admin-currency-rates"])
 
@@ -153,4 +154,6 @@ async def upsert_currency_rate(
     session.add(new_rate)
     await session.commit()
     await session.refresh(new_rate)
+    # Every product costed in this currency changes price: refresh the catalog.
+    await schedule_price_refresh(reason=f"currency_rate:{currency_code}")
     return CurrencyRatePublic.model_validate(new_rate)

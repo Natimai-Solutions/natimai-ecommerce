@@ -8,8 +8,26 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.core.db import engine
 from app.main import app
+from app.tests.utils.fake_arq import FakeArqRedis
 from app.tests.utils.user import authentication_token_from_email
 from app.tests.utils.utils import get_superuser_token_headers
+
+
+@pytest.fixture(autouse=True)
+def arq_queue(monkeypatch: pytest.MonkeyPatch) -> FakeArqRedis:
+    """Every job enqueued through ``enqueue_with_dedup`` lands here, not in Redis.
+
+    Admin routes schedule a storefront price refresh after a rate or margin
+    change; without this the suite would need a Redis server (or wait for the
+    connection retries of the best-effort trigger).
+    """
+    fake = FakeArqRedis()
+
+    async def _pool() -> FakeArqRedis:
+        return fake
+
+    monkeypatch.setattr("app.core.arq_worker.get_redis_pool", _pool)
+    return fake
 
 
 @pytest_asyncio.fixture(scope="session")
