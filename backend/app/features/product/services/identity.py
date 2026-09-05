@@ -57,3 +57,34 @@ def normalize_text_key(value: str | None) -> str | None:
         return None
     key = str(value).strip().casefold()
     return key or None
+
+
+def canonical_gtin(value: str | None) -> str | None:
+    """Forme canonique d'un code-barres : chiffres sans zéros de tête.
+
+    Deux écritures équivalentes (UPC-A, EAN-13 à zéro de tête, zéros perdus
+    par Excel) donnent la même clé.
+    """
+    digits = normalize_gtin(value)
+    if digits is None:
+        return None
+    stripped = digits.lstrip("0")
+    return stripped if len(stripped) >= _MIN_GTIN_LENGTH else digits
+
+
+def product_identity_key(product: object) -> str | None:
+    """Clé « même produit physique », tous fournisseurs confondus.
+
+    Le code-barres d'abord (EAN puis UPC), sinon marque + référence
+    fabricant ; ``None`` quand l'article n'a rien de tout cela — il ne se
+    regroupe alors avec personne.
+    """
+    for attr in ("ean", "upc"):
+        key = canonical_gtin(getattr(product, attr, None))
+        if key:
+            return f"gtin:{key}"
+    maker = normalize_text_key(getattr(product, "manufacturer", None))
+    part = normalize_text_key(getattr(product, "vendor_part_number", None))
+    if maker and part:
+        return f"mpn:{maker}|{part}"
+    return None

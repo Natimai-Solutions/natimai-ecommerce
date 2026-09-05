@@ -19,8 +19,10 @@ from app.features.product.models.product import (
     ProductUpdate,
 )
 from app.features.product.services.identity import (
+    canonical_gtin,
     gtin_variants,
     normalize_text_key,
+    product_identity_key,
 )
 from app.features.product.services.pricing import (
     CurrencyRateMissing,
@@ -31,6 +33,14 @@ from app.features.product.services.publication import publication_conditions
 
 logger = logging.getLogger(__name__)
 _DECIMAL_PATTERN = re.compile(r"[-+]?\d*\.?\d+")
+
+
+def _as_money(value: Any) -> Decimal:
+    """Read a price/quantity defensively (0 when unset or unreadable)."""
+    try:
+        return Decimal(str(value)) if value is not None else Decimal("0")
+    except Exception:  # noqa: BLE001
+        return Decimal("0")
 
 
 class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
@@ -329,6 +339,114 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
 
         return [], None
 
+    @staticmethod
+    def storefront_conditions() -> list[Any]:
+        """SQL: what the storefront may show (active, enriched, publishable)."""
+        return [
+            col(Product.is_active).is_(True),
+            col(Product.is_admin_active).is_(True),
+            col(Product.is_enriched).is_(True),
+            *publication_conditions(),
+        ]
+
+    async def find_offers(
+        self, session: AsyncSession, product: Product
+    ) -> list[Product]:
+        """Other storefront products that are the same physical item.
+
+        Siblings across *all* suppliers (one product per source is the
+        model: the customer compares them here). Matched by barcode when the
+        product has one, else by manufacturer + part number; a candidate
+        whose own barcode differs is not a sibling even if the part number
+        matches. Returns the siblings only, without runtime pricing.
+        """
+        own_gtin = canonical_gtin(getattr(product, "ean", None)) or canonical_gtin(
+            getattr(product, "upc", None)
+        )
+        maker = normalize_text_key(getattr(product, "manufacturer", None))
+        part = normalize_text_key(getattr(product, "vendor_part_number", None))
+
+        clauses: list[Any] = []
+        variants = gtin_variants(getattr(product, "ean", None)) | gtin_variants(
+            getattr(product, "upc", None)
+        )
+        if variants:
+            clauses.append(func.trim(col(Product.ean)).in_(variants))
+            clauses.append(func.trim(col(Product.upc)).in_(variants))
+        if maker and part:
+            clauses.append(
+                and_(
+                    func.lower(func.trim(col(Product.manufacturer))) == maker,
+                    func.lower(func.trim(col(Product.vendor_part_number))) == part,
+                )
+            )
+        if not clauses:
+            return []
+
+        statement = (
+            select(Product)
+            .where(
+                col(Product.id) != product.id,
+                or_(*clauses),
+                *self.storefront_conditions(),
+            )
+            .order_by(col(Product.created_at).asc())
+        )
+        rows = list((await session.exec(statement)).all())
+
+        siblings: list[Product] = []
+        for candidate in rows:
+            other_gtin = canonical_gtin(candidate.ean) or canonical_gtin(candidate.upc)
+            if own_gtin and other_gtin and own_gtin != other_gtin:
+                continue
+            siblings.append(candidate)
+        return siblings
+
+    @staticmethod
+    def group_offers(products: list[Product]) -> tuple[list[Product], dict[str, int]]:
+        """Collapse siblings (same identity key) to the cheapest one.
+
+        ``products`` already carry their runtime price. Returns the kept
+        products, in their original order, and ``{product_id: offers}`` for
+        the ones standing for several. Ties go to the one with stock.
+        """
+        kept: dict[str, Product] = {}
+        order: list[str] = []
+        counts: dict[str, int] = {}
+        singles: list[tuple[int, Product]] = []
+        positions: dict[str, int] = {}
+
+        for position, product in enumerate(products):
+            key = product_identity_key(product)
+            if key is None:
+                singles.append((position, product))
+                continue
+            counts[key] = counts.get(key, 0) + 1
+            current = kept.get(key)
+            if current is None:
+                kept[key] = product
+                order.append(key)
+                positions[key] = position
+                continue
+            price = _as_money(product.base_price)
+            best = _as_money(current.base_price)
+            better = price < best or (
+                price == best
+                and _as_money(product.supplier_quantity) > 0
+                and _as_money(current.supplier_quantity) <= 0
+            )
+            if better:
+                kept[key] = product
+
+        merged: list[tuple[int, Product]] = singles + [
+            (positions[key], kept[key]) for key in order
+        ]
+        merged.sort(key=lambda pair: pair[0])
+        offers_counts = {
+            str(kept[key].id): count for key, count in counts.items() if count > 1
+        }
+        return [product for _, product in merged], offers_counts
+
     async def get_supplier_products(
         self,
         session: AsyncSession,
@@ -512,8 +630,15 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         in_stock: bool | None = None,
         limit: int = 24,
         offset: int = 0,
+        group_offers: bool = True,
     ) -> dict[str, Any]:
-        """Search products with runtime pricing and lightweight facets."""
+        """Search products with runtime pricing and lightweight facets.
+
+        With ``group_offers`` (the storefront default), products that are
+        the same physical item at several suppliers are shown once, by the
+        cheapest offer; ``offers_counts`` tells the caller how many offers
+        that entry stands for.
+        """
         statement = select(Product).where(
             col(Product.is_active).is_(True),
             col(Product.is_admin_active).is_(True),
@@ -575,6 +700,10 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
                 continue
             filtered_products.append(product)
 
+        offers_counts: dict[str, int] = {}
+        if group_offers:
+            filtered_products, offers_counts = self.group_offers(filtered_products)
+
         total_count = len(filtered_products)
         paginated_products = filtered_products[offset : offset + limit]
         facets = self._build_search_facets(filtered_products)
@@ -583,6 +712,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             "data": paginated_products,
             "count": total_count,
             "facets": facets,
+            "offers_counts": offers_counts,
         }
 
 

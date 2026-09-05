@@ -370,8 +370,18 @@ par ordre de fiabilité, le premier résultat non ambigu gagne :
   mise à jour / adopté / ambigu, et la clé qui a reconnu l'article. Mêmes règles pour la
   sync API (Ingram fournit UPC, marque et référence fabricant).
 - Index ajoutés sur `products.ean`, `products.upc`, `products.vendor_part_number`.
-- Piste ultérieure, hors périmètre : regroupement vitrine par code-barres (« autres
-  offres ») pour présenter les doublons inter-fournisseurs comme un seul produit.
+- **Vitrine « autres offres »** (livré le 05/09/2026) : les doublons inter-fournisseurs
+  restent des articles distincts en base, mais la vitrine les présente comme un seul
+  produit. Clé de regroupement (`product_identity_key`) : code-barres canonique (EAN
+  puis UPC, zéros de tête ignorés), sinon marque + référence fabricant.
+  - `POST /product/search` regroupe par défaut (`group_offers=true`) derrière l'offre
+    la moins chère (à prix égal, celle en stock) et renvoie `offers_count` ; la carte
+    catalogue affiche « N offres ».
+  - `GET /product/{id}/offers` liste toutes les offres du même article (fournisseur,
+    régime local/import, prix au niveau de service par défaut, stock) triées par prix ;
+    la page produit et le dialogue de détail affichent la section « Autres offres »
+    avec « Meilleur prix ». Un article dont le code-barres diffère n'est jamais une
+    autre offre, même à référence fabricant égale.
 
 ### Ajouter un fournisseur
 

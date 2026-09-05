@@ -7,9 +7,13 @@ from sqlmodel import SQLModel, col, func, select
 from app.api.deps import CurrentSuperUser, SessionDep, get_current_user_optional
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
+from app.features.integrations.models.supplier import Supplier
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import (
+    PricingMode,
     ProductFeatureRequest,
+    ProductOfferPublic,
+    ProductOffersResponse,
     ProductPublic,
     ProductSearchFacets,
     ProductSearchRequest,
@@ -22,9 +26,12 @@ from app.features.product.models.product_spec import (
     SpecFacet,
     SpecFacetValue,
 )
+from app.features.product.services.identity import product_identity_key
 from app.features.product.services.pricing import (
     calculate_price_by_mode,
+    calculate_sale_price,
     resolve_default_price_group,
+    resolve_pricing_mode,
 )
 from app.features.product.services.publication import publication_blockers
 from app.features.product.services.spec_projection import (
@@ -171,6 +178,106 @@ async def get_product_shipping_modes(
     )
 
 
+@router.get("/{product_id}/offers", response_model=ProductOffersResponse)
+async def get_product_offers(
+    product_id: uuid.UUID,
+    session: SessionDep,
+    current_user: object = Depends(get_current_user_optional),
+) -> ProductOffersResponse:
+    """Every storefront offer of the same physical item, current product included.
+
+    One product is one source: the same item stocked by two suppliers is two
+    products, and this is where the customer compares them. Siblings are
+    found by barcode (EAN / UPC), else by manufacturer + part number.
+
+    Prices are what the product page shows by default: for import-mode
+    products, the default import route's freight is included; local and
+    fixed-price products carry no import leg.
+    """
+    try:
+        product = await crud_product.read(session, id=product_id, user=current_user)
+    except RecordNotFoundError:
+        raise AppError(
+            code="product.not_found",
+            status_code=404,
+            message="Product not found",
+            details={"product_id": str(product_id)},
+        )
+
+    is_admin = getattr(current_user, "is_superuser", False)
+    if not is_admin and (
+        not product.is_enriched or await publication_blockers(session, product)
+    ):
+        raise AppError(
+            code="product.not_found",
+            status_code=404,
+            message="Product not found",
+            details={"product_id": str(product_id), "reason": "not_publishable"},
+        )
+
+    siblings = await crud_product.find_offers(session, product)
+    everyone = [product, *siblings]
+
+    default_route = (
+        await session.exec(
+            select(ShippingRoute)
+            .where(
+                col(ShippingRoute.is_default_import).is_(True),
+                col(ShippingRoute.is_active).is_(True),
+            )
+            .limit(1)
+        )
+    ).first()
+    group = await resolve_default_price_group(session)
+
+    codes = {p.supplier_name for p in everyone if p.supplier_name}
+    suppliers: dict[str, Supplier] = {}
+    if codes:
+        rows = await session.exec(select(Supplier).where(col(Supplier.code).in_(codes)))
+        suppliers = {row.code: row for row in rows.all()}
+
+    offers: list[ProductOfferPublic] = []
+    for candidate in everyone:
+        mode = resolve_pricing_mode(candidate)
+        route = default_route if mode is PricingMode.IMPORT else None
+        sale_price = await calculate_sale_price(
+            session, candidate, group=group, import_route=route
+        )
+        supplier = suppliers.get(candidate.supplier_name or "")
+        quantity = Decimal(str(candidate.supplier_quantity or 0))
+        offers.append(
+            ProductOfferPublic(
+                product_id=candidate.id,
+                name=candidate.name,
+                is_current=candidate.id == product.id,
+                supplier_name=candidate.supplier_name,
+                supplier_label=supplier.name if supplier is not None else None,
+                is_domestic=(
+                    supplier.is_domestic
+                    if supplier is not None
+                    else mode is not PricingMode.IMPORT
+                ),
+                pricing_mode=mode,
+                sale_price=sale_price,
+                supplier_quantity=quantity,
+                in_stock=quantity > 0,
+                image_url=candidate.image_url or candidate.supplier_image_url,
+            )
+        )
+
+    # Cheapest priced offer first; a priced offer beats an unpriced one and,
+    # at equal price, the one in stock.
+    offers.sort(key=lambda o: (o.sale_price <= 0, o.sale_price, not o.in_stock, o.name))
+    cheapest = next((o for o in offers if o.sale_price > 0), None)
+
+    return ProductOffersResponse(
+        product_id=product.id,
+        identity_key=product_identity_key(product),
+        offers=offers,
+        cheapest_product_id=cheapest.product_id if cheapest is not None else None,
+    )
+
+
 @router.post("/search", response_model=ProductSearchResponse)
 async def search_products(
     session: SessionDep,
@@ -188,12 +295,15 @@ async def search_products(
         in_stock=payload.in_stock,
         limit=payload.limit,
         offset=payload.offset,
+        group_offers=payload.group_offers,
     )
 
-    products = [
-        ProductPublic.model_validate(product)
-        for product in search_result.get("data", [])
-    ]
+    offers_counts: dict[str, int] = search_result.get("offers_counts", {}) or {}
+    products = []
+    for product in search_result.get("data", []):
+        public = ProductPublic.model_validate(product)
+        public.offers_count = offers_counts.get(str(product.id), 1)
+        products.append(public)
 
     return ProductSearchResponse(
         data=products,

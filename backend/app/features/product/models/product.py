@@ -404,6 +404,10 @@ class ProductPublic(ProductBase, BasePublic):
     last_supplier_sync: datetime | None = None
     supplier_missing_since: datetime | None = None
     is_supplier_managed: bool = False
+    #: Search listings group the same physical item sold by several
+    #: suppliers behind its cheapest offer: how many offers this entry stands
+    #: for (1 = no sibling).
+    offers_count: int = 1
 
 
 class ProductsPublic(SQLModel):
@@ -431,6 +435,13 @@ class ProductSearchRequest(SQLModel):
     in_stock: bool | None = None
     limit: int = Field(default=24, ge=1, le=200)
     offset: int = Field(default=0, ge=0)
+    group_offers: bool = Field(
+        default=True,
+        description=(
+            "Show a same physical item sold by several suppliers once, by its "
+            "cheapest offer (offers_count tells how many it stands for)"
+        ),
+    )
 
 
 class ProductSearchFacets(SQLModel):
@@ -447,6 +458,31 @@ class ProductSearchResponse(SQLModel):
     data: list[ProductPublic] = Field(default_factory=list)
     count: int = 0
     facets: ProductSearchFacets = Field(default_factory=ProductSearchFacets)
+
+
+class ProductOfferPublic(SQLModel):
+    """One supplier's offer for a physical item (product page « autres offres »)."""
+
+    product_id: uuid.UUID
+    name: str
+    is_current: bool = False
+    supplier_name: str | None = None
+    supplier_label: str | None = None
+    is_domestic: bool = False
+    pricing_mode: PricingMode = PricingMode.IMPORT
+    sale_price: Decimal
+    supplier_quantity: Decimal
+    in_stock: bool
+    image_url: str | None = None
+
+
+class ProductOffersResponse(SQLModel):
+    """Every storefront offer of the same item, the current product included."""
+
+    product_id: uuid.UUID
+    identity_key: str | None = None
+    offers: list[ProductOfferPublic] = Field(default_factory=list)
+    cheapest_product_id: uuid.UUID | None = None
 
 
 class ProductFeatureRequest(SQLModel):

@@ -17,6 +17,11 @@
       <div v-if="isOutOfStock" class="absolute-top-right q-pa-xs">
         <q-badge color="grey-6" label="Sur commande" />
       </div>
+      <div v-if="offersCount > 1" class="absolute-bottom-right q-pa-xs">
+        <q-badge color="teal" :label="`${offersCount} offres`">
+          <q-tooltip>Même article chez {{ offersCount }} fournisseurs — meilleur prix affiché</q-tooltip>
+        </q-badge>
+      </div>
     </q-img>
 
     <q-card-section class="q-pb-xs">
@@ -91,9 +96,12 @@ import ProductDetailsDialog from 'src/components/ProductDetailsDialog.vue';
 import { getProductRoute } from 'src/utils/productRoute';
 import { useCurrencyStore } from 'src/stores/currency';
 
-type ProductPublic = components['schemas']['ProductPublic'];
+// `offers_count` is served by the backend (search grouping of the same item
+// sold by several suppliers) but the generated schema may lag — read it loosely.
+type ProductPublic = components['schemas']['ProductPublic'] & { offers_count?: number };
 
 const props = defineProps<{ product: ProductPublic }>();
+const offersCount = computed(() => props.product.offers_count ?? 1);
 const emit = defineEmits<{ 'add-to-cart': [product: ProductPublic] }>();
 
 const currencyStore = useCurrencyStore();
