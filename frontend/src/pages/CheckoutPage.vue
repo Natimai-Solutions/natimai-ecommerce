@@ -547,8 +547,9 @@ async function startPayment() {
     // 2. Single call: create the order AND run the provider initiation in one
     //    transaction (empties the backend cart, publishes order.created). No
     //    separate /payments/initiate — one order, one payment.
+    // No shipping_preference here: the delivery mode chosen above is the only
+    // last leg; a preference on top of it used to bill a second one.
     const checkout = await checkoutMyCart({
-      shipping_preference: 'fastest',
       delivery_type: selectedDeliveryType.value,
       shipping_address: formatAddress(selectedAddress.value),
       shipping_address_id: selectedAddressId.value,

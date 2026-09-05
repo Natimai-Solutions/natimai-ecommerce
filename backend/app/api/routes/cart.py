@@ -424,8 +424,15 @@ async def _select_checkout_routes_by_preference(
     total_weight_kg: Decimal,
     declared_value: Decimal,
     currency: str,
+    include_customer_routes: bool = True,
 ) -> list[ShippingRoute]:
-    """Execute select checkout routes by preference."""
+    """Automatic route selection for API clients that send a preference.
+
+    ``include_customer_routes=False`` when the checkout carries a
+    ``delivery_type``: the last leg is then the route the customer explicitly
+    chose, and picking "the fastest customer route" here on top of it would
+    bill two last legs (and track the wrong one) whenever they differ.
+    """
     if preference is None:
         return []
 
@@ -449,6 +456,9 @@ async def _select_checkout_routes_by_preference(
     intermediary_routes = [r for r in intermediary_routes if r.id not in import_ids]
     if intermediary_routes:
         selected_routes.append(min(intermediary_routes, key=sort_key))
+
+    if not include_customer_routes:
+        return selected_routes
 
     customer_routes = await crud_shipping_route.get_customer_routes(session=session)
     if customer_routes:
@@ -676,6 +686,38 @@ async def _resolve_last_leg_route(
     return candidate.route if candidate is not None else None
 
 
+async def _resolve_tracking_path_for_segment(
+    session: SessionDep,
+    *,
+    segment: FulfillmentSegment,
+    origin_place_id: uuid.UUID | None = None,
+) -> list[ShippingRoute]:
+    """Upstream legs (in order) bringing a segment's goods to the main warehouse.
+
+    When the allocation's origin place is known (e.g. a supplier's warehouse),
+    the legs are the optimal path from that origin to the main warehouse — every
+    hop, so a supplier → hub → warehouse journey is tracked hop by hop. Falls
+    back to the generic single-route heuristic when no origin / no path is
+    found. Empty when nothing can be resolved.
+    """
+    if origin_place_id is not None:
+        main_warehouse_id = await _get_main_warehouse_place_id(session)
+        if main_warehouse_id is not None and main_warehouse_id != origin_place_id:
+            path = await crud_shipping_route.get_optimal_route_between_places(
+                session=session,
+                from_place_id=origin_place_id,
+                to_place_id=main_warehouse_id,
+                is_to_customer=False,
+            )
+            if path:
+                return list(path)
+
+    fallback = await _resolve_tracking_route_for_segment(
+        session=session, segment=segment, origin_place_id=None
+    )
+    return [fallback] if fallback is not None else []
+
+
 async def _resolve_tracking_route_for_segment(
     session: SessionDep,
     *,
@@ -744,8 +786,19 @@ async def _link_fulfillment_segments_to_tracking(
     shipping_address: str | None,
     shipping_address_id: uuid.UUID | None = None,
     segment_totals: dict[tuple[FulfillmentSegment, uuid.UUID | None], Decimal],
+    last_leg_route: ShippingRoute | None = None,
 ) -> None:
-    """Execute link fulfillment segments to tracking."""
+    """Create the order's journey (one tracking per leg) from its fulfillment.
+
+    With ``last_leg_route`` (the route behind the customer's ``delivery_type``)
+    the journey is: upstream legs bringing supplier goods to the main
+    warehouse — none for goods already in local stock — then ONE final leg on
+    that route. A one-warehouse shop therefore gets exactly one tracking, on
+    the carrier the customer chose; a supplier-sourced order gets
+    supplier → warehouse → customer.
+
+    Without it (legacy API callers), each segment keeps its heuristic route.
+    """
     if not segment_totals:
         return
 
@@ -778,49 +831,17 @@ async def _link_fulfillment_segments_to_tracking(
         ),
     )
 
-    for sequence_order, ((segment, origin_place_id), quantity) in enumerate(
-        ordered_segments, start=1
-    ):
-        selected_route = await _resolve_tracking_route_for_segment(
-            session=session,
-            segment=segment,
-            origin_place_id=origin_place_id,
-        )
-        if selected_route is None:
-            logger.warning(
-                "D2 skipped: no shipping route available for segment=%s order_id=%s",
-                segment.value,
-                order_id,
-            )
-            continue
-
-        consolidation_id = None
-        if segment == FulfillmentSegment.CONSOLIDATION_PF:
-            consolidation = (
-                await crud_shipping_route_tracking_consolidation.create_draft(
-                    session=session,
-                    data=ShippingRouteTrackingConsolidationCreate(
-                        route_id=selected_route.id,
-                        name=f"PF consolidation {order_id}",
-                        consolidation_code=(f"pf-{str(order_id)[:8]}-{sequence_order}"),
-                        status_id=consolidation_status.id,
-                        tracking_ref=None,
-                        total_orders=1,
-                        notes=(
-                            f"Auto-created from checkout segment={segment.value} "
-                            f"quantity={quantity}"
-                        ),
-                    ),
-                    user=current_user,
-                )
-            )
-            consolidation_id = consolidation.id
-
+    async def _create_leg(
+        route: ShippingRoute,
+        *,
+        sequence_order: int,
+        consolidation_id: uuid.UUID | None = None,
+    ) -> None:
         await crud_shipping_route_tracking.create_draft(
             session=session,
             data=ShippingRouteTrackingCreate(
                 order_id=order_id,
-                route_id=selected_route.id,
+                route_id=route.id,
                 status_id=route_tracking_status.id,
                 address_id=shipping_address_record.id,
                 consolidation_id=consolidation_id,
@@ -835,6 +856,75 @@ async def _link_fulfillment_segments_to_tracking(
             ),
             user=current_user,
         )
+
+    sequence_order = 0
+    for (segment, origin_place_id), quantity in ordered_segments:
+        if last_leg_route is not None and segment == FulfillmentSegment.LOCAL:
+            # Goods already sit in the warehouse: the final leg below is their
+            # whole journey.
+            continue
+
+        if last_leg_route is not None:
+            legs = await _resolve_tracking_path_for_segment(
+                session=session,
+                segment=segment,
+                origin_place_id=origin_place_id,
+            )
+            # The heuristic may fall back to a customer route; the chosen
+            # last leg already covers that hop.
+            legs = [leg for leg in legs if not leg.is_to_customer]
+        else:
+            selected_route = await _resolve_tracking_route_for_segment(
+                session=session,
+                segment=segment,
+                origin_place_id=origin_place_id,
+            )
+            legs = [selected_route] if selected_route is not None else []
+
+        if not legs:
+            if last_leg_route is None:
+                logger.warning(
+                    "D2 skipped: no shipping route available for segment=%s "
+                    "order_id=%s",
+                    segment.value,
+                    order_id,
+                )
+            continue
+
+        for leg_index, leg in enumerate(legs):
+            sequence_order += 1
+            consolidation_id = None
+            if leg_index == 0 and segment == FulfillmentSegment.CONSOLIDATION_PF:
+                consolidation = (
+                    await crud_shipping_route_tracking_consolidation.create_draft(
+                        session=session,
+                        data=ShippingRouteTrackingConsolidationCreate(
+                            route_id=leg.id,
+                            name=f"PF consolidation {order_id}",
+                            consolidation_code=(
+                                f"pf-{str(order_id)[:8]}-{sequence_order}"
+                            ),
+                            status_id=consolidation_status.id,
+                            tracking_ref=None,
+                            total_orders=1,
+                            notes=(
+                                f"Auto-created from checkout segment={segment.value} "
+                                f"quantity={quantity}"
+                            ),
+                        ),
+                        user=current_user,
+                    )
+                )
+                consolidation_id = consolidation.id
+
+            await _create_leg(
+                leg,
+                sequence_order=sequence_order,
+                consolidation_id=consolidation_id,
+            )
+
+    if last_leg_route is not None:
+        await _create_leg(last_leg_route, sequence_order=sequence_order + 1)
 
 
 async def _link_selected_routes_to_tracking(
@@ -1918,23 +2008,10 @@ async def checkout_my_cart(
         products_by_id=products_by_id,
     )
 
-    selected_routes = await _resolve_selected_checkout_routes(
-        session=session,
-        shipping_route_ids=payload.shipping_route_ids,
-    )
-    if not selected_routes:
-        selected_routes = await _select_checkout_routes_by_preference(
-            session=session,
-            preference=payload.shipping_preference,
-            total_weight_kg=total_weight_kg,
-            declared_value=declared_value,
-            currency=cart.currency,
-        )
-
-    # Price the import/intermediate legs together with the chosen last-leg
-    # (zone C). The last-leg route must serve the shipping address' destination
-    # (île → archipel → pays) or be always_available; a delivery_type that does
-    # not resolve is rejected instead of silently skipping the tariff.
+    # The last leg (zone C) is the route behind the customer's delivery_type. It
+    # must serve the shipping address' destination (île → archipel → pays) or be
+    # always_available; a delivery_type that does not resolve is rejected
+    # instead of silently skipping the tariff.
     checkout_address = await _load_user_address(
         session, user_id=user_id, address_id=payload.shipping_address_id
     )
@@ -1963,6 +2040,25 @@ async def checkout_my_cart(
                 ),
             },
         )
+
+    # Explicit route ids (API clients) win; otherwise a preference may pick the
+    # upstream legs — but never a second last leg when delivery_type already
+    # names it (that used to bill both and track the wrong carrier).
+    selected_routes = await _resolve_selected_checkout_routes(
+        session=session,
+        shipping_route_ids=payload.shipping_route_ids,
+    )
+    if not selected_routes:
+        selected_routes = await _select_checkout_routes_by_preference(
+            session=session,
+            preference=payload.shipping_preference,
+            total_weight_kg=total_weight_kg,
+            declared_value=declared_value,
+            currency=cart.currency,
+            include_customer_routes=last_leg_route is None,
+        )
+
+    # Price the import/intermediate legs together with the chosen last leg.
     priced_routes = list(selected_routes)
     if last_leg_route is not None and all(
         route.id != last_leg_route.id for route in priced_routes
@@ -2130,6 +2226,13 @@ async def checkout_my_cart(
             )
 
         if selected_routes:
+            # The journey ends on the chosen last leg (once), whatever the
+            # explicit / preference-selected upstream legs.
+            tracking_routes = list(selected_routes)
+            if last_leg_route is not None and all(
+                route.id != last_leg_route.id for route in tracking_routes
+            ):
+                tracking_routes.append(last_leg_route)
             try:
                 await _link_selected_routes_to_tracking(
                     session=session,
@@ -2137,7 +2240,7 @@ async def checkout_my_cart(
                     current_user=current_user,
                     shipping_address=payload.shipping_address,
                     shipping_address_id=payload.shipping_address_id,
-                    selected_routes=selected_routes,
+                    selected_routes=tracking_routes,
                 )
             except Exception as tracking_exc:
                 log_structured_event(
@@ -2156,6 +2259,7 @@ async def checkout_my_cart(
                     shipping_address=payload.shipping_address,
                     shipping_address_id=payload.shipping_address_id,
                     segment_totals=segment_totals,
+                    last_leg_route=last_leg_route,
                 )
             except Exception as tracking_exc:
                 log_structured_event(
@@ -2226,7 +2330,7 @@ async def checkout_my_cart(
         # expires these instances (post-commit attribute access triggers a sync
         # lazy-load → MissingGreenlet). selected_routes / shipping_cost_summary
         # are not refreshed below, so they must be read here.
-        applied_shipping_route_ids = [route.id for route in selected_routes]
+        applied_shipping_route_ids = [route.id for route in priced_routes]
         shipping_eta_days = (
             shipping_cost_summary.eta_days if shipping_cost_summary else None
         )
