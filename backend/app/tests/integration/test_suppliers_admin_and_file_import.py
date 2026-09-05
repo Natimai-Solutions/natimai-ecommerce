@@ -15,6 +15,7 @@ import io
 import json
 import uuid
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from fastapi import UploadFile
@@ -448,3 +449,258 @@ async def test_publication_conditions_follow_the_pricing_mode(
     ).all()
 
     assert sorted(published) == ["fixe prix", "import complet", "local sans rien"]
+
+
+# ---------------------------------------------------------------------------
+# recognising existing products across imports
+# ---------------------------------------------------------------------------
+
+
+async def _seed_file_supplier(
+    db_session: AsyncSession, admin: User, *, code: str, origin_id: uuid.UUID
+) -> Supplier:
+    await create_supplier(
+        payload=SupplierCreate(
+            code=code,
+            name=code,
+            kind=SupplierKind.FILE,
+            origin_place_id=origin_id,
+            is_domestic=True,
+            price_currency="XPF",
+            column_mapping={
+                "supplier_sku": "Ref",
+                "name": "Désignation",
+                "price": "Prix HT",
+                "quantity": "Stock",
+                "manufacturer": "Marque",
+                "vendor_part_number": "Réf fabricant",
+                "ean": "EAN",
+            },
+        ),
+        session=db_session,
+        current_user=await _fresh(db_session, admin),
+    )
+    row = (await db_session.exec(select(Supplier).where(Supplier.code == code))).first()
+    assert row is not None
+    return row
+
+
+async def _run_import(
+    db_session: AsyncSession,
+    admin: User,
+    row: Supplier,
+    content: bytes,
+    *,
+    dry_run: bool,
+) -> Any:
+    await db_session.refresh(row)
+    return await import_catalog_file(
+        supplier=row,
+        session=db_session,
+        current_user=await _fresh(db_session, admin),
+        file=_upload(content),
+        mapping=None,
+        dry_run=dry_run,
+    )
+
+
+async def _products_of(db_session: AsyncSession, code: str) -> list[Product]:
+    return list(
+        (
+            await db_session.exec(select(Product).where(Product.supplier_name == code))
+        ).all()
+    )
+
+
+@pytest.mark.asyncio
+async def test_reimport_with_a_new_reference_is_recognised_by_barcode(
+    db_session: AsyncSession,
+) -> None:
+    admin = await _seed_admin(db_session)
+    origin = await _seed_place(db_session, code="PPT_DISTRIB", country="PF")
+    origin_id = origin.id
+    await db_session.commit()
+    row = await _seed_file_supplier(
+        db_session, admin, code="distrib_a", origin_id=origin_id
+    )
+
+    header = "Ref;Désignation;Prix HT;Stock;Marque;Réf fabricant;EAN\n"
+    first = (header + "A-001;Clavier;4500;10;Logi;K120;5099206020276\n").encode()
+    # Same barcode, reference renumbered, and Excel dropped the leading zero.
+    second = (
+        header + "K120-NEW;Clavier sans fil;4200;7;Logi;K120;5099206020276\n"
+    ).encode()
+
+    await _run_import(db_session, admin, row, first, dry_run=False)
+
+    preview = await _run_import(db_session, admin, row, second, dry_run=True)
+    assert preview.resolution["updated"] == 1
+    assert preview.resolution["matched_by_gtin"] == 1
+    assert preview.sample_resolutions[0].action == "updated"
+    assert preview.sample_resolutions[0].match_key == "gtin"
+    assert preview.sample_resolutions[0].product_name == "Clavier"
+
+    result = await _run_import(db_session, admin, row, second, dry_run=False)
+    assert result.statistics["updated_products"] == 1
+    assert result.statistics["new_products"] == 0
+    assert result.statistics["matched_by_gtin"] == 1
+
+    products = await _products_of(db_session, "distrib_a")
+    assert len(products) == 1
+    assert products[0].supplier_sku == "K120-NEW"
+    assert products[0].name == "Clavier sans fil"
+    assert products[0].supplier_quantity == Decimal("7.00")
+
+    mappings = (
+        await db_session.exec(
+            select(SupplierProductMapping).where(
+                SupplierProductMapping.supplier_name == "distrib_a"
+            )
+        )
+    ).all()
+    assert [m.supplier_sku for m in mappings] == ["K120-NEW"]
+
+
+@pytest.mark.asyncio
+async def test_reimport_recognises_by_manufacturer_part_when_no_barcode(
+    db_session: AsyncSession,
+) -> None:
+    admin = await _seed_admin(db_session)
+    origin = await _seed_place(db_session, code="PPT_DISTRIB", country="PF")
+    origin_id = origin.id
+    await db_session.commit()
+    row = await _seed_file_supplier(
+        db_session, admin, code="distrib_a", origin_id=origin_id
+    )
+
+    header = "Ref;Désignation;Prix HT;Stock;Marque;Réf fabricant;EAN\n"
+    first = (header + "A-002;Souris;1500;3;Logi;M185;\n").encode()
+    second = (header + "M185-2026;Souris;1400;9; logi ;m185;\n").encode()
+
+    await _run_import(db_session, admin, row, first, dry_run=False)
+    result = await _run_import(db_session, admin, row, second, dry_run=False)
+
+    assert result.statistics["matched_by_manufacturer_part"] == 1
+    assert len(await _products_of(db_session, "distrib_a")) == 1
+
+
+@pytest.mark.asyncio
+async def test_manual_product_of_the_supplier_is_adopted_and_keeps_its_content(
+    db_session: AsyncSession,
+) -> None:
+    admin = await _seed_admin(db_session)
+    origin = await _seed_place(db_session, code="PPT_DISTRIB", country="PF")
+    origin_id = origin.id
+    await db_session.commit()
+    row = await _seed_file_supplier(
+        db_session, admin, code="distrib_a", origin_id=origin_id
+    )
+
+    manual = await admin_create_product(
+        session=db_session,
+        current_user=await _fresh(db_session, admin),
+        payload=ProductCreate(
+            name="Onduleur 800 VA (fiche rédigée)",
+            supplier_name="distrib_a",
+            supplier_sku="OND-800",
+            pricing_mode=PricingMode.FIXED,
+            base_price=Decimal("29900"),
+        ),
+    )
+    manual_id = manual.id
+
+    header = "Ref;Désignation;Prix HT;Stock;Marque;Réf fabricant;EAN\n"
+    content = (header + "OND-800;ONDULEUR 800VA;18000;5;Eaton;3S800F;\n").encode()
+
+    preview = await _run_import(db_session, admin, row, content, dry_run=True)
+    assert preview.resolution["adopted"] == 1
+    assert preview.sample_resolutions[0].product_id == str(manual_id)
+
+    result = await _run_import(db_session, admin, row, content, dry_run=False)
+    assert result.statistics["adopted_products"] == 1
+    assert result.statistics["new_products"] == 0
+
+    products = await _products_of(db_session, "distrib_a")
+    assert len(products) == 1
+    adopted = products[0]
+    assert adopted.id == manual_id
+    assert adopted.is_supplier_managed is True
+    assert adopted.name == "Onduleur 800 VA (fiche rédigée)"
+    assert adopted.pricing_mode == PricingMode.FIXED
+    assert adopted.base_price == Decimal("29900.00")
+    assert adopted.cost_amount == Decimal("18000.00")
+    assert adopted.supplier_quantity == Decimal("5.00")
+    assert adopted.manufacturer == "Eaton"
+    assert "name" in (adopted.overridden_fields or [])
+    assert "pricing_mode" in (adopted.overridden_fields or [])
+
+
+@pytest.mark.asyncio
+async def test_another_supplier_product_is_never_matched(
+    db_session: AsyncSession,
+) -> None:
+    """Same barcode at two suppliers = two products (the customer picks)."""
+    admin = await _seed_admin(db_session)
+    origin = await _seed_place(db_session, code="PPT_DISTRIB", country="PF")
+    origin_id = origin.id
+    await db_session.commit()
+    row_a = await _seed_file_supplier(
+        db_session, admin, code="distrib_a", origin_id=origin_id
+    )
+    row_b = await _seed_file_supplier(
+        db_session, admin, code="distrib_b", origin_id=origin_id
+    )
+
+    header = "Ref;Désignation;Prix HT;Stock;Marque;Réf fabricant;EAN\n"
+    content_a = (header + "A-1;Clavier;4500;10;Logi;K120;5099206020276\n").encode()
+    content_b = (header + "B-9;Clavier;4100;2;Logi;K120;5099206020276\n").encode()
+
+    await _run_import(db_session, admin, row_a, content_a, dry_run=False)
+    result = await _run_import(db_session, admin, row_b, content_b, dry_run=False)
+
+    assert result.statistics["new_products"] == 1
+    assert len(await _products_of(db_session, "distrib_a")) == 1
+    assert len(await _products_of(db_session, "distrib_b")) == 1
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_identity_is_reported_and_leaves_both_untouched(
+    db_session: AsyncSession,
+) -> None:
+    admin = await _seed_admin(db_session)
+    origin = await _seed_place(db_session, code="PPT_DISTRIB", country="PF")
+    origin_id = origin.id
+    await db_session.commit()
+    row = await _seed_file_supplier(
+        db_session, admin, code="distrib_a", origin_id=origin_id
+    )
+
+    header = "Ref;Désignation;Prix HT;Stock;Marque;Réf fabricant;EAN\n"
+    # Two products of this supplier carry the same barcode: one imported, one
+    # typed by hand (the import alone would have merged a second line).
+    first = (header + "A-1;Clavier noir;4500;10;Logi;K120;5099206020276\n").encode()
+    await _run_import(db_session, admin, row, first, dry_run=False)
+    await admin_create_product(
+        session=db_session,
+        current_user=await _fresh(db_session, admin),
+        payload=ProductCreate(
+            name="Clavier blanc",
+            supplier_name="distrib_a",
+            supplier_sku="A-2",
+            ean="5099206020276",
+        ),
+    )
+
+    renumbered = (header + "A-3;Clavier;4000;1;Logi;K120;5099206020276\n").encode()
+    preview = await _run_import(db_session, admin, row, renumbered, dry_run=True)
+    assert preview.resolution["ambiguous"] == 1
+    assert preview.sample_resolutions[0].action == "ambiguous"
+
+    result = await _run_import(db_session, admin, row, renumbered, dry_run=False)
+    assert result.statistics["ambiguous_products"] == 1
+    assert result.statistics["new_products"] == 0
+    assert result.sync_errors and result.sync_errors[0]["sku"] == "A-3"
+    assert {p.supplier_sku for p in await _products_of(db_session, "distrib_a")} == {
+        "A-1",
+        "A-2",
+    }

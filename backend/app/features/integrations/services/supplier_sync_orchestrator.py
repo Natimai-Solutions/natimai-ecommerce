@@ -17,7 +17,9 @@ import asyncio
 import logging
 import uuid
 from collections.abc import Iterable
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -37,11 +39,45 @@ from app.features.product.models.product import (
     ProductCreate,
     ProductUpdate,
 )
-from app.features.product.services.overrides import strip_locked
+from app.features.product.services.overrides import merge_locks, strip_locked
 from app.services.suppliers.base import NormalizedProductData, SupplierAdapter
 from app.tasks.icecat_tasks import trigger_batch_enrichment
 
 logger = logging.getLogger(__name__)
+
+
+#: Match keys, from the most to the least authoritative.
+MATCH_MAPPING = "mapping"
+MATCH_SUPPLIER_SKU = "supplier_sku"
+MATCH_GTIN = "gtin"
+MATCH_MANUFACTURER_PART = "manufacturer_part"
+MATCH_KEYS: tuple[str, ...] = (
+    MATCH_MAPPING,
+    MATCH_SUPPLIER_SKU,
+    MATCH_GTIN,
+    MATCH_MANUFACTURER_PART,
+)
+
+#: Content an admin typed on a manual product. When the sync adopts such a
+#: product, these fields are locked (if filled) so the file never overwrites
+#: what was written by hand; only the sourcing fields flow from the supplier.
+ADOPTION_CONTENT_FIELDS: tuple[str, ...] = (
+    "name",
+    "description",
+    "long_description",
+    "image_url",
+    "pricing_mode",
+    "base_price",
+    "margin_rate_pct",
+    "customs_rate_pct",
+    "category_id",
+    "tax_rate_id",
+    "weight",
+    "dimensions_length",
+    "dimensions_width",
+    "dimensions_height",
+    "supplier_place_id",
+)
 
 
 def _empty_stats() -> dict[str, int]:
@@ -49,10 +85,60 @@ def _empty_stats() -> dict[str, int]:
         "total_fetched": 0,
         "new_products": 0,
         "updated_products": 0,
+        "adopted_products": 0,
+        "ambiguous_products": 0,
         "skipped_products": 0,
         "filtered_products": 0,
         "errors": 0,
+        **{f"matched_by_{key}": 0 for key in MATCH_KEYS},
     }
+
+
+@dataclass(slots=True)
+class Resolution:
+    """Outcome of looking a supplier payload up in the local catalog."""
+
+    product: Product | None = None
+    mapping: SupplierProductMapping | None = None
+    #: One of :data:`MATCH_KEYS`, ``None`` when nothing matched.
+    match_key: str | None = None
+    #: Several products of this supplier claim the same identity: refuse to
+    #: guess, the row is reported instead of being written.
+    ambiguous: bool = False
+    candidates: list[str] = field(default_factory=list)
+
+    @property
+    def adopts_manual(self) -> bool:
+        """The match is a product typed by hand and linked to this supplier."""
+        return self.product is not None and not bool(
+            getattr(self.product, "is_supplier_managed", False)
+        )
+
+
+def _is_filled(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, Decimal | int | float):
+        return value != 0
+    return True
+
+
+def adoption_locks(product: Product) -> list[str]:
+    """Locks to place on a manual product the sync is about to adopt.
+
+    Every content field the admin filled is kept; ``pricing_mode`` is always
+    kept (it is a decision, whatever its value). ``base_price`` only matters
+    when it carries a fixed price.
+    """
+    locked: list[str] = ["pricing_mode"]
+    for name in ADOPTION_CONTENT_FIELDS:
+        if name == "pricing_mode":
+            continue
+        if _is_filled(getattr(product, name, None)):
+            locked.append(name)
+    return merge_locks(getattr(product, "overridden_fields", None), locked)
 
 
 class SupplierSyncOrchestrator:
@@ -177,8 +263,22 @@ class SupplierSyncOrchestrator:
 
     async def _resolve_existing_product(
         self, session: AsyncSession, item: NormalizedProductData
-    ) -> tuple[Product | None, SupplierProductMapping | None]:
-        """Resolve the target product: persisted mapping first, then supplier identity."""
+    ) -> Resolution:
+        """Find the product this payload refers to, within this supplier only.
+
+        Order, first unambiguous hit wins:
+
+        1. the persisted mapping (supplier, SKU);
+        2. a product of this supplier with the same SKU — synced *or* typed by
+           hand and linked to the supplier (the latter is adopted);
+        3. the barcode (EAN / UPC, equivalent writings) — a product whose
+           supplier reference changed is still the same product;
+        4. manufacturer + manufacturer part number.
+
+        Products of another supplier are never matched: one product is one
+        source, a same physical item stocked by two suppliers is two products
+        and the customer picks the cheaper one.
+        """
         mapping = await supplier_product_mapping_crud.get_by_supplier_sku(
             session=session,
             supplier_name=self.adapter.name,
@@ -189,11 +289,12 @@ class SupplierSyncOrchestrator:
             mapped_product = await session.get(Product, mapping.local_product_id)
             if (
                 mapped_product is not None
-                and mapped_product.is_supplier_managed
                 and mapped_product.supplier_name == self.adapter.name
                 and mapped_product.supplier_sku == item.supplier_sku
             ):
-                return mapped_product, mapping
+                return Resolution(
+                    product=mapped_product, mapping=mapping, match_key=MATCH_MAPPING
+                )
 
             logger.warning(
                 "Supplier mapping mismatch for %s SKU %s (mapping_id=%s). "
@@ -203,13 +304,46 @@ class SupplierSyncOrchestrator:
                 mapping.id,
             )
 
-        supplier_product = await crud_product.get_by_supplier_sku(
+        by_sku = await crud_product.list_by_supplier_sku(
             session=session,
-            supplier_sku=item.supplier_sku,
             supplier_name=self.adapter.name,
-            supplier_managed_only=True,
+            supplier_sku=item.supplier_sku,
         )
-        return supplier_product, mapping
+        if by_sku:
+            # Historical duplicates (a manual product next to the synced one):
+            # the synced one keeps being the sync's target.
+            managed = [p for p in by_sku if getattr(p, "is_supplier_managed", False)]
+            pool = managed or by_sku
+            if len(pool) > 1:
+                return Resolution(
+                    mapping=mapping,
+                    match_key=MATCH_SUPPLIER_SKU,
+                    ambiguous=True,
+                    candidates=[str(p.id) for p in pool],
+                )
+            return Resolution(
+                product=pool[0], mapping=mapping, match_key=MATCH_SUPPLIER_SKU
+            )
+
+        candidates, key = await crud_product.find_by_identity(
+            session,
+            supplier_name=self.adapter.name,
+            ean=item.ean,
+            upc=item.upc,
+            manufacturer=item.manufacturer,
+            vendor_part_number=item.vendor_part_number,
+        )
+        if len(candidates) > 1:
+            return Resolution(
+                mapping=mapping,
+                match_key=key,
+                ambiguous=True,
+                candidates=[f"{p.supplier_sku or '?'} ({p.id})" for p in candidates],
+            )
+        if candidates:
+            return Resolution(product=candidates[0], mapping=mapping, match_key=key)
+
+        return Resolution(mapping=mapping)
 
     async def _upsert_mapping(
         self,
@@ -228,6 +362,16 @@ class SupplierSyncOrchestrator:
             supplier_name=self.adapter.name,
             supplier_sku=item.supplier_sku,
         )
+        if mapping is None:
+            # Recognised under a new reference (barcode / manufacturer part):
+            # re-key the row this product already has rather than adding one.
+            mapping = await supplier_product_mapping_crud.get_by_product(
+                session=session,
+                supplier_name=self.adapter.name,
+                local_product_id=product.id,
+            )
+            if mapping is not None:
+                mapping.supplier_sku = item.supplier_sku
         if mapping is None:
             new_mapping = SupplierProductMapping(
                 supplier_name=self.adapter.name,
@@ -276,11 +420,34 @@ class SupplierSyncOrchestrator:
             )
             return {"action": "filtered", "product_id": ""}
 
-        existing_product, _existing_mapping = await self._resolve_existing_product(
-            session=session, item=item
-        )
+        resolution = await self._resolve_existing_product(session=session, item=item)
+        if resolution.ambiguous:
+            logger.warning(
+                "Ambiguous match for %s SKU %s by %s: %s — row left untouched",
+                self.adapter.name,
+                item.supplier_sku,
+                resolution.match_key,
+                resolution.candidates,
+            )
+            return {
+                "action": "ambiguous",
+                "product_id": "",
+                "match_key": resolution.match_key or "",
+                "error": (
+                    f"plusieurs articles de ce fournisseur portent la même "
+                    f"identité ({resolution.match_key}) : "
+                    + ", ".join(resolution.candidates)
+                ),
+            }
+        existing_product = resolution.product
 
         product_data_dict = self._to_product_data(item)
+
+        # Adopting a product typed by hand: what the admin wrote stays theirs
+        # (locked), the supplier brings reference, cost and stock.
+        adopted = resolution.adopts_manual
+        if adopted and existing_product is not None:
+            product_data_dict["overridden_fields"] = adoption_locks(existing_product)
 
         # Stamp the supplier's origin place (drives the logistics first leg),
         # but never clobber a manual admin override: set it only when creating a
@@ -318,9 +485,12 @@ class SupplierSyncOrchestrator:
         # Respect admin overrides: never overwrite fields the admin has locked.
         # Omitting them from the update dict preserves the persisted values.
         if existing_product is not None:
-            product_data_dict = strip_locked(
-                product_data_dict, existing_product.overridden_fields
+            locks = product_data_dict.get(
+                "overridden_fields", existing_product.overridden_fields
             )
+            product_data_dict = strip_locked(product_data_dict, locks)
+            if adopted:
+                product_data_dict["overridden_fields"] = locks
 
         if existing_product:
             product = await crud_product.update_draft(
@@ -342,9 +512,71 @@ class SupplierSyncOrchestrator:
         await self._upsert_mapping(session, product, item)
 
         return {
-            "action": action,
+            "action": "adopted" if adopted else action,
             "product_id": str(product.id),
+            "match_key": resolution.match_key or "",
         }
+
+    async def preview_items(
+        self,
+        session: AsyncSession,
+        items: Iterable[NormalizedProductData],
+        *,
+        sample_size: int = 20,
+    ) -> tuple[dict[str, int], list[dict[str, Any]]]:
+        """Resolve a batch without writing anything (import dry run).
+
+        Returns the counters the real import would produce for the
+        resolution step (new / updated / adopted / ambiguous, and by which
+        key) plus the first ``sample_size`` rows detailed.
+        """
+        counts = {
+            "new": 0,
+            "updated": 0,
+            "adopted": 0,
+            "ambiguous": 0,
+            "skipped": 0,
+            **{f"matched_by_{key}": 0 for key in MATCH_KEYS},
+        }
+        rows: list[dict[str, Any]] = []
+
+        for item in items:
+            row: dict[str, Any] = {
+                "supplier_sku": item.supplier_sku,
+                "name": item.name,
+                "action": "new",
+                "match_key": None,
+                "product_id": None,
+                "product_name": None,
+                "message": None,
+            }
+            if not item.supplier_sku or not item.name:
+                row["action"] = "skipped"
+                row["message"] = "référence ou désignation vide"
+                counts["skipped"] += 1
+            else:
+                resolution = await self._resolve_existing_product(session, item)
+                if resolution.ambiguous:
+                    row["action"] = "ambiguous"
+                    row["match_key"] = resolution.match_key
+                    row["message"] = "plusieurs articles candidats : " + ", ".join(
+                        resolution.candidates
+                    )
+                    counts["ambiguous"] += 1
+                elif resolution.product is not None:
+                    row["action"] = "adopted" if resolution.adopts_manual else "updated"
+                    row["match_key"] = resolution.match_key
+                    row["product_id"] = str(resolution.product.id)
+                    row["product_name"] = getattr(resolution.product, "name", None)
+                    counts[row["action"]] += 1
+                    if resolution.match_key:
+                        counts[f"matched_by_{resolution.match_key}"] += 1
+                else:
+                    counts["new"] += 1
+            if len(rows) < sample_size:
+                rows.append(row)
+
+        return counts, rows
 
     async def sync_items(
         self,
@@ -370,13 +602,26 @@ class SupplierSyncOrchestrator:
                 continue
             try:
                 result = await self.upsert_product(session, item)
-                if result["action"] == "filtered":
+                action = result["action"]
+                if action == "filtered":
                     stats["filtered_products"] += 1
                     continue
-                elif result["action"] == "created":
+                if action == "ambiguous":
+                    stats["ambiguous_products"] += 1
+                    if errors is not None:
+                        errors.append(
+                            {"sku": item.supplier_sku, "error": result["error"]}
+                        )
+                    continue
+                if action == "created":
                     stats["new_products"] += 1
-                elif result["action"] == "updated":
+                elif action == "adopted":
+                    stats["adopted_products"] += 1
+                elif action == "updated":
                     stats["updated_products"] += 1
+                match_key = result.get("match_key")
+                if match_key:
+                    stats[f"matched_by_{match_key}"] += 1
                 await session.commit()
             except Exception as e:  # noqa: BLE001
                 logger.error(

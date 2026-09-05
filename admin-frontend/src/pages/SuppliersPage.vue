@@ -309,6 +309,13 @@
               Associez chaque champ de notre système à une colonne du fichier. Les champs marqués
               * sont obligatoires. La correspondance est mémorisée sur le fournisseur.
             </div>
+            <div class="text-caption text-grey-7 q-mb-xs">
+              Un article déjà présent chez ce fournisseur est reconnu par sa référence, sinon par
+              son code-barres EAN/UPC, sinon par marque + référence fabricant : mappez ces colonnes
+              pour qu'un changement de référence ne crée pas de doublon. Un article saisi à la
+              main et rattaché à ce fournisseur est adopté (son contenu est conservé). Les articles
+              des autres fournisseurs ne sont jamais rapprochés.
+            </div>
             <div class="row q-col-gutter-sm">
               <div
                 v-for="target in inspection.mapping_targets"
@@ -355,9 +362,51 @@
               <span v-if="!importResult.dry_run">
                 — {{ importResult.statistics.new_products ?? 0 }} créé(s),
                 {{ importResult.statistics.updated_products ?? 0 }} mis à jour,
+                {{ importResult.statistics.adopted_products ?? 0 }} adopté(s),
+                {{ importResult.statistics.ambiguous_products ?? 0 }} ambigu(s),
                 {{ importResult.statistics.errors ?? 0 }} erreur(s)
               </span>
+              <span v-else>
+                — {{ importResult.resolution.new ?? 0 }} nouveau(x),
+                {{ importResult.resolution.updated ?? 0 }} reconnu(s),
+                {{ importResult.resolution.adopted ?? 0 }} adopté(s),
+                {{ importResult.resolution.ambiguous ?? 0 }} ambigu(s)
+              </span>
             </div>
+            <div v-if="importResult.dry_run && matchedByLine" class="text-caption">
+              Reconnus par : {{ matchedByLine }}
+            </div>
+            <q-expansion-item
+              v-if="importResult.sample_resolutions.length"
+              dense
+              :label="`Détail des ${importResult.sample_resolutions.length} premières lignes`"
+              class="q-mt-xs"
+            >
+              <q-markup-table dense flat bordered>
+                <thead>
+                  <tr>
+                    <th class="text-left">Référence</th>
+                    <th class="text-left">Désignation</th>
+                    <th class="text-left">Action</th>
+                    <th class="text-left">Reconnu par</th>
+                    <th class="text-left">Article existant</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="r in importResult.sample_resolutions"
+                    :key="r.supplier_sku + r.action"
+                    :class="r.action === 'ambiguous' ? 'text-negative' : ''"
+                  >
+                    <td>{{ r.supplier_sku }}</td>
+                    <td>{{ r.name }}</td>
+                    <td>{{ actionLabel(r.action) }}</td>
+                    <td>{{ r.match_key ? matchKeyLabel(r.match_key) : '—' }}</td>
+                    <td>{{ r.product_name ?? r.message ?? '—' }}</td>
+                  </tr>
+                </tbody>
+              </q-markup-table>
+            </q-expansion-item>
             <ul v-if="importResult.row_errors.length" class="q-mb-none">
               <li v-for="e in importResult.row_errors.slice(0, 10)" :key="e.row_number">
                 Ligne {{ e.row_number }} : {{ e.message }}
@@ -398,6 +447,8 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import {
   MAPPING_TARGET_LABELS,
+  MATCH_KEY_LABELS,
+  RESOLUTION_ACTION_LABELS,
   SUPPLIER_KIND_LABELS,
   checkSupplierHealth,
   createSupplier,
@@ -411,6 +462,8 @@ import {
   type AdapterDescriptor,
   type FileImportResponse,
   type FileInspectResponse,
+  type ImportMatchKey,
+  type ImportResolutionAction,
   type Supplier,
   type SupplierCreate,
   type SupplierKind,
@@ -469,6 +522,12 @@ function placeName(id: string | null): string {
 }
 function mappingLabel(target: string): string {
   return MAPPING_TARGET_LABELS[target] ?? target;
+}
+function actionLabel(action: ImportResolutionAction): string {
+  return RESOLUTION_ACTION_LABELS[action] ?? action;
+}
+function matchKeyLabel(key: ImportMatchKey): string {
+  return MATCH_KEY_LABELS[key] ?? key;
 }
 
 async function load() {
@@ -660,6 +719,16 @@ const importResult = ref<FileImportResponse | null>(null);
 const importError = ref<string | null>(null);
 const importBusy = ref<'dry' | 'run' | null>(null);
 const mapping = reactive<Record<string, string | null>>({});
+
+/** « 3 par référence, 2 par code-barres » — seules les clés non nulles. */
+const matchedByLine = computed(() => {
+  const res = importResult.value?.resolution ?? {};
+  return (Object.keys(MATCH_KEY_LABELS) as ImportMatchKey[])
+    .map((key) => ({ key, n: res[`matched_by_${key}`] ?? 0 }))
+    .filter((e) => e.n > 0)
+    .map((e) => `${e.n} par ${MATCH_KEY_LABELS[e.key]}`)
+    .join(', ');
+});
 
 function openImport(supplier: Supplier) {
   importing.value = supplier;

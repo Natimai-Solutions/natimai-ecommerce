@@ -227,6 +227,26 @@ class SupplierProductMappingCrud(
 ):
     """CRUD operations for supplier product mappings"""
 
+    async def get_by_product(
+        self,
+        session: AsyncSession,
+        *,
+        supplier_name: str,
+        local_product_id: UUID,
+    ) -> SupplierProductMapping | None:
+        """The mapping of ``supplier_name`` pointing at ``local_product_id``, if any.
+
+        Used when a product is recognised by its barcode or manufacturer part
+        under a new supplier SKU: the existing row is re-keyed instead of a
+        second one being created.
+        """
+        statement = select(SupplierProductMapping).where(
+            SupplierProductMapping.supplier_name == supplier_name,
+            SupplierProductMapping.local_product_id == local_product_id,
+        )
+        result = await session.exec(statement)
+        return result.first()
+
     async def get_by_supplier_sku(
         self, session: AsyncSession, *, supplier_name: str, supplier_sku: str
     ) -> SupplierProductMapping | None:

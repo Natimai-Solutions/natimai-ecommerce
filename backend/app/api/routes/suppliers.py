@@ -184,6 +184,20 @@ class FileImportRowError(BaseModel):
     message: str
 
 
+class FileImportResolutionRow(BaseModel):
+    """How one parsed row would be (or was) matched against the catalog."""
+
+    supplier_sku: str
+    name: str
+    #: new | updated | adopted | ambiguous | skipped
+    action: str
+    #: mapping | supplier_sku | gtin | manufacturer_part | null
+    match_key: str | None = None
+    product_id: str | None = None
+    product_name: str | None = None
+    message: str | None = None
+
+
 class FileImportResponse(BaseModel):
     """Outcome of a catalog file import (or of its dry run)."""
 
@@ -198,6 +212,10 @@ class FileImportResponse(BaseModel):
     sync_errors: list[dict[str, str]] = Field(default_factory=list)
     sync_log_id: str | None = None
     sample: list[dict[str, Any]] = Field(default_factory=list)
+    #: Dry run only: counters of the resolution step (new / updated / adopted /
+    #: ambiguous / skipped and matched_by_<key>).
+    resolution: dict[str, int] = Field(default_factory=dict)
+    sample_resolutions: list[FileImportResolutionRow] = Field(default_factory=list)
 
 
 # -- routes ---------------------------------------------------------------
@@ -561,7 +579,17 @@ async def import_catalog_file(
         for p in result.products[:5]
     ]
 
+    adapter: SupplierAdapter | Any
+    if supplier_kind == SupplierKind.API and has_adapter(supplier_adapter_key):
+        adapter = adapter_for_supplier(supplier)
+    else:
+        adapter = _FileSupplierAdapter(supplier_config)
+    orchestrator = SupplierSyncOrchestrator(adapter)
+
     if dry_run:
+        counts, resolved_rows = await orchestrator.preview_items(
+            session, result.products
+        )
         return FileImportResponse(
             supplier_name=supplier_code,
             filename=filename,
@@ -571,13 +599,11 @@ async def import_catalog_file(
             rejected_rows=len(result.errors),
             row_errors=row_errors,
             sample=sample,
+            resolution=counts,
+            sample_resolutions=[
+                FileImportResolutionRow.model_validate(r) for r in resolved_rows
+            ],
         )
-
-    adapter: SupplierAdapter | Any
-    if supplier_kind == SupplierKind.API and has_adapter(supplier_adapter_key):
-        adapter = adapter_for_supplier(supplier)
-    else:
-        adapter = _FileSupplierAdapter(supplier_config)
 
     sync_log = await supplier_sync_log_crud.create_sync_log(
         session=session,
@@ -589,7 +615,6 @@ async def import_catalog_file(
     await supplier_sync_log_crud.start_sync(session=session, sync_log_id=sync_log.id)
     sync_log_id = sync_log.id
 
-    orchestrator = SupplierSyncOrchestrator(adapter)
     sync_errors: list[dict[str, str]] = []
     try:
         stats = await orchestrator.import_items(
@@ -610,9 +635,8 @@ async def import_catalog_file(
         ) from exc
 
     stats["rejected_rows"] = len(result.errors)
-    status = (
-        SyncStatus.PARTIAL if (stats["errors"] or result.errors) else SyncStatus.SUCCESS
-    )
+    partial = stats["errors"] or stats["ambiguous_products"] or result.errors
+    status = SyncStatus.PARTIAL if partial else SyncStatus.SUCCESS
     await supplier_sync_log_crud.complete_sync(
         session=session,
         sync_log_id=sync_log_id,

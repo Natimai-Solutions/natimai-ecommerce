@@ -132,6 +132,7 @@ class ProductBase(Base):
     vendor_part_number: str | None = Field(
         default=None,
         max_length=100,
+        index=True,
         description="Manufacturer part number",
     )
     manufacturer: str | None = Field(
@@ -248,11 +249,13 @@ class ProductBase(Base):
     upc: str | None = Field(
         default=None,
         max_length=50,
+        index=True,
         description="Universal Product Code (UPC) of the product",
     )
     ean: str | None = Field(
         default=None,
         max_length=50,
+        index=True,
         description="European Article Number (EAN) of the product",
     )
     image_url: str | None = Field(

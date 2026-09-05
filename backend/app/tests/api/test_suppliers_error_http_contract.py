@@ -9,6 +9,9 @@ from app.api.deps import get_current_active_superuser
 from app.api.routes import suppliers as suppliers_routes
 from app.core.db import get_db
 from app.features.integrations.models.supplier import SupplierKind
+from app.features.integrations.services.supplier_sync_orchestrator import (
+    SupplierSyncOrchestrator,
+)
 from app.main import app
 
 
@@ -279,6 +282,24 @@ def test_import_file_dry_run_reports_parsed_rows(
         ),
     )
     content = b"ref;nom;prix;stock\nA1;Produit A;1 234,50;3\nA2;;10;1\n"
+    # The resolution step reads the catalog: stubbed, the DB is a namespace here.
+    preview = AsyncMock(
+        return_value=(
+            {"new": 1, "updated": 0, "adopted": 0, "ambiguous": 0, "skipped": 0},
+            [
+                {
+                    "supplier_sku": "A1",
+                    "name": "Produit A",
+                    "action": "new",
+                    "match_key": None,
+                    "product_id": None,
+                    "product_name": None,
+                    "message": None,
+                }
+            ],
+        )
+    )
+    monkeypatch.setattr(SupplierSyncOrchestrator, "preview_items", preview)
 
     response = client.post(
         "/api/v1/suppliers/generic_fr/import-file?dry_run=true",
@@ -288,6 +309,8 @@ def test_import_file_dry_run_reports_parsed_rows(
     assert response.status_code == 200
     body = response.json()
     assert body["dry_run"] is True
+    assert body["resolution"]["new"] == 1
+    assert body["sample_resolutions"][0]["action"] == "new"
     assert body["parsed_products"] == 1
     assert body["rejected_rows"] == 1
     assert body["row_errors"][0]["row_number"] == 3

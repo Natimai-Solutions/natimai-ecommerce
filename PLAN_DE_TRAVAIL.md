@@ -342,6 +342,37 @@ l'intégration : `environment`, `country_code`…), contact, notes.
 - Un article manuel peut être rattaché à un fournisseur déclaré : `POST /admin/products` recopie l'entrepôt d'origine et le régime douanier (mode de prix) du fournisseur si le payload ne les fixe pas. Le stock fournisseur compte au checkout pour tout article qui a un fournisseur, synchronisé ou non.
 - La sync catalogue ne remet plus à zéro le coût et le stock d'un article quand la source ne les porte pas (le catalogue Ingram ne renvoie ni prix ni dispo) ; elle n'écrit ces champs que lorsqu'ils sont fournis (fichier, API prix/dispo).
 
+### Reconnaissance des articles à l'import (question du 05/09/2026)
+
+**Règle : un article = une source.** Un même produit physique proposé par deux
+fournisseurs donne deux articles (deux prix, le client choisit). Le rapprochement
+ne cherche donc que **dans le périmètre du fournisseur importé** (`supplier_name`),
+par ordre de fiabilité, le premier résultat non ambigu gagne :
+
+1. la ligne `SupplierProductMapping` (fournisseur, référence) ;
+2. un article du fournisseur portant la même **référence** — synchronisé *ou saisi à
+   la main et rattaché à ce fournisseur* (celui-ci est alors **adopté**) ;
+3. le **code-barres** EAN/UPC (chiffres seuls ; UPC-A à 12 chiffres et EAN-13 avec zéro
+   de tête équivalents ; une valeur en notation scientifique — Excel a converti la
+   colonne en nombre — est ignorée) contre `Product.ean` **et** `Product.upc` ;
+4. **marque + référence fabricant**, sans tenir compte de la casse ni des espaces.
+
+- Reconnu par 3 ou 4 sous une nouvelle référence : la référence est réalignée sur le
+  fichier et la ligne de mapping existante est re-clée (pas de doublon de mapping).
+- **Adoption d'un article manuel** : il passe `is_supplier_managed`, le fichier apporte
+  référence, coût, devise, stock ; son contenu (nom, descriptions, image, mode de prix,
+  prix fixé, marge, douane, catégorie, poids, dimensions, origine) est **verrouillé**
+  (`overridden_fields`) au moment de l'adoption, donc jamais écrasé par cet import ni
+  par les suivants.
+- **Ambigu** (plusieurs articles du fournisseur pour une même clé) : ni création ni mise
+  à jour ; la ligne est rapportée (simulation et import) avec les candidats.
+- La **simulation** (« Simuler » dans Admin → Fournisseurs) affiche par ligne : nouveau /
+  mise à jour / adopté / ambigu, et la clé qui a reconnu l'article. Mêmes règles pour la
+  sync API (Ingram fournit UPC, marque et référence fabricant).
+- Index ajoutés sur `products.ean`, `products.upc`, `products.vendor_part_number`.
+- Piste ultérieure, hors périmètre : regroupement vitrine par code-barres (« autres
+  offres ») pour présenter les doublons inter-fournisseurs comme un seul produit.
+
 ### Ajouter un fournisseur
 
 | Cas | Marche à suivre |

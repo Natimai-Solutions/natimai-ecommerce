@@ -76,6 +76,35 @@ export interface FileImportRowError {
   message: string;
 }
 
+export type ImportResolutionAction = 'new' | 'updated' | 'adopted' | 'ambiguous' | 'skipped';
+export type ImportMatchKey = 'mapping' | 'supplier_sku' | 'gtin' | 'manufacturer_part';
+
+/** Comment une ligne lisible a été (ou serait) rapprochée du catalogue. */
+export interface FileImportResolutionRow {
+  supplier_sku: string;
+  name: string;
+  action: ImportResolutionAction;
+  match_key: ImportMatchKey | null;
+  product_id: string | null;
+  product_name: string | null;
+  message: string | null;
+}
+
+export const MATCH_KEY_LABELS: Record<ImportMatchKey, string> = {
+  mapping: 'référence (déjà liée)',
+  supplier_sku: 'référence fournisseur',
+  gtin: 'code-barres EAN/UPC',
+  manufacturer_part: 'marque + réf. fabricant',
+};
+
+export const RESOLUTION_ACTION_LABELS: Record<ImportResolutionAction, string> = {
+  new: 'Nouveau',
+  updated: 'Mise à jour',
+  adopted: 'Adopté (article saisi à la main)',
+  ambiguous: 'Ambigu — non traité',
+  skipped: 'Ignoré',
+};
+
 export interface FileImportResponse {
   supplier_name: string;
   filename: string;
@@ -88,6 +117,9 @@ export interface FileImportResponse {
   sync_errors: { sku: string; error: string }[];
   sync_log_id: string | null;
   sample: Record<string, unknown>[];
+  /** Simulation : compteurs de la reconnaissance (new / updated / adopted / ambiguous / skipped, matched_by_*). */
+  resolution: Record<string, number>;
+  sample_resolutions: FileImportResolutionRow[];
 }
 
 export interface SyncResponse {

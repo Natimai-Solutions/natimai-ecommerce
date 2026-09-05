@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, or_
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -17,6 +17,10 @@ from app.features.product.models.product import (
     Product,
     ProductCreate,
     ProductUpdate,
+)
+from app.features.product.services.identity import (
+    gtin_variants,
+    normalize_text_key,
 )
 from app.features.product.services.pricing import (
     CurrencyRateMissing,
@@ -259,6 +263,71 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         statement = select(Product).where(*conditions)
         result = await session.exec(statement)
         return result.first()
+
+    async def list_by_supplier_sku(
+        self,
+        session: AsyncSession,
+        *,
+        supplier_name: str,
+        supplier_sku: str,
+    ) -> list[Product]:
+        """Every product of ``supplier_name`` carrying ``supplier_sku``, manual or not.
+
+        Used by the sync resolution: a product typed by hand and linked to the
+        supplier is a legitimate match for that supplier's import.
+        """
+        statement = select(Product).where(
+            Product.supplier_name == supplier_name,
+            Product.supplier_sku == supplier_sku,
+        )
+        result = await session.exec(statement)
+        return list(result.all())
+
+    async def find_by_identity(
+        self,
+        session: AsyncSession,
+        *,
+        supplier_name: str,
+        ean: str | None = None,
+        upc: str | None = None,
+        manufacturer: str | None = None,
+        vendor_part_number: str | None = None,
+    ) -> tuple[list[Product], str | None]:
+        """Candidates of ``supplier_name`` matching the item's identity keys.
+
+        Two levels, the first that yields anything wins: the barcode (EAN /
+        UPC, every equivalent writing, against both columns), then the
+        manufacturer + manufacturer part number pair (case and surrounding
+        spaces ignored). Returns ``(candidates, key)`` with ``key`` in
+        ``"gtin"`` / ``"manufacturer_part"`` / ``None``. Inactive products
+        are included: a delisted article that comes back must be recognised.
+        """
+        variants = gtin_variants(ean) | gtin_variants(upc)
+        if variants:
+            statement = select(Product).where(
+                Product.supplier_name == supplier_name,
+                or_(
+                    func.trim(col(Product.ean)).in_(variants),
+                    func.trim(col(Product.upc)).in_(variants),
+                ),
+            )
+            rows = list((await session.exec(statement)).all())
+            if rows:
+                return rows, "gtin"
+
+        maker = normalize_text_key(manufacturer)
+        part = normalize_text_key(vendor_part_number)
+        if maker and part:
+            statement = select(Product).where(
+                Product.supplier_name == supplier_name,
+                func.lower(func.trim(col(Product.manufacturer))) == maker,
+                func.lower(func.trim(col(Product.vendor_part_number))) == part,
+            )
+            rows = list((await session.exec(statement)).all())
+            if rows:
+                return rows, "manufacturer_part"
+
+        return [], None
 
     async def get_supplier_products(
         self,
