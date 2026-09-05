@@ -1224,6 +1224,34 @@ Les **produits** (sync Ingram `SupplierSyncOrchestrator.upsert_product` + enrich
 
 **Reste (non livré)** : le total affiché au checkout vitrine n'inclut toujours pas les frais de port (affichés « + X » par option) ; l'heuristique d'adresse polynésienne de `cart.py` reste codée en dur (une adresse absente est traitée comme PF). `shared/api-types/src/schema.ts` a été régénéré depuis l'OpenAPI courant (il rattrape aussi les endpoints admin users / overrides livrés le 04/09).
 
+#### À faire — total du checkout vitrine avec les frais (S1)
+
+**Constat** : dans [CheckoutPage.vue](frontend/src/pages/CheckoutPage.vue) la ligne « Total » affiche `cartStore.totalAmount`, c'est-à-dire les articles seuls. Le backend, lui, débite `sous-total + port + frais de paiement` (`_snapshot_checkout_amounts`, [cart.py](backend/app/api/routes/cart.py)) et le dédouanement est déjà inclus dans le port. Le client voit donc un total plus bas que ce qu'il paie ; les frais de port apparaissent en « + X » sur chaque mode, le dédouanement en ligne à part, les frais du moyen de paiement en légende. La liste des moyens de paiement est en plus filtrée (`listMyPaymentMethods(cartStore.totalAmount)`) sur le montant articles, alors que l'éligibilité (`max_amount`) est recontrôlée au checkout sur le total réel.
+
+**Règle** : une seule source de vérité pour le total = le backend. Le front ne recalcule rien, il affiche un devis.
+
+1. **Backend — endpoint de devis** `GET /cart/me/checkout-quote?address_id=&delivery_type=&payment_method_id=` (à côté de `/cart/me/last-leg-options`). Il renvoie exactement ce que `POST /cart/checkout` va figer : `subtotal`, `shipping_fee` (tronçon choisi + dédouanement, via `calculate_shipping_for_routes`), `payment_fee` (via `_resolve_payment_fee`), `total`, `currency`, plus le détail `shipping_cost_breakdown` et le drapeau `free_shipping_applied`. Refactor : extraire de `checkout_my_cart` un helper `_quote_checkout(session, user, address, delivery_type, payment_method_id)` réutilisé par les deux endpoints, pour que devis et commande ne divergent jamais. Erreurs alignées (`checkout.delivery_type.unavailable`…).
+2. **Front — récapitulatif** : appeler ce devis à chaque changement d'adresse, de mode de livraison ou de moyen de paiement (les trois watchers existent déjà pour l'adresse). Afficher : Articles / Livraison (« Offert » si 0) / Dédouanement (si > 0) / Frais de paiement (si > 0) / **Total à payer** ; garder le « + X » sur les options de livraison comme aide au choix. Tant que le devis charge, griser le bouton « Procéder ».
+3. **Front — moyens de paiement** : filtrer `listMyPaymentMethods` sur le `total` du devis et recharger la liste quand il change (un mode de livraison cher peut faire dépasser `max_amount`).
+4. **Cohérence après commande** : la page de retour et la confirmation affichent `checkout.total_amount` renvoyé par l'API, pas le total local.
+5. **Tests** : unitaire sur `_quote_checkout` (devis = snapshot du checkout pour la même entrée, franco appliqué, méthode avec frais) ; intégration `test_checkout_quote.py` (adresse hors zone → 400, total = articles + port + frais) ; e2e Playwright du recap (le montant affiché avant « Procéder » est celui de la réponse checkout).
+
+**Effort** : 1 à 1,5 j. Dépendance : aucune (le point 1 du 05/09 a rendu `delivery_type` seul maître du port, le devis s'appuie dessus).
+
+#### À faire — sortir l'heuristique polynésienne de `cart.py` (S2)
+
+**Constat** : `_is_polynesia_shipping_address` ([cart.py](backend/app/api/routes/cart.py)) cherche « PF / TAHITI / PAPEETE / MOOREA… » dans le texte de l'adresse pour décider si les articles fournisseur passent par l'entrepôt principal (`CONSOLIDATION_PF`) ou partent en direct (`SUPPLIER_DIRECT`). Une adresse absente est traitée comme polynésienne. Trois défauts : dépend du texte libre (« Rue de Tahiti » à Paris passe en consolidation), ne sert que ce territoire, et n'utilise pas la hiérarchie de lieux déjà en place (`Address.place_id` → île → archipel → pays, `crud_place.get_ancestor_chain`).
+
+**Règle** : la décision « via l'entrepôt principal ou en direct » se lit dans les données logistiques, pas dans une liste de mots.
+
+1. **Décision par zone** : nouveau helper `resolve_fulfillment_mode(session, *, address, main_warehouse_place)` dans `app/features/shipping/services/` → `VIA_MAIN_WAREHOUSE | SUPPLIER_DIRECT`. Ordre : (a) l'adresse a un `place_id` et la zone de l'entrepôt principal (son `Place` ou un ancêtre `country`/`region`) figure dans la chaîne d'ancêtres de l'adresse → via entrepôt ; (b) sinon, comparaison des codes pays `Address.country` / `Place.country` de l'entrepôt ; (c) sinon (aucune adresse, aucun pays), défaut = via entrepôt, en le loggant. L'entrepôt principal est déjà résolu par `_get_main_warehouse_place_id`.
+2. **Réglage explicite** : `SUPPLIER_DIRECT_SHIPPING_ENABLED: bool = False` (config + DEPLOYMENT). Une boutique classique n'expédie jamais depuis le fournisseur : tout passe par son entrepôt, quelle que soit l'adresse. Le cas « fournisseur → client direct » ne s'active que si le réglage est vrai **et** que la zone ne dépend pas de l'entrepôt.
+3. **Câblage** : `checkout_my_cart` charge déjà `checkout_address` et `destination_chain` ; calculer le mode une fois et le passer à `_reserve_stock_for_checkout` → `_plan_checkout_fulfillment_segments` (paramètre `fulfillment_mode` à la place de `shipping_address: str`). Supprimer `_PF_ADDRESS_MARKERS`, `_is_polynesia_shipping_address`, `_select_supplier_segment`.
+4. **Nommage sans casser l'historique** : renommer le membre `FulfillmentSegment.CONSOLIDATION_PF` en `VIA_MAIN_WAREHOUSE` en conservant la valeur `"consolidation_pf"` (elle est figée dans `OrderLine.notes` sous `fulfillment_segments=…` et lue par les tests) ; les libellés admin/vitrine suivent. Idem pour le préfixe des lots auto-créés (`pf-…`) : garder le code, passer le nom à « Regroupement entrepôt ».
+5. **Tests** : remplacer `test_is_polynesia_shipping_address` / `test_select_supplier_segment_by_destination` ([test_cart_helpers.py](backend/app/tests/api/test_cart_helpers.py)) par des tests de `resolve_fulfillment_mode` (zone enfant de l'entrepôt, autre pays avec réglage vrai / faux, adresse sans zone, adresse absente) ; intégration dans `test_checkout_delivery_type_journey.py` : un article fournisseur + adresse dans la zone de l'entrepôt → tronçon fournisseur → entrepôt puis dernier tronçon ; même article + adresse hors zone + réglage vrai → un seul tronçon direct.
+
+**Effort** : 1 j. Dépendance : aucune ; à faire avant l'ouverture à un second territoire ou à un fournisseur livrant en direct.
+
 ---
 
 ## Dépendances inter-phases
