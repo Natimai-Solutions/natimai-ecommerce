@@ -25,6 +25,7 @@ from app.features.cart.models.cart import (
     CartItemDetail,
     CartItemQuantityUpdateRequest,
     CartReplaceRequest,
+    CheckoutQuoteResponse,
     CheckoutRequest,
     CheckoutResponse,
     CheckoutShippingPreference,
@@ -99,6 +100,7 @@ from app.features.shipping.models.route_tracking import (
 from app.features.shipping.models.status import StatusDefinition, StatusDefinitionCreate
 from app.features.shipping.services import (
     CustomsDeclarationFee,
+    ShippingCostSummary,
     calculate_shipping_for_routes,
     serialize_shipping_cost_summary,
 )
@@ -1897,6 +1899,271 @@ async def create_guest_quote_request(
     )
 
 
+@dataclass(frozen=True)
+class CheckoutQuote:
+    """Everything the checkout bills, computed once and shared with the quote
+    endpoint so the recap the customer reads is the amount debited."""
+
+    currency: str
+    declared_value: Decimal
+    total_weight_kg: Decimal
+    last_leg_route: ShippingRoute | None
+    selected_routes: list[ShippingRoute]
+    priced_routes: list[ShippingRoute]
+    declaration_fees: list[CustomsDeclarationFee]
+    shipping_cost_summary: ShippingCostSummary | None
+    shipping_cost_breakdown: dict[str, Any] | None
+    subtotal_amount: Decimal
+    shipping_fee_amount: Decimal
+    payment_fee_amount: Decimal
+    total_fees_amount: Decimal
+    total_amount: Decimal
+
+    @property
+    def customs_declaration_fee_total(self) -> Decimal:
+        """Part of the shipping fee owed to the customs declaration."""
+        if self.shipping_cost_summary is None:
+            return Decimal("0.00")
+        return quantize_amount(
+            sum(
+                (
+                    fee.amount
+                    for fee in self.shipping_cost_summary.customs_declaration_fees
+                ),
+                Decimal("0"),
+            ),
+            self.currency,
+        )
+
+    @property
+    def free_shipping_applied(self) -> bool:
+        """The franco zeroed the last leg."""
+        return bool(
+            self.last_leg_route is not None
+            and self.shipping_cost_summary is not None
+            and any(
+                segment.route_id == self.last_leg_route.id
+                and segment.free_shipping_applied
+                for segment in self.shipping_cost_summary.breakdown
+            )
+        )
+
+    @property
+    def shipping_eta_days(self) -> int | None:
+        """Summed ETA of the priced legs, when every leg has one."""
+        return (
+            self.shipping_cost_summary.eta_days
+            if self.shipping_cost_summary is not None
+            else None
+        )
+
+
+async def _quote_checkout(
+    session: SessionDep,
+    *,
+    user_id: uuid.UUID,
+    currency: str,
+    items: list[CartItem],
+    products_by_id: dict[uuid.UUID, Product],
+    shipping_address_id: uuid.UUID | None,
+    delivery_type: str | None,
+    payment_method_id: uuid.UUID | None,
+    shipping_route_ids: list[uuid.UUID] | None = None,
+    shipping_preference: CheckoutShippingPreference | None = None,
+    shipping_fee_fallback: Decimal | None = None,
+) -> CheckoutQuote:
+    """Resolve the routes and the amounts of a checkout (no writes).
+
+    One function for the quote (``GET /cart/me/checkout-quote``) and the
+    order (``POST /cart/checkout``): the storefront recap can only differ from
+    the debited amount if they diverge, so they cannot.
+
+    Raises ``checkout.delivery_type.unavailable`` when the chosen delivery
+    mode does not serve the address' destination.
+    """
+    declared_value, total_weight_kg = _compute_checkout_declared_value_and_weight(
+        items=items,
+        products_by_id=products_by_id,
+    )
+
+    # The last leg (zone C) is the route behind the customer's delivery_type. It
+    # must serve the shipping address' destination (île → archipel → pays) or be
+    # always_available; a delivery_type that does not resolve is rejected
+    # instead of silently skipping the tariff.
+    checkout_address = await _load_user_address(
+        session, user_id=user_id, address_id=shipping_address_id
+    )
+    destination_chain = await _destination_chain_for_address(
+        session, address=checkout_address
+    )
+    last_leg_route = await _resolve_last_leg_route(
+        session,
+        delivery_type=delivery_type,
+        destination_chain=destination_chain,
+    )
+    if delivery_type and last_leg_route is None:
+        raise AppError(
+            code="checkout.delivery_type.unavailable",
+            status_code=400,
+            message=(
+                f"Delivery mode '{delivery_type}' is not available for this destination"
+            ),
+            details={
+                "delivery_type": delivery_type,
+                "shipping_address_id": (
+                    str(shipping_address_id) if shipping_address_id else None
+                ),
+            },
+        )
+
+    # Explicit route ids (API clients) win; otherwise a preference may pick the
+    # upstream legs — but never a second last leg when delivery_type already
+    # names it (that used to bill both and track the wrong carrier).
+    selected_routes = await _resolve_selected_checkout_routes(
+        session=session,
+        shipping_route_ids=list(shipping_route_ids or []),
+    )
+    if not selected_routes:
+        selected_routes = await _select_checkout_routes_by_preference(
+            session=session,
+            preference=shipping_preference,
+            total_weight_kg=total_weight_kg,
+            declared_value=declared_value,
+            currency=currency,
+            include_customer_routes=last_leg_route is None,
+        )
+
+    # Price the import/intermediate legs together with the chosen last leg.
+    priced_routes = list(selected_routes)
+    if last_leg_route is not None and all(
+        route.id != last_leg_route.id for route in priced_routes
+    ):
+        priced_routes.append(last_leg_route)
+
+    # Per-declaration customs charges: once per shipment, whatever the routing
+    # and the number of lines (F3) — none when nothing crosses customs.
+    declaration_fees = await _customs_declaration_fees(
+        session, list(products_by_id.values())
+    )
+
+    shipping_cost_summary: ShippingCostSummary | None = None
+    shipping_cost_breakdown: dict[str, Any] | None = None
+    shipping_fee_input = shipping_fee_fallback or Decimal("0.00")
+    if priced_routes or declaration_fees:
+        shipping_cost_summary = calculate_shipping_for_routes(
+            routes=priced_routes,
+            total_weight_kg=total_weight_kg,
+            declared_value=declared_value,
+            currency=currency,
+            customs_declaration_fees=declaration_fees,
+        )
+        shipping_fee_input = shipping_cost_summary.total_fee
+        shipping_cost_breakdown = serialize_shipping_cost_summary(shipping_cost_summary)
+
+    # The fee belongs to the payment method, never to the caller.
+    resolved_payment_fee = await _resolve_payment_fee(
+        session,
+        payment_method_id=payment_method_id,
+        currency=currency,
+    )
+    (
+        subtotal_amount,
+        shipping_fee_amount,
+        payment_fee_amount,
+        total_fees_amount,
+        total_amount,
+    ) = _snapshot_checkout_amounts(
+        items=items,
+        currency=currency,
+        shipping_fee_amount=shipping_fee_input,
+        payment_fee_amount=resolved_payment_fee,
+    )
+
+    return CheckoutQuote(
+        currency=currency,
+        declared_value=declared_value,
+        total_weight_kg=total_weight_kg,
+        last_leg_route=last_leg_route,
+        selected_routes=selected_routes,
+        priced_routes=priced_routes,
+        declaration_fees=declaration_fees,
+        shipping_cost_summary=shipping_cost_summary,
+        shipping_cost_breakdown=shipping_cost_breakdown,
+        subtotal_amount=subtotal_amount,
+        shipping_fee_amount=shipping_fee_amount,
+        payment_fee_amount=payment_fee_amount,
+        total_fees_amount=total_fees_amount,
+        total_amount=total_amount,
+    )
+
+
+@router.get("/me/checkout-quote", response_model=CheckoutQuoteResponse)
+async def get_checkout_quote(
+    session: SessionDep,
+    current_user: CurrentUser,
+    address_id: uuid.UUID | None = Query(
+        default=None, description="Shipping address (must belong to the user)"
+    ),
+    delivery_type: str | None = Query(
+        default=None, description="Chosen last-leg delivery mode"
+    ),
+    payment_method_id: uuid.UUID | None = Query(
+        default=None, description="Chosen payment method (its fee is added)"
+    ),
+) -> CheckoutQuoteResponse:
+    """The amounts ``POST /cart/checkout`` will bill for the current backend
+    cart and these choices — same computation, so the recap is the debit.
+
+    Read-only: nothing is reserved, revalidated or written. An empty cart
+    quotes zero rather than failing, so the recap can render early.
+    """
+    user_id = current_user.id
+    cart = await crud_cart.get_active_cart_by_user(session=session, user_id=user_id)
+    currency = cart.currency if cart is not None else settings.REFERENCE_CURRENCY
+    zero = quantize_amount(Decimal("0"), currency)
+    if cart is None:
+        return CheckoutQuoteResponse(
+            currency=currency,
+            subtotal_amount=zero,
+            shipping_fee_amount=zero,
+            payment_fee_amount=zero,
+            total_fees_amount=zero,
+            total_amount=zero,
+            delivery_type=delivery_type,
+        )
+
+    items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart.id)
+    products_by_id: dict[uuid.UUID, Product] = {}
+    for item in items:
+        products_by_id[item.product_id] = await _get_active_product_or_404(
+            session, product_id=item.product_id
+        )
+
+    quote = await _quote_checkout(
+        session,
+        user_id=user_id,
+        currency=currency,
+        items=items,
+        products_by_id=products_by_id,
+        shipping_address_id=address_id,
+        delivery_type=delivery_type,
+        payment_method_id=payment_method_id,
+    )
+    return CheckoutQuoteResponse(
+        currency=quote.currency,
+        subtotal_amount=quote.subtotal_amount,
+        shipping_fee_amount=quote.shipping_fee_amount,
+        customs_declaration_fee=quote.customs_declaration_fee_total,
+        payment_fee_amount=quote.payment_fee_amount,
+        total_fees_amount=quote.total_fees_amount,
+        total_amount=quote.total_amount,
+        delivery_type=delivery_type,
+        shipping_eta_days=quote.shipping_eta_days,
+        free_shipping_applied=quote.free_shipping_applied,
+        shipping_cost_breakdown=quote.shipping_cost_breakdown,
+    )
+
+
 @router.get("/me/last-leg-options", response_model=LastLegOptionsResponse)
 async def get_last_leg_options(
     session: SessionDep,
@@ -2035,121 +2302,44 @@ async def checkout_my_cart(
         )
         products_by_id[item.product_id] = product
 
-    declared_value, total_weight_kg = _compute_checkout_declared_value_and_weight(
-        items=items,
-        products_by_id=products_by_id,
-    )
-
-    # The last leg (zone C) is the route behind the customer's delivery_type. It
-    # must serve the shipping address' destination (île → archipel → pays) or be
-    # always_available; a delivery_type that does not resolve is rejected
-    # instead of silently skipping the tariff.
-    checkout_address = await _load_user_address(
-        session, user_id=user_id, address_id=payload.shipping_address_id
-    )
-    destination_chain = await _destination_chain_for_address(
-        session, address=checkout_address
-    )
-    last_leg_route = await _resolve_last_leg_route(
-        session,
-        delivery_type=payload.delivery_type,
-        destination_chain=destination_chain,
-    )
-    if payload.delivery_type and last_leg_route is None:
-        raise AppError(
-            code="checkout.delivery_type.unavailable",
-            status_code=400,
-            message=(
-                "Delivery mode "
-                f"'{payload.delivery_type}' is not available for this destination"
-            ),
-            details={
-                "delivery_type": payload.delivery_type,
-                "shipping_address_id": (
-                    str(payload.shipping_address_id)
-                    if payload.shipping_address_id
-                    else None
-                ),
-            },
-        )
-
-    # Explicit route ids (API clients) win; otherwise a preference may pick the
-    # upstream legs — but never a second last leg when delivery_type already
-    # names it (that used to bill both and track the wrong carrier).
-    selected_routes = await _resolve_selected_checkout_routes(
-        session=session,
-        shipping_route_ids=payload.shipping_route_ids,
-    )
-    if not selected_routes:
-        selected_routes = await _select_checkout_routes_by_preference(
-            session=session,
-            preference=payload.shipping_preference,
-            total_weight_kg=total_weight_kg,
-            declared_value=declared_value,
-            currency=cart.currency,
-            include_customer_routes=last_leg_route is None,
-        )
-
-    # Price the import/intermediate legs together with the chosen last leg.
-    priced_routes = list(selected_routes)
-    if last_leg_route is not None and all(
-        route.id != last_leg_route.id for route in priced_routes
-    ):
-        priced_routes.append(last_leg_route)
-
-    # Per-declaration customs charges: once per shipment, whatever the routing
-    # and the number of lines (F3).
-    declaration_fees = await _customs_declaration_fees(
-        session, list(products_by_id.values())
-    )
-
-    shipping_cost_summary = None
-    shipping_cost_breakdown_payload: dict[str, Any] | None = None
-    shipping_fee_input = payload.shipping_fee_amount or Decimal("0.00")
-    if priced_routes or declaration_fees:
-        shipping_cost_summary = calculate_shipping_for_routes(
-            routes=priced_routes,
-            total_weight_kg=total_weight_kg,
-            declared_value=declared_value,
-            currency=cart.currency,
-            customs_declaration_fees=declaration_fees,
-        )
-        shipping_fee_input = shipping_cost_summary.total_fee
-        shipping_cost_breakdown_payload = serialize_shipping_cost_summary(
-            shipping_cost_summary
-        )
-
     # Ask the supplier what it actually has, rather than trusting a snapshot
     # that can be two hours old. Best-effort: an unreachable supplier leaves
     # the snapshot in place instead of refusing the sale.
     await refresh_supplier_availability(session, list(products_by_id.values()))
 
-    # Server-authoritative amounts: the fee belongs to the payment method, and
-    # a line whose price moved since it was added stops the checkout.
+    # Server-authoritative amounts: a line whose price moved since it was
+    # added stops the checkout (the cart is refreshed so the client sees why).
     await _revalidate_checkout_prices(
         session,
         items=items,
         products_by_id=products_by_id,
         currency=cart.currency,
     )
-    resolved_payment_fee = await _resolve_payment_fee(
-        session,
-        payment_method_id=payload.payment_method_id,
-        currency=cart.currency,
-    )
 
-    (
-        subtotal_amount,
-        shipping_fee_amount,
-        payment_fee_amount,
-        total_fees_amount,
-        total_amount,
-    ) = _snapshot_checkout_amounts(
-        items=items,
+    quote = await _quote_checkout(
+        session,
+        user_id=user_id,
         currency=cart.currency,
-        shipping_fee_amount=shipping_fee_input,
-        payment_fee_amount=resolved_payment_fee,
+        items=items,
+        products_by_id=products_by_id,
+        shipping_address_id=payload.shipping_address_id,
+        delivery_type=payload.delivery_type,
+        payment_method_id=payload.payment_method_id,
+        shipping_route_ids=payload.shipping_route_ids,
+        shipping_preference=payload.shipping_preference,
+        shipping_fee_fallback=payload.shipping_fee_amount,
     )
+    selected_routes = quote.selected_routes
+    priced_routes = quote.priced_routes
+    last_leg_route = quote.last_leg_route
+    shipping_cost_summary = quote.shipping_cost_summary
+    shipping_cost_breakdown_payload = quote.shipping_cost_breakdown
+    subtotal_amount = quote.subtotal_amount
+    shipping_fee_amount = quote.shipping_fee_amount
+    payment_fee_amount = quote.payment_fee_amount
+    total_fees_amount = quote.total_fees_amount
+    total_amount = quote.total_amount
+
     if total_amount <= 0:
         raise AppError(
             code="cart.total.invalid",

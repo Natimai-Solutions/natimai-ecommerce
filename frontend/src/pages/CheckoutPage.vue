@@ -47,19 +47,49 @@
                 </q-item>
               </q-list>
               <q-separator class="q-my-sm" />
-              <div class="row justify-between text-weight-bold">
-                <span>Total</span>
-                <span>{{ formatMoney(String(cartStore.totalAmount)) }}</span>
-              </div>
-              <!-- Charge douanière due une fois par expédition : affichée ici
-                   pour qu'elle ne surgisse pas au moment de payer. -->
-              <div
-                v-if="hasFee(customsDeclarationFee)"
-                class="row justify-between text-caption text-grey-8 q-mt-sm"
-              >
-                <span>Frais de dédouanement<br />(une fois par expédition)</span>
-                <span>+ {{ formatMoney(customsDeclarationFee) }}</span>
-              </div>
+              <!-- Le devis vient du backend (même calcul que la commande) : le
+                   total affiché est le montant débité, frais compris. -->
+              <template v-if="quote">
+                <div class="row justify-between text-body2">
+                  <span>Articles</span>
+                  <span>{{ formatMoney(quote.subtotal_amount) }}</span>
+                </div>
+                <div v-if="selectedDeliveryType" class="row justify-between text-body2">
+                  <span>Livraison</span>
+                  <span data-testid="checkout-quote-shipping">{{
+                    shippingOnlyAmount(quote) > 0
+                      ? formatMoney(String(shippingOnlyAmount(quote)))
+                      : 'Offerte'
+                  }}</span>
+                </div>
+                <div
+                  v-if="hasFee(quote.customs_declaration_fee)"
+                  class="row justify-between text-caption text-grey-8"
+                >
+                  <span>Frais de dédouanement<br />(une fois par expédition)</span>
+                  <span>{{ formatMoney(quote.customs_declaration_fee) }}</span>
+                </div>
+                <div v-if="hasFee(quote.payment_fee_amount)" class="row justify-between text-body2">
+                  <span>Frais de paiement</span>
+                  <span>{{ formatMoney(quote.payment_fee_amount) }}</span>
+                </div>
+                <q-separator class="q-my-sm" />
+                <div class="row justify-between text-weight-bold">
+                  <span>Total à payer</span>
+                  <span data-testid="checkout-quote-total">{{
+                    formatMoney(quote.total_amount)
+                  }}</span>
+                </div>
+              </template>
+              <template v-else>
+                <div class="row justify-between text-weight-bold">
+                  <span>Articles</span>
+                  <span>{{ formatMoney(String(cartStore.totalAmount)) }}</span>
+                </div>
+                <div v-if="isAuthenticated" class="text-caption text-grey-7 q-mt-xs">
+                  <q-spinner size="1em" class="q-mr-xs" />Calcul des frais de livraison…
+                </div>
+              </template>
             </q-card-section>
           </q-card>
         </div>
@@ -325,7 +355,9 @@
                       !cgvAccepted ||
                       !selectedMethodId ||
                       !selectedAddressId ||
-                      (deliveryOptions.length > 0 && !selectedDeliveryType)
+                      (deliveryOptions.length > 0 && !selectedDeliveryType) ||
+                      quoteLoading ||
+                      !quote
                     "
                     @click="startPayment"
                   />
@@ -356,7 +388,13 @@ import {
   uploadFileToPresignedUrl,
   type PaymentMethod,
 } from 'src/api/payments';
-import { checkoutMyCart, getLastLegOptions, replaceMyCartItems } from 'src/api/cart';
+import {
+  checkoutMyCart,
+  getCheckoutQuote,
+  getLastLegOptions,
+  replaceMyCartItems,
+  type CheckoutQuote,
+} from 'src/api/cart';
 import { listMyAddresses, type Address } from 'src/api/addresses';
 
 const PENDING_PAYMENT_KEY = 'payzen.pending_payment_id';
@@ -406,6 +444,69 @@ const selectedDeliveryType = ref<string | null>(null);
 // Frais de dédouanement : facturés une fois par expédition, indépendamment du
 // mode de livraison et du nombre d'articles.
 const customsDeclarationFee = ref('0');
+
+// Devis backend (articles + livraison + dédouanement + frais de paiement) :
+// une seule source de vérité pour le total, rechargée à chaque choix.
+const quote = ref<CheckoutQuote | null>(null);
+const quoteLoading = ref(false);
+// Montant sur lequel l'éligibilité des moyens de paiement est jugée : le
+// total hors frais de paiement (sinon le devis dépend du moyen, qui dépend
+// du devis).
+const methodsBasis = ref<number | null>(null);
+
+/** Part livraison du devis, hors dédouanement. */
+function shippingOnlyAmount(q: CheckoutQuote): number {
+  const shipping = Number.parseFloat(q.shipping_fee_amount);
+  const customs = Number.parseFloat(q.customs_declaration_fee);
+  return (Number.isFinite(shipping) ? shipping : 0) - (Number.isFinite(customs) ? customs : 0);
+}
+
+async function loadQuote() {
+  if (!isAuthenticated.value) return;
+  quoteLoading.value = true;
+  try {
+    const next = await getCheckoutQuote({
+      addressId: selectedAddressId.value,
+      deliveryType: selectedDeliveryType.value,
+      paymentMethodId: selectedMethodId.value,
+    });
+    quote.value = next;
+    const basis =
+      Number.parseFloat(next.subtotal_amount) + Number.parseFloat(next.shipping_fee_amount);
+    if (Number.isFinite(basis) && basis !== methodsBasis.value) {
+      methodsBasis.value = basis;
+      await loadMethods(basis);
+    }
+  } catch {
+    // Le devis est indispensable : sans lui le bouton reste grisé et le
+    // client voit le montant des articles seuls. Les moyens de paiement
+    // restent proposés (sur le montant des articles) pour ne pas figer
+    // l'écran sur un spinner.
+    quote.value = null;
+    if (methodsBasis.value === null) {
+      await loadMethods(cartStore.totalAmount);
+    }
+  } finally {
+    quoteLoading.value = false;
+  }
+}
+
+async function loadMethods(basis: number) {
+  loadingMethods.value = true;
+  try {
+    // Eligibility-filtered list (price group + max_amount vs amount to pay).
+    // The server re-checks eligibility at POST /cart/checkout regardless.
+    const available = await listMyPaymentMethods(basis);
+    methods.value = available.sort((a, b) => a.sort_order - b.sort_order);
+    if (!methods.value.some((m) => m.id === selectedMethodId.value)) {
+      selectedMethodId.value = methods.value[0]?.id ?? null;
+    }
+  } catch {
+    errorMessage.value = 'Impossible de charger les moyens de paiement.';
+  } finally {
+    loadingMethods.value = false;
+  }
+}
 
 function iconForMode(mode: string): string {
   if (mode === 'pickup') return 'store';
@@ -466,16 +567,12 @@ onMounted(async () => {
     loadingMethods.value = false;
     return;
   }
+  // The storefront cart is client-side: mirror it into the backend cart so
+  // the delivery options and the quote are computed on what is being bought.
   try {
-    // Eligibility-filtered list (price group + max_amount vs cart total). The
-    // server re-checks eligibility at POST /cart/checkout regardless.
-    const available = await listMyPaymentMethods(cartStore.totalAmount);
-    methods.value = available.sort((a, b) => a.sort_order - b.sort_order);
-    selectedMethodId.value = methods.value[0]?.id ?? null;
+    await syncCartToBackend();
   } catch {
-    errorMessage.value = 'Impossible de charger les moyens de paiement.';
-  } finally {
-    loadingMethods.value = false;
+    // The checkout re-syncs before ordering; the quote will then catch up.
   }
 
   // Load the user's addresses; pre-select a validated one if available, else the first.
@@ -488,8 +585,10 @@ onMounted(async () => {
   }
 
   // Priced last-leg delivery options for the current cart and the pre-selected
-  // address (the watcher below reloads them on address change).
+  // address (the watcher below reloads them on address change), then the
+  // quote — which also loads the payment methods eligible for that amount.
   await loadDeliveryOptions();
+  await loadQuote();
 });
 
 // Delivery modes depend on the destination (île → archipel → pays) of the
@@ -517,9 +616,18 @@ async function loadDeliveryOptions() {
   }
 }
 
-watch(selectedAddressId, () => {
+watch(selectedAddressId, async () => {
   if (!isAuthenticated.value) return;
-  void loadDeliveryOptions();
+  await loadDeliveryOptions();
+  await loadQuote();
+});
+watch(selectedDeliveryType, () => {
+  if (!isAuthenticated.value) return;
+  void loadQuote();
+});
+watch(selectedMethodId, () => {
+  if (!isAuthenticated.value) return;
+  void loadQuote();
 });
 
 async function startPayment() {
