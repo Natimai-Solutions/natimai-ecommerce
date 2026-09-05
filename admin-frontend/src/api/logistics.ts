@@ -23,6 +23,12 @@ export interface PlaceCreate {
   customs_clearance?: boolean;
 }
 
+/** One row of a carrier's weight grid: `price` up to `max_kg` (null = and above). */
+export interface WeightBand {
+  max_kg: string | null;
+  price: string;
+}
+
 export interface ShippingRoute {
   id: string;
   name: string;
@@ -34,6 +40,8 @@ export interface ShippingRoute {
   eta_days: number | null;
   price_per_kg: string | null;
   base_price: string | null;
+  weight_bands: WeightBand[] | null;
+  free_shipping_threshold: string | null;
   is_to_customer: boolean;
   last_leg_delivery_type: string | null;
   always_available: boolean;
@@ -50,6 +58,8 @@ export interface ShippingRouteCreate {
   eta_days?: number | null;
   price_per_kg?: string | null;
   base_price?: string | null;
+  weight_bands?: WeightBand[] | null;
+  free_shipping_threshold?: string | null;
   is_to_customer?: boolean;
   last_leg_delivery_type?: string | null;
   always_available?: boolean;
@@ -126,13 +136,9 @@ export async function getRouteServedPlaces(routeId: string): Promise<Place[]> {
   return data.places;
 }
 
-export async function setRouteServedPlaces(
-  routeId: string,
-  placeIds: string[],
-): Promise<Place[]> {
-  const { data } = await api.put<ServedPlacesResponse>(
-    `/shipping/route/${routeId}/served-places`,
-    { place_ids: placeIds },
-  );
+export async function setRouteServedPlaces(routeId: string, placeIds: string[]): Promise<Place[]> {
+  const { data } = await api.put<ServedPlacesResponse>(`/shipping/route/${routeId}/served-places`, {
+    place_ids: placeIds,
+  });
   return data.places;
 }

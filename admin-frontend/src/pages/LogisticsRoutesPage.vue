@@ -84,6 +84,9 @@
           {{ placeName(props.row.from_place_id) }} → {{ placeName(props.row.to_place_id) }}
         </q-td>
       </template>
+      <template #body-cell-tariff="props">
+        <q-td :props="props">{{ tariffSummary(props.row) }}</q-td>
+      </template>
       <template #body-cell-to_customer="props">
         <q-td :props="props">
           <q-icon v-if="props.row.is_to_customer" name="check" color="positive" />
@@ -317,6 +320,63 @@
                 class="col"
               />
             </div>
+            <div class="text-subtitle2 q-mt-xs">Grille par tranches de poids (optionnel)</div>
+            <div class="text-caption text-grey-7">
+              Remplace « prix/kg × poids » : le prix de la première tranche dont le plafond couvre
+              le poids taxable. Laissez le plafond vide pour une dernière tranche « et au-delà » ;
+              sinon, l'excédent au-dessus de la dernière tranche est facturé au prix/kg. Le forfait
+              s'ajoute.
+            </div>
+            <div
+              v-for="(band, index) in routeBands"
+              :key="index"
+              class="row items-start"
+              style="gap: 8px"
+            >
+              <q-input
+                v-model="band.max_kg"
+                label="Jusqu'à (kg)"
+                type="number"
+                step="0.001"
+                outlined
+                dense
+                bottom-slots
+                class="col"
+                :hint="band.max_kg.trim() ? undefined : 'vide = et au-delà'"
+              />
+              <q-input
+                v-model="band.price"
+                label="Prix (XPF)"
+                type="number"
+                step="0.01"
+                outlined
+                dense
+                bottom-slots
+                class="col"
+              />
+              <q-btn flat dense round icon="delete" @click="routeBands.splice(index, 1)">
+                <q-tooltip>Retirer la tranche</q-tooltip>
+              </q-btn>
+            </div>
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="add"
+              label="Ajouter une tranche"
+              @click="routeBands.push({ max_kg: '', price: '' })"
+            />
+            <q-input
+              v-model="routeForm.free_shipping_threshold"
+              label="Franco de port à partir de (XPF, valeur du panier)"
+              type="number"
+              step="0.01"
+              outlined
+              dense
+              bottom-slots
+              clearable
+              hint="Ce tronçon devient gratuit dès que la valeur expédiée atteint ce montant. Vide = jamais gratuit."
+            />
             <q-toggle v-model="routeForm.is_to_customer" label="Tronçon final (livraison client)" />
             <q-select
               v-if="routeForm.is_to_customer"
@@ -385,6 +445,7 @@ import {
   type Place,
   type ShippingRoute,
 } from 'src/api/logistics';
+import type { WeightBand } from 'src/api/logistics';
 import { extractApiError } from 'src/api/errors';
 import { countryOptions, type CountryOption } from '@app/utils';
 
@@ -444,9 +505,7 @@ const serviceLevelOptions = [
 // on a route, but let the admin type a new one (e.g. "sea_freight").
 const deliveryTypeAll = computed<string[]>(() => {
   const defaults = ['pickup', 'home_delivery', 'air_freight', 'sea_freight'];
-  const used = routes.value
-    .map((r) => r.last_leg_delivery_type)
-    .filter((v): v is string => !!v);
+  const used = routes.value.map((r) => r.last_leg_delivery_type).filter((v): v is string => !!v);
   return Array.from(new Set([...defaults, ...used])).sort();
 });
 const deliveryTypeSuggestions = ref<string[]>([]);
@@ -510,6 +569,7 @@ const routeColumns: QTableColumn[] = [
   { name: 'eta', label: 'Délai (j)', field: 'eta_days', align: 'left' },
   { name: 'price_per_kg', label: 'Prix/kg', field: 'price_per_kg', align: 'left' },
   { name: 'base_price', label: 'Forfait', field: 'base_price', align: 'left' },
+  { name: 'tariff', label: 'Grille / franco', field: 'weight_bands', align: 'left' },
   {
     name: 'delivery_mode',
     label: 'Mode last-leg',
@@ -642,6 +702,7 @@ const routeForm = reactive<{
   eta_days: number | null;
   price_per_kg: string;
   base_price: string;
+  free_shipping_threshold: string;
   is_to_customer: boolean;
   last_leg_delivery_type: string | null;
   always_available: boolean;
@@ -655,11 +716,32 @@ const routeForm = reactive<{
   eta_days: null,
   price_per_kg: '',
   base_price: '',
+  free_shipping_threshold: '',
   is_to_customer: false,
   last_leg_delivery_type: null,
   always_available: false,
 });
 const routeServedPlaceIds = ref<string[]>([]);
+// Weight grid rows edited as strings (q-input); serialized on submit.
+const routeBands = ref<{ max_kg: string; price: string }[]>([]);
+
+function bandsPayload(): WeightBand[] | null {
+  const rows = routeBands.value
+    .filter((b) => b.price.trim() !== '')
+    .map((b) => ({ max_kg: b.max_kg.trim() || null, price: b.price.trim() }));
+  return rows.length > 0 ? rows : null;
+}
+
+function tariffSummary(r: ShippingRoute): string {
+  const parts: string[] = [];
+  if (r.weight_bands && r.weight_bands.length > 0) {
+    parts.push(`${r.weight_bands.length} tranche${r.weight_bands.length > 1 ? 's' : ''}`);
+  }
+  if (r.free_shipping_threshold) {
+    parts.push(`franco ≥ ${r.free_shipping_threshold}`);
+  }
+  return parts.length > 0 ? parts.join(' · ') : '—';
+}
 
 function resetRouteForm() {
   routeForm.name = '';
@@ -671,10 +753,12 @@ function resetRouteForm() {
   routeForm.eta_days = null;
   routeForm.price_per_kg = '';
   routeForm.base_price = '';
+  routeForm.free_shipping_threshold = '';
   routeForm.is_to_customer = false;
   routeForm.last_leg_delivery_type = null;
   routeForm.always_available = false;
   routeServedPlaceIds.value = [];
+  routeBands.value = [];
 }
 
 function openRouteCreate() {
@@ -696,6 +780,11 @@ function openRouteEdit(r: ShippingRoute) {
   routeForm.eta_days = r.eta_days;
   routeForm.price_per_kg = r.price_per_kg ?? '';
   routeForm.base_price = r.base_price ?? '';
+  routeForm.free_shipping_threshold = r.free_shipping_threshold ?? '';
+  routeBands.value = (r.weight_bands ?? []).map((b) => ({
+    max_kg: b.max_kg ?? '',
+    price: b.price,
+  }));
   routeForm.is_to_customer = r.is_to_customer;
   routeForm.last_leg_delivery_type = r.last_leg_delivery_type;
   routeForm.always_available = r.always_available;
@@ -737,10 +826,11 @@ async function submitRoute() {
         : null,
     price_per_kg: routeForm.price_per_kg.trim() || null,
     base_price: routeForm.base_price.trim() || null,
+    weight_bands: bandsPayload(),
+    // q-input clearable sets null; keep the payload a string or null.
+    free_shipping_threshold: (routeForm.free_shipping_threshold ?? '').trim() || null,
     is_to_customer: routeForm.is_to_customer,
-    last_leg_delivery_type: routeForm.is_to_customer
-      ? routeForm.last_leg_delivery_type
-      : null,
+    last_leg_delivery_type: routeForm.is_to_customer ? routeForm.last_leg_delivery_type : null,
     always_available: routeForm.is_to_customer ? routeForm.always_available : false,
   };
   try {
