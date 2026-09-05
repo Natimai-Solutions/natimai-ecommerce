@@ -305,6 +305,60 @@ Le dropdown bascule **en local** via `shared/utils/src/pricing.ts` (étendu pour
 
 ---
 
+## Décision transverse : fournisseurs en base, modes de prix et articles hors synchronisation (05/09/2026)
+
+**Contexte.** Jusqu'ici un fournisseur était une classe Python plus un jeu de
+variables `INGRAM_*`, et tout article passait par la formule CAF : impossible de
+vendre un article de l'entrepôt à un prix TTC décidé à la main, impossible de
+déclarer un distributeur local (Tahiti) sans lui appliquer douane et fret
+import, et rien pour un fournisseur qui envoie un CSV/Excel.
+
+### Trois modes de prix (`Product.pricing_mode`)
+
+| Mode | Formule | Gardes-fous de publication | Usage |
+|------|---------|----------------------------|-------|
+| `import` (défaut, comportement historique) | CAF = coût + fret import + assurance → douane → marge → taxe | taux de douane résolu **et** poids > 0 | distributeur hors territoire douanier (Ingram, fournisseur générique en France…) |
+| `domestic` | coût → marge → taxe (ni douane, ni fret import, pas de niveaux de service) | aucun | entrepôt local, distributeur du même territoire douanier |
+| `fixed` | `base_price` **est** le prix TTC saisi ; rien n'est recalculé | `base_price > 0` | article de l'entrepôt vendu à un prix décidé à la main, promo, lot |
+
+- La **marge** se résout `Product.margin_rate_pct` → `Category.default_margin_rate_pct` → `PriceGroup.margin_rate_pct` (défaut 30 %). Réponse à la question « la marge se définit dans la catégorie ? » : oui par défaut, surchargeable article par article ; à défaut des deux c'est le groupe tarifaire du client, comme avant.
+- `calculate_price_by_mode` (dropdown rapide/économique) ne renvoie des niveaux de service que pour le mode `import` : un article local ou à prix fixe n'a pas de tronçon import, la vitrine affiche `base_price`.
+- Toutes les lignes existantes sont migrées en `import` : **zéro changement de prix** sans action admin.
+
+### Table `suppliers` (remplace la config `.env` par fournisseur)
+
+Colonnes : `code` (clé de rapprochement = `Product.supplier_name`, immuable),
+`name`, `kind` ∈ `manual | file | api`, `adapter_key` (kind=api : clé de
+l'intégration dans le code, ex. `ingram_micro`), `origin_place_id` (entrepôt
+d'expédition → `Product.supplier_place_id`, premier tronçon et suivi),
+`is_domestic` (même territoire douanier → articles créés en `domestic`),
+`sync_enabled`, `sync_interval_hours`, `default_categories`, `price_currency`,
+`column_mapping` (kind=file), `settings` (JSON non secret propre à
+l'intégration : `environment`, `country_code`…), contact, notes.
+
+- **Les identifiants restent dans l'environnement** (`INGRAM_CLIENT_ID`…) : une base compromise ne livre pas les secrets ; l'admin voit seulement « identifiants présents / absents ». Les autres `INGRAM_*` ne servent plus qu'à amorcer la ligne `ingram_micro` (migration + `initial_data`) et de repli ; `INGRAM_SYNC_ENABLED` reste un coupe-circuit global.
+- **Trois méthodes** : `manual` (fournisseur générique : articles saisis à la main, `supplier_quantity` tenu par l'admin) ; `file` (CSV / `.xlsx` téléversé depuis Admin → Fournisseurs, mapping de colonnes mémorisé sur la ligne, simulation avant import, mêmes garde-fous que la sync : verrous admin, catégorie interne depuis la sous-catégorie, enrichissement Icecat des nouveautés) ; `api` (intégration du code, registre `ADAPTERS`).
+- **Planification** : plus un cron par fournisseur figé au démarrage du worker, mais trois *ticks* (`supplier_catalog_sync_tick` horaire, `supplier_inventory_sync_tick` toutes les 2 h, `supplier_api_health_check_tick` quotidien) qui relisent la table et enfilent un job par fournisseur dû. Créer, suspendre ou recadencer un fournisseur ne demande aucun redéploiement.
+- Un article manuel peut être rattaché à un fournisseur déclaré : `POST /admin/products` recopie l'entrepôt d'origine et le régime douanier (mode de prix) du fournisseur si le payload ne les fixe pas. Le stock fournisseur compte au checkout pour tout article qui a un fournisseur, synchronisé ou non.
+- La sync catalogue ne remet plus à zéro le coût et le stock d'un article quand la source ne les porte pas (le catalogue Ingram ne renvoie ni prix ni dispo) ; elle n'écrit ces champs que lorsqu'ils sont fournis (fichier, API prix/dispo).
+
+### Ajouter un fournisseur
+
+| Cas | Marche à suivre |
+|-----|-----------------|
+| Générique (Europe, sans API) | Admin → Fournisseurs → nouveau, méthode *Générique*, entrepôt d'origine `FR_SUPPLIERS`, régime import. Puis articles saisis à la main avec coût + devise (la douane part du coût, comme aujourd'hui). |
+| Distributeur local (Tahiti) | Même écran, régime **local** (`is_domestic`), lieu = son dépôt. Articles en `domestic` (coût + marge) ou `fixed` (prix TTC). |
+| Fichier CSV / Excel | Méthode *Fichier*, puis bouton *Importer* : le fichier est lu, les colonnes proposées, la correspondance enregistrée, *Simuler* puis *Importer*. |
+| Nouvelle API | Implémenter `SupplierAdapter` (`app/services/suppliers/<nom>.py`), l'enregistrer dans `ADAPTERS`, déclarer ses secrets dans `config.py`, puis créer la ligne `kind=api` avec cet `adapter_key`. |
+
+### Reste à faire
+
+- Adresse « ship-to » des bons de commande Ingram : toujours `INGRAM_SHIP_TO_*` ; à déplacer vers l'entrepôt principal (`Place`) quand la commande fournisseur sera généralisée aux autres fournisseurs (`supplier_order_service` reste spécifique Ingram).
+- Stratification du rafraîchissement des prix (voir *Rafraîchissement stratifié*) : le tick inventaire enfile tous les fournisseurs à la même cadence.
+- Import fichier volumineux (> 50 000 lignes) : passer par un job ARQ avec fichier déposé dans le stockage plutôt qu'en ligne dans la requête.
+
+---
+
 ## Décision transverse : catalogue de spécifications filtrables
 
 **Contexte** : Icecat renvoie les spécifications techniques dans une structure JSONB hétérogène (`name` varie selon le produit et la langue : « Mémoire installée », « RAM », « System Memory »…). Une requête frontend « memory_gb ≥ 16 » ne peut pas pointer directement vers une clé Icecat fiable. Une couche de normalisation backend est nécessaire — le frontend ne devine rien, il consomme un endpoint de facettes.

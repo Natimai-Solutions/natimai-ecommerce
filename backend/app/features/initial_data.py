@@ -5,6 +5,7 @@ from typing import Any
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.features.payment.crud.payment_method import crud_payment_method
 from app.features.payment.crud.payment_status import crud_payment_status
 from app.features.payment.models.payment_method import (
@@ -759,6 +760,46 @@ async def _seed_legal_identity_settings(session: AsyncSession) -> None:
         )
 
 
+async def _seed_suppliers(session: AsyncSession) -> None:
+    """Seed the historical distributor as a ``suppliers`` row (idempotent).
+
+    Synced products carry ``supplier_name = 'ingram_micro'``: the row keeps
+    them attached to a declared supplier. Created with the ``INGRAM_*``
+    environment defaults when missing; when present, only a missing origin
+    warehouse is filled in (the admin owns the rest from the back-office).
+    """
+    from app.features.integrations.models.supplier import Supplier, SupplierKind
+
+    origin_result = await session.exec(
+        select(Place).where(Place.code == settings.INGRAM_ORIGIN_PLACE_CODE)
+    )
+    origin = origin_result.first()
+
+    result = await session.exec(select(Supplier).where(Supplier.code == "ingram_micro"))
+    supplier = result.first()
+    if supplier is None:
+        session.add(
+            Supplier(
+                code="ingram_micro",
+                name="Ingram Micro",
+                kind=SupplierKind.API,
+                adapter_key="ingram_micro",
+                origin_place_id=origin.id if origin is not None else None,
+                is_domestic=False,
+                sync_enabled=bool(settings.INGRAM_SYNC_ENABLED),
+                sync_interval_hours=int(settings.INGRAM_SYNC_INTERVAL_HOURS),
+                default_categories=list(settings.INGRAM_SYNC_CATEGORIES),
+                settings={
+                    "environment": settings.INGRAM_ENVIRONMENT,
+                    "country_code": settings.INGRAM_COUNTRY_CODE,
+                },
+            )
+        )
+    elif supplier.origin_place_id is None and origin is not None:
+        supplier.origin_place_id = origin.id
+        session.add(supplier)
+
+
 async def initial_data(session: AsyncSession) -> None:
     """Execute initial data."""
     await _seed_payment_statuses(session)
@@ -768,6 +809,7 @@ async def initial_data(session: AsyncSession) -> None:
     await _seed_tax_rates(session)
     await _seed_currency_rates(session)
     await _seed_france_papeete_import_corridor(session)
+    await _seed_suppliers(session)
     await _seed_french_polynesia_geography(session)
     await _seed_shipping_statuses(session)
     await _seed_security_groups(session)

@@ -1050,9 +1050,14 @@ async def _reserve_stock_for_checkout(
     )
 
     local_available = inventory.quantity if inventory is not None else Decimal("0.00")
-    supplier_available = (
-        product.supplier_quantity if product.is_supplier_managed else Decimal("0.00")
+    # Supplier stock counts for every product that has a supplier: the synced
+    # ones (refreshed by the inventory sync) and the manual ones linked to a
+    # generic supplier, whose quantity the admin maintains by hand or by file.
+    has_supplier = bool(
+        getattr(product, "is_supplier_managed", False)
+        or getattr(product, "supplier_name", None)
     )
+    supplier_available = product.supplier_quantity if has_supplier else Decimal("0.00")
 
     segments = _plan_checkout_fulfillment_segments(
         product=product,

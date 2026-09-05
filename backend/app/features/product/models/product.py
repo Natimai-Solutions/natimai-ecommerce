@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Any
 
 from sqlalchemy import JSON, Column
+from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
@@ -22,6 +23,22 @@ class SupplierType(str, Enum):
     ARROW = "arrow"
     AVNET = "avnet"
     LOCAL = "local"  # For locally managed products
+
+
+class PricingMode(str, Enum):
+    """How the storefront price of a product is obtained.
+
+    * ``import`` — CAF formula: cost + variable import freight + insurance,
+      then customs, margin and tax. Needs a customs rate and a weight.
+    * ``domestic`` — the goods never cross the customs border (own warehouse
+      or a supplier of the same customs territory): cost, margin, tax.
+    * ``fixed`` — ``base_price`` is the tax-inclusive sale price typed by the
+      admin; nothing is computed.
+    """
+
+    IMPORT = "import"
+    DOMESTIC = "domestic"
+    FIXED = "fixed"
 
 
 class ProductBase(Base):
@@ -44,7 +61,40 @@ class ProductBase(Base):
         default=Decimal("0.00"),
         ge=0,
         decimal_places=2,
-        description="Base price of the product (can be 0 for products without pricing)",
+        description=(
+            "Sale price. In pricing_mode 'fixed' it is the tax-inclusive price "
+            "set by the admin; in the computed modes it is overwritten at read "
+            "time by the pricing service (0 = not priced yet)."
+        ),
+    )
+    pricing_mode: PricingMode = Field(
+        default=PricingMode.IMPORT,
+        # Stored as its value ('import'), not its name, in a plain VARCHAR —
+        # the migration and the admin API speak the value.
+        sa_column=Column(
+            SAEnum(
+                PricingMode,
+                values_callable=lambda enum: [m.value for m in enum],
+                native_enum=False,
+                length=20,
+            ),
+            nullable=False,
+            server_default=PricingMode.IMPORT.value,
+            index=True,
+        ),
+        description=(
+            "import (CAF + customs), domestic (cost + margin + tax, no customs "
+            "nor import freight) or fixed (base_price is the TTC price)"
+        ),
+    )
+    margin_rate_pct: Decimal | None = Field(
+        default=None,
+        ge=0,
+        decimal_places=2,
+        description=(
+            "Margin override for this product. None → Category."
+            "default_margin_rate_pct → PriceGroup.margin_rate_pct."
+        ),
     )
     cost_amount: Decimal = Field(
         default=Decimal("0.00"),
@@ -267,11 +317,16 @@ class ProductUpdate(ProductBase, BaseUpdate):
     name: str | None = None
     description: str | None = None
     base_price: Decimal | None = None
+    pricing_mode: PricingMode | None = None
+    margin_rate_pct: Decimal | None = None
     cost_amount: Decimal | None = None
     cost_currency: str | None = None
     customs_rate_pct: Decimal | None = None
     has_variants: bool | None = None
     category_id: uuid.UUID | None = None
+    supplier_quantity: Decimal | None = None
+    supplier_price: Decimal | None = None
+    supplier_price_currency: str | None = None
 
     # Generic supplier fields (optional for updates)
     supplier_sku: str | None = None

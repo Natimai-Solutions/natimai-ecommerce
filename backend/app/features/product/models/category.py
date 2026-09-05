@@ -54,6 +54,16 @@ class CategoryBase(Base):
             "(used when Product.customs_rate_pct is not set)"
         ),
     )
+    default_margin_rate_pct: Decimal | None = Field(
+        default=None,
+        ge=0,
+        decimal_places=2,
+        description=(
+            "Default margin percentage for products in this category. None → "
+            "the customer's price group margin applies (Product.margin_rate_pct "
+            "still overrides both)."
+        ),
+    )
 
 
 class CategoryCreate(CategoryBase, BaseCreate):
@@ -66,6 +76,8 @@ class CategoryUpdate(CategoryBase, BaseUpdate):
     """Represents category update."""
 
     default_tax_rate_id: uuid.UUID | None = None
+    default_customs_rate_pct: Decimal | None = None
+    default_margin_rate_pct: Decimal | None = None
 
 
 class Category(CategoryBase, table=True):

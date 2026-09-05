@@ -77,7 +77,12 @@ class SupplierSyncLogCrud(
         sync_log = await self.read(session=session, id=sync_log_id)
         duration_seconds = None
         if sync_log.started_at:
-            duration_seconds = (completed_at - sync_log.started_at).total_seconds()
+            # The column is naive in Postgres: a value read back has no tzinfo
+            # while ``completed_at`` is UTC-aware. Read the stored one as UTC.
+            started_at = sync_log.started_at
+            if started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=timezone.utc)
+            duration_seconds = (completed_at - started_at).total_seconds()
 
         update_data = SupplierSyncLogUpdate(
             status=status,

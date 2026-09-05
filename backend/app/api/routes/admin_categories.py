@@ -48,6 +48,7 @@ class AdminCategoryItem(BaseModel):
     is_active: bool
     default_tax_rate_id: uuid.UUID | None
     default_customs_rate_pct: Decimal | None
+    default_margin_rate_pct: Decimal | None = None
     merged_into_id: uuid.UUID | None
     merged_into_name: str | None = None
     product_count: int = 0
@@ -68,6 +69,9 @@ class AdminCategoryUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=500)
     image_url: str | None = Field(default=None, max_length=500)
     is_active: bool | None = None
+    #: Marge par défaut des articles de la catégorie (None = celle du groupe
+    #: tarifaire du client). Un article peut la surcharger.
+    default_margin_rate_pct: Decimal | None = Field(default=None, ge=0)
 
 
 class MergeBody(BaseModel):
@@ -98,6 +102,7 @@ def _to_item(
         is_active=category.is_active,
         default_tax_rate_id=category.default_tax_rate_id,
         default_customs_rate_pct=category.default_customs_rate_pct,
+        default_margin_rate_pct=category.default_margin_rate_pct,
         merged_into_id=category.merged_into_id,
         merged_into_name=merged_into_name,
         product_count=product_count,

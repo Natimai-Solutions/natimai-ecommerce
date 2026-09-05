@@ -59,53 +59,117 @@
             bottom-slots
           />
 
-          <div class="text-subtitle2 q-mt-sm q-mb-xs">Prix &amp; taxes</div>
+          <div class="text-subtitle2 q-mt-sm q-mb-xs">Approvisionnement</div>
           <div class="row" style="gap: 8px">
-            <q-input
-              v-model="form.cost_amount"
-              label="Coût"
-              type="number"
-              step="0.01"
-              outlined
-              dense
-              bottom-slots
-              class="col"
-            />
             <q-select
-              v-model="form.cost_currency"
-              :options="currencyOptions"
-              label="Devise du coût"
+              v-model="form.supplier_name"
+              :options="supplierOptions"
+              label="Fournisseur"
+              hint="Vide = article de votre entrepôt, sans fournisseur"
               outlined
               dense
               bottom-slots
               emit-value
               map-options
+              clearable
               class="col"
+              :disable="isEdit && !!product?.is_supplier_managed"
+              @update:model-value="onSupplierChange"
             />
-          </div>
-          <div class="row" style="gap: 8px">
             <q-input
-              v-model="form.customs_rate_pct"
-              label="Douane (%)"
-              hint="Vide = taux par défaut de la catégorie"
-              type="number"
-              step="0.01"
+              v-model="form.supplier_sku"
+              label="Référence chez le fournisseur"
               outlined
               dense
               bottom-slots
               class="col"
             />
+          </div>
+          <q-input
+            v-if="form.supplier_name && !product?.is_supplier_managed"
+            v-model="form.supplier_quantity"
+            label="Stock disponible chez le fournisseur"
+            hint="Tenu à jour à la main (ou par import fichier) — 0 = indisponible"
+            type="number"
+            step="1"
+            min="0"
+            outlined
+            dense
+            bottom-slots
+          />
+
+          <div class="text-subtitle2 q-mt-sm q-mb-xs">Prix &amp; taxes</div>
+          <q-option-group
+            v-model="form.pricing_mode"
+            :options="pricingModeOptions"
+            inline
+            dense
+          />
+          <div class="text-caption text-grey-7 q-mb-sm">{{ pricingModeHint }}</div>
+
+          <template v-if="form.pricing_mode === 'fixed'">
             <q-input
               v-model="form.base_price"
-              label="Prix de base (0 = calculé)"
+              label="Prix de vente TTC *"
+              hint="Prix affiché tel quel, taxes comprises"
               type="number"
               step="0.01"
+              min="0"
               outlined
               dense
               bottom-slots
-              class="col"
             />
-          </div>
+          </template>
+          <template v-else>
+            <div class="row" style="gap: 8px">
+              <q-input
+                v-model="form.cost_amount"
+                label="Coût d'achat"
+                type="number"
+                step="0.01"
+                outlined
+                dense
+                bottom-slots
+                class="col"
+              />
+              <q-select
+                v-model="form.cost_currency"
+                :options="currencyOptions"
+                label="Devise du coût"
+                outlined
+                dense
+                bottom-slots
+                emit-value
+                map-options
+                class="col"
+              />
+            </div>
+            <div class="row" style="gap: 8px">
+              <q-input
+                v-if="form.pricing_mode === 'import'"
+                v-model="form.customs_rate_pct"
+                label="Douane (%)"
+                hint="Vide = taux par défaut de la catégorie"
+                type="number"
+                step="0.01"
+                outlined
+                dense
+                bottom-slots
+                class="col"
+              />
+              <q-input
+                v-model="form.margin_rate_pct"
+                label="Marge (%)"
+                hint="Vide = marge de la catégorie, sinon du groupe tarifaire"
+                type="number"
+                step="0.01"
+                outlined
+                dense
+                bottom-slots
+                class="col"
+              />
+            </div>
+          </template>
           <div class="row" style="gap: 8px">
             <q-select
               v-model="form.category_id"
@@ -221,10 +285,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { categoryLabel, listCategories, type Category } from 'src/api/categories';
 import { listTaxRates, type TaxRate } from 'src/api/taxRates';
 import { listPlaces, type Place } from 'src/api/logistics';
+import { listSuppliers, type Supplier } from 'src/api/suppliers';
 import { useProductsStore, type ProductPublic } from 'src/stores/products';
 
 const props = defineProps<{ modelValue: boolean; product: ProductPublic | null }>();
@@ -235,10 +300,17 @@ const emit = defineEmits<{
 
 const store = useProductsStore();
 
+type PricingMode = 'import' | 'domestic' | 'fixed';
+
 interface FormState {
   name: string;
   description: string;
   long_description: string;
+  supplier_name: string | null;
+  supplier_sku: string;
+  supplier_quantity: string;
+  pricing_mode: PricingMode;
+  margin_rate_pct: string;
   cost_amount: string;
   cost_currency: string;
   customs_rate_pct: string;
@@ -264,13 +336,20 @@ const MONEY_FIELDS = ['cost_amount', 'base_price'] as const;
  * money fields would freeze a duty-free price on every product the admin ever
  * opens — the very bug the category default was introduced to fix.
  */
-const NULLABLE_RATE_FIELDS = ['customs_rate_pct'] as const;
+const NULLABLE_RATE_FIELDS = ['customs_rate_pct', 'margin_rate_pct'] as const;
+/** Decimal string, blank → '0.00' (the column is non-nullable). */
+const QUANTITY_FIELDS = ['supplier_quantity'] as const;
 
 function emptyForm(): FormState {
   return {
     name: '',
     description: '',
     long_description: '',
+    supplier_name: null,
+    supplier_sku: '',
+    supplier_quantity: '0',
+    pricing_mode: 'import',
+    margin_rate_pct: '',
     cost_amount: '0.00',
     cost_currency: 'XPF',
     customs_rate_pct: '',
@@ -303,6 +382,37 @@ const currencyOptions = [
 const categories = ref<Category[]>([]);
 const taxRates = ref<TaxRate[]>([]);
 const places = ref<Place[]>([]);
+const suppliers = ref<Supplier[]>([]);
+const supplierOptions = ref<{ label: string; value: string }[]>([]);
+
+const pricingModeOptions: { label: string; value: PricingMode }[] = [
+  { label: 'Import (CAF + douane)', value: 'import' },
+  { label: 'Local (coût + marge)', value: 'domestic' },
+  { label: 'Prix TTC fixé', value: 'fixed' },
+];
+const PRICING_MODE_HINTS: Record<PricingMode, string> = {
+  import:
+    'Coût + fret import + assurance, puis douane, marge et taxe. Douane et poids obligatoires pour la publication.',
+  domestic:
+    'Article de votre entrepôt ou d’un fournisseur du même territoire douanier : coût, marge, taxe — ni douane ni fret import.',
+  fixed: 'Vous saisissez le prix de vente TTC ; rien n’est recalculé.',
+};
+const pricingModeHint = computed(() => PRICING_MODE_HINTS[form.pricing_mode]);
+
+/**
+ * Choosing a supplier pre-fills what the supplier decides: its origin
+ * warehouse (first logistics leg) and its customs regime (pricing mode).
+ * Both stay editable — the admin has the last word.
+ */
+function onSupplierChange(code: string | null) {
+  const supplier = suppliers.value.find((s) => s.code === code);
+  if (!supplier) return;
+  if (supplier.origin_place_id) form.supplier_place_id = supplier.origin_place_id;
+  if (form.pricing_mode !== 'fixed') {
+    form.pricing_mode = supplier.is_domestic ? 'domestic' : 'import';
+  }
+  if (supplier.price_currency) form.cost_currency = supplier.price_currency;
+}
 const categoryOptions = ref<{ label: string; value: string }[]>([]);
 const taxRateOptions = ref<{ label: string; value: string }[]>([]);
 const placeOptions = ref<{ label: string; value: string }[]>([]);
@@ -314,10 +424,15 @@ const FIELD_LABELS: Record<string, string> = {
   name: 'Nom',
   description: 'Description courte',
   long_description: 'Description longue',
+  supplier_name: 'Fournisseur',
+  supplier_sku: 'Référence fournisseur',
+  supplier_quantity: 'Stock fournisseur',
+  pricing_mode: 'Mode de prix',
+  margin_rate_pct: 'Marge',
   cost_amount: 'Coût',
   cost_currency: 'Devise du coût',
   customs_rate_pct: 'Douane',
-  base_price: 'Prix de base',
+  base_price: 'Prix de vente',
   category_id: 'Catégorie',
   tax_rate_id: 'Taux de TVA',
   supplier_place_id: 'Origine',
@@ -370,6 +485,12 @@ function loadFromProduct(p: ProductPublic | null) {
     base.name = str(rec.name);
     base.description = str(rec.description);
     base.long_description = str(rec.long_description);
+    base.supplier_name = (rec.supplier_name as string | null) ?? null;
+    base.supplier_sku = str(rec.supplier_sku);
+    base.supplier_quantity = str(rec.supplier_quantity) || '0';
+    const mode = str(rec.pricing_mode);
+    base.pricing_mode = mode === 'domestic' || mode === 'fixed' ? mode : 'import';
+    base.margin_rate_pct = str(rec.margin_rate_pct);
     base.cost_amount = str(rec.cost_amount) || '0.00';
     base.cost_currency = str(rec.cost_currency) || 'XPF';
     base.customs_rate_pct = str(rec.customs_rate_pct);
@@ -398,6 +519,8 @@ function buildPayload(): Record<string, unknown> {
     if (isEdit.value && value === original[key]) continue;
     if (MONEY_FIELDS.includes(key as (typeof MONEY_FIELDS)[number])) {
       out[key] = str(value).trim() || '0.00';
+    } else if (QUANTITY_FIELDS.includes(key as (typeof QUANTITY_FIELDS)[number])) {
+      out[key] = str(value).trim() || '0';
     } else if (NULLABLE_RATE_FIELDS.includes(key as (typeof NULLABLE_RATE_FIELDS)[number])) {
       out[key] = str(value).trim() || null;
     } else if (typeof value === 'string') {
@@ -432,11 +555,18 @@ async function onSubmit() {
 
 async function loadLookups() {
   try {
-    [categories.value, taxRates.value, places.value] = await Promise.all([
+    [categories.value, taxRates.value, places.value, suppliers.value] = await Promise.all([
       listCategories(),
       listTaxRates({ valid: true }),
       listPlaces(),
+      listSuppliers(),
     ]);
+    supplierOptions.value = suppliers.value
+      .filter((s) => s.is_active)
+      .map((s) => ({
+        label: `${s.name}${s.is_domestic ? ' (local)' : ''} — ${s.code}`,
+        value: s.code,
+      }));
     categoryOptions.value = categories.value.map((c) => ({ label: categoryLabel(c), value: c.id }));
     taxRateOptions.value = taxRates.value.map((t) => ({
       label: `${t.label} (${t.rate_pct}%)`,

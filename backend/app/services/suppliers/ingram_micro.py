@@ -30,6 +30,7 @@ from app.services.suppliers.base import (
     NormalizedPricing,
     NormalizedProductData,
     SupplierAdapter,
+    SupplierConfig,
     SupplierHealth,
 )
 
@@ -61,8 +62,12 @@ class IngramProductData(BaseModel):
     description: str | None = Field(default=None, description="Product description")
     category: str = Field(description="Product category")
     subcategory: str | None = Field(default=None, description="Product subcategory")
-    price: float = Field(description="Unit price")
-    availability: int = Field(description="Available quantity")
+    price: float | None = Field(
+        default=None, description="Unit price (None: not in this payload)"
+    )
+    availability: int | None = Field(
+        default=None, description="Available quantity (None: not in this payload)"
+    )
     weight: float | None = Field(default=None, description="Product weight")
     dimensions: dict[str, float] | None = Field(
         default=None, description="Product dimensions"
@@ -77,12 +82,24 @@ class IngramProductData(BaseModel):
 
 
 class IngramMicroService:
-    """Low-level client for the Ingram Micro REST API."""
+    """Low-level client for the Ingram Micro REST API.
 
-    def __init__(self) -> None:
-        # Ingram Micro sandbox uses /sandbox prefix in the path
+    ``environment`` and ``country_code`` come from the supplier row
+    (``Supplier.settings``) and fall back to the ``INGRAM_*`` environment
+    variables; the credentials are environment-only.
+    """
+
+    def __init__(
+        self,
+        *,
+        environment: str | None = None,
+        country_code: str | None = None,
+    ) -> None:
         """Initialize the ingram micro service instance."""
-        if settings.INGRAM_ENVIRONMENT == "sandbox":
+        self.environment = environment or settings.INGRAM_ENVIRONMENT
+        self.country_code = country_code or settings.INGRAM_COUNTRY_CODE
+        # Ingram Micro sandbox uses /sandbox prefix in the path
+        if self.environment == "sandbox":
             self.base_url = f"{INGRAM_URL}/sandbox"
         else:
             self.base_url = INGRAM_URL
@@ -158,7 +175,7 @@ class IngramMicroService:
         headers = {
             "Authorization": f"Bearer {access_token}",
             "IM-CustomerNumber": self.customer_number,
-            "IM-CountryCode": settings.INGRAM_COUNTRY_CODE,
+            "IM-CountryCode": self.country_code,
             "IM-CorrelationID": correlation_id,
             "IM-SenderID": "FastAPI-Ecommerce",  # Optional but recommended
             "Content-Type": "application/json",
@@ -215,7 +232,7 @@ class IngramMicroService:
         headers = {
             "Authorization": f"Bearer {access_token}",
             "IM-CustomerNumber": self.customer_number,
-            "IM-CountryCode": settings.INGRAM_COUNTRY_CODE,
+            "IM-CountryCode": self.country_code,
             "IM-CorrelationID": correlation_id,
             "IM-SenderID": "FastAPI-Ecommerce",
             "Content-Type": "application/json",
@@ -347,8 +364,8 @@ class IngramMicroService:
                         description=item.get("extraDescription"),
                         category=item.get("category", ""),
                         subcategory=item.get("subCategory"),
-                        price=0.0,  # Not available in catalog endpoint
-                        availability=0,  # Not available in catalog endpoint
+                        price=None,  # Not available in catalog endpoint
+                        availability=None,  # Not available in catalog endpoint
                         weight=None,
                         dimensions=None,
                         image_url=None,
@@ -479,41 +496,77 @@ def _to_normalized_product(item: IngramProductData) -> NormalizedProductData:
 
 
 class IngramMicroAdapter(SupplierAdapter):
-    """Supplier adapter wrapping :class:`IngramMicroService`."""
+    """Supplier adapter wrapping :class:`IngramMicroService`.
 
-    name = "ingram_micro"
+    Bound to a ``suppliers`` row through :class:`SupplierConfig`. The row's
+    ``settings`` may carry ``environment`` (sandbox | production),
+    ``country_code`` and ``origin_place_code``; each falls back to the
+    matching ``INGRAM_*`` variable. ``INGRAM_SYNC_ENABLED`` stays a global
+    kill switch on top of the row's own ``sync_enabled``.
+    """
+
+    adapter_key = "ingram_micro"
     display_name = "Ingram Micro"
+    settings_keys = ("environment", "country_code", "origin_place_code")
     price_batch_size = 50
     # Enforced by the shared limiter in this module, which every
     # IngramMicroService call goes through.
     requests_per_minute = INGRAM_REQUESTS_PER_MINUTE
 
-    def __init__(self, service: IngramMicroService | None = None) -> None:
+    def __init__(
+        self,
+        config: SupplierConfig | None = None,
+        service: IngramMicroService | None = None,
+    ) -> None:
         """Initialize the ingram micro adapter instance."""
+        super().__init__(config)
         self._service = service
+
+    @property
+    def environment(self) -> str:
+        """Ingram environment: row setting, else ``INGRAM_ENVIRONMENT``."""
+        value = self.config.settings.get("environment")
+        return (
+            str(value)
+            if value in ("sandbox", "production")
+            else str(settings.INGRAM_ENVIRONMENT)
+        )
+
+    @property
+    def country_code(self) -> str:
+        """Ingram country code: row setting, else ``INGRAM_COUNTRY_CODE``."""
+        value = self.config.settings.get("country_code")
+        return str(value) if value else str(settings.INGRAM_COUNTRY_CODE)
 
     @property
     def service(self) -> IngramMicroService:
         # Built lazily so importing the module never triggers config access.
         """Execute service."""
         if self._service is None:
-            self._service = IngramMicroService()
+            self._service = IngramMicroService(
+                environment=self.environment, country_code=self.country_code
+            )
         return self._service
 
     # -- configuration ----------------------------------------------------
 
     @property
     def default_categories(self) -> list[str]:
-        """Execute default categories."""
-        return list(settings.INGRAM_SYNC_CATEGORIES)
+        """Row categories, else the ``INGRAM_SYNC_CATEGORIES`` default."""
+        configured = list(self.config.default_categories)
+        return configured or list(settings.INGRAM_SYNC_CATEGORIES)
 
     @property
     def origin_place_code(self) -> str | None:
-        """Place code where Ingram products ship from (drives the first leg)."""
-        return settings.INGRAM_ORIGIN_PLACE_CODE or None
+        """Place code where Ingram products ship from (drives the first leg).
 
-    def is_configured(self) -> bool:
-        """Check whether configured."""
+        Only used when the supplier row has no ``origin_place_id``.
+        """
+        return super().origin_place_code or settings.INGRAM_ORIGIN_PLACE_CODE or None
+
+    @classmethod
+    def credentials_present(cls) -> bool:
+        """The three Ingram secrets live in the environment."""
         return all(
             [
                 settings.INGRAM_CLIENT_ID,
@@ -523,21 +576,16 @@ class IngramMicroAdapter(SupplierAdapter):
         )
 
     def is_sync_enabled(self) -> bool:
-        """Check whether sync enabled."""
-        return bool(settings.INGRAM_SYNC_ENABLED)
-
-    def sync_interval_hours(self) -> int:
-        """Synchronize interval hours."""
-        return int(settings.INGRAM_SYNC_INTERVAL_HOURS)
+        """Row flag AND the global ``INGRAM_SYNC_ENABLED`` kill switch."""
+        return bool(settings.INGRAM_SYNC_ENABLED) and super().is_sync_enabled()
 
     def config_summary(self) -> dict[str, Any]:
         """Execute config summary."""
         summary = super().config_summary()
         summary.update(
             {
-                "environment": settings.INGRAM_ENVIRONMENT,
-                "country_code": settings.INGRAM_COUNTRY_CODE,
-                "sync_interval_hours": self.sync_interval_hours(),
+                "environment": self.environment,
+                "country_code": self.country_code,
             }
         )
         return summary

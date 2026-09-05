@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.features.product.models.category import Category
 from app.features.product.models.currency_rate import CurrencyRate
 from app.features.product.models.price_group import PriceGroup
-from app.features.product.models.product import Product
+from app.features.product.models.product import PricingMode, Product
 from app.features.product.models.tax_rate import TaxRate
 from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.services.pricing import (
@@ -281,6 +281,55 @@ async def resolve_customs_rate_pct(
     return _as_decimal(category_rate)
 
 
+def resolve_pricing_mode(product: Product) -> PricingMode:
+    """Read the product's pricing mode, defaulting to the historical CAF mode.
+
+    Read defensively (tests and admin previews hand in lightweight objects):
+    an unknown or missing value is the import mode, never a cheaper one.
+    """
+    raw = getattr(product, "pricing_mode", None)
+    if isinstance(raw, PricingMode):
+        return raw
+    try:
+        return PricingMode(str(raw))
+    except (TypeError, ValueError):
+        return PricingMode.IMPORT
+
+
+async def resolve_margin_rate_pct(
+    session: AsyncSession,
+    product: Product,
+    *,
+    group: PriceGroup | None,
+) -> Decimal:
+    """Resolve the margin applied to a product.
+
+    Resolution order, mirroring the customs and tax rates:
+    1) Product.margin_rate_pct (per-article override)
+    2) Category.default_margin_rate_pct (the category is where a margin is
+       normally decided)
+    3) PriceGroup.margin_rate_pct (the customer's price group), else 30 %.
+    """
+    product_rate = getattr(product, "margin_rate_pct", None)
+    if product_rate is not None:
+        return _as_decimal(product_rate)
+
+    category_id = getattr(product, "category_id", None)
+    if category_id is not None:
+        try:
+            category = await session.get(Category, category_id)
+        except Exception:
+            category = None
+        category_rate = getattr(category, "default_margin_rate_pct", None)
+        if category_rate is not None:
+            return _as_decimal(category_rate)
+
+    return _as_decimal(
+        group.margin_rate_pct if group is not None else None,
+        default=_DEFAULT_MARGIN_RATE_PCT,
+    )
+
+
 def _compute_volume_m3(product: Product) -> Decimal | None:
     """Return product volume in m³ from dimensions in cm, or None if any dim is missing."""
     length = getattr(product, "dimensions_length", None)
@@ -307,9 +356,17 @@ async def calculate_sale_price(
     territory: str = _DEFAULT_TERRITORY_CODE,
     import_route: ShippingRoute | None = None,
 ) -> Decimal:
-    """Calculate product sale price using the CAF customs base.
+    """Calculate the product sale price according to its ``pricing_mode``.
 
-    Formula:
+    ``fixed`` — ``base_price`` is the tax-inclusive price the admin typed;
+    it is returned as is.
+
+    ``domestic`` — the goods never cross the customs border (own warehouse,
+    or a supplier of the same customs territory):
+        sale_price = cost_in_reference × (1 + margin_rate_pct / 100)
+                                       × (1 + tax_rate_pct / 100)
+
+    ``import`` (default) — CAF customs base:
         insurance = (cost_in_reference + freight_variable) × insurance_rate
         caf       = cost_in_reference + freight_variable + insurance
         landed    = caf × (1 + customs_rate_pct / 100)
@@ -318,17 +375,24 @@ async def calculate_sale_price(
     ``import_route``: the import leg (e.g. France → Papeete). When provided,
     its variable freight (price_per_kg × billable_weight) enters the CAF base.
     When None the freight component is zero (backward-compatible, useful for
-    admin previews where no route has been chosen yet).
+    admin previews where no route has been chosen yet). Ignored outside the
+    import mode.
+
+    The margin resolves product → category → price group
+    (:func:`resolve_margin_rate_pct`).
 
     Raises CurrencyRateMissing for unknown cost currencies.
     """
+    mode = resolve_pricing_mode(product)
+    if mode is PricingMode.FIXED:
+        return _quantize_money(_as_decimal(getattr(product, "base_price", None)))
+
     effective_group = group
     if effective_group is None:
         effective_group = await resolve_default_price_group(session)
 
-    margin_rate_pct = _as_decimal(
-        effective_group.margin_rate_pct if effective_group is not None else None,
-        default=_DEFAULT_MARGIN_RATE_PCT,
+    margin_rate_pct = await resolve_margin_rate_pct(
+        session, product, group=effective_group
     )
     raw_cost = _as_decimal(
         getattr(product, "cost_amount", None),
@@ -337,15 +401,27 @@ async def calculate_sale_price(
     cost_currency = (
         getattr(product, "cost_currency", None) or settings.REFERENCE_CURRENCY
     )
+
+    cost_in_reference, _fx_rate = await convert_to_reference_currency(
+        session, raw_cost, cost_currency
+    )
+
+    tax_rate = await resolve_tax_rate(session, product, territory=territory)
+    tax_rate_pct = _as_decimal(tax_rate.rate_pct if tax_rate is not None else None)
+
+    if mode is PricingMode.DOMESTIC:
+        sale_price = (
+            cost_in_reference
+            * (Decimal("1.00") + (margin_rate_pct / Decimal("100")))
+            * (Decimal("1.00") + (tax_rate_pct / Decimal("100")))
+        )
+        return _quantize_money(sale_price)
+
     # None (neither product nor category rate) prices as 0 here, but such a
     # product is not publishable and cannot reach the cart — see
     # services/publication.py. Keeping this total avoids breaking admin
     # previews of products still being set up.
     customs_rate_pct = _as_decimal(await resolve_customs_rate_pct(session, product))
-
-    cost_in_reference, _fx_rate = await convert_to_reference_currency(
-        session, raw_cost, cost_currency
-    )
 
     # Variable freight from import route (price_per_kg × billable_weight).
     # The fixed base_price/handling fee is NOT included here: it belongs to
@@ -374,9 +450,6 @@ async def calculate_sale_price(
 
     caf = cost_in_reference + freight_variable + insurance
 
-    tax_rate = await resolve_tax_rate(session, product, territory=territory)
-    tax_rate_pct = _as_decimal(tax_rate.rate_pct if tax_rate is not None else None)
-
     sale_price = (
         caf
         * (Decimal("1.00") + (customs_rate_pct / Decimal("100")))
@@ -401,8 +474,14 @@ async def calculate_price_by_mode(
     otherwise by ``route_id``). The caller uses this list to build the
     ``shipping_modes`` payload returned in the product API response.
     The frontend can switch service levels locally without a refetch.
+
+    Only products in the ``import`` pricing mode have an import leg: for the
+    domestic and fixed modes the list is empty and the storefront shows the
+    single ``base_price``.
     """
     results: list[ShippingModePrice] = []
+    if resolve_pricing_mode(product) is not PricingMode.IMPORT:
+        return results
     for route in import_routes:
         weight_kg = _as_decimal(getattr(product, "weight", None))
         volume_m3 = _compute_volume_m3(product)

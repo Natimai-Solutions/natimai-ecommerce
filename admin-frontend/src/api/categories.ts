@@ -41,6 +41,8 @@ export interface AdminCategory {
   is_active: boolean;
   default_tax_rate_id: string | null;
   default_customs_rate_pct: string | null;
+  /** Marge par défaut des articles (null = celle du groupe tarifaire). */
+  default_margin_rate_pct: string | null;
   merged_into_id: string | null;
   merged_into_name: string | null;
   product_count: number;
@@ -51,6 +53,7 @@ export interface AdminCategoryUpdate {
   description?: string | null;
   image_url?: string | null;
   is_active?: boolean;
+  default_margin_rate_pct?: string | null;
 }
 
 export interface MergeResult {

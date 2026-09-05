@@ -1,0 +1,193 @@
+import { api } from 'src/boot/api';
+
+/** Méthode d'approvisionnement d'un fournisseur (voir backend `SupplierKind`). */
+export type SupplierKind = 'manual' | 'file' | 'api';
+
+export const SUPPLIER_KIND_LABELS: Record<SupplierKind, string> = {
+  manual: 'Générique (saisie manuelle)',
+  file: 'Fichier CSV / Excel',
+  api: 'API (intégration)',
+};
+
+export interface Supplier {
+  id: string;
+  /** Clé de rapprochement (Product.supplier_name) — immuable après création. */
+  code: string;
+  name: string;
+  kind: SupplierKind;
+  adapter_key: string | null;
+  origin_place_id: string | null;
+  is_domestic: boolean;
+  sync_enabled: boolean;
+  sync_interval_hours: number;
+  default_categories: string[] | null;
+  price_currency: string | null;
+  column_mapping: Record<string, string> | null;
+  settings: Record<string, unknown> | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  /** kind=api : l'intégration existe et ses identifiants sont présents. */
+  configured: boolean;
+}
+
+export interface SupplierCreate {
+  code: string;
+  name: string;
+  kind: SupplierKind;
+  adapter_key?: string | null;
+  origin_place_id?: string | null;
+  is_domestic?: boolean;
+  sync_enabled?: boolean;
+  sync_interval_hours?: number;
+  default_categories?: string[] | null;
+  price_currency?: string | null;
+  column_mapping?: Record<string, string> | null;
+  settings?: Record<string, unknown> | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  notes?: string | null;
+}
+
+export type SupplierUpdate = Partial<Omit<SupplierCreate, 'code'>> & { is_active?: boolean };
+
+export interface AdapterDescriptor {
+  key: string;
+  display_name: string;
+  configured: boolean;
+  settings_keys: string[];
+}
+
+export interface FileInspectResponse {
+  filename: string;
+  headers: string[];
+  sample_rows: Record<string, string>[];
+  total_rows: number;
+  mapping_targets: string[];
+  required_targets: string[];
+  mapping_problems: string[];
+}
+
+export interface FileImportRowError {
+  row_number: number;
+  message: string;
+}
+
+export interface FileImportResponse {
+  supplier_name: string;
+  filename: string;
+  dry_run: boolean;
+  total_rows: number;
+  parsed_products: number;
+  rejected_rows: number;
+  row_errors: FileImportRowError[];
+  statistics: Record<string, number>;
+  sync_errors: { sku: string; error: string }[];
+  sync_log_id: string | null;
+  sample: Record<string, unknown>[];
+}
+
+export interface SyncResponse {
+  job_id: string;
+  supplier_name: string;
+  status: string;
+  message: string;
+  timestamp: string;
+}
+
+export interface HealthResponse {
+  supplier_name: string;
+  status: string;
+  api_responsive: boolean;
+  configuration_valid: boolean;
+  last_sync: string | null;
+  message: string;
+}
+
+/** Libellés des champs internes qu'un mapping de colonnes peut viser. */
+export const MAPPING_TARGET_LABELS: Record<string, string> = {
+  supplier_sku: 'Référence fournisseur (SKU) *',
+  name: 'Désignation *',
+  description: 'Description',
+  manufacturer: 'Marque / fabricant',
+  vendor_part_number: 'Référence fabricant',
+  category: 'Catégorie fournisseur',
+  subcategory: 'Sous-catégorie (→ catégorie interne)',
+  price: 'Prix d’achat (coût)',
+  currency: 'Devise du prix',
+  quantity: 'Stock disponible',
+  weight: 'Poids (kg)',
+  image_url: 'URL image',
+  spec_url: 'URL fiche technique',
+  upc: 'UPC',
+  ean: 'EAN',
+};
+
+export async function listSuppliers(): Promise<Supplier[]> {
+  const { data } = await api.get<{ data: Supplier[]; count: number }>('/admin/suppliers');
+  return data.data;
+}
+
+export async function listAdapters(): Promise<AdapterDescriptor[]> {
+  const { data } = await api.get<AdapterDescriptor[]>('/admin/suppliers/adapters');
+  return data;
+}
+
+export async function createSupplier(payload: SupplierCreate): Promise<Supplier> {
+  const { data } = await api.post<Supplier>('/admin/suppliers', payload);
+  return data;
+}
+
+export async function updateSupplier(code: string, payload: SupplierUpdate): Promise<Supplier> {
+  const { data } = await api.patch<Supplier>(`/admin/suppliers/${code}`, payload);
+  return data;
+}
+
+export async function deactivateSupplier(code: string): Promise<Supplier> {
+  const { data } = await api.delete<Supplier>(`/admin/suppliers/${code}`);
+  return data;
+}
+
+export async function inspectCatalogFile(code: string, file: File): Promise<FileInspectResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  const { data } = await api.post<FileInspectResponse>(
+    `/suppliers/${code}/import-file/inspect`,
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+  return data;
+}
+
+export async function importCatalogFile(
+  code: string,
+  file: File,
+  options: { mapping?: Record<string, string> | null; dryRun?: boolean },
+): Promise<FileImportResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  if (options.mapping) form.append('mapping', JSON.stringify(options.mapping));
+  const { data } = await api.post<FileImportResponse>(`/suppliers/${code}/import-file`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    params: { dry_run: options.dryRun ? 'true' : 'false' },
+  });
+  return data;
+}
+
+export async function triggerProductSync(code: string): Promise<SyncResponse> {
+  const { data } = await api.post<SyncResponse>(`/suppliers/${code}/sync/products`, {});
+  return data;
+}
+
+export async function triggerInventorySync(code: string): Promise<SyncResponse> {
+  const { data } = await api.post<SyncResponse>(`/suppliers/${code}/sync/inventory`, {});
+  return data;
+}
+
+export async function checkSupplierHealth(code: string): Promise<HealthResponse> {
+  const { data } = await api.get<HealthResponse>(`/suppliers/${code}/health`);
+  return data;
+}

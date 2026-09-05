@@ -115,6 +115,16 @@
               dense
             />
             <q-input v-model="editForm.image_url" label="URL de l'image" outlined dense />
+            <q-input
+              v-model="editForm.default_margin_rate_pct"
+              label="Marge par défaut (%)"
+              hint="Vide = marge du groupe tarifaire du client ; un article peut la surcharger"
+              type="number"
+              step="0.01"
+              min="0"
+              outlined
+              dense
+            />
             <div class="text-caption text-grey-7">
               Ces champs ne sont jamais réécrits par la synchronisation.
             </div>
@@ -200,6 +210,12 @@ const columns: QTableColumn[] = [
   { name: 'status', label: 'Statut', field: 'is_active', align: 'left' },
   { name: 'product_count', label: 'Produits', field: 'product_count', align: 'right' },
   { name: 'customs', label: 'Douane', field: 'default_customs_rate_pct', align: 'left' },
+  {
+    name: 'margin',
+    label: 'Marge',
+    field: (r) => (r.default_margin_rate_pct ? `${r.default_margin_rate_pct} %` : '—'),
+    align: 'left',
+  },
   { name: 'actions', label: '', field: 'id', align: 'right' },
 ];
 
@@ -239,10 +255,16 @@ const editDialog = ref(false);
 const editing = ref<AdminCategory | null>(null);
 const saving = ref(false);
 const dialogError = ref<string | null>(null);
-const editForm = reactive<{ display_name: string | null; description: string; image_url: string }>({
+const editForm = reactive<{
+  display_name: string | null;
+  description: string;
+  image_url: string;
+  default_margin_rate_pct: string;
+}>({
   display_name: '',
   description: '',
   image_url: '',
+  default_margin_rate_pct: '',
 });
 
 function openEdit(category: AdminCategory) {
@@ -251,6 +273,7 @@ function openEdit(category: AdminCategory) {
   editForm.display_name = category.display_name ?? '';
   editForm.description = category.description ?? '';
   editForm.image_url = category.image_url ?? '';
+  editForm.default_margin_rate_pct = category.default_margin_rate_pct ?? '';
   editDialog.value = true;
 }
 
@@ -263,6 +286,7 @@ async function submitEdit() {
       display_name: (editForm.display_name ?? '').trim() || null,
       description: editForm.description.trim() || null,
       image_url: editForm.image_url.trim() || null,
+      default_margin_rate_pct: String(editForm.default_margin_rate_pct ?? '').trim() || null,
     });
     editDialog.value = false;
     await load();

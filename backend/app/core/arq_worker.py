@@ -22,6 +22,9 @@ from app.tasks.inventory_tasks import (
 from app.tasks.supplier_tasks import (
     check_supplier_health_task,
     get_supplier_sync_cron_jobs,
+    scheduled_supplier_catalog_sync_task,
+    scheduled_supplier_health_check_task,
+    scheduled_supplier_inventory_sync_task,
     sync_supplier_inventory_task,
     sync_supplier_products_task,
 )
@@ -78,10 +81,14 @@ class WorkerSettings:
             max_tries=OUTBOX_HANDLER_MAX_TRIES,
         ),
         example_handler,
-        # Tâches fournisseurs (multi-distributeurs)
+        # Tâches fournisseurs (multi-distributeurs, liste lue en base à
+        # chaque tick du planificateur)
         sync_supplier_products_task,
         sync_supplier_inventory_task,
         check_supplier_health_task,
+        scheduled_supplier_catalog_sync_task,
+        scheduled_supplier_inventory_sync_task,
+        scheduled_supplier_health_check_task,
         # Tâches Icecat
         enrich_product_with_icecat_task,
         batch_enrich_products_task,

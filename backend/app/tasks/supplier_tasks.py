@@ -2,7 +2,11 @@
 ARQ tasks for supplier synchronization.
 
 One parameterized task per operation (``supplier_name`` is always the first
-argument); the cron schedule iterates over every registered supplier.
+argument). Suppliers live in the database (``suppliers`` table): the cron
+schedule is therefore not one job per supplier baked in at worker start, but
+three *scheduler ticks* that read the table when they fire and enqueue one job
+per API-backed supplier that is due. Adding, pausing or re-cadencing a
+supplier in the admin takes effect at the next tick — no worker restart.
 """
 
 import hashlib
@@ -34,9 +38,13 @@ from app.features.product.services.pricing import (
     CurrencyRateMissing,
     convert_to_reference_currency,
 )
-from app.services.suppliers import all_adapters, get_adapter, has_supplier
+from app.services.suppliers import api_suppliers, resolve_adapter
+from app.services.suppliers.base import SupplierAdapter
 
 logger = logging.getLogger(__name__)
+
+#: Cadence of the price & availability refresh for every API supplier.
+INVENTORY_SYNC_EVERY_HOURS = 2
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -49,6 +57,25 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+async def _load_adapter(
+    session: AsyncSession, supplier_name: str
+) -> SupplierAdapter | dict[str, Any]:
+    """Resolve the adapter for a task, or the error payload to return instead."""
+    adapter = await resolve_adapter(session, supplier_name)
+    if adapter is None:
+        return {
+            "status": "error",
+            "message": f"Unknown or non-API supplier: {supplier_name}",
+        }
+    if not adapter.is_sync_enabled():
+        logger.debug("%s sync is disabled", supplier_name)
+        return {"status": "disabled", "message": "Sync disabled for this supplier"}
+    if not adapter.is_configured():
+        logger.error("%s credentials not configured", supplier_name)
+        return {"status": "error", "message": f"Missing {supplier_name} credentials"}
+    return adapter
+
+
 async def sync_supplier_products_task(
     _ctx: dict[str, Any],
     supplier_name: str,
@@ -56,24 +83,21 @@ async def sync_supplier_products_task(
     **_kwargs: Any,
 ) -> dict[str, Any]:
     """ARQ task: synchronize the catalog of ``supplier_name`` into the database."""
-    if not has_supplier(supplier_name):
-        return {"status": "error", "message": f"Unknown supplier: {supplier_name}"}
-
-    adapter = get_adapter(supplier_name)
-    if not adapter.is_sync_enabled():
-        logger.debug("%s sync is disabled in settings", supplier_name)
-        return {"status": "disabled", "message": "Sync disabled in settings"}
-    if not adapter.is_configured():
-        logger.error("%s credentials not configured", supplier_name)
-        return {"status": "error", "message": f"Missing {supplier_name} credentials"}
-
-    sync_categories = list(categories or adapter.default_categories)
-    logger.debug(
-        "Starting %s product sync for categories: %s", supplier_name, sync_categories
-    )
-
+    sync_categories: list[str] = list(categories or [])
     try:
         async with AsyncSession(engine) as session:
+            loaded = await _load_adapter(session, supplier_name)
+            if isinstance(loaded, dict):
+                return loaded
+            adapter = loaded
+
+            sync_categories = list(categories or adapter.default_categories)
+            logger.debug(
+                "Starting %s product sync for categories: %s",
+                supplier_name,
+                sync_categories,
+            )
+
             raw_job_id = _ctx.get("job_id")
             sync_log = await supplier_sync_log_crud.create_sync_log(
                 session=session,
@@ -233,16 +257,6 @@ async def sync_supplier_inventory_task(
     **_kwargs: Any,
 ) -> dict[str, Any]:
     """ARQ task: refresh price & availability for ``supplier_name`` products."""
-    if not has_supplier(supplier_name):
-        return {"status": "error", "message": f"Unknown supplier: {supplier_name}"}
-
-    adapter = get_adapter(supplier_name)
-    if not adapter.is_sync_enabled():
-        return {"status": "disabled", "message": "Sync disabled in settings"}
-    if not adapter.is_configured():
-        logger.error("%s credentials not configured", supplier_name)
-        return {"status": "error", "message": f"Missing {supplier_name} credentials"}
-
     logger.debug(
         "Starting %s inventory sync for %s products",
         supplier_name,
@@ -251,6 +265,11 @@ async def sync_supplier_inventory_task(
 
     try:
         async with AsyncSession(engine) as session:
+            loaded = await _load_adapter(session, supplier_name)
+            if isinstance(loaded, dict):
+                return loaded
+            adapter = loaded
+
             if not skus:
                 one_hour_ago = _now() - timedelta(hours=1)
                 # include_archived=True so we can also refresh (and potentially
@@ -280,6 +299,7 @@ async def sync_supplier_inventory_task(
             errors = 0
             # Cache FX rates within this sync run: currency_code → rate_to_reference (None = missing)
             _fx_rate_cache: dict[str, Decimal | None] = {}
+            fallback_currency = getattr(adapter, "price_currency", None) or "USD"
 
             for i in range(0, len(skus), batch_size):
                 batch_skus = skus[i : i + batch_size]
@@ -312,7 +332,7 @@ async def sync_supplier_inventory_task(
                             snapshot = normalize_supplier_snapshot(
                                 raw_price=data.price or 0,
                                 raw_quantity=data.quantity or 0,
-                                raw_currency=data.currency or "USD",
+                                raw_currency=data.currency or fallback_currency,
                             )
 
                             # Convert supplier price to the reference currency
@@ -419,10 +439,13 @@ async def check_supplier_health_task(
     _ctx: dict[str, Any], supplier_name: str, **_kwargs: Any
 ) -> dict[str, Any]:
     """ARQ task: probe ``supplier_name`` API health/connectivity."""
-    if not has_supplier(supplier_name):
-        return {"status": "error", "message": f"Unknown supplier: {supplier_name}"}
-
-    adapter = get_adapter(supplier_name)
+    async with AsyncSession(engine) as session:
+        adapter = await resolve_adapter(session, supplier_name)
+    if adapter is None:
+        return {
+            "status": "error",
+            "message": f"Unknown or non-API supplier: {supplier_name}",
+        }
     logger.debug("Checking %s API health", supplier_name)
     health = await adapter.health_check()
     return {
@@ -435,68 +458,125 @@ async def check_supplier_health_task(
     }
 
 
-# -- cron scheduling ------------------------------------------------------
+# -- scheduler ticks ---------------------------------------------------------
 
-# arq's ``cron()`` cannot pass arguments to the scheduled coroutine, so we wrap
-# each parameterized task in a tiny per-supplier closure.
+# arq's ``cron()`` cannot pass arguments to the scheduled coroutine, and the
+# supplier list lives in the database: each tick reads the table when it
+# fires and enqueues one dedicated job per due supplier.
 
 
-def _bind_supplier(task: Any, supplier_name: str, label: str) -> Any:
-    """Execute bind supplier."""
+def _catalog_sync_due(
+    *, interval_hours: int, last_started_at: datetime | None, now: datetime
+) -> bool:
+    """A catalog sync is due when none ran within the supplier's interval."""
+    if interval_hours <= 0:
+        return False
+    if last_started_at is None:
+        return True
+    return _as_utc(last_started_at) <= now - timedelta(hours=interval_hours)
 
-    async def _runner(ctx: dict[str, Any]) -> Any:
-        """Execute runner."""
-        return await task(ctx, supplier_name=supplier_name)
 
-    _runner.__name__ = f"{supplier_name}_{label}"
-    _runner.__qualname__ = _runner.__name__
-    return _runner
+async def _due_suppliers(
+    session: AsyncSession, *, catalog: bool
+) -> list[tuple[str, list[str]]]:
+    """Codes (and default categories) of the API suppliers to enqueue."""
+    due: list[tuple[str, list[str]]] = []
+    now = _now()
+    for supplier, adapter in await api_suppliers(session):
+        if not adapter.is_sync_enabled() or not adapter.is_configured():
+            continue
+        if catalog:
+            recent = await supplier_sync_log_crud.get_recent_syncs(
+                session,
+                supplier_name=supplier.code,
+                sync_type=SyncType.PRODUCT_CATALOG,
+                hours=max(int(adapter.sync_interval_hours()), 1) * 2,
+                limit=1,
+            )
+            last = recent[0].started_at if recent else None
+            if not _catalog_sync_due(
+                interval_hours=int(adapter.sync_interval_hours()),
+                last_started_at=last,
+                now=now,
+            ):
+                continue
+        due.append((supplier.code, list(adapter.default_categories)))
+    return due
+
+
+async def scheduled_supplier_catalog_sync_task(
+    _ctx: dict[str, Any], *_args: Any, **_kwargs: Any
+) -> dict[str, Any]:
+    """Hourly tick: enqueue a catalog sync for every supplier whose interval elapsed."""
+    enqueued: list[str] = []
+    async with AsyncSession(engine) as session:
+        due = await _due_suppliers(session, catalog=True)
+    for code, categories in due:
+        try:
+            await trigger_manual_sync(code, categories=categories or None)
+            enqueued.append(code)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Cannot enqueue catalog sync for %s: %s", code, exc)
+    return {"status": "ok", "enqueued": enqueued, "timestamp": _now().isoformat()}
+
+
+async def scheduled_supplier_inventory_sync_task(
+    _ctx: dict[str, Any],
+) -> dict[str, Any]:
+    """Two-hourly tick: enqueue a price & availability refresh per API supplier."""
+    enqueued: list[str] = []
+    async with AsyncSession(engine) as session:
+        due = await _due_suppliers(session, catalog=False)
+    for code, _categories in due:
+        try:
+            await trigger_inventory_refresh(code)
+            enqueued.append(code)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Cannot enqueue inventory sync for %s: %s", code, exc)
+    return {"status": "ok", "enqueued": enqueued, "timestamp": _now().isoformat()}
+
+
+async def scheduled_supplier_health_check_task(
+    _ctx: dict[str, Any], *_args: Any, **_kwargs: Any
+) -> dict[str, Any]:
+    """Daily tick: probe every API supplier."""
+    results: dict[str, str] = {}
+    async with AsyncSession(engine) as session:
+        pairs = await api_suppliers(session)
+    for supplier, adapter in pairs:
+        try:
+            health = await adapter.health_check()
+            results[supplier.code] = "healthy" if health.healthy else "unhealthy"
+        except Exception as exc:  # noqa: BLE001
+            results[supplier.code] = f"error: {exc}"
+    return {"status": "ok", "results": results, "timestamp": _now().isoformat()}
 
 
 def get_supplier_sync_cron_jobs() -> list[Any]:
-    """Build cron jobs for every registered & sync-enabled supplier."""
-    jobs: list[Any] = []
-    for adapter in all_adapters():
-        if not adapter.is_sync_enabled():
-            continue
-        name = adapter.name
-        interval = int(adapter.sync_interval_hours())
-
-        if interval > 0:
-            jobs.append(
-                cron(
-                    _bind_supplier(sync_supplier_products_task, name, "product_sync"),
-                    hour=set(range(0, 24, interval)),
-                    minute=0,
-                    second=0,
-                    name=f"{name}_product_sync",
-                )
-            )
-        else:
-            logger.debug(
-                "%s product sync cron disabled (sync_interval_hours=%s)",
-                name,
-                interval,
-            )
-        jobs.append(
-            cron(
-                _bind_supplier(sync_supplier_inventory_task, name, "inventory_sync"),
-                hour=set(range(0, 24, 2)),
-                minute=30,
-                second=0,
-                name=f"{name}_inventory_sync",
-            )
-        )
-        jobs.append(
-            cron(
-                _bind_supplier(check_supplier_health_task, name, "api_health_check"),
-                hour=6,
-                minute=0,
-                second=0,
-                name=f"{name}_api_health_check",
-            )
-        )
-    return jobs
+    """Build the three scheduler ticks (the supplier list is read at run time)."""
+    return [
+        cron(
+            scheduled_supplier_catalog_sync_task,  # type: ignore[arg-type]
+            hour=set(range(0, 24)),
+            minute=0,
+            second=0,
+            name="supplier_catalog_sync_tick",
+        ),
+        cron(
+            scheduled_supplier_inventory_sync_task,  # type: ignore[arg-type]
+            hour=set(range(0, 24, INVENTORY_SYNC_EVERY_HOURS)),
+            minute=30,
+            second=0,
+            name="supplier_inventory_sync_tick",
+        ),
+        cron(
+            scheduled_supplier_health_check_task,  # type: ignore[arg-type]
+            hour=6,
+            minute=0,
+            second=0,
+            name="supplier_api_health_check_tick",
+        ),
+    ]
 
 
 # -- manual triggers ------------------------------------------------------
@@ -544,7 +624,7 @@ async def _enqueue_with_dedup(
 async def trigger_manual_sync(
     supplier_name: str, categories: list[str] | None = None
 ) -> str:
-    """Queue a manual catalog sync for ``supplier_name``; returns the ARQ job ID."""
+    """Queue a catalog sync for ``supplier_name``; returns the ARQ job ID."""
     return await _enqueue_with_dedup(
         "sync_supplier_products_task",
         dedup_namespace=f"manual_sync_dedup:{supplier_name}",
@@ -557,7 +637,7 @@ async def trigger_manual_sync(
 async def trigger_inventory_refresh(
     supplier_name: str, skus: list[str] | None = None
 ) -> str:
-    """Queue a manual inventory refresh for ``supplier_name``; returns the ARQ job ID."""
+    """Queue an inventory refresh for ``supplier_name``; returns the ARQ job ID."""
     return await _enqueue_with_dedup(
         "sync_supplier_inventory_task",
         dedup_namespace=f"manual_inventory_dedup:{supplier_name}",
