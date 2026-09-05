@@ -43,6 +43,8 @@ export interface AdminOrderDetail {
   total_fees_amount: number;
   total_amount: number;
   shipping_address: string | null;
+  /** Last-leg mode chosen at checkout (home_delivery, pickup…). */
+  delivery_type: string | null;
   notes: string | null;
   lines: AdminOrderLineItem[];
   payments: AdminOrderPaymentItem[];

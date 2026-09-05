@@ -27,7 +27,15 @@ export interface Carrier {
   id: string;
   name: string;
   code: string;
+  /** https URL with a `{ref}` placeholder → « Suivre le colis » link for the customer. */
   tracking_url_template: string | null;
+  is_active: boolean;
+}
+
+export interface CarrierWrite {
+  name: string;
+  code: string;
+  tracking_url_template?: string | null;
 }
 
 export async function listPendingGrouping(): Promise<PendingTracking[]> {
@@ -35,9 +43,29 @@ export async function listPendingGrouping(): Promise<PendingTracking[]> {
   return data;
 }
 
-export async function listCarriers(): Promise<Carrier[]> {
-  const { data } = await api.get<Carrier[]>('/admin/shipping/carriers');
+export async function listCarriers(includeInactive = false): Promise<Carrier[]> {
+  const { data } = await api.get<Carrier[]>('/admin/shipping/carriers', {
+    params: includeInactive ? { include_inactive: true } : undefined,
+  });
   return data;
+}
+
+export async function createCarrier(payload: CarrierWrite): Promise<Carrier> {
+  const { data } = await api.post<Carrier>('/admin/shipping/carriers', payload);
+  return data;
+}
+
+export async function updateCarrier(
+  carrierId: string,
+  payload: Partial<CarrierWrite> & { is_active?: boolean },
+): Promise<Carrier> {
+  const { data } = await api.patch<Carrier>(`/admin/shipping/carriers/${carrierId}`, payload);
+  return data;
+}
+
+/** Soft: past shipments keep their carrier and tracking link. */
+export async function retireCarrier(carrierId: string): Promise<void> {
+  await api.delete(`/admin/shipping/carriers/${carrierId}`);
 }
 
 export async function listConsolidations(): Promise<Consolidation[]> {
@@ -110,9 +138,7 @@ export async function advanceConsolidation(
   return data;
 }
 
-export async function deliverConsolidation(
-  consolidationId: string,
-): Promise<{ message: string }> {
+export async function deliverConsolidation(consolidationId: string): Promise<{ message: string }> {
   const { data } = await api.post<{ message: string }>(
     `/admin/shipping/consolidations/${consolidationId}/deliver-all`,
   );
@@ -137,6 +163,12 @@ export interface JourneyLeg {
   status_name: string | null;
   tracking_ref: string | null;
   is_current: boolean;
+  carrier_id: string | null;
+  carrier_name: string | null;
+  tracking_url: string | null;
+  /** Closes with « Livrer » (customer delivery route or last sequence). */
+  is_final_leg: boolean;
+  is_terminal: boolean;
 }
 
 /** Ordered legs (tronçons 1..N) of an order's journey, names resolved. */

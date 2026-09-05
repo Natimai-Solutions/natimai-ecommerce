@@ -87,6 +87,7 @@ class AdminOrderDetail(BaseModel):
     total_fees_amount: float
     total_amount: float
     shipping_address: str | None = None
+    delivery_type: str | None = None
     notes: str | None = None
     lines: list[AdminOrderLineItem]
     payments: list[AdminOrderPaymentItem]
@@ -242,6 +243,7 @@ async def get_order_detail(
         total_fees_amount=float(order.total_fees_amount),
         total_amount=float(order.total_amount),
         shipping_address=order.shipping_address,
+        delivery_type=getattr(order, "delivery_type", None),
         notes=order.notes,
         lines=line_items,
         payments=payment_items,
