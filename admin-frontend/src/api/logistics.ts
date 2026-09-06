@@ -9,7 +9,13 @@ export interface Place {
   city: string | null;
   parent_id: string | null;
   is_warehouse: boolean;
+  /** The one warehouse supplier goods converge to (set via setMainWarehouse). */
+  is_main_warehouse: boolean;
   customs_clearance: boolean;
+  /** Supplier origin: 'domestic' | 'import' override, null = by country. */
+  customs_regime: string | null;
+  /** Supplier ships straight to the customer (dropshipping). */
+  dropship_enabled: boolean;
 }
 
 export interface PlaceCreate {
@@ -21,6 +27,14 @@ export interface PlaceCreate {
   parent_id?: string | null;
   is_warehouse?: boolean;
   customs_clearance?: boolean;
+  customs_regime?: string | null;
+  dropship_enabled?: boolean;
+}
+
+/** One row of a carrier's weight grid: `price` up to `max_kg` (null = and above). */
+export interface WeightBand {
+  max_kg: string | null;
+  price: string;
 }
 
 export interface ShippingRoute {
@@ -34,6 +48,8 @@ export interface ShippingRoute {
   eta_days: number | null;
   price_per_kg: string | null;
   base_price: string | null;
+  weight_bands: WeightBand[] | null;
+  free_shipping_threshold: string | null;
   is_to_customer: boolean;
   last_leg_delivery_type: string | null;
   always_available: boolean;
@@ -50,6 +66,8 @@ export interface ShippingRouteCreate {
   eta_days?: number | null;
   price_per_kg?: string | null;
   base_price?: string | null;
+  weight_bands?: WeightBand[] | null;
+  free_shipping_threshold?: string | null;
   is_to_customer?: boolean;
   last_leg_delivery_type?: string | null;
   always_available?: boolean;
@@ -73,6 +91,12 @@ export async function createPlace(payload: PlaceCreate): Promise<Place> {
 
 export async function updatePlace(id: string, payload: Partial<PlaceCreate>): Promise<Place> {
   const { data } = await api.put<Place>(`/place/${id}`, payload);
+  return data;
+}
+
+/** Flag `id` as the single main warehouse (the previous one is unflagged). */
+export async function setMainWarehouse(id: string): Promise<Place> {
+  const { data } = await api.post<Place>(`/place/${id}/set-main-warehouse`);
   return data;
 }
 
@@ -126,13 +150,9 @@ export async function getRouteServedPlaces(routeId: string): Promise<Place[]> {
   return data.places;
 }
 
-export async function setRouteServedPlaces(
-  routeId: string,
-  placeIds: string[],
-): Promise<Place[]> {
-  const { data } = await api.put<ServedPlacesResponse>(
-    `/shipping/route/${routeId}/served-places`,
-    { place_ids: placeIds },
-  );
+export async function setRouteServedPlaces(routeId: string, placeIds: string[]): Promise<Place[]> {
+  const { data } = await api.put<ServedPlacesResponse>(`/shipping/route/${routeId}/served-places`, {
+    place_ids: placeIds,
+  });
   return data.places;
 }

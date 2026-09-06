@@ -2,9 +2,10 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.features.payment.crud.payment_method import crud_payment_method
 from app.features.payment.crud.payment_status import crud_payment_status
 from app.features.payment.models.payment_method import (
@@ -29,6 +30,10 @@ from app.features.product.models.tax_rate import TaxRate
 from app.features.shipping.models.carrier import Carrier
 from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.models.status import StatusDefinition, StatusTransition
+from app.features.shipping.services.origin import (
+    CUSTOMS_FREE_COUNTRIES_DESCRIPTION,
+    CUSTOMS_FREE_COUNTRIES_KEY,
+)
 from app.features.system.legal_identity import LEGAL_SETTINGS, seed_value_for
 from app.features.system.models.system_setting import SystemSetting
 from app.features.user.models.group import Group
@@ -311,6 +316,15 @@ async def _seed_france_papeete_import_corridor(session: AsyncSession) -> None:
             is_warehouse=True,
             customs_clearance=True,
         )
+        session.add(ppt_place)
+
+    # The corridor's destination is the main warehouse — unless the admin has
+    # already flagged another place (never override a deliberate choice).
+    any_main = await session.exec(
+        select(Place).where(col(Place.is_main_warehouse).is_(True))
+    )
+    if any_main.first() is None:
+        ppt_place.is_main_warehouse = True
         session.add(ppt_place)
 
     # --- Rapide (avion) ---
@@ -759,6 +773,26 @@ async def _seed_legal_identity_settings(session: AsyncSession) -> None:
         )
 
 
+async def _seed_customs_free_countries_setting(session: AsyncSession) -> None:
+    """Create the (empty) customs-free countries key so it is editable in admin."""
+    result = await session.exec(
+        select(SystemSetting).where(SystemSetting.key == CUSTOMS_FREE_COUNTRIES_KEY)
+    )
+    existing = result.first()
+    if existing is not None:
+        if existing.description != CUSTOMS_FREE_COUNTRIES_DESCRIPTION:
+            existing.description = CUSTOMS_FREE_COUNTRIES_DESCRIPTION
+            session.add(existing)
+        return
+    session.add(
+        SystemSetting(
+            key=CUSTOMS_FREE_COUNTRIES_KEY,
+            value="",
+            description=CUSTOMS_FREE_COUNTRIES_DESCRIPTION,
+        )
+    )
+
+
 async def initial_data(session: AsyncSession) -> None:
     """Execute initial data."""
     await _seed_payment_statuses(session)
@@ -767,8 +801,13 @@ async def initial_data(session: AsyncSession) -> None:
     await _seed_carriers(session)
     await _seed_tax_rates(session)
     await _seed_currency_rates(session)
-    await _seed_france_papeete_import_corridor(session)
-    await _seed_french_polynesia_geography(session)
+    # Territory-specific starter data: skipped for a classic shop
+    # (SEED_FRENCH_POLYNESIA_LOGISTICS=false), which only needs carriers,
+    # statuses and its own warehouse → customer routes.
+    if settings.SEED_FRENCH_POLYNESIA_LOGISTICS:
+        await _seed_france_papeete_import_corridor(session)
+        await _seed_french_polynesia_geography(session)
     await _seed_shipping_statuses(session)
     await _seed_security_groups(session)
     await _seed_legal_identity_settings(session)
+    await _seed_customs_free_countries_setting(session)

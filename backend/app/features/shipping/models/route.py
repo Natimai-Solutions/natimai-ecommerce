@@ -6,9 +6,10 @@ Reusable logistics route and its steps.
 # mypy: disable-error-code="assignment,misc,override"
 
 import uuid
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any, Optional
 
+from pydantic import field_validator
 from sqlalchemy.dialects.postgresql import NUMERIC
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlmodel import JSON, Column, Field, Relationship, SQLModel
@@ -74,6 +75,27 @@ class ShippingRouteBase(Base):
     )
     price_per_kg: Decimal | None = Field(
         default=None, sa_column=Column(NUMERIC(10, 2)), description="Price per kg"
+    )
+    # Classic carrier grid: the weight part of the tariff by band instead of
+    # linear per-kg. [{"max_kg": 1, "price": 5}, {"max_kg": 3, "price": 8},
+    # {"max_kg": null, "price": 12}] — sorted ascending, an optional open last
+    # band (max_kg null) covers everything heavier. Above the last bounded
+    # band, price_per_kg bills the excess. Empty/null = linear per-kg.
+    weight_bands: list[dict[str, Any]] | None = Field(
+        default=None,
+        sa_column=Column(JSON),
+        description=(
+            "Weight bands [{max_kg, price}] replacing price_per_kg × weight; "
+            "null = linear per-kg pricing"
+        ),
+    )
+    free_shipping_threshold: Decimal | None = Field(
+        default=None,
+        sa_column=Column(NUMERIC(12, 2)),
+        description=(
+            "Franco: the route is free once the shipment's declared value "
+            "reaches this amount (reference currency). Null = never free."
+        ),
     )
     carbon_footprint_kg_co2e: float | None = Field(
         default=None, description="Carbon footprint kg CO2e"
@@ -149,6 +171,59 @@ class ShippingRouteBase(Base):
         default=None, sa_column=Column(JSON), description="Flexible metadata"
     )
 
+    @field_validator("weight_bands", mode="before")
+    @classmethod
+    def _normalize_weight_bands(cls, value: Any) -> list[dict[str, Any]] | None:
+        """Validate and sort the weight grid (runs on Create/Update payloads)."""
+        return normalize_weight_bands(value)
+
+
+def normalize_weight_bands(value: Any) -> list[dict[str, Any]] | None:
+    """Return a clean, ascending ``[{max_kg, price}]`` grid, or None when empty.
+
+    Rules: ``price`` >= 0; ``max_kg`` > 0 or null (open band, at most one, and
+    it must be the heaviest); no duplicate ``max_kg``. Values are stored as
+    strings so the JSON column keeps decimal precision.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise ValueError("weight_bands must be a list of {max_kg, price}")
+
+    bands: list[tuple[Decimal | None, Decimal]] = []
+    for raw in value:
+        if not isinstance(raw, dict):
+            raise ValueError("each weight band must be an object {max_kg, price}")
+        raw_max = raw.get("max_kg")
+        raw_price = raw.get("price")
+        try:
+            max_kg = None if raw_max in (None, "") else Decimal(str(raw_max))
+            price = Decimal(str(raw_price))
+        except (InvalidOperation, ValueError, TypeError) as exc:
+            raise ValueError("weight band max_kg/price must be numbers") from exc
+        if max_kg is not None and max_kg <= 0:
+            raise ValueError("weight band max_kg must be > 0")
+        if price < 0:
+            raise ValueError("weight band price must be >= 0")
+        bands.append((max_kg, price))
+
+    if not bands:
+        return None
+    open_bands = [b for b in bands if b[0] is None]
+    if len(open_bands) > 1:
+        raise ValueError("at most one open weight band (max_kg null)")
+    bounded = sorted(
+        (b for b in bands if b[0] is not None), key=lambda b: b[0] or Decimal("0")
+    )
+    if len({b[0] for b in bounded}) != len(bounded):
+        raise ValueError("duplicate weight band max_kg")
+
+    ordered = bounded + open_bands
+    return [
+        {"max_kg": None if max_kg is None else str(max_kg), "price": str(price)}
+        for max_kg, price in ordered
+    ]
+
 
 class ShippingRoute(ShippingRouteBase, table=True):
     """Reusable logistics route"""
@@ -209,6 +284,8 @@ class ShippingRouteUpdate(ShippingRouteBase, BaseUpdate):
     operator_ref: str | None = None
     base_price: Decimal | None = None
     price_per_kg: Decimal | None = None
+    weight_bands: list[dict[str, Any]] | None = None
+    free_shipping_threshold: Decimal | None = None
     carbon_footprint_kg_co2e: float | None = None
     eta_days: int | None = None
     max_weight_kg: float | None = None

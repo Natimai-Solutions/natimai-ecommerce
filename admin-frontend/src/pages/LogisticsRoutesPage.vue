@@ -32,7 +32,10 @@
       </template>
       <template #body-cell-warehouse="props">
         <q-td :props="props">
-          <q-icon v-if="props.row.is_warehouse" name="check" color="positive" />
+          <q-icon v-if="props.row.is_main_warehouse" name="star" color="amber-8" size="sm">
+            <q-tooltip>Entrepôt principal</q-tooltip>
+          </q-icon>
+          <q-icon v-else-if="props.row.is_warehouse" name="check" color="positive" />
           <span v-else>—</span>
         </q-td>
       </template>
@@ -42,8 +45,24 @@
           <span v-else>—</span>
         </q-td>
       </template>
+      <template #body-cell-origin="props">
+        <q-td :props="props">{{ originSummary(props.row) }}</q-td>
+      </template>
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
+          <q-btn
+            v-if="props.row.is_warehouse && !props.row.is_main_warehouse"
+            flat
+            dense
+            icon="star_outline"
+            color="amber-8"
+            @click="makeMainWarehouse(props.row)"
+          >
+            <q-tooltip max-width="300px">
+              Définir comme entrepôt principal : les articles fournisseur y convergent et le dernier
+              tronçon vers le client en part. L'ancien est déflaggé.
+            </q-tooltip>
+          </q-btn>
           <q-btn flat dense icon="edit" color="primary" @click="openPlaceEdit(props.row)">
             <q-tooltip>Modifier</q-tooltip>
           </q-btn>
@@ -83,6 +102,9 @@
         <q-td :props="props">
           {{ placeName(props.row.from_place_id) }} → {{ placeName(props.row.to_place_id) }}
         </q-td>
+      </template>
+      <template #body-cell-tariff="props">
+        <q-td :props="props">{{ tariffSummary(props.row) }}</q-td>
       </template>
       <template #body-cell-to_customer="props">
         <q-td :props="props">
@@ -194,6 +216,23 @@
             />
             <q-toggle v-model="placeForm.is_warehouse" label="Entrepôt" />
             <q-toggle v-model="placeForm.customs_clearance" label="Dédouanement" />
+            <template v-if="!isGeoType(placeForm.type)">
+              <q-select
+                v-model="placeForm.customs_regime"
+                :options="customsRegimeOptions"
+                label="Régime douanier (lieu d'origine fournisseur)"
+                outlined
+                dense
+                bottom-slots
+                emit-value
+                map-options
+                hint="Automatique : même pays que l'entrepôt principal (ou pays exempté dans les réglages) = local, sinon import. Forcez si ce pays fait exception."
+              />
+              <q-toggle
+                v-model="placeForm.dropship_enabled"
+                label="Dropshipping : ce fournisseur livre directement le client"
+              />
+            </template>
           </q-card-section>
           <q-card-actions align="right">
             <q-btn flat label="Annuler" v-close-popup />
@@ -317,6 +356,63 @@
                 class="col"
               />
             </div>
+            <div class="text-subtitle2 q-mt-xs">Grille par tranches de poids (optionnel)</div>
+            <div class="text-caption text-grey-7">
+              Remplace « prix/kg × poids » : le prix de la première tranche dont le plafond couvre
+              le poids taxable. Laissez le plafond vide pour une dernière tranche « et au-delà » ;
+              sinon, l'excédent au-dessus de la dernière tranche est facturé au prix/kg. Le forfait
+              s'ajoute.
+            </div>
+            <div
+              v-for="(band, index) in routeBands"
+              :key="index"
+              class="row items-start"
+              style="gap: 8px"
+            >
+              <q-input
+                v-model="band.max_kg"
+                label="Jusqu'à (kg)"
+                type="number"
+                step="0.001"
+                outlined
+                dense
+                bottom-slots
+                class="col"
+                :hint="band.max_kg.trim() ? undefined : 'vide = et au-delà'"
+              />
+              <q-input
+                v-model="band.price"
+                label="Prix (XPF)"
+                type="number"
+                step="0.01"
+                outlined
+                dense
+                bottom-slots
+                class="col"
+              />
+              <q-btn flat dense round icon="delete" @click="routeBands.splice(index, 1)">
+                <q-tooltip>Retirer la tranche</q-tooltip>
+              </q-btn>
+            </div>
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="add"
+              label="Ajouter une tranche"
+              @click="routeBands.push({ max_kg: '', price: '' })"
+            />
+            <q-input
+              v-model="routeForm.free_shipping_threshold"
+              label="Franco de port à partir de (XPF, valeur du panier)"
+              type="number"
+              step="0.01"
+              outlined
+              dense
+              bottom-slots
+              clearable
+              hint="Ce tronçon devient gratuit dès que la valeur expédiée atteint ce montant. Vide = jamais gratuit."
+            />
             <q-toggle v-model="routeForm.is_to_customer" label="Tronçon final (livraison client)" />
             <q-select
               v-if="routeForm.is_to_customer"
@@ -384,7 +480,9 @@ import {
   updateRoute,
   type Place,
   type ShippingRoute,
+  setMainWarehouse,
 } from 'src/api/logistics';
+import type { WeightBand } from 'src/api/logistics';
 import { extractApiError } from 'src/api/errors';
 import { countryOptions, type CountryOption } from '@app/utils';
 
@@ -444,9 +542,7 @@ const serviceLevelOptions = [
 // on a route, but let the admin type a new one (e.g. "sea_freight").
 const deliveryTypeAll = computed<string[]>(() => {
   const defaults = ['pickup', 'home_delivery', 'air_freight', 'sea_freight'];
-  const used = routes.value
-    .map((r) => r.last_leg_delivery_type)
-    .filter((v): v is string => !!v);
+  const used = routes.value.map((r) => r.last_leg_delivery_type).filter((v): v is string => !!v);
   return Array.from(new Set([...defaults, ...used])).sort();
 });
 const deliveryTypeSuggestions = ref<string[]>([]);
@@ -500,8 +596,34 @@ const placeColumns: QTableColumn[] = [
   { name: 'country', label: 'Pays', field: 'country', align: 'left' },
   { name: 'warehouse', label: 'Entrepôt', field: 'is_warehouse', align: 'center' },
   { name: 'customs', label: 'Douane', field: 'customs_clearance', align: 'center' },
+  { name: 'origin', label: 'Origine', field: 'customs_regime', align: 'left' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
 ];
+
+const customsRegimeOptions = [
+  { label: 'Automatique (selon le pays)', value: null },
+  { label: 'Local — sans douane ni fret import', value: 'domestic' },
+  { label: 'Import — douane et fret import', value: 'import' },
+];
+
+function originSummary(p: Place): string {
+  const parts: string[] = [];
+  if (p.customs_regime === 'domestic') parts.push('local');
+  else if (p.customs_regime === 'import') parts.push('import');
+  if (p.dropship_enabled) parts.push('dropship');
+  return parts.length > 0 ? parts.join(' · ') : '—';
+}
+
+async function makeMainWarehouse(p: Place) {
+  error.value = null;
+  try {
+    await setMainWarehouse(p.id);
+    notice.value = `${p.name} est désormais l'entrepôt principal.`;
+    await load();
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Opération impossible.';
+  }
+}
 const routeColumns: QTableColumn[] = [
   { name: 'name', label: 'Nom', field: 'name', align: 'left' },
   { name: 'path', label: 'Trajet', field: 'from_place_id', align: 'left' },
@@ -510,6 +632,7 @@ const routeColumns: QTableColumn[] = [
   { name: 'eta', label: 'Délai (j)', field: 'eta_days', align: 'left' },
   { name: 'price_per_kg', label: 'Prix/kg', field: 'price_per_kg', align: 'left' },
   { name: 'base_price', label: 'Forfait', field: 'base_price', align: 'left' },
+  { name: 'tariff', label: 'Grille / franco', field: 'weight_bands', align: 'left' },
   {
     name: 'delivery_mode',
     label: 'Mode last-leg',
@@ -544,6 +667,8 @@ const placeForm = reactive({
   parent_id: null as string | null,
   is_warehouse: true,
   customs_clearance: false,
+  customs_regime: null as string | null,
+  dropship_enabled: false,
 });
 const placePostalCodes = ref<string[]>([]);
 
@@ -556,6 +681,8 @@ function resetPlaceForm() {
   placeForm.parent_id = null;
   placeForm.is_warehouse = true;
   placeForm.customs_clearance = false;
+  placeForm.customs_regime = null;
+  placeForm.dropship_enabled = false;
   placePostalCodes.value = [];
 }
 
@@ -577,6 +704,8 @@ function openPlaceEdit(p: Place) {
   placeForm.parent_id = p.parent_id;
   placeForm.is_warehouse = p.is_warehouse;
   placeForm.customs_clearance = p.customs_clearance;
+  placeForm.customs_regime = p.customs_regime;
+  placeForm.dropship_enabled = p.dropship_enabled;
   placePostalCodes.value = [];
   if (isGeoType(p.type)) {
     getPlacePostalCodes(p.id)
@@ -608,6 +737,8 @@ async function submitPlace() {
     parent_id: placeForm.parent_id,
     is_warehouse: placeForm.is_warehouse,
     customs_clearance: placeForm.customs_clearance,
+    customs_regime: isGeoType(placeForm.type) ? null : placeForm.customs_regime,
+    dropship_enabled: isGeoType(placeForm.type) ? false : placeForm.dropship_enabled,
   };
   try {
     let saved: Place;
@@ -642,6 +773,7 @@ const routeForm = reactive<{
   eta_days: number | null;
   price_per_kg: string;
   base_price: string;
+  free_shipping_threshold: string;
   is_to_customer: boolean;
   last_leg_delivery_type: string | null;
   always_available: boolean;
@@ -655,11 +787,32 @@ const routeForm = reactive<{
   eta_days: null,
   price_per_kg: '',
   base_price: '',
+  free_shipping_threshold: '',
   is_to_customer: false,
   last_leg_delivery_type: null,
   always_available: false,
 });
 const routeServedPlaceIds = ref<string[]>([]);
+// Weight grid rows edited as strings (q-input); serialized on submit.
+const routeBands = ref<{ max_kg: string; price: string }[]>([]);
+
+function bandsPayload(): WeightBand[] | null {
+  const rows = routeBands.value
+    .filter((b) => b.price.trim() !== '')
+    .map((b) => ({ max_kg: b.max_kg.trim() || null, price: b.price.trim() }));
+  return rows.length > 0 ? rows : null;
+}
+
+function tariffSummary(r: ShippingRoute): string {
+  const parts: string[] = [];
+  if (r.weight_bands && r.weight_bands.length > 0) {
+    parts.push(`${r.weight_bands.length} tranche${r.weight_bands.length > 1 ? 's' : ''}`);
+  }
+  if (r.free_shipping_threshold) {
+    parts.push(`franco ≥ ${r.free_shipping_threshold}`);
+  }
+  return parts.length > 0 ? parts.join(' · ') : '—';
+}
 
 function resetRouteForm() {
   routeForm.name = '';
@@ -671,10 +824,12 @@ function resetRouteForm() {
   routeForm.eta_days = null;
   routeForm.price_per_kg = '';
   routeForm.base_price = '';
+  routeForm.free_shipping_threshold = '';
   routeForm.is_to_customer = false;
   routeForm.last_leg_delivery_type = null;
   routeForm.always_available = false;
   routeServedPlaceIds.value = [];
+  routeBands.value = [];
 }
 
 function openRouteCreate() {
@@ -696,6 +851,11 @@ function openRouteEdit(r: ShippingRoute) {
   routeForm.eta_days = r.eta_days;
   routeForm.price_per_kg = r.price_per_kg ?? '';
   routeForm.base_price = r.base_price ?? '';
+  routeForm.free_shipping_threshold = r.free_shipping_threshold ?? '';
+  routeBands.value = (r.weight_bands ?? []).map((b) => ({
+    max_kg: b.max_kg ?? '',
+    price: b.price,
+  }));
   routeForm.is_to_customer = r.is_to_customer;
   routeForm.last_leg_delivery_type = r.last_leg_delivery_type;
   routeForm.always_available = r.always_available;
@@ -737,10 +897,11 @@ async function submitRoute() {
         : null,
     price_per_kg: routeForm.price_per_kg.trim() || null,
     base_price: routeForm.base_price.trim() || null,
+    weight_bands: bandsPayload(),
+    // q-input clearable sets null; keep the payload a string or null.
+    free_shipping_threshold: (routeForm.free_shipping_threshold ?? '').trim() || null,
     is_to_customer: routeForm.is_to_customer,
-    last_leg_delivery_type: routeForm.is_to_customer
-      ? routeForm.last_leg_delivery_type
-      : null,
+    last_leg_delivery_type: routeForm.is_to_customer ? routeForm.last_leg_delivery_type : null,
     always_available: routeForm.is_to_customer ? routeForm.always_available : false,
   };
   try {

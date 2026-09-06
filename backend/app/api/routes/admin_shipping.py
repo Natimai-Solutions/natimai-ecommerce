@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 from sqlmodel import col, func, select
 
@@ -30,6 +30,10 @@ from app.features.shipping.models.route_tracking import (
     ShippingRouteTrackingConsolidationCreate,
 )
 from app.features.shipping.models.status import StatusDefinition, StatusDefinitionCreate
+from app.features.shipping.services.tracking_url import (
+    carrier_tracking_url,
+    validate_tracking_url_template,
+)
 from app.outbox.registry import outbox_registry
 
 router = APIRouter(prefix="/admin/shipping", tags=["admin-shipping"])
@@ -137,6 +141,31 @@ class AdminJourneyLeg(BaseModel):
     status_name: str | None
     tracking_ref: str | None
     is_current: bool
+    # Carrier hand-over (None = self-managed) + the customer's tracking link.
+    carrier_id: uuid.UUID | None = None
+    carrier_name: str | None = None
+    tracking_url: str | None = None
+    # Drives the order page's actions: the final leg closes with « Livrer »,
+    # a terminal leg has no action left.
+    is_final_leg: bool = False
+    is_terminal: bool = False
+
+
+class CarrierWriteRequest(BaseModel):
+    """Create / replace a carrier (admin « Transporteurs » page)."""
+
+    name: str = Field(..., min_length=1, max_length=100)
+    code: str = Field(..., min_length=1, max_length=50)
+    tracking_url_template: str | None = Field(default=None, max_length=500)
+
+
+class CarrierPatchRequest(BaseModel):
+    """Partial carrier update; ``is_active=False`` retires it from the selector."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    code: str | None = Field(default=None, min_length=1, max_length=50)
+    tracking_url_template: str | None = Field(default=None, max_length=500)
+    is_active: bool | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -368,14 +397,136 @@ async def list_consolidations(
 async def list_carriers(
     session: SessionDep,
     _admin: CurrentLogisticsAdmin,
+    include_inactive: bool = Query(
+        default=False,
+        description="Also return retired carriers (management page).",
+    ),
 ) -> list[CarrierPublic]:
-    """Active carriers for the « remise au transporteur » selector."""
-    result = await session.exec(
-        select(Carrier)
-        .where(col(Carrier.is_active).is_(True))
-        .order_by(col(Carrier.name).asc())
-    )
+    """Carriers for the « remise au transporteur » selector (active only by
+    default) and the management page."""
+    statement = select(Carrier).order_by(col(Carrier.name).asc())
+    if not include_inactive:
+        statement = statement.where(col(Carrier.is_active).is_(True))
+    result = await session.exec(statement)
     return [CarrierPublic.model_validate(c) for c in result.all()]
+
+
+def _normalize_carrier_code(code: str) -> str:
+    """Stable slug: lower-case, dashes/spaces → underscore."""
+    cleaned = code.strip().lower().replace("-", "_").replace(" ", "_")
+    if not cleaned:
+        raise AppError(
+            code="carrier.code.invalid",
+            status_code=400,
+            message="Le code du transporteur est requis",
+        )
+    return cleaned
+
+
+def _validated_template(template: str | None) -> str | None:
+    try:
+        return validate_tracking_url_template(template)
+    except ValueError as exc:
+        raise AppError(
+            code="carrier.tracking_url_template.invalid",
+            status_code=400,
+            message=str(exc),
+            details={"tracking_url_template": template},
+        ) from exc
+
+
+async def _ensure_carrier_code_free(
+    session: SessionDep, *, code: str, exclude_id: uuid.UUID | None = None
+) -> None:
+    statement = select(Carrier).where(col(Carrier.code) == code)
+    if exclude_id is not None:
+        statement = statement.where(col(Carrier.id) != exclude_id)
+    existing = (await session.exec(statement)).first()
+    if existing is not None:
+        raise AppError(
+            code="carrier.code.duplicate",
+            status_code=409,
+            message=f"Un transporteur porte déjà le code '{code}'",
+            details={"code": code, "carrier_id": str(existing.id)},
+        )
+
+
+async def _get_carrier_or_404(session: SessionDep, carrier_id: uuid.UUID) -> Carrier:
+    carrier = (
+        await session.exec(select(Carrier).where(col(Carrier.id) == carrier_id))
+    ).first()
+    if carrier is None:
+        raise AppError(
+            code="carrier.not_found",
+            status_code=404,
+            message=f"Transporteur '{carrier_id}' introuvable",
+            details={"carrier_id": str(carrier_id)},
+        )
+    return carrier
+
+
+@router.post("/carriers", response_model=CarrierPublic, status_code=201)
+async def create_carrier(
+    body: CarrierWriteRequest,
+    session: SessionDep,
+    admin: CurrentLogisticsAdmin,
+) -> CarrierPublic:
+    """Add a carrier (DHL, Chronopost, a local courier…) with its tracking-link
+    template. No carrier API: the reference is typed at hand-over."""
+    code = _normalize_carrier_code(body.code)
+    await _ensure_carrier_code_free(session, code=code)
+    carrier = Carrier(
+        name=body.name.strip(),
+        code=code,
+        tracking_url_template=_validated_template(body.tracking_url_template),
+        created_by_id=admin.id,
+    )
+    session.add(carrier)
+    await session.commit()
+    await session.refresh(carrier)
+    return CarrierPublic.model_validate(carrier)
+
+
+@router.patch("/carriers/{carrier_id}", response_model=CarrierPublic)
+async def update_carrier(
+    carrier_id: uuid.UUID,
+    body: CarrierPatchRequest,
+    session: SessionDep,
+    _admin: CurrentLogisticsAdmin,
+) -> CarrierPublic:
+    """Rename a carrier, fix its tracking template, or retire / restore it."""
+    carrier = await _get_carrier_or_404(session, carrier_id)
+    fields = body.model_dump(exclude_unset=True)
+    if "code" in fields and fields["code"] is not None:
+        code = _normalize_carrier_code(fields["code"])
+        await _ensure_carrier_code_free(session, code=code, exclude_id=carrier.id)
+        carrier.code = code
+    if "name" in fields and fields["name"] is not None:
+        carrier.name = fields["name"].strip()
+    if "tracking_url_template" in fields:
+        carrier.tracking_url_template = _validated_template(
+            fields["tracking_url_template"]
+        )
+    if "is_active" in fields and fields["is_active"] is not None:
+        carrier.is_active = fields["is_active"]
+    session.add(carrier)
+    await session.commit()
+    await session.refresh(carrier)
+    return CarrierPublic.model_validate(carrier)
+
+
+@router.delete("/carriers/{carrier_id}", response_model=OkResponse)
+async def retire_carrier(
+    carrier_id: uuid.UUID,
+    session: SessionDep,
+    _admin: CurrentLogisticsAdmin,
+) -> OkResponse:
+    """Retire a carrier (soft): past shipments keep their carrier and link."""
+    carrier = await _get_carrier_or_404(session, carrier_id)
+    carrier.is_active = False
+    session.add(carrier)
+    await session.commit()
+    return OkResponse(message="Transporteur retiré du sélecteur")
 
 
 @router.post("/consolidations", response_model=AdminConsolidationItem, status_code=201)
@@ -791,10 +942,20 @@ async def order_journey(
             current_id = t.id
             break
 
+    max_sequence = max(t.sequence_order for t in trackings)
+    carrier_ids = {t.carrier_id for t in trackings if t.carrier_id is not None}
+    carrier_by_id: dict[uuid.UUID, Carrier] = {}
+    if carrier_ids:
+        carriers_result = await session.exec(
+            select(Carrier).where(col(Carrier.id).in_(carrier_ids))
+        )
+        carrier_by_id = {c.id: c for c in carriers_result.all()}
+
     legs: list[AdminJourneyLeg] = []
     for t in trackings:
         st = status_by_id.get(t.status_id)
         route = route_by_id.get(t.route_id)
+        carrier = carrier_by_id.get(t.carrier_id) if t.carrier_id else None
         legs.append(
             AdminJourneyLeg(
                 tracking_id=t.id,
@@ -809,6 +970,15 @@ async def order_journey(
                 status_name=st.name if st else None,
                 tracking_ref=t.tracking_ref,
                 is_current=(t.id == current_id),
+                carrier_id=carrier.id if carrier else None,
+                carrier_name=carrier.name if carrier else None,
+                tracking_url=carrier_tracking_url(
+                    carrier.tracking_url_template if carrier else None,
+                    t.tracking_ref,
+                ),
+                is_final_leg=bool(route and route.is_to_customer)
+                or t.sequence_order >= max_sequence,
+                is_terminal=bool(st is not None and st.is_terminal),
             )
         )
     return legs
