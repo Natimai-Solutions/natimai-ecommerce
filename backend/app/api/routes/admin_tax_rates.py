@@ -51,6 +51,7 @@ from app.features.product.services.publication import (
     publication_conditions,
     weight_condition,
 )
+from app.tasks.pricing_tasks import schedule_price_refresh
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +162,8 @@ async def create_tax_rate(
         rate.territory_code,
         current_user.id,
     )
+    # A new rate may supersede the one products resolve to: refresh list prices.
+    await schedule_price_refresh(reason=f"tax_rate_created:{rate.code}")
     return TaxRatePublic.model_validate(rate)
 
 
@@ -201,6 +204,9 @@ async def update_tax_rate(
     session.add(rate)
     await session.commit()
     await session.refresh(rate)
+    if payload.valid_until is not None:
+        # Closing a rate changes which one applies: refresh list prices.
+        await schedule_price_refresh(reason=f"tax_rate_closed:{rate.code}")
     return TaxRatePublic.model_validate(rate)
 
 
@@ -230,10 +236,14 @@ async def assign_tax_rate_to_product(
             details={"product_id": str(product_id)},
         ) from exc
 
-    product.tax_rate_id = payload.tax_rate_id
-    session.add(product)
-    await session.commit()
-    await session.refresh(product)
+    # Through the CRUD: its update hook re-materializes ``sale_price_cached``.
+    product = await crud_product.update(
+        session,
+        id=product_id,
+        data={"tax_rate_id": payload.tax_rate_id},
+        record=product,
+        user=current_user,
+    )
     return ProductPublic.model_validate(product)
 
 
@@ -267,6 +277,7 @@ async def assign_tax_rate_to_category(
     session.add(category)
     await session.commit()
     await session.refresh(category)
+    await schedule_price_refresh(reason="category_tax_rate", category_id=category_id)
     return CategoryPublic.model_validate(category)
 
 
@@ -299,10 +310,14 @@ async def assign_customs_rate_to_product(
             details={"product_id": str(product_id)},
         ) from exc
 
-    product.customs_rate_pct = payload.customs_rate_pct
-    session.add(product)
-    await session.commit()
-    await session.refresh(product)
+    # Through the CRUD: its update hook re-materializes ``sale_price_cached``.
+    product = await crud_product.update(
+        session,
+        id=product_id,
+        data={"customs_rate_pct": payload.customs_rate_pct},
+        record=product,
+        user=current_user,
+    )
     return ProductPublic.model_validate(product)
 
 
@@ -328,6 +343,9 @@ async def assign_customs_rate_to_category(
     session.add(category)
     await session.commit()
     await session.refresh(category)
+    await schedule_price_refresh(
+        reason="category_customs_rate", category_id=category_id
+    )
     return CategoryPublic.model_validate(category)
 
 

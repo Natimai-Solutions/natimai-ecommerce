@@ -29,6 +29,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'currency-rates', component: () => import('pages/CurrencyRatesPage.vue') },
       { path: 'spec-definitions', component: () => import('pages/SpecDefinitionsPage.vue') },
       { path: 'supplier-orders', component: () => import('pages/SupplierOrdersPage.vue') },
+      { path: 'suppliers', component: () => import('pages/SuppliersPage.vue') },
       { path: 'system-settings', component: () => import('pages/SystemSettingsPage.vue') },
       {
         path: 'group-upgrade-requests',

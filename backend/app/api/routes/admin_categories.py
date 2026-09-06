@@ -30,8 +30,14 @@ from app.core.errors import AppError
 from app.features.discount.models import Discount
 from app.features.product.models.category import Category
 from app.features.product.models.product import Product
+from app.tasks.pricing_tasks import schedule_price_refresh
 
 logger = logging.getLogger(__name__)
+
+#: Category fields that feed the price formula (see ``PricingContext``).
+PRICING_FIELDS = frozenset(
+    {"default_margin_rate_pct", "default_customs_rate_pct", "default_tax_rate_id"}
+)
 
 router = APIRouter(prefix="/admin/categories", tags=["admin-categories"])
 
@@ -48,6 +54,7 @@ class AdminCategoryItem(BaseModel):
     is_active: bool
     default_tax_rate_id: uuid.UUID | None
     default_customs_rate_pct: Decimal | None
+    default_margin_rate_pct: Decimal | None = None
     merged_into_id: uuid.UUID | None
     merged_into_name: str | None = None
     product_count: int = 0
@@ -68,6 +75,9 @@ class AdminCategoryUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=500)
     image_url: str | None = Field(default=None, max_length=500)
     is_active: bool | None = None
+    #: Marge par défaut des articles de la catégorie (None = celle du groupe
+    #: tarifaire du client). Un article peut la surcharger.
+    default_margin_rate_pct: Decimal | None = Field(default=None, ge=0)
 
 
 class MergeBody(BaseModel):
@@ -98,6 +108,7 @@ def _to_item(
         is_active=category.is_active,
         default_tax_rate_id=category.default_tax_rate_id,
         default_customs_rate_pct=category.default_customs_rate_pct,
+        default_margin_rate_pct=category.default_margin_rate_pct,
         merged_into_id=category.merged_into_id,
         merged_into_name=merged_into_name,
         product_count=product_count,
@@ -200,6 +211,12 @@ async def update_category(
     logger.info(
         "Admin updated category: category_id=%s fields=%s", category_id, sorted(fields)
     )
+    if PRICING_FIELDS & set(fields):
+        # Margin, customs or tax default changed: the list prices of the
+        # category's products are stale until refreshed.
+        await schedule_price_refresh(
+            reason="category_pricing_defaults", category_id=category_id
+        )
     return await _item_for(session, category)
 
 
@@ -271,6 +288,9 @@ async def merge_category(
     await session.commit()
     await session.refresh(source)
     await session.refresh(target)
+    if moved_products:
+        # Moved products now inherit the target's margin / customs / tax.
+        await schedule_price_refresh(reason="category_merge", category_id=target_id)
 
     logger.info(
         "Category merged: source=%s target=%s products=%s discounts=%s admin=%s",

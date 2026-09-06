@@ -12,6 +12,13 @@ Both produce a *plausible but wrong* price rather than an error, which is why
 they are gated here instead of being left to the pricing service: a product
 whose price cannot be computed truthfully must not be sellable at all.
 
+The gate depends on the product's ``pricing_mode``:
+
+* ``import`` — customs rate and weight are required (the two silent zeros);
+* ``domestic`` — no customs, no import freight: neither is required;
+* ``fixed`` — the admin typed the price: only a positive ``base_price`` is
+  required (a fixed price of 0 would sell the product for nothing).
+
 Dimensions are deliberately **not** required: without them the billable weight
 falls back to the real weight, which under-bills bulky-but-light items but never
 invents a number. That fallback is the documented behaviour (see the risk table
@@ -23,6 +30,7 @@ Use ``publication_conditions()`` to filter storefront queries, and
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any
 
 from sqlmodel import and_, col, or_, select
@@ -30,11 +38,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.place.models import Place
 from app.features.product.models.category import Category
-from app.features.product.models.product import Product
+from app.features.product.models.product import PricingMode, Product
 from app.features.shipping.services.origin import CUSTOMS_REGIME_DOMESTIC
 
 CUSTOMS_RATE_UNRESOLVED = "customs_rate_unresolved"
 WEIGHT_MISSING = "weight_missing"
+FIXED_PRICE_MISSING = "fixed_price_missing"
 
 
 def customs_rate_condition() -> Any:
@@ -91,7 +100,16 @@ def publication_conditions() -> list[Any]:
 
     Meant to be spread into an existing ``select(Product).where(...)``.
     """
-    return [customs_rate_condition(), weight_condition()]
+    return [
+        or_(
+            col(Product.pricing_mode) != PricingMode.IMPORT.value,
+            and_(customs_rate_condition(), weight_condition()),
+        ),
+        or_(
+            col(Product.pricing_mode) != PricingMode.FIXED.value,
+            col(Product.base_price) > 0,
+        ),
+    ]
 
 
 async def publication_blockers(
@@ -103,9 +121,23 @@ async def publication_blockers(
     # dependency one-way and lazy avoids any import cycle as both grow.
     from app.features.product.services.pricing import (
         resolve_effective_customs_rate_pct,
+        resolve_pricing_mode,
     )
 
     blockers: list[str] = []
+    mode = resolve_pricing_mode(product)
+
+    if mode is PricingMode.FIXED:
+        base_price = getattr(product, "base_price", None)
+        try:
+            if base_price is None or Decimal(str(base_price)) <= 0:
+                blockers.append(FIXED_PRICE_MISSING)
+        except Exception:
+            blockers.append(FIXED_PRICE_MISSING)
+        return blockers
+
+    if mode is PricingMode.DOMESTIC:
+        return blockers
 
     if await resolve_effective_customs_rate_pct(session, product) is None:
         blockers.append(CUSTOMS_RATE_UNRESOLVED)

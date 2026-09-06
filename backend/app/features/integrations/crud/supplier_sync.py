@@ -77,7 +77,12 @@ class SupplierSyncLogCrud(
         sync_log = await self.read(session=session, id=sync_log_id)
         duration_seconds = None
         if sync_log.started_at:
-            duration_seconds = (completed_at - sync_log.started_at).total_seconds()
+            # The column is naive in Postgres: a value read back has no tzinfo
+            # while ``completed_at`` is UTC-aware. Read the stored one as UTC.
+            started_at = sync_log.started_at
+            if started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=timezone.utc)
+            duration_seconds = (completed_at - started_at).total_seconds()
 
         update_data = SupplierSyncLogUpdate(
             status=status,
@@ -221,6 +226,26 @@ class SupplierProductMappingCrud(
     ]
 ):
     """CRUD operations for supplier product mappings"""
+
+    async def get_by_product(
+        self,
+        session: AsyncSession,
+        *,
+        supplier_name: str,
+        local_product_id: UUID,
+    ) -> SupplierProductMapping | None:
+        """The mapping of ``supplier_name`` pointing at ``local_product_id``, if any.
+
+        Used when a product is recognised by its barcode or manufacturer part
+        under a new supplier SKU: the existing row is re-keyed instead of a
+        second one being created.
+        """
+        statement = select(SupplierProductMapping).where(
+            SupplierProductMapping.supplier_name == supplier_name,
+            SupplierProductMapping.local_product_id == local_product_id,
+        )
+        result = await session.exec(statement)
+        return result.first()
 
     async def get_by_supplier_sku(
         self, session: AsyncSession, *, supplier_name: str, supplier_sku: str

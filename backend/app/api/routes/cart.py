@@ -81,6 +81,7 @@ from app.features.place.models import Place
 from app.features.product.models.product import Product
 from app.features.product.services.pricing import (
     calculate_sale_price,
+    product_applies_customs,
     resolve_default_price_group,
     resolve_effective_customs_rate_pct,
     resolve_tax_rate,
@@ -108,7 +109,6 @@ from app.features.shipping.services.last_leg import resolve_last_leg_candidates
 from app.features.shipping.services.origin import (
     get_main_warehouse,
     load_origin_context,
-    resolve_product_origin_regime,
 )
 from app.features.user.crud.address import crud_address
 from app.features.user.models.address import Address, AddressCreate
@@ -351,13 +351,11 @@ async def _customs_declaration_fees(
     """
     if products:
         origin_context = await load_origin_context(session)
-        regimes = [
-            await resolve_product_origin_regime(
-                session, product, context=origin_context
-            )
+        crossing = [
+            await product_applies_customs(session, product, context=origin_context)
             for product in products
         ]
-        if not any(regime.applies_customs for regime in regimes):
+        if not any(crossing):
             return []
 
     active_route_destinations = select(col(ShippingRoute.to_place_id)).where(
@@ -1162,9 +1160,14 @@ async def _reserve_stock_for_checkout(
     )
 
     local_available = inventory.quantity if inventory is not None else Decimal("0.00")
-    supplier_available = (
-        product.supplier_quantity if product.is_supplier_managed else Decimal("0.00")
+    # Supplier stock counts for every product that has a supplier: the synced
+    # ones (refreshed by the inventory sync) and the manual ones linked to a
+    # generic supplier, whose quantity the admin maintains by hand or by file.
+    has_supplier = bool(
+        getattr(product, "is_supplier_managed", False)
+        or getattr(product, "supplier_name", None)
     )
+    supplier_available = product.supplier_quantity if has_supplier else Decimal("0.00")
 
     supplier_place_id = getattr(product, "supplier_place_id", None)
     supplier_place = (

@@ -1,14 +1,14 @@
 # mypy: disable-error-code="arg-type,assignment,operator"
 
-import json
 import logging
-import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import and_, func
+from sqlalchemy import String, and_, case, cast, func, literal, null, or_
+from sqlalchemy import update as sa_update
+from sqlalchemy.orm.attributes import set_committed_value
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -18,19 +18,19 @@ from app.features.product.models.product import (
     ProductCreate,
     ProductUpdate,
 )
+from app.features.product.models.product_spec import ProductSpec
+from app.features.product.services.identity import (
+    gtin_variants,
+    normalize_text_key,
+    product_identity_key,
+)
 from app.features.product.services.pricing import (
     CurrencyRateMissing,
-    calculate_sale_price,
-    resolve_default_price_group,
+    PricingContext,
 )
 from app.features.product.services.publication import publication_conditions
-from app.features.shipping.services.origin import (
-    load_origin_context,
-    resolve_product_origin_regime,
-)
 
 logger = logging.getLogger(__name__)
-_DECIMAL_PATTERN = re.compile(r"[-+]?\d*\.?\d+")
 
 
 class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
@@ -41,150 +41,102 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         session: AsyncSession,
         products: list[Product],
     ) -> None:
-        """Apply runtime pricing on top of persisted products."""
+        """Apply runtime pricing on top of persisted products.
+
+        One :class:`PricingContext` per call: the referentials are loaded once
+        and every price is computed in memory, whatever the number of rows.
+        """
         if not products:
             return
 
         try:
-            default_group = await resolve_default_price_group(session)
-            origin_context = await load_origin_context(session)
+            context = await PricingContext.for_session(session)
             for product in products:
-                product.base_price = await calculate_sale_price(
-                    session,
-                    product,
-                    group=default_group,
-                    origin_regime=await resolve_product_origin_regime(
-                        session, product, context=origin_context
-                    ),
-                )
+                product.base_price = context.price(product)
         except CurrencyRateMissing:
             raise
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to apply runtime pricing: %s", exc)
 
-    @staticmethod
-    def _extract_max_decimal(values: list[str]) -> Decimal | None:
-        """Extract maximum decimal from a list of string values."""
-        max_value: Decimal | None = None
-        for value in values:
-            for match in _DECIMAL_PATTERN.findall(value):
-                try:
-                    parsed = Decimal(match)
-                except Exception:  # noqa: BLE001
-                    continue
-                if max_value is None or parsed > max_value:
-                    max_value = parsed
-        return max_value
+    # -- materialized storefront price ----------------------------------------
 
-    @staticmethod
-    def _matches_specs(product: Product, specs: dict[str, Any]) -> bool:
-        """Evaluate lightweight specs filters against stored Icecat payload."""
-        if not specs:
-            return True
+    async def _stamp_cached_price(
+        self, session: AsyncSession, record: Product | None
+    ) -> None:
+        """Materialize the storefront list price on a product being written.
 
-        raw_specs = product.technical_specifications or []
-        specs_text = json.dumps(raw_specs, ensure_ascii=False).lower()
+        Runs before the caller's commit, so the cached price lands in the same
+        transaction as the change that made it stale. A missing currency rate
+        leaves it ``None`` (the product is not publishable anyway); any other
+        failure is logged and never blocks the write.
+        """
+        if record is None:
+            return
+        try:
+            context = await PricingContext.for_session(session)
+            record.sale_price_cached = context.price(record)
+        except CurrencyRateMissing as exc:
+            logger.warning(
+                "Cached price left unset for product %s: %s",
+                getattr(record, "id", None),
+                exc,
+            )
+            record.sale_price_cached = None
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Cached price not refreshed for product %s: %s",
+                getattr(record, "id", None),
+                exc,
+            )
+            return
+        record.sale_price_cached_at = datetime.now(timezone.utc)
 
-        flat_specs: dict[str, list[str]] = {}
-        for item in raw_specs:
-            if not isinstance(item, dict):
-                continue
-            for key, value in item.items():
-                key_text = str(key).strip().lower()
-                if not key_text:
-                    continue
-                flat_specs.setdefault(key_text, []).append(str(value).lower())
+    async def after_create(
+        self,
+        session: AsyncSession,
+        *,
+        record: Product | None = None,
+        data: Any,
+        user: Any | None,
+    ) -> None:
+        """Materialize the list price of a freshly created product."""
+        await self._stamp_cached_price(session, record)
 
-            label = item.get("name") or item.get("label") or item.get("feature")
-            value = item.get("value") or item.get("presentation_value")
-            if label is not None and value is not None:
-                label_text = str(label).strip().lower()
-                if label_text:
-                    flat_specs.setdefault(label_text, []).append(str(value).lower())
+    async def after_update(
+        self,
+        session: AsyncSession,
+        *,
+        data: Any,
+        record: Product | None = None,
+        id: uuid.UUID | None = None,
+        user: Any | None,
+    ) -> None:
+        """Re-materialize the list price after any product update."""
+        await self._stamp_cached_price(session, record)
 
-        for key, expected in specs.items():
-            key_text = str(key).strip().lower()
-            if not key_text:
-                continue
+    async def refresh_cached_prices(
+        self,
+        session: AsyncSession,
+        products: list[Product],
+        *,
+        context: PricingContext,
+    ) -> int:
+        """Recompute ``sale_price_cached`` for ``products`` (no commit).
 
-            values_for_key: list[str] = []
-            for candidate_key, candidate_values in flat_specs.items():
-                if candidate_key == key_text or key_text in candidate_key:
-                    values_for_key.extend(candidate_values)
-
-            if key_text.endswith("_min"):
-                base_key = key_text[: -len("_min")]
-                values_for_min: list[str] = []
-                for candidate_key, candidate_values in flat_specs.items():
-                    if candidate_key == base_key or base_key in candidate_key:
-                        values_for_min.extend(candidate_values)
-                if not values_for_min:
-                    values_for_min = [specs_text]
-
-                try:
-                    min_expected = Decimal(str(expected))
-                except Exception:  # noqa: BLE001
-                    continue
-
-                max_found = ProductCrud._extract_max_decimal(values_for_min)
-                if max_found is None or max_found < min_expected:
-                    return False
-                continue
-
-            haystack = " ".join(values_for_key).strip() or specs_text
-            if isinstance(expected, list | tuple | set):
-                expected_values = [str(value).lower() for value in expected]
-                if not any(value in haystack for value in expected_values):
-                    return False
-                continue
-
-            expected_text = str(expected).lower().strip()
-            if expected_text and expected_text not in haystack:
-                return False
-
-        return True
-
-    @staticmethod
-    def _build_search_facets(products: list[Product]) -> dict[str, dict[str, int]]:
-        """Build lightweight facets from filtered products."""
-        # Group manufacturers case-insensitively so "HP Inc." and "HP INC." map
-        # to a single facet. Key on casefold; keep the first-seen spelling as the
-        # display label exposed to the storefront.
-        manufacturer_counts: dict[str, int] = {}
-        manufacturer_labels: dict[str, str] = {}
-        categories: dict[str, int] = {}
-        price_ranges = {
-            "0-49999": 0,
-            "50000-99999": 0,
-            "100000+": 0,
-        }
-
+        Returns how many rows were priced; rows whose currency has no rate
+        are set to ``None``.
+        """
+        now = datetime.now(timezone.utc)
+        priced = 0
         for product in products:
-            manufacturer = (product.manufacturer or "unknown").strip() or "unknown"
-            mfr_key = manufacturer.casefold()
-            manufacturer_counts[mfr_key] = manufacturer_counts.get(mfr_key, 0) + 1
-            manufacturer_labels.setdefault(mfr_key, manufacturer)
-
-            category_key = str(product.category_id) if product.category_id else "none"
-            categories[category_key] = categories.get(category_key, 0) + 1
-
-            if product.base_price < Decimal("50000"):
-                price_ranges["0-49999"] += 1
-            elif product.base_price < Decimal("100000"):
-                price_ranges["50000-99999"] += 1
-            else:
-                price_ranges["100000+"] += 1
-
-        manufacturers = {
-            manufacturer_labels[key]: count
-            for key, count in manufacturer_counts.items()
-        }
-
-        return {
-            "manufacturers": manufacturers,
-            "categories": categories,
-            "price_ranges": price_ranges,
-        }
+            try:
+                product.sale_price_cached = context.price(product)
+                priced += 1
+            except CurrencyRateMissing:
+                product.sale_price_cached = None
+            product.sale_price_cached_at = now
+            session.add(product)
+        return priced
 
     async def read(
         self,
@@ -267,6 +219,105 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         statement = select(Product).where(*conditions)
         result = await session.exec(statement)
         return result.first()
+
+    async def list_by_supplier_sku(
+        self,
+        session: AsyncSession,
+        *,
+        supplier_name: str,
+        supplier_sku: str,
+    ) -> list[Product]:
+        """Every product of ``supplier_name`` carrying ``supplier_sku``, manual or not.
+
+        Used by the sync resolution: a product typed by hand and linked to the
+        supplier is a legitimate match for that supplier's import.
+        """
+        statement = select(Product).where(
+            Product.supplier_name == supplier_name,
+            Product.supplier_sku == supplier_sku,
+        )
+        result = await session.exec(statement)
+        return list(result.all())
+
+    async def find_by_identity(
+        self,
+        session: AsyncSession,
+        *,
+        supplier_name: str,
+        ean: str | None = None,
+        upc: str | None = None,
+        manufacturer: str | None = None,
+        vendor_part_number: str | None = None,
+    ) -> tuple[list[Product], str | None]:
+        """Candidates of ``supplier_name`` matching the item's identity keys.
+
+        Two levels, the first that yields anything wins: the barcode (EAN /
+        UPC, every equivalent writing, against both columns), then the
+        manufacturer + manufacturer part number pair (case and surrounding
+        spaces ignored). Returns ``(candidates, key)`` with ``key`` in
+        ``"gtin"`` / ``"manufacturer_part"`` / ``None``. Inactive products
+        are included: a delisted article that comes back must be recognised.
+        """
+        variants = gtin_variants(ean) | gtin_variants(upc)
+        if variants:
+            statement = select(Product).where(
+                Product.supplier_name == supplier_name,
+                or_(
+                    func.trim(col(Product.ean)).in_(variants),
+                    func.trim(col(Product.upc)).in_(variants),
+                ),
+            )
+            rows = list((await session.exec(statement)).all())
+            if rows:
+                return rows, "gtin"
+
+        maker = normalize_text_key(manufacturer)
+        part = normalize_text_key(vendor_part_number)
+        if maker and part:
+            statement = select(Product).where(
+                Product.supplier_name == supplier_name,
+                func.lower(func.trim(col(Product.manufacturer))) == maker,
+                func.lower(func.trim(col(Product.vendor_part_number))) == part,
+            )
+            rows = list((await session.exec(statement)).all())
+            if rows:
+                return rows, "manufacturer_part"
+
+        return [], None
+
+    @staticmethod
+    def storefront_conditions() -> list[Any]:
+        """SQL: what the storefront may show (active, enriched, publishable)."""
+        return [
+            col(Product.is_active).is_(True),
+            col(Product.is_admin_active).is_(True),
+            col(Product.is_enriched).is_(True),
+            *publication_conditions(),
+        ]
+
+    async def find_offers(
+        self, session: AsyncSession, product: Product
+    ) -> list[Product]:
+        """Other storefront products that are the same physical item.
+
+        Siblings across *all* suppliers (one product per source is the model:
+        the customer compares them here), matched on the indexed
+        ``identity_key`` (canonical barcode, else manufacturer + part number).
+        Returns the siblings only, without runtime pricing.
+        """
+        key = getattr(product, "identity_key", None) or product_identity_key(product)
+        if not key:
+            return []
+        statement = (
+            select(Product)
+            .where(
+                col(Product.id) != product.id,
+                col(Product.identity_key) == key,
+                *self.storefront_conditions(),
+            )
+            .order_by(col(Product.created_at).asc())
+        )
+        return list((await session.exec(statement)).all())
 
     async def get_supplier_products(
         self,
@@ -438,6 +489,59 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             user=user,
         )
 
+    @staticmethod
+    def _spec_condition(key: str, expected: Any) -> Any | None:
+        """SQL for one ``specs`` filter, against the ``product_specs`` projection.
+
+        ``<key>_min`` → ``value_numeric >= n``; ``<key>`` with a list or a
+        scalar → ``value_text IN (...)`` (values are stored lowercased), or
+        ``value_numeric ==`` when the value parses as a number.
+        """
+        key_text = str(key).strip().lower()
+        if not key_text:
+            return None
+
+        if key_text.endswith("_min"):
+            try:
+                minimum = Decimal(str(expected))
+            except Exception:  # noqa: BLE001
+                return None
+            spec_key = key_text[: -len("_min")]
+            return (
+                select(ProductSpec.id)
+                .where(
+                    col(ProductSpec.product_id) == col(Product.id),
+                    col(ProductSpec.spec_key) == spec_key,
+                    col(ProductSpec.value_numeric) >= minimum,
+                )
+                .exists()
+            )
+
+        values = (
+            list(expected) if isinstance(expected, list | tuple | set) else [expected]
+        )
+        texts = [str(v).strip().lower() for v in values if str(v).strip()]
+        if not texts:
+            return None
+        numbers: list[Decimal] = []
+        for text in texts:
+            try:
+                numbers.append(Decimal(text))
+            except Exception:  # noqa: BLE001
+                continue
+        value_match = col(ProductSpec.value_text).in_(texts)
+        if numbers:
+            value_match = or_(value_match, col(ProductSpec.value_numeric).in_(numbers))
+        return (
+            select(ProductSpec.id)
+            .where(
+                col(ProductSpec.product_id) == col(Product.id),
+                col(ProductSpec.spec_key) == key_text,
+                value_match,
+            )
+            .exists()
+        )
+
     async def search_products(
         self,
         session: AsyncSession,
@@ -451,17 +555,26 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         in_stock: bool | None = None,
         limit: int = 24,
         offset: int = 0,
+        group_offers: bool = True,
     ) -> dict[str, Any]:
-        """Search products with runtime pricing and lightweight facets."""
-        statement = select(Product).where(
-            col(Product.is_active).is_(True),
-            col(Product.is_admin_active).is_(True),
-            col(Product.is_enriched).is_(True),
-            *publication_conditions(),
-        )
+        """Search products entirely in SQL: filters, grouping, page and facets.
+
+        Prices come from ``sale_price_cached`` (materialized by the pricing
+        service), so the price filter, the choice of the cheapest offer per
+        ``identity_key`` and the facets are computed by the database; the
+        cost of a search follows the page size, not the catalog size. Rows
+        not yet priced (``NULL``) that land in the page are priced on the fly
+        and persisted.
+
+        With ``group_offers`` (the storefront default), a same physical item
+        sold by several suppliers appears once, by its cheapest offer (in
+        stock first at equal price); ``offers_counts`` tells how many offers
+        each returned entry stands for.
+        """
+        conditions: list[Any] = list(self.storefront_conditions())
 
         query_text = (q or "").strip()
-        _ts_rank: Any | None = None
+        rank_expr: Any = null()
         if query_text:
             # GIN FTS path — expression matches ix_products_search_fts exactly.
             # Uses `||` (IMMUTABLE) instead of concat_ws (STABLE) so the same
@@ -477,51 +590,178 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             )
             search_doc = func.to_tsvector("simple", search_text)
             ts_q = func.plainto_tsquery("simple", query_text)
-            statement = statement.where(search_doc.op("@@")(ts_q))
-            _ts_rank = func.ts_rank(search_doc, ts_q)
+            conditions.append(search_doc.op("@@")(ts_q))
+            rank_expr = func.ts_rank(search_doc, ts_q)
 
         if category_id is not None:
-            statement = statement.where(Product.category_id == category_id)
-
+            conditions.append(col(Product.category_id) == category_id)
         if manufacturer:
-            statement = statement.where(
+            conditions.append(
                 col(Product.manufacturer).ilike(f"%{manufacturer.strip()}%")
             )
-
         if in_stock is True:
-            statement = statement.where(Product.supplier_quantity > Decimal("0"))
+            conditions.append(col(Product.supplier_quantity) > Decimal("0"))
         elif in_stock is False:
-            statement = statement.where(Product.supplier_quantity <= Decimal("0"))
+            conditions.append(col(Product.supplier_quantity) <= Decimal("0"))
+        if price_min is not None:
+            conditions.append(col(Product.sale_price_cached) >= price_min)
+        if price_max is not None:
+            conditions.append(col(Product.sale_price_cached) <= price_max)
+        for key, expected in (specs or {}).items():
+            condition = self._spec_condition(key, expected)
+            if condition is not None:
+                conditions.append(condition)
 
-        if _ts_rank is not None:
-            statement = statement.order_by(
-                _ts_rank.desc(), col(Product.created_at).desc()
+        group_key = func.coalesce(
+            col(Product.identity_key), cast(col(Product.id), String)
+        )
+        offers_expr: Any = (
+            func.count().over(partition_by=group_key) if group_offers else literal(1)
+        )
+        candidates: Any = select(
+            col(Product.id).label("id"),
+            rank_expr.label("rank"),
+            offers_expr.label("offers_count"),
+        ).where(*conditions)
+        if group_offers:
+            candidates = candidates.distinct(group_key).order_by(
+                group_key,
+                col(Product.sale_price_cached).asc().nulls_last(),
+                (col(Product.supplier_quantity) > 0).desc(),
             )
-        else:
-            statement = statement.order_by(col(Product.created_at).desc())
-        result = await session.exec(statement)
-        products = list(result.all())
-        await self._apply_runtime_sale_prices(session, products)
+        representatives = candidates.cte("representatives")
 
-        requested_specs = specs or {}
-        filtered_products: list[Product] = []
+        total_count = int(
+            (
+                await session.exec(select(func.count()).select_from(representatives))
+            ).one()
+        )
+
+        page_statement = (
+            select(Product, representatives.c.offers_count)
+            .join(representatives, representatives.c.id == col(Product.id))
+            .order_by(
+                representatives.c.rank.desc().nulls_last(),
+                col(Product.created_at).desc(),
+            )
+            .offset(offset)
+            .limit(limit)
+        )
+        page_rows = list((await session.exec(page_statement)).all())
+        products: list[Product] = [row[0] for row in page_rows]
+        offers_counts = {
+            str(row[0].id): int(row[1]) for row in page_rows if int(row[1]) > 1
+        }
+
+        # Rows not priced yet: price them now (a page at most) and keep it.
+        unpriced = [p for p in products if p.sale_price_cached is None]
+        if unpriced:
+            await self._price_and_persist_now(session, unpriced)
         for product in products:
-            if price_min is not None and product.base_price < price_min:
-                continue
-            if price_max is not None and product.base_price > price_max:
-                continue
-            if not self._matches_specs(product, requested_specs):
-                continue
-            filtered_products.append(product)
+            product.base_price = product.sale_price_cached or Decimal("0.00")
 
-        total_count = len(filtered_products)
-        paginated_products = filtered_products[offset : offset + limit]
-        facets = self._build_search_facets(filtered_products)
+        facets = await self._search_facets(session, representatives)
 
         return {
-            "data": paginated_products,
+            "data": products,
             "count": total_count,
             "facets": facets,
+            "offers_counts": offers_counts,
+        }
+
+    async def _price_and_persist_now(
+        self, session: AsyncSession, products: list[Product]
+    ) -> None:
+        """Fallback for rows whose ``sale_price_cached`` is still ``NULL``.
+
+        Prices them with the session's context and writes the result through a
+        separate connection, so the caller's transaction and its loaded
+        instances are left untouched (a commit here would expire the whole
+        page). The instances get the values as already-committed state.
+        """
+        try:
+            context = await PricingContext.for_session(session)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Fallback pricing unavailable: %s", exc)
+            return
+        now = datetime.now(timezone.utc)
+        priced: dict[uuid.UUID, Decimal | None] = {}
+        for product in products:
+            try:
+                priced[product.id] = context.price(product)
+            except CurrencyRateMissing:
+                priced[product.id] = None
+            set_committed_value(product, "sale_price_cached", priced[product.id])
+            set_committed_value(product, "sale_price_cached_at", now)
+
+        bind = getattr(session, "bind", None)
+        if bind is None or not hasattr(bind, "begin"):
+            return
+        try:
+            async with bind.begin() as connection:
+                for product_id, price in priced.items():
+                    await connection.execute(
+                        sa_update(Product)
+                        .where(col(Product.id) == product_id)
+                        .values(sale_price_cached=price, sale_price_cached_at=now)
+                    )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Fallback prices not persisted: %s", exc)
+
+    @staticmethod
+    async def _search_facets(
+        session: AsyncSession, representatives: Any
+    ) -> dict[str, Any]:
+        """Facets of the (grouped) result set, three aggregate queries."""
+        clean_maker = func.nullif(func.trim(col(Product.manufacturer)), "")
+        maker_key = func.lower(func.coalesce(clean_maker, "unknown"))
+        maker_rows = (
+            await session.exec(
+                select(func.min(clean_maker), func.count())
+                .select_from(Product)
+                .join(representatives, representatives.c.id == col(Product.id))
+                .group_by(maker_key)
+            )
+        ).all()
+        manufacturers = {
+            (row[0] if row[0] else "unknown"): int(row[1]) for row in maker_rows
+        }
+
+        category_rows = (
+            await session.exec(
+                select(col(Product.category_id), func.count())
+                .select_from(Product)
+                .join(representatives, representatives.c.id == col(Product.id))
+                .group_by(col(Product.category_id))
+            )
+        ).all()
+        categories = {
+            (str(row[0]) if row[0] is not None else "none"): int(row[1])
+            for row in category_rows
+        }
+
+        price = func.coalesce(col(Product.sale_price_cached), Decimal("0"))
+        bucket = case(
+            (price < Decimal("50000"), "0-49999"),
+            (price < Decimal("100000"), "50000-99999"),
+            else_="100000+",
+        )
+        bucket_rows = (
+            await session.exec(
+                select(bucket, func.count())
+                .select_from(Product)
+                .join(representatives, representatives.c.id == col(Product.id))
+                .group_by(bucket)
+            )
+        ).all()
+        price_ranges = {"0-49999": 0, "50000-99999": 0, "100000+": 0}
+        for row in bucket_rows:
+            price_ranges[str(row[0])] = int(row[1])
+
+        return {
+            "manufacturers": manufacturers,
+            "categories": categories,
+            "price_ranges": price_ranges,
         }
 
 

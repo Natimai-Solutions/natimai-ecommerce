@@ -6,7 +6,8 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-from sqlalchemy import JSON, Column
+from sqlalchemy import JSON, Column, event
+from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
@@ -22,6 +23,22 @@ class SupplierType(str, Enum):
     ARROW = "arrow"
     AVNET = "avnet"
     LOCAL = "local"  # For locally managed products
+
+
+class PricingMode(str, Enum):
+    """How the storefront price of a product is obtained.
+
+    * ``import`` — CAF formula: cost + variable import freight + insurance,
+      then customs, margin and tax. Needs a customs rate and a weight.
+    * ``domestic`` — the goods never cross the customs border (own warehouse
+      or a supplier of the same customs territory): cost, margin, tax.
+    * ``fixed`` — ``base_price`` is the tax-inclusive sale price typed by the
+      admin; nothing is computed.
+    """
+
+    IMPORT = "import"
+    DOMESTIC = "domestic"
+    FIXED = "fixed"
 
 
 class ProductBase(Base):
@@ -44,7 +61,40 @@ class ProductBase(Base):
         default=Decimal("0.00"),
         ge=0,
         decimal_places=2,
-        description="Base price of the product (can be 0 for products without pricing)",
+        description=(
+            "Sale price. In pricing_mode 'fixed' it is the tax-inclusive price "
+            "set by the admin; in the computed modes it is overwritten at read "
+            "time by the pricing service (0 = not priced yet)."
+        ),
+    )
+    pricing_mode: PricingMode = Field(
+        default=PricingMode.IMPORT,
+        # Stored as its value ('import'), not its name, in a plain VARCHAR —
+        # the migration and the admin API speak the value.
+        sa_column=Column(
+            SAEnum(
+                PricingMode,
+                values_callable=lambda enum: [m.value for m in enum],
+                native_enum=False,
+                length=20,
+            ),
+            nullable=False,
+            server_default=PricingMode.IMPORT.value,
+            index=True,
+        ),
+        description=(
+            "import (CAF + customs), domestic (cost + margin + tax, no customs "
+            "nor import freight) or fixed (base_price is the TTC price)"
+        ),
+    )
+    margin_rate_pct: Decimal | None = Field(
+        default=None,
+        ge=0,
+        decimal_places=2,
+        description=(
+            "Margin override for this product. None → Category."
+            "default_margin_rate_pct → PriceGroup.margin_rate_pct."
+        ),
     )
     cost_amount: Decimal = Field(
         default=Decimal("0.00"),
@@ -82,6 +132,7 @@ class ProductBase(Base):
     vendor_part_number: str | None = Field(
         default=None,
         max_length=100,
+        index=True,
         description="Manufacturer part number",
     )
     manufacturer: str | None = Field(
@@ -183,6 +234,32 @@ class ProductBase(Base):
             "overwrite these — they are the admin's authoritative values."
         ),
     )
+    identity_key: str | None = Field(
+        default=None,
+        max_length=200,
+        index=True,
+        description=(
+            "Same-physical-item key across suppliers: canonical barcode "
+            "('gtin:…'), else manufacturer + part number ('mpn:…'). Maintained "
+            "automatically on every write (see identity listeners); drives the "
+            "storefront grouping and the « autres offres »."
+        ),
+    )
+    sale_price_cached: Decimal | None = Field(
+        default=None,
+        ge=0,
+        decimal_places=2,
+        index=True,
+        description=(
+            "Storefront list price materialized by the pricing service (no import "
+            "leg): what the search filters, sorts and returns. Refreshed on every "
+            "product write, when a rate/margin changes and nightly; None = not "
+            "computed yet (the search prices it on the fly)."
+        ),
+    )
+    sale_price_cached_at: datetime | None = Field(
+        default=None, description="When sale_price_cached was last computed"
+    )
     last_enrichment_sync: datetime | None = Field(
         default=None,
         description="Last synchronization timestamp for enrichment data",
@@ -198,11 +275,13 @@ class ProductBase(Base):
     upc: str | None = Field(
         default=None,
         max_length=50,
+        index=True,
         description="Universal Product Code (UPC) of the product",
     )
     ean: str | None = Field(
         default=None,
         max_length=50,
+        index=True,
         description="European Article Number (EAN) of the product",
     )
     image_url: str | None = Field(
@@ -267,11 +346,16 @@ class ProductUpdate(ProductBase, BaseUpdate):
     name: str | None = None
     description: str | None = None
     base_price: Decimal | None = None
+    pricing_mode: PricingMode | None = None
+    margin_rate_pct: Decimal | None = None
     cost_amount: Decimal | None = None
     cost_currency: str | None = None
     customs_rate_pct: Decimal | None = None
     has_variants: bool | None = None
     category_id: uuid.UUID | None = None
+    supplier_quantity: Decimal | None = None
+    supplier_price: Decimal | None = None
+    supplier_price_currency: str | None = None
 
     # Generic supplier fields (optional for updates)
     supplier_sku: str | None = None
@@ -346,6 +430,10 @@ class ProductPublic(ProductBase, BasePublic):
     last_supplier_sync: datetime | None = None
     supplier_missing_since: datetime | None = None
     is_supplier_managed: bool = False
+    #: Search listings group the same physical item sold by several
+    #: suppliers behind its cheapest offer: how many offers this entry stands
+    #: for (1 = no sibling).
+    offers_count: int = 1
 
 
 class ProductsPublic(SQLModel):
@@ -373,6 +461,13 @@ class ProductSearchRequest(SQLModel):
     in_stock: bool | None = None
     limit: int = Field(default=24, ge=1, le=200)
     offset: int = Field(default=0, ge=0)
+    group_offers: bool = Field(
+        default=True,
+        description=(
+            "Show a same physical item sold by several suppliers once, by its "
+            "cheapest offer (offers_count tells how many it stands for)"
+        ),
+    )
 
 
 class ProductSearchFacets(SQLModel):
@@ -391,8 +486,50 @@ class ProductSearchResponse(SQLModel):
     facets: ProductSearchFacets = Field(default_factory=ProductSearchFacets)
 
 
+class ProductOfferPublic(SQLModel):
+    """One supplier's offer for a physical item (product page « autres offres »)."""
+
+    product_id: uuid.UUID
+    name: str
+    is_current: bool = False
+    supplier_name: str | None = None
+    supplier_label: str | None = None
+    is_domestic: bool = False
+    pricing_mode: PricingMode = PricingMode.IMPORT
+    sale_price: Decimal
+    supplier_quantity: Decimal
+    in_stock: bool
+    image_url: str | None = None
+
+
+class ProductOffersResponse(SQLModel):
+    """Every storefront offer of the same item, the current product included."""
+
+    product_id: uuid.UUID
+    identity_key: str | None = None
+    offers: list[ProductOfferPublic] = Field(default_factory=list)
+    cheapest_product_id: uuid.UUID | None = None
+
+
 class ProductFeatureRequest(SQLModel):
     """Represents product feature request payload."""
 
     featured_position: int | None = Field(default=None, ge=0)
     featured_until: datetime | None = None
+
+
+# ---------------------------------------------------------------------------
+# identity_key maintenance: every write path (sync, import, admin, merge) goes
+# through the ORM, so a mapper event keeps the column right without each CRUD
+# having to know about it.
+# ---------------------------------------------------------------------------
+
+
+def _stamp_identity_key(_mapper: Any, _connection: Any, target: Product) -> None:
+    from app.features.product.services.identity import product_identity_key
+
+    target.identity_key = product_identity_key(target)
+
+
+event.listen(Product, "before_insert", _stamp_identity_key)
+event.listen(Product, "before_update", _stamp_identity_key)

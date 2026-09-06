@@ -1965,6 +1965,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/suppliers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Suppliers
+         * @description Every declared supplier, active or not.
+         */
+        get: operations["admin-suppliers-list_suppliers"];
+        put?: never;
+        /**
+         * Create Supplier
+         * @description Declare a supplier.
+         */
+        post: operations["admin-suppliers-create_supplier"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suppliers/adapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Adapters
+         * @description Integrations available in the code, for the ``adapter_key`` dropdown.
+         */
+        get: operations["admin-suppliers-list_adapters"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suppliers/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Supplier
+         * @description One supplier by code.
+         */
+        get: operations["admin-suppliers-get_supplier"];
+        put?: never;
+        post?: never;
+        /**
+         * Deactivate Supplier
+         * @description Deactivate a supplier (its products keep their ``supplier_name``).
+         *
+         *     Nothing is deleted: the code stays reserved so the links from products,
+         *     mappings, sync logs and supplier orders keep resolving.
+         */
+        delete: operations["admin-suppliers-deactivate_supplier"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Supplier
+         * @description Partial update; the adapter instance is rebuilt on the next use.
+         */
+        patch: operations["admin-suppliers-update_supplier"];
+        trace?: never;
+    };
     "/api/v1/admin/spec-definitions": {
         parameters: {
             query?: never;
@@ -2061,6 +2136,34 @@ export interface paths {
          *     - Logged-in: client stores preference in ``localStorage`` or user profile.
          */
         get: operations["product-get_product_shipping_modes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product/{product_id}/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Product Offers
+         * @description Every storefront offer of the same physical item, current product included.
+         *
+         *     One product is one source: the same item stocked by two suppliers is two
+         *     products, and this is where the customer compares them. Siblings are
+         *     found by barcode (EAN / UPC), else by manufacturer + part number.
+         *
+         *     Prices are what the product page shows by default: for import-mode
+         *     products, the default import route's freight is included; local and
+         *     fixed-price products carry no import leg.
+         */
+        get: operations["product-get_product_offers"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4930,7 +5033,7 @@ export interface paths {
         };
         /**
          * List Suppliers
-         * @description List all registered suppliers and their configuration status.
+         * @description List all declared suppliers and their configuration status.
          *
          *     **Required permissions:** Superuser only
          */
@@ -5018,7 +5121,7 @@ export interface paths {
         };
         /**
          * Get Supplier Config
-         * @description Get the supplier's (credential-free) synchronization configuration.
+         * @description Get the supplier's (credential-free) configuration.
          *
          *     **Required permissions:** Superuser only
          */
@@ -5053,6 +5156,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/suppliers/{supplier_name}/import-file/inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inspect Catalog File
+         * @description Read the headers and a few rows of a catalog file, to build the mapping.
+         *
+         *     **Required permissions:** Superuser only
+         */
+        post: operations["suppliers-inspect_catalog_file"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/suppliers/{supplier_name}/import-file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Catalog File
+         * @description Import a CSV / Excel catalog for the supplier through the column mapping.
+         *
+         *     Runs inline: each product is committed as it is upserted, so a failure on
+         *     one row never rolls back the others. Newly created products are queued for
+         *     Icecat enrichment like API-synced ones.
+         *
+         *     **Required permissions:** Superuser only
+         */
+        post: operations["suppliers-import_catalog_file"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/suppliers/admin/backfill-product-categories": {
         parameters: {
             query?: never;
@@ -5070,6 +5221,32 @@ export interface paths {
          *     **Required permissions:** Superuser only
          */
         post: operations["suppliers-trigger_category_backfill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/suppliers/admin/refresh-prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger Price Refresh Inline
+         * @description Recompute the materialized storefront prices (``sale_price_cached``).
+         *
+         *     First fill after the migration, or after a change the write hooks and the
+         *     nightly refresh have not caught up with. Runs inline (blocking) — use for
+         *     maintenance windows. Optionally scope to one ``category_id``.
+         *
+         *     **Required permissions:** Superuser only
+         */
+        post: operations["suppliers-trigger_price_refresh_inline"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5535,6 +5712,26 @@ export interface components {
             expires_in: number;
         };
         /**
+         * AdapterDescriptor
+         * @description Une intégration disponible dans le code, pour le menu déroulant admin.
+         */
+        AdapterDescriptor: {
+            /** Key */
+            key: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Configured
+             * @description Les identifiants requis sont présents dans l'environnement
+             */
+            configured: boolean;
+            /**
+             * Settings Keys
+             * @description Clés acceptées dans Supplier.settings pour cette intégration
+             */
+            settings_keys?: string[];
+        };
+        /**
          * AddTrackingsRequest
          * @description Bulk-attach trackings to a consolidation.
          */
@@ -5906,6 +6103,8 @@ export interface components {
             default_tax_rate_id: string | null;
             /** Default Customs Rate Pct */
             default_customs_rate_pct: string | null;
+            /** Default Margin Rate Pct */
+            default_margin_rate_pct?: string | null;
             /** Merged Into Id */
             merged_into_id: string | null;
             /** Merged Into Name */
@@ -5930,6 +6129,8 @@ export interface components {
             image_url?: string | null;
             /** Is Active */
             is_active?: boolean | null;
+            /** Default Margin Rate Pct */
+            default_margin_rate_pct?: number | string | null;
         };
         /**
          * AdminConsolidationItem
@@ -6976,6 +7177,21 @@ export interface components {
              */
             client_secret?: string | null;
         };
+        /** Body_suppliers-import_catalog_file */
+        "Body_suppliers-import_catalog_file": {
+            /** File */
+            file: string;
+            /**
+             * Mapping
+             * @description JSON {internal_field: column}; defaults to the supplier's mapping
+             */
+            mapping?: string | null;
+        };
+        /** Body_suppliers-inspect_catalog_file */
+        "Body_suppliers-inspect_catalog_file": {
+            /** File */
+            file: string;
+        };
         /**
          * BrandCreate
          * @description Represents brand create.
@@ -7332,6 +7548,11 @@ export interface components {
              * @description Default customs rate percentage for products in this category (used when Product.customs_rate_pct is not set)
              */
             default_customs_rate_pct?: number | string | null;
+            /**
+             * Default Margin Rate Pct
+             * @description Default margin percentage for products in this category. None → the customer's price group margin applies (Product.margin_rate_pct still overrides both).
+             */
+            default_margin_rate_pct?: number | string | null;
         };
         /**
          * CategoryPublic
@@ -7386,6 +7607,11 @@ export interface components {
              * @description Default customs rate percentage for products in this category (used when Product.customs_rate_pct is not set)
              */
             default_customs_rate_pct?: string | null;
+            /**
+             * Default Margin Rate Pct
+             * @description Default margin percentage for products in this category. None → the customer's price group margin applies (Product.margin_rate_pct still overrides both).
+             */
+            default_margin_rate_pct?: string | null;
             /**
              * Id
              * Format: uuid
@@ -7481,11 +7707,10 @@ export interface components {
             image_url?: string | null;
             /** Default Tax Rate Id */
             default_tax_rate_id?: string | null;
-            /**
-             * Default Customs Rate Pct
-             * @description Default customs rate percentage for products in this category (used when Product.customs_rate_pct is not set)
-             */
+            /** Default Customs Rate Pct */
             default_customs_rate_pct?: number | string | null;
+            /** Default Margin Rate Pct */
+            default_margin_rate_pct?: number | string | null;
         };
         /**
          * CheckoutObservabilityMetrics
@@ -8404,6 +8629,98 @@ export interface components {
              * @description Operation timestamp
              */
             timestamp: string;
+        };
+        /**
+         * FileImportResolutionRow
+         * @description How one parsed row would be (or was) matched against the catalog.
+         */
+        FileImportResolutionRow: {
+            /** Supplier Sku */
+            supplier_sku: string;
+            /** Name */
+            name: string;
+            /** Action */
+            action: string;
+            /** Match Key */
+            match_key?: string | null;
+            /** Product Id */
+            product_id?: string | null;
+            /** Product Name */
+            product_name?: string | null;
+            /** Message */
+            message?: string | null;
+        };
+        /**
+         * FileImportResponse
+         * @description Outcome of a catalog file import (or of its dry run).
+         */
+        FileImportResponse: {
+            /** Supplier Name */
+            supplier_name: string;
+            /** Filename */
+            filename: string;
+            /** Dry Run */
+            dry_run: boolean;
+            /** Total Rows */
+            total_rows: number;
+            /** Parsed Products */
+            parsed_products: number;
+            /** Rejected Rows */
+            rejected_rows: number;
+            /** Row Errors */
+            row_errors?: components["schemas"]["FileImportRowError"][];
+            /** Statistics */
+            statistics?: {
+                [key: string]: number;
+            };
+            /** Sync Errors */
+            sync_errors?: {
+                [key: string]: string;
+            }[];
+            /** Sync Log Id */
+            sync_log_id?: string | null;
+            /** Sample */
+            sample?: {
+                [key: string]: unknown;
+            }[];
+            /** Resolution */
+            resolution?: {
+                [key: string]: number;
+            };
+            /** Sample Resolutions */
+            sample_resolutions?: components["schemas"]["FileImportResolutionRow"][];
+        };
+        /**
+         * FileImportRowError
+         * @description A rejected row.
+         */
+        FileImportRowError: {
+            /** Row Number */
+            row_number: number;
+            /** Message */
+            message: string;
+        };
+        /**
+         * FileInspectResponse
+         * @description Headers and sample rows of an uploaded catalog file (mapping helper).
+         */
+        FileInspectResponse: {
+            /** Filename */
+            filename: string;
+            /** Headers */
+            headers: string[];
+            /** Sample Rows */
+            sample_rows: {
+                [key: string]: string;
+            }[];
+            /** Total Rows */
+            total_rows: number;
+            /** Mapping Targets */
+            mapping_targets?: string[];
+            /** Required Targets */
+            required_targets?: string[];
+            /** Mapping Problems */
+            mapping_problems?: string[];
         };
         /**
          * ForgotPasswordRequest
@@ -11858,6 +12175,19 @@ export interface components {
             count: number;
         };
         /**
+         * PricingMode
+         * @description How the storefront price of a product is obtained.
+         *
+         *     * ``import`` — CAF formula: cost + variable import freight + insurance,
+         *       then customs, margin and tax. Needs a customs rate and a weight.
+         *     * ``domestic`` — the goods never cross the customs border (own warehouse
+         *       or a supplier of the same customs territory): cost, margin, tax.
+         *     * ``fixed`` — ``base_price`` is the tax-inclusive sale price typed by the
+         *       admin; nothing is computed.
+         * @enum {string}
+         */
+        PricingMode: "import" | "domestic" | "fixed";
+        /**
          * ProductCreate
          * @description Represents product create.
          */
@@ -11897,10 +12227,20 @@ export interface components {
             long_description?: string | null;
             /**
              * Base Price
-             * @description Base price of the product (can be 0 for products without pricing)
+             * @description Sale price. In pricing_mode 'fixed' it is the tax-inclusive price set by the admin; in the computed modes it is overwritten at read time by the pricing service (0 = not priced yet).
              * @default 0.00
              */
             base_price: number | string;
+            /**
+             * @description import (CAF + customs), domestic (cost + margin + tax, no customs nor import freight) or fixed (base_price is the TTC price)
+             * @default import
+             */
+            pricing_mode: components["schemas"]["PricingMode"];
+            /**
+             * Margin Rate Pct
+             * @description Margin override for this product. None → Category.default_margin_rate_pct → PriceGroup.margin_rate_pct.
+             */
+            margin_rate_pct?: number | string | null;
             /**
              * Cost Amount
              * @description Product cost amount used to compute selling price
@@ -12028,6 +12368,21 @@ export interface components {
              */
             overridden_fields?: string[] | null;
             /**
+             * Identity Key
+             * @description Same-physical-item key across suppliers: canonical barcode ('gtin:…'), else manufacturer + part number ('mpn:…'). Maintained automatically on every write (see identity listeners); drives the storefront grouping and the « autres offres ».
+             */
+            identity_key?: string | null;
+            /**
+             * Sale Price Cached
+             * @description Storefront list price materialized by the pricing service (no import leg): what the search filters, sorts and returns. Refreshed on every product write, when a rate/margin changes and nightly; None = not computed yet (the search prices it on the fly).
+             */
+            sale_price_cached?: number | string | null;
+            /**
+             * Sale Price Cached At
+             * @description When sale_price_cached was last computed
+             */
+            sale_price_cached_at?: string | null;
+            /**
              * Last Enrichment Sync
              * @description Last synchronization timestamp for enrichment data
              */
@@ -12122,6 +12477,60 @@ export interface components {
             featured_until?: string | null;
         };
         /**
+         * ProductOfferPublic
+         * @description One supplier's offer for a physical item (product page « autres offres »).
+         */
+        ProductOfferPublic: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Is Current
+             * @default false
+             */
+            is_current: boolean;
+            /** Supplier Name */
+            supplier_name?: string | null;
+            /** Supplier Label */
+            supplier_label?: string | null;
+            /**
+             * Is Domestic
+             * @default false
+             */
+            is_domestic: boolean;
+            /** @default import */
+            pricing_mode: components["schemas"]["PricingMode"];
+            /** Sale Price */
+            sale_price: string;
+            /** Supplier Quantity */
+            supplier_quantity: string;
+            /** In Stock */
+            in_stock: boolean;
+            /** Image Url */
+            image_url?: string | null;
+        };
+        /**
+         * ProductOffersResponse
+         * @description Every storefront offer of the same item, the current product included.
+         */
+        ProductOffersResponse: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Identity Key */
+            identity_key?: string | null;
+            /** Offers */
+            offers?: components["schemas"]["ProductOfferPublic"][];
+            /** Cheapest Product Id */
+            cheapest_product_id?: string | null;
+        };
+        /**
          * ProductPublic
          * @description Represents product public.
          */
@@ -12161,10 +12570,20 @@ export interface components {
             long_description?: string | null;
             /**
              * Base Price
-             * @description Base price of the product (can be 0 for products without pricing)
+             * @description Sale price. In pricing_mode 'fixed' it is the tax-inclusive price set by the admin; in the computed modes it is overwritten at read time by the pricing service (0 = not priced yet).
              * @default 0.00
              */
             base_price: string;
+            /**
+             * @description import (CAF + customs), domestic (cost + margin + tax, no customs nor import freight) or fixed (base_price is the TTC price)
+             * @default import
+             */
+            pricing_mode: components["schemas"]["PricingMode"];
+            /**
+             * Margin Rate Pct
+             * @description Margin override for this product. None → Category.default_margin_rate_pct → PriceGroup.margin_rate_pct.
+             */
+            margin_rate_pct?: string | null;
             /**
              * Cost Amount
              * @description Product cost amount used to compute selling price
@@ -12248,6 +12667,21 @@ export interface components {
              * @description Field names manually set by an admin. The supplier sync must not overwrite these — they are the admin's authoritative values.
              */
             overridden_fields?: string[] | null;
+            /**
+             * Identity Key
+             * @description Same-physical-item key across suppliers: canonical barcode ('gtin:…'), else manufacturer + part number ('mpn:…'). Maintained automatically on every write (see identity listeners); drives the storefront grouping and the « autres offres ».
+             */
+            identity_key?: string | null;
+            /**
+             * Sale Price Cached
+             * @description Storefront list price materialized by the pricing service (no import leg): what the search filters, sorts and returns. Refreshed on every product write, when a rate/margin changes and nightly; None = not computed yet (the search prices it on the fly).
+             */
+            sale_price_cached?: string | null;
+            /**
+             * Sale Price Cached At
+             * @description When sale_price_cached was last computed
+             */
+            sale_price_cached_at?: string | null;
             /**
              * Last Enrichment Sync
              * @description Last synchronization timestamp for enrichment data
@@ -12336,6 +12770,11 @@ export interface components {
             id: string;
             /** Category Id */
             category_id?: string | null;
+            /**
+             * Offers Count
+             * @default 1
+             */
+            offers_count: number;
         };
         /**
          * ProductSearchFacets
@@ -12386,6 +12825,12 @@ export interface components {
              * @default 0
              */
             offset: number;
+            /**
+             * Group Offers
+             * @description Show a same physical item sold by several suppliers once, by its cheapest offer (offers_count tells how many it stands for)
+             * @default true
+             */
+            group_offers: boolean;
         };
         /**
          * ProductSearchResponse
@@ -12450,6 +12895,9 @@ export interface components {
             long_description?: string | null;
             /** Base Price */
             base_price?: number | string | null;
+            pricing_mode?: components["schemas"]["PricingMode"] | null;
+            /** Margin Rate Pct */
+            margin_rate_pct?: number | string | null;
             /** Cost Amount */
             cost_amount?: number | string | null;
             /** Cost Currency */
@@ -12482,22 +12930,11 @@ export interface components {
             supplier_image_url?: string | null;
             /** Supplier Spec Url */
             supplier_spec_url?: string | null;
-            /**
-             * Supplier Quantity
-             * @description Available quantity from supplier
-             * @default 0.00
-             */
-            supplier_quantity: number | string;
-            /**
-             * Supplier Price
-             * @description Price from supplier
-             * @default 0.00
-             */
-            supplier_price: number | string;
-            /**
-             * Supplier Price Currency
-             * @description Currency of the supplier price (e.g., USD, EUR)
-             */
+            /** Supplier Quantity */
+            supplier_quantity?: number | string | null;
+            /** Supplier Price */
+            supplier_price?: number | string | null;
+            /** Supplier Price Currency */
             supplier_price_currency?: string | null;
             /** Last Supplier Sync */
             last_supplier_sync?: string | null;
@@ -12509,6 +12946,21 @@ export interface components {
             supplier_place_id?: string | null;
             /** Overridden Fields */
             overridden_fields?: string[] | null;
+            /**
+             * Identity Key
+             * @description Same-physical-item key across suppliers: canonical barcode ('gtin:…'), else manufacturer + part number ('mpn:…'). Maintained automatically on every write (see identity listeners); drives the storefront grouping and the « autres offres ».
+             */
+            identity_key?: string | null;
+            /**
+             * Sale Price Cached
+             * @description Storefront list price materialized by the pricing service (no import leg): what the search filters, sorts and returns. Refreshed on every product write, when a rate/margin changes and nightly; None = not computed yet (the search prices it on the fly).
+             */
+            sale_price_cached?: number | string | null;
+            /**
+             * Sale Price Cached At
+             * @description When sale_price_cached was last computed
+             */
+            sale_price_cached_at?: string | null;
             /**
              * Last Enrichment Sync
              * @description Last synchronization timestamp for enrichment data
@@ -14741,6 +15193,93 @@ export interface components {
             count: number;
         };
         /**
+         * SupplierCreate
+         * @description Création d'un fournisseur (le code est choisi une fois pour toutes).
+         */
+        SupplierCreate: {
+            /**
+             * Name
+             * @description Nom affiché du fournisseur
+             */
+            name: string;
+            /**
+             * @description Méthode d'approvisionnement : manual | file | api
+             * @default manual
+             */
+            kind: components["schemas"]["SupplierKind"];
+            /**
+             * Adapter Key
+             * @description Pour kind=api : clé de l'intégration enregistrée dans le code (ex. 'ingram_micro'). Ignoré pour les autres méthodes.
+             */
+            adapter_key?: string | null;
+            /**
+             * Origin Place Id
+             * @description Entrepôt d'expédition du fournisseur (Place). Recopié sur Product.supplier_place_id à la création des articles : il pilote le premier tronçon logistique et le suivi.
+             */
+            origin_place_id?: string | null;
+            /**
+             * Is Domestic
+             * @description Fournisseur du même territoire douanier que notre entrepôt : ni droits de douane ni fret import dans le prix. Les articles créés depuis ce fournisseur prennent le mode de prix 'domestic'.
+             * @default false
+             */
+            is_domestic: boolean;
+            /**
+             * Sync Enabled
+             * @description Autorise les synchronisations (planifiées et manuelles)
+             * @default true
+             */
+            sync_enabled: boolean;
+            /**
+             * Sync Interval Hours
+             * @description Cadence de la synchronisation catalogue planifiée, en heures (kind=api uniquement ; 0 = jamais planifiée, manuelle seulement)
+             * @default 0
+             */
+            sync_interval_hours: number;
+            /**
+             * Default Categories
+             * @description Catégories fournisseur synchronisées par défaut (kind=api)
+             */
+            default_categories?: string[] | null;
+            /**
+             * Price Currency
+             * @description Devise des prix du fournisseur quand la source ne la précise pas (fichier sans colonne devise, prix saisis à la main)
+             */
+            price_currency?: string | null;
+            /**
+             * Column Mapping
+             * @description kind=file : mapping {champ interne: en-tête de colonne du fichier}. Champs internes possibles : FILE_MAPPING_TARGETS.
+             */
+            column_mapping?: {
+                [key: string]: string;
+            } | null;
+            /**
+             * Settings
+             * @description Configuration non secrète propre à l'intégration (ex. environment, country_code pour Ingram). Jamais d'identifiants.
+             */
+            settings?: {
+                [key: string]: unknown;
+            } | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Code */
+            code: string;
+        };
+        /**
+         * SupplierKind
+         * @description Méthode d'approvisionnement d'un fournisseur.
+         * @enum {string}
+         */
+        SupplierKind: "manual" | "file" | "api";
+        /**
          * SupplierOrderPublic
          * @description Public schema for supplier orders (admin endpoints).
          */
@@ -14797,6 +15336,107 @@ export interface components {
             count: number;
         };
         /**
+         * SupplierPublic
+         * @description Représentation renvoyée par l'API admin.
+         */
+        SupplierPublic: {
+            /**
+             * Name
+             * @description Nom affiché du fournisseur
+             */
+            name: string;
+            /**
+             * @description Méthode d'approvisionnement : manual | file | api
+             * @default manual
+             */
+            kind: components["schemas"]["SupplierKind"];
+            /**
+             * Adapter Key
+             * @description Pour kind=api : clé de l'intégration enregistrée dans le code (ex. 'ingram_micro'). Ignoré pour les autres méthodes.
+             */
+            adapter_key?: string | null;
+            /**
+             * Origin Place Id
+             * @description Entrepôt d'expédition du fournisseur (Place). Recopié sur Product.supplier_place_id à la création des articles : il pilote le premier tronçon logistique et le suivi.
+             */
+            origin_place_id?: string | null;
+            /**
+             * Is Domestic
+             * @description Fournisseur du même territoire douanier que notre entrepôt : ni droits de douane ni fret import dans le prix. Les articles créés depuis ce fournisseur prennent le mode de prix 'domestic'.
+             * @default false
+             */
+            is_domestic: boolean;
+            /**
+             * Sync Enabled
+             * @description Autorise les synchronisations (planifiées et manuelles)
+             * @default true
+             */
+            sync_enabled: boolean;
+            /**
+             * Sync Interval Hours
+             * @description Cadence de la synchronisation catalogue planifiée, en heures (kind=api uniquement ; 0 = jamais planifiée, manuelle seulement)
+             * @default 0
+             */
+            sync_interval_hours: number;
+            /**
+             * Default Categories
+             * @description Catégories fournisseur synchronisées par défaut (kind=api)
+             */
+            default_categories?: string[] | null;
+            /**
+             * Price Currency
+             * @description Devise des prix du fournisseur quand la source ne la précise pas (fichier sans colonne devise, prix saisis à la main)
+             */
+            price_currency?: string | null;
+            /**
+             * Column Mapping
+             * @description kind=file : mapping {champ interne: en-tête de colonne du fichier}. Champs internes possibles : FILE_MAPPING_TARGETS.
+             */
+            column_mapping?: {
+                [key: string]: string;
+            } | null;
+            /**
+             * Settings
+             * @description Configuration non secrète propre à l'intégration (ex. environment, country_code pour Ingram). Jamais d'identifiants.
+             */
+            settings?: {
+                [key: string]: unknown;
+            } | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Code */
+            code: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Configured
+             * @default true
+             */
+            configured: boolean;
+        };
+        /**
          * SupplierSummary
          * @description Represents supplier summary.
          */
@@ -14805,12 +15445,67 @@ export interface components {
             name: string;
             /** Display Name */
             display_name: string;
+            kind: components["schemas"]["SupplierKind"];
             /** Configured */
             configured: boolean;
             /** Sync Enabled */
             sync_enabled: boolean;
+            /**
+             * Is Domestic
+             * @default false
+             */
+            is_domestic: boolean;
             /** Default Categories */
             default_categories?: string[];
+        };
+        /**
+         * SupplierUpdate
+         * @description Mise à jour partielle (tout est optionnel, ``code`` n'y est pas).
+         */
+        SupplierUpdate: {
+            /** Name */
+            name?: string | null;
+            kind?: components["schemas"]["SupplierKind"] | null;
+            /** Adapter Key */
+            adapter_key?: string | null;
+            /** Origin Place Id */
+            origin_place_id?: string | null;
+            /** Is Domestic */
+            is_domestic?: boolean | null;
+            /** Sync Enabled */
+            sync_enabled?: boolean | null;
+            /** Sync Interval Hours */
+            sync_interval_hours?: number | null;
+            /** Default Categories */
+            default_categories?: string[] | null;
+            /** Price Currency */
+            price_currency?: string | null;
+            /** Column Mapping */
+            column_mapping?: {
+                [key: string]: string;
+            } | null;
+            /** Settings */
+            settings?: {
+                [key: string]: unknown;
+            } | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
+        /**
+         * SuppliersPublic
+         * @description Liste paginée.
+         */
+        SuppliersPublic: {
+            /** Data */
+            data: components["schemas"]["SupplierPublic"][];
+            /** Count */
+            count: number;
         };
         /**
          * SyncRequest
@@ -19077,6 +19772,176 @@ export interface operations {
             };
         };
     };
+    "admin-suppliers-list_suppliers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuppliersPublic"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-create_supplier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplierCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-list_adapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdapterDescriptor"][];
+                };
+            };
+        };
+    };
+    "admin-suppliers-get_supplier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-deactivate_supplier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-update_supplier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplierUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-spec-list_spec_definitions": {
         parameters: {
             query?: {
@@ -19318,6 +20183,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductShippingModesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "product-get_product_offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductOffersResponse"];
                 };
             };
             /** @description Validation Error */
@@ -25874,7 +26770,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Registered supplier machine name */
+                /** @description Supplier code */
                 supplier_name: string;
             };
             cookie?: never;
@@ -25910,7 +26806,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Registered supplier machine name */
+                /** @description Supplier code */
                 supplier_name: string;
             };
             cookie?: never;
@@ -25946,7 +26842,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Registered supplier machine name */
+                /** @description Supplier code */
                 supplier_name: string;
             };
             cookie?: never;
@@ -25978,7 +26874,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Registered supplier machine name */
+                /** @description Supplier code */
                 supplier_name: string;
             };
             cookie?: never;
@@ -26012,7 +26908,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Registered supplier machine name */
+                /** @description Supplier code */
                 supplier_name: string;
             };
             cookie?: never;
@@ -26039,10 +26935,118 @@ export interface operations {
             };
         };
     };
+    "suppliers-inspect_catalog_file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Supplier code */
+                supplier_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_suppliers-inspect_catalog_file"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileInspectResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "suppliers-import_catalog_file": {
+        parameters: {
+            query?: {
+                /** @description Parse and report without writing anything */
+                dry_run?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Supplier code */
+                supplier_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_suppliers-import_catalog_file"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileImportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "suppliers-trigger_category_backfill": {
         parameters: {
             query?: {
                 batch_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "suppliers-trigger_price_refresh_inline": {
+        parameters: {
+            query?: {
+                category_id?: string | null;
             };
             header?: never;
             path?: never;

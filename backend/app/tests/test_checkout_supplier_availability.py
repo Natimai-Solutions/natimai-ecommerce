@@ -64,8 +64,9 @@ def _install_adapter(
         is_configured=lambda: configured,
         fetch_price_and_availability=fetch,
     )
-    monkeypatch.setattr(checkout_availability, "has_supplier", lambda _name: True)
-    monkeypatch.setattr(checkout_availability, "get_adapter", lambda _name: adapter)
+    monkeypatch.setattr(
+        checkout_availability, "resolve_adapter", AsyncMock(return_value=adapter)
+    )
     return fetch
 
 
@@ -205,6 +206,26 @@ async def test_locally_stocked_products_are_not_looked_up(
     )
 
     fetch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_supplier_without_live_api_keeps_its_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Manual and file suppliers resolve to no adapter: the snapshot stands."""
+    monkeypatch.setattr(
+        checkout_availability, "resolve_adapter", AsyncMock(return_value=None)
+    )
+    product = _product(supplier="generic_fr", quantity="5")
+    session = _session()
+
+    refreshed = await refresh_supplier_availability(
+        session, cast(list[Product], [product])
+    )
+
+    assert refreshed == {}
+    assert product.supplier_quantity == Decimal("5")
+    session.add.assert_not_called()
 
 
 @pytest.mark.asyncio

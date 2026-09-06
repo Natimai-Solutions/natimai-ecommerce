@@ -27,23 +27,23 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.features.product.models.product import Product
-from app.services.suppliers import get_adapter, has_supplier
+from app.services.suppliers import resolve_adapter
 
 logger = logging.getLogger(__name__)
 
 
 def _eligible(product: Product) -> bool:
-    """Only supplier-managed lines with a known supplier and SKU are checked.
+    """Only supplier-managed lines with a supplier and a SKU are checked.
 
-    Read defensively: a line with no supplier is simply not eligible, and this
-    runs on the checkout path — it must never be the thing that raises.
+    Whether that supplier has a live API is decided per supplier below
+    (manual and file suppliers have none: their snapshot stands). Read
+    defensively: this runs on the checkout path — it must never be the
+    thing that raises.
     """
-    supplier_name = getattr(product, "supplier_name", None)
     return bool(
         getattr(product, "is_supplier_managed", False)
-        and supplier_name
+        and getattr(product, "supplier_name", None)
         and getattr(product, "supplier_sku", None)
-        and has_supplier(supplier_name)
     )
 
 
@@ -72,7 +72,21 @@ async def refresh_supplier_availability(
 
     refreshed: dict[str, Decimal] = {}
     for supplier_name, products_by_sku in by_supplier.items():
-        adapter = get_adapter(supplier_name)
+        try:
+            adapter = await resolve_adapter(session, supplier_name)
+        except Exception as exc:  # noqa: BLE001 - never fail the checkout
+            logger.warning(
+                "Checkout availability check skipped: cannot resolve %s (%s)",
+                supplier_name,
+                exc,
+            )
+            continue
+        if adapter is None:
+            logger.debug(
+                "Checkout availability check skipped: %s has no live API",
+                supplier_name,
+            )
+            continue
         if not adapter.is_configured():
             logger.debug(
                 "Checkout availability check skipped: %s is not configured",

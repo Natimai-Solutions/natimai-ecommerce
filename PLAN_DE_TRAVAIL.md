@@ -305,6 +305,196 @@ Le dropdown bascule **en local** via `shared/utils/src/pricing.ts` (étendu pour
 
 ---
 
+## Décision transverse : fournisseurs en base, modes de prix et articles hors synchronisation (05/09/2026)
+
+**Contexte.** Jusqu'ici un fournisseur était une classe Python plus un jeu de
+variables `INGRAM_*`, et tout article passait par la formule CAF : impossible de
+vendre un article de l'entrepôt à un prix TTC décidé à la main, impossible de
+déclarer un distributeur local (Tahiti) sans lui appliquer douane et fret
+import, et rien pour un fournisseur qui envoie un CSV/Excel.
+
+### Trois modes de prix (`Product.pricing_mode`)
+
+| Mode | Formule | Gardes-fous de publication | Usage |
+|------|---------|----------------------------|-------|
+| `import` (défaut, comportement historique) | CAF = coût + fret import + assurance → douane → marge → taxe | taux de douane résolu **et** poids > 0 | distributeur hors territoire douanier (Ingram, fournisseur générique en France…) |
+| `domestic` | coût → marge → taxe (ni douane, ni fret import, pas de niveaux de service) | aucun | entrepôt local, distributeur du même territoire douanier |
+| `fixed` | `base_price` **est** le prix TTC saisi ; rien n'est recalculé | `base_price > 0` | article de l'entrepôt vendu à un prix décidé à la main, promo, lot |
+
+- La **marge** se résout `Product.margin_rate_pct` → `Category.default_margin_rate_pct` → `PriceGroup.margin_rate_pct` (défaut 30 %). Réponse à la question « la marge se définit dans la catégorie ? » : oui par défaut, surchargeable article par article ; à défaut des deux c'est le groupe tarifaire du client, comme avant.
+- `calculate_price_by_mode` (dropdown rapide/économique) ne renvoie des niveaux de service que pour le mode `import` : un article local ou à prix fixe n'a pas de tronçon import, la vitrine affiche `base_price`.
+- Toutes les lignes existantes sont migrées en `import` : **zéro changement de prix** sans action admin.
+
+### Table `suppliers` (remplace la config `.env` par fournisseur)
+
+Colonnes : `code` (clé de rapprochement = `Product.supplier_name`, immuable),
+`name`, `kind` ∈ `manual | file | api`, `adapter_key` (kind=api : clé de
+l'intégration dans le code, ex. `ingram_micro`), `origin_place_id` (entrepôt
+d'expédition → `Product.supplier_place_id`, premier tronçon et suivi),
+`is_domestic` (même territoire douanier → articles créés en `domestic`),
+`sync_enabled`, `sync_interval_hours`, `default_categories`, `price_currency`,
+`column_mapping` (kind=file), `settings` (JSON non secret propre à
+l'intégration : `environment`, `country_code`…), contact, notes.
+
+- **Les identifiants restent dans l'environnement** (`INGRAM_CLIENT_ID`…) : une base compromise ne livre pas les secrets ; l'admin voit seulement « identifiants présents / absents ». Les autres `INGRAM_*` ne servent plus qu'à amorcer la ligne `ingram_micro` (migration + `initial_data`) et de repli ; `INGRAM_SYNC_ENABLED` reste un coupe-circuit global.
+- **Trois méthodes** : `manual` (fournisseur générique : articles saisis à la main, `supplier_quantity` tenu par l'admin) ; `file` (CSV / `.xlsx` téléversé depuis Admin → Fournisseurs, mapping de colonnes mémorisé sur la ligne, simulation avant import, mêmes garde-fous que la sync : verrous admin, catégorie interne depuis la sous-catégorie, enrichissement Icecat des nouveautés) ; `api` (intégration du code, registre `ADAPTERS`).
+- **Planification** : plus un cron par fournisseur figé au démarrage du worker, mais trois *ticks* (`supplier_catalog_sync_tick` horaire, `supplier_inventory_sync_tick` toutes les 2 h, `supplier_api_health_check_tick` quotidien) qui relisent la table et enfilent un job par fournisseur dû. Créer, suspendre ou recadencer un fournisseur ne demande aucun redéploiement.
+- Un article manuel peut être rattaché à un fournisseur déclaré : `POST /admin/products` recopie l'entrepôt d'origine et le régime douanier (mode de prix) du fournisseur si le payload ne les fixe pas. Le stock fournisseur compte au checkout pour tout article qui a un fournisseur, synchronisé ou non.
+- La sync catalogue ne remet plus à zéro le coût et le stock d'un article quand la source ne les porte pas (le catalogue Ingram ne renvoie ni prix ni dispo) ; elle n'écrit ces champs que lorsqu'ils sont fournis (fichier, API prix/dispo).
+
+### Reconnaissance des articles à l'import (question du 05/09/2026)
+
+**Règle : un article = une source.** Un même produit physique proposé par deux
+fournisseurs donne deux articles (deux prix, le client choisit). Le rapprochement
+ne cherche donc que **dans le périmètre du fournisseur importé** (`supplier_name`),
+par ordre de fiabilité, le premier résultat non ambigu gagne :
+
+1. la ligne `SupplierProductMapping` (fournisseur, référence) ;
+2. un article du fournisseur portant la même **référence** — synchronisé *ou saisi à
+   la main et rattaché à ce fournisseur* (celui-ci est alors **adopté**) ;
+3. le **code-barres** EAN/UPC (chiffres seuls ; UPC-A à 12 chiffres et EAN-13 avec zéro
+   de tête équivalents ; une valeur en notation scientifique — Excel a converti la
+   colonne en nombre — est ignorée) contre `Product.ean` **et** `Product.upc` ;
+4. **marque + référence fabricant**, sans tenir compte de la casse ni des espaces.
+
+- Reconnu par 3 ou 4 sous une nouvelle référence : la référence est réalignée sur le
+  fichier et la ligne de mapping existante est re-clée (pas de doublon de mapping).
+- **Adoption d'un article manuel** : il passe `is_supplier_managed`, le fichier apporte
+  référence, coût, devise, stock ; son contenu (nom, descriptions, image, mode de prix,
+  prix fixé, marge, douane, catégorie, poids, dimensions, origine) est **verrouillé**
+  (`overridden_fields`) au moment de l'adoption, donc jamais écrasé par cet import ni
+  par les suivants.
+- **Ambigu** (plusieurs articles du fournisseur pour une même clé) : ni création ni mise
+  à jour ; la ligne est rapportée (simulation et import) avec les candidats.
+- La **simulation** (« Simuler » dans Admin → Fournisseurs) affiche par ligne : nouveau /
+  mise à jour / adopté / ambigu, et la clé qui a reconnu l'article. Mêmes règles pour la
+  sync API (Ingram fournit UPC, marque et référence fabricant).
+- Index ajoutés sur `products.ean`, `products.upc`, `products.vendor_part_number`.
+- **Vitrine « autres offres »** (livré le 05/09/2026) : les doublons inter-fournisseurs
+  restent des articles distincts en base, mais la vitrine les présente comme un seul
+  produit. Clé de regroupement (`product_identity_key`) : code-barres canonique (EAN
+  puis UPC, zéros de tête ignorés), sinon marque + référence fabricant.
+  - `POST /product/search` regroupe par défaut (`group_offers=true`) derrière l'offre
+    la moins chère (à prix égal, celle en stock) et renvoie `offers_count` ; la carte
+    catalogue affiche « N offres ».
+  - `GET /product/{id}/offers` liste toutes les offres du même article (fournisseur,
+    régime local/import, prix au niveau de service par défaut, stock) triées par prix ;
+    la page produit et le dialogue de détail affichent la section « Autres offres »
+    avec « Meilleur prix ». Un article dont le code-barres diffère n'est jamais une
+    autre offre, même à référence fabricant égale.
+
+### Origine (`Place`) et modes de prix : hiérarchie (fusion du 06/09/2026)
+
+La branche « entrepôt principal / régime douanier d'origine » (`a7f12ba`, `Place.customs_regime`,
+`customs_free_countries`, `shipping/services/origin.py`) et la branche « fournisseurs en base /
+modes de prix » disaient la même chose par deux chemins. Règle retenue, appliquée partout
+(`calculate_sale_price`, `PricingContext.price`, `publication_conditions` / `publication_blockers`,
+snapshot de ligne et frais de déclaration du panier via `product_applies_customs`) :
+
+1. `pricing_mode = fixed` gagne toujours : `base_price` TTC, ni douane, ni marge, ni taxe, jamais
+   de frais de déclaration.
+2. `pricing_mode = domestic` : override produit — coût × marge × taxe, quel que soit le lieu
+   fournisseur.
+3. `pricing_mode = import` (défaut de schéma, donc **pas** une décision) : le **lieu fournisseur**
+   (`Product.supplier_place_id` → `Place`) tranche via `resolve_origin_regime` — même pays que
+   l'entrepôt principal, pays exempté ou `customs_regime = 'domestic'` ⇒ prix et publication
+   **locaux** ; sinon CAF + douane ; origine inconnue ⇒ douane (comportement historique).
+   Le `PricingContext` précharge les lieux et l'entrepôt principal (deux requêtes par contexte),
+   donc `sale_price_cached` et la recherche donnent le même prix que le panier.
+4. `Supplier.is_domestic` reste un pré-remplissage de `pricing_mode` à la création d'un article
+   (admin, import fichier, sync) ; la vérité douanière d'un article `import` est son `Place`.
+
+Alembic : la révision `e1f7a3c9b5d2` a été **re-parentée** sur `a7d2e9f4b1c6` (les deux côtés
+avaient fusionné les trois mêmes têtes du 04/09 ; celle de main, `e2b7c4d9a1f3`, fait foi).
+Chaîne : `… → e2b7c4d9a1f3 → f3c8d5e2b7a4 → a7d2e9f4b1c6 → e1f7a3c9b5d2 → f2b8d4a6c1e3 → a7c3e9f1b2d4`.
+**Toute base de développement qui avait déjà appliqué `e1f7a3c9b5d2` avant cette fusion doit être
+recréée** (`alembic upgrade head` la croirait à jour sans les colonnes `places.*` /
+`shipping_routes.*` de main).
+
+### Recherche vitrine à l'échelle (livré le 05/09/2026)
+
+**Constat.** `POST /product/search` chargeait toutes les lignes passant le filtre SQL,
+tarifait chacune à la volée (3 à 5 requêtes par produit : catégorie, taxe, change),
+filtrait prix et specs en Python, regroupait les « autres offres » en mémoire, calculait
+les facettes sur l'ensemble, puis découpait la page : un coût proportionnel au nombre de
+produits filtrés, pas à la page (plusieurs secondes vers 3 000 produits). Trois niveaux,
+livrés ensemble :
+
+1. **Référentiels préchargés — `PricingContext`** (`product/services/pricing.py`).
+   Groupe tarifaire, taxes, taux de change et catégories lus en quatre requêtes, puis
+   même formule et même ordre de résolution que `calculate_sale_price` (qui reste la
+   référence : parité vérifiée au centime par un test d'intégration). Un contexte par
+   requête ou par sync (`for_session`, cache d'une minute sur la session) : `read`,
+   `read_multi`, `get_featured`, `GET /product/{id}/offers` et les hooks d'écriture
+   passent par lui.
+2. **Clé d'identité en colonne — `products.identity_key`** (indexée). Posée par des
+   écouteurs ORM `before_insert` / `before_update` (`product_identity_key`), donc tenue
+   à jour par toutes les voies d'écriture ; remplie pour l'existant par la migration
+   `a7c3e9f1b2d4` (lots de 1 000). `find_offers` et le regroupement de la recherche
+   lisent la colonne.
+3. **Prix vitrine matérialisé — `products.sale_price_cached` (+ `_at`)** et recherche
+   100 % SQL. Sémantique : le prix de liste (sans tronçon import ; la fiche produit
+   garde ses niveaux de service à la volée, le checkout recalcule et reste autoritaire).
+   - Posé à **chaque écriture produit** par `ProductCrud.after_create` / `after_update`
+     (sync inventaire, import fichier, sync catalogue, écrans admin, affectation
+     taxe/douane à un produit — qui passe désormais par le CRUD).
+   - **Quand un paramètre change** : `app/tasks/pricing_tasks.py` — tâche
+     `refresh_sale_prices_task` (lots de 500, un contexte, un commit par lot), enfilée
+     avec dédup Redis par `schedule_price_refresh` (best-effort : une panne de file
+     ne fait jamais échouer l'édition) depuis création/clôture d'une taxe, nouveau taux
+     de change (tout le catalogue), taxe / douane / marge par défaut d'une catégorie et
+     fusion de catégories (catégorie ciblée). Cron `sale_price_nightly_refresh` à
+     00:05 : les `valid_from` / `valid_until` changent le prix sans aucune écriture.
+   - **Repli** : une ligne encore à `NULL` qui atterrit dans la page est tarifée à la
+     volée (≤ 24 produits) et persistée par une connexion séparée (la transaction de la
+     requête n'est pas touchée) ; en SQL elle trie en dernier.
+   - **Recherche** : filtres (dont `sale_price_cached BETWEEN`, specs par `EXISTS` sur
+     `product_specs`), `DISTINCT ON (coalesce(identity_key, id))` trié prix croissant /
+     en stock d'abord pour ne garder que l'offre la moins chère, `count() over
+     (partition by …)` pour `offers_count`, `count(*)` puis page `ORDER BY rank,
+     created_at LIMIT/OFFSET`, facettes en trois agrégats (fabricants regroupés par
+     `lower(trim())`, catégories, tranches de prix par `CASE`). Contrat de
+     `POST /product/search` inchangé (`data`, `count`, `facets`, `offers_count`).
+   - Endpoint de maintenance `POST /suppliers/admin/refresh-prices?category_id=`
+     (inline, superuser) : **à lancer une fois après le déploiement** pour le premier
+     remplissage — tant que les prix ne sont pas matérialisés, le filtre prix et le
+     choix de l'offre la moins chère ne voient que des `NULL`.
+
+**Changements assumés.**
+- Un produit sans code-barres (clé `mpn:`) ne se regroupe qu'avec des produits sans
+  code-barres ; à code-barres égal, la clé ne regarde plus la référence fabricant.
+- Fin de la recherche floue dans le JSON brut Icecat (`_matches_specs`) : les filtres
+  `specs` lisent la projection `product_specs` (mêmes clés que `spec-facets`) ; un
+  produit non projeté n'est pas filtrable par spec (`POST /suppliers/admin/reproject-specs`).
+- Le prix de liste peut retarder d'au plus une minute (cache du contexte) après la
+  modification d'un taux, et jusqu'au passage de la tâche de rafraîchissement pour les
+  produits non réécrits.
+
+**Tests.** Unitaires : `test_pricing_context.py` (modes, chaîne de résolution, devise,
+cache), `test_pricing_tasks.py` (dédup, best-effort, hooks admin), écouteurs
+`identity_key` ; la suite tourne sans Redis grâce à la file ARQ factice autouse
+(`tests/utils/fake_arq.py`). Intégration : `test_sale_price_cache.py` (parité, hooks
+CRUD, tâche après changement de taux), `test_product_search_sql.py` (filtres prix /
+stock / specs, regroupement, pagination, facettes, repli `NULL`), `test_product_offers.py`
+adapté.
+
+### Ajouter un fournisseur
+
+| Cas | Marche à suivre |
+|-----|-----------------|
+| Générique (Europe, sans API) | Admin → Fournisseurs → nouveau, méthode *Générique*, entrepôt d'origine `FR_SUPPLIERS`, régime import. Puis articles saisis à la main avec coût + devise (la douane part du coût, comme aujourd'hui). |
+| Distributeur local (Tahiti) | Même écran, régime **local** (`is_domestic`), lieu = son dépôt. Articles en `domestic` (coût + marge) ou `fixed` (prix TTC). |
+| Fichier CSV / Excel | Méthode *Fichier*, puis bouton *Importer* : le fichier est lu, les colonnes proposées, la correspondance enregistrée, *Simuler* puis *Importer*. |
+| Nouvelle API | Implémenter `SupplierAdapter` (`app/services/suppliers/<nom>.py`), l'enregistrer dans `ADAPTERS`, déclarer ses secrets dans `config.py`, puis créer la ligne `kind=api` avec cet `adapter_key`. |
+
+### Reste à faire
+
+- Adresse « ship-to » des bons de commande Ingram : toujours `INGRAM_SHIP_TO_*` ; à déplacer vers l'entrepôt principal (`Place`) quand la commande fournisseur sera généralisée aux autres fournisseurs (`supplier_order_service` reste spécifique Ingram).
+- Stratification du rafraîchissement des prix (voir *Rafraîchissement stratifié*) : le tick inventaire enfile tous les fournisseurs à la même cadence.
+- Import fichier volumineux (> 50 000 lignes) : passer par un job ARQ avec fichier déposé dans le stockage plutôt qu'en ligne dans la requête.
+
+---
+
 ## Décision transverse : catalogue de spécifications filtrables
 
 **Contexte** : Icecat renvoie les spécifications techniques dans une structure JSONB hétérogène (`name` varie selon le produit et la langue : « Mémoire installée », « RAM », « System Memory »…). Une requête frontend « memory_gb ≥ 16 » ne peut pas pointer directement vers une clé Icecat fiable. Une couche de normalisation backend est nécessaire — le frontend ne devine rien, il consomme un endpoint de facettes.

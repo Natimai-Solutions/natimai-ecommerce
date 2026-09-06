@@ -21,6 +21,7 @@ from app.api.routes.admin_spec_definitions import (
 from app.api.routes.admin_supplier_orders import (
     router as admin_supplier_orders_router,
 )
+from app.api.routes.admin_suppliers import router as admin_suppliers_router
 from app.api.routes.admin_tax_rates import router as admin_tax_rates_router
 from app.api.routes.admin_users import router as admin_users_router
 from app.api.routes.analytics_product import router as analytics_product_router
@@ -99,6 +100,7 @@ api_router.include_router(admin_tax_rates_router)
 api_router.include_router(admin_users_router)
 api_router.include_router(admin_categories_router)
 api_router.include_router(admin_supplier_orders_router)
+api_router.include_router(admin_suppliers_router)
 api_router.include_router(admin_spec_definitions_router)
 api_router.include_router(internal_storage_router)
 api_router.include_router(product_catalog_router)

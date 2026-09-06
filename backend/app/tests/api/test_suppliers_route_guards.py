@@ -11,12 +11,13 @@ from app.services.suppliers.base import (
     NormalizedPricing,
     NormalizedProductData,
     SupplierAdapter,
+    SupplierConfig,
     SupplierHealth,
 )
 
 
 class FakeAdapter(SupplierAdapter):
-    name = "demo_supplier"
+    adapter_key = "demo"
     display_name = "Demo Supplier"
 
     def is_sync_enabled(self) -> bool:
@@ -67,10 +68,15 @@ async def test_trigger_inventory_sync_requires_configured_supplier(
         "trigger_inventory_refresh",
         trigger_inventory_refresh_mock,
     )
+    adapter = FakeAdapter(
+        SupplierConfig(
+            code="demo_supplier", display_name="Demo Supplier", adapter_key="demo"
+        )
+    )
 
     with pytest.raises(AppError) as exc_info:
         await suppliers_routes.trigger_inventory_sync(
-            adapter=FakeAdapter(),
+            adapter=adapter,
             request=suppliers_routes.InventoryRefreshRequest(skus=["SKU-1"]),
             _current_user=current_user,
         )

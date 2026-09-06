@@ -62,3 +62,32 @@ export async function getProductShippingModes(
   );
   return data;
 }
+
+// --- Autres offres (même produit physique chez plusieurs fournisseurs) -----
+
+export interface ProductOfferPublic {
+  product_id: string;
+  name: string;
+  is_current: boolean;
+  supplier_name: string | null;
+  supplier_label: string | null;
+  is_domestic: boolean;
+  pricing_mode: 'import' | 'domestic' | 'fixed';
+  sale_price: string;
+  supplier_quantity: string;
+  in_stock: boolean;
+  image_url: string | null;
+}
+
+export interface ProductOffersResponse {
+  product_id: string;
+  identity_key: string | null;
+  offers: ProductOfferPublic[];
+  cheapest_product_id: string | null;
+}
+
+/** Toutes les offres du même article (code-barres, sinon marque + réf fabricant). */
+export async function getProductOffers(productId: string): Promise<ProductOffersResponse> {
+  const { data } = await api.get<ProductOffersResponse>(`/product/${productId}/offers`);
+  return data;
+}

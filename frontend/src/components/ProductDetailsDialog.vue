@@ -68,6 +68,8 @@
             class="text-body2 q-mt-md product-description"
             v-html="safeDescription"
           ></div>
+
+          <ProductOffers :offers="offers" class="q-mt-md" @navigate="open = false" />
         </div>
       </q-card-section>
 
@@ -124,7 +126,13 @@
 import { computed, ref, watch } from 'vue';
 import DOMPurify from 'isomorphic-dompurify';
 import type { components } from '@app/api-types';
-import { getProductShippingModes, type ShippingModePricePublic } from 'src/api/products';
+import {
+  getProductOffers,
+  getProductShippingModes,
+  type ProductOffersResponse,
+  type ShippingModePricePublic,
+} from 'src/api/products';
+import ProductOffers from 'src/components/ProductOffers.vue';
 import { getProductRoute } from 'src/utils/productRoute';
 import { useCurrencyStore } from 'src/stores/currency';
 
@@ -138,15 +146,25 @@ const productRoute = computed(() => getProductRoute(props.product));
 
 const shippingModes = ref<ShippingModePricePublic[]>([]);
 const selectedModeKey = ref<string | null>(null);
+const offers = ref<ProductOffersResponse | null>(null);
 
 watch(open, async (isOpen) => {
   if (isOpen) {
-    await loadShippingModes();
+    await Promise.all([loadShippingModes(), loadOffers()]);
   } else {
     shippingModes.value = [];
     selectedModeKey.value = null;
+    offers.value = null;
   }
 });
+
+async function loadOffers(): Promise<void> {
+  try {
+    offers.value = await getProductOffers(props.product.id);
+  } catch {
+    offers.value = null;
+  }
+}
 
 async function loadShippingModes(): Promise<void> {
   try {

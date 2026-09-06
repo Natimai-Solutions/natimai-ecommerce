@@ -9,6 +9,7 @@ from app.features import initial_data as seed_module
 
 _ALWAYS = (
     "_seed_payment_statuses",
+    "_seed_suppliers",
     "_seed_manual_payment_methods",
     "_seed_price_groups",
     "_seed_carriers",

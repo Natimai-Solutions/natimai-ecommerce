@@ -89,6 +89,8 @@
             class="text-body1 q-mt-md product-description"
             v-html="safeDescription"
           ></div>
+
+          <ProductOffers :offers="offers" class="q-mt-md" />
         </div>
       </q-card-section>
 
@@ -151,9 +153,12 @@ import { useRoute, useRouter } from 'vue-router';
 import type { components } from '@app/api-types';
 import {
   getProductById,
+  getProductOffers,
   getProductShippingModes,
+  type ProductOffersResponse,
   type ShippingModePricePublic,
 } from 'src/api/products';
+import ProductOffers from 'src/components/ProductOffers.vue';
 import { useCartStore } from 'src/stores/cart';
 import { useCurrencyStore } from 'src/stores/currency';
 import { getProductRouteByIdAndName, slugifyProductName } from 'src/utils/productRoute';
@@ -175,6 +180,7 @@ const selectedImage = ref<string | null>(null);
 
 const shippingModes = ref<ShippingModePricePublic[]>([]);
 const selectedModeKey = ref<string | null>(null);
+const offers = ref<ProductOffersResponse | null>(null);
 
 const isOutOfStock = computed(() => {
   if (!product.value) return true;
@@ -318,6 +324,7 @@ async function loadProduct() {
   selectedImage.value = null;
   shippingModes.value = [];
   selectedModeKey.value = null;
+  offers.value = null;
 
   const routeId = typeof route.params.id === 'string' ? route.params.id : null;
   if (!routeId) {
@@ -331,9 +338,10 @@ async function loadProduct() {
     const data = await getProductById(routeId);
     product.value = data;
 
-    // Shipping modes are interactive/client-only — skip on SSR
+    // Shipping modes and sibling offers are interactive/client-only — skip on SSR
     if (typeof window !== 'undefined') {
       void loadShippingModes(routeId);
+      void loadOffers(routeId);
     }
 
     const expectedSlug = slugifyProductName(data.name);
@@ -394,6 +402,14 @@ async function loadShippingModes(productId: string): Promise<void> {
   } catch {
     shippingModes.value = [];
     selectedModeKey.value = null;
+  }
+}
+
+async function loadOffers(productId: string): Promise<void> {
+  try {
+    offers.value = await getProductOffers(productId);
+  } catch {
+    offers.value = null;
   }
 }
 
