@@ -43,7 +43,7 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
-def test_plan_segments_uses_local_then_pf_consolidation() -> None:
+def test_plan_segments_uses_local_then_main_warehouse() -> None:
     product = cast(
         Product,
         SimpleNamespace(
@@ -57,17 +57,16 @@ def test_plan_segments_uses_local_then_pf_consolidation() -> None:
         quantity=4,
         local_available=Decimal("1.00"),
         supplier_available=Decimal("10.00"),
-        shipping_address="Papeete, Tahiti, PF",
     )
 
     assert len(segments) == 2
     assert segments[0].segment == FulfillmentSegment.LOCAL
     assert segments[0].quantity == Decimal("1.00")
-    assert segments[1].segment == FulfillmentSegment.CONSOLIDATION_PF
+    assert segments[1].segment == FulfillmentSegment.VIA_MAIN_WAREHOUSE
     assert segments[1].quantity == Decimal("3.00")
 
 
-def test_plan_segments_uses_supplier_direct_outside_pf() -> None:
+def test_plan_segments_uses_supplier_direct_when_dropship() -> None:
     product = cast(
         Product,
         SimpleNamespace(
@@ -81,7 +80,7 @@ def test_plan_segments_uses_supplier_direct_outside_pf() -> None:
         quantity=2,
         local_available=Decimal("0.00"),
         supplier_available=Decimal("5.00"),
-        shipping_address="Paris, France",
+        supplier_segment=FulfillmentSegment.SUPPLIER_DIRECT,
     )
 
     assert len(segments) == 1
@@ -122,12 +121,11 @@ async def test_reserve_stock_tags_supplier_movement_as_pf_consolidation(
         product=product,
         quantity=3,
         current_user=current_user,
-        shipping_address="Papeete - PF",
     )
 
     assert [segment.segment for segment in segments] == [
         FulfillmentSegment.LOCAL,
-        FulfillmentSegment.CONSOLIDATION_PF,
+        FulfillmentSegment.VIA_MAIN_WAREHOUSE,
     ]
 
     supplier_movement = movement_mock.await_args_list[1].kwargs["data"]
@@ -248,7 +246,6 @@ async def test_checkout_persists_segment_note_from_orchestration(
     )
 
     assert reserve_mock.await_args is not None
-    assert reserve_mock.await_args.kwargs["shipping_address"] == "Paris, France"
 
     assert create_order_line_mock.await_args is not None
     line_create = create_order_line_mock.await_args.kwargs["data"]
@@ -263,7 +260,7 @@ def test_format_fulfillment_segments_note_is_stable() -> None:
                 quantity=Decimal("1.00"),
             ),
             FulfillmentAllocation(
-                segment=FulfillmentSegment.CONSOLIDATION_PF,
+                segment=FulfillmentSegment.VIA_MAIN_WAREHOUSE,
                 quantity=Decimal("3.00"),
             ),
         ]

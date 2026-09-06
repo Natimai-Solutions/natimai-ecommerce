@@ -36,6 +36,71 @@ class RouteShippingCostBreakdown:
     eta_days: int | None
     carbon_footprint_kg_co2e: float | None
     pricing_effective: bool
+    # Classic carrier grid: the band whose upper bound priced the weight
+    # (None = linear per-kg, or the open "and above" band).
+    weight_band_max_kg: Decimal | None = None
+    # Franco: the shipment's value reached the route's threshold → 0.
+    free_shipping_applied: bool = False
+
+
+@dataclass(frozen=True)
+class WeightBand:
+    """One row of a carrier's weight grid: price up to ``max_kg`` (None = open)."""
+
+    max_kg: Decimal | None
+    price: Decimal
+
+
+def parse_weight_bands(raw: Any) -> list[WeightBand]:
+    """Read a route's stored ``weight_bands`` (already normalized on write).
+
+    Tolerant on read: malformed rows are skipped rather than failing a
+    checkout, and the grid is re-sorted (bounded bands ascending, open last).
+    """
+    if not isinstance(raw, list):
+        return []
+    bands: list[WeightBand] = []
+    for row in raw:
+        if not isinstance(row, dict):
+            continue
+        raw_max = row.get("max_kg")
+        try:
+            max_kg = None if raw_max in (None, "") else Decimal(str(raw_max))
+            price = Decimal(str(row.get("price")))
+        except (InvalidOperation, ValueError, TypeError):
+            continue
+        if (max_kg is not None and max_kg <= 0) or price < 0:
+            continue
+        bands.append(WeightBand(max_kg=max_kg, price=price))
+    bounded = sorted(
+        (b for b in bands if b.max_kg is not None), key=lambda b: b.max_kg or 0
+    )
+    open_bands = [b for b in bands if b.max_kg is None][:1]
+    return bounded + open_bands
+
+
+def _weight_fee_from_bands(
+    bands: list[WeightBand],
+    *,
+    billable_weight_kg: Decimal,
+    price_per_weight_unit: Decimal,
+    weight_unit: str,
+) -> tuple[Decimal, Decimal | None]:
+    """Weight fee from a band grid → (fee, band max_kg used).
+
+    The first band whose bound covers the weight wins; the open band covers
+    everything heavier. Past the last bounded band with no open band, the
+    excess weight is billed at the route's per-kg rate on top of that band.
+    """
+    for band in bands:
+        if band.max_kg is None or billable_weight_kg <= band.max_kg:
+            return band.price, band.max_kg
+
+    top = bands[-1]
+    top_max = top.max_kg if top.max_kg is not None else Decimal("0")
+    excess_kg = max(billable_weight_kg - top_max, Decimal("0"))
+    excess = _convert_weight_from_kg(excess_kg, weight_unit)
+    return top.price + price_per_weight_unit * excess, top.max_kg
 
 
 @dataclass(frozen=True)
@@ -276,7 +341,18 @@ def calculate_shipping_for_routes(
             mode=getattr(route, "mode", None),
         )
         billable_weight = _convert_weight_from_kg(billable_weight_kg, weight_unit)
-        weight_fee = price_per_weight_unit * billable_weight
+
+        weight_band_max_kg: Decimal | None = None
+        bands = parse_weight_bands(getattr(route, "weight_bands", None))
+        if bands:
+            weight_fee, weight_band_max_kg = _weight_fee_from_bands(
+                bands,
+                billable_weight_kg=billable_weight_kg,
+                price_per_weight_unit=price_per_weight_unit,
+                weight_unit=weight_unit,
+            )
+        else:
+            weight_fee = price_per_weight_unit * billable_weight
 
         value_rate = (
             _extract_value_rate(metadata) if pricing_effective else Decimal("0")
@@ -292,6 +368,16 @@ def calculate_shipping_for_routes(
                 route_total = min_total
             if max_total is not None and route_total > max_total:
                 route_total = max_total
+
+        # Franco: once the shipment is worth the threshold, this leg is free.
+        # Wins over min_total — "free from X" is a promise, not a floor.
+        free_shipping_applied = False
+        free_threshold = _to_decimal(
+            getattr(route, "free_shipping_threshold", None), default=Decimal("-1")
+        )
+        if free_threshold >= 0 and normalized_declared_value >= free_threshold:
+            free_shipping_applied = True
+            fixed_fee = weight_fee = value_fee = route_total = Decimal("0")
 
         quantized_fixed_fee = quantize_amount(fixed_fee, currency)
         quantized_weight_fee = quantize_amount(weight_fee, currency)
@@ -311,6 +397,8 @@ def calculate_shipping_for_routes(
                 eta_days=route.eta_days,
                 carbon_footprint_kg_co2e=route.carbon_footprint_kg_co2e,
                 pricing_effective=pricing_effective,
+                weight_band_max_kg=weight_band_max_kg,
+                free_shipping_applied=free_shipping_applied,
             )
         )
 
@@ -384,6 +472,12 @@ def serialize_shipping_cost_summary(summary: ShippingCostSummary) -> dict[str, A
                 "eta_days": segment.eta_days,
                 "carbon_footprint_kg_co2e": segment.carbon_footprint_kg_co2e,
                 "pricing_effective": segment.pricing_effective,
+                "weight_band_max_kg": (
+                    None
+                    if segment.weight_band_max_kg is None
+                    else str(segment.weight_band_max_kg)
+                ),
+                "free_shipping_applied": segment.free_shipping_applied,
             }
             for segment in summary.breakdown
         ],

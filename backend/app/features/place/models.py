@@ -8,7 +8,7 @@ Tout lieu physique (aéroport, port, entrepôt, adresse client, île...).
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import Column, UniqueConstraint
+from sqlalchemy import Column, Index, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlmodel import Field, SQLModel
 
@@ -79,6 +79,39 @@ class PlaceBase(Base):
         index=True,
         description="Is a warehouse",
     )
+    is_main_warehouse: bool = Field(
+        default=False,
+        index=True,
+        description=(
+            "The shop's main warehouse — where supplier goods converge and from "
+            "where the last leg to the customer starts. Exactly one place "
+            "(partial unique index); set it through POST /place/{id}/set-main-warehouse."
+        ),
+    )
+
+    # Régime douanier d'un lieu d'origine (fournisseur). Null = automatique :
+    # même pays que l'entrepôt principal (ou pays exempté par le réglage
+    # ``customs_free_countries``) → local, sinon import. « domestic » /
+    # « import » forcent le régime quel que soit le pays.
+    customs_regime: str | None = Field(
+        default=None,
+        max_length=20,
+        description=(
+            "Origin place override: 'domestic' (no customs, no import freight) "
+            "or 'import' (customs apply). Null = derived from the country vs "
+            "the main warehouse and the customs_free_countries setting."
+        ),
+    )
+    # Dropshipping : les colis partent de ce fournisseur directement chez le
+    # client, sans transiter par l'entrepôt principal.
+    dropship_enabled: bool = Field(
+        default=False,
+        description=(
+            "Supplier place ships straight to the customer (dropshipping): the "
+            "order gets a supplier → customer leg instead of supplier → main "
+            "warehouse → customer."
+        ),
+    )
     max_capacity_m3: float | None = Field(
         default=None, description="Capacité max en m³"
     )
@@ -127,6 +160,16 @@ class Place(PlaceBase, table=True):
     """Represents place."""
 
     __tablename__ = "places"
+    __table_args__ = (
+        # At most one main warehouse (declared here too so create_all-based
+        # test schemas enforce it like the migrated database does).
+        Index(
+            "uq_places_single_main_warehouse",
+            "is_main_warehouse",
+            unique=True,
+            postgresql_where=text("is_main_warehouse"),
+        ),
+    )
 
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -157,6 +200,8 @@ class PlaceUpdate(PlaceBase, BaseUpdate):
     country: str | None = None
     region: str | None = None
     is_warehouse: bool | None = None
+    customs_regime: str | None = None
+    dropship_enabled: bool | None = None
     max_capacity_m3: float | None = None
     current_capacity_m3: float | None = None
     customs_clearance: bool | None = None

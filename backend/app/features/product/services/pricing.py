@@ -11,12 +11,20 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.features.place.models import Place
 from app.features.product.models.category import Category
 from app.features.product.models.currency_rate import CurrencyRate
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import PricingMode, Product
 from app.features.product.models.tax_rate import TaxRate
 from app.features.shipping.models.route import ShippingRoute
+from app.features.shipping.services.origin import (
+    OriginContext,
+    OriginRegime,
+    load_origin_context,
+    resolve_origin_regime,
+    resolve_product_origin_regime,
+)
 from app.features.shipping.services.pricing import (
     _route_metadata_to_dict,
     resolve_billable_weight,
@@ -350,6 +358,46 @@ def _compute_volume_m3(product: Product) -> Decimal | None:
         return None
 
 
+async def resolve_effective_customs_rate_pct(
+    session: AsyncSession,
+    product: Product,
+    *,
+    origin_regime: OriginRegime | None = None,
+) -> Decimal | None:
+    """Customs rate actually applied to this product: 0 for a domestic origin.
+
+    A supplier in the main warehouse's country (or a customs-free one) clears
+    no border, whatever rate the product or its category carries for the
+    import case. Otherwise the configured rate (None = unresolved) applies.
+    """
+    if not await product_applies_customs(session, product, origin_regime=origin_regime):
+        return Decimal("0")
+    return await resolve_customs_rate_pct(session, product)
+
+
+async def product_applies_customs(
+    session: AsyncSession,
+    product: Product,
+    *,
+    origin_regime: OriginRegime | None = None,
+    context: OriginContext | None = None,
+) -> bool:
+    """The one decision « does this product cross the customs border? ».
+
+    Shared by the price, the publication gate, the order-line snapshot and
+    the customs declaration fee, so they never disagree. ``fixed`` and
+    ``domestic`` products never do (explicit product-level overrides); an
+    ``import`` product follows the regime of its supplier place (UNKNOWN
+    keeps the historical behaviour: customs apply).
+    """
+    if resolve_pricing_mode(product) is not PricingMode.IMPORT:
+        return False
+    regime = origin_regime
+    if regime is None:
+        regime = await resolve_product_origin_regime(session, product, context=context)
+    return regime.applies_customs
+
+
 async def calculate_sale_price(
     session: AsyncSession,
     product: Product,
@@ -357,6 +405,7 @@ async def calculate_sale_price(
     group: PriceGroup | None = None,
     territory: str = _DEFAULT_TERRITORY_CODE,
     import_route: ShippingRoute | None = None,
+    origin_regime: OriginRegime | None = None,
 ) -> Decimal:
     """Calculate the product sale price according to its ``pricing_mode``.
 
@@ -383,11 +432,27 @@ async def calculate_sale_price(
     The margin resolves product → category → price group
     (:func:`resolve_margin_rate_pct`).
 
+    ``origin_regime``: where the product comes from (see shipping/services/
+    origin.py). A DOMESTIC origin — supplier in the main warehouse's country —
+    crosses no border: no import freight, no insurance, no customs; the price
+    is cost × margin × tax. Resolved from the product's supplier place when
+    not given; UNKNOWN keeps the import formula (visible over-pricing beats
+    silent under-pricing).
+
     Raises CurrencyRateMissing for unknown cost currencies.
     """
     mode = resolve_pricing_mode(product)
     if mode is PricingMode.FIXED:
         return _quantize_money(_as_decimal(getattr(product, "base_price", None)))
+
+    # The origin place is the customs truth for the default (import) mode: a
+    # supplier in the main warehouse's country prices as a domestic product.
+    # ``domestic`` / ``fixed`` on the product are explicit overrides.
+    regime = origin_regime
+    if mode is PricingMode.IMPORT and regime is None:
+        regime = await resolve_product_origin_regime(session, product)
+    if regime is OriginRegime.DOMESTIC:
+        mode = PricingMode.DOMESTIC
 
     effective_group = group
     if effective_group is None:
@@ -423,7 +488,9 @@ async def calculate_sale_price(
     # product is not publishable and cannot reach the cart — see
     # services/publication.py. Keeping this total avoids breaking admin
     # previews of products still being set up.
-    customs_rate_pct = _as_decimal(await resolve_customs_rate_pct(session, product))
+    customs_rate_pct = _as_decimal(
+        await resolve_effective_customs_rate_pct(session, product, origin_regime=regime)
+    )
 
     # Variable freight from import route (price_per_kg × billable_weight).
     # The fixed base_price/handling fee is NOT included here: it belongs to
@@ -524,6 +591,14 @@ async def calculate_price_by_mode(
 
 
 @dataclass(frozen=True)
+class _PlaceOrigin:
+    """The two attributes :func:`resolve_origin_regime` reads on a place."""
+
+    country: str | None
+    customs_regime: str | None
+
+
+@dataclass(frozen=True)
 class _CategoryPricing:
     default_customs_rate_pct: Decimal | None
     default_margin_rate_pct: Decimal | None
@@ -553,6 +628,11 @@ class PricingContext:
     insurance_rate_pct: Decimal
     reference_currency: str
     at_date: date
+    #: Origin places (``country``, ``customs_regime``) and what they are
+    #: compared against — the customs truth for import-mode products.
+    places: dict[uuid.UUID, _PlaceOrigin] = field(default_factory=dict)
+    main_warehouse: _PlaceOrigin | None = None
+    free_countries: frozenset[str] = frozenset()
     loaded_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     #: How long :meth:`for_session` keeps reusing an instance.
@@ -640,6 +720,27 @@ class PricingContext:
             for row in category_rows
         }
 
+        origin = await load_origin_context(session)
+        place_rows = list(
+            (
+                await session.exec(
+                    select(col(Place.id), col(Place.country), col(Place.customs_regime))
+                )
+            ).all()
+        )
+        places = {
+            row[0]: _PlaceOrigin(country=row[1], customs_regime=row[2])
+            for row in place_rows
+        }
+        main_warehouse = (
+            _PlaceOrigin(
+                country=origin.main_warehouse.country,
+                customs_regime=origin.main_warehouse.customs_regime,
+            )
+            if origin.main_warehouse is not None
+            else None
+        )
+
         return cls(
             group_margin_rate_pct=group_margin,
             tax_rates_by_id=tax_by_id,
@@ -649,6 +750,9 @@ class PricingContext:
             insurance_rate_pct=Decimal(str(settings.INSURANCE_RATE_PCT)),
             reference_currency=settings.REFERENCE_CURRENCY,
             at_date=reference_date,
+            places=places,
+            main_warehouse=main_warehouse,
+            free_countries=origin.free_countries,
         )
 
     @classmethod
@@ -715,6 +819,39 @@ class PricingContext:
                 return _as_decimal(rate.rate_pct)  # type: ignore[union-attr]
         return self.default_tax_rate_pct
 
+    def origin_regime(self, product: Product) -> OriginRegime:
+        """Regime of the product's supplier place, like
+        :func:`resolve_product_origin_regime` but in memory."""
+        origin_id = getattr(product, "supplier_place_id", None)
+        if origin_id is None:
+            return OriginRegime.UNKNOWN
+        origin = self.places.get(origin_id)
+        if origin is None:
+            return OriginRegime.UNKNOWN
+        return resolve_origin_regime(
+            origin,  # type: ignore[arg-type]
+            self.main_warehouse,  # type: ignore[arg-type]
+            free_countries=self.free_countries,
+        )
+
+    def effective_mode(self, product: Product) -> PricingMode:
+        """``pricing_mode`` with the origin applied: an import-mode product
+        from a domestic place prices as ``domestic`` (see
+        :func:`calculate_sale_price`)."""
+        mode = resolve_pricing_mode(product)
+        if (
+            mode is PricingMode.IMPORT
+            and self.origin_regime(product) is OriginRegime.DOMESTIC
+        ):
+            return PricingMode.DOMESTIC
+        return mode
+
+    def applies_customs(self, product: Product) -> bool:
+        """In-memory twin of :func:`product_applies_customs`."""
+        if resolve_pricing_mode(product) is not PricingMode.IMPORT:
+            return False
+        return self.origin_regime(product).applies_customs
+
     def to_reference(self, amount: Decimal, currency: str) -> Decimal:
         """Convert to the reference currency; raises CurrencyRateMissing."""
         if currency == self.reference_currency:
@@ -728,7 +865,7 @@ class PricingContext:
         self, product: Product, *, import_route: ShippingRoute | None = None
     ) -> Decimal:
         """Same formula as :func:`calculate_sale_price`, no database access."""
-        mode = resolve_pricing_mode(product)
+        mode = self.effective_mode(product)
         if mode is PricingMode.FIXED:
             return _quantize_money(_as_decimal(getattr(product, "base_price", None)))
 

@@ -86,6 +86,22 @@ jobs:
         working-directory: backend
         run: uv run mypy app/
 
+      - name: Alembic — une seule tête de migration
+        working-directory: backend
+        # Deux branches qui créent chacune une révision produisent deux têtes :
+        # `alembic upgrade head` refuse alors de tourner (CI, prestart.sh, donc
+        # le déploiement). Le détecter ici, avec un message lisible, plutôt que
+        # dans la trace de l'étape suivante. La révision est aussi vérifiée par
+        # app/tests/test_alembic_graph.py (utile en local, sans base).
+        run: |
+          heads="$(uv run alembic heads 2>/dev/null | grep -c '(head)')"
+          echo "Têtes Alembic : $heads"
+          if [ "$heads" -ne 1 ]; then
+            echo "::error::Plusieurs têtes Alembic (ou aucune) : fusionner les révisions avant de merger."
+            uv run alembic heads
+            exit 1
+          fi
+
       - name: Create, migrate & seed the app database
         working-directory: backend
         run: |

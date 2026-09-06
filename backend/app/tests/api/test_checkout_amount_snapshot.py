@@ -358,6 +358,9 @@ async def test_checkout_calculates_shipping_from_selected_routes(
                 "eta_days": 4,
                 "carbon_footprint_kg_co2e": 1.2,
                 "pricing_effective": True,
+                # Linear per-kg tariff, no franco: the snapshot says so explicitly.
+                "weight_band_max_kg": None,
+                "free_shipping_applied": False,
             }
         ],
     }

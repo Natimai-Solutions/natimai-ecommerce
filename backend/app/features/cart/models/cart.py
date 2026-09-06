@@ -349,6 +349,33 @@ class LastLegOption(SQLModel):
     route_name: str | None = None
 
 
+class CheckoutQuoteResponse(SQLModel):
+    """What ``POST /cart/checkout`` will bill for the current cart and choices.
+
+    Served by ``GET /cart/me/checkout-quote`` from the very same computation
+    as the checkout, so the recap the customer reads is the amount debited.
+    """
+
+    currency: str
+    subtotal_amount: Decimal = Field(description="Articles, taxes incluses")
+    shipping_fee_amount: Decimal = Field(
+        description="Livraison (tronçon choisi) + frais de dédouanement"
+    )
+    customs_declaration_fee: Decimal = Field(
+        default=Decimal("0.00"),
+        description="Part de shipping_fee_amount due au dédouanement (0 = aucun)",
+    )
+    payment_fee_amount: Decimal = Field(description="Frais du moyen de paiement")
+    total_fees_amount: Decimal
+    total_amount: Decimal = Field(description="Montant qui sera débité")
+    delivery_type: str | None = None
+    shipping_eta_days: int | None = None
+    free_shipping_applied: bool = Field(
+        default=False, description="Le franco a mis la livraison à 0"
+    )
+    shipping_cost_breakdown: dict[str, Any] | None = None
+
+
 class LastLegOptionsResponse(SQLModel):
     """Last-leg delivery options with their price, for the checkout selector."""
 

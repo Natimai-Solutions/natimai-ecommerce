@@ -1,7 +1,8 @@
 """suppliers en base, modes de prix et marges par catégorie
 
-Fusionne les trois têtes laissées ouvertes (droits de douane par déclaration
-F3, titre vitrine des catégories A17/A12, avoirs Z2) puis :
+S'enchaîne après ``a7d2e9f4b1c6`` (entrepôt principal, régime douanier d'origine
+et dropshipping sur ``places``) — les deux chaînes ne touchent pas les mêmes
+tables ; la fusion des trois têtes du 04/09 est ``e2b7c4d9a1f3``. Puis :
 
 * crée la table ``suppliers`` — un fournisseur est désormais une ligne que
   l'admin déclare (entrepôt d'origine, régime douanier, méthode
@@ -17,7 +18,7 @@ F3, titre vitrine des catégories A17/A12, avoirs Z2) puis :
   la marge se résout produit → catégorie → groupe tarifaire.
 
 Revision ID: e1f7a3c9b5d2
-Revises: b3f7d1e6c8a4, b7e2d9c4a1f6, d3b8c5f1a742
+Revises: a7d2e9f4b1c6
 Create Date: 2026-09-05 10:00:00.000000
 
 """
@@ -29,7 +30,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "e1f7a3c9b5d2"
-down_revision = ("b3f7d1e6c8a4", "b7e2d9c4a1f6", "d3b8c5f1a742")
+down_revision = "a7d2e9f4b1c6"
 branch_labels = None
 depends_on = None
 

@@ -381,3 +381,142 @@ def test_serialize_shipping_cost_summary_keeps_declaration_fees_auditable() -> N
             "amount": "3500",
         }
     ]
+
+
+# ---------------------------------------------------------------------------
+# Classic carrier grids: weight bands + franco
+# ---------------------------------------------------------------------------
+
+
+def _grid_route(
+    *,
+    bands: list[dict[str, Any]] | None,
+    base_price: str = "0",
+    price_per_kg: str = "0",
+    free_above: str | None = None,
+    route_metadata: dict[str, Any] | None = None,
+) -> ShippingRoute:
+    route = _route(
+        base_price=base_price,
+        price_per_kg=price_per_kg,
+        route_metadata=route_metadata,
+        name="Colissimo",
+        mode="road",
+    )
+    route.weight_bands = bands
+    route.free_shipping_threshold = None if free_above is None else Decimal(free_above)
+    return route
+
+
+_COLISSIMO_BANDS: list[dict[str, Any]] = [
+    {"max_kg": "1", "price": "5.00"},
+    {"max_kg": "3", "price": "8.00"},
+    {"max_kg": "10", "price": "12.00"},
+]
+
+
+def _fee(route: ShippingRoute, *, weight: str, value: str = "0") -> Any:
+    summary = calculate_shipping_for_routes(
+        routes=[route],
+        total_weight_kg=Decimal(weight),
+        declared_value=Decimal(value),
+        currency="EUR",
+    )
+    return summary.breakdown[0]
+
+
+def test_weight_band_prices_by_upper_bound() -> None:
+    route = _grid_route(bands=_COLISSIMO_BANDS)
+    assert _fee(route, weight="0.4").weight_fee == Decimal("5.00")
+    assert _fee(route, weight="1").weight_fee == Decimal("5.00")  # inclusive bound
+    assert _fee(route, weight="1.2").weight_fee == Decimal("8.00")
+    assert _fee(route, weight="9.9").weight_fee == Decimal("12.00")
+    assert _fee(route, weight="1.2").weight_band_max_kg == Decimal("3")
+
+
+def test_weight_band_adds_base_price_and_ignores_per_kg() -> None:
+    # Forfait + tranche; the linear rate is only for the excess beyond the grid.
+    route = _grid_route(bands=_COLISSIMO_BANDS, base_price="2.00", price_per_kg="99")
+    segment = _fee(route, weight="2")
+    assert segment.fixed_fee == Decimal("2.00")
+    assert segment.weight_fee == Decimal("8.00")
+    assert segment.total_fee == Decimal("10.00")
+
+
+def test_weight_beyond_last_band_bills_excess_per_kg() -> None:
+    route = _grid_route(bands=_COLISSIMO_BANDS, price_per_kg="1.50")
+    # 12 kg: top band (10 kg → 12.00) + 2 kg × 1.50
+    segment = _fee(route, weight="12")
+    assert segment.weight_fee == Decimal("15.00")
+    assert segment.weight_band_max_kg == Decimal("10")
+
+
+def test_open_band_covers_everything_heavier() -> None:
+    bands = [*_COLISSIMO_BANDS, {"max_kg": None, "price": "20.00"}]
+    route = _grid_route(bands=bands, price_per_kg="99")
+    segment = _fee(route, weight="40")
+    assert segment.weight_fee == Decimal("20.00")
+    assert segment.weight_band_max_kg is None
+
+
+def test_bands_use_the_billable_weight() -> None:
+    # Volumetric weight (air: 167 kg/m³) pushes a light parcel into a higher band.
+    route = _grid_route(bands=_COLISSIMO_BANDS)
+    route.mode = "air"
+    summary = calculate_shipping_for_routes(
+        routes=[route],
+        total_weight_kg=Decimal("0.5"),
+        declared_value=Decimal("0"),
+        currency="EUR",
+        total_volume_m3=Decimal("0.01"),  # 1.67 kg volumetric
+    )
+    assert summary.breakdown[0].weight_fee == Decimal("8.00")
+
+
+def test_malformed_bands_fall_back_to_linear_pricing() -> None:
+    route = _grid_route(bands=[{"max_kg": "abc"}, "nope"], price_per_kg="2.00")  # type: ignore[list-item]
+    segment = _fee(route, weight="3")
+    assert segment.weight_fee == Decimal("6.00")
+    assert segment.weight_band_max_kg is None
+
+
+def test_free_shipping_from_threshold_zeroes_the_route() -> None:
+    route = _grid_route(
+        bands=_COLISSIMO_BANDS,
+        base_price="2.00",
+        free_above="100",
+        route_metadata={"min_total": "4"},
+    )
+    paid = _fee(route, weight="2", value="99.99")
+    free = _fee(route, weight="2", value="100")
+    assert paid.total_fee == Decimal("10.00")
+    assert paid.free_shipping_applied is False
+    assert free.total_fee == Decimal("0.00")
+    assert free.fixed_fee == Decimal("0.00")
+    assert free.weight_fee == Decimal("0.00")
+    assert free.free_shipping_applied is True  # wins over min_total
+
+
+def test_free_shipping_only_frees_its_own_leg() -> None:
+    free_leg = _grid_route(bands=_COLISSIMO_BANDS, free_above="50")
+    paid_leg = _route(base_price="3.00", price_per_kg="0")
+    summary = calculate_shipping_for_routes(
+        routes=[free_leg, paid_leg],
+        total_weight_kg=Decimal("2"),
+        declared_value=Decimal("80"),
+        currency="EUR",
+    )
+    assert summary.total_fee == Decimal("3.00")
+
+
+def test_serialize_exposes_band_and_franco() -> None:
+    route = _grid_route(bands=_COLISSIMO_BANDS, free_above="1000")
+    summary = calculate_shipping_for_routes(
+        routes=[route],
+        total_weight_kg=Decimal("2"),
+        declared_value=Decimal("10"),
+        currency="EUR",
+    )
+    segment = serialize_shipping_cost_summary(summary)["segments"][0]
+    assert segment["weight_band_max_kg"] == "3"
+    assert segment["free_shipping_applied"] is False

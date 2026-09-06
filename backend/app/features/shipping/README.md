@@ -179,6 +179,33 @@ This allows the system to know which route comes next and automatically progress
 }
 ```
 
+#### Tariff of a route
+
+Every leg is priced by `calculate_shipping_for_routes`
+(`services/pricing.py`), from the shipment's billable weight (max of actual
+and volumetric weight) and declared value:
+
+| Field | Meaning |
+|---|---|
+| `base_price` | Fixed part, billed once per shipment on this leg. |
+| `price_per_kg` | Linear rate × billable weight (kg, or lb via `route_metadata.weight_unit`). |
+| `weight_bands` | Classic carrier grid `[{"max_kg": 1, "price": 5}, {"max_kg": 3, "price": 8}, {"max_kg": null, "price": 12}]`. When set, it replaces `price_per_kg × weight`: the first band whose `max_kg` covers the weight prices it; a last band with `max_kg: null` covers everything heavier; without one, the excess above the last band is billed at `price_per_kg`. `base_price` still adds up. |
+| `free_shipping_threshold` | Franco: the leg costs 0 once the declared value reaches this amount (wins over `route_metadata.min_total`). Only this leg is freed. |
+| `route_metadata` | Extras: `value_percent` / `value_rate` (insurance-like % of value), `min_total` / `max_total`, `effective_from` / `effective_until` tariff window, `dim_factor_kg_per_m3` and `billing_basis` for volumetric weight. |
+
+A one-warehouse shop with Colissimo and Chronopost needs two `is_to_customer`
+routes (one `last_leg_delivery_type` each, e.g. `home_delivery` /
+`express`), each with its own grid and franco; the customer picks one at
+checkout and that route becomes the order's single tracked leg.
+
+#### Origin of the goods (`services/origin.py`)
+
+| Fact | Where | Effect |
+|---|---|---|
+| Main warehouse | `Place.is_main_warehouse` (one, `set_main_warehouse`) | Supplier goods converge there; last leg starts there. |
+| Customs regime | `Place.customs_regime` on the supplier place, else country vs main warehouse, `customs_free_countries` setting | `DOMESTIC`: price = cost × margin × tax, no customs rate required, no declaration fee. `IMPORT`: CAF formula. `UNKNOWN`: import behaviour. |
+| Dropshipping | `Place.dropship_enabled` | Checkout segment `SUPPLIER_DIRECT`: one supplier → customer leg (the supplier's customer route, else the chosen delivery mode). Otherwise `VIA_MAIN_WAREHOUSE`: supplier → main warehouse legs, then the shared last leg. |
+
 ### ShippingRouteTracking
 ```python
 # Route 1 tracking with StatusDefinition relation

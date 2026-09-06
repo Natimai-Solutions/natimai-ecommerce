@@ -77,6 +77,7 @@ def _product(**over: Any) -> Any:
         "length": None,
         "width": None,
         "height": None,
+        "supplier_place_id": None,
     }
     fields.update(over)
     return SimpleNamespace(**fields)
@@ -182,3 +183,75 @@ async def test_for_session_caches_the_context_for_a_minute(
     )
     await PricingContext.for_session(session)  # type: ignore[arg-type]
     assert load.await_count == 2
+
+
+# -- origin regime (main warehouse vs supplier place) --------------------------
+
+
+def _with_places(**over: Any) -> PricingContext:
+    from app.features.product.services.pricing import _PlaceOrigin
+
+    context = _context(group_margin="0", **over)
+    context.main_warehouse = _PlaceOrigin(country="PF", customs_regime=None)
+    context.places = {
+        LOCAL_PLACE: _PlaceOrigin(country="PF", customs_regime=None),
+        FOREIGN_PLACE: _PlaceOrigin(country="FR", customs_regime=None),
+        FORCED_LOCAL_PLACE: _PlaceOrigin(country="FR", customs_regime="domestic"),
+        UNION_PLACE: _PlaceOrigin(country="NC", customs_regime=None),
+    }
+    context.free_countries = frozenset({"NC"})
+    return context
+
+
+LOCAL_PLACE, FOREIGN_PLACE, FORCED_LOCAL_PLACE, UNION_PLACE = (
+    uuid4(),
+    uuid4(),
+    uuid4(),
+    uuid4(),
+)
+
+
+def _import_product(place: UUID | None, **over: Any) -> Any:
+    return _product(
+        pricing_mode=PricingMode.IMPORT,
+        customs_rate_pct=Decimal("20"),
+        supplier_place_id=place,
+        **over,
+    )
+
+
+def test_import_product_from_a_domestic_place_prices_as_domestic() -> None:
+    context = _with_places()
+    # 1000 × 1.00 (margin 0) × 1.16 : no insurance, no customs.
+    assert context.price(_import_product(LOCAL_PLACE)) == Decimal("1160.00")
+    assert context.price(_import_product(FORCED_LOCAL_PLACE)) == Decimal("1160.00")
+    assert context.price(_import_product(UNION_PLACE)) == Decimal("1160.00")
+    assert context.applies_customs(_import_product(LOCAL_PLACE)) is False
+
+
+def test_import_product_from_a_foreign_or_unknown_place_pays_customs() -> None:
+    context = _with_places()
+    # CAF 1005 × 1.20 × 1.16
+    expected = (Decimal("1005") * Decimal("1.20") * Decimal("1.16")).quantize(
+        Decimal("0.01")
+    )
+    assert context.price(_import_product(FOREIGN_PLACE)) == expected
+    assert context.price(_import_product(None)) == expected  # unknown: historical
+    assert context.price(_import_product(uuid4())) == expected  # place not loaded
+    assert context.applies_customs(_import_product(FOREIGN_PLACE)) is True
+
+
+def test_explicit_modes_ignore_the_origin_place() -> None:
+    context = _with_places()
+    fixed = _product(
+        pricing_mode=PricingMode.FIXED,
+        base_price=Decimal("2990"),
+        supplier_place_id=FOREIGN_PLACE,
+    )
+    assert context.price(fixed) == Decimal("2990.00")
+    assert context.applies_customs(fixed) is False
+    domestic = _product(
+        pricing_mode=PricingMode.DOMESTIC, supplier_place_id=FOREIGN_PLACE
+    )
+    assert context.price(domestic) == Decimal("1160.00")
+    assert context.applies_customs(domestic) is False

@@ -288,6 +288,7 @@ truth. All three are safe to leave at their defaults.
 | `CLAMAV_HOST` | `clamav` | ClamAV daemon host |
 | `CLAMAV_PORT` | `3310` | ClamAV daemon port |
 | `ENABLE_GROUP_PERMISSIONS` | `false` | Enable RBAC group checks (turn on after security groups are seeded and verified) |
+| `SEED_FRENCH_POLYNESIA_LOGISTICS` | `true` | Seed the French Polynesia starter logistics (France → Papeete import corridor, PF zone tree + postal codes) on `initial_data`. Set `false` for a classic one-warehouse shop: only carriers and shipping statuses are seeded; create your warehouse and warehouse → customer routes (grid by weight band, franco) in *Trajets & Lieux* and your carriers in *Transporteurs* |
 | `CLIENT_IP_HEADER` | *(empty)* | **Set this whenever the API sits behind Cloudflare or a reverse proxy.** Name of the trusted header carrying the real client IP: `CF-Connecting-IP` (Cloudflare) or `X-Forwarded-For` (Caddy/nginx/traefik — the **last**, proxy-appended entry of the chain is used; earlier entries are client-forgeable). Used by the login rate limiter — left empty, all requests share the proxy's IP and the per-IP throttle (10 login attempts/min) becomes a **global** throttle for every customer. Leave empty **only** when the API is directly exposed (a forged header would otherwise bypass the throttle). |
 | `LOGIN_RATE_LIMIT_ATTEMPTS` | `10` | Login attempts per IP per window (Redis-backed, fail-open) |
 | `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | `60` | Throttle window |
@@ -1097,3 +1098,30 @@ basis an ad valorem policy actually covers — before customs duty. The default
 Storefront prices are recomputed from the CAF formula, so a rate change takes
 effect on the next price computation — verify a product's price moved as
 expected before considering the change applied.
+
+### 16.3 Where the goods come from: main warehouse, customs regime, dropshipping
+
+Three facts live on places (*Trajets & Lieux*), not in code:
+
+1. **Main warehouse** — flag exactly one warehouse with the star action
+   (« Définir comme entrepôt principal »). Supplier goods converge there and
+   the last leg to the customer starts there. The French Polynesia seed flags
+   the Papeete warehouse when none is set; a classic shop flags its own.
+2. **Customs regime of a supplier place** — *Automatique* compares the
+   supplier's country with the main warehouse's: same country = local (no
+   customs, no import freight, no insurance in the price; no customs rate
+   needed to publish; no per-declaration fee), other country = import (§15,
+   §16.1, §16.2 apply). Two ways to bend the rule:
+   - the `customs_free_countries` system setting (*Paramètres*): ISO codes,
+     comma-separated, whose suppliers count as local (customs union, same
+     customs territory) — e.g. `FR,DE` for a shop inside the EU;
+   - *Local* / *Import* forced on one place, whatever its country.
+   A supplier place **without a country** keeps the historical behaviour
+   (customs applied): set the country, it drives the price.
+3. **Dropshipping** — a supplier place flagged « livre directement le client »
+   ships straight to the customer: the order gets a supplier → customer leg
+   (the supplier's own customer route if you created one, else the delivery
+   mode the customer chose) instead of supplier → main warehouse → customer.
+   The customer currently pays the chosen delivery mode once per order, not
+   once per parcel — see the work plan before enabling it on several
+   suppliers.

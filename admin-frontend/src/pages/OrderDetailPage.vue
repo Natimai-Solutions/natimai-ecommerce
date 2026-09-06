@@ -114,6 +114,167 @@
         </q-card-section>
       </q-card>
 
+      <!-- Transport (journey legs, carrier hand-over) -->
+      <q-card flat bordered class="q-mt-md">
+        <q-card-section>
+          <div class="row items-center q-mb-sm">
+            <div class="text-subtitle1 col">Transport</div>
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="inventory_2"
+              label="Page Logistique"
+              color="grey-8"
+              to="/shipping"
+            />
+          </div>
+          <q-banner v-if="journeyNotice" class="bg-green-1 text-green-9 q-mb-sm" rounded dense>
+            {{ journeyNotice }}
+          </q-banner>
+          <q-banner v-if="journeyError" class="bg-red-1 text-red-9 q-mb-sm" rounded dense>
+            {{ journeyError }}
+          </q-banner>
+          <div v-if="order.delivery_type" class="text-caption text-grey-7 q-mb-sm">
+            Mode choisi par le client : {{ prettifyMode(order.delivery_type) }}
+          </div>
+          <q-markup-table flat dense>
+            <thead>
+              <tr>
+                <th class="text-left">#</th>
+                <th class="text-left">Tronçon</th>
+                <th class="text-left">Statut</th>
+                <th class="text-left">Transporteur</th>
+                <th class="text-left">N° de suivi</th>
+                <th class="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="leg in journey"
+                :key="leg.tracking_id"
+                :class="{ 'bg-blue-1': leg.is_current }"
+              >
+                <td class="text-left">{{ leg.sequence_order }}</td>
+                <td class="text-left">
+                  <div>{{ leg.route_name || '—' }}</div>
+                  <div class="text-caption text-grey-7">
+                    {{ leg.from_place || '?' }} → {{ leg.to_place || '?' }}
+                    <span v-if="leg.mode">({{ leg.mode }})</span>
+                  </div>
+                </td>
+                <td class="text-left">
+                  <q-chip
+                    dense
+                    size="sm"
+                    :color="leg.is_terminal ? 'green' : leg.is_current ? 'primary' : 'grey-7'"
+                    text-color="white"
+                    :label="leg.status_name || leg.status_code || '—'"
+                  />
+                </td>
+                <td class="text-left">
+                  {{ leg.carrier_name || (leg.tracking_ref ? 'Suivi interne' : '—') }}
+                </td>
+                <td class="text-left">
+                  <a
+                    v-if="leg.tracking_url"
+                    :href="leg.tracking_url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >{{ leg.tracking_ref }}</a
+                  >
+                  <span v-else>{{ leg.tracking_ref || '—' }}</span>
+                </td>
+                <td class="text-right">
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    icon="local_shipping"
+                    color="primary"
+                    label="Remettre au transporteur"
+                    :disable="leg.is_terminal || leg.status_code === 'shipped'"
+                    @click="openShip(leg)"
+                  >
+                    <q-tooltip max-width="320px">
+                      Enregistre le transporteur et le n° de suivi, marque le tronçon expédié et
+                      notifie le client.
+                    </q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    v-if="!leg.is_final_leg"
+                    flat
+                    dense
+                    no-caps
+                    icon="skip_next"
+                    color="indigo"
+                    label="Tronçon suivant"
+                    :disable="leg.is_terminal"
+                    @click="advanceLeg(leg)"
+                  />
+                  <q-btn
+                    v-else
+                    flat
+                    dense
+                    no-caps
+                    icon="task_alt"
+                    color="positive"
+                    label="Livrer"
+                    :disable="leg.is_terminal"
+                    @click="deliverLeg(leg)"
+                  />
+                </td>
+              </tr>
+              <tr v-if="journey.length === 0">
+                <td colspan="6" class="text-center text-grey-6">
+                  {{ journeyLoading ? 'Chargement…' : 'Aucun tronçon de transport.' }}
+                </td>
+              </tr>
+            </tbody>
+          </q-markup-table>
+        </q-card-section>
+      </q-card>
+
+      <!-- Ship dialog (carrier + tracking ref) -->
+      <q-dialog v-model="shipDialog">
+        <q-card style="min-width: 360px">
+          <q-card-section class="text-h6">Remise au transporteur</q-card-section>
+          <q-form @submit.prevent="submitShip">
+            <q-card-section class="q-pt-none q-gutter-sm">
+              <q-banner v-if="shipError" class="bg-red-1 text-red-9" dense rounded>{{
+                shipError
+              }}</q-banner>
+              <q-select
+                v-model="shipCarrierId"
+                :options="carrierOptions"
+                label="Transporteur"
+                outlined
+                dense
+                emit-value
+                map-options
+              />
+              <q-input
+                v-model="shipRef"
+                label="Numéro de suivi (optionnel)"
+                hint="Laisser vide si vous n'avez pas de numéro (suivi géré en interne)."
+                outlined
+                dense
+                autofocus
+              />
+            </q-card-section>
+            <q-card-actions align="right">
+              <q-btn flat label="Annuler" v-close-popup />
+              <q-btn
+                type="submit"
+                color="primary"
+                label="Remettre au transporteur"
+                :loading="shipping"
+              />
+            </q-card-actions>
+          </q-form>
+        </q-card>
+      </q-dialog>
+
       <!-- Payments -->
       <q-card flat bordered class="q-mt-md">
         <q-card-section>
@@ -226,6 +387,15 @@ import {
   type AdminOrderPaymentItem,
 } from 'src/api/orders';
 import { capturePayment, refundPayment } from 'src/api/paymentValidations';
+import {
+  advanceTracking,
+  deliverTracking,
+  getOrderJourney,
+  listCarriers,
+  shipTracking,
+  type Carrier,
+  type JourneyLeg,
+} from 'src/api/shipping';
 import { extractApiError } from 'src/api/errors';
 
 const route = useRoute();
@@ -272,6 +442,103 @@ async function load() {
     error.value = extractApiError(err) ?? 'Chargement impossible.';
   } finally {
     loading.value = false;
+  }
+  await loadJourney();
+}
+
+// --- Transport (journey legs) ---
+const journey = ref<JourneyLeg[]>([]);
+const journeyLoading = ref(false);
+const journeyError = ref<string | null>(null);
+const journeyNotice = ref<string | null>(null);
+const carriers = ref<Carrier[]>([]);
+
+function prettifyMode(mode: string): string {
+  return mode.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+async function loadJourney() {
+  journeyLoading.value = true;
+  journeyError.value = null;
+  try {
+    journey.value = await getOrderJourney(orderId.value);
+  } catch (err) {
+    // 404 = no tracked leg yet (e.g. an order placed before the logistics
+    // phase): an empty table, not an error banner.
+    journey.value = [];
+    const msg = extractApiError(err);
+    if (msg && !/aucun tronçon/i.test(msg)) journeyError.value = msg;
+  } finally {
+    journeyLoading.value = false;
+  }
+}
+
+const shipDialog = ref(false);
+const shipTarget = ref<JourneyLeg | null>(null);
+const shipRef = ref('');
+const shipCarrierId = ref<string | null>(null);
+const shipping = ref(false);
+const shipError = ref<string | null>(null);
+
+const carrierOptions = computed<{ label: string; value: string | null }[]>(() => [
+  { label: '— Suivi interne (sans transporteur) —', value: null },
+  ...carriers.value.map((c) => ({ label: c.name, value: c.id })),
+]);
+
+async function openShip(leg: JourneyLeg) {
+  shipTarget.value = leg;
+  shipRef.value = leg.tracking_ref ?? '';
+  shipCarrierId.value = leg.carrier_id;
+  shipError.value = null;
+  shipDialog.value = true;
+  if (carriers.value.length === 0) {
+    try {
+      carriers.value = await listCarriers();
+    } catch {
+      // The selector still offers « suivi interne ».
+    }
+  }
+}
+
+async function submitShip() {
+  if (!shipTarget.value) return;
+  shipping.value = true;
+  shipError.value = null;
+  try {
+    await shipTracking(
+      shipTarget.value.tracking_id,
+      shipRef.value.trim() || null,
+      shipCarrierId.value,
+    );
+    shipDialog.value = false;
+    journeyNotice.value = 'Remise au transporteur enregistrée (client notifié).';
+    await loadJourney();
+  } catch (err) {
+    shipError.value = extractApiError(err) ?? 'Expédition impossible.';
+  } finally {
+    shipping.value = false;
+  }
+}
+
+async function advanceLeg(leg: JourneyLeg) {
+  journeyError.value = null;
+  try {
+    const result = await advanceTracking(leg.tracking_id);
+    journeyNotice.value = result.message;
+    await loadJourney();
+  } catch (err) {
+    journeyError.value = extractApiError(err) ?? 'Progression impossible.';
+  }
+}
+
+async function deliverLeg(leg: JourneyLeg) {
+  journeyError.value = null;
+  try {
+    await deliverTracking(leg.tracking_id);
+    journeyNotice.value = 'Colis marqué livré (client notifié).';
+    await loadJourney();
+  } catch (err) {
+    journeyError.value = extractApiError(err) ?? 'Livraison impossible.';
   }
 }
 

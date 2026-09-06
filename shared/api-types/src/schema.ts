@@ -405,6 +405,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/place/{id}/set-main-warehouse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Flag this place as the main warehouse
+         * @description L'entrepôt principal est celui où convergent les articles fournisseur et d'où part le dernier tronçon vers le client. Il n'y en a qu'un : l'ancien est déflaggé.
+         */
+        post: operations["place-set_main_warehouse_endpoint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payment/": {
         parameters: {
             query?: never;
@@ -1142,15 +1162,45 @@ export interface paths {
         };
         /**
          * List Carriers
-         * @description Active carriers for the « remise au transporteur » selector.
+         * @description Carriers for the « remise au transporteur » selector (active only by
+         *     default) and the management page.
          */
         get: operations["admin-shipping-list_carriers"];
         put?: never;
-        post?: never;
+        /**
+         * Create Carrier
+         * @description Add a carrier (DHL, Chronopost, a local courier…) with its tracking-link
+         *     template. No carrier API: the reference is typed at hand-over.
+         */
+        post: operations["admin-shipping-create_carrier"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/shipping/carriers/{carrier_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Retire Carrier
+         * @description Retire a carrier (soft): past shipments keep their carrier and link.
+         */
+        delete: operations["admin-shipping-retire_carrier"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Carrier
+         * @description Rename a carrier, fix its tracking template, or retire / restore it.
+         */
+        patch: operations["admin-shipping-update_carrier"];
         trace?: never;
     };
     "/api/v1/admin/shipping/consolidations/{consolidation_id}/add-trackings": {
@@ -1472,6 +1522,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/products/{product_id}/overrides/{field}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Admin Release Override
+         * @description Release one field lock so the supplier/enrichment value can come back.
+         *
+         *     The current (admin) value stays until the next sync or enrichment rewrites
+         *     it — no supplier copy is kept alongside.
+         */
+        delete: operations["admin-product-admin_release_override"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/price-groups": {
         parameters: {
             query?: never;
@@ -1688,6 +1761,146 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Users
+         * @description Lister les comptes, les plus récents d'abord.
+         */
+        get: operations["admin-users-list_users"];
+        put?: never;
+        /**
+         * Create User
+         * @description Créer un compte et, sauf demande contraire, envoyer l'invitation.
+         *
+         *     Le compte est créé **avant** l'envoi : un email qui ne part pas n'annule
+         *     pas la création, l'admin le voit (``email_sent``) et peut renvoyer.
+         */
+        post: operations["admin-users-create_user"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/resend-invitation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend Invitation
+         * @description Renvoyer un lien d'invitation (le précédent cesse de fonctionner).
+         *
+         *     Refusé dès que le compte a été ouvert une fois : à partir de là, c'est
+         *     « mot de passe oublié » qui s'applique, à l'initiative de la personne —
+         *     un admin ne doit pas pouvoir reprendre la main sur un compte actif.
+         */
+        post: operations["admin-users-resend_invitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update User
+         * @description Modifier nom, téléphone, groupe de prix ou activation.
+         *
+         *     Désactiver un compte coupe aussi ses sessions ouvertes : sans cela la
+         *     personne resterait connectée jusqu'à expiration de son refresh token.
+         */
+        patch: operations["admin-users-update_user"];
+        trace?: never;
+    };
+    "/api/v1/admin/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Categories
+         * @description Toutes les catégories, y compris inactives et fusionnées.
+         */
+        get: operations["admin-categories-list_categories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/categories/{category_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Category
+         * @description Personnaliser une catégorie sans toucher à sa clé de rapprochement.
+         */
+        patch: operations["admin-categories-update_category"];
+        trace?: never;
+    };
+    "/api/v1/admin/categories/{category_id}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge Category
+         * @description Fusionner ``category_id`` dans ``target_id``.
+         *
+         *     Les produits et les remises ciblant la source passent sur la cible ; la
+         *     source reste en base, inactive, avec ``merged_into_id`` posé, pour que la
+         *     prochaine synchronisation continue de résoudre son nom vers la cible au
+         *     lieu de la recréer. Les produits sans taux de douane propre héritent dès
+         *     lors de celui de la cible.
+         */
+        post: operations["admin-categories-merge_category"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/supplier-orders": {
         parameters: {
             query?: never;
@@ -1750,6 +1963,81 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suppliers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Suppliers
+         * @description Every declared supplier, active or not.
+         */
+        get: operations["admin-suppliers-list_suppliers"];
+        put?: never;
+        /**
+         * Create Supplier
+         * @description Declare a supplier.
+         */
+        post: operations["admin-suppliers-create_supplier"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suppliers/adapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Adapters
+         * @description Integrations available in the code, for the ``adapter_key`` dropdown.
+         */
+        get: operations["admin-suppliers-list_adapters"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suppliers/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Supplier
+         * @description One supplier by code.
+         */
+        get: operations["admin-suppliers-get_supplier"];
+        put?: never;
+        post?: never;
+        /**
+         * Deactivate Supplier
+         * @description Deactivate a supplier (its products keep their ``supplier_name``).
+         *
+         *     Nothing is deleted: the code stays reserved so the links from products,
+         *     mappings, sync logs and supplier orders keep resolving.
+         */
+        delete: operations["admin-suppliers-deactivate_supplier"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Supplier
+         * @description Partial update; the adapter instance is rebuilt on the next use.
+         */
+        patch: operations["admin-suppliers-update_supplier"];
         trace?: never;
     };
     "/api/v1/admin/spec-definitions": {
@@ -1848,6 +2136,34 @@ export interface paths {
          *     - Logged-in: client stores preference in ``localStorage`` or user profile.
          */
         get: operations["product-get_product_shipping_modes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product/{product_id}/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Product Offers
+         * @description Every storefront offer of the same physical item, current product included.
+         *
+         *     One product is one source: the same item stocked by two suppliers is two
+         *     products, and this is where the customer compares them. Siblings are
+         *     found by barcode (EAN / UPC), else by manufacturer + part number.
+         *
+         *     Prices are what the product page shows by default: for import-mode
+         *     products, the default import route's freight is included; local and
+         *     fixed-price products carry no import leg.
+         */
+        get: operations["product-get_product_offers"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2245,6 +2561,30 @@ export interface paths {
          *     l'endpoint répondait 201. Le back-office (A11) est désormais le filet.
          */
         post: operations["cart-create_guest_quote_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/me/checkout-quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Checkout Quote
+         * @description The amounts ``POST /cart/checkout`` will bill for the current backend
+         *     cart and these choices — same computation, so the recap is the debit.
+         *
+         *     Read-only: nothing is reserved, revalidated or written. An empty cart
+         *     quotes zero rather than failing, so the recap can render early.
+         */
+        get: operations["cart-get_checkout_quote"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4693,7 +5033,7 @@ export interface paths {
         };
         /**
          * List Suppliers
-         * @description List all registered suppliers and their configuration status.
+         * @description List all declared suppliers and their configuration status.
          *
          *     **Required permissions:** Superuser only
          */
@@ -4781,7 +5121,7 @@ export interface paths {
         };
         /**
          * Get Supplier Config
-         * @description Get the supplier's (credential-free) synchronization configuration.
+         * @description Get the supplier's (credential-free) configuration.
          *
          *     **Required permissions:** Superuser only
          */
@@ -4816,6 +5156,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/suppliers/{supplier_name}/import-file/inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inspect Catalog File
+         * @description Read the headers and a few rows of a catalog file, to build the mapping.
+         *
+         *     **Required permissions:** Superuser only
+         */
+        post: operations["suppliers-inspect_catalog_file"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/suppliers/{supplier_name}/import-file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Catalog File
+         * @description Import a CSV / Excel catalog for the supplier through the column mapping.
+         *
+         *     Runs inline: each product is committed as it is upserted, so a failure on
+         *     one row never rolls back the others. Newly created products are queued for
+         *     Icecat enrichment like API-synced ones.
+         *
+         *     **Required permissions:** Superuser only
+         */
+        post: operations["suppliers-import_catalog_file"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/suppliers/admin/backfill-product-categories": {
         parameters: {
             query?: never;
@@ -4833,6 +5221,32 @@ export interface paths {
          *     **Required permissions:** Superuser only
          */
         post: operations["suppliers-trigger_category_backfill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/suppliers/admin/refresh-prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger Price Refresh Inline
+         * @description Recompute the materialized storefront prices (``sale_price_cached``).
+         *
+         *     First fill after the migration, or after a change the write hooks and the
+         *     nightly refresh have not caught up with. Runs inline (blocking) — use for
+         *     maintenance windows. Optionally scope to one ``category_id``.
+         *
+         *     **Required permissions:** Superuser only
+         */
+        post: operations["suppliers-trigger_price_refresh_inline"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5298,6 +5712,26 @@ export interface components {
             expires_in: number;
         };
         /**
+         * AdapterDescriptor
+         * @description Une intégration disponible dans le code, pour le menu déroulant admin.
+         */
+        AdapterDescriptor: {
+            /** Key */
+            key: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Configured
+             * @description Les identifiants requis sont présents dans l'environnement
+             */
+            configured: boolean;
+            /**
+             * Settings Keys
+             * @description Clés acceptées dans Supplier.settings pour cette intégration
+             */
+            settings_keys?: string[];
+        };
+        /**
          * AddTrackingsRequest
          * @description Bulk-attach trackings to a consolidation.
          */
@@ -5634,6 +6068,71 @@ export interface components {
             count: number;
         };
         /**
+         * AdminCategoriesPublic
+         * @description Liste complète (pas de pagination : quelques dizaines de lignes).
+         */
+        AdminCategoriesPublic: {
+            /** Data */
+            data: components["schemas"]["AdminCategoryItem"][];
+            /** Count */
+            count: number;
+        };
+        /**
+         * AdminCategoryItem
+         * @description Une catégorie vue du back-office.
+         */
+        AdminCategoryItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Display Name */
+            display_name: string | null;
+            /** Title */
+            title: string;
+            /** Description */
+            description: string | null;
+            /** Image Url */
+            image_url: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Default Tax Rate Id */
+            default_tax_rate_id: string | null;
+            /** Default Customs Rate Pct */
+            default_customs_rate_pct: string | null;
+            /** Default Margin Rate Pct */
+            default_margin_rate_pct?: string | null;
+            /** Merged Into Id */
+            merged_into_id: string | null;
+            /** Merged Into Name */
+            merged_into_name?: string | null;
+            /**
+             * Product Count
+             * @default 0
+             */
+            product_count: number;
+        };
+        /**
+         * AdminCategoryUpdate
+         * @description Champs personnalisables. ``name`` n'en fait pas partie : c'est la clé
+         *     de rapprochement de la sync. Pour renommer côté vitrine, ``display_name``.
+         */
+        AdminCategoryUpdate: {
+            /** Display Name */
+            display_name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Image Url */
+            image_url?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Default Margin Rate Pct */
+            default_margin_rate_pct?: number | string | null;
+        };
+        /**
          * AdminConsolidationItem
          * @description A consolidation (parcel grouping).
          */
@@ -5724,6 +6223,22 @@ export interface components {
             tracking_ref: string | null;
             /** Is Current */
             is_current: boolean;
+            /** Carrier Id */
+            carrier_id?: string | null;
+            /** Carrier Name */
+            carrier_name?: string | null;
+            /** Tracking Url */
+            tracking_url?: string | null;
+            /**
+             * Is Final Leg
+             * @default false
+             */
+            is_final_leg: boolean;
+            /**
+             * Is Terminal
+             * @default false
+             */
+            is_terminal: boolean;
         };
         /**
          * AdminOrderDetail
@@ -5760,6 +6275,8 @@ export interface components {
             total_amount: number;
             /** Shipping Address */
             shipping_address?: string | null;
+            /** Delivery Type */
+            delivery_type?: string | null;
             /** Notes */
             notes?: string | null;
             /** Lines */
@@ -5954,6 +6471,101 @@ export interface components {
         AdminReviewBody: {
             /** Comment */
             comment?: string | null;
+        };
+        /**
+         * AdminUserCreate
+         * @description Création d'un compte par un admin. Pas de mot de passe : l'invité le
+         *     choisit lui-même via le lien reçu.
+         */
+        AdminUserCreate: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** Full Name */
+            full_name?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Price Group Id */
+            price_group_id?: string | null;
+            /**
+             * Is Superuser
+             * @default false
+             */
+            is_superuser: boolean;
+            /**
+             * Send Invitation
+             * @default true
+             */
+            send_invitation: boolean;
+        };
+        /**
+         * AdminUserItem
+         * @description Un compte tel que le back-office le voit.
+         *
+         *     Rien de secret n'en sort : ni empreinte, ni jeton. ``invitation_expires_at``
+         *     n'est renseigné que tant que le compte n'a jamais été ouvert — c'est ce
+         *     qui distingue « invité, en attente » de « client actif ».
+         */
+        AdminUserItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Email */
+            email: string;
+            /** Full Name */
+            full_name: string | null;
+            /** Phone */
+            phone: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Superuser */
+            is_superuser: boolean;
+            /** Is Verified */
+            is_verified: boolean;
+            /** Price Group Id */
+            price_group_id: string | null;
+            /** Price Group Code */
+            price_group_code?: string | null;
+            /** Price Group Label */
+            price_group_label?: string | null;
+            /** Created At */
+            created_at: string | null;
+            /** Last Login */
+            last_login: string | null;
+            /** Locked Until */
+            locked_until: string | null;
+            /** Invitation Pending */
+            invitation_pending: boolean;
+            /** Invitation Expires At */
+            invitation_expires_at: string | null;
+        };
+        /**
+         * AdminUserUpdate
+         * @description Champs modifiables. Tous optionnels : seuls ceux fournis changent.
+         */
+        AdminUserUpdate: {
+            /** Full Name */
+            full_name?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Price Group Id */
+            price_group_id?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
+        /**
+         * AdminUsersPublic
+         * @description Page de résultats.
+         */
+        AdminUsersPublic: {
+            /** Data */
+            data: components["schemas"]["AdminUserItem"][];
+            /** Count */
+            count: number;
         };
         /**
          * AdvanceConsolidationRequest
@@ -6565,6 +7177,21 @@ export interface components {
              */
             client_secret?: string | null;
         };
+        /** Body_suppliers-import_catalog_file */
+        "Body_suppliers-import_catalog_file": {
+            /** File */
+            file: string;
+            /**
+             * Mapping
+             * @description JSON {internal_field: column}; defaults to the supplier's mapping
+             */
+            mapping?: string | null;
+        };
+        /** Body_suppliers-inspect_catalog_file */
+        "Body_suppliers-inspect_catalog_file": {
+            /** File */
+            file: string;
+        };
         /**
          * BrandCreate
          * @description Represents brand create.
@@ -6696,6 +7323,20 @@ export interface components {
             count: number;
         };
         /**
+         * CarrierPatchRequest
+         * @description Partial carrier update; ``is_active=False`` retires it from the selector.
+         */
+        CarrierPatchRequest: {
+            /** Name */
+            name?: string | null;
+            /** Code */
+            code?: string | null;
+            /** Tracking Url Template */
+            tracking_url_template?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
+        /**
          * CarrierPublic
          * @description Represents carrier public.
          */
@@ -6738,6 +7379,18 @@ export interface components {
              * Format: uuid
              */
             id: string;
+        };
+        /**
+         * CarrierWriteRequest
+         * @description Create / replace a carrier (admin « Transporteurs » page).
+         */
+        CarrierWriteRequest: {
+            /** Name */
+            name: string;
+            /** Code */
+            code: string;
+            /** Tracking Url Template */
+            tracking_url_template?: string | null;
         };
         /**
          * CartDetailPublic
@@ -6867,9 +7520,14 @@ export interface components {
             modify_by_id?: string | null;
             /**
              * Name
-             * @description Name of the category
+             * @description Name of the category — the supplier sync's matching key, never rewritten by the sync itself, so an admin rename must go through display_name instead
              */
             name: string;
+            /**
+             * Display Name
+             * @description Storefront title chosen by an admin; None → name. Kept apart from name so the sync keeps finding the category (A17)
+             */
+            display_name?: string | null;
             /**
              * Description
              * @description Description of the category
@@ -6890,6 +7548,11 @@ export interface components {
              * @description Default customs rate percentage for products in this category (used when Product.customs_rate_pct is not set)
              */
             default_customs_rate_pct?: number | string | null;
+            /**
+             * Default Margin Rate Pct
+             * @description Default margin percentage for products in this category. None → the customer's price group margin applies (Product.margin_rate_pct still overrides both).
+             */
+            default_margin_rate_pct?: number | string | null;
         };
         /**
          * CategoryPublic
@@ -6916,9 +7579,14 @@ export interface components {
             is_admin_active: boolean;
             /**
              * Name
-             * @description Name of the category
+             * @description Name of the category — the supplier sync's matching key, never rewritten by the sync itself, so an admin rename must go through display_name instead
              */
             name: string;
+            /**
+             * Display Name
+             * @description Storefront title chosen by an admin; None → name. Kept apart from name so the sync keeps finding the category (A17)
+             */
+            display_name?: string | null;
             /**
              * Description
              * @description Description of the category
@@ -6940,10 +7608,22 @@ export interface components {
              */
             default_customs_rate_pct?: string | null;
             /**
+             * Default Margin Rate Pct
+             * @description Default margin percentage for products in this category. None → the customer's price group margin applies (Product.margin_rate_pct still overrides both).
+             */
+            default_margin_rate_pct?: string | null;
+            /**
              * Id
              * Format: uuid
              */
             id: string;
+            /** Merged Into Id */
+            merged_into_id?: string | null;
+            /**
+             * Title
+             * @description What the storefront shows: the admin's display_name, else name.
+             */
+            readonly title: string;
         };
         /**
          * CategoryPublicationRow
@@ -7007,9 +7687,14 @@ export interface components {
             modify_by_id?: string | null;
             /**
              * Name
-             * @description Name of the category
+             * @description Name of the category — the supplier sync's matching key, never rewritten by the sync itself, so an admin rename must go through display_name instead
              */
             name: string;
+            /**
+             * Display Name
+             * @description Storefront title chosen by an admin; None → name. Kept apart from name so the sync keeps finding the category (A17)
+             */
+            display_name?: string | null;
             /**
              * Description
              * @description Description of the category
@@ -7022,11 +7707,10 @@ export interface components {
             image_url?: string | null;
             /** Default Tax Rate Id */
             default_tax_rate_id?: string | null;
-            /**
-             * Default Customs Rate Pct
-             * @description Default customs rate percentage for products in this category (used when Product.customs_rate_pct is not set)
-             */
+            /** Default Customs Rate Pct */
             default_customs_rate_pct?: number | string | null;
+            /** Default Margin Rate Pct */
+            default_margin_rate_pct?: number | string | null;
         };
         /**
          * CheckoutObservabilityMetrics
@@ -7051,6 +7735,59 @@ export interface components {
             alert_checkout_errors: boolean;
             /** Recent Failure Codes */
             recent_failure_codes?: string[];
+        };
+        /**
+         * CheckoutQuoteResponse
+         * @description What ``POST /cart/checkout`` will bill for the current cart and choices.
+         *
+         *     Served by ``GET /cart/me/checkout-quote`` from the very same computation
+         *     as the checkout, so the recap the customer reads is the amount debited.
+         */
+        CheckoutQuoteResponse: {
+            /** Currency */
+            currency: string;
+            /**
+             * Subtotal Amount
+             * @description Articles, taxes incluses
+             */
+            subtotal_amount: string;
+            /**
+             * Shipping Fee Amount
+             * @description Livraison (tronçon choisi) + frais de dédouanement
+             */
+            shipping_fee_amount: string;
+            /**
+             * Customs Declaration Fee
+             * @description Part de shipping_fee_amount due au dédouanement (0 = aucun)
+             * @default 0.00
+             */
+            customs_declaration_fee: string;
+            /**
+             * Payment Fee Amount
+             * @description Frais du moyen de paiement
+             */
+            payment_fee_amount: string;
+            /** Total Fees Amount */
+            total_fees_amount: string;
+            /**
+             * Total Amount
+             * @description Montant qui sera débité
+             */
+            total_amount: string;
+            /** Delivery Type */
+            delivery_type?: string | null;
+            /** Shipping Eta Days */
+            shipping_eta_days?: number | null;
+            /**
+             * Free Shipping Applied
+             * @description Le franco a mis la livraison à 0
+             * @default false
+             */
+            free_shipping_applied: boolean;
+            /** Shipping Cost Breakdown */
+            shipping_cost_breakdown?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * CheckoutRequest
@@ -7892,6 +8629,98 @@ export interface components {
              * @description Operation timestamp
              */
             timestamp: string;
+        };
+        /**
+         * FileImportResolutionRow
+         * @description How one parsed row would be (or was) matched against the catalog.
+         */
+        FileImportResolutionRow: {
+            /** Supplier Sku */
+            supplier_sku: string;
+            /** Name */
+            name: string;
+            /** Action */
+            action: string;
+            /** Match Key */
+            match_key?: string | null;
+            /** Product Id */
+            product_id?: string | null;
+            /** Product Name */
+            product_name?: string | null;
+            /** Message */
+            message?: string | null;
+        };
+        /**
+         * FileImportResponse
+         * @description Outcome of a catalog file import (or of its dry run).
+         */
+        FileImportResponse: {
+            /** Supplier Name */
+            supplier_name: string;
+            /** Filename */
+            filename: string;
+            /** Dry Run */
+            dry_run: boolean;
+            /** Total Rows */
+            total_rows: number;
+            /** Parsed Products */
+            parsed_products: number;
+            /** Rejected Rows */
+            rejected_rows: number;
+            /** Row Errors */
+            row_errors?: components["schemas"]["FileImportRowError"][];
+            /** Statistics */
+            statistics?: {
+                [key: string]: number;
+            };
+            /** Sync Errors */
+            sync_errors?: {
+                [key: string]: string;
+            }[];
+            /** Sync Log Id */
+            sync_log_id?: string | null;
+            /** Sample */
+            sample?: {
+                [key: string]: unknown;
+            }[];
+            /** Resolution */
+            resolution?: {
+                [key: string]: number;
+            };
+            /** Sample Resolutions */
+            sample_resolutions?: components["schemas"]["FileImportResolutionRow"][];
+        };
+        /**
+         * FileImportRowError
+         * @description A rejected row.
+         */
+        FileImportRowError: {
+            /** Row Number */
+            row_number: number;
+            /** Message */
+            message: string;
+        };
+        /**
+         * FileInspectResponse
+         * @description Headers and sample rows of an uploaded catalog file (mapping helper).
+         */
+        FileInspectResponse: {
+            /** Filename */
+            filename: string;
+            /** Headers */
+            headers: string[];
+            /** Sample Rows */
+            sample_rows: {
+                [key: string]: string;
+            }[];
+            /** Total Rows */
+            total_rows: number;
+            /** Mapping Targets */
+            mapping_targets?: string[];
+            /** Required Targets */
+            required_targets?: string[];
+            /** Mapping Problems */
+            mapping_problems?: string[];
         };
         /**
          * ForgotPasswordRequest
@@ -8749,6 +9578,15 @@ export interface components {
             compute_from_movements?: boolean | null;
         };
         /**
+         * InvitationResult
+         * @description Acquittement de l'envoi d'une invitation.
+         */
+        InvitationResult: {
+            user: components["schemas"]["AdminUserItem"];
+            /** Email Sent */
+            email_sent: boolean;
+        };
+        /**
          * InvoicePublic
          * @description Invoice metadata exposed by the API (the PDF has its own endpoint).
          */
@@ -8842,6 +9680,29 @@ export interface components {
              * Format: date-time
              */
             timestamp: string;
+        };
+        /**
+         * MergeBody
+         * @description Cible d'une fusion.
+         */
+        MergeBody: {
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+        };
+        /**
+         * MergeResult
+         * @description Bilan d'une fusion.
+         */
+        MergeResult: {
+            source: components["schemas"]["AdminCategoryItem"];
+            target: components["schemas"]["AdminCategoryItem"];
+            /** Moved Products */
+            moved_products: number;
+            /** Moved Discounts */
+            moved_discounts: number;
         };
         /**
          * Message
@@ -10822,6 +11683,23 @@ export interface components {
              */
             is_warehouse: boolean;
             /**
+             * Is Main Warehouse
+             * @description The shop's main warehouse — where supplier goods converge and from where the last leg to the customer starts. Exactly one place (partial unique index); set it through POST /place/{id}/set-main-warehouse.
+             * @default false
+             */
+            is_main_warehouse: boolean;
+            /**
+             * Customs Regime
+             * @description Origin place override: 'domestic' (no customs, no import freight) or 'import' (customs apply). Null = derived from the country vs the main warehouse and the customs_free_countries setting.
+             */
+            customs_regime?: string | null;
+            /**
+             * Dropship Enabled
+             * @description Supplier place ships straight to the customer (dropshipping): the order gets a supplier → customer leg instead of supplier → main warehouse → customer.
+             * @default false
+             */
+            dropship_enabled: boolean;
+            /**
              * Max Capacity M3
              * @description Capacité max en m³
              */
@@ -10970,6 +11848,23 @@ export interface components {
              */
             is_warehouse: boolean;
             /**
+             * Is Main Warehouse
+             * @description The shop's main warehouse — where supplier goods converge and from where the last leg to the customer starts. Exactly one place (partial unique index); set it through POST /place/{id}/set-main-warehouse.
+             * @default false
+             */
+            is_main_warehouse: boolean;
+            /**
+             * Customs Regime
+             * @description Origin place override: 'domestic' (no customs, no import freight) or 'import' (customs apply). Null = derived from the country vs the main warehouse and the customs_free_countries setting.
+             */
+            customs_regime?: string | null;
+            /**
+             * Dropship Enabled
+             * @description Supplier place ships straight to the customer (dropshipping): the order gets a supplier → customer leg instead of supplier → main warehouse → customer.
+             * @default false
+             */
+            dropship_enabled: boolean;
+            /**
              * Max Capacity M3
              * @description Capacité max en m³
              */
@@ -11114,6 +12009,16 @@ export interface components {
             region?: string | null;
             /** Is Warehouse */
             is_warehouse?: boolean | null;
+            /**
+             * Is Main Warehouse
+             * @description The shop's main warehouse — where supplier goods converge and from where the last leg to the customer starts. Exactly one place (partial unique index); set it through POST /place/{id}/set-main-warehouse.
+             * @default false
+             */
+            is_main_warehouse: boolean;
+            /** Customs Regime */
+            customs_regime?: string | null;
+            /** Dropship Enabled */
+            dropship_enabled?: boolean | null;
             /** Max Capacity M3 */
             max_capacity_m3?: number | null;
             /** Current Capacity M3 */
@@ -11270,6 +12175,19 @@ export interface components {
             count: number;
         };
         /**
+         * PricingMode
+         * @description How the storefront price of a product is obtained.
+         *
+         *     * ``import`` — CAF formula: cost + variable import freight + insurance,
+         *       then customs, margin and tax. Needs a customs rate and a weight.
+         *     * ``domestic`` — the goods never cross the customs border (own warehouse
+         *       or a supplier of the same customs territory): cost, margin, tax.
+         *     * ``fixed`` — ``base_price`` is the tax-inclusive sale price typed by the
+         *       admin; nothing is computed.
+         * @enum {string}
+         */
+        PricingMode: "import" | "domestic" | "fixed";
+        /**
          * ProductCreate
          * @description Represents product create.
          */
@@ -11309,10 +12227,20 @@ export interface components {
             long_description?: string | null;
             /**
              * Base Price
-             * @description Base price of the product (can be 0 for products without pricing)
+             * @description Sale price. In pricing_mode 'fixed' it is the tax-inclusive price set by the admin; in the computed modes it is overwritten at read time by the pricing service (0 = not priced yet).
              * @default 0.00
              */
             base_price: number | string;
+            /**
+             * @description import (CAF + customs), domestic (cost + margin + tax, no customs nor import freight) or fixed (base_price is the TTC price)
+             * @default import
+             */
+            pricing_mode: components["schemas"]["PricingMode"];
+            /**
+             * Margin Rate Pct
+             * @description Margin override for this product. None → Category.default_margin_rate_pct → PriceGroup.margin_rate_pct.
+             */
+            margin_rate_pct?: number | string | null;
             /**
              * Cost Amount
              * @description Product cost amount used to compute selling price
@@ -11440,6 +12368,21 @@ export interface components {
              */
             overridden_fields?: string[] | null;
             /**
+             * Identity Key
+             * @description Same-physical-item key across suppliers: canonical barcode ('gtin:…'), else manufacturer + part number ('mpn:…'). Maintained automatically on every write (see identity listeners); drives the storefront grouping and the « autres offres ».
+             */
+            identity_key?: string | null;
+            /**
+             * Sale Price Cached
+             * @description Storefront list price materialized by the pricing service (no import leg): what the search filters, sorts and returns. Refreshed on every product write, when a rate/margin changes and nightly; None = not computed yet (the search prices it on the fly).
+             */
+            sale_price_cached?: number | string | null;
+            /**
+             * Sale Price Cached At
+             * @description When sale_price_cached was last computed
+             */
+            sale_price_cached_at?: string | null;
+            /**
              * Last Enrichment Sync
              * @description Last synchronization timestamp for enrichment data
              */
@@ -11534,6 +12477,60 @@ export interface components {
             featured_until?: string | null;
         };
         /**
+         * ProductOfferPublic
+         * @description One supplier's offer for a physical item (product page « autres offres »).
+         */
+        ProductOfferPublic: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Is Current
+             * @default false
+             */
+            is_current: boolean;
+            /** Supplier Name */
+            supplier_name?: string | null;
+            /** Supplier Label */
+            supplier_label?: string | null;
+            /**
+             * Is Domestic
+             * @default false
+             */
+            is_domestic: boolean;
+            /** @default import */
+            pricing_mode: components["schemas"]["PricingMode"];
+            /** Sale Price */
+            sale_price: string;
+            /** Supplier Quantity */
+            supplier_quantity: string;
+            /** In Stock */
+            in_stock: boolean;
+            /** Image Url */
+            image_url?: string | null;
+        };
+        /**
+         * ProductOffersResponse
+         * @description Every storefront offer of the same item, the current product included.
+         */
+        ProductOffersResponse: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Identity Key */
+            identity_key?: string | null;
+            /** Offers */
+            offers?: components["schemas"]["ProductOfferPublic"][];
+            /** Cheapest Product Id */
+            cheapest_product_id?: string | null;
+        };
+        /**
          * ProductPublic
          * @description Represents product public.
          */
@@ -11573,10 +12570,20 @@ export interface components {
             long_description?: string | null;
             /**
              * Base Price
-             * @description Base price of the product (can be 0 for products without pricing)
+             * @description Sale price. In pricing_mode 'fixed' it is the tax-inclusive price set by the admin; in the computed modes it is overwritten at read time by the pricing service (0 = not priced yet).
              * @default 0.00
              */
             base_price: string;
+            /**
+             * @description import (CAF + customs), domestic (cost + margin + tax, no customs nor import freight) or fixed (base_price is the TTC price)
+             * @default import
+             */
+            pricing_mode: components["schemas"]["PricingMode"];
+            /**
+             * Margin Rate Pct
+             * @description Margin override for this product. None → Category.default_margin_rate_pct → PriceGroup.margin_rate_pct.
+             */
+            margin_rate_pct?: string | null;
             /**
              * Cost Amount
              * @description Product cost amount used to compute selling price
@@ -11660,6 +12667,21 @@ export interface components {
              * @description Field names manually set by an admin. The supplier sync must not overwrite these — they are the admin's authoritative values.
              */
             overridden_fields?: string[] | null;
+            /**
+             * Identity Key
+             * @description Same-physical-item key across suppliers: canonical barcode ('gtin:…'), else manufacturer + part number ('mpn:…'). Maintained automatically on every write (see identity listeners); drives the storefront grouping and the « autres offres ».
+             */
+            identity_key?: string | null;
+            /**
+             * Sale Price Cached
+             * @description Storefront list price materialized by the pricing service (no import leg): what the search filters, sorts and returns. Refreshed on every product write, when a rate/margin changes and nightly; None = not computed yet (the search prices it on the fly).
+             */
+            sale_price_cached?: string | null;
+            /**
+             * Sale Price Cached At
+             * @description When sale_price_cached was last computed
+             */
+            sale_price_cached_at?: string | null;
             /**
              * Last Enrichment Sync
              * @description Last synchronization timestamp for enrichment data
@@ -11748,6 +12770,11 @@ export interface components {
             id: string;
             /** Category Id */
             category_id?: string | null;
+            /**
+             * Offers Count
+             * @default 1
+             */
+            offers_count: number;
         };
         /**
          * ProductSearchFacets
@@ -11798,6 +12825,12 @@ export interface components {
              * @default 0
              */
             offset: number;
+            /**
+             * Group Offers
+             * @description Show a same physical item sold by several suppliers once, by its cheapest offer (offers_count tells how many it stands for)
+             * @default true
+             */
+            group_offers: boolean;
         };
         /**
          * ProductSearchResponse
@@ -11862,6 +12895,9 @@ export interface components {
             long_description?: string | null;
             /** Base Price */
             base_price?: number | string | null;
+            pricing_mode?: components["schemas"]["PricingMode"] | null;
+            /** Margin Rate Pct */
+            margin_rate_pct?: number | string | null;
             /** Cost Amount */
             cost_amount?: number | string | null;
             /** Cost Currency */
@@ -11894,22 +12930,11 @@ export interface components {
             supplier_image_url?: string | null;
             /** Supplier Spec Url */
             supplier_spec_url?: string | null;
-            /**
-             * Supplier Quantity
-             * @description Available quantity from supplier
-             * @default 0.00
-             */
-            supplier_quantity: number | string;
-            /**
-             * Supplier Price
-             * @description Price from supplier
-             * @default 0.00
-             */
-            supplier_price: number | string;
-            /**
-             * Supplier Price Currency
-             * @description Currency of the supplier price (e.g., USD, EUR)
-             */
+            /** Supplier Quantity */
+            supplier_quantity?: number | string | null;
+            /** Supplier Price */
+            supplier_price?: number | string | null;
+            /** Supplier Price Currency */
             supplier_price_currency?: string | null;
             /** Last Supplier Sync */
             last_supplier_sync?: string | null;
@@ -11921,6 +12946,21 @@ export interface components {
             supplier_place_id?: string | null;
             /** Overridden Fields */
             overridden_fields?: string[] | null;
+            /**
+             * Identity Key
+             * @description Same-physical-item key across suppliers: canonical barcode ('gtin:…'), else manufacturer + part number ('mpn:…'). Maintained automatically on every write (see identity listeners); drives the storefront grouping and the « autres offres ».
+             */
+            identity_key?: string | null;
+            /**
+             * Sale Price Cached
+             * @description Storefront list price materialized by the pricing service (no import leg): what the search filters, sorts and returns. Refreshed on every product write, when a rate/margin changes and nightly; None = not computed yet (the search prices it on the fly).
+             */
+            sale_price_cached?: number | string | null;
+            /**
+             * Sale Price Cached At
+             * @description When sale_price_cached was last computed
+             */
+            sale_price_cached_at?: string | null;
             /**
              * Last Enrichment Sync
              * @description Last synchronization timestamp for enrichment data
@@ -12647,6 +13687,18 @@ export interface components {
              */
             price_per_kg?: number | string | null;
             /**
+             * Weight Bands
+             * @description Weight bands [{max_kg, price}] replacing price_per_kg × weight; null = linear per-kg pricing
+             */
+            weight_bands?: {
+                [key: string]: unknown;
+            }[] | null;
+            /**
+             * Free Shipping Threshold
+             * @description Franco: the route is free once the shipment's declared value reaches this amount (reference currency). Null = never free.
+             */
+            free_shipping_threshold?: number | string | null;
+            /**
              * Carbon Footprint Kg Co2E
              * @description Carbon footprint kg CO2e
              */
@@ -12827,6 +13879,18 @@ export interface components {
              * @description Price per kg
              */
             price_per_kg?: string | null;
+            /**
+             * Weight Bands
+             * @description Weight bands [{max_kg, price}] replacing price_per_kg × weight; null = linear per-kg pricing
+             */
+            weight_bands?: {
+                [key: string]: unknown;
+            }[] | null;
+            /**
+             * Free Shipping Threshold
+             * @description Franco: the route is free once the shipment's declared value reaches this amount (reference currency). Null = never free.
+             */
+            free_shipping_threshold?: string | null;
             /**
              * Carbon Footprint Kg Co2E
              * @description Carbon footprint kg CO2e
@@ -13463,6 +14527,12 @@ export interface components {
             base_price?: number | string | null;
             /** Price Per Kg */
             price_per_kg?: number | string | null;
+            /** Weight Bands */
+            weight_bands?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Free Shipping Threshold */
+            free_shipping_threshold?: number | string | null;
             /** Carbon Footprint Kg Co2E */
             carbon_footprint_kg_co2e?: number | null;
             /** Eta Days */
@@ -14123,6 +15193,93 @@ export interface components {
             count: number;
         };
         /**
+         * SupplierCreate
+         * @description Création d'un fournisseur (le code est choisi une fois pour toutes).
+         */
+        SupplierCreate: {
+            /**
+             * Name
+             * @description Nom affiché du fournisseur
+             */
+            name: string;
+            /**
+             * @description Méthode d'approvisionnement : manual | file | api
+             * @default manual
+             */
+            kind: components["schemas"]["SupplierKind"];
+            /**
+             * Adapter Key
+             * @description Pour kind=api : clé de l'intégration enregistrée dans le code (ex. 'ingram_micro'). Ignoré pour les autres méthodes.
+             */
+            adapter_key?: string | null;
+            /**
+             * Origin Place Id
+             * @description Entrepôt d'expédition du fournisseur (Place). Recopié sur Product.supplier_place_id à la création des articles : il pilote le premier tronçon logistique et le suivi.
+             */
+            origin_place_id?: string | null;
+            /**
+             * Is Domestic
+             * @description Fournisseur du même territoire douanier que notre entrepôt : ni droits de douane ni fret import dans le prix. Les articles créés depuis ce fournisseur prennent le mode de prix 'domestic'.
+             * @default false
+             */
+            is_domestic: boolean;
+            /**
+             * Sync Enabled
+             * @description Autorise les synchronisations (planifiées et manuelles)
+             * @default true
+             */
+            sync_enabled: boolean;
+            /**
+             * Sync Interval Hours
+             * @description Cadence de la synchronisation catalogue planifiée, en heures (kind=api uniquement ; 0 = jamais planifiée, manuelle seulement)
+             * @default 0
+             */
+            sync_interval_hours: number;
+            /**
+             * Default Categories
+             * @description Catégories fournisseur synchronisées par défaut (kind=api)
+             */
+            default_categories?: string[] | null;
+            /**
+             * Price Currency
+             * @description Devise des prix du fournisseur quand la source ne la précise pas (fichier sans colonne devise, prix saisis à la main)
+             */
+            price_currency?: string | null;
+            /**
+             * Column Mapping
+             * @description kind=file : mapping {champ interne: en-tête de colonne du fichier}. Champs internes possibles : FILE_MAPPING_TARGETS.
+             */
+            column_mapping?: {
+                [key: string]: string;
+            } | null;
+            /**
+             * Settings
+             * @description Configuration non secrète propre à l'intégration (ex. environment, country_code pour Ingram). Jamais d'identifiants.
+             */
+            settings?: {
+                [key: string]: unknown;
+            } | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Code */
+            code: string;
+        };
+        /**
+         * SupplierKind
+         * @description Méthode d'approvisionnement d'un fournisseur.
+         * @enum {string}
+         */
+        SupplierKind: "manual" | "file" | "api";
+        /**
          * SupplierOrderPublic
          * @description Public schema for supplier orders (admin endpoints).
          */
@@ -14179,6 +15336,107 @@ export interface components {
             count: number;
         };
         /**
+         * SupplierPublic
+         * @description Représentation renvoyée par l'API admin.
+         */
+        SupplierPublic: {
+            /**
+             * Name
+             * @description Nom affiché du fournisseur
+             */
+            name: string;
+            /**
+             * @description Méthode d'approvisionnement : manual | file | api
+             * @default manual
+             */
+            kind: components["schemas"]["SupplierKind"];
+            /**
+             * Adapter Key
+             * @description Pour kind=api : clé de l'intégration enregistrée dans le code (ex. 'ingram_micro'). Ignoré pour les autres méthodes.
+             */
+            adapter_key?: string | null;
+            /**
+             * Origin Place Id
+             * @description Entrepôt d'expédition du fournisseur (Place). Recopié sur Product.supplier_place_id à la création des articles : il pilote le premier tronçon logistique et le suivi.
+             */
+            origin_place_id?: string | null;
+            /**
+             * Is Domestic
+             * @description Fournisseur du même territoire douanier que notre entrepôt : ni droits de douane ni fret import dans le prix. Les articles créés depuis ce fournisseur prennent le mode de prix 'domestic'.
+             * @default false
+             */
+            is_domestic: boolean;
+            /**
+             * Sync Enabled
+             * @description Autorise les synchronisations (planifiées et manuelles)
+             * @default true
+             */
+            sync_enabled: boolean;
+            /**
+             * Sync Interval Hours
+             * @description Cadence de la synchronisation catalogue planifiée, en heures (kind=api uniquement ; 0 = jamais planifiée, manuelle seulement)
+             * @default 0
+             */
+            sync_interval_hours: number;
+            /**
+             * Default Categories
+             * @description Catégories fournisseur synchronisées par défaut (kind=api)
+             */
+            default_categories?: string[] | null;
+            /**
+             * Price Currency
+             * @description Devise des prix du fournisseur quand la source ne la précise pas (fichier sans colonne devise, prix saisis à la main)
+             */
+            price_currency?: string | null;
+            /**
+             * Column Mapping
+             * @description kind=file : mapping {champ interne: en-tête de colonne du fichier}. Champs internes possibles : FILE_MAPPING_TARGETS.
+             */
+            column_mapping?: {
+                [key: string]: string;
+            } | null;
+            /**
+             * Settings
+             * @description Configuration non secrète propre à l'intégration (ex. environment, country_code pour Ingram). Jamais d'identifiants.
+             */
+            settings?: {
+                [key: string]: unknown;
+            } | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Code */
+            code: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Configured
+             * @default true
+             */
+            configured: boolean;
+        };
+        /**
          * SupplierSummary
          * @description Represents supplier summary.
          */
@@ -14187,12 +15445,67 @@ export interface components {
             name: string;
             /** Display Name */
             display_name: string;
+            kind: components["schemas"]["SupplierKind"];
             /** Configured */
             configured: boolean;
             /** Sync Enabled */
             sync_enabled: boolean;
+            /**
+             * Is Domestic
+             * @default false
+             */
+            is_domestic: boolean;
             /** Default Categories */
             default_categories?: string[];
+        };
+        /**
+         * SupplierUpdate
+         * @description Mise à jour partielle (tout est optionnel, ``code`` n'y est pas).
+         */
+        SupplierUpdate: {
+            /** Name */
+            name?: string | null;
+            kind?: components["schemas"]["SupplierKind"] | null;
+            /** Adapter Key */
+            adapter_key?: string | null;
+            /** Origin Place Id */
+            origin_place_id?: string | null;
+            /** Is Domestic */
+            is_domestic?: boolean | null;
+            /** Sync Enabled */
+            sync_enabled?: boolean | null;
+            /** Sync Interval Hours */
+            sync_interval_hours?: number | null;
+            /** Default Categories */
+            default_categories?: string[] | null;
+            /** Price Currency */
+            price_currency?: string | null;
+            /** Column Mapping */
+            column_mapping?: {
+                [key: string]: string;
+            } | null;
+            /** Settings */
+            settings?: {
+                [key: string]: unknown;
+            } | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
+        /**
+         * SuppliersPublic
+         * @description Liste paginée.
+         */
+        SuppliersPublic: {
+            /** Data */
+            data: components["schemas"]["SupplierPublic"][];
+            /** Count */
+            count: number;
         };
         /**
          * SyncRequest
@@ -15732,6 +17045,37 @@ export interface operations {
             };
         };
     };
+    "place-set_main_warehouse_endpoint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "payment-get_multiple_Payments": {
         parameters: {
             query?: {
@@ -17032,7 +18376,10 @@ export interface operations {
     };
     "admin-shipping-list_carriers": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Also return retired carriers (management page). */
+                include_inactive?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17046,6 +18393,114 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CarrierPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-shipping-create_carrier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CarrierWriteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CarrierPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-shipping-retire_carrier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                carrier_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-shipping-update_carrier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                carrier_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CarrierPatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CarrierPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -17578,6 +19033,38 @@ export interface operations {
             };
         };
     };
+    "admin-product-admin_release_override": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+                field: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-price-groups-list_price_groups": {
         parameters: {
             query?: never;
@@ -17960,6 +19447,233 @@ export interface operations {
             };
         };
     };
+    "admin-users-list_users": {
+        parameters: {
+            query?: {
+                /** @description Recherche sur l'email ou le nom (insensible à la casse) */
+                q?: string | null;
+                price_group_id?: string | null;
+                is_active?: boolean | null;
+                /** @description True : invitations en attente ; False : comptes ouverts */
+                invitation_pending?: boolean | null;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUsersPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-users-create_user": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUserCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-users-resend_invitation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-users-update_user": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUserUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-categories-list_categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCategoriesPublic"];
+                };
+            };
+        };
+    };
+    "admin-categories-update_category": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCategoryUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCategoryItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-categories-merge_category": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MergeBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MergeResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "supplier-list_supplier_orders": {
         parameters: {
             query?: {
@@ -18045,6 +19759,176 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SupplierOrderPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-list_suppliers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuppliersPublic"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-create_supplier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplierCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-list_adapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdapterDescriptor"][];
+                };
+            };
+        };
+    };
+    "admin-suppliers-get_supplier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-deactivate_supplier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-update_supplier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplierUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierPublic"];
                 };
             };
             /** @description Validation Error */
@@ -18299,6 +20183,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductShippingModesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "product-get_product_offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductOffersResponse"];
                 };
             };
             /** @description Validation Error */
@@ -19155,6 +21070,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GuestQuoteRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "cart-get_checkout_quote": {
+        parameters: {
+            query?: {
+                /** @description Shipping address (must belong to the user) */
+                address_id?: string | null;
+                /** @description Chosen last-leg delivery mode */
+                delivery_type?: string | null;
+                /** @description Chosen payment method (its fee is added) */
+                payment_method_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutQuoteResponse"];
                 };
             };
             /** @description Validation Error */
@@ -24819,7 +26770,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Registered supplier machine name */
+                /** @description Supplier code */
                 supplier_name: string;
             };
             cookie?: never;
@@ -24855,7 +26806,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Registered supplier machine name */
+                /** @description Supplier code */
                 supplier_name: string;
             };
             cookie?: never;
@@ -24891,7 +26842,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Registered supplier machine name */
+                /** @description Supplier code */
                 supplier_name: string;
             };
             cookie?: never;
@@ -24923,7 +26874,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Registered supplier machine name */
+                /** @description Supplier code */
                 supplier_name: string;
             };
             cookie?: never;
@@ -24957,7 +26908,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Registered supplier machine name */
+                /** @description Supplier code */
                 supplier_name: string;
             };
             cookie?: never;
@@ -24984,10 +26935,118 @@ export interface operations {
             };
         };
     };
+    "suppliers-inspect_catalog_file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Supplier code */
+                supplier_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_suppliers-inspect_catalog_file"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileInspectResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "suppliers-import_catalog_file": {
+        parameters: {
+            query?: {
+                /** @description Parse and report without writing anything */
+                dry_run?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Supplier code */
+                supplier_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_suppliers-import_catalog_file"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileImportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "suppliers-trigger_category_backfill": {
         parameters: {
             query?: {
                 batch_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "suppliers-trigger_price_refresh_inline": {
+        parameters: {
+            query?: {
+                category_id?: string | null;
             };
             header?: never;
             path?: never;

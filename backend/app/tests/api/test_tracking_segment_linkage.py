@@ -101,7 +101,7 @@ async def test_link_segments_creates_tracking_entries_with_consolidation(
         shipping_address="Papeete, PF",
         segment_totals={
             (FulfillmentSegment.LOCAL, None): Decimal("1.00"),
-            (FulfillmentSegment.CONSOLIDATION_PF, None): Decimal("2.00"),
+            (FulfillmentSegment.VIA_MAIN_WAREHOUSE, None): Decimal("2.00"),
         },
     )
 

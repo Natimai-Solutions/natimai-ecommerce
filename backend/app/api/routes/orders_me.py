@@ -6,7 +6,6 @@ Phase 3: GET /orders/me/{order_id}/tracking
 from __future__ import annotations
 
 import uuid
-from urllib.parse import quote
 
 from fastapi import APIRouter
 from fastapi import status as http_status
@@ -33,6 +32,7 @@ from app.features.shipping.models.route_tracking import (
     ShippingRouteTrackingPublic,
 )
 from app.features.shipping.models.status import StatusDefinition
+from app.features.shipping.services.tracking_url import carrier_tracking_url
 
 router = APIRouter(prefix="/orders", tags=["order"])
 
@@ -56,15 +56,9 @@ class CustomerOrderTrackingResponse(SQLModel):
     )
 
 
-def _carrier_tracking_url(template: str | None, ref: str | None) -> str | None:
-    """Build a carrier tracking URL from a ``{ref}`` template, URL-encoding the ref.
-
-    Returns None unless the template is a real https URL and a ref is present
-    (https-only guards against a malicious ``javascript:`` template).
-    """
-    if template and ref and template.startswith("https://"):
-        return template.replace("{ref}", quote(ref, safe=""))
-    return None
+# Kept under its historical name: the URL builder now lives in the shipping
+# services so the admin journey can reuse it.
+_carrier_tracking_url = carrier_tracking_url
 
 
 def _to_customer_segment(

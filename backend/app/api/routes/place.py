@@ -20,6 +20,7 @@ from app.features.place.models import (
     PostalCodeDirectoryEntry,
     PostalCodeDirectoryResponse,
 )
+from app.features.shipping.services.origin import set_main_warehouse
 
 
 class PlaceRouter(
@@ -191,6 +192,36 @@ class PlaceRouter(
             codes = [row.postal_code for row in rows]
             await session.commit()
             return codes
+
+        @self.post(
+            "/{id}/set-main-warehouse",
+            response_model=PlacePublic,
+            summary="Flag this place as the main warehouse",
+            description=(
+                "L'entrepôt principal est celui où convergent les articles "
+                "fournisseur et d'où part le dernier tronçon vers le client. "
+                "Il n'y en a qu'un : l'ancien est déflaggé."
+            ),
+        )
+        async def set_main_warehouse_endpoint(
+            session: SessionDep,
+            id: uuid.UUID,
+            current_user: CurrentUser | None = Depends(get_current_user_optional),
+        ) -> PlacePublic:
+            """Make ``id`` the single main warehouse."""
+            await self._check_auth(session, "update", current_user)
+            try:
+                place = await set_main_warehouse(session, id)
+            except LookupError as exc:
+                raise AppError(
+                    code="resource.not_found",
+                    status_code=404,
+                    message="Place not found",
+                    details={"id": str(id)},
+                ) from exc
+            await session.commit()
+            await session.refresh(place)
+            return PlacePublic.model_validate(place)
 
 
 class Auth:

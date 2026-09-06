@@ -83,6 +83,7 @@ const nav: NavSection[] = [
       { label: 'Logistique', icon: 'inventory_2', to: '/shipping' },
       { label: 'Inventaire', icon: 'warehouse', to: '/inventory' },
       { label: 'Trajets & Lieux', icon: 'route', to: '/logistics-routes' },
+      { label: 'Transporteurs', icon: 'local_post_office', to: '/carriers' },
       { label: 'Fournisseurs', icon: 'storefront', to: '/suppliers' },
       { label: 'Commandes fournisseurs', icon: 'local_shipping', to: '/supplier-orders' },
     ],

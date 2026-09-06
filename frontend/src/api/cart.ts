@@ -87,9 +87,7 @@ export async function removeCartItem(itemId: string): Promise<CartDetailPublic> 
  * a failure midway left a truncated backend cart that the checkout then
  * ordered as if it were complete.
  */
-export async function replaceMyCartItems(
-  payload: CartReplaceRequest,
-): Promise<CartDetailPublic> {
+export async function replaceMyCartItems(payload: CartReplaceRequest): Promise<CartDetailPublic> {
   const { data } = await api.put<CartDetailPublic>('/cart/items', payload);
   return data;
 }
@@ -137,6 +135,40 @@ export async function getLastLegOptions(
   const { data } = await api.get<LastLegOptionsResponse>('/cart/me/last-leg-options', {
     params: addressId ? { address_id: addressId } : {},
   });
+  return data;
+}
+
+export interface CheckoutQuote {
+  currency: string;
+  subtotal_amount: string;
+  /** Livraison (tronçon choisi) + frais de dédouanement. */
+  shipping_fee_amount: string;
+  customs_declaration_fee: string;
+  payment_fee_amount: string;
+  total_fees_amount: string;
+  /** Montant qui sera débité — la seule source de vérité du récapitulatif. */
+  total_amount: string;
+  delivery_type: string | null;
+  shipping_eta_days: number | null;
+  free_shipping_applied: boolean;
+}
+
+/** What POST /cart/checkout will bill for the backend cart and these choices.
+ *
+ * Same computation as the checkout: the recap shows the amount debited. The
+ * backend cart must be in sync (see replaceMyCartItems) for the quote to
+ * cover the storefront cart.
+ */
+export async function getCheckoutQuote(params: {
+  addressId?: string | null;
+  deliveryType?: string | null;
+  paymentMethodId?: string | null;
+}): Promise<CheckoutQuote> {
+  const query: Record<string, string> = {};
+  if (params.addressId) query.address_id = params.addressId;
+  if (params.deliveryType) query.delivery_type = params.deliveryType;
+  if (params.paymentMethodId) query.payment_method_id = params.paymentMethodId;
+  const { data } = await api.get<CheckoutQuote>('/cart/me/checkout-quote', { params: query });
   return data;
 }
 
