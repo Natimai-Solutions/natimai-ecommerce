@@ -1657,11 +1657,11 @@ Aujourd'hui : seulement un flag `Product.has_variants` (pas de modèle de varian
 - Mapping **sync fournisseur** (Ingram renvoie-t-il des variantes ? sinon variantes « manuelles »).
 - Impact pricing (le runtime pricing s'applique par variante) et logistique (poids/volume par variante).
 
-### Réductions / codes promo / vouchers 🟡 (backend partiel)
+### Réductions / codes promo / vouchers ✅ codes promo livrés (10/09/2026) — vouchers nominatifs à instruire
 Le feature **`discount`** existe déjà ([models.py](backend/app/features/discount/models.py)) : `DiscountType`, `DiscountTarget`, champ **`code`**, CRUD. Reste à **câbler le parcours client** :
-- Saisie d'un **code promo au panier/checkout** → validation (existence, dates, montant min, **limites d'usage** globales/par client) → recalcul du total (backend autoritaire).
+- ✅ Saisie d'un **code promo au checkout** → validation serveur (existence insensible à la casse, dates, minimum d'articles concernés, quotas global **et par client**, cible commande / produit / catégorie), remise en % ou en montant, ventilée par ligne (`OrderLine.discount_amount`), figée sur la commande (`discount_id` / `discount_code` / `discount_amount`), quota pris atomiquement à la commande, remise portée sur la facture.
 - **Vouchers / bons d'achat** (montant prépayé nominatif) si distinct des remises % / montant.
-- **Écran admin** de gestion des remises/codes (création, conditions, suivi d'usage).
+- ✅ **Écran admin** « Codes promo » (création, conditions, suivi d'usage, activation).
 - Cohérence avec **groupes de prix** (cumul ou exclusivité ?) et **devise** (remise en XPF).
 
 ### PayPal (intégration standard) 🔲

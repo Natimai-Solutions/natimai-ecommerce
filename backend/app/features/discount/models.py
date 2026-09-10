@@ -44,12 +44,32 @@ class DiscountBase(Base):
         index=True,
         description="Code du coupon (uniquement pour les coupons)",
     )
-    percentage: Decimal = Field(
+    percentage: Decimal | None = Field(
+        default=None,
         gt=0,
         le=100,
         max_digits=5,
         decimal_places=2,
-        description="Pourcentage de réduction (0.01-100.00)",
+        description="Pourcentage de réduction (0.01-100.00) — ou `amount`",
+    )
+    amount: Decimal | None = Field(
+        default=None,
+        gt=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Remise en montant fixe (devise de référence) — ou `percentage`",
+    )
+    min_order_amount: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Montant minimum des articles éligibles pour appliquer la remise",
+    )
+    max_uses_per_customer: int | None = Field(
+        default=None,
+        ge=1,
+        description="Utilisations maximum par client (None = illimité)",
     )
     target: DiscountTarget = Field(
         description="Cible de la réduction",
@@ -100,6 +120,9 @@ class DiscountUpdate(BaseUpdate):
     discount_type: DiscountType | None = None
     code: str | None = None
     percentage: Decimal | None = None
+    amount: Decimal | None = None
+    min_order_amount: Decimal | None = None
+    max_uses_per_customer: int | None = None
     target: DiscountTarget | None = None
     product_id: uuid.UUID | None = None
     category_id: uuid.UUID | None = None

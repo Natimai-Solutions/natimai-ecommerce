@@ -72,6 +72,7 @@ const nav: NavSection[] = [
       { label: 'Taux TVA / TGC', icon: 'percent', to: '/tax-rates' },
       { label: 'Douane par catégorie', icon: 'gavel', to: '/customs-rates' },
       { label: 'Taux de change', icon: 'currency_exchange', to: '/currency-rates' },
+      { label: 'Codes promo', icon: 'local_offer', to: '/discounts' },
     ],
   },
   {

@@ -7769,6 +7769,17 @@ export interface components {
             payment_fee_amount: string;
             /** Total Fees Amount */
             total_fees_amount: string;
+            /** Discount Code */
+            discount_code?: string | null;
+            /**
+             * Discount Amount
+             * @default 0.00
+             */
+            discount_amount: string;
+            /** Discount Label */
+            discount_label?: string | null;
+            /** Discount Error */
+            discount_error?: string | null;
             /**
              * Total Amount
              * @description Montant qui sera débité
@@ -7847,6 +7858,8 @@ export interface components {
              * @description Return URL for provider redirect/SmartForm (CB).
              */
             return_url?: string | null;
+            /** Discount Code */
+            discount_code?: string | null;
         };
         /**
          * CheckoutResponse
@@ -7872,6 +7885,13 @@ export interface components {
             cart_id: string;
             /** Subtotal Amount */
             subtotal_amount: string;
+            /** Discount Code */
+            discount_code?: string | null;
+            /**
+             * Discount Amount
+             * @default 0.00
+             */
+            discount_amount: string;
             /** Shipping Fee Amount */
             shipping_fee_amount: string;
             /** Payment Fee Amount */

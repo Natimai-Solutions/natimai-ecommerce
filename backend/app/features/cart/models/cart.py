@@ -308,6 +308,11 @@ class CheckoutRequest(SQLModel):
         default=None,
         description="Return URL for provider redirect/SmartForm (CB).",
     )
+    discount_code: str | None = Field(
+        default=None,
+        max_length=50,
+        description="Promo code to apply (validated and priced server-side)",
+    )
 
 
 class CheckoutResponse(SQLModel):
@@ -321,6 +326,8 @@ class CheckoutResponse(SQLModel):
     payment_id: uuid.UUID
     cart_id: uuid.UUID
     subtotal_amount: Decimal
+    discount_code: str | None = None
+    discount_amount: Decimal = Decimal("0.00")
     shipping_fee_amount: Decimal
     payment_fee_amount: Decimal
     total_fees_amount: Decimal
@@ -379,6 +386,19 @@ class CheckoutQuoteResponse(SQLModel):
     )
     payment_fee_amount: Decimal = Field(description="Frais du moyen de paiement")
     total_fees_amount: Decimal
+    discount_code: str | None = Field(
+        default=None, description="Code promo appliqué (normalisé)"
+    )
+    discount_amount: Decimal = Field(
+        default=Decimal("0.00"), description="Remise déduite des articles"
+    )
+    discount_label: str | None = Field(
+        default=None, description="Nom de la remise, pour le récapitulatif"
+    )
+    discount_error: str | None = Field(
+        default=None,
+        description="Pourquoi le code saisi n'a pas été appliqué (devis seulement)",
+    )
     total_amount: Decimal = Field(description="Montant qui sera débité")
     delivery_type: str | None = None
     shipping_eta_days: int | None = None

@@ -41,6 +41,8 @@ export interface AdminOrderDetail {
   shipping_fee_amount: number;
   payment_fee_amount: number;
   total_fees_amount: number;
+  discount_code?: string | null;
+  discount_amount?: number;
   total_amount: number;
   shipping_address: string | null;
   /** Last-leg mode chosen at checkout (home_delivery, pickup…). */

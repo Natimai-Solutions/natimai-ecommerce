@@ -535,3 +535,177 @@ async def test_checkout_rolls_back_when_stock_reservation_fails(
     assert exc_info.value.code == "cart.stock.insufficient"
     session.rollback.assert_awaited_once()
     session.commit.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_checkout_applies_a_promo_code_and_consumes_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The code lowers the total, lands on the order and the lines, and takes a use."""
+    from app.features.discount.services.checkout_discount import AppliedDiscount
+
+    user_id = uuid4()
+    cart_id = uuid4()
+    product_id = uuid4()
+    discount_id = uuid4()
+    current_user = cast(User, SimpleNamespace(id=user_id))
+    session = AsyncMock()
+    session.add = Mock()
+    cart = SimpleNamespace(
+        id=cart_id,
+        user_id=user_id,
+        currency="XPF",
+        total_amount=Decimal("0.00"),
+        is_checked_out=False,
+    )
+    item = SimpleNamespace(
+        id=uuid4(),
+        cart_id=cart_id,
+        product_id=product_id,
+        quantity=2,
+        unit_price=Decimal("1000.00"),
+        is_active=True,
+    )
+    product = SimpleNamespace(
+        id=product_id,
+        base_price=Decimal("1000.00"),
+        is_active=True,
+        is_admin_active=True,
+        is_supplier_managed=False,
+        supplier_quantity=Decimal("0.00"),
+        category_id=None,
+    )
+    order = SimpleNamespace(id=uuid4(), total_amount=Decimal("0.00"))
+    payment = SimpleNamespace(id=uuid4(), payment_status_id=None)
+
+    monkeypatch.setattr(
+        crud_cart, "get_active_cart_by_user", AsyncMock(return_value=cart)
+    )
+    monkeypatch.setattr(
+        crud_cart_item, "get_by_cart_id", AsyncMock(return_value=[item])
+    )
+    monkeypatch.setattr(
+        "app.api.routes.cart._get_or_create_order_pending_status",
+        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.cart._get_active_product_or_404",
+        AsyncMock(return_value=product),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.cart._reserve_stock_for_checkout", AsyncMock(return_value=None)
+    )
+    create_order_mock = AsyncMock(return_value=order)
+    monkeypatch.setattr(crud_order, "create_draft", create_order_mock)
+    create_line_mock = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
+    monkeypatch.setattr(crud_order_line, "create_draft", create_line_mock)
+    monkeypatch.setattr(
+        "app.api.routes.cart._get_or_create_payment_pending_status",
+        AsyncMock(return_value=SimpleNamespace(id=uuid4())),
+    )
+    monkeypatch.setattr(crud_payment, "create_draft", AsyncMock(return_value=payment))
+    monkeypatch.setattr(
+        "app.api.routes.cart.resolve_default_price_group", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(
+        "app.api.routes.cart._customs_declaration_fees", AsyncMock(return_value=[])
+    )
+    applied = AppliedDiscount(
+        discount_id=discount_id,
+        code="RENTREE10",
+        label="Rentrée",
+        amount=Decimal("200"),
+        line_amounts={item.id: Decimal("200")},
+    )
+    resolve_mock = AsyncMock(return_value=applied)
+    monkeypatch.setattr("app.api.routes.cart.resolve_coupon", resolve_mock)
+    consume_mock = AsyncMock()
+    monkeypatch.setattr("app.api.routes.cart.consume_coupon", consume_mock)
+
+    response = await checkout_my_cart(
+        session=session,
+        current_user=current_user,
+        payload=CheckoutRequest(
+            shipping_address="Papeete", cgv_accepted=True, discount_code="rentree10"
+        ),
+    )
+
+    assert response.subtotal_amount == Decimal("2000")
+    assert response.discount_amount == Decimal("200")
+    assert response.discount_code == "RENTREE10"
+    assert response.total_amount == Decimal("1800")
+    assert create_order_mock.await_args is not None
+    order_create = create_order_mock.await_args.kwargs["data"]
+    assert order_create.discount_id == discount_id
+    assert order_create.discount_code == "RENTREE10"
+    assert order_create.discount_amount == Decimal("200")
+    assert order_create.total_amount == Decimal("1800")
+    assert create_line_mock.await_args is not None
+    line_create = create_line_mock.await_args.kwargs["data"]
+    assert line_create.discount_amount == Decimal("200")
+    consume_mock.assert_awaited_once_with(session, discount_id=discount_id)
+    assert resolve_mock.await_args is not None
+    assert resolve_mock.await_args.kwargs["code"] == "rentree10"
+
+
+@pytest.mark.anyio
+async def test_checkout_refuses_a_bad_promo_code_before_touching_anything(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.features.discount.services.checkout_discount import DiscountRefused
+
+    user_id = uuid4()
+    cart = SimpleNamespace(
+        id=uuid4(),
+        user_id=user_id,
+        currency="XPF",
+        total_amount=Decimal("0.00"),
+        is_checked_out=False,
+    )
+    item = SimpleNamespace(
+        id=uuid4(),
+        cart_id=cart.id,
+        product_id=uuid4(),
+        quantity=1,
+        unit_price=Decimal("1000.00"),
+        is_active=True,
+    )
+    product = SimpleNamespace(
+        id=item.product_id,
+        base_price=Decimal("1000.00"),
+        is_active=True,
+        is_admin_active=True,
+        is_supplier_managed=False,
+        supplier_quantity=Decimal("0"),
+    )
+    session = AsyncMock()
+    session.add = Mock()
+    monkeypatch.setattr(
+        crud_cart, "get_active_cart_by_user", AsyncMock(return_value=cart)
+    )
+    monkeypatch.setattr(
+        crud_cart_item, "get_by_cart_id", AsyncMock(return_value=[item])
+    )
+    monkeypatch.setattr(
+        "app.api.routes.cart._get_active_product_or_404",
+        AsyncMock(return_value=product),
+    )
+    monkeypatch.setattr(
+        "app.api.routes.cart.resolve_coupon",
+        AsyncMock(side_effect=DiscountRefused("expired", "Ce code a expiré")),
+    )
+    create_order_mock = AsyncMock()
+    monkeypatch.setattr(crud_order, "create_draft", create_order_mock)
+
+    with pytest.raises(AppError) as raised:
+        await checkout_my_cart(
+            session=session,
+            current_user=cast(User, SimpleNamespace(id=user_id)),
+            payload=CheckoutRequest(
+                shipping_address="Papeete", cgv_accepted=True, discount_code="OLD"
+            ),
+        )
+    assert raised.value.code == "checkout.discount.refused"
+    assert raised.value.status_code == 400
+    assert "expiré" in raised.value.message
+    create_order_mock.assert_not_awaited()

@@ -73,6 +73,15 @@
                   <span>Frais de paiement</span>
                   <span>{{ formatMoney(quote.payment_fee_amount) }}</span>
                 </div>
+                <div
+                  v-if="quote.discount_code && hasFee(quote.discount_amount ?? '0')"
+                  class="row justify-between text-body2 text-positive"
+                >
+                  <span>Remise {{ quote.discount_code }}</span>
+                  <span data-testid="checkout-quote-discount"
+                    >-{{ formatMoney(quote.discount_amount ?? '0') }}</span
+                  >
+                </div>
                 <q-separator class="q-my-sm" />
                 <div class="row justify-between text-weight-bold">
                   <span>Total à payer</span>
@@ -90,6 +99,43 @@
                   <q-spinner size="1em" class="q-mr-xs" />Calcul des frais de livraison…
                 </div>
               </template>
+              <q-separator class="q-my-sm" />
+              <!-- Code promo : validé et chiffré par le backend dans le même devis. -->
+              <q-form class="row items-start no-wrap" @submit.prevent="applyDiscountCode">
+                <q-input
+                  v-model="discountInput"
+                  label="Code promo"
+                  dense
+                  outlined
+                  class="col"
+                  :disable="!isAuthenticated || quoteLoading"
+                  :error="!!quote?.discount_error"
+                  :error-message="quote?.discount_error ?? undefined"
+                  :hint="appliedDiscountHint"
+                  data-testid="checkout-discount-input"
+                >
+                  <template #append>
+                    <q-btn
+                      v-if="discountCode"
+                      flat
+                      dense
+                      round
+                      icon="close"
+                      aria-label="Retirer le code"
+                      @click="clearDiscountCode"
+                    />
+                  </template>
+                </q-input>
+                <q-btn
+                  type="submit"
+                  flat
+                  color="primary"
+                  label="Appliquer"
+                  class="q-ml-sm q-mt-xs"
+                  :disable="!isAuthenticated || !discountInput.trim()"
+                  :loading="quoteLoading"
+                />
+              </q-form>
             </q-card-section>
           </q-card>
         </div>
@@ -461,6 +507,29 @@ function shippingOnlyAmount(q: CheckoutQuote): number {
   return (Number.isFinite(shipping) ? shipping : 0) - (Number.isFinite(customs) ? customs : 0);
 }
 
+// Code promo : saisi ici, validé par le backend dans le devis puis figé sur
+// la commande. Le code appliqué est celui que le dernier devis a accepté.
+const discountInput = ref('');
+const discountCode = ref<string | null>(null);
+const appliedDiscountHint = computed(() => {
+  const q = quote.value;
+  if (!q?.discount_code) return undefined;
+  return `${q.discount_label ?? q.discount_code} : -${formatMoney(q.discount_amount ?? '0')}`;
+});
+
+async function applyDiscountCode() {
+  const code = discountInput.value.trim();
+  if (!code) return;
+  discountCode.value = code;
+  await loadQuote();
+}
+
+function clearDiscountCode() {
+  discountInput.value = '';
+  discountCode.value = null;
+  void loadQuote();
+}
+
 async function loadQuote() {
   if (!isAuthenticated.value) return;
   quoteLoading.value = true;
@@ -469,7 +538,11 @@ async function loadQuote() {
       addressId: selectedAddressId.value,
       deliveryType: selectedDeliveryType.value,
       paymentMethodId: selectedMethodId.value,
+      discountCode: discountCode.value,
     });
+    // A refused code is reported by the quote (the amounts stay valid
+    // without it); it must not be sent to the checkout either.
+    if (next.discount_error) discountCode.value = null;
     quote.value = next;
     const basis =
       Number.parseFloat(next.subtotal_amount) + Number.parseFloat(next.shipping_fee_amount);
@@ -664,6 +737,7 @@ async function startPayment() {
       payment_method_id: method.id,
       return_url: returnUrl,
       cgv_accepted: cgvAccepted.value,
+      discount_code: quote.value?.discount_code ?? null,
     });
     orderPlaced.value = true;
     placedOrderRef.value = orderRef(checkout.order_number, checkout.order_id);

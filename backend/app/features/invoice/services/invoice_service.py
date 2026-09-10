@@ -216,9 +216,15 @@ async def _build_lines_snapshot(
         )
         rate_pct = Decimal(str(tax_rate.rate_pct)) if tax_rate is not None else _ZERO
 
-        line_incl = quantize_amount(
+        gross_incl = quantize_amount(
             order_line.unit_price * order_line.quantity, currency
         )
+        # A promo discount is carried by the line (allocated at checkout): the
+        # tax base is what the customer actually paid for it.
+        line_discount = quantize_amount(
+            getattr(order_line, "discount_amount", None) or _ZERO, currency
+        )
+        line_incl = quantize_amount(gross_incl - line_discount, currency)
         excl, tax = _split_incl_tax(line_incl, rate_pct, currency)
 
         lines.append(
@@ -229,7 +235,9 @@ async def _build_lines_snapshot(
                 "reference": getattr(product, "vendor_part_number", None) or "",
                 "quantity": order_line.quantity,
                 "unit_price_incl_tax": str(order_line.unit_price),
-                "total_incl_tax": str(line_incl),
+                "total_incl_tax": str(gross_incl),
+                "discount_amount": str(line_discount),
+                "net_incl_tax": str(line_incl),
                 "total_excl_tax": str(excl),
                 "tax_amount": str(tax),
                 "tax_rate_pct": str(rate_pct),
@@ -257,9 +265,12 @@ async def build_invoice_snapshot(
     # The order total is what the customer actually paid: it is authoritative.
     # Reconcile any drift between the line sum and the stored subtotal onto the
     # fees rate group so the invoice always balances against the order.
-    subtotal_drift = quantize_amount(order.subtotal_amount, currency) - quantize_amount(
-        lines_incl_total, currency
+    order_discount = quantize_amount(
+        getattr(order, "discount_amount", None) or _ZERO, currency
     )
+    subtotal_drift = quantize_amount(
+        order.subtotal_amount - order_discount, currency
+    ) - quantize_amount(lines_incl_total, currency)
     if subtotal_drift != _ZERO:
         logger.warning(
             "Order %s: line sum (%s) differs from stored subtotal (%s) — "
@@ -316,6 +327,10 @@ async def build_invoice_snapshot(
         },
         "currency": currency,
         "lines": lines,
+        "discount": {
+            "code": getattr(order, "discount_code", None) or "",
+            "amount": str(order_discount),
+        },
         "fees": {
             "shipping_incl_tax": str(
                 quantize_amount(order.shipping_fee_amount, currency)

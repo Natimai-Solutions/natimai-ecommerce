@@ -41,6 +41,12 @@ from app.features.cart.models.quote_request import (
     QuoteRequestStatus,
     QuoteRequestSubmit,
 )
+from app.features.discount.services.checkout_discount import (
+    AppliedDiscount,
+    DiscountRefused,
+    consume_coupon,
+    resolve_coupon,
+)
 from app.features.integrations.services.checkout_availability import (
     refresh_supplier_availability,
 )
@@ -1003,8 +1009,9 @@ def _snapshot_checkout_amounts(
     currency: str,
     shipping_fee_amount: Decimal,
     payment_fee_amount: Decimal,
+    discount_amount: Decimal = Decimal("0.00"),
 ) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal]:
-    """Execute snapshot checkout amounts."""
+    """Subtotal (gross lines), fees, and the total net of the promo discount."""
     subtotal_amount = sum(
         (item.unit_price * item.quantity for item in items),
         Decimal("0.00"),
@@ -1014,7 +1021,10 @@ def _snapshot_checkout_amounts(
     shipping_fee = quantize_amount(shipping_fee_amount, currency)
     payment_fee = quantize_amount(payment_fee_amount, currency)
     total_fees_amount = quantize_amount(shipping_fee + payment_fee, currency)
-    total_amount = quantize_amount(subtotal_amount + total_fees_amount, currency)
+    discount = min(quantize_amount(discount_amount, currency), subtotal_amount)
+    total_amount = quantize_amount(
+        subtotal_amount - discount + total_fees_amount, currency
+    )
 
     return (
         subtotal_amount,
@@ -1919,6 +1929,13 @@ class CheckoutQuote:
     payment_fee_amount: Decimal
     total_fees_amount: Decimal
     total_amount: Decimal
+    #: Promo code applied (validated and priced server-side), if any.
+    discount: AppliedDiscount | None = None
+
+    @property
+    def discount_amount(self) -> Decimal:
+        """What the promo code takes off the lines (0 without one)."""
+        return self.discount.amount if self.discount is not None else Decimal("0.00")
 
     @property
     def customs_declaration_fee_total(self) -> Decimal:
@@ -1972,6 +1989,7 @@ async def _quote_checkout(
     shipping_route_ids: list[uuid.UUID] | None = None,
     shipping_preference: CheckoutShippingPreference | None = None,
     shipping_fee_fallback: Decimal | None = None,
+    discount: AppliedDiscount | None = None,
 ) -> CheckoutQuote:
     """Resolve the routes and the amounts of a checkout (no writes).
 
@@ -2078,6 +2096,7 @@ async def _quote_checkout(
         currency=currency,
         shipping_fee_amount=shipping_fee_input,
         payment_fee_amount=resolved_payment_fee,
+        discount_amount=discount.amount if discount is not None else Decimal("0.00"),
     )
 
     return CheckoutQuote(
@@ -2095,7 +2114,46 @@ async def _quote_checkout(
         payment_fee_amount=payment_fee_amount,
         total_fees_amount=total_fees_amount,
         total_amount=total_amount,
+        discount=discount,
     )
+
+
+async def _resolve_checkout_discount(
+    session: SessionDep,
+    *,
+    code: str | None,
+    user_id: uuid.UUID,
+    items: list[CartItem],
+    products_by_id: dict[uuid.UUID, Product],
+    currency: str,
+    strict: bool,
+) -> tuple[AppliedDiscount | None, str | None]:
+    """Price the promo code for this cart.
+
+    ``strict`` (the checkout) turns a refusal into a 400; the quote keeps the
+    reason as text so the recap can say why the code was not applied.
+    """
+    if not code or not code.strip():
+        return None, None
+    try:
+        applied = await resolve_coupon(
+            session,
+            code=code,
+            user_id=user_id,
+            items=items,
+            products_by_id=products_by_id,
+            currency=currency,
+        )
+    except DiscountRefused as exc:
+        if strict:
+            raise AppError(
+                code="checkout.discount.refused",
+                status_code=400,
+                message=exc.message,
+                details={"discount_code": code, "reason": exc.reason},
+            ) from exc
+        return None, exc.message
+    return applied, None
 
 
 @router.get("/me/checkout-quote", response_model=CheckoutQuoteResponse)
@@ -2110,6 +2168,9 @@ async def get_checkout_quote(
     ),
     payment_method_id: uuid.UUID | None = Query(
         default=None, description="Chosen payment method (its fee is added)"
+    ),
+    discount_code: str | None = Query(
+        default=None, max_length=50, description="Promo code to price"
     ),
 ) -> CheckoutQuoteResponse:
     """The amounts ``POST /cart/checkout`` will bill for the current backend
@@ -2140,6 +2201,15 @@ async def get_checkout_quote(
             session, product_id=item.product_id
         )
 
+    applied_discount, discount_error = await _resolve_checkout_discount(
+        session,
+        code=discount_code,
+        user_id=user_id,
+        items=items,
+        products_by_id=products_by_id,
+        currency=currency,
+        strict=False,
+    )
     quote = await _quote_checkout(
         session,
         user_id=user_id,
@@ -2149,6 +2219,7 @@ async def get_checkout_quote(
         shipping_address_id=address_id,
         delivery_type=delivery_type,
         payment_method_id=payment_method_id,
+        discount=applied_discount,
     )
     return CheckoutQuoteResponse(
         currency=quote.currency,
@@ -2157,6 +2228,10 @@ async def get_checkout_quote(
         customs_declaration_fee=quote.customs_declaration_fee_total,
         payment_fee_amount=quote.payment_fee_amount,
         total_fees_amount=quote.total_fees_amount,
+        discount_code=applied_discount.code if applied_discount else None,
+        discount_amount=quote.discount_amount,
+        discount_label=applied_discount.label if applied_discount else None,
+        discount_error=discount_error,
         total_amount=quote.total_amount,
         delivery_type=delivery_type,
         shipping_eta_days=quote.shipping_eta_days,
@@ -2317,6 +2392,15 @@ async def checkout_my_cart(
         currency=cart.currency,
     )
 
+    applied_discount, _ = await _resolve_checkout_discount(
+        session,
+        code=payload.discount_code,
+        user_id=user_id,
+        items=items,
+        products_by_id=products_by_id,
+        currency=cart.currency,
+        strict=True,
+    )
     quote = await _quote_checkout(
         session,
         user_id=user_id,
@@ -2329,6 +2413,7 @@ async def checkout_my_cart(
         shipping_route_ids=payload.shipping_route_ids,
         shipping_preference=payload.shipping_preference,
         shipping_fee_fallback=payload.shipping_fee_amount,
+        discount=applied_discount,
     )
     selected_routes = quote.selected_routes
     priced_routes = quote.priced_routes
@@ -2381,6 +2466,9 @@ async def checkout_my_cart(
                 shipping_fee_amount=shipping_fee_amount,
                 payment_fee_amount=payment_fee_amount,
                 total_fees_amount=total_fees_amount,
+                discount_id=applied_discount.discount_id if applied_discount else None,
+                discount_code=applied_discount.code if applied_discount else None,
+                discount_amount=quote.discount_amount,
                 currency=cart.currency,
                 shipping_address=payload.shipping_address,
                 shipping_cost_breakdown=shipping_cost_breakdown_payload,
@@ -2393,6 +2481,23 @@ async def checkout_my_cart(
         )
         order.order_number = order_number
         session.add(order)
+
+        # Take the use now, inside the transaction: a refusal (the last use
+        # just went to someone else) rolls the whole order back.
+        if applied_discount is not None:
+            try:
+                await consume_coupon(session, discount_id=applied_discount.discount_id)
+            except DiscountRefused as exc:
+                raise AppError(
+                    code="checkout.discount.refused",
+                    status_code=409,
+                    message=exc.message,
+                    details={
+                        "discount_code": applied_discount.code,
+                        "reason": exc.reason,
+                    },
+                ) from exc
+        line_discounts = applied_discount.line_amounts if applied_discount else {}
 
         # Keyed by (segment, origin place) so each distinct origin (own warehouse,
         # supplier A, supplier B…) gets its own tracking with its own first leg.
@@ -2432,7 +2537,7 @@ async def checkout_my_cart(
                     product_id=item.product_id,
                     quantity=item.quantity,
                     unit_price=item.unit_price,
-                    discount_amount=Decimal("0.00"),
+                    discount_amount=line_discounts.get(item.id, Decimal("0.00")),
                     notes=line_notes,
                     tax_rate_id=(
                         resolved_tax_rate.id if resolved_tax_rate is not None else None
@@ -2597,6 +2702,8 @@ async def checkout_my_cart(
             payment_id=payment.id,
             cart_id=cart.id,
             subtotal_amount=subtotal_amount,
+            discount_code=applied_discount.code if applied_discount else None,
+            discount_amount=quote.discount_amount,
             shipping_fee_amount=shipping_fee_amount,
             payment_fee_amount=payment_fee_amount,
             total_fees_amount=total_fees_amount,

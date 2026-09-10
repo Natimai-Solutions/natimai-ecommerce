@@ -16,7 +16,8 @@ from app.features.product.services.popularity import (
 
 def _sql(statement: ClauseElement) -> str:
     compiled = statement.compile(
-        dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
+        dialect=postgresql.dialect(),  # type: ignore[no-untyped-call]
+        compile_kwargs={"literal_binds": True},
     )
     return str(compiled)
 

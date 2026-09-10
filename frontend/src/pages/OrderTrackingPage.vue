@@ -64,6 +64,13 @@
             <span>Frais de paiement</span>
             <span>{{ money(order.payment_fee_amount) }}</span>
           </div>
+          <div
+            v-if="order.discount_code && hasFee(order.discount_amount ?? '0')"
+            class="row justify-between q-mb-xs text-positive"
+          >
+            <span>Remise {{ order.discount_code }}</span>
+            <span>-{{ money(order.discount_amount ?? '0') }}</span>
+          </div>
           <q-separator class="q-my-sm" />
           <div class="row justify-between text-weight-bold">
             <span>Total</span>
