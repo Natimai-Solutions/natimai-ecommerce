@@ -65,8 +65,8 @@
         @click="publishSelected(true)"
       >
         <q-tooltip>
-          Afficher en boutique sans attendre l'enrichissement Icecat (qui pourra toujours
-          compléter la fiche ensuite)
+          Afficher en boutique sans attendre l'enrichissement Icecat (qui pourra toujours compléter
+          la fiche ensuite)
         </q-tooltip>
       </q-btn>
       <q-btn

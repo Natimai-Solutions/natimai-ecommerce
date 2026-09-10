@@ -5,8 +5,8 @@
         <div class="text-h6">Fournisseurs</div>
         <div class="text-caption text-grey-7">
           Un fournisseur est déclaré ici avec son entrepôt d'origine et son régime douanier. Sa
-          méthode d'approvisionnement décide comment ses articles arrivent : à la main, par
-          fichier CSV / Excel, ou par une intégration API.
+          méthode d'approvisionnement décide comment ses articles arrivent : à la main, par fichier
+          CSV / Excel, ou par une intégration API.
         </div>
       </div>
       <q-btn color="primary" icon="add" label="Nouveau fournisseur" no-caps @click="openCreate" />
@@ -178,8 +178,8 @@
               dense
               rounded
             >
-              Les identifiants de cette intégration ne sont pas configurés dans l'environnement
-              du serveur : la synchronisation restera impossible tant qu'ils manquent.
+              Les identifiants de cette intégration ne sont pas configurés dans l'environnement du
+              serveur : la synchronisation restera impossible tant qu'ils manquent.
             </q-banner>
 
             <q-select
@@ -306,15 +306,15 @@
             </div>
             <div class="text-subtitle2 q-mt-sm">Correspondance des colonnes</div>
             <div class="text-caption text-grey-7 q-mb-xs">
-              Associez chaque champ de notre système à une colonne du fichier. Les champs marqués
-              * sont obligatoires. La correspondance est mémorisée sur le fournisseur.
+              Associez chaque champ de notre système à une colonne du fichier. Les champs marqués *
+              sont obligatoires. La correspondance est mémorisée sur le fournisseur.
             </div>
             <div class="text-caption text-grey-7 q-mb-xs">
               Un article déjà présent chez ce fournisseur est reconnu par sa référence, sinon par
               son code-barres EAN/UPC, sinon par marque + référence fabricant : mappez ces colonnes
-              pour qu'un changement de référence ne crée pas de doublon. Un article saisi à la
-              main et rattaché à ce fournisseur est adopté (son contenu est conservé). Les articles
-              des autres fournisseurs ne sont jamais rapprochés.
+              pour qu'un changement de référence ne crée pas de doublon. Un article saisi à la main
+              et rattaché à ce fournisseur est adopté (son contenu est conservé). Les articles des
+              autres fournisseurs ne sont jamais rapprochés.
             </div>
             <div class="row q-col-gutter-sm">
               <div

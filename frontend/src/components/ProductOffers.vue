@@ -38,11 +38,7 @@
         </q-item-section>
         <q-item-section side>
           <div class="text-weight-bold text-primary">{{ priceOf(offer) }}</div>
-          <q-badge
-            v-if="offer.product_id === cheapestId"
-            color="positive"
-            label="Meilleur prix"
-          />
+          <q-badge v-if="offer.product_id === cheapestId" color="positive" label="Meilleur prix" />
         </q-item-section>
       </q-item>
     </q-list>

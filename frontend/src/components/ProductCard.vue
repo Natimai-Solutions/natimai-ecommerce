@@ -19,7 +19,9 @@
       </div>
       <div v-if="offersCount > 1" class="absolute-bottom-right q-pa-xs">
         <q-badge color="teal" :label="`${offersCount} offres`">
-          <q-tooltip>Même article chez {{ offersCount }} fournisseurs — meilleur prix affiché</q-tooltip>
+          <q-tooltip
+            >Même article chez {{ offersCount }} fournisseurs — meilleur prix affiché</q-tooltip
+          >
         </q-badge>
       </div>
     </q-img>

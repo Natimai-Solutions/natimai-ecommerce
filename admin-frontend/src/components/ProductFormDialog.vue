@@ -110,12 +110,7 @@
           />
 
           <div class="text-subtitle2 q-mt-sm q-mb-xs">Prix &amp; taxes</div>
-          <q-option-group
-            v-model="form.pricing_mode"
-            :options="pricingModeOptions"
-            inline
-            dense
-          />
+          <q-option-group v-model="form.pricing_mode" :options="pricingModeOptions" inline dense />
           <div class="text-caption text-grey-7 q-mb-sm">{{ pricingModeHint }}</div>
 
           <template v-if="form.pricing_mode === 'fixed'">
@@ -603,7 +598,9 @@ async function saveLocalStock(productId: string) {
     product_id: productId,
     place_id: null,
     quantity: next,
-    reason: isEdit.value ? 'Modification depuis la fiche produit' : 'Stock initial saisi à la création',
+    reason: isEdit.value
+      ? 'Modification depuis la fiche produit'
+      : 'Stock initial saisi à la création',
   });
 }
 
