@@ -118,10 +118,36 @@ export interface FileImportResponse {
   sync_log_id: string | null;
   /** Les articles créés / adoptés ont été publiés tels que le fichier les décrit. */
   published_new: boolean;
+  /** Fichier volumineux : stocké et confié au worker ; suivre `sync_log_id` via getImportStatus. */
+  queued: boolean;
+  job_id: string | null;
+  message: string | null;
   sample: Record<string, unknown>[];
   /** Simulation : compteurs de la reconnaissance (new / updated / adopted / ambiguous / skipped, matched_by_*). */
   resolution: Record<string, number>;
   sample_resolutions: FileImportResolutionRow[];
+  /** Simulation d'un gros fichier : seules les N premières lignes ont été rapprochées. */
+  resolution_limited_to: number | null;
+}
+
+export type ImportStatus = 'pending' | 'running' | 'success' | 'partial' | 'failed';
+
+/** Avancement et résultat d'un import (son journal de synchronisation). */
+export interface FileImportStatus {
+  sync_log_id: string;
+  supplier_name: string;
+  status: ImportStatus;
+  filename: string | null;
+  total_rows: number | null;
+  parsed_products: number | null;
+  rejected_rows: number | null;
+  row_errors: FileImportRowError[];
+  statistics: Record<string, number>;
+  sync_errors: { sku: string; error: string }[];
+  published_new: boolean;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
 }
 
 export interface SyncResponse {
@@ -209,6 +235,11 @@ export async function importCatalogFile(
     headers: { 'Content-Type': 'multipart/form-data' },
     params: { dry_run: options.dryRun ? 'true' : 'false' },
   });
+  return data;
+}
+
+export async function getImportStatus(code: string, syncLogId: string): Promise<FileImportStatus> {
+  const { data } = await api.get<FileImportStatus>(`/suppliers/${code}/import-file/${syncLogId}`);
   return data;
 }
 

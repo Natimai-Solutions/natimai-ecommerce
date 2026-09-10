@@ -12,6 +12,7 @@ Declaring suppliers is the job of ``/admin/suppliers`` (admin_suppliers.py).
 
 import json
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import Annotated, Any
 
@@ -19,7 +20,10 @@ from fastapi import APIRouter, Depends, File, Form, Path, Query, UploadFile
 from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.core.config import settings
 from app.core.errors import AppError
+from app.features.attachment.storage.factory import get_file_storage
+from app.features.base.crud import RecordNotFoundError
 from app.features.integrations.crud.supplier_sync import supplier_sync_log_crud
 from app.features.integrations.models.supplier import (
     FILE_MAPPING_REQUIRED,
@@ -28,8 +32,10 @@ from app.features.integrations.models.supplier import (
     SupplierKind,
 )
 from app.features.integrations.models.supplier_sync import SyncStatus, SyncType
-from app.features.integrations.services.supplier_sync_orchestrator import (
-    SupplierSyncOrchestrator,
+from app.features.integrations.services.file_import_run import (
+    ERROR_SAMPLE_SIZE,
+    orchestrator_for_file_import,
+    run_file_import,
 )
 from app.services.suppliers import (
     SupplierAdapter,
@@ -47,6 +53,10 @@ from app.services.suppliers.file_import import (
     read_tabular_file,
     rows_to_products,
     validate_mapping,
+)
+from app.tasks.supplier_file_import_tasks import (
+    build_import_storage_key,
+    trigger_file_import,
 )
 from app.tasks.supplier_tasks import (
     backfill_product_categories_task,
@@ -213,11 +223,37 @@ class FileImportResponse(BaseModel):
     sync_log_id: str | None = None
     #: Created / adopted rows were published as the file describes them.
     published_new: bool = False
+    #: Large file: stored and handed to the worker; poll the status endpoint
+    #: with ``sync_log_id``. ``statistics`` is empty until it completes.
+    queued: bool = False
+    job_id: str | None = None
+    message: str | None = None
     sample: list[dict[str, Any]] = Field(default_factory=list)
     #: Dry run only: counters of the resolution step (new / updated / adopted /
     #: ambiguous / skipped and matched_by_<key>).
     resolution: dict[str, int] = Field(default_factory=dict)
     sample_resolutions: list[FileImportResolutionRow] = Field(default_factory=list)
+    #: Dry run of a large file: only the first N rows were resolved.
+    resolution_limited_to: int | None = None
+
+
+class FileImportStatusResponse(BaseModel):
+    """Progress and outcome of a queued catalog file import (its sync log)."""
+
+    sync_log_id: str
+    supplier_name: str
+    status: SyncStatus
+    filename: str | None = None
+    total_rows: int | None = None
+    parsed_products: int | None = None
+    rejected_rows: int | None = None
+    row_errors: list[FileImportRowError] = Field(default_factory=list)
+    statistics: dict[str, int] = Field(default_factory=dict)
+    sync_errors: list[dict[str, str]] = Field(default_factory=list)
+    published_new: bool = False
+    error_message: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
 
 
 # -- routes ---------------------------------------------------------------
@@ -525,21 +561,23 @@ async def import_catalog_file(
 ) -> FileImportResponse:
     """Import a CSV / Excel catalog for the supplier through the column mapping.
 
-    Runs inline: each product is committed as it is upserted, so a failure on
-    one row never rolls back the others. Newly created products are queued for
-    Icecat enrichment like API-synced ones; with ``publish_new`` (the default)
-    they are visible on the storefront meanwhile, as the file describes them.
+    Up to ``SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS`` rows the import runs inline:
+    each product is committed as it is upserted, so a failure on one row never
+    rolls back the others. A larger file is stored and imported by the worker
+    (``queued`` response; poll ``GET …/import-file/{sync_log_id}``). Newly
+    created products are queued for Icecat enrichment like API-synced ones;
+    with ``publish_new`` (the default) they are visible on the storefront
+    meanwhile, as the file describes them.
 
     **Required permissions:** Superuser only
     """
     filename, content = await _read_upload(file)
+    content_type = file.content_type or "application/octet-stream"
     # Captured before the per-product commits expire the session's instances.
     actor_id = current_user.id
     supplier_code = supplier.code
-    supplier_kind = supplier.kind
-    supplier_adapter_key = supplier.adapter_key
     supplier_currency = supplier.price_currency
-    supplier_config = SupplierConfig.from_row(supplier)
+    orchestrator = orchestrator_for_file_import(supplier)
     effective_mapping = _parse_mapping_field(mapping) or supplier.column_mapping
 
     try:
@@ -568,12 +606,26 @@ async def import_catalog_file(
             details={"total_rows": parsed.total_rows, "limit": MAX_ROWS},
         )
 
+    inline_limit = settings.SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS
+    if not dry_run and parsed.total_rows > inline_limit:
+        return await _queue_file_import(
+            session,
+            supplier_code=supplier_code,
+            actor_id=actor_id,
+            filename=filename,
+            content=content,
+            content_type=content_type,
+            mapping=effective_mapping,
+            publish_new=publish_new,
+            total_rows=parsed.total_rows,
+        )
+
     result = rows_to_products(
         parsed.rows, effective_mapping, default_currency=supplier_currency
     )
     row_errors = [
         FileImportRowError(row_number=e.row_number, message=e.message)
-        for e in result.errors[:100]
+        for e in result.errors[:ERROR_SAMPLE_SIZE]
     ]
     sample = [
         {
@@ -589,16 +641,12 @@ async def import_catalog_file(
         for p in result.products[:5]
     ]
 
-    adapter: SupplierAdapter | Any
-    if supplier_kind == SupplierKind.API and has_adapter(supplier_adapter_key):
-        adapter = adapter_for_supplier(supplier)
-    else:
-        adapter = _FileSupplierAdapter(supplier_config)
-    orchestrator = SupplierSyncOrchestrator(adapter)
-
     if dry_run:
+        # Resolution reads the catalog row by row: a large file is previewed
+        # on its first rows only, the real import runs in the worker.
+        limited = len(result.products) > inline_limit
         counts, resolved_rows = await orchestrator.preview_items(
-            session, result.products
+            session, result.products[:inline_limit]
         )
         return FileImportResponse(
             supplier_name=supplier_code,
@@ -613,6 +661,7 @@ async def import_catalog_file(
             sample_resolutions=[
                 FileImportResolutionRow.model_validate(r) for r in resolved_rows
             ],
+            resolution_limited_to=inline_limit if limited else None,
         )
 
     sync_log = await supplier_sync_log_crud.create_sync_log(
@@ -622,24 +671,20 @@ async def import_catalog_file(
         categories=None,
         created_by=actor_id,
     )
-    await supplier_sync_log_crud.start_sync(session=session, sync_log_id=sync_log.id)
     sync_log_id = sync_log.id
 
-    sync_errors: list[dict[str, str]] = []
     try:
-        stats = await orchestrator.import_items(
+        outcome = await run_file_import(
             session,
-            result.products,
-            errors=sync_errors,
-            publish_without_enrichment=publish_new,
+            orchestrator=orchestrator,
+            products=result.products,
+            row_errors=result.errors,
+            sync_log_id=sync_log_id,
+            filename=filename,
+            total_rows=parsed.total_rows,
+            publish_new=publish_new,
         )
     except Exception as exc:
-        await supplier_sync_log_crud.complete_sync(
-            session=session,
-            sync_log_id=sync_log_id,
-            status=SyncStatus.FAILED,
-            error_message=str(exc),
-        )
         raise AppError(
             code="supplier.import.failed",
             status_code=500,
@@ -647,24 +692,12 @@ async def import_catalog_file(
             details={"supplier_name": supplier_code, "filename": filename},
         ) from exc
 
-    stats["rejected_rows"] = len(result.errors)
-    stats["published_without_enrichment"] = int(publish_new)
-    partial = stats["errors"] or stats["ambiguous_products"] or result.errors
-    status = SyncStatus.PARTIAL if partial else SyncStatus.SUCCESS
-    await supplier_sync_log_crud.complete_sync(
-        session=session,
-        sync_log_id=sync_log_id,
-        status=status,
-        statistics={**stats, "source": "file", "filename": filename},
-    )
     logger.info(
-        "Catalog file %s imported for %s by %s: %s",
+        "Catalog file %s imported inline for %s by %s",
         filename,
         supplier_code,
         actor_id,
-        stats,
     )
-
     return FileImportResponse(
         supplier_name=supplier_code,
         filename=filename,
@@ -673,40 +706,157 @@ async def import_catalog_file(
         parsed_products=len(result.products),
         rejected_rows=len(result.errors),
         row_errors=row_errors,
-        statistics=stats,
-        sync_errors=sync_errors[:100],
+        statistics=outcome.statistics,
+        sync_errors=outcome.sync_errors[:ERROR_SAMPLE_SIZE],
         sync_log_id=str(sync_log_id),
         published_new=publish_new,
         sample=sample,
     )
 
 
-class _FileSupplierAdapter(SupplierAdapter):
-    """Inert adapter carrying a manual / file supplier's identity and regime.
+async def _queue_file_import(
+    session: SessionDep,
+    *,
+    supplier_code: str,
+    actor_id: uuid.UUID,
+    filename: str,
+    content: bytes,
+    content_type: str,
+    mapping: dict[str, str],
+    publish_new: bool,
+    total_rows: int,
+) -> FileImportResponse:
+    """Store the file, open its sync log and hand the import to the worker.
 
-    The orchestrator only reads ``name``, ``origin_place_id``,
-    ``origin_place_code``, ``is_domestic`` and ``price_currency`` on the
-    upsert path; nothing is ever fetched.
+    The sync log exists before the job so the admin can poll it right away;
+    a storage or queue failure closes it ``FAILED`` and answers 503 — nothing
+    was imported, the admin can retry.
     """
-
-    adapter_key = "file"
-    display_name = "Fichier"
-
-    async def fetch_catalog(self, category: str, **filters: Any) -> Any:
-        del category, filters
-        raise NotImplementedError("file suppliers are fed by /import-file")
-        yield  # pragma: no cover
-
-    async def fetch_price_and_availability(self, skus: list[str]) -> dict[str, Any]:
-        del skus
-        return {}
-
-    async def health_check(self) -> Any:
-        from app.services.suppliers.base import SupplierHealth
-
-        return SupplierHealth(
-            healthy=True, configured=True, message="File supplier (no live API)"
+    sync_log = await supplier_sync_log_crud.create_sync_log(
+        session=session,
+        supplier_name=supplier_code,
+        sync_type=SyncType.PRODUCT_CATALOG,
+        categories=None,
+        created_by=actor_id,
+    )
+    sync_log_id = sync_log.id
+    storage_key = build_import_storage_key(supplier_code, sync_log_id, filename)
+    storage = get_file_storage()
+    try:
+        await storage.put_bytes(
+            key=storage_key, data=content, content_type=content_type
         )
+        job_id = await trigger_file_import(
+            sync_log_id=sync_log_id,
+            supplier_code=supplier_code,
+            storage_key=storage_key,
+            filename=filename,
+            mapping=mapping,
+            publish_new=publish_new,
+        )
+    except Exception as exc:
+        logger.error(
+            "Could not queue catalog file %s for %s: %s", filename, supplier_code, exc
+        )
+        await supplier_sync_log_crud.complete_sync(
+            session=session,
+            sync_log_id=sync_log_id,
+            status=SyncStatus.FAILED,
+            error_message=f"Mise en file d'attente impossible : {exc}",
+        )
+        try:
+            await storage.delete(key=storage_key)
+        except Exception:  # noqa: BLE001 - best effort cleanup
+            logger.warning("Stored import file %s left behind", storage_key)
+        raise AppError(
+            code="supplier.import.queue_unavailable",
+            status_code=503,
+            message="L'import en tâche de fond est indisponible ; réessayez plus tard",
+            details={"supplier_name": supplier_code, "filename": filename},
+        ) from exc
+
+    await supplier_sync_log_crud.update(
+        session=session, id=sync_log_id, data={"job_id": job_id}
+    )
+    logger.info(
+        "Catalog file %s (%d rows) queued for %s by %s: job %s, sync log %s",
+        filename,
+        total_rows,
+        supplier_code,
+        actor_id,
+        job_id,
+        sync_log_id,
+    )
+    return FileImportResponse(
+        supplier_name=supplier_code,
+        filename=filename,
+        dry_run=False,
+        total_rows=total_rows,
+        parsed_products=0,
+        rejected_rows=0,
+        sync_log_id=str(sync_log_id),
+        published_new=publish_new,
+        queued=True,
+        job_id=job_id,
+        message=(
+            f"{total_rows} lignes : import lancé en tâche de fond, "
+            "suivez son avancement ici"
+        ),
+    )
+
+
+@router.get(
+    "/{supplier_name}/import-file/{sync_log_id}",
+    response_model=FileImportStatusResponse,
+)
+async def get_catalog_import_status(
+    supplier: SupplierDep,
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+    sync_log_id: uuid.UUID,
+) -> FileImportStatusResponse:
+    """Progress and outcome of a file import, queued or inline (its sync log).
+
+    **Required permissions:** Superuser only
+    """
+    try:
+        log = await supplier_sync_log_crud.read(session, id=sync_log_id)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="supplier.import.not_found",
+            status_code=404,
+            message=f"Import {sync_log_id} not found",
+            details={"sync_log_id": str(sync_log_id)},
+        ) from exc
+    if log.supplier_name != supplier.code:
+        raise AppError(
+            code="supplier.import.not_found",
+            status_code=404,
+            message=f"Import {sync_log_id} not found for {supplier.code}",
+            details={"sync_log_id": str(sync_log_id), "supplier_name": supplier.code},
+        )
+
+    stats: dict[str, Any] = dict(log.statistics or {})
+    row_errors = stats.pop("row_errors", None) or []
+    sync_errors = stats.pop("sync_errors", None) or []
+    return FileImportStatusResponse(
+        sync_log_id=str(log.id),
+        supplier_name=log.supplier_name,
+        status=log.status,
+        filename=stats.get("filename"),
+        total_rows=stats.get("total_rows"),
+        parsed_products=stats.get("parsed_products"),
+        rejected_rows=stats.get("rejected_rows"),
+        row_errors=[FileImportRowError.model_validate(e) for e in row_errors],
+        statistics={
+            k: v for k, v in stats.items() if isinstance(v, int) and k != "source"
+        },
+        sync_errors=[dict(e) for e in sync_errors],
+        published_new=bool(stats.get("published_without_enrichment")),
+        error_message=log.error_message,
+        started_at=log.started_at,
+        completed_at=log.completed_at,
+    )
 
 
 # -- maintenance ------------------------------------------------------------

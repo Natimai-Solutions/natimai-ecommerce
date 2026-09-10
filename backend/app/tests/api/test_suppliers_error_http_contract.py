@@ -1,3 +1,4 @@
+import uuid
 from collections.abc import AsyncGenerator, Generator
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -7,8 +8,12 @@ from fastapi.testclient import TestClient
 
 from app.api.deps import get_current_active_superuser
 from app.api.routes import suppliers as suppliers_routes
+from app.core.config import settings
 from app.core.db import get_db
+from app.features.base.crud import RecordNotFoundError
+from app.features.integrations.crud.supplier_sync import supplier_sync_log_crud
 from app.features.integrations.models.supplier import SupplierKind
+from app.features.integrations.models.supplier_sync import SyncStatus
 from app.features.integrations.services.supplier_sync_orchestrator import (
     SupplierSyncOrchestrator,
 )
@@ -324,3 +329,165 @@ def test_import_file_dry_run_reports_parsed_rows(
         "category": None,
         "subcategory": None,
     }
+
+
+def _file_supplier(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        suppliers_routes,
+        "load_supplier",
+        AsyncMock(
+            return_value=_supplier_row(
+                "generic_fr",
+                kind=SupplierKind.FILE,
+                adapter_key=None,
+                price_currency="EUR",
+                column_mapping={"supplier_sku": "ref", "name": "nom"},
+            )
+        ),
+    )
+
+
+def test_import_file_above_the_inline_limit_is_queued(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A large file is stored, logged and handed to the worker — not imported here."""
+    _file_supplier(monkeypatch)
+    monkeypatch.setattr(settings, "SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS", 1)
+    log_id = uuid.uuid4()
+    crud = supplier_sync_log_crud
+    monkeypatch.setattr(
+        crud, "create_sync_log", AsyncMock(return_value=SimpleNamespace(id=log_id))
+    )
+    monkeypatch.setattr(crud, "update", AsyncMock())
+    complete = AsyncMock()
+    monkeypatch.setattr(crud, "complete_sync", complete)
+    storage = SimpleNamespace(put_bytes=AsyncMock(), delete=AsyncMock())
+    monkeypatch.setattr(suppliers_routes, "get_file_storage", lambda: storage)
+    trigger = AsyncMock(return_value="file_import_generic_fr_1")
+    monkeypatch.setattr(suppliers_routes, "trigger_file_import", trigger)
+    imported = AsyncMock()
+    monkeypatch.setattr(suppliers_routes, "run_file_import", imported)
+
+    content = b"ref;nom\nA1;Produit A\nA2;Produit B\n"
+    response = client.post(
+        "/api/v1/suppliers/generic_fr/import-file",
+        files={"file": ("catalogue.csv", content, "text/csv")},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["queued"] is True
+    assert body["job_id"] == "file_import_generic_fr_1"
+    assert body["sync_log_id"] == str(log_id)
+    assert body["total_rows"] == 2
+    assert body["statistics"] == {}
+    imported.assert_not_awaited()
+    complete.assert_not_awaited()
+    storage.put_bytes.assert_awaited_once()
+    key = storage.put_bytes.await_args.kwargs["key"]
+    assert key == f"supplier-imports/generic_fr/{log_id}/catalogue.csv"
+    assert trigger.await_args is not None
+    assert trigger.await_args.kwargs["mapping"] == {
+        "supplier_sku": "ref",
+        "name": "nom",
+    }
+    assert trigger.await_args.kwargs["publish_new"] is True
+
+
+def test_import_file_queue_failure_returns_503_and_closes_the_log(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _file_supplier(monkeypatch)
+    monkeypatch.setattr(settings, "SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS", 1)
+    log_id = uuid.uuid4()
+    crud = supplier_sync_log_crud
+    monkeypatch.setattr(
+        crud, "create_sync_log", AsyncMock(return_value=SimpleNamespace(id=log_id))
+    )
+    complete = AsyncMock()
+    monkeypatch.setattr(crud, "complete_sync", complete)
+    storage = SimpleNamespace(put_bytes=AsyncMock(), delete=AsyncMock())
+    monkeypatch.setattr(suppliers_routes, "get_file_storage", lambda: storage)
+    monkeypatch.setattr(
+        suppliers_routes,
+        "trigger_file_import",
+        AsyncMock(side_effect=RuntimeError("redis down")),
+    )
+
+    response = client.post(
+        "/api/v1/suppliers/generic_fr/import-file",
+        files={"file": ("catalogue.csv", b"ref;nom\nA1;A\nA2;B\n", "text/csv")},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "supplier.import.queue_unavailable"
+    assert complete.await_args is not None
+    assert complete.await_args.kwargs["status"] is SyncStatus.FAILED
+    storage.delete.assert_awaited_once()
+
+
+def test_import_status_maps_the_sync_log(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _file_supplier(monkeypatch)
+    log_id = uuid.uuid4()
+    log = SimpleNamespace(
+        id=log_id,
+        supplier_name="generic_fr",
+        status=SyncStatus.PARTIAL,
+        statistics={
+            "new_products": 3,
+            "updated_products": 0,
+            "errors": 1,
+            "rejected_rows": 2,
+            "published_without_enrichment": 1,
+            "source": "file",
+            "filename": "gros.csv",
+            "total_rows": 6,
+            "parsed_products": 4,
+            "row_errors": [{"row_number": 5, "message": "prix illisible"}],
+            "sync_errors": [{"sku": "X", "error": "boom"}],
+        },
+        error_message=None,
+        started_at=None,
+        completed_at=None,
+    )
+    monkeypatch.setattr(supplier_sync_log_crud, "read", AsyncMock(return_value=log))
+
+    response = client.get(f"/api/v1/suppliers/generic_fr/import-file/{log_id}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "partial"
+    assert body["filename"] == "gros.csv"
+    assert body["total_rows"] == 6
+    assert body["parsed_products"] == 4
+    assert body["rejected_rows"] == 2
+    assert body["published_new"] is True
+    assert body["row_errors"] == [{"row_number": 5, "message": "prix illisible"}]
+    assert body["sync_errors"] == [{"sku": "X", "error": "boom"}]
+    assert body["statistics"]["new_products"] == 3
+    assert "row_errors" not in body["statistics"]
+    assert "filename" not in body["statistics"]
+
+
+def test_import_status_unknown_or_foreign_log_is_404(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _file_supplier(monkeypatch)
+    crud = supplier_sync_log_crud
+    monkeypatch.setattr(crud, "read", AsyncMock(side_effect=RecordNotFoundError()))
+    missing = client.get(f"/api/v1/suppliers/generic_fr/import-file/{uuid.uuid4()}")
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "supplier.import.not_found"
+
+    other = SimpleNamespace(
+        id=uuid.uuid4(), supplier_name="someone_else", status=SyncStatus.SUCCESS
+    )
+    monkeypatch.setattr(crud, "read", AsyncMock(return_value=other))
+    foreign = client.get(f"/api/v1/suppliers/generic_fr/import-file/{other.id}")
+    assert foreign.status_code == 404

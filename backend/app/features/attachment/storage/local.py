@@ -158,6 +158,13 @@ class LocalFileStorage(FileStorage):
             raise StorageError(f"Object {key} not found")
         return path.read_bytes()
 
+    async def put_bytes(
+        self, *, key: str, data: bytes, content_type: str | None = None
+    ) -> None:
+        """Store ``data`` under ``key`` (``content_type`` is not kept locally)."""
+        del content_type
+        self.write_bytes(key=key, data=data)
+
     async def delete(self, *, key: str) -> None:
         """Execute delete."""
         path = self._path_for(key)

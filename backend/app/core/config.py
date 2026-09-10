@@ -282,6 +282,13 @@ class Settings(BaseSettings):
     S3_BUCKET_NAME: str | None = None
     S3_REGION: str = "us-east-1"
 
+    # Supplier catalog file import (CSV / Excel). Up to the inline limit the
+    # import runs inside the request; above it the file is stored
+    # (FILE_STORAGE_BACKEND) and an ARQ job imports it, the admin polls the
+    # sync log. The hard cap bounds memory in the worker.
+    SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS: int = 2000
+    SUPPLIER_FILE_IMPORT_MAX_ROWS: int = 250_000
+
     # File storage backend selection for payment attachments
     FILE_STORAGE_BACKEND: Literal["s3", "local"] = "local"
     FILE_STORAGE_LOCAL_ROOT: str = "/tmp/fastapi_ecommerce_storage"

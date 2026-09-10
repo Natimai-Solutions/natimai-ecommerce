@@ -24,6 +24,7 @@ from app.tasks.pricing_tasks import (
     refresh_sale_prices_task,
     scheduled_sale_price_refresh_task,
 )
+from app.tasks.supplier_file_import_tasks import import_supplier_file_task
 from app.tasks.supplier_tasks import (
     check_supplier_health_task,
     get_supplier_sync_cron_jobs,
@@ -94,6 +95,8 @@ class WorkerSettings:
         scheduled_supplier_catalog_sync_task,
         scheduled_supplier_inventory_sync_task,
         scheduled_supplier_health_check_task,
+        # Import d'un catalogue fichier volumineux (déposé dans le stockage)
+        import_supplier_file_task,
         # Tâches Icecat
         enrich_product_with_icecat_task,
         batch_enrich_products_task,

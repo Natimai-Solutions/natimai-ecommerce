@@ -235,8 +235,10 @@ truth. All three are safe to leave at their defaults.
 | `SUPPLIER_DELISTING_GRACE_HOURS` | `72` | A SKU the supplier stops returning stays sellable with its last known price and stock. The first absence is only recorded (`products.supplier_missing_since`); the product is deactivated once the gap outlives this delay, so a transient supplier fault cannot empty the catalogue. `0` records the absence but never deactivates. |
 | `CHECKOUT_SUPPLIER_AVAILABILITY_CHECK` | `true` | Re-ask the supplier what it actually has before reserving, instead of trusting a snapshot up to two hours old. One request per order, on supplier-managed lines only. A supplier that answers "out of stock" refuses the order; a supplier that cannot be reached never blocks a sale — the snapshot stands. |
 | `CHECKOUT_SUPPLIER_CHECK_TIMEOUT_SECONDS` | `8` | Deliberately short: this runs on the checkout critical path, unlike the 60 s the background sync can afford. |
+| `SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS` | `2000` | A CSV / Excel catalog up to this many rows is imported inside the request. A larger file is stored (`FILE_STORAGE_BACKEND`), a sync log is opened and an ARQ job imports it; the admin screen polls the log. Simulations of a large file resolve only this many rows. |
+| `SUPPLIER_FILE_IMPORT_MAX_ROWS` | `250000` | Hard cap on a catalog file (worker memory). The upload itself is capped at 20 MB. |
 
-### 3.9 File storage (payment attachments)
+### 3.9 File storage (payment attachments, queued catalog imports)
 
 | Variable | Default | Description |
 |----------|---------|-------------|

@@ -491,7 +491,7 @@ adapté.
 
 - Adresse « ship-to » des bons de commande Ingram : toujours `INGRAM_SHIP_TO_*` ; à déplacer vers l'entrepôt principal (`Place`) quand la commande fournisseur sera généralisée aux autres fournisseurs (`supplier_order_service` reste spécifique Ingram).
 - Stratification du rafraîchissement des prix (voir *Rafraîchissement stratifié*) : le tick inventaire enfile tous les fournisseurs à la même cadence.
-- Import fichier volumineux (> 50 000 lignes) : passer par un job ARQ avec fichier déposé dans le stockage plutôt qu'en ligne dans la requête.
+- ✅ Import fichier volumineux (10/09/2026) : au-delà de `SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS` (2 000 lignes) le fichier est déposé dans le stockage et importé par le job ARQ `import_supplier_file_task` ; l'admin suit le journal de synchronisation (`GET /suppliers/{code}/import-file/{sync_log_id}`). Plafond `SUPPLIER_FILE_IMPORT_MAX_ROWS` (250 000).
 
 ---
 
