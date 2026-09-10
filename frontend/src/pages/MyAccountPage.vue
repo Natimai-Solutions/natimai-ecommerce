@@ -46,6 +46,10 @@
                 v-model="prefs.notification_shipping_steps"
                 label="Recevoir les notifications de suivi d'expédition"
               />
+              <q-toggle
+                v-model="prefs.marketing_email_enabled"
+                label="Recevoir les rappels commerciaux (panier oublié, offres)"
+              />
 
               <q-separator class="q-my-md" />
 
@@ -615,6 +619,7 @@ const prefsSaved = ref(false);
 const prefs = reactive<Omit<UserPreferences, 'user_id'>>({
   notification_email_enabled: true,
   notification_shipping_steps: true,
+  marketing_email_enabled: true,
   default_shipping_preference: null,
   locale: null,
   currency_pref: null,
@@ -628,6 +633,7 @@ async function loadPreferences() {
     const data = await getMyPreferences();
     prefs.notification_email_enabled = data.notification_email_enabled;
     prefs.notification_shipping_steps = data.notification_shipping_steps;
+    prefs.marketing_email_enabled = data.marketing_email_enabled ?? true;
     prefs.default_shipping_preference = data.default_shipping_preference;
     prefs.locale = data.locale;
     prefs.currency_pref = data.currency_pref;

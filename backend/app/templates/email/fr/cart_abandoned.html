@@ -1,0 +1,25 @@
+{% extends "_layout.html" %}
+{% block title %}Votre panier vous attend{% endblock %}
+{% block header_color %}#2a6f4f{% endblock %}
+{% block extra_style %}.badge { background: #e6f4ec; color: #2a6f4f; } .line td { padding: 4px 8px; vertical-align: middle; } .thumb { width: 48px; height: 48px; object-fit: contain; }{% endblock %}
+{% block heading %}Votre panier vous attend{% endblock %}
+{% block content %}
+      <p>Bonjour {{ full_name }},</p>
+      <p>Vous avez laissé des articles dans votre panier. Ils sont toujours disponibles :</p>
+      <div class="summary">
+        <table>
+          {% for item in items %}
+          <tr class="line">
+            <td>{% if item.image_url %}<img class="thumb" src="{{ item.image_url }}" alt="">{% endif %}</td>
+            <td>{{ item.name }}<br><span style="color:#666">× {{ item.quantity }}</span></td>
+            <td style="text-align:right">{{ item.line_total }} {{ currency }}</td>
+          </tr>
+          {% endfor %}
+          <tr><td></td><td><strong>Total</strong></td><td style="text-align:right"><strong>{{ total_amount }} {{ currency }}</strong></td></tr>
+        </table>
+      </div>
+      <p><a href="{{ cart_url }}">Retrouver mon panier</a><br><span style="color:#666">{{ cart_url }}</span></p>
+      <p style="font-size:12px;color:#666">Vous recevez ce message car les rappels commerciaux sont activés sur votre compte.
+        Pour ne plus les recevoir : <a href="{{ preferences_url }}">vos préférences</a>.</p>
+      <p>À bientôt,<br><strong>L'équipe {{ shop_name }}</strong></p>
+{% endblock %}

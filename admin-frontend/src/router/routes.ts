@@ -38,6 +38,7 @@ const routes: RouteRecordRaw[] = [
       },
       { path: 'addresses', component: () => import('pages/AddressesPage.vue') },
       { path: 'users', component: () => import('pages/UsersPage.vue') },
+      { path: 'abandoned-carts', component: () => import('pages/AbandonedCartsPage.vue') },
       {
         path: 'payment-eligibility',
         component: () => import('pages/PaymentEligibilityPage.vue'),

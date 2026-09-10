@@ -1,6 +1,7 @@
 # mypy: disable-error-code="assignment,misc,override"
 
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Any
@@ -34,6 +35,15 @@ class CartBase(Base):
         default=False,
         description="Whether the cart has already been converted to an order",
     )
+    last_activity_at: datetime | None = Field(
+        default=None,
+        index=True,
+        description="Last time a line was added, changed or removed",
+    )
+    abandonment_reminded_at: datetime | None = Field(
+        default=None,
+        description="When the « panier oublié » reminder was sent (once per cart)",
+    )
 
 
 class CartCreate(CartBase, BaseCreate):
@@ -49,6 +59,8 @@ class CartUpdate(BaseUpdate):
     currency: str | None = None
     total_amount: Decimal | None = None
     is_checked_out: bool | None = None
+    last_activity_at: datetime | None = None
+    abandonment_reminded_at: datetime | None = None
 
 
 class Cart(CartBase, table=True):

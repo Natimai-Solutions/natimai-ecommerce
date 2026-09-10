@@ -102,6 +102,7 @@ const nav: NavSection[] = [
       { label: 'Utilisateurs', icon: 'people', to: '/users' },
       { label: 'Demandes de groupe', icon: 'group_add', to: '/group-upgrade-requests' },
       { label: 'Adresses', icon: 'location_on', to: '/addresses' },
+      { label: 'Paniers abandonnés', icon: 'remove_shopping_cart', to: '/abandoned-carts' },
     ],
   },
   {

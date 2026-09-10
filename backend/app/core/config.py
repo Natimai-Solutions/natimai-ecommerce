@@ -282,6 +282,13 @@ class Settings(BaseSettings):
     S3_BUCKET_NAME: str | None = None
     S3_REGION: str = "us-east-1"
 
+    # Abandoned carts (Z3): a cart untouched for this long, never checked out,
+    # gets one reminder e-mail (marketing opt-out honoured). 0 disables the
+    # hourly sweep. Carts older than the max age are left alone: a reminder
+    # for a basket from last month is noise, not a sale.
+    CART_ABANDONMENT_REMINDER_DELAY_HOURS: int = 24
+    CART_ABANDONMENT_MAX_AGE_DAYS: int = 14
+
     # Supplier catalog file import (CSV / Excel). Up to the inline limit the
     # import runs inside the request; above it the file is stored
     # (FILE_STORAGE_BACKEND) and an ARQ job imports it, the admin polls the

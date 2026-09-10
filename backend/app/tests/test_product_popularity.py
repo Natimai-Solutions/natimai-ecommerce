@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
-from typing import Any
 
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.sql import ClauseElement
 
 from app.features.product.services.popularity import (
     popular_products_statement,
@@ -14,8 +14,8 @@ from app.features.product.services.popularity import (
 )
 
 
-def _sql(statement: Any) -> str:
-    compiled = statement.compile(  # type: ignore[no-untyped-call]
+def _sql(statement: ClauseElement) -> str:
+    compiled = statement.compile(
         dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
     )
     return str(compiled)

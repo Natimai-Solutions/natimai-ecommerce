@@ -1285,7 +1285,7 @@ Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/my
 | M3 — factures PDF (**WeasyPrint**) + export comptable | ✅ (25/08/2026) | ✅ téléchargement facture (compte) | ✅ écran factures + export CSV |
 | M5 — numéro de commande séquentiel | ✅ (25/08/2026) | ✅ affichage (compte) | ✅ affichage (factures) |
 | Z2 — avoir comptable | ✅ (N10 + e-mail d'envoi 10/09/2026) | ✅ téléchargement des avoirs (compte, par commande) | ✅ écran Avoirs + export CSV |
-| Z3 — relance paniers abandonnés | 🔲 | — | 🔲 dashboard relances |
+| Z3 — relance paniers abandonnés | ✅ (10/09/2026) balayage horaire + `cart.abandoned` + e-mail | ✅ miroir serveur du panier, opt-out marketing | ✅ page Paniers abandonnés (compteurs ouverts / relancés / récupérés) |
 | Z4 — recherche IA | 🔲 | 🔲 UI recherche sémantique | — |
 
 ### Périmètre
@@ -1298,7 +1298,7 @@ Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/my
 | M4 | Alerting actif | Job ARQ surveille dashboard → Slack/email sur seuils |
 | Z1 | Paiement en plusieurs fois | Dépend Phase 4 (tokenisation Payzen) |
 | Z2 ✅ | Avoir comptable | **Livré** : backend (N10), e-mail `credit_note.issued`, écran admin Avoirs, téléchargement client (10/09/2026) |
-| Z3 | Relance paniers abandonnés | Cron horaire + handler outbox `cart.abandoned` |
+| Z3 ✅ | Relance paniers abandonnés | Livré : `remind_abandoned_carts_task` (horaire), `carts.last_activity_at` / `abandonment_reminded_at`, `user_preferences.marketing_email_enabled`, handler `cart.abandoned` |
 | Z4 | Recherche IA | Refonte du draft `ia_search_agent.py` (placeholders à remplacer) ; pgvector recommandé |
 | M5 ✅ | Numéro de commande séquentiel | **Livré 25/08/2026** (cf. PP-C). Cf. *Note technique — numéro de commande séquentiel (M5)* ci-dessous |
 

@@ -8,6 +8,10 @@ from arq.worker import func
 
 from app.core.config import settings
 from app.outbox.consumer import OUTBOX_HANDLER_MAX_TRIES, execute_outbox_handler
+from app.tasks.cart_tasks import (
+    get_cart_abandonment_cron_jobs,
+    remind_abandoned_carts_task,
+)
 from app.tasks.icecat_tasks import (
     batch_enrich_products_task,
     enrich_product_with_icecat_task,
@@ -102,6 +106,8 @@ class WorkerSettings:
         batch_enrich_products_task,
         scheduled_batch_enrich_task,
         reproject_product_specs_task,
+        # Relance des paniers abandonnés (événement cart.abandoned → e-mail)
+        remind_abandoned_carts_task,
         # Hygiène du stock : libération des réservations sans issue de paiement
         release_expired_stock_reservations_task,
         # Prix vitrine matérialisés (rafraîchis quand un taux ou une marge change)
@@ -118,6 +124,7 @@ class WorkerSettings:
         + get_enrichment_cron_jobs()
         + get_stock_reservation_cron_jobs()
         + get_pricing_cron_jobs()
+        + get_cart_abandonment_cron_jobs()
     )
 
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)

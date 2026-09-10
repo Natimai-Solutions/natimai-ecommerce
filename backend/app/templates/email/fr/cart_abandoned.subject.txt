@@ -1,0 +1,1 @@
+Votre panier vous attend chez {{ shop_name }}
