@@ -72,6 +72,8 @@ async def test_a_customer_sees_their_credit_notes() -> None:
     assert len(result) == 1
     assert result[0].credit_note_number == "AV-2026-00001"
     assert result[0].total_incl_tax == Decimal("1130.00")
+    # A legacy document without snapshot references still serializes.
+    assert result[0].order_number is None
 
 
 @pytest.mark.anyio

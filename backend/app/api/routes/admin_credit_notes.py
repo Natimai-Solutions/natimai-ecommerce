@@ -22,6 +22,9 @@ from sqlmodel import col, select
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.errors import AppError
 from app.features.invoice.models.credit_note import CreditNote, CreditNotePublic
+from app.features.invoice.services.credit_note_service import (
+    credit_note_to_public,
+)
 from app.features.invoice.services.pdf import (
     PdfRenderingUnavailableError,
     credit_note_pdf_filename,
@@ -45,22 +48,6 @@ _EXPORT_COLUMNS = [
     "reason",
     "tax_breakdown",
 ]
-
-
-def _to_public(credit_note: CreditNote) -> CreditNotePublic:
-    return CreditNotePublic(
-        id=credit_note.id,
-        credit_note_number=credit_note.credit_note_number,
-        fiscal_year=credit_note.fiscal_year,
-        invoice_id=credit_note.invoice_id,
-        order_id=credit_note.order_id,
-        issued_at=credit_note.issued_at,
-        currency=credit_note.currency,
-        total_excl_tax=credit_note.total_excl_tax,
-        total_tax=credit_note.total_tax,
-        total_incl_tax=credit_note.total_incl_tax,
-        reason=credit_note.reason,
-    )
 
 
 async def _load_credit_note(
@@ -98,7 +85,7 @@ async def list_credit_notes(
         statement.order_by(col(CreditNote.issued_at).desc()).offset(skip).limit(limit)
     )
     result = await session.exec(statement)
-    return [_to_public(note) for note in result.all()]
+    return [credit_note_to_public(note) for note in result.all()]
 
 
 @router.get("/export.csv")
@@ -168,7 +155,7 @@ async def get_credit_note(
     _current_user: CurrentSuperUser,
 ) -> CreditNotePublic:
     """Return one issued credit note."""
-    return _to_public(await _load_credit_note(session, credit_note_id))
+    return credit_note_to_public(await _load_credit_note(session, credit_note_id))
 
 
 @router.get("/{credit_note_id}/pdf")

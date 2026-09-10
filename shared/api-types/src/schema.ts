@@ -8003,6 +8003,10 @@ export interface components {
             total_incl_tax: string;
             /** Reason */
             reason: string | null;
+            /** Order Number */
+            order_number?: string | null;
+            /** Invoice Number */
+            invoice_number?: string | null;
         };
         /**
          * CurrencyRatePublic

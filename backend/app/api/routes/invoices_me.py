@@ -21,6 +21,9 @@ from app.features.invoice.models.invoice import (
     InvoicePublic,
     InvoicesPublic,
 )
+from app.features.invoice.services.credit_note_service import (
+    credit_note_to_public,
+)
 from app.features.invoice.services.pdf import (
     PdfRenderingUnavailableError,
     credit_note_pdf_filename,
@@ -150,22 +153,6 @@ async def download_my_invoice_pdf(
     )
 
 
-def _credit_note_to_public(credit_note: CreditNote) -> CreditNotePublic:
-    return CreditNotePublic(
-        id=credit_note.id,
-        credit_note_number=credit_note.credit_note_number,
-        fiscal_year=credit_note.fiscal_year,
-        invoice_id=credit_note.invoice_id,
-        order_id=credit_note.order_id,
-        issued_at=credit_note.issued_at,
-        currency=credit_note.currency,
-        total_excl_tax=credit_note.total_excl_tax,
-        total_tax=credit_note.total_tax,
-        total_incl_tax=credit_note.total_incl_tax,
-        reason=credit_note.reason,
-    )
-
-
 async def _load_own_credit_note(
     session: SessionDep, *, credit_note_id: uuid.UUID, user_id: uuid.UUID
 ) -> CreditNote:
@@ -197,7 +184,7 @@ async def list_my_credit_notes(
         .limit(limit)
     )
     result = await session.exec(statement)
-    return [_credit_note_to_public(note) for note in result.all()]
+    return [credit_note_to_public(note) for note in result.all()]
 
 
 @router.get(
@@ -227,7 +214,7 @@ async def list_my_credit_notes_for_order(
         .where(CreditNote.order_id == order_id)
         .order_by(col(CreditNote.issued_at).asc())
     )
-    return [_credit_note_to_public(note) for note in result.all()]
+    return [credit_note_to_public(note) for note in result.all()]
 
 
 @router.get("/me/credit-notes/{credit_note_id}/pdf")

@@ -1284,7 +1284,7 @@ Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/my
 | M1 — produits les plus vus | 🔲 | 🔲 section accueil / carrousel | — |
 | M3 — factures PDF (**WeasyPrint**) + export comptable | ✅ (25/08/2026) | ✅ téléchargement facture (compte) | ✅ écran factures + export CSV |
 | M5 — numéro de commande séquentiel | ✅ (25/08/2026) | ✅ affichage (compte) | ✅ affichage (factures) |
-| Z2 — avoir comptable | 🔲 | 🔲 affichage avoir | 🔲 écran avoir |
+| Z2 — avoir comptable | ✅ (N10 + e-mail d'envoi 10/09/2026) | ✅ téléchargement des avoirs (compte, par commande) | ✅ écran Avoirs + export CSV |
 | Z3 — relance paniers abandonnés | 🔲 | — | 🔲 dashboard relances |
 | Z4 — recherche IA | 🔲 | 🔲 UI recherche sémantique | — |
 
@@ -1297,7 +1297,7 @@ Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/my
 | M3 ✅ | Factures + export comptable | **Livré 25/08/2026** (cf. PP-C). Modèle Invoice + numérotation + PDF **WeasyPrint** (avec ventilation TVA par taux via `OrderLine.tax_rate_id`) + export FEC/CSV Sage — cf. *Note technique — génération PDF des factures* ci-dessous |
 | M4 | Alerting actif | Job ARQ surveille dashboard → Slack/email sur seuils |
 | Z1 | Paiement en plusieurs fois | Dépend Phase 4 (tokenisation Payzen) |
-| Z2 | Avoir comptable | Dépend M3 (facture ✅ livrée) + Phase 4 (refund) — **débloqué** |
+| Z2 ✅ | Avoir comptable | **Livré** : backend (N10), e-mail `credit_note.issued`, écran admin Avoirs, téléchargement client (10/09/2026) |
 | Z3 | Relance paniers abandonnés | Cron horaire + handler outbox `cart.abandoned` |
 | Z4 | Recherche IA | Refonte du draft `ia_search_agent.py` (placeholders à remplacer) ; pgvector recommandé |
 | M5 ✅ | Numéro de commande séquentiel | **Livré 25/08/2026** (cf. PP-C). Cf. *Note technique — numéro de commande séquentiel (M5)* ci-dessous |

@@ -96,6 +96,9 @@ async def test_listing_exposes_the_public_fields() -> None:
     assert result[0].credit_note_number == "AV-2026-00001"
     assert result[0].total_incl_tax == Decimal("1130.00")
     assert result[0].reason == "Article retourné"
+    # References for the screens, read from the frozen snapshot.
+    assert result[0].order_number == "CMD-2026-000123"
+    assert result[0].invoice_number == "FAC-2026-00042"
 
 
 @pytest.mark.anyio
