@@ -14,10 +14,13 @@ fill ``supplier_place_id`` and ``pricing_mode`` unless the payload sets them.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any
 
 from fastapi import APIRouter
+from pydantic import BaseModel, Field
+from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.errors import AppError
@@ -26,12 +29,15 @@ from app.features.integrations.models.supplier import Supplier
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import (
     PricingMode,
+    Product,
     ProductCreate,
     ProductPublic,
     ProductUpdate,
 )
 from app.features.product.services.overrides import merge_locks, release_lock
 from app.services.suppliers import load_supplier
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin/products", tags=["admin-product"])
 
@@ -61,6 +67,58 @@ def _apply_supplier_defaults(data: dict[str, Any], supplier: Supplier | None) ->
         data["pricing_mode"] = (
             PricingMode.DOMESTIC if supplier.is_domestic else PricingMode.IMPORT
         )
+
+
+class ProductPublishRequest(BaseModel):
+    """Publish (or unpublish) products as they stand, without Icecat."""
+
+    product_ids: list[uuid.UUID] = Field(..., min_length=1, max_length=500)
+    published: bool = Field(
+        default=True,
+        description="True: show on the storefront as is; False: back to waiting",
+    )
+
+
+class ProductPublishResponse(BaseModel):
+    """Outcome of a bulk publication."""
+
+    updated: int
+    missing: list[uuid.UUID] = Field(default_factory=list)
+
+
+@router.post("/publish", response_model=ProductPublishResponse)
+async def admin_publish_products(
+    session: SessionDep,
+    current_user: CurrentSuperUser,
+    payload: ProductPublishRequest,
+) -> ProductPublishResponse:
+    """Show products on the storefront without waiting for Icecat enrichment.
+
+    The storefront hides a supplier-synced row until Icecat has enriched it.
+    An item Icecat does not know (a file import without barcode, a local
+    brand) would stay hidden forever: this flag publishes it as it stands.
+    Enrichment still runs later and only adds to it. Manual products are
+    always visible and are left untouched here.
+    """
+    actor_id = current_user.id
+    wanted = list(dict.fromkeys(payload.product_ids))
+    rows = (
+        await session.exec(select(Product).where(col(Product.id).in_(wanted)))
+    ).all()
+    found = {row.id for row in rows}
+    for row in rows:
+        row.published_without_enrichment = payload.published
+        session.add(row)
+    await session.commit()
+    logger.info(
+        "Admin %s set published_without_enrichment=%s on %d products",
+        actor_id,
+        payload.published,
+        len(rows),
+    )
+    return ProductPublishResponse(
+        updated=len(rows), missing=[pid for pid in wanted if pid not in found]
+    )
 
 
 @router.post("", response_model=ProductPublic)

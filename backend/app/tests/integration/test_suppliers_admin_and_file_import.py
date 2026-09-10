@@ -22,7 +22,11 @@ from fastapi import UploadFile
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.routes.admin_product import admin_create_product
+from app.api.routes.admin_product import (
+    ProductPublishRequest,
+    admin_create_product,
+    admin_publish_products,
+)
 from app.api.routes.admin_suppliers import (
     create_supplier,
     deactivate_supplier,
@@ -281,9 +285,11 @@ async def test_file_import_creates_domestic_products_with_cost_and_stock(
         file=_upload(content),
         mapping=None,
         dry_run=False,
+        publish_new=True,
     )
 
     assert response.parsed_products == 2
+    assert response.published_new is True
     assert response.rejected_rows == 1
     assert response.statistics["new_products"] == 2
     assert response.statistics["errors"] == 0
@@ -299,6 +305,9 @@ async def test_file_import_creates_domestic_products_with_cost_and_stock(
     }
     keyboard = products["LOC-1"]
     assert keyboard.is_supplier_managed is True
+    # Published as the file describes it: visible before (and without) Icecat.
+    assert keyboard.published_without_enrichment is True
+    assert keyboard.is_enriched is False
     assert keyboard.pricing_mode == PricingMode.DOMESTIC
     assert keyboard.supplier_place_id == origin_id
     assert keyboard.cost_amount == Decimal("4500.00")
@@ -340,6 +349,7 @@ async def test_file_import_creates_domestic_products_with_cost_and_stock(
             {"supplier_sku": "Ref", "name": "Désignation", "quantity": "Stock"}
         ),
         dry_run=False,
+        publish_new=True,
     )
     assert again.statistics["new_products"] == 0
     assert again.statistics["updated_products"] == 2
@@ -492,6 +502,7 @@ async def _run_import(
     content: bytes,
     *,
     dry_run: bool,
+    publish_new: bool = True,
 ) -> Any:
     await db_session.refresh(row)
     return await import_catalog_file(
@@ -501,6 +512,7 @@ async def _run_import(
         file=_upload(content),
         mapping=None,
         dry_run=dry_run,
+        publish_new=publish_new,
     )
 
 
@@ -625,6 +637,9 @@ async def test_manual_product_of_the_supplier_is_adopted_and_keeps_its_content(
     adopted = products[0]
     assert adopted.id == manual_id
     assert adopted.is_supplier_managed is True
+    # Adoption makes it supplier-managed: without this it would vanish from
+    # the storefront until Icecat knows it.
+    assert adopted.published_without_enrichment is True
     assert adopted.name == "Onduleur 800 VA (fiche rédigée)"
     assert adopted.pricing_mode == PricingMode.FIXED
     assert adopted.base_price == Decimal("29900.00")
@@ -704,3 +719,36 @@ async def test_ambiguous_identity_is_reported_and_leaves_both_untouched(
         "A-1",
         "A-2",
     }
+
+
+@pytest.mark.asyncio
+async def test_import_can_leave_new_rows_hidden_until_enrichment(
+    db_session: AsyncSession,
+) -> None:
+    admin = await _seed_admin(db_session)
+    origin = await _seed_place(db_session, code="PPT_DISTRIB", country="PF")
+    origin_id = origin.id
+    await db_session.commit()
+    row = await _seed_file_supplier(
+        db_session, admin, code="distrib_h", origin_id=origin_id
+    )
+    header = "Ref;Désignation;Prix HT;Stock;Marque;Réf fabricant;EAN\n"
+    content = (header + "H-1;Câble HDMI 2 m;1200;30;NoName;;\n").encode()
+
+    result = await _run_import(
+        db_session, admin, row, content, dry_run=False, publish_new=False
+    )
+    assert result.published_new is False
+    (product,) = await _products_of(db_session, "distrib_h")
+    assert product.published_without_enrichment is False
+
+    # The admin publishes it as it stands from the products page.
+    outcome = await admin_publish_products(
+        session=db_session,
+        current_user=await _fresh(db_session, admin),
+        payload=ProductPublishRequest(product_ids=[product.id, uuid.uuid4()]),
+    )
+    assert outcome.updated == 1
+    assert len(outcome.missing) == 1
+    await db_session.refresh(product)
+    assert product.published_without_enrichment is True

@@ -150,6 +150,9 @@ class SupplierSyncOrchestrator:
         # Origin place resolution is memoized per sync run (one DB lookup).
         self._origin_place_id: uuid.UUID | None = None
         self._origin_place_resolved = False
+        #: File import option: rows created or adopted by this run are shown
+        #: on the storefront without waiting for Icecat.
+        self.publish_without_enrichment = False
 
     async def _resolve_origin_place_id(self, session: AsyncSession) -> uuid.UUID | None:
         """Resolve the supplier's origin ``Place`` id.
@@ -464,6 +467,12 @@ class SupplierSyncOrchestrator:
         if existing_product is None:
             product_data_dict["pricing_mode"] = self._default_pricing_mode()
 
+        # Publish as it stands (import option): a new row, or a manual product
+        # being adopted — adoption makes it supplier-managed, which would
+        # otherwise hide it until Icecat knows it.
+        if self.publish_without_enrichment and (existing_product is None or adopted):
+            product_data_dict["published_without_enrichment"] = True
+
         # Resolve internal category from supplier_subcategory (get_or_create)
         if item.subcategory:
             from app.features.product.crud.category import crud_category
@@ -667,8 +676,14 @@ class SupplierSyncOrchestrator:
         items: list[NormalizedProductData],
         *,
         errors: list[dict[str, str]] | None = None,
+        publish_without_enrichment: bool = False,
     ) -> dict[str, int]:
-        """Import an already-normalized list (file import): upsert + enrichment."""
+        """Import an already-normalized list (file import): upsert + enrichment.
+
+        With ``publish_without_enrichment``, created and adopted rows are shown
+        on the storefront right away; Icecat enrichment still runs after.
+        """
+        self.publish_without_enrichment = publish_without_enrichment
         stats = await self.sync_items(session, items, errors=errors)
         logger.info("%s file import completed. Stats: %s", self.adapter.name, stats)
         await self._enqueue_enrichment(stats["new_products"])

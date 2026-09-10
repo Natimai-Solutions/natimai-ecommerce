@@ -12704,6 +12704,12 @@ export interface components {
              */
             is_enriched: boolean;
             /**
+             * Published Without Enrichment
+             * @description Admin decision to show the product on the storefront without waiting for Icecat enrichment
+             * @default false
+             */
+            published_without_enrichment: boolean;
+            /**
              * Enrichment Supplier Id
              * @description Identifier of the enrichment data supplier
              */

@@ -17,7 +17,7 @@ export type ProductFormValues = Record<string, unknown>;
 
 const PAGE_SIZE = 25;
 
-export type ActiveFilter = 'all' | 'active' | 'enriched' | 'inactive';
+export type ActiveFilter = 'all' | 'active' | 'enriched' | 'hidden' | 'inactive';
 
 export const useProductsStore = defineStore('products', () => {
   const items = ref<ProductPublic[]>([]);
@@ -96,6 +96,20 @@ export const useProductsStore = defineStore('products', () => {
   }
 
   /**
+   * Show products on the storefront as they stand, without waiting for Icecat
+   * (or take that back with `published = false`). Manual products are always
+   * visible; this only matters for supplier-synced rows Icecat has not enriched.
+   */
+  async function publishProducts(ids: string[], published = true): Promise<number> {
+    const { data } = await api.post<{ updated: number; missing: string[] }>(
+      '/admin/products/publish',
+      { product_ids: ids, published },
+    );
+    await fetchPage();
+    return data.updated;
+  }
+
+  /**
    * Release one field lock. The admin value stays until the next supplier sync
    * or Icecat enrichment brings the supplier value back — nothing is restored
    * on the spot. Returns the refreshed product.
@@ -134,6 +148,7 @@ export const useProductsStore = defineStore('products', () => {
     updateOriginPlace,
     createProduct,
     updateProduct,
+    publishProducts,
     releaseOverride,
     setPage,
     applyFilters,

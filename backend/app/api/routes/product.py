@@ -3,7 +3,7 @@ from collections.abc import Callable
 from typing import Any, cast
 
 from fastapi import Depends
-from sqlmodel import col, select
+from sqlmodel import col, not_, select
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
@@ -120,6 +120,11 @@ class ProductRouter(
                     conditions.append(col(Product.is_enriched).is_(True))
                 elif status == "inactive":
                     conditions.append(col(Product.is_active).is_(False))
+                elif status == "hidden":
+                    # Active but invisible on the storefront: waiting for
+                    # Icecat, and not published as it stands by the admin.
+                    conditions.append(col(Product.is_active).is_(True))
+                    conditions.append(not_(content_ready_condition()))
                 term = (search or "").strip()
                 if term:
                     pattern = f"%{term}%"

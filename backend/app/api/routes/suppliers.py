@@ -211,6 +211,8 @@ class FileImportResponse(BaseModel):
     statistics: dict[str, int] = Field(default_factory=dict)
     sync_errors: list[dict[str, str]] = Field(default_factory=list)
     sync_log_id: str | None = None
+    #: Created / adopted rows were published as the file describes them.
+    published_new: bool = False
     sample: list[dict[str, Any]] = Field(default_factory=list)
     #: Dry run only: counters of the resolution step (new / updated / adopted /
     #: ambiguous / skipped and matched_by_<key>).
@@ -513,12 +515,20 @@ async def import_catalog_file(
     dry_run: bool = Query(
         default=False, description="Parse and report without writing anything"
     ),
+    publish_new: bool = Form(
+        default=True,
+        description=(
+            "Show the created (and adopted) products on the storefront without "
+            "waiting for Icecat enrichment"
+        ),
+    ),
 ) -> FileImportResponse:
     """Import a CSV / Excel catalog for the supplier through the column mapping.
 
     Runs inline: each product is committed as it is upserted, so a failure on
     one row never rolls back the others. Newly created products are queued for
-    Icecat enrichment like API-synced ones.
+    Icecat enrichment like API-synced ones; with ``publish_new`` (the default)
+    they are visible on the storefront meanwhile, as the file describes them.
 
     **Required permissions:** Superuser only
     """
@@ -618,7 +628,10 @@ async def import_catalog_file(
     sync_errors: list[dict[str, str]] = []
     try:
         stats = await orchestrator.import_items(
-            session, result.products, errors=sync_errors
+            session,
+            result.products,
+            errors=sync_errors,
+            publish_without_enrichment=publish_new,
         )
     except Exception as exc:
         await supplier_sync_log_crud.complete_sync(
@@ -635,6 +648,7 @@ async def import_catalog_file(
         ) from exc
 
     stats["rejected_rows"] = len(result.errors)
+    stats["published_without_enrichment"] = int(publish_new)
     partial = stats["errors"] or stats["ambiguous_products"] or result.errors
     status = SyncStatus.PARTIAL if partial else SyncStatus.SUCCESS
     await supplier_sync_log_crud.complete_sync(
@@ -662,6 +676,7 @@ async def import_catalog_file(
         statistics=stats,
         sync_errors=sync_errors[:100],
         sync_log_id=str(sync_log_id),
+        published_new=publish_new,
         sample=sample,
     )
 

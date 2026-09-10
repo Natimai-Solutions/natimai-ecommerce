@@ -333,6 +333,16 @@
                 />
               </div>
             </div>
+            <q-checkbox
+              v-model="publishNew"
+              dense
+              class="q-mt-sm"
+              label="Afficher les nouveaux articles en boutique sans attendre l’enrichissement Icecat"
+            />
+            <div class="text-caption text-grey-7 q-mb-xs">
+              Décoché, un article créé reste masqué tant qu’Icecat ne l’a pas reconnu (page
+              Produits, filtre « Masqués », pour le publier ensuite).
+            </div>
             <q-expansion-item dense label="Aperçu des premières lignes" class="q-mt-sm">
               <q-markup-table dense flat bordered>
                 <thead>
@@ -365,6 +375,8 @@
                 {{ importResult.statistics.adopted_products ?? 0 }} adopté(s),
                 {{ importResult.statistics.ambiguous_products ?? 0 }} ambigu(s),
                 {{ importResult.statistics.errors ?? 0 }} erreur(s)
+                <span v-if="importResult.published_new">— publiés en boutique</span>
+                <span v-else>— masqués jusqu’à enrichissement</span>
               </span>
               <span v-else>
                 — {{ importResult.resolution.new ?? 0 }} nouveau(x),
@@ -716,6 +728,7 @@ const importing = ref<Supplier | null>(null);
 const importFile = ref<File | null>(null);
 const inspection = ref<FileInspectResponse | null>(null);
 const importResult = ref<FileImportResponse | null>(null);
+const publishNew = ref(true);
 const importError = ref<string | null>(null);
 const importBusy = ref<'dry' | 'run' | null>(null);
 const mapping = reactive<Record<string, string | null>>({});
@@ -785,6 +798,7 @@ async function runImport(dryRun: boolean) {
     importResult.value = await importCatalogFile(importing.value.code, importFile.value, {
       mapping: chosen,
       dryRun,
+      publishNew: publishNew.value,
     });
     if (!dryRun) {
       notice.value = `Import ${importResult.value.filename} terminé pour ${importing.value.name}.`;

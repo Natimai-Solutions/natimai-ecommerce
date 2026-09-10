@@ -100,18 +100,23 @@ def content_ready_condition() -> Any:
 
     A synced row is a bare supplier line until Icecat enriches it
     (``is_enriched``); a manual product's content was written by the admin —
-    there is nothing to wait for, it is publishable as entered.
+    there is nothing to wait for, it is publishable as entered. The admin can
+    also publish a synced row as it stands (``published_without_enrichment``:
+    a file import, an item Icecat does not know).
     """
     return or_(
         col(Product.is_enriched).is_(True),
         col(Product.is_supplier_managed).is_(False),
+        col(Product.published_without_enrichment).is_(True),
     )
 
 
 def has_storefront_content(product: Any) -> bool:
     """Python twin of :func:`content_ready_condition` for a loaded product."""
-    return bool(getattr(product, "is_enriched", False)) or not getattr(
-        product, "is_supplier_managed", False
+    return (
+        bool(getattr(product, "is_enriched", False))
+        or not getattr(product, "is_supplier_managed", False)
+        or bool(getattr(product, "published_without_enrichment", False))
     )
 
 

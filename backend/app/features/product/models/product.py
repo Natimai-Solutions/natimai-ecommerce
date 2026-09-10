@@ -264,6 +264,14 @@ class ProductBase(Base):
         default=None,
         description="Last synchronization timestamp for enrichment data",
     )
+    published_without_enrichment: bool = Field(
+        default=False,
+        description=(
+            "Admin decision to show the product on the storefront without "
+            "waiting for Icecat enrichment (file imports, items Icecat does "
+            "not know). Manual products never need it."
+        ),
+    )
     is_enriched: bool = Field(
         default=False,
         description="Indicates if the product has been enriched with external data",
@@ -373,6 +381,7 @@ class ProductUpdate(ProductBase, BaseUpdate):
     last_supplier_sync: datetime | None = None
     supplier_missing_since: datetime | None = None
     is_supplier_managed: bool | None = None
+    published_without_enrichment: bool | None = None
     supplier_place_id: uuid.UUID | None = None
     overridden_fields: list[str] | None = None
     tax_rate_id: uuid.UUID | None = None

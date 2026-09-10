@@ -50,11 +50,41 @@
     <q-banner v-if="store.error" class="bg-negative text-white q-mb-md" dense>
       {{ store.error }}
     </q-banner>
+    <q-banner v-if="notice" class="bg-green-1 text-green-9 q-mb-md" dense rounded>
+      {{ notice }}
+    </q-banner>
+
+    <div v-if="selected.length" class="row items-center q-gutter-sm q-mb-sm">
+      <span class="text-body2">{{ selected.length }} article(s) sélectionné(s)</span>
+      <q-btn
+        unelevated
+        color="primary"
+        icon="visibility"
+        label="Publier tel quel"
+        :loading="publishing"
+        @click="publishSelected(true)"
+      >
+        <q-tooltip>
+          Afficher en boutique sans attendre l'enrichissement Icecat (qui pourra toujours
+          compléter la fiche ensuite)
+        </q-tooltip>
+      </q-btn>
+      <q-btn
+        flat
+        color="grey-8"
+        icon="visibility_off"
+        label="Remettre en attente"
+        :loading="publishing"
+        @click="publishSelected(false)"
+      />
+    </div>
 
     <q-table
+      v-model:selected="selected"
       :rows="store.items"
       :columns="columns"
       row-key="id"
+      selection="multiple"
       :loading="store.loading"
       flat
       bordered
@@ -119,6 +149,29 @@
             :loading="store.savingOriginIds.has(props.row.id)"
             @update:model-value="(val) => onOriginChange(props.row, val)"
           />
+        </q-td>
+      </template>
+
+      <template #body-cell-storefront="props">
+        <q-td :props="props" align="center">
+          <q-chip
+            v-if="isVisible(props.row)"
+            dense
+            size="sm"
+            :color="props.row.published_without_enrichment ? 'orange-2' : 'green-2'"
+            :text-color="props.row.published_without_enrichment ? 'orange-10' : 'green-10'"
+            :label="props.row.published_without_enrichment ? 'Publié tel quel' : 'Visible'"
+          >
+            <q-tooltip v-if="props.row.published_without_enrichment">
+              Affiché sans enrichissement Icecat, sur décision admin
+            </q-tooltip>
+          </q-chip>
+          <q-chip v-else dense size="sm" color="grey-3" text-color="grey-8" label="Masqué">
+            <q-tooltip>
+              Ligne fournisseur en attente d'enrichissement Icecat : invisible en boutique.
+              Sélectionnez-la et « Publier tel quel » pour l'afficher.
+            </q-tooltip>
+          </q-chip>
         </q-td>
       </template>
 
@@ -196,8 +249,42 @@ const filterOptions = [
   { label: 'Tous', value: 'all' as const },
   { label: 'Actifs', value: 'active' as const },
   { label: 'Enrichis', value: 'enriched' as const },
+  { label: 'Masqués (en attente d’enrichissement)', value: 'hidden' as const },
   { label: 'Inactifs', value: 'inactive' as const },
 ];
+
+const selected = ref<ProductPublic[]>([]);
+const publishing = ref(false);
+const notice = ref<string | null>(null);
+
+/** Same rule as the storefront: enriched, or manual, or published as it stands. */
+function isVisible(product: ProductPublic): boolean {
+  return (
+    Boolean(product.is_enriched) ||
+    !product.is_supplier_managed ||
+    Boolean(product.published_without_enrichment)
+  );
+}
+
+async function publishSelected(published: boolean) {
+  if (!selected.value.length) return;
+  publishing.value = true;
+  notice.value = null;
+  try {
+    const updated = await store.publishProducts(
+      selected.value.map((p) => p.id),
+      published,
+    );
+    notice.value = published
+      ? `${updated} article(s) publié(s) tel(s) quel(s).`
+      : `${updated} article(s) remis en attente d’enrichissement.`;
+    selected.value = [];
+  } catch (err: unknown) {
+    store.error = err instanceof Error ? err.message : 'Publication impossible.';
+  } finally {
+    publishing.value = false;
+  }
+}
 
 const columns: QTableColumn[] = [
   { name: 'image', label: '', field: 'image_url', align: 'left' },
@@ -214,6 +301,7 @@ const columns: QTableColumn[] = [
     field: 'supplier_place_id',
     align: 'left',
   },
+  { name: 'storefront', label: 'Vitrine', field: 'is_enriched', align: 'center' },
   { name: 'active', label: 'Actif admin', field: 'is_admin_active', align: 'center' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
 ];

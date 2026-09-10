@@ -116,6 +116,8 @@ export interface FileImportResponse {
   statistics: Record<string, number>;
   sync_errors: { sku: string; error: string }[];
   sync_log_id: string | null;
+  /** Les articles créés / adoptés ont été publiés tels que le fichier les décrit. */
+  published_new: boolean;
   sample: Record<string, unknown>[];
   /** Simulation : compteurs de la reconnaissance (new / updated / adopted / ambiguous / skipped, matched_by_*). */
   resolution: Record<string, number>;
@@ -197,11 +199,12 @@ export async function inspectCatalogFile(code: string, file: File): Promise<File
 export async function importCatalogFile(
   code: string,
   file: File,
-  options: { mapping?: Record<string, string> | null; dryRun?: boolean },
+  options: { mapping?: Record<string, string> | null; dryRun?: boolean; publishNew?: boolean },
 ): Promise<FileImportResponse> {
   const form = new FormData();
   form.append('file', file);
   if (options.mapping) form.append('mapping', JSON.stringify(options.mapping));
+  form.append('publish_new', options.publishNew === false ? 'false' : 'true');
   const { data } = await api.post<FileImportResponse>(`/suppliers/${code}/import-file`, form, {
     headers: { 'Content-Type': 'multipart/form-data' },
     params: { dry_run: options.dryRun ? 'true' : 'false' },

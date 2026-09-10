@@ -24,3 +24,14 @@ def test_manual_product_is_publishable_as_entered() -> None:
     assert has_storefront_content(
         SimpleNamespace(is_enriched=False, is_supplier_managed=False)
     )
+
+
+def test_admin_can_publish_a_synced_row_as_it_stands() -> None:
+    """File imports and items Icecat does not know: shown on admin decision."""
+    assert has_storefront_content(
+        SimpleNamespace(
+            is_enriched=False,
+            is_supplier_managed=True,
+            published_without_enrichment=True,
+        )
+    )
