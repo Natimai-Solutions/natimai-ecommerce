@@ -158,6 +158,7 @@ import {
   type ProductOffersResponse,
   type ShippingModePricePublic,
   sellableQuantity,
+  trackProductView,
 } from 'src/api/products';
 import ProductOffers from 'src/components/ProductOffers.vue';
 import { useCartStore } from 'src/stores/cart';
@@ -411,6 +412,9 @@ onServerPrefetch(loadProduct);
 
 onMounted(async () => {
   await loadProduct();
+  // Client only: the SSR pass must not count a view, and a bot-heavy server
+  // render would skew the « plus consultés » ranking.
+  if (process.env.CLIENT && product.value) void trackProductView(product.value.id);
 });
 
 watch(

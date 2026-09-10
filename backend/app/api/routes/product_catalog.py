@@ -1,7 +1,7 @@
 import uuid
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlmodel import SQLModel, col, func, select
 
 from app.api.deps import CurrentSuperUser, SessionDep, get_current_user_optional
@@ -16,6 +16,7 @@ from app.features.inventory.services.availability import (
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import (
     PricingMode,
+    Product,
     ProductFeatureRequest,
     ProductOfferPublic,
     ProductOffersResponse,
@@ -32,6 +33,14 @@ from app.features.product.models.product_spec import (
     SpecFacetValue,
 )
 from app.features.product.services.identity import product_identity_key
+from app.features.product.services.popularity import (
+    DEFAULT_LIMIT,
+    DEFAULT_WINDOW_DAYS,
+    MAX_LIMIT,
+    MAX_WINDOW_DAYS,
+    popular_products,
+    record_product_view,
+)
 from app.features.product.services.pricing import (
     CurrencyRateMissing,
     PricingContext,
@@ -328,6 +337,42 @@ async def search_products(
         count=search_result.get("count", 0),
         facets=ProductSearchFacets.model_validate(search_result.get("facets", {})),
     )
+
+
+@router.get("/popular", response_model=ProductsPublic)
+async def get_popular_products(
+    session: SessionDep,
+    days: int = Query(default=DEFAULT_WINDOW_DAYS, ge=1, le=MAX_WINDOW_DAYS),
+    limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+) -> ProductsPublic:
+    """Most viewed products over the last ``days`` days (storefront-visible only)."""
+    products = await popular_products(
+        session,
+        conditions=crud_product.storefront_conditions(),
+        days=days,
+        limit=limit,
+    )
+    await crud_product._apply_runtime_sale_prices(session, products)  # noqa: SLF001
+    return ProductsPublic(
+        data=await publish_with_availability(session, products),
+        count=len(products),
+    )
+
+
+@router.post("/{product_id}/view", status_code=204)
+async def track_product_view(
+    session: SessionDep,
+    product_id: uuid.UUID,
+) -> Response:
+    """Count one view of a product page (anonymous, fire-and-forget).
+
+    Only products the storefront shows are counted; anything else answers the
+    same 204 so the endpoint reveals nothing about hidden rows.
+    """
+    product = await session.get(Product, product_id)
+    if product is not None and product.is_active and product.is_admin_active:
+        await record_product_view(session, product_id=product_id)
+    return Response(status_code=204)
 
 
 @router.get("/featured", response_model=ProductsPublic)

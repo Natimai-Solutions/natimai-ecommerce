@@ -64,6 +64,34 @@ export async function getCategorySpecFacets(
   return data;
 }
 
+type ProductsPublic = components['schemas']['ProductsPublic'];
+
+/** Products the admin put forward (« vedette »), in their display order. */
+export async function getFeaturedProducts(limit = 8): Promise<ProductPublic[]> {
+  const { data } = await api.get<ProductsPublic>('/product/featured', { params: { limit } });
+  return data.data ?? [];
+}
+
+/** Most viewed products over the last `days` days. */
+export async function getPopularProducts(limit = 8, days = 30): Promise<ProductPublic[]> {
+  const { data } = await api.get<ProductsPublic>('/product/popular', {
+    params: { limit, days },
+  });
+  return data.data ?? [];
+}
+
+/**
+ * Count one view of a product page. Fire-and-forget: a failure must never
+ * reach the customer, the counter is a marketing signal, not a feature.
+ */
+export async function trackProductView(productId: string): Promise<void> {
+  try {
+    await api.post(`/product/${productId}/view`);
+  } catch {
+    // ignored on purpose
+  }
+}
+
 export async function getProductById(productId: string): Promise<ProductPublic> {
   const { data } = await api.get<ProductPublic>(`/product/${productId}`);
   return data;

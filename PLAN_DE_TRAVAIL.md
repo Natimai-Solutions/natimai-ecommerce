@@ -1281,7 +1281,7 @@ Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/my
 
 | Feature | Backend | Vitrine (`frontend`) | Admin (`admin-frontend`) |
 |---------|---------|----------------------|--------------------------|
-| M1 — produits les plus vus | 🔲 | 🔲 section accueil / carrousel | — |
+| M1 — produits les plus vus | ✅ (10/09/2026) compteur journalier + `GET /product/popular` | ✅ accueil : vedettes + « les plus consultés » | — |
 | M3 — factures PDF (**WeasyPrint**) + export comptable | ✅ (25/08/2026) | ✅ téléchargement facture (compte) | ✅ écran factures + export CSV |
 | M5 — numéro de commande séquentiel | ✅ (25/08/2026) | ✅ affichage (compte) | ✅ affichage (factures) |
 | Z2 — avoir comptable | ✅ (N10 + e-mail d'envoi 10/09/2026) | ✅ téléchargement des avoirs (compte, par commande) | ✅ écran Avoirs + export CSV |
@@ -1292,7 +1292,7 @@ Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/my
 
 | ID | Fonctionnalité | Notes |
 |----|----------------|-------|
-| M1 | Produits les plus vus | Tracking de vues + endpoint top-N |
+| M1 ✅ | Produits les plus vus | `POST /product/{id}/view` (page produit, côté client seulement) → `product_view_daily` ; `GET /product/popular?days&limit` ; accueil vitrine |
 | M2 | Déploiement Kubernetes | Helm chart à partir du `docker-compose.prod.yml` |
 | M3 ✅ | Factures + export comptable | **Livré 25/08/2026** (cf. PP-C). Modèle Invoice + numérotation + PDF **WeasyPrint** (avec ventilation TVA par taux via `OrderLine.tax_rate_id`) + export FEC/CSV Sage — cf. *Note technique — génération PDF des factures* ci-dessous |
 | M4 | Alerting actif | Job ARQ surveille dashboard → Slack/email sur seuils |

@@ -193,3 +193,40 @@ async def test_manual_products_are_published_without_enrichment(
         db_session, in_stock=True, group_offers=False
     )
     assert _names(in_stock) == {"Câble entrepôt (saisi)"}
+
+
+@pytest.mark.asyncio
+async def test_popular_products_rank_by_views_and_hide_the_unpublishable(
+    db_session: AsyncSession,
+) -> None:
+    """Views count once per page load; a hidden product never ranks."""
+    from app.features.product.services.popularity import (
+        popular_products,
+        record_product_view,
+    )
+
+    products = await _seed(db_session)
+    hidden = _product(
+        "Ligne brute (masquée)",
+        supplier="ingram",
+        supplier_qty="1",
+        enriched=False,
+        supplier_managed=True,
+    )
+    db_session.add(hidden)
+    await db_session.commit()
+
+    for _ in range(3):
+        await record_product_view(db_session, product_id=products["warehouse"].id)
+    await record_product_view(db_session, product_id=products["linked"].id)
+    for _ in range(5):
+        await record_product_view(db_session, product_id=hidden.id)
+
+    ranked = await popular_products(
+        db_session, conditions=crud_product.storefront_conditions(), days=30, limit=5
+    )
+    assert [p.name for p in ranked][:2] == [
+        "Câble HDMI (entrepôt)",
+        "Câble DP (fournisseur)",
+    ]
+    assert all(p.name != "Ligne brute (masquée)" for p in ranked)
