@@ -84,8 +84,16 @@ def supplier_quantity_expression() -> Any:
 
 
 def available_quantity_expression() -> Any:
-    """SQL: local + supplier stock, usable in a ``where`` or ``order_by``."""
-    return local_quantity_expression() + supplier_quantity_expression()
+    """SQL: local + supplier stock, plus the variants' for a parent product."""
+    from app.features.product.services.variants import (
+        children_available_quantity_expression,
+    )
+
+    return (
+        local_quantity_expression()
+        + supplier_quantity_expression()
+        + children_available_quantity_expression()
+    )
 
 
 async def local_quantities(
@@ -118,11 +126,19 @@ async def publish_with_availability(
     Sets ``local_quantity`` and ``available_quantity`` on each
     :class:`ProductPublic`; everything else is the plain validation.
     """
+    from app.features.product.services.variants import children_availability
+
     publics = [ProductPublic.model_validate(product) for product in products]
     local = await local_quantities(session, (public.id for public in publics))
+    parents = await children_availability(
+        session, [public.id for public in publics if public.has_variants]
+    )
     for public in publics:
         public.local_quantity = local.get(public.id, ZERO)
         public.available_quantity = public.local_quantity + supplier_available_quantity(
             public
         )
+        count, from_variants = parents.get(public.id, (0, ZERO))
+        public.variants_count = count
+        public.available_quantity += from_variants
     return publics

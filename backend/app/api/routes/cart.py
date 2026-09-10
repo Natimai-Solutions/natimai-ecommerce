@@ -1303,6 +1303,14 @@ async def _get_active_product_or_404(
             details={"product_id": str(product_id)},
         )
 
+    if getattr(product, "has_variants", False):
+        # The parent is the storefront entry; only a chosen variant is sold.
+        raise AppError(
+            code="cart.product.has_variants",
+            status_code=409,
+            message=f"Product '{product_id}' has variants: choose one",
+            details={"product_id": str(product_id)},
+        )
     # A product whose customs rate or weight is missing prices below cost
     # (see services/publication.py). Refuse the sale rather than honour a
     # price we know to be wrong — this also covers carts filled before the

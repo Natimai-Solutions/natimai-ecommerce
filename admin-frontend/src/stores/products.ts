@@ -11,6 +11,9 @@ export type ProductPublic = components['schemas']['ProductPublic'] & {
   overridden_fields?: string[] | null;
   /** Stock entrepôt (ligne Inventory) — servi par la liste, absent d'une création. */
   local_quantity?: string | null;
+  parent_product_id?: string | null;
+  variant_options?: Record<string, string> | null;
+  variants_count?: number;
 };
 type ProductsPublic = components['schemas']['ProductsPublic'];
 

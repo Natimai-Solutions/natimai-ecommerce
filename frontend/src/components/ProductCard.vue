@@ -49,6 +49,9 @@
         <q-icon name="inventory_2" size="14px" class="q-mr-xs" />
         <span v-if="isOutOfStock">Sur commande</span>
         <span v-else>{{ stockQuantity }} en stock</span>
+        <span v-if="variantsCount > 1" class="text-grey-7">
+          · {{ variantsCount }} déclinaisons</span
+        >
       </div>
     </q-card-section>
 
@@ -72,6 +75,17 @@
         :to="productRoute"
       />
       <q-btn
+        v-if="product.has_variants"
+        unelevated
+        data-testid="product-choose-variant"
+        color="primary"
+        icon="tune"
+        label="Choisir"
+        size="sm"
+        :to="productRoute"
+      />
+      <q-btn
+        v-else
         unelevated
         data-testid="product-add-to-cart"
         color="primary"
@@ -118,8 +132,10 @@ const isOutOfStock = computed(() => stockQuantity.value <= 0);
 const displayPrice = computed(() => {
   const price = parseFloat(props.product.base_price);
   if (price === 0) return '—';
-  return currencyStore.format(price);
+  const formatted = currencyStore.format(price);
+  return props.product.has_variants ? `À partir de ${formatted}` : formatted;
 });
+const variantsCount = computed(() => props.product.variants_count ?? 0);
 </script>
 
 <style scoped lang="scss">

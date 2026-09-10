@@ -114,6 +114,22 @@
         <q-td :props="props">
           <div class="text-body2 ellipsis" :title="props.row.name">{{ props.row.name }}</div>
           <div class="text-caption text-grey-7">
+            <q-chip
+              v-if="props.row.has_variants"
+              dense
+              size="sm"
+              color="teal-2"
+              text-color="teal-10"
+              :label="`${props.row.variants_count ?? 0} variante(s)`"
+            />
+            <q-chip
+              v-else-if="props.row.parent_product_id"
+              dense
+              size="sm"
+              color="grey-3"
+              text-color="grey-8"
+              :label="variantLabel(props.row)"
+            />
             {{ props.row.manufacturer || '—' }}
             <q-icon
               v-if="props.row.overridden_fields?.length"
@@ -254,6 +270,11 @@ const filterOptions = [
 ];
 
 const selected = ref<ProductPublic[]>([]);
+
+function variantLabel(product: ProductPublic): string {
+  const options = Object.entries(product.variant_options ?? {}).map(([k, v]) => `${k} ${v}`);
+  return options.length ? `Variante · ${options.join(' / ')}` : 'Variante';
+}
 const publishing = ref(false);
 const notice = ref<string | null>(null);
 

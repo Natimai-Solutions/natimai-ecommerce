@@ -92,6 +92,19 @@ export async function trackProductView(productId: string): Promise<void> {
   }
 }
 
+export interface ProductVariantsResponse {
+  parent_id: string;
+  /** Option names in selector order (« Taille », « Couleur »…). */
+  axes: string[];
+  variants: ProductPublic[];
+}
+
+/** Active variants of a parent product, with price and sellable stock. */
+export async function getProductVariants(productId: string): Promise<ProductVariantsResponse> {
+  const { data } = await api.get<ProductVariantsResponse>(`/product/${productId}/variants`);
+  return data;
+}
+
 export async function getProductById(productId: string): Promise<ProductPublic> {
   const { data } = await api.get<ProductPublic>(`/product/${productId}`);
   return data;

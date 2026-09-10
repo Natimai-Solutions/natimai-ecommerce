@@ -110,6 +110,16 @@
           @click="open = false"
         />
         <q-btn
+          v-if="product.has_variants"
+          unelevated
+          color="primary"
+          icon="tune"
+          label="Choisir une déclinaison"
+          :to="productRoute"
+          @click="open = false"
+        />
+        <q-btn
+          v-else
           unelevated
           color="primary"
           icon="add_shopping_cart"

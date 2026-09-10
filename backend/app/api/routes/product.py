@@ -109,6 +109,7 @@ class ProductRouter(
                 statement = select(Product).where(
                     col(Product.is_active).is_(True),
                     col(Product.is_admin_active).is_(True),
+                    col(Product.parent_product_id).is_(None),
                     content_ready_condition(),
                     *publication_conditions(),
                 )

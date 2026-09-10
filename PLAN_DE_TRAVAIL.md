@@ -1650,8 +1650,8 @@ Items sortis du périmètre actif sur décision produit — à reconsidérer plu
 
 Idées de fonctionnalités e-commerce standard à instruire plus tard. État de l'existant noté pour ne pas refaire.
 
-### Variantes d'articles 🔲
-Aujourd'hui : seulement un flag `Product.has_variants` (pas de modèle de variante). À concevoir :
+### Variantes d'articles ✅ (10/09/2026)
+Une variante est une ligne `products` rattachée à son parent (`parent_product_id`, `variant_options`) : SKU, prix, coût, stock, image, poids, mapping fournisseur, panier, commande, facture et mouvements de stock inchangés. Le parent (`has_variants`) est l'entrée boutique, affiche « à partir de » (prix de la variante la moins chère, remonté à chaque changement et par le rafraîchissement des prix), n'est jamais vendu tel quel (409 `cart.product.has_variants`) ; les variantes ne sont jamais listées seules. Vitrine : sélecteurs par option sur la page produit (`GET /product/{id}/variants`), « Choisir » sur les cartes. Admin : panneau Variantes dans la fiche produit (`/admin/products/{id}/variants`). Conception initiale :
 - Modèle **`ProductVariant`** (SKU, options ex. taille/couleur, **prix/coût**, **stock** propres, image), rattaché au `Product` parent.
 - Sélection de variante côté **vitrine** (sélecteurs d'options) ; **panier/commande** référencent la variante.
 - Mapping **sync fournisseur** (Ingram renvoie-t-il des variantes ? sinon variantes « manuelles »).

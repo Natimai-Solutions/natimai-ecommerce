@@ -270,6 +270,25 @@
             />
           </div>
 
+          <template v-if="isEdit && product && !product.parent_product_id">
+            <q-separator class="q-my-md" />
+            <ProductVariantsPanel :product-id="product.id" @changed="emit('saved')" />
+          </template>
+          <div
+            v-else-if="isEdit && product?.parent_product_id"
+            class="text-caption text-grey-7 q-mt-md"
+          >
+            Variante d'un autre article
+            <span v-if="product.variant_options">
+              ({{
+                Object.entries(product.variant_options)
+                  .map(([k, v]) => `${k} : ${v}`)
+                  .join(', ')
+              }})
+            </span>
+            — les options se modifient depuis la fiche parente.
+          </div>
+
           <div class="row justify-end q-mt-md" style="gap: 8px">
             <q-btn
               flat
@@ -297,6 +316,7 @@ import { listTaxRates, type TaxRate } from 'src/api/taxRates';
 import { listPlaces, type Place } from 'src/api/logistics';
 import { listSuppliers, type Supplier } from 'src/api/suppliers';
 import { adjustInventory } from 'src/api/inventory';
+import ProductVariantsPanel from 'src/components/ProductVariantsPanel.vue';
 import { useProductsStore, type ProductPublic } from 'src/stores/products';
 
 const props = defineProps<{ modelValue: boolean; product: ProductPublic | null }>();

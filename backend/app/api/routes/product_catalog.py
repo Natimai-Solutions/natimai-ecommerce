@@ -2,7 +2,7 @@ import uuid
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Query, Response
-from sqlmodel import SQLModel, col, func, select
+from sqlmodel import Field, SQLModel, col, func, select
 
 from app.api.deps import CurrentSuperUser, SessionDep, get_current_user_optional
 from app.core.errors import AppError
@@ -56,6 +56,7 @@ from app.features.product.services.publication import (
 from app.features.product.services.spec_projection import (
     get_effective_spec_definitions,
 )
+from app.features.product.services.variants import list_variants, option_axes
 from app.features.shipping.models.route import ShippingRoute
 from app.features.user.crud.user_preference import get_preference_for_user
 from app.features.user.models.user import User
@@ -336,6 +337,45 @@ async def search_products(
         data=products,
         count=search_result.get("count", 0),
         facets=ProductSearchFacets.model_validate(search_result.get("facets", {})),
+    )
+
+
+class ProductVariantsResponse(SQLModel):
+    """The variants of a parent product and the option axes that tell them apart."""
+
+    parent_id: uuid.UUID
+    axes: list[str] = Field(default_factory=list)
+    variants: list[ProductPublic] = Field(default_factory=list)
+
+
+@router.get("/{product_id}/variants", response_model=ProductVariantsResponse)
+async def get_product_variants(
+    session: SessionDep,
+    product_id: uuid.UUID,
+    current_user: object = Depends(get_current_user_optional),
+) -> ProductVariantsResponse:
+    """Active variants of a product, with their price and sellable stock.
+
+    Empty for a plain product. Variants are reached only through here (or by
+    id): the listings show the parent.
+    """
+    product = await session.get(Product, product_id)
+    is_admin = getattr(current_user, "is_superuser", False)
+    if product is None or (not is_admin and not has_storefront_content(product)):
+        raise AppError(
+            code="product.not_found",
+            status_code=404,
+            message="Product not found",
+            details={"product_id": str(product_id)},
+        )
+    variants = await list_variants(session, product_id)
+    if not is_admin:
+        variants = [v for v in variants if has_storefront_content(v)]
+    await crud_product._apply_runtime_sale_prices(session, variants)  # noqa: SLF001
+    return ProductVariantsResponse(
+        parent_id=product_id,
+        axes=option_axes(variants),
+        variants=await publish_with_availability(session, variants),
     )
 
 

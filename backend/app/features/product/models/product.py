@@ -117,6 +117,20 @@ class ProductBase(Base):
             "unresolved rate makes the product non-publishable."
         ),
     )
+    parent_product_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="products.id",
+        index=True,
+        description=(
+            "Parent of this variant. A variant is a full product row (own SKU, "
+            "price, stock, image); the parent is the storefront entry."
+        ),
+    )
+    variant_options: dict[str, str] | None = Field(
+        default=None,
+        sa_column=Column(JSON),
+        description='Option values of this variant, e.g. {"Taille": "M", "Couleur": "Noir"}',
+    )
     has_variants: bool = Field(
         default=False,
         description="Indicates if the product has variants",
@@ -360,6 +374,8 @@ class ProductUpdate(ProductBase, BaseUpdate):
     cost_currency: str | None = None
     customs_rate_pct: Decimal | None = None
     has_variants: bool | None = None
+    parent_product_id: uuid.UUID | None = None
+    variant_options: dict[str, str] | None = None
     category_id: uuid.UUID | None = None
     supplier_quantity: Decimal | None = None
     supplier_price: Decimal | None = None
@@ -449,6 +465,8 @@ class ProductPublic(ProductBase, BasePublic):
     #: What the checkout will accept: local + supplier stock (the latter only
     #: when the product has a supplier). ``None`` = not computed.
     available_quantity: Decimal | None = None
+    #: Active variants of a parent product (0 for a plain product).
+    variants_count: int = 0
 
 
 class ProductsPublic(SQLModel):

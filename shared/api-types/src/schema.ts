@@ -12815,6 +12815,15 @@ export interface components {
              * @default 1
              */
             offers_count: number;
+            /** Parent Product Id */
+            parent_product_id?: string | null;
+            /** Variant Options */
+            variant_options?: { [key: string]: string } | null;
+            /**
+             * Variants Count
+             * @default 0
+             */
+            variants_count: number;
             /** Local Quantity */
             local_quantity?: string | null;
             /** Available Quantity */

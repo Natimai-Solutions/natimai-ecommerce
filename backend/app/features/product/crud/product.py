@@ -297,6 +297,8 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         return [
             col(Product.is_active).is_(True),
             col(Product.is_admin_active).is_(True),
+            # Variants are reached through their parent, never listed alone.
+            col(Product.parent_product_id).is_(None),
             content_ready_condition(),
             *publication_conditions(),
         ]
@@ -431,6 +433,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             .where(
                 col(Product.is_active).is_(True),
                 col(Product.is_admin_active).is_(True),
+                col(Product.parent_product_id).is_(None),
                 content_ready_condition(),
                 col(Product.is_featured).is_(True),
                 (
