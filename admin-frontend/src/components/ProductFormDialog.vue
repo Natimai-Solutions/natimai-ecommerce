@@ -97,6 +97,17 @@
             dense
             bottom-slots
           />
+          <q-input
+            v-model="form.local_quantity"
+            label="Stock entrepôt (unités physiquement chez vous)"
+            :hint="localStockHint"
+            type="number"
+            step="1"
+            min="0"
+            outlined
+            dense
+            bottom-slots
+          />
 
           <div class="text-subtitle2 q-mt-sm q-mb-xs">Prix &amp; taxes</div>
           <q-option-group
@@ -290,6 +301,7 @@ import { categoryLabel, listCategories, type Category } from 'src/api/categories
 import { listTaxRates, type TaxRate } from 'src/api/taxRates';
 import { listPlaces, type Place } from 'src/api/logistics';
 import { listSuppliers, type Supplier } from 'src/api/suppliers';
+import { adjustInventory } from 'src/api/inventory';
 import { useProductsStore, type ProductPublic } from 'src/stores/products';
 
 const props = defineProps<{ modelValue: boolean; product: ProductPublic | null }>();
@@ -309,6 +321,8 @@ interface FormState {
   supplier_name: string | null;
   supplier_sku: string;
   supplier_quantity: string;
+  /** Stock entrepôt — pas un champ produit : enregistré par un ajustement d'inventaire. */
+  local_quantity: string;
   pricing_mode: PricingMode;
   margin_rate_pct: string;
   cost_amount: string;
@@ -348,6 +362,7 @@ function emptyForm(): FormState {
     supplier_name: null,
     supplier_sku: '',
     supplier_quantity: '0',
+    local_quantity: '0',
     pricing_mode: 'import',
     margin_rate_pct: '',
     cost_amount: '0.00',
@@ -398,6 +413,17 @@ const PRICING_MODE_HINTS: Record<PricingMode, string> = {
   fixed: 'Vous saisissez le prix de vente TTC ; rien n’est recalculé.',
 };
 const pricingModeHint = computed(() => PRICING_MODE_HINTS[form.pricing_mode]);
+
+/**
+ * The warehouse stock is what the checkout serves first; for a product with
+ * no supplier it is the only sellable stock. Saved through the audited
+ * inventory adjustment (a stock movement is written), not as a product field.
+ */
+const localStockHint = computed(() =>
+  form.supplier_name || props.product?.is_supplier_managed
+    ? 'Servi en premier au checkout, avant la dispo fournisseur. Un mouvement de stock est tracé.'
+    : 'Sans fournisseur, c’est le seul stock vendable en boutique. Un mouvement de stock est tracé.',
+);
 
 /**
  * Choosing a supplier pre-fills what the supplier decides: its origin
@@ -472,6 +498,11 @@ function str(v: unknown): string {
   if (typeof v === 'number' || typeof v === 'boolean') return String(v);
   return '';
 }
+/** Decimal string from the API ("12.00") → integer text for the field ("12"). */
+function formatQty(v: unknown): string {
+  const n = Number(v);
+  return Number.isFinite(n) ? String(Math.max(0, Math.round(n))) : '0';
+}
 function num(v: unknown): number | null {
   if (v == null || v === '') return null;
   const n = Number(v);
@@ -488,6 +519,7 @@ function loadFromProduct(p: ProductPublic | null) {
     base.supplier_name = (rec.supplier_name as string | null) ?? null;
     base.supplier_sku = str(rec.supplier_sku);
     base.supplier_quantity = str(rec.supplier_quantity) || '0';
+    base.local_quantity = formatQty(rec.local_quantity);
     const mode = str(rec.pricing_mode);
     base.pricing_mode = mode === 'domestic' || mode === 'fixed' ? mode : 'import';
     base.margin_rate_pct = str(rec.margin_rate_pct);
@@ -515,6 +547,7 @@ function buildPayload(): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   const keys = Object.keys(form) as (keyof FormState)[];
   for (const key of keys) {
+    if (key === 'local_quantity') continue; // inventory adjustment, not a product field
     const value = form[key];
     if (isEdit.value && value === original[key]) continue;
     if (MONEY_FIELDS.includes(key as (typeof MONEY_FIELDS)[number])) {
@@ -539,11 +572,14 @@ async function onSubmit() {
   error.value = null;
   try {
     const payload = buildPayload();
+    let productId: string;
     if (isEdit.value && props.product) {
       await store.updateProduct(props.product.id, payload);
+      productId = props.product.id;
     } else {
-      await store.createProduct(payload);
+      productId = (await store.createProduct(payload)).id;
     }
+    await saveLocalStock(productId);
     emit('saved');
     emit('update:modelValue', false);
   } catch (err: unknown) {
@@ -551,6 +587,24 @@ async function onSubmit() {
   } finally {
     saving.value = false;
   }
+}
+
+/**
+ * Warehouse stock goes through the audited inventory adjustment (the same
+ * one as the « Inventaire » page): the quantity becomes the new absolute
+ * local stock and a movement records the delta. Nothing is sent when it did
+ * not change, so an edit never rewrites the stock silently.
+ */
+async function saveLocalStock(productId: string) {
+  const next = formatQty(form.local_quantity);
+  const previous = formatQty(original.local_quantity);
+  if (next === previous) return;
+  await adjustInventory({
+    product_id: productId,
+    place_id: null,
+    quantity: next,
+    reason: isEdit.value ? 'Modification depuis la fiche produit' : 'Stock initial saisi à la création',
+  });
 }
 
 async function loadLookups() {

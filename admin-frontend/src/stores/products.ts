@@ -9,6 +9,8 @@ export type ProductPublic = components['schemas']['ProductPublic'] & {
   id: string;
   supplier_place_id?: string | null;
   overridden_fields?: string[] | null;
+  /** Stock entrepôt (ligne Inventory) — servi par la liste, absent d'une création. */
+  local_quantity?: string | null;
 };
 type ProductsPublic = components['schemas']['ProductsPublic'];
 
@@ -84,9 +86,10 @@ export const useProductsStore = defineStore('products', () => {
   }
 
   /** Create a manual product via the admin endpoint, then refresh the list. */
-  async function createProduct(payload: ProductFormValues): Promise<void> {
-    await api.post('/admin/products', payload);
+  async function createProduct(payload: ProductFormValues): Promise<ProductPublic> {
+    const { data } = await api.post<ProductPublic>('/admin/products', payload);
     await fetchPage();
+    return data;
   }
 
   /** Update a product; edited fields are locked against the supplier sync. */
