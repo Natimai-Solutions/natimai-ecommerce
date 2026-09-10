@@ -13,6 +13,9 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.base.crud import CrudBase
+from app.features.inventory.services.availability import (
+    available_quantity_expression,
+)
 from app.features.product.models.product import (
     Product,
     ProductCreate,
@@ -28,7 +31,10 @@ from app.features.product.services.pricing import (
     CurrencyRateMissing,
     PricingContext,
 )
-from app.features.product.services.publication import publication_conditions
+from app.features.product.services.publication import (
+    content_ready_condition,
+    publication_conditions,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -287,11 +293,11 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
 
     @staticmethod
     def storefront_conditions() -> list[Any]:
-        """SQL: what the storefront may show (active, enriched, publishable)."""
+        """SQL: what the storefront may show (active, with content, publishable)."""
         return [
             col(Product.is_active).is_(True),
             col(Product.is_admin_active).is_(True),
-            col(Product.is_enriched).is_(True),
+            content_ready_condition(),
             *publication_conditions(),
         ]
 
@@ -425,7 +431,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             .where(
                 col(Product.is_active).is_(True),
                 col(Product.is_admin_active).is_(True),
-                col(Product.is_enriched).is_(True),
+                content_ready_condition(),
                 col(Product.is_featured).is_(True),
                 (
                     col(Product.featured_until).is_(None)
@@ -599,10 +605,11 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             conditions.append(
                 col(Product.manufacturer).ilike(f"%{manufacturer.strip()}%")
             )
+        # Sellable stock = warehouse + supplier, as the checkout counts it.
         if in_stock is True:
-            conditions.append(col(Product.supplier_quantity) > Decimal("0"))
+            conditions.append(available_quantity_expression() > 0)
         elif in_stock is False:
-            conditions.append(col(Product.supplier_quantity) <= Decimal("0"))
+            conditions.append(available_quantity_expression() <= 0)
         if price_min is not None:
             conditions.append(col(Product.sale_price_cached) >= price_min)
         if price_max is not None:
@@ -627,7 +634,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             candidates = candidates.distinct(group_key).order_by(
                 group_key,
                 col(Product.sale_price_cached).asc().nulls_last(),
-                (col(Product.supplier_quantity) > 0).desc(),
+                (available_quantity_expression() > 0).desc(),
             )
         representatives = candidates.cte("representatives")
 

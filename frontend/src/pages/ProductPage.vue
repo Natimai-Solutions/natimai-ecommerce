@@ -81,7 +81,7 @@
           <div class="text-body2 q-mt-sm" :class="isOutOfStock ? 'text-grey-6' : 'text-positive'">
             <q-icon name="inventory_2" size="16px" class="q-mr-xs" />
             <span v-if="isOutOfStock">Sur commande</span>
-            <span v-else>{{ stockQuantity }} en stock fournisseur</span>
+            <span v-else>{{ stockQuantity }} en stock</span>
           </div>
 
           <div
@@ -157,6 +157,7 @@ import {
   getProductShippingModes,
   type ProductOffersResponse,
   type ShippingModePricePublic,
+  sellableQuantity,
 } from 'src/api/products';
 import ProductOffers from 'src/components/ProductOffers.vue';
 import { useCartStore } from 'src/stores/cart';
@@ -182,15 +183,8 @@ const shippingModes = ref<ShippingModePricePublic[]>([]);
 const selectedModeKey = ref<string | null>(null);
 const offers = ref<ProductOffersResponse | null>(null);
 
-const isOutOfStock = computed(() => {
-  if (!product.value) return true;
-  return parseFloat(product.value.supplier_quantity) <= 0;
-});
-
-const stockQuantity = computed(() => {
-  if (!product.value) return 0;
-  return Math.max(0, Math.round(parseFloat(product.value.supplier_quantity)));
-});
+const stockQuantity = computed(() => (product.value ? sellableQuantity(product.value) : 0));
+const isOutOfStock = computed(() => stockQuantity.value <= 0);
 
 const selectedMode = computed(
   () => shippingModes.value.find((m) => m.service_level === selectedModeKey.value) ?? null,

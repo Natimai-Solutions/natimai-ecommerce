@@ -51,6 +51,7 @@ from app.features.inventory.models.stock_movement import (
     MovementType,
     ReferenceType,
 )
+from app.features.inventory.services.availability import supplier_available_quantity
 from app.features.notification.email_renderer import render_email
 from app.features.notification.providers import (
     NotificationMessage,
@@ -1163,11 +1164,8 @@ async def _reserve_stock_for_checkout(
     # Supplier stock counts for every product that has a supplier: the synced
     # ones (refreshed by the inventory sync) and the manual ones linked to a
     # generic supplier, whose quantity the admin maintains by hand or by file.
-    has_supplier = bool(
-        getattr(product, "is_supplier_managed", False)
-        or getattr(product, "supplier_name", None)
-    )
-    supplier_available = product.supplier_quantity if has_supplier else Decimal("0.00")
+    # Same rule as the storefront display (inventory/services/availability).
+    supplier_available = supplier_available_quantity(product)
 
     supplier_place_id = getattr(product, "supplier_place_id", None)
     supplier_place = (

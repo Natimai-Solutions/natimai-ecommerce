@@ -92,6 +92,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import type { components } from '@app/api-types';
+import { sellableQuantity } from 'src/api/products';
 import ProductDetailsDialog from 'src/components/ProductDetailsDialog.vue';
 import { getProductRoute } from 'src/utils/productRoute';
 import { useCurrencyStore } from 'src/stores/currency';
@@ -109,11 +110,8 @@ const placeholderImg = '/icons/placeholder-product.svg';
 const showDetails = ref(false);
 const productRoute = computed(() => getProductRoute(props.product));
 
-const isOutOfStock = computed(() => parseFloat(props.product.supplier_quantity) <= 0);
-
-const stockQuantity = computed(() =>
-  Math.max(0, Math.round(parseFloat(props.product.supplier_quantity))),
-);
+const stockQuantity = computed(() => sellableQuantity(props.product));
+const isOutOfStock = computed(() => stockQuantity.value <= 0);
 
 const displayPrice = computed(() => {
   const price = parseFloat(props.product.base_price);

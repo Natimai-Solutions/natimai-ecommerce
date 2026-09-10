@@ -11,6 +11,21 @@ export type CategoryPublic = components['schemas']['CategoryPublic'] & {
   title?: string;
 };
 type ProductPublic = components['schemas']['ProductPublic'];
+
+/**
+ * Sellable quantity as the checkout counts it: warehouse stock plus supplier
+ * stock (the latter only when the product has a supplier). Served as
+ * `available_quantity` by the storefront endpoints; `supplier_quantity` is the
+ * fallback for responses that do not compute it.
+ */
+export function sellableQuantity(product: {
+  available_quantity?: string | number | null;
+  supplier_quantity: string | number;
+}): number {
+  const raw = product.available_quantity ?? product.supplier_quantity;
+  const parsed = typeof raw === 'number' ? raw : parseFloat(raw);
+  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
+}
 type CategorySpecFacetsResponse = components['schemas']['CategorySpecFacetsResponse'];
 
 export interface ShippingModePricePublic {
@@ -75,6 +90,8 @@ export interface ProductOfferPublic {
   pricing_mode: 'import' | 'domestic' | 'fixed';
   sale_price: string;
   supplier_quantity: string;
+  local_quantity: string;
+  available_quantity: string;
   in_stock: boolean;
   image_url: string | null;
 }

@@ -32,6 +32,7 @@ export const useProductsStore = defineStore('products', () => {
     price_max: null,
     in_stock: null,
     specs: {},
+    group_offers: true,
   });
   const currentPage = ref(1);
 

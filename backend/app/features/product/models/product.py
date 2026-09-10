@@ -434,6 +434,12 @@ class ProductPublic(ProductBase, BasePublic):
     #: suppliers behind its cheapest offer: how many offers this entry stands
     #: for (1 = no sibling).
     offers_count: int = 1
+    #: Warehouse stock (place-less ``Inventory`` row). ``None`` = not computed
+    #: by this endpoint; storefront endpoints always fill it.
+    local_quantity: Decimal | None = None
+    #: What the checkout will accept: local + supplier stock (the latter only
+    #: when the product has a supplier). ``None`` = not computed.
+    available_quantity: Decimal | None = None
 
 
 class ProductsPublic(SQLModel):
@@ -498,6 +504,8 @@ class ProductOfferPublic(SQLModel):
     pricing_mode: PricingMode = PricingMode.IMPORT
     sale_price: Decimal
     supplier_quantity: Decimal
+    local_quantity: Decimal = Decimal("0.00")
+    available_quantity: Decimal = Decimal("0.00")
     in_stock: bool
     image_url: str | None = None
 

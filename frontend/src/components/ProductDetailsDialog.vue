@@ -60,7 +60,7 @@
           <div class="text-body2 q-mt-sm" :class="isOutOfStock ? 'text-grey-6' : 'text-positive'">
             <q-icon name="inventory_2" size="16px" class="q-mr-xs" />
             <span v-if="isOutOfStock">Sur commande</span>
-            <span v-else>{{ stockQuantity }} en stock fournisseur</span>
+            <span v-else>{{ stockQuantity }} en stock</span>
           </div>
 
           <div
@@ -131,6 +131,7 @@ import {
   getProductShippingModes,
   type ProductOffersResponse,
   type ShippingModePricePublic,
+  sellableQuantity,
 } from 'src/api/products';
 import ProductOffers from 'src/components/ProductOffers.vue';
 import { getProductRoute } from 'src/utils/productRoute';
@@ -186,11 +187,8 @@ const selectedMode = computed(
 
 const placeholderImg = '/icons/placeholder-product.svg';
 
-const isOutOfStock = computed(() => parseFloat(props.product.supplier_quantity) <= 0);
-
-const stockQuantity = computed(() =>
-  Math.max(0, Math.round(parseFloat(props.product.supplier_quantity))),
-);
+const stockQuantity = computed(() => sellableQuantity(props.product));
+const isOutOfStock = computed(() => stockQuantity.value <= 0);
 
 const displayPrice = computed(() => {
   if (selectedMode.value) {

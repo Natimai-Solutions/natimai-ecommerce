@@ -12508,6 +12508,16 @@ export interface components {
             sale_price: string;
             /** Supplier Quantity */
             supplier_quantity: string;
+            /**
+             * Local Quantity
+             * @default 0.00
+             */
+            local_quantity: string;
+            /**
+             * Available Quantity
+             * @default 0.00
+             */
+            available_quantity: string;
             /** In Stock */
             in_stock: boolean;
             /** Image Url */
@@ -12775,6 +12785,10 @@ export interface components {
              * @default 1
              */
             offers_count: number;
+            /** Local Quantity */
+            local_quantity?: string | null;
+            /** Available Quantity */
+            available_quantity?: string | null;
         };
         /**
          * ProductSearchFacets

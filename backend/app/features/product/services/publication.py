@@ -95,6 +95,26 @@ def weight_condition() -> Any:
     return and_(col(Product.weight).is_not(None), col(Product.weight) > 0)
 
 
+def content_ready_condition() -> Any:
+    """SQL: the product carries storefront content.
+
+    A synced row is a bare supplier line until Icecat enriches it
+    (``is_enriched``); a manual product's content was written by the admin —
+    there is nothing to wait for, it is publishable as entered.
+    """
+    return or_(
+        col(Product.is_enriched).is_(True),
+        col(Product.is_supplier_managed).is_(False),
+    )
+
+
+def has_storefront_content(product: Any) -> bool:
+    """Python twin of :func:`content_ready_condition` for a loaded product."""
+    return bool(getattr(product, "is_enriched", False)) or not getattr(
+        product, "is_supplier_managed", False
+    )
+
+
 def publication_conditions() -> list[Any]:
     """SQL conditions a product must satisfy to be shown on the storefront.
 

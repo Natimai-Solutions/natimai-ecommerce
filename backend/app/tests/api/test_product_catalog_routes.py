@@ -14,6 +14,7 @@ from app.api.routes.product_catalog import (
 )
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
+from app.features.inventory.services import availability
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import (
     Product,
@@ -47,6 +48,8 @@ async def test_search_products_returns_data_and_facets(
         }
     )
     monkeypatch.setattr(crud_product, "search_products", search_mock)
+    # Warehouse stock is read by a real query; none here.
+    monkeypatch.setattr(availability, "local_quantities", AsyncMock(return_value={}))
 
     response = await search_products(
         session=session,
@@ -56,6 +59,8 @@ async def test_search_products_returns_data_and_facets(
     assert response.count == 1
     assert len(response.data) == 1
     assert response.data[0].name == "Laptop"
+    # Storefront payloads always carry the sellable quantity (never ``None``).
+    assert response.data[0].available_quantity == Decimal("0")
     assert response.facets.manufacturers["Dell"] == 1
 
 
@@ -68,6 +73,7 @@ async def test_get_featured_products_honors_limit(
 
     featured_mock = AsyncMock(return_value=[product])
     monkeypatch.setattr(crud_product, "get_featured", featured_mock)
+    monkeypatch.setattr(availability, "local_quantities", AsyncMock(return_value={}))
 
     response = await get_featured_products(session=session, limit=5)
 

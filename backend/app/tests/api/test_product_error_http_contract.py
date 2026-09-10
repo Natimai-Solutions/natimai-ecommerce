@@ -65,7 +65,11 @@ def test_get_one_product_not_enriched_returns_error_payload(
     monkeypatch.setattr(
         crud_product,
         "read",
-        AsyncMock(return_value=SimpleNamespace(id=product_id, is_enriched=False)),
+        AsyncMock(
+            return_value=SimpleNamespace(
+                id=product_id, is_enriched=False, is_supplier_managed=True
+            )
+        ),
     )
 
     response = client.get(f"/api/v1/product/{product_id}")
