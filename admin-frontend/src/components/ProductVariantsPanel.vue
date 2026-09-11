@@ -186,10 +186,12 @@ import { createVariant, deactivateVariant, listVariants, updateVariant } from 's
 import { adjustInventory } from 'src/api/inventory';
 import { extractApiError } from 'src/api/errors';
 import type { ProductPublic } from 'src/stores/products';
+import { useShopConfigStore } from 'src/stores/shopConfig';
 
 const props = defineProps<{ productId: string }>();
 const emit = defineEmits<{ changed: [] }>();
 
+const shopConfig = useShopConfigStore();
 const variants = ref<ProductPublic[]>([]);
 const axes = ref<string[]>([]);
 const loading = ref(false);
@@ -198,7 +200,7 @@ const busyId = ref<string | null>(null);
 
 function money(value: unknown): string {
   const n = Number(value);
-  return Number.isFinite(n) ? `${n.toLocaleString('fr-FR')} XPF` : '—';
+  return Number.isFinite(n) ? `${n.toLocaleString('fr-FR')} ${shopConfig.currency}` : '—';
 }
 function qty(value: unknown): string {
   const n = Number(value);
@@ -373,5 +375,8 @@ watch(
   () => props.productId,
   () => void load(),
 );
-onMounted(load);
+onMounted(() => {
+  void shopConfig.load();
+  void load();
+});
 </script>

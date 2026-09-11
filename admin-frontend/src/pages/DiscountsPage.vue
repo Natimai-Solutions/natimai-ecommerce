@@ -112,7 +112,7 @@
               />
               <q-input
                 v-model="form.amount"
-                label="Remise en montant (XPF)"
+                :label="`Remise en montant (${currency})`"
                 type="number"
                 step="1"
                 min="1"
@@ -152,7 +152,7 @@
             />
             <q-input
               v-model="form.min_order_amount"
-              label="Minimum d'articles concernés (XPF)"
+              :label="`Minimum d'articles concernés (${currency})`"
               type="number"
               min="0"
               outlined
@@ -214,7 +214,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import {
   DISCOUNT_TARGET_LABELS,
@@ -227,7 +227,10 @@ import {
 } from 'src/api/discounts';
 import { listCategories, type Category } from 'src/api/categories';
 import { extractApiError } from 'src/api/errors';
+import { useShopConfigStore } from 'src/stores/shopConfig';
 
+const shopConfig = useShopConfigStore();
+const currency = computed(() => shopConfig.currency);
 const rows = ref<Discount[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -248,11 +251,11 @@ function valueLabel(d: Discount): string {
   const base = d.percentage
     ? `-${Number(d.percentage)} %`
     : d.amount
-      ? `-${Number(d.amount).toLocaleString('fr-FR')} XPF`
+      ? `-${Number(d.amount).toLocaleString('fr-FR')} ${currency.value}`
       : '—';
   const scope = DISCOUNT_TARGET_LABELS[d.target] ?? d.target;
   const min = d.min_order_amount
-    ? ` dès ${Number(d.min_order_amount).toLocaleString('fr-FR')} XPF`
+    ? ` dès ${Number(d.min_order_amount).toLocaleString('fr-FR')} ${currency.value}`
     : '';
   return `${base} · ${scope}${min}`;
 }
@@ -429,6 +432,7 @@ async function toggleActive(discount: Discount, value: boolean) {
 }
 
 onMounted(() => {
+  void shopConfig.load();
   void load();
   void loadCategories();
 });

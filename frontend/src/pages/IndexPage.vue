@@ -3,7 +3,7 @@
     <section class="hero q-pa-lg q-mb-lg rounded-borders">
       <div class="text-h4 text-weight-bold">Bienvenue</div>
       <div class="text-body1 text-grey-8 q-mt-sm">
-        Matériel informatique et consommables, en stock à Tahiti ou importés à la demande.
+        Nos articles en stock, expédiés rapidement, et nos références sur commande.
       </div>
       <q-btn
         class="q-mt-md"

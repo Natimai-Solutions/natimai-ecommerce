@@ -1646,6 +1646,10 @@ Items sortis du périmètre actif sur décision produit — à reconsidérer plu
 
 ---
 
+## Profil de territoire et mode « boutique simple » ✅ (11/09/2026)
+
+`TERRITORY_PROFILE` (`PF` par défaut, `FR`) résout devise de référence, pays, territoire fiscal, taux par défaut (produits et frais), devise PayZen et données de démarrage (taux de taxe et de change du profil, arbre des îles ou simple nœud pays) — chaque réglage reste surchargeable individuellement (`app/core/territory.py`). Plus aucun « PF » / « XPF » / « TGC_NORMAL » codé en dur sur le chemin de vente : le pricing, le panier, les préférences, la facture et l'identité légale lisent les réglages. `SHOP_MODE=simple` masque dans l'admin fournisseurs, douane, taux de change, catalogue de specs et trajets multi-tronçons, passe la fiche produit en prix fixe par défaut et ne planifie ni la synchro fournisseur ni Icecat. `GET /system/config` expose profil, mode et devise aux deux frontends.
+
 ## Backlog e-commerce — fonctionnalités classiques (à planifier)
 
 Idées de fonctionnalités e-commerce standard à instruire plus tard. État de l'existant noté pour ne pas refaire.

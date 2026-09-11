@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.deps import CurrentUser, SessionDep
+from app.core.config import settings
 from app.core.errors import AppError
 from app.features.user.crud.user_preference import (
     get_preference_for_user,
@@ -16,7 +17,7 @@ from app.features.user.models.user_preference import (
 
 router = APIRouter(prefix="/users/me/preferences", tags=["user"])
 
-_VALID_CURRENCIES = {"XPF", "USD", "EUR"}
+_VALID_CURRENCIES = {"XPF", "USD", "EUR", settings.REFERENCE_CURRENCY}
 
 
 def _validate_update(data: UserPreferenceUpdate) -> None:

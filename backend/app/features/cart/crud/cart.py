@@ -53,7 +53,7 @@ class CartCrud(CrudBase[Cart, CartCreate, CartUpdate]):
         session: AsyncSession,
         *,
         user_id: uuid.UUID,
-        currency: str = "XPF",
+        currency: str | None = None,
     ) -> Cart:
         """Get or create active cart."""
         cart = await self.get_active_cart_by_user(session, user_id=user_id)
@@ -63,7 +63,7 @@ class CartCrud(CrudBase[Cart, CartCreate, CartUpdate]):
         now = datetime.now(timezone.utc)
         cart = self.model(
             user_id=user_id,
-            currency=currency,
+            currency=currency or settings.REFERENCE_CURRENCY,
             total_amount=Decimal("0.00"),
             is_checked_out=False,
             created_at=now,

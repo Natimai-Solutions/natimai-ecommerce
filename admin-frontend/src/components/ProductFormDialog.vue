@@ -59,8 +59,8 @@
             bottom-slots
           />
 
-          <div class="text-subtitle2 q-mt-sm q-mb-xs">Approvisionnement</div>
-          <div class="row" style="gap: 8px">
+          <div v-if="!isSimpleShop" class="text-subtitle2 q-mt-sm q-mb-xs">Approvisionnement</div>
+          <div v-if="!isSimpleShop" class="row" style="gap: 8px">
             <q-select
               v-model="form.supplier_name"
               :options="supplierOptions"
@@ -86,7 +86,7 @@
             />
           </div>
           <q-input
-            v-if="form.supplier_name && !product?.is_supplier_managed"
+            v-if="!isSimpleShop && form.supplier_name && !product?.is_supplier_managed"
             v-model="form.supplier_quantity"
             label="Stock disponible chez le fournisseur"
             hint="Tenu à jour à la main (ou par import fichier) — 0 = indisponible"
@@ -318,6 +318,7 @@ import { listSuppliers, type Supplier } from 'src/api/suppliers';
 import { adjustInventory } from 'src/api/inventory';
 import ProductVariantsPanel from 'src/components/ProductVariantsPanel.vue';
 import { useProductsStore, type ProductPublic } from 'src/stores/products';
+import { useShopConfigStore } from 'src/stores/shopConfig';
 
 const props = defineProps<{ modelValue: boolean; product: ProductPublic | null }>();
 const emit = defineEmits<{
@@ -326,6 +327,9 @@ const emit = defineEmits<{
 }>();
 
 const store = useProductsStore();
+const shopConfig = useShopConfigStore();
+/** SHOP_MODE=simple: own stock sold at a fixed price, no supplier, no customs. */
+const isSimpleShop = computed(() => shopConfig.isSimple);
 
 type PricingMode = 'import' | 'domestic' | 'fixed';
 
@@ -378,10 +382,10 @@ function emptyForm(): FormState {
     supplier_sku: '',
     supplier_quantity: '0',
     local_quantity: '0',
-    pricing_mode: 'import',
+    pricing_mode: isSimpleShop.value ? 'fixed' : 'import',
     margin_rate_pct: '',
     cost_amount: '0.00',
-    cost_currency: 'XPF',
+    cost_currency: shopConfig.currency,
     customs_rate_pct: '',
     base_price: '0.00',
     category_id: null,
@@ -404,22 +408,26 @@ const saving = ref(false);
 const error = ref<string | null>(null);
 const req = [(v: string) => (!!v && v.trim().length > 0) || 'Requis'];
 
-const currencyOptions = [
-  { label: 'XPF', value: 'XPF' },
-  { label: 'USD', value: 'USD' },
-  { label: 'EUR', value: 'EUR' },
-];
+const currencyOptions = computed(() => {
+  const codes = Array.from(new Set([shopConfig.currency, 'XPF', 'USD', 'EUR']));
+  return codes.map((code) => ({ label: code, value: code }));
+});
 const categories = ref<Category[]>([]);
 const taxRates = ref<TaxRate[]>([]);
 const places = ref<Place[]>([]);
 const suppliers = ref<Supplier[]>([]);
 const supplierOptions = ref<{ label: string; value: string }[]>([]);
 
-const pricingModeOptions: { label: string; value: PricingMode }[] = [
+const allPricingModeOptions: { label: string; value: PricingMode }[] = [
   { label: 'Import (CAF + douane)', value: 'import' },
   { label: 'Local (coût + marge)', value: 'domestic' },
   { label: 'Prix TTC fixé', value: 'fixed' },
 ];
+const pricingModeOptions = computed(() =>
+  isSimpleShop.value
+    ? allPricingModeOptions.filter((o) => o.value !== 'import')
+    : allPricingModeOptions,
+);
 const PRICING_MODE_HINTS: Record<PricingMode, string> = {
   import:
     'Coût + fret import + assurance, puis douane, marge et taxe. Douane et poids obligatoires pour la publication.',
@@ -539,7 +547,7 @@ function loadFromProduct(p: ProductPublic | null) {
     base.pricing_mode = mode === 'domestic' || mode === 'fixed' ? mode : 'import';
     base.margin_rate_pct = str(rec.margin_rate_pct);
     base.cost_amount = str(rec.cost_amount) || '0.00';
-    base.cost_currency = str(rec.cost_currency) || 'XPF';
+    base.cost_currency = str(rec.cost_currency) || shopConfig.currency;
     base.customs_rate_pct = str(rec.customs_rate_pct);
     base.base_price = str(rec.base_price) || '0.00';
     base.category_id = (rec.category_id as string | null) ?? null;
@@ -625,6 +633,7 @@ async function saveLocalStock(productId: string) {
 }
 
 async function loadLookups() {
+  void shopConfig.load();
   try {
     [categories.value, taxRates.value, places.value, suppliers.value] = await Promise.all([
       listCategories(),

@@ -119,9 +119,10 @@ class WorkerSettings:
     # Cron jobs : synchronisation fournisseurs (un jeu par fournisseur enregistré)
     # + enrichissement Icecat récurrent (drainage du backlog non-enrichi)
     # + balayage horaire des réservations de stock expirées.
+    # SHOP_MODE=simple: own stock, no supplier sync and no Icecat pass.
     cron_jobs = (
-        get_supplier_sync_cron_jobs()
-        + get_enrichment_cron_jobs()
+        ([] if settings.is_simple_shop else get_supplier_sync_cron_jobs())
+        + ([] if settings.is_simple_shop else get_enrichment_cron_jobs())
         + get_stock_reservation_cron_jobs()
         + get_pricing_cron_jobs()
         + get_cart_abandonment_cron_jobs()

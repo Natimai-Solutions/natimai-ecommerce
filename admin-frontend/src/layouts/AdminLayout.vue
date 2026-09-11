@@ -39,9 +39,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
+import { useShopConfigStore } from 'src/stores/shopConfig';
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -57,7 +58,20 @@ interface NavSection {
   links: NavLink[];
 }
 
-const nav: NavSection[] = [
+/**
+ * Screens that only make sense with suppliers, customs or multi-leg
+ * logistics. Hidden in SHOP_MODE=simple; the routes stay reachable by URL.
+ */
+const FULL_MODE_ONLY = new Set([
+  '/spec-definitions',
+  '/customs-rates',
+  '/currency-rates',
+  '/logistics-routes',
+  '/suppliers',
+  '/supplier-orders',
+]);
+
+const allNav: NavSection[] = [
   {
     label: 'Catalogue',
     links: [
@@ -111,6 +125,20 @@ const nav: NavSection[] = [
     links: [{ label: 'Paramètres', icon: 'settings', to: '/system-settings' }],
   },
 ];
+
+const shopConfig = useShopConfigStore();
+onMounted(() => void shopConfig.load());
+
+const nav = computed<NavSection[]>(() =>
+  shopConfig.isSimple
+    ? allNav
+        .map((section) => ({
+          ...section,
+          links: section.links.filter((link) => !FULL_MODE_ONLY.has(link.to)),
+        }))
+        .filter((section) => section.links.length > 0)
+    : allNav,
+);
 
 function onLogout() {
   void auth.logout();

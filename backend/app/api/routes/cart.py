@@ -568,7 +568,7 @@ async def _resolve_tracking_address_for_checkout(
 
     street = chunks[0] if chunks else "Checkout shipping address"
     city = chunks[1] if len(chunks) > 1 else "Unknown"
-    country = chunks[-1] if chunks else "PF"
+    country = chunks[-1] if chunks else settings.SHOP_COUNTRY_CODE
 
     return await crud_address.create_draft(
         session=session,
@@ -1580,7 +1580,7 @@ def _render_quote_email(
         item_count=len(item_snapshots),
         summary=[{"label": label, "value": value} for label, value in summary],
         items=_quote_items(item_snapshots),
-        currency=currency.strip().upper() or "XPF",
+        currency=currency.strip().upper() or settings.REFERENCE_CURRENCY,
         subtotal=str(subtotal_amount),
         shop_name=getattr(settings, "SHOP_NAME", "Natimai"),
     )
@@ -1831,7 +1831,9 @@ async def create_guest_quote_request(
             details={"reason": "guest_payload_items_empty"},
         )
 
-    currency = (payload.currency or "XPF").strip().upper() or "XPF"
+    currency = (
+        payload.currency or settings.REFERENCE_CURRENCY
+    ).strip().upper() or settings.REFERENCE_CURRENCY
 
     item_snapshots: list[dict[str, str | None]] = []
     subtotal_amount = Decimal("0.00")

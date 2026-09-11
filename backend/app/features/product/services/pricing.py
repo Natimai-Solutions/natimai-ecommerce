@@ -32,8 +32,16 @@ from app.features.shipping.services.pricing import (
 
 _MONEY_QUANT = Decimal("0.01")
 _DEFAULT_MARGIN_RATE_PCT = Decimal("30.00")
-_DEFAULT_TAX_CODE = "TGC_NORMAL"
-_DEFAULT_TERRITORY_CODE = "PF"
+
+
+def default_tax_code() -> str:
+    """Rate applied when neither the product nor its category says otherwise."""
+    return settings.DEFAULT_TAX_CODE
+
+
+def default_territory_code() -> str:
+    """Tax territory of the shop's own rates (``TERRITORY_PROFILE``)."""
+    return settings.TAX_TERRITORY_CODE
 
 
 @dataclass(frozen=True)
@@ -183,7 +191,7 @@ async def resolve_tax_rate(
     session: AsyncSession,
     product: Product,
     *,
-    territory: str = _DEFAULT_TERRITORY_CODE,
+    territory: str | None = None,
     at_date: date | None = None,
 ) -> TaxRate | None:
     """Resolve applicable tax rate for a product.
@@ -191,7 +199,7 @@ async def resolve_tax_rate(
     Resolution order:
     1) Product.tax_rate_id
     2) Category.default_tax_rate_id
-    3) Territory default tax code (TGC_NORMAL)
+    3) Territory default tax code (``DEFAULT_TAX_CODE``: TGC_NORMAL, TVA_NORMALE…)
     """
     reference_date: date = at_date if at_date is not None else date.today()
     product_tax_rate_id = getattr(product, "tax_rate_id", None)
@@ -224,8 +232,8 @@ async def resolve_tax_rate(
     fallback_statement = (
         select(TaxRate)
         .where(
-            TaxRate.code == _DEFAULT_TAX_CODE,
-            TaxRate.territory_code == territory,
+            TaxRate.code == default_tax_code(),
+            TaxRate.territory_code == (territory or default_territory_code()),
             col(TaxRate.is_active).is_(True),
             TaxRate.valid_from <= reference_date,
             (
@@ -403,7 +411,7 @@ async def calculate_sale_price(
     product: Product,
     *,
     group: PriceGroup | None = None,
-    territory: str = _DEFAULT_TERRITORY_CODE,
+    territory: str | None = None,
     import_route: ShippingRoute | None = None,
     origin_regime: OriginRegime | None = None,
 ) -> Decimal:
@@ -535,7 +543,7 @@ async def calculate_price_by_mode(
     import_routes: list[ShippingRoute],
     *,
     group: PriceGroup | None = None,
-    territory: str = _DEFAULT_TERRITORY_CODE,
+    territory: str | None = None,
 ) -> list[ShippingModePrice]:
     """Return a price breakdown for every import route.
 
@@ -645,7 +653,7 @@ class PricingContext:
         session: AsyncSession,
         *,
         group: PriceGroup | None = None,
-        territory: str = _DEFAULT_TERRITORY_CODE,
+        territory: str | None = None,
         at_date: date | None = None,
     ) -> PricingContext:
         """Load every referential the price formula reads."""
@@ -667,8 +675,8 @@ class PricingContext:
             (
                 row
                 for row in tax_rows
-                if row.code == _DEFAULT_TAX_CODE
-                and row.territory_code == territory
+                if row.code == default_tax_code()
+                and row.territory_code == (territory or default_territory_code())
                 and _is_tax_rate_candidate_active(row, at_date=reference_date)
             ),
             key=lambda row: row.valid_from,

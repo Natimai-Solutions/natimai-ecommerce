@@ -48,16 +48,19 @@ LEGAL_SETTINGS: tuple[LegalSettingSpec, ...] = (
         "INVOICE_SELLER_NAME",
     ),
     LegalSettingSpec("legal_form", "Forme juridique (SARL, SAS…)"),
-    LegalSettingSpec("legal_share_capital", "Capital social, en XPF (montant seul)"),
+    LegalSettingSpec(
+        "legal_share_capital",
+        f"Capital social, en {settings.REFERENCE_CURRENCY} (montant seul)",
+    ),
     LegalSettingSpec(
         "legal_head_office_address",
         "Adresse complète du siège social",
         "INVOICE_SELLER_ADDRESS",
     ),
-    LegalSettingSpec("legal_rc_number", "Numéro au Registre du commerce de Papeete"),
+    LegalSettingSpec("legal_rc_number", settings.territory_profile.registry_label),
     LegalSettingSpec(
         "legal_tahiti_number",
-        "Numéro TAHITI (équivalent local du SIRET)",
+        settings.territory_profile.registration_label,
         "INVOICE_SELLER_REGISTRATION",
     ),
     LegalSettingSpec("legal_tax_id", "Identifiant fiscal"),
