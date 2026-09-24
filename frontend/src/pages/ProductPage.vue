@@ -78,10 +78,12 @@
             Prix sur devis
           </div>
 
-          <div class="text-body2 q-mt-sm" :class="isOutOfStock ? 'text-grey-6' : 'text-positive'">
+          <div
+            class="text-body2 q-mt-sm"
+            :class="availability.orderable ? 'text-positive' : 'text-grey-6'"
+          >
             <q-icon name="inventory_2" size="16px" class="q-mr-xs" />
-            <span v-if="isOutOfStock">Sur commande</span>
-            <span v-else>{{ stockQuantity }} en stock fournisseur</span>
+            <span>{{ availability.label }}</span>
           </div>
           <div v-if="departureStore.next" class="text-body2 text-grey-8" data-testid="product-departure">
             <q-icon name="event_available" size="16px" class="q-mr-xs" />
@@ -132,7 +134,7 @@
           color="primary"
           icon="add_shopping_cart"
           label="Ajouter au panier"
-          :disable="isOutOfStock"
+          :disable="!availability.orderable"
           @click="onAddToCart"
         />
       </q-card-actions>
@@ -169,6 +171,7 @@ import ProductOffers from 'src/components/ProductOffers.vue';
 import { useCartStore } from 'src/stores/cart';
 import { useCurrencyStore } from 'src/stores/currency';
 import { useDepartureStore } from 'src/stores/departure';
+import { productAvailability } from 'src/utils/availability';
 import { getProductRouteByIdAndName, slugifyProductName } from 'src/utils/productRoute';
 
 type ProductPublic = components['schemas']['ProductPublic'];
@@ -191,15 +194,9 @@ const shippingModes = ref<ShippingModePricePublic[]>([]);
 const selectedModeKey = ref<string | null>(null);
 const offers = ref<ProductOffersResponse | null>(null);
 
-const isOutOfStock = computed(() => {
-  if (!product.value) return true;
-  return parseFloat(product.value.supplier_quantity) <= 0;
-});
-
-const stockQuantity = computed(() => {
-  if (!product.value) return 0;
-  return Math.max(0, Math.round(parseFloat(product.value.supplier_quantity)));
-});
+const availability = computed(() =>
+  productAvailability(product.value ?? { supplier_quantity: 0 }),
+);
 
 const selectedMode = computed(
   () => shippingModes.value.find((m) => m.service_level === selectedModeKey.value) ?? null,

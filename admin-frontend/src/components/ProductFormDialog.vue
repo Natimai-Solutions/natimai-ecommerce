@@ -98,6 +98,15 @@
             bottom-slots
           />
 
+          <div class="text-subtitle2 q-mt-sm q-mb-xs">Disponibilité</div>
+          <q-option-group
+            v-model="form.availability_mode"
+            :options="availabilityModeOptions"
+            inline
+            dense
+          />
+          <div class="text-caption text-grey-7 q-mb-sm">{{ availabilityModeHint }}</div>
+
           <div class="text-subtitle2 q-mt-sm q-mb-xs">Prix &amp; taxes</div>
           <q-option-group
             v-model="form.pricing_mode"
@@ -301,6 +310,7 @@ const emit = defineEmits<{
 const store = useProductsStore();
 
 type PricingMode = 'import' | 'domestic' | 'fixed';
+type AvailabilityMode = 'stock' | 'on_demand' | 'continuous';
 
 interface FormState {
   name: string;
@@ -310,6 +320,7 @@ interface FormState {
   supplier_sku: string;
   supplier_quantity: string;
   pricing_mode: PricingMode;
+  availability_mode: AvailabilityMode;
   margin_rate_pct: string;
   cost_amount: string;
   cost_currency: string;
@@ -349,6 +360,7 @@ function emptyForm(): FormState {
     supplier_sku: '',
     supplier_quantity: '0',
     pricing_mode: 'import',
+    availability_mode: 'stock',
     margin_rate_pct: '',
     cost_amount: '0.00',
     cost_currency: 'XPF',
@@ -399,6 +411,19 @@ const PRICING_MODE_HINTS: Record<PricingMode, string> = {
 };
 const pricingModeHint = computed(() => PRICING_MODE_HINTS[form.pricing_mode]);
 
+const availabilityModeOptions: { label: string; value: AvailabilityMode }[] = [
+  { label: 'Selon le stock', value: 'stock' },
+  { label: 'Sur commande', value: 'on_demand' },
+  { label: 'Toujours commandable', value: 'continuous' },
+];
+const AVAILABILITY_MODE_HINTS: Record<AvailabilityMode, string> = {
+  stock: 'Commandable seulement si le stock (local + fournisseur) couvre la quantité ; réservé au checkout.',
+  on_demand:
+    'Précommande : commandable tant que le fournisseur affiche du stock, sans réservation — acheté à la clôture du départ groupé.',
+  continuous: 'Toujours commandable, même sans stock connu ; expédié avec le prochain départ groupé.',
+};
+const availabilityModeHint = computed(() => AVAILABILITY_MODE_HINTS[form.availability_mode]);
+
 /**
  * Choosing a supplier pre-fills what the supplier decides: its origin
  * warehouse (first logistics leg) and its customs regime (pricing mode).
@@ -428,6 +453,7 @@ const FIELD_LABELS: Record<string, string> = {
   supplier_sku: 'Référence fournisseur',
   supplier_quantity: 'Stock fournisseur',
   pricing_mode: 'Mode de prix',
+  availability_mode: 'Disponibilité',
   margin_rate_pct: 'Marge',
   cost_amount: 'Coût',
   cost_currency: 'Devise du coût',
@@ -490,6 +516,9 @@ function loadFromProduct(p: ProductPublic | null) {
     base.supplier_quantity = str(rec.supplier_quantity) || '0';
     const mode = str(rec.pricing_mode);
     base.pricing_mode = mode === 'domestic' || mode === 'fixed' ? mode : 'import';
+    const availability = str(rec.availability_mode);
+    base.availability_mode =
+      availability === 'on_demand' || availability === 'continuous' ? availability : 'stock';
     base.margin_rate_pct = str(rec.margin_rate_pct);
     base.cost_amount = str(rec.cost_amount) || '0.00';
     base.cost_currency = str(rec.cost_currency) || 'XPF';

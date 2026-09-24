@@ -79,7 +79,11 @@ from app.features.payment.services.payment_initiation import (
 )
 from app.features.place.crud import crud_place
 from app.features.place.models import Place
-from app.features.product.models.product import Product
+from app.features.product.models.product import (
+    BACKORDER_MODES,
+    AvailabilityMode,
+    Product,
+)
 from app.features.product.services.pricing import (
     calculate_sale_price,
     product_applies_customs,
@@ -179,12 +183,17 @@ def _plan_checkout_fulfillment_segments(
     supplier_segment: FulfillmentSegment = FulfillmentSegment.VIA_MAIN_WAREHOUSE,
     local_place_id: uuid.UUID | None = None,
     supplier_place_id: uuid.UUID | None = None,
+    backorder: bool = False,
 ) -> list[FulfillmentAllocation]:
-    """Split a line between local stock and the supplier (``supplier_segment``)."""
+    """Split a line between local stock and the supplier (``supplier_segment``).
+
+    ``backorder`` (pre-order modes): the supplier segment takes whatever the
+    local stock does not cover, even beyond the supplier's known quantity.
+    """
     requested_quantity = Decimal(quantity)
     total_available = local_available + supplier_available
 
-    if total_available < requested_quantity:
+    if total_available < requested_quantity and not backorder:
         raise AppError(
             code="cart.stock.insufficient",
             status_code=409,
@@ -1170,6 +1179,22 @@ async def _reserve_stock_for_checkout(
     )
     supplier_available = product.supplier_quantity if has_supplier else Decimal("0.00")
 
+    # Pre-order modes (« sur commande » / continu): the line is accepted beyond
+    # the known stock and nothing is reserved at the supplier — the goods are
+    # bought when the grouped departure closes. ``on_demand`` still needs the
+    # supplier to show stock at the last refresh (spec: orderable while > 0).
+    mode = AvailabilityMode(
+        getattr(product, "availability_mode", None) or AvailabilityMode.STOCK
+    ).value
+    backorder = mode in BACKORDER_MODES
+    if mode == AvailabilityMode.ON_DEMAND and supplier_available <= 0:
+        raise AppError(
+            code="cart.stock.unavailable",
+            status_code=409,
+            message=f"Product {product.id} is not available from the supplier",
+            details={"product_id": str(product.id), "availability_mode": mode},
+        )
+
     supplier_place_id = getattr(product, "supplier_place_id", None)
     supplier_place = (
         await session.get(Place, supplier_place_id)
@@ -1185,6 +1210,7 @@ async def _reserve_stock_for_checkout(
         supplier_segment=_supplier_segment_for_origin(supplier_place),
         local_place_id=inventory.place_id if inventory is not None else None,
         supplier_place_id=supplier_place_id,
+        backorder=backorder,
     )
 
     for segment in segments:
@@ -1226,6 +1252,11 @@ async def _reserve_stock_for_checkout(
                 ),
                 user=current_user,
             )
+            continue
+
+        if backorder:
+            # No reservation: the supplier quantity is a snapshot the sync
+            # overwrites, and a release would only inflate it.
             continue
 
         product.supplier_quantity -= segment.quantity

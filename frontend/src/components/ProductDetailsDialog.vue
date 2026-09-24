@@ -57,10 +57,12 @@
             Prix sur devis
           </div>
 
-          <div class="text-body2 q-mt-sm" :class="isOutOfStock ? 'text-grey-6' : 'text-positive'">
+          <div
+            class="text-body2 q-mt-sm"
+            :class="availability.orderable ? 'text-positive' : 'text-grey-6'"
+          >
             <q-icon name="inventory_2" size="16px" class="q-mr-xs" />
-            <span v-if="isOutOfStock">Sur commande</span>
-            <span v-else>{{ stockQuantity }} en stock fournisseur</span>
+            <span>{{ availability.label }}</span>
           </div>
 
           <div
@@ -114,7 +116,7 @@
           color="primary"
           icon="add_shopping_cart"
           label="Ajouter au panier"
-          :disable="isOutOfStock"
+          :disable="!availability.orderable"
           @click="emit('add-to-cart', product)"
         />
       </q-card-actions>
@@ -135,6 +137,7 @@ import {
 import ProductOffers from 'src/components/ProductOffers.vue';
 import { getProductRoute } from 'src/utils/productRoute';
 import { useCurrencyStore } from 'src/stores/currency';
+import { productAvailability } from 'src/utils/availability';
 
 type ProductPublic = components['schemas']['ProductPublic'];
 
@@ -186,11 +189,7 @@ const selectedMode = computed(
 
 const placeholderImg = '/icons/placeholder-product.svg';
 
-const isOutOfStock = computed(() => parseFloat(props.product.supplier_quantity) <= 0);
-
-const stockQuantity = computed(() =>
-  Math.max(0, Math.round(parseFloat(props.product.supplier_quantity))),
-);
+const availability = computed(() => productAvailability(props.product));
 
 const displayPrice = computed(() => {
   if (selectedMode.value) {

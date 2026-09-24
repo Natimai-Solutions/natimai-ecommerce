@@ -6447,6 +6447,8 @@ export interface components {
             shipping_address?: string | null;
             /** Delivery Type */
             delivery_type?: string | null;
+            /** Grouped Departure Id */
+            grouped_departure_id?: string | null;
             /** Notes */
             notes?: string | null;
             /** Lines */
@@ -7335,6 +7337,20 @@ export interface components {
             /** Expires In */
             expires_in: number;
         };
+        /**
+         * AvailabilityMode
+         * @description Whether a product can be ordered beyond the stock known at checkout.
+         *
+         *     * ``stock`` — historical behaviour: local + supplier stock must cover the
+         *       quantity and is reserved at checkout.
+         *     * ``on_demand`` — pre-order (« sur commande ») : orderable as long as the
+         *       supplier shows *some* stock at the last refresh, without reservation;
+         *       bought from the supplier when the grouped departure closes.
+         *     * ``continuous`` — always orderable (consolidated accessories), shipped
+         *       with the next departure; no stock check at all.
+         * @enum {string}
+         */
+        AvailabilityMode: "stock" | "on_demand" | "continuous";
         /**
          * BatchEnrichmentRequest
          * @description Request model for batch enrichment
@@ -12677,6 +12693,11 @@ export interface components {
              */
             pricing_mode: components["schemas"]["PricingMode"];
             /**
+             * @description stock (must be covered and is reserved), on_demand (pre-order while the supplier shows stock, no reservation) or continuous (always orderable)
+             * @default stock
+             */
+            availability_mode: components["schemas"]["AvailabilityMode"];
+            /**
              * Margin Rate Pct
              * @description Margin override for this product. None → Category.default_margin_rate_pct → PriceGroup.margin_rate_pct.
              */
@@ -13020,6 +13041,11 @@ export interface components {
              */
             pricing_mode: components["schemas"]["PricingMode"];
             /**
+             * @description stock (must be covered and is reserved), on_demand (pre-order while the supplier shows stock, no reservation) or continuous (always orderable)
+             * @default stock
+             */
+            availability_mode: components["schemas"]["AvailabilityMode"];
+            /**
              * Margin Rate Pct
              * @description Margin override for this product. None → Category.default_margin_rate_pct → PriceGroup.margin_rate_pct.
              */
@@ -13336,6 +13362,7 @@ export interface components {
             /** Base Price */
             base_price?: number | string | null;
             pricing_mode?: components["schemas"]["PricingMode"] | null;
+            availability_mode?: components["schemas"]["AvailabilityMode"] | null;
             /** Margin Rate Pct */
             margin_rate_pct?: number | string | null;
             /** Cost Amount */

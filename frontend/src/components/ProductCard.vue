@@ -14,8 +14,8 @@
       <div v-if="product.is_featured" class="absolute-top-left q-pa-xs">
         <q-badge color="primary" label="Coup de cœur" />
       </div>
-      <div v-if="isOutOfStock" class="absolute-top-right q-pa-xs">
-        <q-badge color="grey-6" label="Sur commande" />
+      <div v-if="availability.preorder || !availability.orderable" class="absolute-top-right q-pa-xs">
+        <q-badge color="grey-6" :label="availability.label" />
       </div>
       <div v-if="offersCount > 1" class="absolute-bottom-right q-pa-xs">
         <q-badge color="teal" :label="`${offersCount} offres`">
@@ -43,10 +43,12 @@
       <div v-if="product.base_price === '0.00'" class="text-caption text-grey-6">
         Prix sur devis
       </div>
-      <div class="text-caption q-mt-xs" :class="isOutOfStock ? 'text-grey-6' : 'text-positive'">
+      <div
+        class="text-caption q-mt-xs"
+        :class="availability.orderable ? 'text-positive' : 'text-grey-6'"
+      >
         <q-icon name="inventory_2" size="14px" class="q-mr-xs" />
-        <span v-if="isOutOfStock">Sur commande</span>
-        <span v-else>{{ stockQuantity }} en stock</span>
+        <span>{{ availability.label }}</span>
       </div>
       <div v-if="departureStore.deliveryLabel" class="text-caption text-grey-7">
         {{ departureStore.deliveryLabel }}
@@ -79,7 +81,7 @@
         icon="add_shopping_cart"
         label="Ajouter"
         size="sm"
-        :disable="isOutOfStock"
+        :disable="!availability.orderable"
         @click="emit('add-to-cart', product)"
       />
     </q-card-actions>
@@ -99,6 +101,7 @@ import ProductDetailsDialog from 'src/components/ProductDetailsDialog.vue';
 import { getProductRoute } from 'src/utils/productRoute';
 import { useCurrencyStore } from 'src/stores/currency';
 import { useDepartureStore } from 'src/stores/departure';
+import { productAvailability } from 'src/utils/availability';
 
 // `offers_count` is served by the backend (search grouping of the same item
 // sold by several suppliers) but the generated schema may lag — read it loosely.
@@ -114,11 +117,7 @@ const placeholderImg = '/icons/placeholder-product.svg';
 const showDetails = ref(false);
 const productRoute = computed(() => getProductRoute(props.product));
 
-const isOutOfStock = computed(() => parseFloat(props.product.supplier_quantity) <= 0);
-
-const stockQuantity = computed(() =>
-  Math.max(0, Math.round(parseFloat(props.product.supplier_quantity))),
-);
+const availability = computed(() => productAvailability(props.product));
 
 const displayPrice = computed(() => {
   const price = parseFloat(props.product.base_price);

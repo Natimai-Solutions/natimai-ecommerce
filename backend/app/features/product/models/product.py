@@ -41,6 +41,29 @@ class PricingMode(str, Enum):
     FIXED = "fixed"
 
 
+class AvailabilityMode(str, Enum):
+    """Whether a product can be ordered beyond the stock known at checkout.
+
+    * ``stock`` — historical behaviour: local + supplier stock must cover the
+      quantity and is reserved at checkout.
+    * ``on_demand`` — pre-order (« sur commande ») : orderable as long as the
+      supplier shows *some* stock at the last refresh, without reservation;
+      bought from the supplier when the grouped departure closes.
+    * ``continuous`` — always orderable (consolidated accessories), shipped
+      with the next departure; no stock check at all.
+    """
+
+    STOCK = "stock"
+    ON_DEMAND = "on_demand"
+    CONTINUOUS = "continuous"
+
+
+# Modes that accept an order the known stock does not cover.
+BACKORDER_MODES: frozenset[str] = frozenset(
+    {AvailabilityMode.ON_DEMAND.value, AvailabilityMode.CONTINUOUS.value}
+)
+
+
 class ProductBase(Base):
     """Represents product base."""
 
@@ -85,6 +108,25 @@ class ProductBase(Base):
         description=(
             "import (CAF + customs), domestic (cost + margin + tax, no customs "
             "nor import freight) or fixed (base_price is the TTC price)"
+        ),
+    )
+    availability_mode: AvailabilityMode = Field(
+        default=AvailabilityMode.STOCK,
+        sa_column=Column(
+            SAEnum(
+                AvailabilityMode,
+                values_callable=lambda enum: [m.value for m in enum],
+                native_enum=False,
+                length=20,
+            ),
+            nullable=False,
+            server_default=AvailabilityMode.STOCK.value,
+            index=True,
+        ),
+        description=(
+            "stock (must be covered and is reserved), on_demand (pre-order while "
+            "the supplier shows stock, no reservation) or continuous (always "
+            "orderable)"
         ),
     )
     margin_rate_pct: Decimal | None = Field(
@@ -347,6 +389,7 @@ class ProductUpdate(ProductBase, BaseUpdate):
     description: str | None = None
     base_price: Decimal | None = None
     pricing_mode: PricingMode | None = None
+    availability_mode: AvailabilityMode | None = None
     margin_rate_pct: Decimal | None = None
     cost_amount: Decimal | None = None
     cost_currency: str | None = None
