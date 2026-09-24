@@ -78,6 +78,7 @@ const nav: NavSection[] = [
     label: 'Commandes',
     links: [
       { label: 'Commandes clients', icon: 'receipt_long', to: '/orders' },
+      { label: 'Départs groupés', icon: 'event_available', to: '/grouped-departures' },
       { label: 'Factures', icon: 'request_quote', to: '/invoices' },
       { label: 'Demandes de devis', icon: 'request_page', to: '/quote-requests' },
       { label: 'Logistique', icon: 'inventory_2', to: '/shipping' },

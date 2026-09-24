@@ -83,6 +83,13 @@
             <span v-if="isOutOfStock">Sur commande</span>
             <span v-else>{{ stockQuantity }} en stock fournisseur</span>
           </div>
+          <div v-if="departureStore.next" class="text-body2 text-grey-8" data-testid="product-departure">
+            <q-icon name="event_available" size="16px" class="q-mr-xs" />
+            Départ groupé « {{ departureStore.next.name }} » — {{ departureStore.cutoffLabel
+            }}<template v-if="departureStore.deliveryLabel">
+              · {{ departureStore.deliveryLabel }}</template
+            >
+          </div>
 
           <div
             v-if="safeDescription"
@@ -161,6 +168,7 @@ import {
 import ProductOffers from 'src/components/ProductOffers.vue';
 import { useCartStore } from 'src/stores/cart';
 import { useCurrencyStore } from 'src/stores/currency';
+import { useDepartureStore } from 'src/stores/departure';
 import { getProductRouteByIdAndName, slugifyProductName } from 'src/utils/productRoute';
 
 type ProductPublic = components['schemas']['ProductPublic'];
@@ -170,6 +178,7 @@ const route = useRoute();
 const router = useRouter();
 const cartStore = useCartStore();
 const currencyStore = useCurrencyStore();
+const departureStore = useDepartureStore();
 
 const placeholderImg = '/icons/placeholder-product.svg';
 const product = ref<ProductPublic | null>(null);

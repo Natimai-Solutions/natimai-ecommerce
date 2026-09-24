@@ -4,6 +4,9 @@ from app.api.routes.address import router as address_router
 from app.api.routes.admin_categories import router as admin_categories_router
 from app.api.routes.admin_credit_notes import router as admin_credit_notes_router
 from app.api.routes.admin_currency_rates import router as admin_currency_rates_router
+from app.api.routes.admin_grouped_departures import (
+    router as admin_grouped_departures_router,
+)
 from app.api.routes.admin_inventory import router as admin_inventory_router
 from app.api.routes.admin_invoices import router as admin_invoices_router
 from app.api.routes.admin_orders import router as admin_orders_router
@@ -35,6 +38,7 @@ from app.api.routes.discount import router as discount_router
 from app.api.routes.group import router as group_router
 from app.api.routes.group_security import router as group_security_router
 from app.api.routes.group_upgrade import router as group_upgrade_router
+from app.api.routes.grouped_departures import router as grouped_departures_router
 from app.api.routes.health import router as health_router
 from app.api.routes.icecat import router as icecat_router
 from app.api.routes.internal_storage import router as internal_storage_router
@@ -88,6 +92,7 @@ api_router.include_router(payments_router)
 api_router.include_router(admin_payments_router)
 api_router.include_router(admin_quote_requests_router)
 api_router.include_router(admin_orders_router)
+api_router.include_router(admin_grouped_departures_router)
 api_router.include_router(admin_invoices_router)
 api_router.include_router(admin_credit_notes_router)
 api_router.include_router(admin_shipping_router)
@@ -130,6 +135,7 @@ api_router.include_router(user_preferences_router)
 api_router.include_router(group_upgrade_router)
 api_router.include_router(system_settings_router)
 api_router.include_router(currency_router)
+api_router.include_router(grouped_departures_router)
 api_router.include_router(utils_router, prefix="/utils")
 api_router.include_router(webhooks_router)
 api_router.include_router(health_router)

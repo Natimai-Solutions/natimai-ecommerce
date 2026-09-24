@@ -101,6 +101,7 @@
     </q-drawer>
 
     <q-page-container>
+      <NextDepartureBanner />
       <router-view />
     </q-page-container>
 
@@ -129,11 +130,14 @@ import { useRouter } from 'vue-router';
 import { useCartStore } from 'src/stores/cart';
 import { useAuthStore } from 'src/stores/auth';
 import { useCurrencyStore } from 'src/stores/currency';
+import { useDepartureStore } from 'src/stores/departure';
+import NextDepartureBanner from 'src/components/NextDepartureBanner.vue';
 
 const drawerOpen = ref(false);
 const cartStore = useCartStore();
 const authStore = useAuthStore();
 const currencyStore = useCurrencyStore();
+const departureStore = useDepartureStore();
 const router = useRouter();
 const cartCount = computed(() => cartStore.totalItems);
 const currentYear = new Date().getFullYear();
@@ -154,6 +158,7 @@ function onLogout() {
 onMounted(() => {
   void cartStore.loadCart();
   void currencyStore.loadRates();
+  void departureStore.load();
 });
 </script>
 

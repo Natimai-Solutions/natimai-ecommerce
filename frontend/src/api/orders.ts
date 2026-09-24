@@ -17,6 +17,8 @@ export interface Order {
   shipping_address: string | null;
   /** Last-leg delivery mode chosen at checkout: pickup | home_delivery | air_freight. */
   delivery_type: string | null;
+  /** Grouped departure the order is attached to (null = classic order). */
+  grouped_departure_id: string | null;
   notes: string | null;
   created_at: string | null;
 }

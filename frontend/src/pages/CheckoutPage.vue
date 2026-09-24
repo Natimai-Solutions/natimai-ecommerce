@@ -80,6 +80,17 @@
                     formatMoney(quote.total_amount)
                   }}</span>
                 </div>
+                <div
+                  v-if="departureStore.next"
+                  class="text-caption text-grey-8 q-mt-sm"
+                  data-testid="checkout-departure"
+                >
+                  <q-icon name="event_available" size="14px" class="q-mr-xs" />
+                  Votre commande rejoint le départ groupé « {{ departureStore.next.name }} »
+                  <template v-if="departureStore.deliveryLabel">
+                    — {{ departureStore.deliveryLabel.toLowerCase() }}</template
+                  >
+                </div>
               </template>
               <template v-else>
                 <div class="row justify-between text-weight-bold">
@@ -147,6 +158,12 @@
                       class="text-weight-medium q-mt-xs"
                     >
                       Commande {{ placedOrderRef }}
+                    </div>
+                    <div v-if="placedDeparture" class="text-caption q-mt-xs">
+                      Rattachée au départ groupé « {{ placedDeparture.name }} »
+                      <template v-if="departureStore.deliveryLabel">
+                        — {{ departureStore.deliveryLabel.toLowerCase() }}</template
+                      >
                     </div>
                   </q-banner>
                   <div class="text-body2 q-mb-md" style="white-space: pre-line">
@@ -381,6 +398,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { countryLabel, formatXpf, orderRef } from '@app/utils';
 import { useCartStore } from 'src/stores/cart';
 import { useAuthStore } from 'src/stores/auth';
+import { useDepartureStore } from 'src/stores/departure';
 import {
   confirmDocumentUploaded,
   issueDocumentUploadUrl,
@@ -401,6 +419,7 @@ const PENDING_PAYMENT_KEY = 'payzen.pending_payment_id';
 
 const cartStore = useCartStore();
 const authStore = useAuthStore();
+const departureStore = useDepartureStore();
 
 const loadingMethods = ref(true);
 const methods = ref<PaymentMethod[]>([]);
@@ -414,6 +433,14 @@ const instructions = ref<string | null>(null);
 // Reference of the order just created, shown on the confirmation so the
 // customer can quote it before the email arrives (M5).
 const placedOrderRef = ref<string | null>(null);
+// Departure the order was attached to (the checkout returns its id; the
+// store already holds the open one, so no extra request).
+const placedDeparture = computed(() =>
+  placedDepartureId.value && departureStore.next?.id === placedDepartureId.value
+    ? departureStore.next
+    : null,
+);
+const placedDepartureId = ref<string | null>(null);
 const errorMessage = ref<string | null>(null);
 // Payment is tied to a user account (POST /payments/initiate requires auth).
 const isAuthenticated = computed(() => authStore.isAuthenticated);
@@ -667,6 +694,7 @@ async function startPayment() {
     });
     orderPlaced.value = true;
     placedOrderRef.value = orderRef(checkout.order_number, checkout.order_id);
+    placedDepartureId.value = checkout.grouped_departure_id ?? null;
 
     // 3. Clear the local cart now that the order exists.
     cartStore.clearCart();

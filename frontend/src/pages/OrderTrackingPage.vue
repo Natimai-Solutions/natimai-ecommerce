@@ -46,6 +46,21 @@
       </q-card>
 
       <!-- Cost recap (subtotal / last-leg delivery / total) -->
+      <q-card v-if="departure" flat bordered class="q-mb-md bg-blue-1" data-testid="order-departure">
+        <q-card-section>
+          <div class="text-subtitle1 text-weight-medium">
+            <q-icon name="event_available" class="q-mr-xs" />
+            Départ groupé « {{ departure.name }} » — {{ departureStatusLabel(departure.status) }}
+          </div>
+          <div class="text-body2 q-mt-xs">
+            Clôture des commandes le {{ formatDate(departure.order_cutoff_at) }}
+            <template v-if="departure.estimated_delivery_at">
+              · Livraison estimée le {{ formatDate(departure.estimated_delivery_at) }}
+            </template>
+          </div>
+        </q-card-section>
+      </q-card>
+
       <q-card v-if="order" flat bordered class="q-mb-md">
         <q-card-section>
           <div class="text-subtitle1 text-weight-medium q-mb-sm">Récapitulatif</div>
@@ -173,7 +188,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { formatXpf } from '@app/utils';
+import { departureStatusLabel, formatXpf } from '@app/utils';
 import { useAuthStore } from 'src/stores/auth';
 import {
   getMyOrder,
@@ -182,6 +197,7 @@ import {
   type OrderTracking,
   type OrderTrackingSegment,
 } from 'src/api/orders';
+import { getDeparture, type Departure } from 'src/api/departures';
 
 const route = useRoute();
 const router = useRouter();
@@ -194,6 +210,8 @@ const loading = ref(true);
 const errorMessage = ref<string | null>(null);
 const tracking = ref<OrderTracking | null>(null);
 const order = ref<Order | null>(null);
+// Grouped departure the order is attached to (best-effort, like the order).
+const departure = ref<Departure | null>(null);
 
 const DELIVERY_LABELS: Record<string, string> = {
   pickup: 'Retrait en magasin',
@@ -346,6 +364,8 @@ async function load() {
     }
     if (orderResult.status === 'fulfilled') {
       order.value = orderResult.value;
+      const departureId = orderResult.value?.grouped_departure_id;
+      departure.value = departureId ? await getDeparture(departureId).catch(() => null) : null;
     }
   } catch (err) {
     errorMessage.value = extractError(err) ?? 'Impossible de charger le suivi de cette commande.';

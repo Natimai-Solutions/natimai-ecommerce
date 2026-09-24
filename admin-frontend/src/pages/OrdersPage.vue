@@ -1,7 +1,19 @@
 <template>
   <q-page padding>
-    <div class="row items-center q-mb-md">
+    <div class="row items-center q-mb-md q-gutter-sm">
       <div class="text-h6 col">Commandes clients</div>
+      <q-select
+        v-model="departureFilter"
+        :options="departureOptions"
+        label="Départ groupé"
+        dense
+        outlined
+        emit-value
+        map-options
+        clearable
+        style="min-width: 240px"
+        @update:model-value="load"
+      />
       <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
     </div>
 
@@ -28,7 +40,9 @@
     >
       <template #body-cell-order="props">
         <q-td :props="props">
-          <span :title="props.row.order_id">#{{ props.row.order_id.slice(0, 8) }}</span>
+          <span :title="props.row.order_id">{{
+            props.row.order_number ?? `#${props.row.order_id.slice(0, 8)}`
+          }}</span>
         </q-td>
       </template>
       <template #body-cell-client="props">
@@ -75,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import { formatXpf } from '@app/utils';
 import {
@@ -85,8 +99,19 @@ import {
   type AdminOrderListItem,
 } from 'src/api/orders';
 import { extractApiError } from 'src/api/errors';
+import { listDepartures, type Departure } from 'src/api/departures';
 
 const rows = ref<AdminOrderListItem[]>([]);
+// null = all orders, 'none' = orders without a departure, otherwise a departure id.
+const departureFilter = ref<string | null>(null);
+const departures = ref<Departure[]>([]);
+const departureOptions = computed(() => [
+  { label: 'Sans départ groupé', value: 'none' },
+  ...departures.value.map((d) => ({
+    label: `${d.name} (${formatDate(d.order_cutoff_at)})`,
+    value: d.id,
+  })),
+]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
@@ -121,7 +146,13 @@ async function load() {
   loading.value = true;
   error.value = null;
   try {
-    rows.value = await listOrders();
+    const filter = departureFilter.value;
+    rows.value = await listOrders(
+      filter === 'none' ? { unassigned: true } : { departure_id: filter },
+    );
+    if (departures.value.length === 0) {
+      departures.value = await listDepartures().catch(() => []);
+    }
   } catch (err) {
     error.value = extractApiError(err) ?? 'Chargement impossible.';
   } finally {

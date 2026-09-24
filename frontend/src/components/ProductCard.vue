@@ -48,6 +48,9 @@
         <span v-if="isOutOfStock">Sur commande</span>
         <span v-else>{{ stockQuantity }} en stock</span>
       </div>
+      <div v-if="departureStore.deliveryLabel" class="text-caption text-grey-7">
+        {{ departureStore.deliveryLabel }}
+      </div>
     </q-card-section>
 
     <q-separator />
@@ -95,6 +98,7 @@ import type { components } from '@app/api-types';
 import ProductDetailsDialog from 'src/components/ProductDetailsDialog.vue';
 import { getProductRoute } from 'src/utils/productRoute';
 import { useCurrencyStore } from 'src/stores/currency';
+import { useDepartureStore } from 'src/stores/departure';
 
 // `offers_count` is served by the backend (search grouping of the same item
 // sold by several suppliers) but the generated schema may lag — read it loosely.
@@ -105,6 +109,7 @@ const offersCount = computed(() => props.product.offers_count ?? 1);
 const emit = defineEmits<{ 'add-to-cart': [product: ProductPublic] }>();
 
 const currencyStore = useCurrencyStore();
+const departureStore = useDepartureStore();
 const placeholderImg = '/icons/placeholder-product.svg';
 const showDetails = ref(false);
 const productRoute = computed(() => getProductRoute(props.product));

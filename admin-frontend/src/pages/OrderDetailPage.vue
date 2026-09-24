@@ -52,6 +52,21 @@
                   <q-item-section>Notes</q-item-section>
                   <q-item-section side class="text-right">{{ order.notes }}</q-item-section>
                 </q-item>
+                <q-item class="q-px-none">
+                  <q-item-section>Départ groupé</q-item-section>
+                  <q-item-section side style="min-width: 260px">
+                    <q-select
+                      :model-value="order.grouped_departure_id"
+                      :options="departureOptions"
+                      dense
+                      outlined
+                      emit-value
+                      map-options
+                      :loading="departureSaving"
+                      @update:model-value="setDeparture"
+                    />
+                  </q-item-section>
+                </q-item>
               </q-list>
             </q-card-section>
           </q-card>
@@ -397,11 +412,37 @@ import {
   type JourneyLeg,
 } from 'src/api/shipping';
 import { extractApiError } from 'src/api/errors';
+import { assignOrders, listDepartures, type Departure } from 'src/api/departures';
 
 const route = useRoute();
 const orderId = computed(() => String(route.params.id ?? ''));
 
 const order = ref<AdminOrderDetail | null>(null);
+
+// --- Grouped departure (attach / move / detach from the order itself) ---
+const departures = ref<Departure[]>([]);
+const departureSaving = ref(false);
+const departureOptions = computed(() => [
+  { label: '— Aucun (commande classique)', value: null },
+  ...departures.value.map((d) => ({
+    label: `${d.name} (${formatDate(d.order_cutoff_at)})`,
+    value: d.id,
+  })),
+]);
+
+async function setDeparture(departureId: string | null) {
+  if (!order.value) return;
+  departureSaving.value = true;
+  error.value = null;
+  try {
+    await assignOrders([order.value.order_id], departureId);
+    order.value.grouped_departure_id = departureId;
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Rattachement impossible.';
+  } finally {
+    departureSaving.value = false;
+  }
+}
 const loading = ref(false);
 const error = ref<string | null>(null);
 
@@ -438,6 +479,7 @@ async function load() {
   error.value = null;
   try {
     order.value = await getOrder(orderId.value);
+    departures.value = await listDepartures().catch(() => []);
   } catch (err) {
     error.value = extractApiError(err) ?? 'Chargement impossible.';
   } finally {

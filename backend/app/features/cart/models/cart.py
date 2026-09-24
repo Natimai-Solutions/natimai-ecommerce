@@ -306,6 +306,9 @@ class CheckoutResponse(SQLModel):
     # allouée au checkout (allocate_order_number) ; ne pas la renvoyer obligeait
     # le front à refaire un appel pour afficher le numéro de la commande.
     order_number: str | None = None
+    # Départ groupé de rattachement (None hors départ) : la confirmation
+    # affiche la date de clôture / livraison estimée sans second appel.
+    grouped_departure_id: uuid.UUID | None = None
     payment_id: uuid.UUID
     cart_id: uuid.UUID
     subtotal_amount: Decimal

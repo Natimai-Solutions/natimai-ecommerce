@@ -102,6 +102,15 @@ class OrderBase(Base):
         max_length=50,
         description="Mode de livraison du dernier tronçon choisi au checkout",
     )
+    # Départ groupé (vague) auquel la commande est rattachée : posé au checkout
+    # sur le départ ouvert le plus proche, déplaçable par l'admin. Null = hors
+    # départ (boutique classique).
+    grouped_departure_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="grouped_departures.id",
+        index=True,
+        description="Départ groupé de rattachement",
+    )
     # Preuve d'acceptation des CGV. La case cochée dans le front n'engage rien :
     # sans trace serveur, l'acceptation n'est pas opposable et un appel direct
     # à l'API la contourne. Horodatage + version des CGV figés au checkout.
@@ -137,6 +146,7 @@ class OrderUpdate(BaseUpdate):
     shipping_cost_breakdown: dict[str, Any] | None = None
     notes: str | None = None
     delivery_type: str | None = None
+    grouped_departure_id: uuid.UUID | None = None
     # cgv_accepted_at / cgv_version sont volontairement absents : la preuve
     # d'acceptation est figée au checkout et ne doit pas être modifiable via
     # la route de mise à jour générique.

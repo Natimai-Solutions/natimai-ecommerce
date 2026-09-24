@@ -152,6 +152,12 @@ async def test_checkout_freezes_subtotal_and_fees_into_order_and_payment(
         "app.api.routes.cart.resolve_default_price_group",
         AsyncMock(return_value=None),
     )
+    # Same for the grouped-departure attachment (real queries live in
+    # tests/integration/test_grouped_departures.py).
+    monkeypatch.setattr(
+        "app.api.routes.cart.crud_grouped_departure.get_next_open",
+        AsyncMock(return_value=None),
+    )
 
     # The payment fee is a property of the PaymentMethod, read server-side.
     # The value below is what the *method* costs; the payload deliberately
@@ -288,6 +294,12 @@ async def test_checkout_calculates_shipping_from_selected_routes(
     monkeypatch.setattr(crud_payment, "create_draft", create_payment_mock)
     monkeypatch.setattr(
         "app.api.routes.cart.resolve_default_price_group",
+        AsyncMock(return_value=None),
+    )
+    # Same for the grouped-departure attachment (real queries live in
+    # tests/integration/test_grouped_departures.py).
+    monkeypatch.setattr(
+        "app.api.routes.cart.crud_grouped_departure.get_next_open",
         AsyncMock(return_value=None),
     )
 

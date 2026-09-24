@@ -41,6 +41,7 @@ from app.features.cart.models.quote_request import (
     QuoteRequestStatus,
     QuoteRequestSubmit,
 )
+from app.features.departure.crud import crud_grouped_departure
 from app.features.integrations.services.checkout_availability import (
     refresh_supplier_availability,
 )
@@ -2368,6 +2369,8 @@ async def checkout_my_cart(
 
     try:
         price_group = await resolve_default_price_group(session)
+        # Départ groupé ouvert le plus proche (None = boutique classique).
+        departure = await crud_grouped_departure.get_next_open(session)
 
         order_status = await _get_or_create_order_pending_status(session)
         # Human-readable reference allocated up-front (server-side only — the
@@ -2388,6 +2391,7 @@ async def checkout_my_cart(
                 shipping_cost_breakdown=shipping_cost_breakdown_payload,
                 notes=payload.notes,
                 delivery_type=payload.delivery_type,
+                grouped_departure_id=departure.id if departure else None,
                 cgv_accepted_at=cgv_accepted_at,
                 cgv_version=settings.CGV_VERSION,
             ),
@@ -2596,6 +2600,8 @@ async def checkout_my_cart(
         return CheckoutResponse(
             order_id=order.id,
             order_number=order.order_number,
+            # getattr: the mocked checkouts of the unit suite build a bare order.
+            grouped_departure_id=getattr(order, "grouped_departure_id", None),
             payment_id=payment.id,
             cart_id=cart.id,
             subtotal_amount=subtotal_amount,
