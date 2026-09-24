@@ -562,6 +562,120 @@ Job ARQ `reproject_product_specs(category_id=None)` qui re-applique le YAML sur 
 
 ---
 
+## Décision transverse : précommande, départs groupés et acompte (24/09/2026)
+
+**Contexte.** Le document « Spécifications site : précommande et commande groupée » (24/09/2026) décrit un modèle « vendre avant d'acheter » : paiement à la commande, regroupement des commandes par vague (date de clôture → une commande fournisseur → un groupage → une livraison), aucun stock spéculatif. Il liste 12 points bloquants pour la première vague et 10 points souhaitables. Le propriétaire a demandé (1) un état des lieux fonction par fonction, (2) la faisabilité d'un **acompte à la commande** (50 % / 30 % selon le type de client, frais optionnels), (3) une **date de prochaine livraison affichée en vitrine** servant à regrouper les commandes, (4) des **rappels automatiques sur les réseaux sociaux** avant un départ, le tout **regroupé au maximum** pour rester simple à administrer.
+
+Tout ce qui suit a été vérifié dans le code (tête = merge de PR #98), pas seulement dans ce document.
+
+### État des lieux — points bloquants de la spec
+
+| # | Point bloquant | État | Constat |
+|---|---|---|---|
+| B1 | Produit vendable à stock 0 (précommande) | ❌ | Le produit à `supplier_quantity = 0` reste visible et affiche « Sur commande », mais la vitrine grise le bouton ([ProductCard.vue](frontend/src/components/ProductCard.vue), [ProductPage.vue](frontend/src/pages/ProductPage.vue)) et le checkout renvoie 409 `cart.stock.insufficient` ([cart.py](backend/app/api/routes/cart.py), `_reserve_stock_for_checkout`). Aucun flag de précommande. |
+| B2 | Quantité fixe qui se décrémente (lot reconditionné) | 🟡 | `Inventory` (produit × lieu), mouvements, réservation au checkout, confirmation au paiement, libération à 48 h ([features/inventory](backend/app/features/inventory), [inventory_tasks.py](backend/app/tasks/inventory_tasks.py)). Mais le checkout ne lit que la ligne `place_id=None` ([inventory_crud.py](backend/app/features/inventory/crud/inventory_crud.py)), pas de notion de lot (grade, garantie, coût du lot), et la vitrine ignore le stock local. |
+| B3 | Prix de vente calculé par règle depuis le coût | ✅ | [pricing.py](backend/app/features/product/services/pricing.py) : 3 modes (`import` CAF → douane → marge → taxe, `domestic`, `fixed`), prix matérialisé `sale_price_cached`, recalcul en masse ([pricing_tasks.py](backend/app/tasks/pricing_tasks.py)) sur changement FX / taxe / marge catégorie / douane, nuit, `POST /admin/refresh-prices`. |
+| B4 | Encaissement à la commande (CB + virement validé) | ✅ | PayZen (capture immédiate ou différée), virement / chèque / bon de commande avec validation admin ([manual_payment.py](backend/app/features/payment/services/manual_payment.py), [document_payment.py](backend/app/features/payment/services/document_payment.py), [admin_payments.py](backend/app/api/routes/admin_payments.py)). |
+| B5 | Commandes regroupables par vague, ou filtrables par date | ❌ | Aucun objet vague / clôture. `GET /admin/orders` n'a aucun filtre ([admin_orders.py](backend/app/api/routes/admin_orders.py) : `skip`/`limit`). Le seul regroupement est logistique, par tronçon (`ShippingRouteTrackingConsolidation`), sans date de clôture. |
+| B6 | Statuts de commande personnalisables | 🟡 | `OrderStatus` est une table (créée à la volée par nom), CRUD générique. Mais aucune machine à états commande, pas d'écran admin, et le backend ne pose que `Pending / AwaitingPayment / Paid / PaymentFailed / PaymentReview / Refunded / PartiallyRefunded` ([handlers/payment.py](backend/app/handlers/payment.py)). `Processing / Shipped / Delivered / Cancelled` n'existent que comme libellés admin. |
+| B7 | E-mail à chaque changement de statut | 🟡 | E-mails sur `order.created`, `payment.captured/rejected/refunded`, `invoice.issued` ([handlers/order.py](backend/app/handlers/order.py)) et `tracking.status_changed` ([handlers/shipping.py](backend/app/handlers/shipping.py)). Rien sur un statut de commande générique. Modèles Jinja statiques ([templates/email/fr](backend/app/templates/email/fr)), non éditables en admin. |
+| B8 | Remboursement total depuis le back-office | ✅ | Total / partiel + avoir automatique ([refund_service.py](backend/app/features/payment/services/refund_service.py), [credit_note.py](backend/app/features/invoice/models/credit_note.py)). ⚠️ PayZen : remboursement `pending`, API `cancelOrRefund` non branchée ni testée en sandbox. |
+| B9 | Export des commandes d'une période agrégé par SKU | ❌ | Aucun export commandes ni agrégation. Seuls exports : factures / avoirs CSV, FEC. |
+| B10 | Ingram : pas de publication de tout le catalogue, n'écrase pas le prix de vente | 🟡 | N'écrit que coût / prix fournisseur / stock ✅. Filtrage par catégorie + allowlist sous-catégories (env, pas d'UI) ; pas de liste blanche de SKU (`SupplierProductMapping.sync_enabled` jamais lu, [supplier_sync_orchestrator.py](backend/app/features/integrations/services/supplier_sync_orchestrator.py)). Un produit enrichi + poids + douane résolue est publié automatiquement, pas de brouillon. |
+| B11 | Import CSV : mapping par fournisseur, pas de doublons | 🟡 | Mapping mémorisé sur `Supplier.column_mapping` ✅, simulation ✅, unicité sur `supplier_product_mappings` ✅ mais pas sur `products` ; lignes rejetées renvoyées dans la réponse HTTP seulement, non journalisées. |
+| B12 | CGV et « Comment ça marche » modifiables | ❌ | Pages Vue codées en dur ([frontend/src/pages/legal](frontend/src/pages/legal)). Pas de page « Comment ça marche », pas de contenu éditable. |
+
+**Bilan : 3 ✅, 5 🟡, 4 ❌.** La spec admet une première vague en mode manuel (tableur, e-mails) si l'encaissement et le calcul du prix rendu sont automatiques — ce sont précisément les deux ✅.
+
+### État des lieux — points souhaitables et ajouts du propriétaire
+
+| Point | État | Constat |
+|---|---|---|
+| Objet « vague » natif | ❌ | Rien ; `ShippingRoute.frequency_days` / `departure_time` existent mais ne sont lus nulle part. Devient l'objet unique « Départ groupé » ci-dessous. |
+| Date de prochaine livraison en vitrine (ajout) | ❌ | Aucune date de départ ni bandeau ; seul `ShippingRoute.eta_days` au checkout. Le mécanisme de clés publiques de [system_settings.py](backend/app/api/routes/system_settings.py) est réutilisable pour l'exposer. |
+| Rappels réseaux sociaux (ajout) | ❌ | Aucune intégration sociale. Briques : webhook Slack-like ([alerting.py](backend/app/core/alerting.py)), provider Slack ([slack_webhook.py](backend/app/features/notification/providers/slack_webhook.py)), crons ARQ. |
+| Acompte + solde, lien de paiement | ❌ | Voir plus bas : faisable, mais trois gardes imposent « montant payé = total ». |
+| Devis PDF depuis le panier (B2B) | 🟡 | `QuoteRequest` + écran admin ✅ ; pas de PDF, de numérotation, ni de conversion en commande. Moyen « Bon de commande » avec pièce jointe ✅. |
+| Changement de statut en masse | ❌ | Seulement `ship-all / advance-all / deliver-all` sur une consolidation logistique. |
+| Remboursement partiel et avoir | ✅ / 🟡 | Partiel ✅, avoir comptable ✅ ; avoir-crédit utilisable sur une prochaine commande ❌. |
+| Réception, pointage par SKU, n° de série | ❌ | Aucun modèle de réception ni numéro de série. |
+| Tableau de bord de marge par vague | ❌ | Tables `analytics_*` sans logique. Base utilisable : snapshots `cost_amount_snapshot`, `fx_rate_used`, `customs_rate_pct_snapshot`, `margin_rate_pct_snapshot` sur `OrderLine`. ⚠️ bug : `margin_rate_pct_snapshot` stocke la marge du groupe, pas celle appliquée produit → catégorie → groupe ([cart.py](backend/app/api/routes/cart.py), snapshot des lignes). |
+| SMS / WhatsApp, « me prévenir », suivi sans compte | ❌ | Rien. |
+| Recalcul des prix en masse | ✅ | Manque un déclencheur sur modification d'une `ShippingRoute` ou d'un `PriceGroup`. |
+
+Autres écarts relevés : commission paiement en % intégrée au prix (aujourd'hui `PaymentMethod.fee` fixe ajouté au panier), marge de sécurité FX, frais fixes par vague répartis, journal des prix, arrondi commercial ; la sync prix/dispo Ingram ignore `overridden_fields` ([supplier_tasks.py](backend/app/tasks/supplier_tasks.py)) contrairement à la sync catalogue ; la fiche commande admin renvoie le statut du dernier paiement à la place de celui de la commande (`status_name` écrasé dans [admin_orders.py](backend/app/api/routes/admin_orders.py)) ; `add_tracking_to_consolidation` ne décrémente pas `total_orders` de l'ancien lot.
+
+### Décision : un objet unique « Départ groupé »
+
+**Principe** : regrouper au maximum. Un seul objet, **`GroupedDeparture`** (= la « vague » de la spec), porte la date affichée en vitrine, le rattachement des commandes, les rappels réseaux sociaux et le statut propagé aux commandes. Un seul écran admin « Départs groupés » (nav Commandes) remplace quatre écrans possibles (vague, filtre commandes, statuts en masse, publications). Aucun réglage dispersé dans « Paramètres ».
+
+| Champ | Rôle |
+|---|---|
+| `name` | « Départ d'octobre » |
+| `order_cutoff_at` | date limite de commande — **la date affichée en vitrine** (« Commandez avant le 15/10 ») |
+| `estimated_delivery_at` | date de remise estimée, mise à jour à chaque changement de statut |
+| `departure_at` (optionnel) | départ physique si différent de la clôture (ancre des rappels « plus que N jours ») |
+| `status` | `draft → open → closed → ordered → in_transit → at_customs → received → distributed` |
+| `is_published` | visible en vitrine ; un seul départ publié et ouvert à la fois (index unique partiel) |
+| `min_amount`, `min_units` | seuil de report (optionnels) |
+| `recurrence_days` | à la clôture, crée automatiquement le départ suivant, publié, rappels recopiés |
+| `notes`, `consolidation_id` | lien vers la `ShippingRouteTrackingConsolidation` existante pour le transport |
+
+- `Order.grouped_departure_id` (FK nullable). `ShippingRoute.frequency_days` / `departure_time` sont remplacés par ce modèle.
+- **Rattachement** : automatique au checkout sur le départ ouvert et publié à la clôture la plus proche (bascule sur le suivant passé la clôture) ; aucun départ ouvert = commande non rattachée, boutique classique inchangée. Manuel : « Rattacher / déplacer vers… » (sélection multiple) depuis la fiche commande et l'écran du départ ; `GET /admin/orders?departure_id&from&to` pour filtrer par départ **ou** par dates si l'admin préfère rester manuel. Virement non validé à la clôture : signalé dans un onglet « à arbitrer » (exclure / reporter).
+- **Vitrine** : `GET /grouped-departures/next` public → bandeau accueil et catalogue (« Prochain départ : commandes jusqu'au 15/10, livraison estimée semaine du 10/11 », compte à rebours), fiche produit (« Sur commande — livraison estimée le JJ/MM »), panier, checkout, e-mail de confirmation, espace client.
+- **Écran admin**, trois onglets par départ : **Fiche** (dates, publication, seuil, récurrence, bouton « étape suivante » qui propage le statut à toutes les commandes → e-mails, pattern `advance-all` de [admin_shipping.py](backend/app/api/routes/admin_shipping.py)) ; **Commandes** (liste, déplacer, exclure, export CSV brut, récap agrégé fournisseur × SKU = bon de commande, bouton « Créer la consolidation logistique ») ; **Rappels** (ci-dessous).
+
+**Rappels automatiques sur les réseaux sociaux** (non essentiel, utile pour les départs récurrents) :
+- `DepartureReminder(grouped_departure_id, offset_days, anchor ∈ cutoff|departure, channel, message_template, image_url, status ∈ scheduled|sent|failed, scheduled_at, sent_at, error)`. Gabarits avec `{name}`, `{cutoff_date}`, `{days_left}`, `{delivery_date}`, `{shop_url}`. Défauts à la création d'un départ : J-7, J-2, dernier jour, désactivables.
+- Cron ARQ `publish_due_departure_reminders` toutes les 15 min, idempotent sur `status`.
+- Canaux par étapes : (1) **webhook générique** vers Make / Zapier / Buffer / IFTTT (`{text, image_url, link}`) qui publient sur Facebook, Instagram, WhatsApp Business — pas de revue d'application Meta ni de jeton à renouveler, l'admin colle une URL ; (2) **e-mail** aux clients ayant opté (préférences `notification_*` existantes, provider Mailgun) ; (3) plus tard, API Graph Facebook/Instagram directe comme provider supplémentaire du même registre.
+- Onglet « Rappels » : liste avec aperçu du texte rendu, « Publier maintenant », historique envoyé / échec, configuration du canal au même endroit. Garde-fous : jamais de publication pour un départ `draft` ou non publié, pas d'envoi rétroactif, échec → alerte admin via `send_alert`.
+
+### Ordre de construction
+
+**Lot A — première vague** : (0) socle Départ groupé (modèle, migration, rattachement au checkout, endpoint public, bandeau + fiche produit + checkout, écran admin onglets Fiche et Commandes avec filtre, déplacement, export CSV, récap par SKU — couvre B5 et B9) ; (1) précommande B1 : `Product.availability_mode ∈ on_demand | lot | continuous`, bouton actif, `_plan_checkout_fulfillment_segments` accepte le manque de stock pour ces modes (garde : stock fournisseur > 0 au dernier refresh pour `on_demand`) ; (2) lot reconditionné B2 : stock `Inventory` sur un `Place` « transit », checkout lisant tous les lieux entrepôt, « X exemplaires restants » en vitrine, champs `condition_grade`, `battery_health`, `os_licence`, `warranty_months`, colonnes CSV correspondantes + option d'import « lot » ; (3) statuts B6/B7 : seed des statuts métier (`AwaitingDeparture`, `OrderedFromSupplier`, `InTransit`, `AtCustoms`, `Received`, `ReadyForPickup`, `Backordered`), `POST /admin/orders/{id}/status` pour le cas isolé, bouton « étape suivante » du départ pour la masse, événement `order.status_changed` + e-mail par statut ; (4) pages éditables B12 (`ContentPage`, ou a minima page « Comment ça marche » statique) ; (5) corrections : `margin_rate_pct_snapshot`, verrous admin dans la sync prix/dispo, `status_name` écrasé, journal des rejets CSV.
+
+**Lot B — départ groupé, suite** : clôture assistée (`POST /admin/grouped-departures/{id}/close` → vérification stock fournisseur via [checkout_availability.py](backend/app/features/integrations/services/checkout_availability.py), onglet « à arbitrer », report si seuil non atteint) ; `SupplierOrder` par départ (`grouped_departure_id`, `total_amount`, `ordered_at`, lignes multi-commandes, export CSV/PDF ; le handler [ingram_micro.py](backend/app/handlers/ingram_micro.py) ignore les commandes rattachées à un départ) ; rappels réseaux sociaux ; récurrence.
+
+**Lot C — réception et tableau de bord** : onglet « Réception » du départ (`GoodsReceipt` / `GoodsReceiptLine` avec quantités, état, numéros de série), rapprochement servi / partiel / non servi, `OrderLine.serial_numbers`, espace client (lignes, n° de série, fin de garantie), tableau de bord par départ (encaissé, payé fournisseur, fret / douane réels, marge brute).
+
+**Lot D — souhaitables restants** : acompte + solde (ci-dessous), devis PDF → commande, avoir-crédit client, « me prévenir », SMS / WhatsApp, suivi sans compte par lien signé, whitelist SKU Ingram, import en brouillon, commission paiement en % dans le prix, marge de sécurité FX, journal des prix.
+
+### Faisabilité de l'acompte à la commande (50 % / 30 % selon type de client, frais optionnels)
+
+**Verdict : faisable sans refonte, mais pas un simple paramètre.** Le modèle accepte déjà plusieurs paiements par commande (`Payment.order_id` non unique ; l'IPN PayZen identifie le paiement par `payment.id`, [payment_initiation.py](backend/app/features/payment/services/payment_initiation.py)) et le montant initié est libre. Le groupe tarifaire (`PriceGroup` : PARTICULIER par défaut, PROFESSIONNEL, REVENDEUR, PUBLIC) fait office de type de client, et l'éligibilité des moyens de paiement est déjà par groupe ([eligibility.py](backend/app/features/payment/services/eligibility.py)). Mais la logique métier suppose « un paiement = le total » : un acompte de 30 % encaissé aujourd'hui donne une commande bloquée en `PaymentReview`, aucune facture, un stock réservé mais non confirmé, un **BC Ingram quand même envoyé**, un e-mail « Paiement validé » et une alerte admin. Il n'existe ni lien de paiement ni page vitrine « payer une commande existante ».
+
+**Conception** :
+- **Politique par type de client** sur `PriceGroup` : `deposit_pct` (null = pas d'acompte), `deposit_fee_pct`, `deposit_fee_fixed`, `deposit_mode ∈ optional | required` ; interrupteur global `deposit_enabled` dans `system_settings` ; écran admin « Groupes tarifaires » (aujourd'hui GET seulement). Exemple : PARTICULIER 50 % + 2 %, PROFESSIONNEL / PUBLIC 30 % + frais fixe, REVENDEUR sans acompte.
+- **Commande** : `payment_plan ∈ full | deposit`, `deposit_amount`, `deposit_fee_amount` (inclus dans `total_fees_amount` et `total_amount`), `price_group_id` snapshoté — le checkout utilise aujourd'hui le groupe **par défaut** et non celui du client (`resolve_default_price_group` dans [cart.py](backend/app/api/routes/cart.py)) : première règle de checkout qui dépend vraiment du groupe, à corriger. `amount_paid` calculé (Σ paiements `Completed` − Σ remboursements) plutôt que stocké. Un champ `Order.payment_state` séparé du statut logistique est recommandé plutôt que de nouveaux statuts (`Paid` est utilisé dans les gardes, le balayage stock ne regarde que `Pending`).
+- **Paiement** : `kind ∈ full | deposit | balance`, `expected_amount`, `link_token` + `link_expires_at` (empreinte SHA-256, comme [password_reset.py](backend/app/api/routes/password_reset.py)).
+- **Checkout** (`_quote_checkout` / `checkout_my_cart`) : résolution du groupe → politique ; `deposit_fee = total × fee_pct + fee_fixed`, `total += deposit_fee`, `deposit_amount = round(total × pct)`, paiement initié pour `deposit_amount` ; `CheckoutQuoteResponse` expose acompte / solde / frais ; vitrine : sélecteur « Payer intégralement / Verser un acompte » et lignes « Acompte à payer maintenant / Solde à régler à la réception ».
+- **Gardes à adapter** : `_validate_order_for_initiation` ([payments.py](backend/app/api/routes/payments.py)) accepte un `balance` en `AwaitingBalance` avec montant attendu = total − encaissé, devise lue sur `order.currency` ; garde IPN inchangée (déjà par paiement) ; `_captured_amount_mismatch` ([handlers/payment.py](backend/app/handlers/payment.py)) compare à `expected_amount` — acompte capturé → `DepositPaid` + `confirm_order_stock`, solde → `Paid` quand encaissé ≥ total ; `on_payment_captured_create_ingram_order` n'a aucune vérification de montant → décider si l'acompte déclenche le BC (probable) et ne pas re-déclencher au solde ; `payment.rejected` d'un solde ne doit ni passer en `PaymentFailed` ni libérer le stock ; `on_payment_refunded` juge `fully_refunded` sur le net encaissé de la commande, pas sur un seul paiement.
+- **Solde et lien de paiement** : sur `order.status_changed` → `Received` (donc en un clic pour tout un départ groupé), création de la demande de solde, `AwaitingBalance`, e-mail `balance_due` avec lien → route vitrine `/paiement/solde/:orderId?token=…` → `POST /payments/orders/{id}/balance` qui crée le paiement `balance` et renvoie un form token PayZen **frais** (les form tokens expirent vite, le lien ne peut pas en contenir un) → `PaymentReturnPage.vue`. Relances par cron ARQ. Virement / chèque : `register_intent` réutilisé, **coordonnées bancaires à ajouter** (aucun IBAN nulle part, instructions codées en dur dans [manual.py](backend/app/features/payment/providers/manual.py), jamais envoyées par e-mail). Une autorisation CB prise au checkout expire en ~7 j : le solde encaissé des semaines plus tard est obligatoirement un nouveau paiement.
+- **Admin** `OrderDetailPage.vue` : acompte / encaissé / solde dû, colonne kind, « Envoyer / renvoyer le lien de solde ».
+- **Facture — point délicat** : une facture par commande (`Invoice.order_id` unique), émise à la capture, refusée si ≠ `order.total_amount` ([invoice_service.py](backend/app/features/invoice/services/invoice_service.py)) ; avoir = prorata de « la » facture. Option (a), recommandée pour démarrer : pas de facture à l'acompte (reçu par e-mail), facture unique au solde — ⚠️ un acompte encaissé appelle normalement une **facture d'acompte**, à valider avec le comptable (TGC PF). Option (b) : `Invoice.kind ∈ deposit | final`, levée de l'unicité, facture finale déduisant les acomptes ; impacte snapshot, PDF, exports CSV / FEC et le ciblage des avoirs. Rembourser un acompte avant facture ne produit aujourd'hui aucun avoir.
+- **Frais** : `PaymentMethod.fee` est fixe ; le % demandé passe par `deposit_fee_pct`. Le frais rejoint le groupe de taxe « frais » de la facture (`INVOICE_FEES_TAX_CODE`).
+
+**Effort** : politique + checkout + gardes + statuts 3-4 j ; lien de paiement + page + e-mails + relance 2-3 j ; admin 1-2 j ; facture d'acompte (option b) +2-3 j. Dépend du Lot A item 3 (`order.status_changed`) pour le déclenchement automatique du solde.
+
+### Décisions du propriétaire à trancher (défaut retenu à défaut de réponse)
+
+| Question | Défaut retenu |
+|---|---|
+| Date affichée en vitrine | Les deux : limite de commande (pivot) et livraison estimée |
+| Rattachement des commandes au départ | Automatique au checkout, déplaçable à la main |
+| Canal des rappels sociaux | Webhook générique (Make / Zapier / Buffer) d'abord ; API Meta directe plus tard |
+| Rappels par défaut | J-7, J-2, dernier jour, désactivables |
+| Acompte au choix du client ou imposé par groupe | `optional` pour tous, réglable par groupe |
+| L'acompte déclenche-t-il la commande fournisseur | Oui |
+| Statut déclencheur du solde | `Received`, configurable |
+| Facture d'acompte | Option (a), à valider par le comptable |
+| Frais d'acompte facturés | Avec l'acompte |
+| Solde impayé après N relances | `Backordered` → arbitrage admin (report / remboursement acompte − frais) |
+
+---
+
 ## Phase 0 — Stabilisation des bugs critiques
 
 **Objectif** : pouvoir déployer sereinement les phases suivantes sans dette qui se propage.
@@ -1695,6 +1809,8 @@ Aujourd'hui : cron toutes les 2 h, balayage **uniforme** de tout ce qui a > 1 h 
 
 ### Commandes groupées cadencées 🔲 (discussion du 25/08/2026)
 Annoncer un **départ consolidé hebdomadaire ou bimensuel** : les clients commandent d'ici la date, un seul envoi → le fret unitaire s'effondre et le délai devient une promesse claire au lieu d'un aléa. S'appuie sur la machinerie consolidation existante (P4) ; le chantier restant est surtout vitrine (affichage de la prochaine date de départ, compte à rebours) + process interne.
+
+→ **Cadré le 24/09/2026** : devient l'objet unique « Départ groupé » (date en vitrine, rattachement des commandes, rappels réseaux sociaux, statut propagé) — voir la section *Décision transverse : précommande, départs groupés et acompte (24/09/2026)*, qui porte aussi l'état des lieux de la spec précommande et la faisabilité de l'acompte.
 
 ### Déjà présents (à finir / exposer si besoin)
 - **Avis produits** (`Review` + CRUD + route `user_review`) 🟡 — vérifier modération / affichage vitrine.
