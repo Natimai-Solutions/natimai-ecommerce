@@ -553,6 +553,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         price_max: Decimal | None = None,
         specs: dict[str, Any] | None = None,
         in_stock: bool | None = None,
+        condition: str | None = None,
         limit: int = 24,
         offset: int = 0,
         group_offers: bool = True,
@@ -603,6 +604,8 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             conditions.append(col(Product.supplier_quantity) > Decimal("0"))
         elif in_stock is False:
             conditions.append(col(Product.supplier_quantity) <= Decimal("0"))
+        if condition:
+            conditions.append(col(Product.condition) == condition)
         if price_min is not None:
             conditions.append(col(Product.sale_price_cached) >= price_min)
         if price_max is not None:

@@ -16,7 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.product.crud.product import crud_product
 from app.features.product.models.category import Category
-from app.features.product.models.product import PricingMode, Product
+from app.features.product.models.product import PricingMode, Product, ProductCondition
 from app.features.product.models.product_spec import ProductSpec
 from app.tasks.pricing_tasks import refresh_sale_prices
 
@@ -250,3 +250,30 @@ async def test_unpriced_rows_in_the_page_are_priced_and_persisted(
     await db_session.refresh(late)
     assert late.sale_price_cached == Decimal("2500.00")
     assert late.sale_price_cached_at is not None
+
+
+@pytest.mark.asyncio
+async def test_condition_filter_separates_new_from_refurbished(
+    db_session: AsyncSession,
+) -> None:
+    await _seed(db_session)
+    refurb = _product("HP 250 (refurb)", "60000", qty="3")
+    refurb.condition = ProductCondition.REFURBISHED
+    refurb.condition_grade = "A"
+    db_session.add(refurb)
+    await db_session.commit()
+    await refresh_sale_prices(db_session)
+
+    everything = await crud_product.search_products(db_session)
+    assert "HP 250 (refurb)" in _names(everything)
+
+    refurbished = await crud_product.search_products(
+        db_session, condition=ProductCondition.REFURBISHED.value
+    )
+    assert _names(refurbished) == {"HP 250 (refurb)"}
+
+    new_only = await crud_product.search_products(
+        db_session, condition=ProductCondition.NEW.value
+    )
+    assert "HP 250 (refurb)" not in _names(new_only)
+    assert new_only["count"] == everything["count"] - 1

@@ -11,8 +11,14 @@
           <q-icon name="image_not_supported" size="3rem" color="grey-5" />
         </div>
       </template>
-      <div v-if="product.is_featured" class="absolute-top-left q-pa-xs">
-        <q-badge color="primary" label="Coup de cœur" />
+      <div class="absolute-top-left q-pa-xs column q-gutter-xs items-start">
+        <q-badge v-if="product.is_featured" color="primary" label="Coup de cœur" />
+        <q-badge
+          v-if="refurbished"
+          color="orange-8"
+          :label="conditionLabel(product)"
+          data-testid="product-condition"
+        />
       </div>
       <div v-if="availability.preorder || !availability.orderable" class="absolute-top-right q-pa-xs">
         <q-badge color="grey-6" :label="availability.label" />
@@ -101,7 +107,7 @@ import ProductDetailsDialog from 'src/components/ProductDetailsDialog.vue';
 import { getProductRoute } from 'src/utils/productRoute';
 import { useCurrencyStore } from 'src/stores/currency';
 import { useDepartureStore } from 'src/stores/departure';
-import { productAvailability } from 'src/utils/availability';
+import { conditionLabel, isRefurbished, productAvailability } from 'src/utils/availability';
 
 // `offers_count` is served by the backend (search grouping of the same item
 // sold by several suppliers) but the generated schema may lag — read it loosely.
@@ -118,6 +124,7 @@ const showDetails = ref(false);
 const productRoute = computed(() => getProductRoute(props.product));
 
 const availability = computed(() => productAvailability(props.product));
+const refurbished = computed(() => isRefurbished(props.product));
 
 const displayPrice = computed(() => {
   const price = parseFloat(props.product.base_price);

@@ -141,3 +141,18 @@ async def test_stock_mode_keeps_the_historical_guard_and_reservation(
     assert segments[0].quantity == Decimal("3")
     assert product.supplier_quantity == Decimal("1")
     movements.assert_awaited_once()
+
+
+@pytest.mark.anyio
+async def test_lot_mode_is_a_fixed_quantity_that_must_cover_and_is_reserved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(AppError) as refused:
+        await _reserve(monkeypatch, _product(AvailabilityMode.LOT, "2"), 3)
+    assert refused.value.code == "cart.stock.insufficient"
+
+    lot = _product(AvailabilityMode.LOT, "2")
+    segments, movements = await _reserve(monkeypatch, lot, quantity=2)
+    assert segments[0].quantity == Decimal("2")
+    assert lot.supplier_quantity == Decimal("0")  # the lot is now sold out
+    movements.assert_awaited_once()

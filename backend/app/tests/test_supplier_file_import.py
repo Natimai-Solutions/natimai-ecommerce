@@ -207,3 +207,75 @@ def test_unreadable_rows_are_reported_not_dropped_silently() -> None:
     assert len(result.products) == 1
     assert result.products[0].price is None
     assert result.products[0].currency is None
+
+
+# ---------------------------------------------------------------------------
+# refurbished lots (condition, grade, battery, licence, warranty, mode)
+# ---------------------------------------------------------------------------
+
+_LOT_MAPPING = {
+    "supplier_sku": "Réf",
+    "name": "Désignation",
+    "quantity": "Qté",
+    "condition": "État",
+    "condition_grade": "Grade",
+    "battery_health_pct": "Batterie",
+    "os_licence": "Licence",
+    "warranty_months": "Garantie",
+    "availability_mode": "Mode",
+}
+
+
+def test_refurbished_lot_columns_are_normalized() -> None:
+    rows = [
+        {
+            "Réf": "L1",
+            "Désignation": "ThinkPad T14 reconditionné",
+            "Qté": "8",
+            "État": "Reconditionné",
+            "Grade": "a",
+            "Batterie": "87",
+            "Licence": "Windows 11 Pro",
+            "Garantie": "12",
+            "Mode": "lot",
+        },
+        # A new item with no refurbished columns leaves every field None: a
+        # re-import never resets what the admin typed.
+        {"Réf": "N1", "Désignation": "Souris", "Qté": "50", "État": "neuf"},
+    ]
+
+    result = rows_to_products(rows, _LOT_MAPPING)
+
+    assert result.errors == []
+    lot, new = result.products
+    assert lot.condition == "refurbished"
+    assert lot.condition_grade == "A"
+    assert lot.battery_health_pct == 87
+    assert lot.os_licence == "Windows 11 Pro"
+    assert lot.warranty_months == 12
+    assert lot.availability_mode == "lot"
+    assert new.condition == "new"
+    assert (new.condition_grade, new.battery_health_pct, new.availability_mode) == (
+        None,
+        None,
+        None,
+    )
+
+
+def test_refurbished_lot_columns_reject_unknown_values() -> None:
+    rows = [
+        {"Réf": "B1", "Désignation": "x", "État": "cassé"},
+        {"Réf": "B2", "Désignation": "x", "Batterie": "140"},
+        {"Réf": "B3", "Désignation": "x", "Garantie": "1,5"},
+        {"Réf": "B4", "Désignation": "x", "Mode": "magique"},
+    ]
+
+    result = rows_to_products(rows, _LOT_MAPPING)
+
+    assert result.products == []
+    assert [e.message.split(" :")[0] for e in result.errors] == [
+        "condition",
+        "battery_health_pct",
+        "warranty_months",
+        "availability_mode",
+    ]

@@ -36,6 +36,50 @@ _DELIMITERS = ",;\t|"
 _NUMBER_JUNK_RE = re.compile(r"[^\d,.\-]")
 _NUMERIC_TARGETS = frozenset({"price", "quantity", "weight"})
 
+# Spellings accepted for the refurbished-lot columns (case-insensitive).
+_CONDITION_ALIASES = {
+    "new": "new",
+    "neuf": "new",
+    "neuve": "new",
+    "refurbished": "refurbished",
+    "refurb": "refurbished",
+    "reconditionne": "refurbished",
+    "reconditionné": "refurbished",
+    "occasion": "refurbished",
+}
+_AVAILABILITY_ALIASES = {
+    "stock": "stock",
+    "on_demand": "on_demand",
+    "sur commande": "on_demand",
+    "continuous": "continuous",
+    "continu": "continuous",
+    "lot": "lot",
+}
+
+
+def _parse_choice(value: str | None, aliases: dict[str, str], label: str) -> str | None:
+    if value is None:
+        return None
+    key = value.strip().lower()
+    if key not in aliases:
+        raise ValueError(f"{label} : valeur inconnue « {value} »")
+    return aliases[key]
+
+
+def _parse_int(
+    value: str | None, label: str, *, maximum: int | None = None
+) -> int | None:
+    if value is None:
+        return None
+    number = parse_number(value)
+    if number is None:
+        return None
+    if number < 0 or number != number.to_integral_value():
+        raise ValueError(f"{label} : entier positif attendu")
+    if maximum is not None and number > maximum:
+        raise ValueError(f"{label} : au plus {maximum}")
+    return int(number)
+
 
 class FileImportError(ValueError):
     """Fichier illisible ou mapping inutilisable."""
@@ -304,6 +348,25 @@ def rows_to_products(
                     spec_url=_get(row, "spec_url"),
                     upc=_get(row, "upc"),
                     ean=_get(row, "ean"),
+                    condition=_parse_choice(
+                        _get(row, "condition"), _CONDITION_ALIASES, "condition"
+                    ),
+                    condition_grade=(_get(row, "condition_grade") or "").upper()[:5]
+                    or None,
+                    battery_health_pct=_parse_int(
+                        _get(row, "battery_health_pct"),
+                        "battery_health_pct",
+                        maximum=100,
+                    ),
+                    os_licence=_get(row, "os_licence"),
+                    warranty_months=_parse_int(
+                        _get(row, "warranty_months"), "warranty_months"
+                    ),
+                    availability_mode=_parse_choice(
+                        _get(row, "availability_mode"),
+                        _AVAILABILITY_ALIASES,
+                        "availability_mode",
+                    ),
                     extra={"source": "file", "row_number": index},
                 )
             )

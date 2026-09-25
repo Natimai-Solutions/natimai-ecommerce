@@ -58,6 +58,14 @@ class NormalizedProductData:
     spec_url: str | None = None
     upc: str | None = None
     ean: str | None = None
+    # Refurbished lots (file suppliers): left None when the source has no
+    # such column, so the persisted value is never reset.
+    condition: str | None = None
+    condition_grade: str | None = None
+    battery_health_pct: int | None = None
+    os_licence: str | None = None
+    warranty_months: int | None = None
+    availability_mode: str | None = None
     # Anything that does not map onto a first-class field yet.
     extra: dict[str, Any] = field(default_factory=dict)
 

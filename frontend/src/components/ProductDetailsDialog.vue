@@ -46,6 +46,14 @@
             Réf. {{ product.vendor_part_number }}
           </div>
           <div v-if="product.ean" class="text-caption text-grey-5">EAN {{ product.ean }}</div>
+          <q-badge
+            v-if="refurbished"
+            color="orange-8"
+            class="q-mt-xs"
+            :label="conditionLabel(product)"
+            data-testid="product-condition"
+          />
+          <q-badge v-else color="grey-7" outline class="q-mt-xs" label="Neuf" />
 
           <div class="text-h5 text-weight-bold text-primary q-mt-md">
             {{ displayPrice }}
@@ -64,6 +72,12 @@
             <q-icon name="inventory_2" size="16px" class="q-mr-xs" />
             <span>{{ availability.label }}</span>
           </div>
+          <q-list v-if="refurbDetails.length" dense class="refurb-details q-mt-sm rounded-borders">
+            <q-item v-for="d in refurbDetails" :key="d.label" class="q-px-sm">
+              <q-item-section>{{ d.label }}</q-item-section>
+              <q-item-section side class="text-weight-medium">{{ d.value }}</q-item-section>
+            </q-item>
+          </q-list>
 
           <div
             v-if="safeDescription"
@@ -137,7 +151,12 @@ import {
 import ProductOffers from 'src/components/ProductOffers.vue';
 import { getProductRoute } from 'src/utils/productRoute';
 import { useCurrencyStore } from 'src/stores/currency';
-import { productAvailability } from 'src/utils/availability';
+import {
+  conditionLabel,
+  isRefurbished,
+  productAvailability,
+  refurbishedDetails,
+} from 'src/utils/availability';
 
 type ProductPublic = components['schemas']['ProductPublic'];
 
@@ -190,6 +209,8 @@ const selectedMode = computed(
 const placeholderImg = '/icons/placeholder-product.svg';
 
 const availability = computed(() => productAvailability(props.product));
+const refurbished = computed(() => isRefurbished(props.product));
+const refurbDetails = computed(() => refurbishedDetails(props.product));
 
 const displayPrice = computed(() => {
   if (selectedMode.value) {
@@ -289,5 +310,8 @@ const mainImage = computed(() => selectedImage.value ?? gallery.value[0] ?? null
     max-width: 100%;
     height: auto;
   }
+}
+.refurb-details {
+  background: #fff7ed;
 }
 </style>

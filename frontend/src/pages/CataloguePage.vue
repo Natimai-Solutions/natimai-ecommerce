@@ -6,6 +6,24 @@
         <q-card flat bordered class="q-pa-md">
           <div class="text-subtitle2 q-mb-sm">Filtres</div>
 
+          <!-- Neuf / reconditionné -->
+          <div class="q-mb-md">
+            <div class="text-caption text-grey-7 q-mb-xs">État</div>
+            <q-btn-toggle
+              v-model="selectedCondition"
+              :options="conditionOptions"
+              dense
+              no-caps
+              unelevated
+              toggle-color="primary"
+              color="grey-3"
+              text-color="grey-8"
+              spread
+              data-testid="catalogue-condition"
+              @update:model-value="onConditionChange"
+            />
+          </div>
+
           <!-- Catégorie -->
           <div v-if="categoryOptions.length > 0" class="q-mb-md">
             <div class="text-caption text-grey-7 q-mb-xs">Catégorie</div>
@@ -269,6 +287,13 @@ useMeta(() => ({
 const searchQuery = ref<string>('');
 const selectedManufacturer = ref<string | null>(null);
 const selectedCategory = ref<string | null>(null);
+// null = new and refurbished together.
+const selectedCondition = ref<'new' | 'refurbished' | null>(null);
+const conditionOptions = [
+  { label: 'Tous', value: null },
+  { label: 'Neuf', value: 'new' },
+  { label: 'Reconditionné', value: 'refurbished' },
+];
 // Spec filters: enum key → selected value_text[]; numeric key → minimum value.
 const enumSelections = ref<Record<string, string[]>>({});
 const numericMin = ref<Record<string, number | null>>({});
@@ -327,6 +352,11 @@ async function onSearch() {
   syncQueryParams();
 }
 
+async function onConditionChange(val: 'new' | 'refurbished' | null) {
+  await store.applyFilters({ condition: val });
+  syncQueryParams();
+}
+
 async function onManufacturerChange(val: string | null) {
   await store.applyFilters({ manufacturer: val });
   syncQueryParams();
@@ -369,6 +399,7 @@ async function resetFilters() {
   searchQuery.value = '';
   selectedManufacturer.value = null;
   selectedCategory.value = null;
+  selectedCondition.value = null;
   enumSelections.value = {};
   numericMin.value = {};
   priceMin.value = null;
@@ -379,6 +410,7 @@ async function resetFilters() {
     manufacturer: null,
     category_id: null,
     in_stock: null,
+    condition: null,
     price_min: null,
     price_max: null,
     specs: {},
@@ -391,6 +423,7 @@ function syncQueryParams() {
   if (searchQuery.value) query['q'] = searchQuery.value;
   if (selectedManufacturer.value) query['mfr'] = selectedManufacturer.value;
   if (selectedCategory.value) query['cat'] = selectedCategory.value;
+  if (selectedCondition.value) query['cond'] = selectedCondition.value;
   void router.replace({ query });
 }
 
@@ -416,9 +449,11 @@ function initFromQuery() {
   const q = route.query['q'];
   const mfr = route.query['mfr'];
   const cat = route.query['cat'];
+  const cond = route.query['cond'];
   if (typeof q === 'string') searchQuery.value = q;
   if (typeof mfr === 'string') selectedManufacturer.value = mfr;
   if (typeof cat === 'string') selectedCategory.value = cat;
+  if (cond === 'new' || cond === 'refurbished') selectedCondition.value = cond;
 }
 
 async function loadCatalogueData() {
@@ -429,6 +464,7 @@ async function loadCatalogueData() {
     q: searchQuery.value || null,
     manufacturer: selectedManufacturer.value,
     category_id: selectedCategory.value,
+    condition: selectedCondition.value,
     specs: buildSpecs(),
   });
 }

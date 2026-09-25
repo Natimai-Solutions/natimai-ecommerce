@@ -56,6 +56,18 @@ class AvailabilityMode(str, Enum):
     STOCK = "stock"
     ON_DEMAND = "on_demand"
     CONTINUOUS = "continuous"
+    # Refurbished lot: a fixed quantity (``supplier_quantity``) that must
+    # cover the order and is reserved — same rule as ``stock``, but the
+    # storefront says « X exemplaires restants sur ce lot » and the quantity is
+    # the admin's, not the supplier sync's.
+    LOT = "lot"
+
+
+class ProductCondition(str, Enum):
+    """New goods or a refurbished item (graded, with its own warranty)."""
+
+    NEW = "new"
+    REFURBISHED = "refurbished"
 
 
 # Modes that accept an order the known stock does not cover.
@@ -128,6 +140,33 @@ class ProductBase(Base):
             "the supplier shows stock, no reservation) or continuous (always "
             "orderable)"
         ),
+    )
+    condition: ProductCondition = Field(
+        default=ProductCondition.NEW,
+        sa_column=Column(
+            SAEnum(
+                ProductCondition,
+                values_callable=lambda enum: [m.value for m in enum],
+                native_enum=False,
+                length=20,
+            ),
+            nullable=False,
+            server_default=ProductCondition.NEW.value,
+            index=True,
+        ),
+        description="new or refurbished — shown and filterable on the storefront",
+    )
+    condition_grade: str | None = Field(
+        default=None, max_length=5, description="Refurbished grade (A, B, C…)"
+    )
+    battery_health_pct: int | None = Field(
+        default=None, ge=0, le=100, description="Refurbished: battery health in %"
+    )
+    os_licence: str | None = Field(
+        default=None, max_length=100, description="Refurbished: OS licence supplied"
+    )
+    warranty_months: int | None = Field(
+        default=None, ge=0, description="Warranty duration in months"
     )
     margin_rate_pct: Decimal | None = Field(
         default=None,
@@ -390,6 +429,11 @@ class ProductUpdate(ProductBase, BaseUpdate):
     base_price: Decimal | None = None
     pricing_mode: PricingMode | None = None
     availability_mode: AvailabilityMode | None = None
+    condition: ProductCondition | None = None
+    condition_grade: str | None = None
+    battery_health_pct: int | None = None
+    os_licence: str | None = None
+    warranty_months: int | None = None
     margin_rate_pct: Decimal | None = None
     cost_amount: Decimal | None = None
     cost_currency: str | None = None
@@ -502,6 +546,9 @@ class ProductSearchRequest(SQLModel):
     price_max: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     specs: dict[str, Any] = Field(default_factory=dict)
     in_stock: bool | None = None
+    condition: ProductCondition | None = Field(
+        default=None, description="Only new or only refurbished items"
+    )
     limit: int = Field(default=24, ge=1, le=200)
     offset: int = Field(default=0, ge=0)
     group_offers: bool = Field(

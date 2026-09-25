@@ -67,6 +67,14 @@
             Réf. {{ product.vendor_part_number }}
           </div>
           <div v-if="product.ean" class="text-caption text-grey-5">EAN {{ product.ean }}</div>
+          <q-badge
+            v-if="refurbished"
+            color="orange-8"
+            class="q-mt-xs"
+            :label="conditionLabel(product)"
+            data-testid="product-condition"
+          />
+          <q-badge v-else color="grey-7" outline class="q-mt-xs" label="Neuf" />
 
           <div class="text-h4 text-weight-bold text-primary q-mt-md">
             {{ displayPrice }}
@@ -85,6 +93,12 @@
             <q-icon name="inventory_2" size="16px" class="q-mr-xs" />
             <span>{{ availability.label }}</span>
           </div>
+          <q-list v-if="refurbDetails.length" dense class="refurb-details q-mt-sm rounded-borders">
+            <q-item v-for="d in refurbDetails" :key="d.label" class="q-px-sm">
+              <q-item-section>{{ d.label }}</q-item-section>
+              <q-item-section side class="text-weight-medium">{{ d.value }}</q-item-section>
+            </q-item>
+          </q-list>
           <div v-if="departureStore.next" class="text-body2 text-grey-8" data-testid="product-departure">
             <q-icon name="event_available" size="16px" class="q-mr-xs" />
             Départ groupé « {{ departureStore.next.name }} » — {{ departureStore.cutoffLabel
@@ -171,7 +185,12 @@ import ProductOffers from 'src/components/ProductOffers.vue';
 import { useCartStore } from 'src/stores/cart';
 import { useCurrencyStore } from 'src/stores/currency';
 import { useDepartureStore } from 'src/stores/departure';
-import { productAvailability } from 'src/utils/availability';
+import {
+  conditionLabel,
+  isRefurbished,
+  productAvailability,
+  refurbishedDetails,
+} from 'src/utils/availability';
 import { getProductRouteByIdAndName, slugifyProductName } from 'src/utils/productRoute';
 
 type ProductPublic = components['schemas']['ProductPublic'];
@@ -197,6 +216,8 @@ const offers = ref<ProductOffersResponse | null>(null);
 const availability = computed(() =>
   productAvailability(product.value ?? { supplier_quantity: 0 }),
 );
+const refurbished = computed(() => (product.value ? isRefurbished(product.value) : false));
+const refurbDetails = computed(() => (product.value ? refurbishedDetails(product.value) : []));
 
 const selectedMode = computed(
   () => shippingModes.value.find((m) => m.service_level === selectedModeKey.value) ?? null,
@@ -468,5 +489,8 @@ watch(
     max-width: 100%;
     height: auto;
   }
+}
+.refurb-details {
+  background: #fff7ed;
 }
 </style>

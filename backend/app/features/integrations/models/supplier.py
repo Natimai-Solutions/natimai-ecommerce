@@ -64,6 +64,13 @@ FILE_MAPPING_TARGETS: tuple[str, ...] = (
     "spec_url",
     "upc",
     "ean",
+    # Refurbished lots
+    "condition",
+    "condition_grade",
+    "battery_health_pct",
+    "os_licence",
+    "warranty_months",
+    "availability_mode",
 )
 FILE_MAPPING_REQUIRED: tuple[str, ...] = ("supplier_sku", "name")
 

@@ -7350,7 +7350,7 @@ export interface components {
          *       with the next departure; no stock check at all.
          * @enum {string}
          */
-        AvailabilityMode: "stock" | "on_demand" | "continuous";
+        AvailabilityMode: "stock" | "on_demand" | "continuous" | "lot";
         /**
          * BatchEnrichmentRequest
          * @description Request model for batch enrichment
@@ -12644,6 +12644,12 @@ export interface components {
          */
         PricingMode: "import" | "domestic" | "fixed";
         /**
+         * ProductCondition
+         * @description New goods or a refurbished item (graded, with its own warranty).
+         * @enum {string}
+         */
+        ProductCondition: "new" | "refurbished";
+        /**
          * ProductCreate
          * @description Represents product create.
          */
@@ -12697,6 +12703,31 @@ export interface components {
              * @default stock
              */
             availability_mode: components["schemas"]["AvailabilityMode"];
+            /**
+             * @description new or refurbished — shown and filterable on the storefront
+             * @default new
+             */
+            condition: components["schemas"]["ProductCondition"];
+            /**
+             * Condition Grade
+             * @description Refurbished grade (A, B, C…)
+             */
+            condition_grade?: string | null;
+            /**
+             * Battery Health Pct
+             * @description Refurbished: battery health in %
+             */
+            battery_health_pct?: number | null;
+            /**
+             * Os Licence
+             * @description Refurbished: OS licence supplied
+             */
+            os_licence?: string | null;
+            /**
+             * Warranty Months
+             * @description Warranty duration in months
+             */
+            warranty_months?: number | null;
             /**
              * Margin Rate Pct
              * @description Margin override for this product. None → Category.default_margin_rate_pct → PriceGroup.margin_rate_pct.
@@ -13046,6 +13077,31 @@ export interface components {
              */
             availability_mode: components["schemas"]["AvailabilityMode"];
             /**
+             * @description new or refurbished — shown and filterable on the storefront
+             * @default new
+             */
+            condition: components["schemas"]["ProductCondition"];
+            /**
+             * Condition Grade
+             * @description Refurbished grade (A, B, C…)
+             */
+            condition_grade?: string | null;
+            /**
+             * Battery Health Pct
+             * @description Refurbished: battery health in %
+             */
+            battery_health_pct?: number | null;
+            /**
+             * Os Licence
+             * @description Refurbished: OS licence supplied
+             */
+            os_licence?: string | null;
+            /**
+             * Warranty Months
+             * @description Warranty duration in months
+             */
+            warranty_months?: number | null;
+            /**
              * Margin Rate Pct
              * @description Margin override for this product. None → Category.default_margin_rate_pct → PriceGroup.margin_rate_pct.
              */
@@ -13281,6 +13337,8 @@ export interface components {
             };
             /** In Stock */
             in_stock?: boolean | null;
+            /** @description Only new or only refurbished items */
+            condition?: components["schemas"]["ProductCondition"] | null;
             /**
              * Limit
              * @default 24
@@ -13363,6 +13421,15 @@ export interface components {
             base_price?: number | string | null;
             pricing_mode?: components["schemas"]["PricingMode"] | null;
             availability_mode?: components["schemas"]["AvailabilityMode"] | null;
+            condition?: components["schemas"]["ProductCondition"] | null;
+            /** Condition Grade */
+            condition_grade?: string | null;
+            /** Battery Health Pct */
+            battery_health_pct?: number | null;
+            /** Os Licence */
+            os_licence?: string | null;
+            /** Warranty Months */
+            warranty_months?: number | null;
             /** Margin Rate Pct */
             margin_rate_pct?: number | string | null;
             /** Cost Amount */

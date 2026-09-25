@@ -296,6 +296,7 @@ async def search_products(
         price_max=payload.price_max,
         specs=payload.specs,
         in_stock=payload.in_stock,
+        condition=payload.condition.value if payload.condition else None,
         limit=payload.limit,
         offset=payload.offset,
         group_offers=payload.group_offers,

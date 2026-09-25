@@ -61,6 +61,16 @@ MATCH_KEYS: tuple[str, ...] = (
 #: Content an admin typed on a manual product. When the sync adopts such a
 #: product, these fields are locked (if filled) so the file never overwrites
 #: what was written by hand; only the sourcing fields flow from the supplier.
+#: Refurbished-lot fields a file import may carry (see FILE_MAPPING_TARGETS).
+REFURB_ITEM_FIELDS: tuple[str, ...] = (
+    "condition",
+    "condition_grade",
+    "battery_health_pct",
+    "os_licence",
+    "warranty_months",
+    "availability_mode",
+)
+
 ADOPTION_CONTENT_FIELDS: tuple[str, ...] = (
     "name",
     "description",
@@ -237,6 +247,12 @@ class SupplierSyncOrchestrator:
             "upc": item.upc,
             "ean": item.ean,
         }
+        # Refurbished-lot columns: only what the file carries, so a catalogue
+        # without them never resets what the admin typed.
+        for name in REFURB_ITEM_FIELDS:
+            value = getattr(item, name, None)
+            if value is not None:
+                data[name] = value
 
         if item.price is not None or item.quantity is not None:
             currency = (

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { productAvailability } from './availability'
+import { conditionLabel, isRefurbished, productAvailability, refurbishedDetails } from './availability'
 
 describe('productAvailability', () => {
   it('keeps the historical behaviour for stock products', () => {
@@ -32,5 +32,50 @@ describe('productAvailability', () => {
 
   it('treats a malformed quantity as none', () => {
     expect(productAvailability({ supplier_quantity: 'abc' }).orderable).toBe(false)
+  })
+})
+
+describe('refurbished lots', () => {
+  it('counts the units left in the lot and closes it at zero', () => {
+    expect(productAvailability({ supplier_quantity: '3', availability_mode: 'lot' })).toEqual({
+      orderable: true,
+      preorder: false,
+      quantity: 3,
+      label: '3 exemplaires restants sur ce lot',
+    })
+    expect(productAvailability({ supplier_quantity: '1', availability_mode: 'lot' }).label).toBe(
+      '1 exemplaire restant sur ce lot',
+    )
+    expect(productAvailability({ supplier_quantity: '0', availability_mode: 'lot' })).toEqual({
+      orderable: false,
+      preorder: false,
+      quantity: 0,
+      label: 'Lot épuisé',
+    })
+  })
+
+  it('labels the condition and lists the refurbished details', () => {
+    expect(conditionLabel({})).toBe('Neuf')
+    expect(conditionLabel({ condition: 'new' })).toBe('Neuf')
+    expect(conditionLabel({ condition: 'refurbished' })).toBe('Reconditionné')
+    expect(conditionLabel({ condition: 'refurbished', condition_grade: 'a' })).toBe(
+      'Reconditionné · Grade A',
+    )
+    expect(isRefurbished({ condition: 'refurbished' })).toBe(true)
+    expect(refurbishedDetails({ condition: 'new', warranty_months: 24 })).toEqual([])
+    expect(
+      refurbishedDetails({
+        condition: 'refurbished',
+        condition_grade: 'b',
+        battery_health_pct: 85,
+        os_licence: 'Windows 11 Pro',
+        warranty_months: 12,
+      }),
+    ).toEqual([
+      { label: 'Grade', value: 'B' },
+      { label: 'Batterie', value: '85 %' },
+      { label: 'Licence', value: 'Windows 11 Pro' },
+      { label: 'Garantie', value: '12 mois' },
+    ])
   })
 })

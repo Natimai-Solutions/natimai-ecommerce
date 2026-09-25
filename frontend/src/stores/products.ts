@@ -31,6 +31,7 @@ export const useProductsStore = defineStore('products', () => {
     price_min: null,
     price_max: null,
     in_stock: null,
+    condition: null,
     specs: {},
     // Backend default; the generated schema lists it as required.
     group_offers: true,
