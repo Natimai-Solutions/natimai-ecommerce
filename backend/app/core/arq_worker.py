@@ -28,6 +28,10 @@ from app.tasks.pricing_tasks import (
     refresh_sale_prices_task,
     scheduled_sale_price_refresh_task,
 )
+from app.tasks.stock_alert_tasks import (
+    get_stock_alert_cron_jobs,
+    notify_stock_alerts_task,
+)
 from app.tasks.supplier_tasks import (
     check_supplier_health_task,
     get_supplier_sync_cron_jobs,
@@ -110,6 +114,8 @@ class WorkerSettings:
         scheduled_sale_price_refresh_task,
         # Rappels réseaux sociaux des départs groupés
         publish_departure_reminders_task,
+        # Alertes « me prévenir »
+        notify_stock_alerts_task,
         # ... tes autres handlers
     ]
 
@@ -122,6 +128,7 @@ class WorkerSettings:
         + get_stock_reservation_cron_jobs()
         + get_pricing_cron_jobs()
         + get_departure_cron_jobs()
+        + get_stock_alert_cron_jobs()
     )
 
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)

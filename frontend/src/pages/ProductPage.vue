@@ -144,6 +144,15 @@
       <q-card-actions align="right">
         <q-btn flat label="Retour au catalogue" color="grey-7" :to="{ name: 'catalogue' }" />
         <q-btn
+          v-if="!availability.orderable"
+          outline
+          color="primary"
+          icon="notifications_active"
+          label="Me prévenir"
+          data-testid="product-notify-me"
+          @click="openAlert"
+        />
+        <q-btn
           unelevated
           color="primary"
           icon="add_shopping_cart"
@@ -152,6 +161,35 @@
           @click="onAddToCart"
         />
       </q-card-actions>
+
+      <!-- « Me prévenir » : e-mail to notify once the product is back -->
+      <q-dialog v-model="alertDialog">
+        <q-card style="min-width: 360px">
+          <q-card-section class="text-h6">Me prévenir quand il revient</q-card-section>
+          <q-form @submit.prevent="submitAlert">
+            <q-card-section class="q-pt-none">
+              <div class="text-body2 q-mb-sm">
+                Nous vous enverrons un e-mail dès que « {{ product?.name }} » pourra de nouveau être commandé.
+              </div>
+              <q-input
+                v-model="alertEmail"
+                type="email"
+                label="Votre e-mail"
+                outlined
+                dense
+                autofocus
+                :hint="authStore.isAuthenticated ? 'Laissez vide pour utiliser l\'e-mail de votre compte' : ''"
+                :rules="[(v: string) => (authStore.isAuthenticated && !v) || /.+@.+\..+/.test(v) || 'E-mail invalide']"
+              />
+              <q-banner v-if="alertError" class="bg-red-1 text-red-9 q-mt-sm" dense rounded>{{ alertError }}</q-banner>
+            </q-card-section>
+            <q-card-actions align="right">
+              <q-btn flat label="Annuler" v-close-popup />
+              <q-btn type="submit" color="primary" label="Me prévenir" :loading="alertSaving" />
+            </q-card-actions>
+          </q-form>
+        </q-card>
+      </q-dialog>
 
       <q-banner
         v-if="cartFeedback"
@@ -182,9 +220,11 @@ import {
   type ShippingModePricePublic,
 } from 'src/api/products';
 import ProductOffers from 'src/components/ProductOffers.vue';
+import { useAuthStore } from 'src/stores/auth';
 import { useCartStore } from 'src/stores/cart';
 import { useCurrencyStore } from 'src/stores/currency';
 import { useDepartureStore } from 'src/stores/departure';
+import { subscribeStockAlert } from 'src/api/stockAlerts';
 import {
   conditionLabel,
   isRefurbished,
@@ -216,6 +256,49 @@ const offers = ref<ProductOffersResponse | null>(null);
 const availability = computed(() =>
   productAvailability(product.value ?? { supplier_quantity: 0 }),
 );
+
+// « Me prévenir » : an e-mail when the product is orderable again.
+const authStore = useAuthStore();
+const alertDialog = ref(false);
+const alertEmail = ref('');
+const alertSaving = ref(false);
+const alertError = ref<string | null>(null);
+
+function openAlert() {
+  // Signed in: the account's e-mail is used server-side unless another is typed.
+  alertEmail.value = '';
+  alertError.value = null;
+  alertDialog.value = true;
+}
+
+async function submitAlert() {
+  if (!product.value) return;
+  alertSaving.value = true;
+  alertError.value = null;
+  try {
+    const alert = await subscribeStockAlert(product.value.id, alertEmail.value.trim() || null);
+    alertDialog.value = false;
+    cartFeedback.value = {
+      ok: true,
+      message: `C'est noté : nous vous préviendrons à ${alert.email} dès que ce produit sera disponible.`,
+    };
+  } catch (err) {
+    alertError.value = extractApiMessage(err) ?? "L'inscription à l'alerte a échoué. Veuillez réessayer.";
+  } finally {
+    alertSaving.value = false;
+  }
+}
+
+function extractApiMessage(err: unknown): string | null {
+  if (err && typeof err === 'object' && 'response' in err) {
+    const data = (err as { response?: { data?: unknown } }).response?.data;
+    if (typeof data === 'object' && data !== null) {
+      const errorObj = (data as { error?: { message?: unknown } }).error;
+      if (errorObj && typeof errorObj.message === 'string') return errorObj.message;
+    }
+  }
+  return null;
+}
 const refurbished = computed(() => (product.value ? isRefurbished(product.value) : false));
 const refurbDetails = computed(() => (product.value ? refurbishedDetails(product.value) : []));
 

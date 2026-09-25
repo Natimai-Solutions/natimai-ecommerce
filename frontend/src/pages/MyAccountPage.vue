@@ -38,6 +38,35 @@
                 Préférences enregistrées.
               </q-banner>
 
+              <!-- « Me prévenir » alerts -->
+              <template v-if="stockAlerts.length">
+                <div class="text-subtitle1 text-weight-medium q-mb-sm">Alertes de disponibilité</div>
+                <q-list dense bordered separator class="rounded-borders q-mb-md" data-testid="account-stock-alerts">
+                  <q-item v-for="alert in stockAlerts" :key="alert.id">
+                    <q-item-section avatar>
+                      <q-icon :name="alert.status === 'sent' ? 'mark_email_read' : 'notifications_active'" color="primary" />
+                    </q-item-section>
+                    <q-item-section>
+                      <q-item-label>{{ alert.product_name ?? alert.product_id.slice(0, 8) }}</q-item-label>
+                      <q-item-label caption>
+                        {{ alert.status === 'sent' ? `Prévenu le ${formatDate(alert.notified_at) ?? ''}` : 'En attente du retour en stock' }}
+                      </q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                      <q-btn
+                        v-if="alert.status === 'pending'"
+                        flat
+                        dense
+                        no-caps
+                        color="grey-8"
+                        label="Annuler"
+                        @click="onCancelAlert(alert)"
+                      />
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+              </template>
+
               <div class="text-subtitle1 text-weight-medium q-mb-sm">Notifications</div>
               <q-toggle
                 v-model="prefs.notification_email_enabled"
@@ -660,6 +689,7 @@ import {
 } from 'src/api/quotes';
 import { useCartStore } from 'src/stores/cart';
 import { getMyStoreCredit, STORE_CREDIT_KIND_LABELS, type StoreCreditBalance } from 'src/api/storeCredit';
+import { cancelStockAlert, listMyStockAlerts, type StockAlert } from 'src/api/stockAlerts';
 import {
   getUpgradeOptions,
   listMyUpgradeRequests,
@@ -708,6 +738,20 @@ const addressTypeOptions = [
 // --------------------------------------------------------------------------
 // Preferences
 // --------------------------------------------------------------------------
+// « Me prévenir » alerts (best-effort: the preferences do not depend on them).
+const stockAlerts = ref<StockAlert[]>([]);
+async function loadStockAlerts() {
+  stockAlerts.value = await listMyStockAlerts().catch(() => []);
+}
+async function onCancelAlert(alert: StockAlert) {
+  try {
+    await cancelStockAlert(alert.id);
+    stockAlerts.value = stockAlerts.value.filter((a) => a.id !== alert.id);
+  } catch (err) {
+    prefsError.value = extractError(err) ?? "Impossible d'annuler cette alerte.";
+  }
+}
+
 const loadingPrefs = ref(true);
 const savingPrefs = ref(false);
 const prefsError = ref<string | null>(null);
@@ -1410,6 +1454,7 @@ onMounted(async () => {
     loadInvoices(),
     loadQuotes(),
     loadStoreCredit(),
+    loadStockAlerts(),
     loadGroup(),
   ]);
 });

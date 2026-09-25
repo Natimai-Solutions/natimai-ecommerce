@@ -37,6 +37,7 @@ from app.features.product.models.category import Category
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import Product
 from app.features.product.models.spec_definition import SpecDefinition
+from app.features.product.models.stock_alert import StockAlert
 from app.features.product.models.tax_rate import TaxRate
 from app.features.shipping.models.carrier import Carrier
 from app.features.shipping.models.delivery_task import DeliveryTask
@@ -89,6 +90,7 @@ __all__ = [
     "PaymentLog",
     "PaymentMethod",
     "PaymentStatus",
+    "StockAlert",
     "StoreCreditEntry",
     "PaymentValidation",
     "Place",

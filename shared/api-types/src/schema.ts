@@ -5063,6 +5063,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stock-alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Subscribe Stock Alert
+         * @description Ask to be told when the product is orderable again (idempotent).
+         */
+        post: operations["stock-alerts-subscribe_stock_alert"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stock-alerts/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Stock Alerts
+         * @description The customer's alerts (by account, or by the account's e-mail).
+         */
+        get: operations["stock-alerts-list_my_stock_alerts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stock-alerts/{alert_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Cancel My Stock Alert
+         * @description Cancel one of the customer's pending alerts.
+         */
+        delete: operations["stock-alerts-cancel_my_stock_alert"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/utils/health-check": {
         parameters: {
             query?: never;
@@ -17265,6 +17325,66 @@ export interface components {
             count: number;
         };
         /**
+         * StockAlertPublic
+         * @description Represents stock alert public.
+         */
+        StockAlertPublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** User Id */
+            user_id?: string | null;
+            /** Email */
+            email: string;
+            /**
+             * Status
+             * @default pending
+             */
+            status: string;
+            /** Notified At */
+            notified_at?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Product Name */
+            product_name?: string | null;
+        };
+        /**
+         * StockAlertSubscribe
+         * @description Storefront payload; the e-mail defaults to the account's when signed in.
+         */
+        StockAlertSubscribe: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Email */
+            email?: string | null;
+        };
+        /**
          * StoreCreditBalance
          * @description Balance and ledger of one customer.
          */
@@ -28623,6 +28743,88 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["StoreCreditBalance"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "stock-alerts-subscribe_stock_alert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StockAlertSubscribe"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockAlertPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "stock-alerts-list_my_stock_alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockAlertPublic"][];
+                };
+            };
+        };
+    };
+    "stock-alerts-cancel_my_stock_alert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alert_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
