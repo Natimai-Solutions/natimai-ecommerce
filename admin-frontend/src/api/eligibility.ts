@@ -17,6 +17,26 @@ export interface PriceGroup {
   margin_rate_pct: string;
   default: boolean;
   requires_validation: boolean;
+  /** Deposit policy: share paid at checkout (null = not offered), fee, imposed. */
+  deposit_pct: string | null;
+  deposit_fee_pct: string;
+  deposit_fee_fixed: string;
+  deposit_required: boolean;
+}
+
+export interface DepositPolicyWrite {
+  deposit_pct: string | null;
+  deposit_fee_pct: string;
+  deposit_fee_fixed: string;
+  deposit_required: boolean;
+}
+
+export async function updatePriceGroup(
+  groupId: string,
+  payload: Partial<DepositPolicyWrite>,
+): Promise<PriceGroup> {
+  const { data } = await api.patch<PriceGroup>(`/admin/price-groups/${groupId}`, payload);
+  return data;
 }
 
 /** Group reference returned by the eligibility listing. */

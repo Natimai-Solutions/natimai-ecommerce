@@ -28,6 +28,35 @@ class PriceGroupBase(Base):
         default=False,
         description="Whether assignment to this group requires admin validation",
     )
+    # Deposit policy (« acompte à la commande ») for the customers of the
+    # group: a share of the total paid at checkout, the balance once the goods
+    # are received. Null percentage = the option is not offered.
+    deposit_pct: Decimal | None = Field(
+        default=None,
+        ge=1,
+        le=99,
+        max_digits=5,
+        decimal_places=2,
+        description="Part du total versée à la commande (%) ; null = pas d'acompte",
+    )
+    deposit_fee_pct: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=5,
+        decimal_places=2,
+        description="Frais liés à l'option acompte, en % du total",
+    )
+    deposit_fee_fixed: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Frais fixes liés à l'option acompte (devise de référence)",
+    )
+    deposit_required: bool = Field(
+        default=False,
+        description="L'acompte est imposé (sinon au choix du client)",
+    )
 
 
 class PriceGroupCreate(PriceGroupBase, BaseCreate):
@@ -44,6 +73,10 @@ class PriceGroupUpdate(BaseUpdate):
     margin_rate_pct: Decimal | None = None
     default: bool | None = None
     requires_validation: bool | None = None
+    deposit_pct: Decimal | None = None
+    deposit_fee_pct: Decimal | None = None
+    deposit_fee_fixed: Decimal | None = None
+    deposit_required: bool | None = None
 
 
 class PriceGroup(PriceGroupBase, table=True):

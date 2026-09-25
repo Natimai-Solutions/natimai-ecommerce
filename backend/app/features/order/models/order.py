@@ -123,6 +123,32 @@ class OrderBase(Base):
         max_length=50,
         description="Version des CGV acceptée au checkout",
     )
+    # Acompte : « full » = tout payé à la commande ; « deposit » = acompte à la
+    # commande (deposit_amount, frais deposit_fee_amount inclus dans le total)
+    # puis solde demandé à la réception des marchandises.
+    payment_plan: str = Field(
+        default="full", max_length=20, description="full | deposit"
+    )
+    deposit_amount: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Acompte versé à la commande (0 en plan full)",
+    )
+    deposit_fee_amount: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Frais de l'option acompte, inclus dans total_fees_amount",
+    )
+    balance_requested_at: datetime | None = Field(
+        default=None, description="Envoi de la demande de solde au client"
+    )
+    balance_paid_at: datetime | None = Field(
+        default=None, description="Encaissement du solde"
+    )
 
 
 class OrderCreate(OrderBase, BaseCreate):

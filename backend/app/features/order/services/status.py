@@ -31,6 +31,7 @@ PAYMENT_STATUSES: tuple[str, ...] = (
     "Pending",
     "AwaitingPayment",
     "Paid",
+    "DepositPaid",
     "PaymentFailed",
     "PaymentReview",
     "Refunded",
@@ -51,7 +52,7 @@ ALL_ORDER_STATUSES: tuple[str, ...] = PAYMENT_STATUSES + FULFILLMENT_STATUSES
 
 #: Orders that follow their departure's progress: paid, or already on the way.
 DEPARTURE_FOLLOWER_STATUSES: frozenset[str] = frozenset(
-    {"Paid", "OrderedFromSupplier", "InTransit", "AtCustoms", "Received"}
+    {"Paid", "DepositPaid", "OrderedFromSupplier", "InTransit", "AtCustoms", "Received"}
 )
 #: Departure status → status pushed to its orders.
 DEPARTURE_TO_ORDER_STATUS: dict[str, str] = {

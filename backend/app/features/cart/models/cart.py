@@ -296,9 +296,40 @@ class CheckoutRequest(SQLModel):
         default=None,
         description="Return URL for provider redirect/SmartForm (CB).",
     )
+    payment_plan: str | None = Field(
+        default=None,
+        max_length=20,
+        description=(
+            "« deposit » to pay a deposit now and the balance at reception, "
+            "« full » (default) to pay everything now. Subject to the deposit "
+            "policy of the customer's price group."
+        ),
+    )
 
 
-class CheckoutResponse(SQLModel):
+class DepositTerms(SQLModel):
+    """Deposit part of a quote / order (all zero on a full-payment order)."""
+
+    payment_plan: str = Field(default="full", description="full | deposit")
+    deposit_available: bool = Field(
+        default=False, description="The customer's group offers a deposit"
+    )
+    deposit_required: bool = Field(
+        default=False, description="The deposit is imposed by the group"
+    )
+    deposit_pct: Decimal | None = Field(default=None, description="Share paid now (%)")
+    deposit_fee_amount: Decimal = Field(
+        default=Decimal("0.00"), description="Fee of the deposit option (in total)"
+    )
+    deposit_amount: Decimal = Field(
+        default=Decimal("0.00"), description="Charged now on a deposit order"
+    )
+    balance_amount: Decimal = Field(
+        default=Decimal("0.00"), description="Asked for at reception"
+    )
+
+
+class CheckoutResponse(DepositTerms):
     """Represents checkout response."""
 
     order_id: uuid.UUID
@@ -352,7 +383,7 @@ class LastLegOption(SQLModel):
     route_name: str | None = None
 
 
-class CheckoutQuoteResponse(SQLModel):
+class CheckoutQuoteResponse(DepositTerms):
     """What ``POST /cart/checkout`` will bill for the current cart and choices.
 
     Served by ``GET /cart/me/checkout-quote`` from the very same computation

@@ -138,7 +138,21 @@ export async function getLastLegOptions(
   return data;
 }
 
-export interface CheckoutQuote {
+/** Deposit part of a quote / checkout response (`DepositTerms`). */
+export interface DepositTerms {
+  /** full | deposit — the plan the backend settled on. */
+  payment_plan: string;
+  deposit_available: boolean;
+  deposit_required: boolean;
+  deposit_pct: string | null;
+  deposit_fee_amount: string;
+  /** Charged now on a deposit order. */
+  deposit_amount: string;
+  /** Asked for at reception. */
+  balance_amount: string;
+}
+
+export interface CheckoutQuote extends DepositTerms {
   currency: string;
   subtotal_amount: string;
   /** Livraison (tronçon choisi) + frais de dédouanement. */
@@ -163,11 +177,13 @@ export async function getCheckoutQuote(params: {
   addressId?: string | null;
   deliveryType?: string | null;
   paymentMethodId?: string | null;
+  paymentPlan?: string | null;
 }): Promise<CheckoutQuote> {
   const query: Record<string, string> = {};
   if (params.addressId) query.address_id = params.addressId;
   if (params.deliveryType) query.delivery_type = params.deliveryType;
   if (params.paymentMethodId) query.payment_method_id = params.paymentMethodId;
+  if (params.paymentPlan) query.payment_plan = params.paymentPlan;
   const { data } = await api.get<CheckoutQuote>('/cart/me/checkout-quote', { params: query });
   return data;
 }

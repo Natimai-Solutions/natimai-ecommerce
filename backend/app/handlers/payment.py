@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -18,8 +19,17 @@ from app.features.invoice.services.credit_note_service import (
 from app.features.invoice.services.invoice_service import issue_invoice_for_order
 from app.features.order.crud.order_crud import crud_order
 from app.features.order.crud.order_status_crud import crud_order_status
-from app.features.order.models.order_status import OrderStatusCreate
+from app.features.order.models.order import Order
+from app.features.order.models.order_status import OrderStatus, OrderStatusCreate
 from app.features.payment.crud.payment import crud_payment
+from app.features.payment.models.payment import Payment
+from app.features.payment.services.deposit import (
+    KIND_BALANCE,
+    KIND_DEPOSIT,
+    KIND_FULL,
+    ORDER_STATUS_DEPOSIT_PAID,
+    expected_amount,
+)
 from app.features.payment.services.notifications import (
     send_payment_event_notifications,
 )
@@ -177,39 +187,55 @@ async def on_payment_awaiting_validation(
     )
 
 
+async def _load_payment_and_order(
+    session: AsyncSession, payload: dict[str, Any]
+) -> tuple[Payment | None, Order | None]:
+    """The payment and order of an outbox payment payload (None, None when
+    either is missing or unloadable — replayed or partial payloads keep the
+    historical behaviour)."""
+    order_id = _parse_order_id(payload)
+    raw_payment_id = payload.get("payment_id")
+    if order_id is None or not raw_payment_id:
+        return None, None
+    try:
+        payment_id = uuid.UUID(str(raw_payment_id))
+    except (TypeError, ValueError):
+        return None, None
+    try:
+        payment = await crud_payment.read(session, id=payment_id)
+        order = await crud_order.read(session, id=order_id)
+    except RecordNotFoundError:
+        return None, None
+    if payment is None or order is None:
+        return None, None
+    return payment, order
+
+
+def _payment_kind(payment: Payment | None) -> str:
+    kind = getattr(payment, "kind", None)
+    return kind if isinstance(kind, str) and kind else KIND_FULL
+
+
 async def _captured_amount_mismatch(
     session: AsyncSession, *, payload: dict[str, Any]
 ) -> dict[str, str] | None:
     """Last line of defence before flipping an order to Paid.
 
     Returns the mismatch details when the captured payment amount differs from
-    the order total, or ``None`` when the capture is consistent — or simply
-    cannot be checked. Missing/unloadable records keep the historical behaviour
-    (no new failure mode for replayed or partial payloads).
+    what its part of the order is worth (the total, or the deposit / balance
+    of a deposit order), or ``None`` when the capture is consistent — or
+    simply cannot be checked.
     """
-    order_id = _parse_order_id(payload)
-    raw_payment_id = payload.get("payment_id")
-    if order_id is None or not raw_payment_id:
-        return None
-
-    try:
-        payment_id = uuid.UUID(str(raw_payment_id))
-    except (TypeError, ValueError):
-        return None
-
-    try:
-        payment = await crud_payment.read(session, id=payment_id)
-        order = await crud_order.read(session, id=order_id)
-    except RecordNotFoundError:
-        return None
+    payment, order = await _load_payment_and_order(session, payload)
     if payment is None or order is None:
         return None
 
-    if payment.amount == order.total_amount:
+    expected = expected_amount(order, _payment_kind(payment))
+    if payment.amount == expected:
         return None
 
     return {
-        "expected_amount": str(order.total_amount),
+        "expected_amount": str(expected),
         "received_amount": str(payment.amount),
         "currency": str(payment.currency),
     }
@@ -278,8 +304,27 @@ async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) ->
             session, payload=payload, mismatch=mismatch
         )
         return
+    payment, order = await _load_payment_and_order(session, payload)
+    kind = _payment_kind(payment)
+    if kind == KIND_BALANCE and order is not None:
+        # The goods were bought and reserved on the deposit; the balance only
+        # settles the order. « DepositPaid » becomes « Paid »; a fulfilment
+        # status (Received…) is kept, the customer follows the departure.
+        order.balance_paid_at = datetime.now(timezone.utc)
+        session.add(order)
+        current = await session.get(OrderStatus, order.order_status_id)
+        if current is not None and current.name == ORDER_STATUS_DEPOSIT_PAID:
+            await _sync_order_status(
+                session, payload=payload, target_status_name=ORDER_STATUS_PAID
+            )
+        await session.commit()
+        return
     await _sync_order_status(
-        session, payload=payload, target_status_name=ORDER_STATUS_PAID
+        session,
+        payload=payload,
+        target_status_name=(
+            ORDER_STATUS_DEPOSIT_PAID if kind == KIND_DEPOSIT else ORDER_STATUS_PAID
+        ),
     )
     # The stock reserved at checkout is now definitively consumed.
     order_id = _parse_order_id(payload)
@@ -310,15 +355,23 @@ async def on_payment_captured_issue_invoice(
         return
 
     # Same guard as the status sync: never invoice an order whose captured
-    # payment does not cover its total.
+    # payment does not cover its part.
     mismatch = await _captured_amount_mismatch(session, payload=payload)
     if mismatch is not None:
         logger.error(
             "Invoice not issued for order %s: captured amount %s does not cover "
-            "the order total %s",
+            "the amount due %s",
             order_id,
             mismatch["received_amount"],
             mismatch["expected_amount"],
+        )
+        return
+    # A deposit gets a receipt (the capture e-mail), not an invoice: the one
+    # invoice of the order is issued when the balance settles it.
+    payment, _order = await _load_payment_and_order(session, payload)
+    if _payment_kind(payment) == KIND_DEPOSIT:
+        logger.info(
+            "Order %s: deposit captured, invoice deferred to the balance", order_id
         )
         return
 
@@ -433,6 +486,11 @@ async def on_payment_rejected(session: AsyncSession, payload: dict[str, Any]) ->
         payload.get("order_id"),
         payload.get("reason"),
     )
+    # A refused balance does not undo the order: the deposit is in, the goods
+    # are bought and reserved. The customer simply retries from their account.
+    payment, _order = await _load_payment_and_order(session, payload)
+    if _payment_kind(payment) == KIND_BALANCE:
+        return
     await _sync_order_status(
         session, payload=payload, target_status_name=ORDER_STATUS_PAYMENT_FAILED
     )

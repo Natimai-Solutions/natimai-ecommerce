@@ -10,6 +10,8 @@ export interface Order {
   /** Human-readable status name (Pending / AwaitingPayment / Paid / PaymentFailed…). */
   order_status_name: string | null;
   total_amount: string;
+  /** Billing currency frozen at checkout (null on orders placed before it existed). */
+  currency: string | null;
   subtotal_amount: string;
   shipping_fee_amount: string;
   payment_fee_amount: string;
@@ -21,6 +23,15 @@ export interface Order {
   grouped_departure_id: string | null;
   notes: string | null;
   created_at: string | null;
+  /** Deposit order (« acompte ») : full | deposit, amounts and balance state. */
+  payment_plan: string;
+  deposit_amount: string;
+  deposit_fee_amount: string;
+  balance_amount: string;
+  /** The balance has been asked for (goods received) and is not paid yet. */
+  balance_due: boolean;
+  balance_requested_at: string | null;
+  balance_paid_at: string | null;
 }
 
 /** One shipping segment of an order (`ShippingRouteTrackingPublic`). */

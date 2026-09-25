@@ -61,6 +61,51 @@
         </q-card-section>
       </q-card>
 
+      <!-- Deposit order: what was paid, what is left, pay the balance -->
+      <q-card
+        v-if="order && order.payment_plan === 'deposit'"
+        flat
+        bordered
+        class="q-mb-md"
+        :class="order.balance_due ? 'bg-orange-1' : ''"
+        data-testid="order-deposit"
+      >
+        <q-card-section>
+          <div class="text-subtitle1 text-weight-medium q-mb-sm">
+            <q-icon name="savings" class="q-mr-xs" />Commande avec acompte
+          </div>
+          <div class="row justify-between q-mb-xs">
+            <span>Acompte versé</span><span>{{ money(order.deposit_amount) }}</span>
+          </div>
+          <div class="row justify-between q-mb-xs">
+            <span>Solde</span>
+            <span>
+              {{ money(order.balance_amount) }}
+              <q-badge v-if="order.balance_paid_at" color="green" class="q-ml-xs" label="réglé" />
+              <q-badge v-else-if="order.balance_due" color="orange" class="q-ml-xs" label="à régler" />
+            </span>
+          </div>
+          <template v-if="!order.balance_paid_at">
+            <div v-if="order.balance_due" class="text-body2 q-mt-sm">
+              Vos articles sont arrivés : réglez le solde pour les récupérer.
+            </div>
+            <div v-else class="text-caption text-grey-8 q-mt-sm">
+              Le solde vous sera demandé à la réception de vos articles ; vous pouvez aussi le régler dès maintenant.
+            </div>
+            <q-btn
+              v-if="balancePayable"
+              color="primary"
+              icon="payments"
+              :label="`Régler le solde (${money(order.balance_amount)})`"
+              class="q-mt-sm"
+              no-caps
+              :to="{ name: 'order-balance', params: { id: order.id } }"
+              data-testid="order-pay-balance"
+            />
+          </template>
+        </q-card-section>
+      </q-card>
+
       <!-- Products, serial numbers and warranty -->
       <q-card v-if="lines.length" flat bordered class="q-mb-md" data-testid="order-lines">
         <q-card-section>
@@ -256,6 +301,14 @@ function money(raw: string): string {
   const n = Number.parseFloat(raw);
   return Number.isFinite(n) ? formatXpf(n) : raw;
 }
+
+// The balance can be settled once the deposit is in (any status past the
+// first payment), not only when it has been asked for.
+const UNPAID_STATUSES = new Set(['Pending', 'AwaitingPayment', 'PaymentFailed', 'Cancelled', 'Refunded']);
+const balancePayable = computed(() => {
+  const o = order.value;
+  return !!o && o.payment_plan === 'deposit' && !o.balance_paid_at && !UNPAID_STATUSES.has(o.order_status_name ?? '');
+});
 function hasFee(raw: string): boolean {
   return Number.parseFloat(raw) > 0;
 }

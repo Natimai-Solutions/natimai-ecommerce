@@ -102,11 +102,48 @@
                   <q-item-section>Frais de paiement</q-item-section>
                   <q-item-section side>{{ formatMoney(order.payment_fee_amount) }}</q-item-section>
                 </q-item>
+                <q-item v-if="order.deposit_fee_amount > 0" class="q-px-none">
+                  <q-item-section>Frais option acompte</q-item-section>
+                  <q-item-section side>{{ formatMoney(order.deposit_fee_amount) }}</q-item-section>
+                </q-item>
                 <q-separator class="q-my-xs" />
                 <q-item class="q-px-none text-weight-bold">
                   <q-item-section>Total</q-item-section>
                   <q-item-section side>{{ formatMoney(order.total_amount) }}</q-item-section>
                 </q-item>
+                <template v-if="order.payment_plan === 'deposit'">
+                  <q-item class="q-px-none">
+                    <q-item-section>Acompte à la commande</q-item-section>
+                    <q-item-section side>{{ formatMoney(order.deposit_amount) }}</q-item-section>
+                  </q-item>
+                  <q-item class="q-px-none">
+                    <q-item-section>
+                      Solde
+                      <q-item-label caption>
+                        <template v-if="order.balance_paid_at">réglé le {{ formatDate(order.balance_paid_at) }}</template>
+                        <template v-else-if="order.balance_requested_at">demandé le {{ formatDate(order.balance_requested_at) }}</template>
+                        <template v-else>demandé automatiquement à la réception</template>
+                      </q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                      <div class="row items-center q-gutter-xs">
+                        <span>{{ formatMoney(order.balance_amount) }}</span>
+                        <q-btn
+                          v-if="!order.balance_paid_at"
+                          flat
+                          dense
+                          no-caps
+                          size="sm"
+                          color="primary"
+                          icon="mail"
+                          :label="order.balance_requested_at ? 'Renvoyer la demande' : 'Demander le solde'"
+                          :loading="requestingBalance"
+                          @click="sendBalanceRequest"
+                        />
+                      </div>
+                    </q-item-section>
+                  </q-item>
+                </template>
               </q-list>
             </q-card-section>
           </q-card>
@@ -322,7 +359,10 @@
             </thead>
             <tbody>
               <tr v-for="p in order.payments" :key="p.payment_id">
-                <td class="text-left">{{ providerLabel(p.provider_code) }}</td>
+                <td class="text-left">
+                  {{ providerLabel(p.provider_code) }}
+                  <q-badge v-if="p.kind !== 'full'" color="teal" class="q-ml-xs" :label="PAYMENT_KIND_LABELS[p.kind] ?? p.kind" />
+                </td>
                 <td class="text-left">{{ p.provider_reference || '—' }}</td>
                 <td class="text-left">{{ p.status || '—' }}</td>
                 <td class="text-right">{{ formatMoney(p.amount) }}</td>
@@ -411,10 +451,31 @@ import {
   listOrderStatuses,
   orderStatusColor,
   orderStatusLabel,
+  PAYMENT_KIND_LABELS,
+  requestBalance,
   setOrderStatus,
   type AdminOrderDetail,
   type AdminOrderPaymentItem,
 } from 'src/api/orders';
+
+// --- Deposit order: ask for (or re-send) the balance ---
+const requestingBalance = ref(false);
+async function sendBalanceRequest() {
+  if (!order.value) return;
+  requestingBalance.value = true;
+  error.value = null;
+  try {
+    const result = await requestBalance(order.value.order_id);
+    order.value.balance_requested_at = new Date().toISOString();
+    refundNotice.value = result.sent
+      ? `Demande de solde (${formatMoney(result.balance_amount)}) envoyée au client.`
+      : "Demande enregistrée, mais l'e-mail n'a pas pu partir (notifications désactivées ?).";
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Demande de solde impossible.';
+  } finally {
+    requestingBalance.value = false;
+  }
+}
 import { capturePayment, refundPayment } from 'src/api/paymentValidations';
 import {
   advanceTracking,

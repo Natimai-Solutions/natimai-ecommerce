@@ -1013,6 +1013,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/orders/{order_id}/request-balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Order Balance
+         * @description Send (or re-send) the balance request e-mail of a deposit order — the
+         *     automatic one goes out when the order is received.
+         */
+        post: operations["admin-order-request_order_balance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/grouped-departures": {
         parameters: {
             query?: never;
@@ -1929,6 +1950,26 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/price-groups/{group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Price Group
+         * @description Partial update (deposit policy: share, fee, imposed or offered).
+         */
+        patch: operations["admin-price-groups-update_price_group"];
         trace?: never;
     };
     "/api/v1/admin/currency-rates": {
@@ -6772,6 +6813,30 @@ export interface components {
             grouped_departure_id?: string | null;
             /** Notes */
             notes?: string | null;
+            /**
+             * Payment Plan
+             * @default full
+             */
+            payment_plan: string;
+            /**
+             * Deposit Amount
+             * @default 0
+             */
+            deposit_amount: number;
+            /**
+             * Deposit Fee Amount
+             * @default 0
+             */
+            deposit_fee_amount: number;
+            /**
+             * Balance Amount
+             * @default 0
+             */
+            balance_amount: number;
+            /** Balance Requested At */
+            balance_requested_at?: string | null;
+            /** Balance Paid At */
+            balance_paid_at?: string | null;
             /** Lines */
             lines: components["schemas"]["AdminOrderLineItem"][];
             /** Payments */
@@ -6848,6 +6913,11 @@ export interface components {
             currency: string;
             /** Status */
             status?: string | null;
+            /**
+             * Kind
+             * @default full
+             */
+            kind: string;
             /** Created At */
             created_at?: string | null;
             /**
@@ -8275,6 +8345,47 @@ export interface components {
          *     as the checkout, so the recap the customer reads is the amount debited.
          */
         CheckoutQuoteResponse: {
+            /**
+             * Payment Plan
+             * @description full | deposit
+             * @default full
+             */
+            payment_plan: string;
+            /**
+             * Deposit Available
+             * @description The customer's group offers a deposit
+             * @default false
+             */
+            deposit_available: boolean;
+            /**
+             * Deposit Required
+             * @description The deposit is imposed by the group
+             * @default false
+             */
+            deposit_required: boolean;
+            /**
+             * Deposit Pct
+             * @description Share paid now (%)
+             */
+            deposit_pct?: string | null;
+            /**
+             * Deposit Fee Amount
+             * @description Fee of the deposit option (in total)
+             * @default 0.00
+             */
+            deposit_fee_amount: string;
+            /**
+             * Deposit Amount
+             * @description Charged now on a deposit order
+             * @default 0.00
+             */
+            deposit_amount: string;
+            /**
+             * Balance Amount
+             * @description Asked for at reception
+             * @default 0.00
+             */
+            balance_amount: string;
             /** Currency */
             currency: string;
             /**
@@ -8378,12 +8489,58 @@ export interface components {
              * @description Return URL for provider redirect/SmartForm (CB).
              */
             return_url?: string | null;
+            /**
+             * Payment Plan
+             * @description « deposit » to pay a deposit now and the balance at reception, « full » (default) to pay everything now. Subject to the deposit policy of the customer's price group.
+             */
+            payment_plan?: string | null;
         };
         /**
          * CheckoutResponse
          * @description Represents checkout response.
          */
         CheckoutResponse: {
+            /**
+             * Payment Plan
+             * @description full | deposit
+             * @default full
+             */
+            payment_plan: string;
+            /**
+             * Deposit Available
+             * @description The customer's group offers a deposit
+             * @default false
+             */
+            deposit_available: boolean;
+            /**
+             * Deposit Required
+             * @description The deposit is imposed by the group
+             * @default false
+             */
+            deposit_required: boolean;
+            /**
+             * Deposit Pct
+             * @description Share paid now (%)
+             */
+            deposit_pct?: string | null;
+            /**
+             * Deposit Fee Amount
+             * @description Fee of the deposit option (in total)
+             * @default 0.00
+             */
+            deposit_fee_amount: string;
+            /**
+             * Deposit Amount
+             * @description Charged now on a deposit order
+             * @default 0.00
+             */
+            deposit_amount: string;
+            /**
+             * Balance Amount
+             * @description Asked for at reception
+             * @default 0.00
+             */
+            balance_amount: string;
             /**
              * Order Id
              * Format: uuid
@@ -10918,6 +11075,34 @@ export interface components {
              */
             cgv_version?: string | null;
             /**
+             * Payment Plan
+             * @description full | deposit
+             * @default full
+             */
+            payment_plan: string;
+            /**
+             * Deposit Amount
+             * @description Acompte versé à la commande (0 en plan full)
+             * @default 0.00
+             */
+            deposit_amount: string;
+            /**
+             * Deposit Fee Amount
+             * @description Frais de l'option acompte, inclus dans total_fees_amount
+             * @default 0.00
+             */
+            deposit_fee_amount: string;
+            /**
+             * Balance Requested At
+             * @description Envoi de la demande de solde au client
+             */
+            balance_requested_at?: string | null;
+            /**
+             * Balance Paid At
+             * @description Encaissement du solde
+             */
+            balance_paid_at?: string | null;
+            /**
              * Id
              * Format: uuid
              */
@@ -10926,6 +11111,16 @@ export interface components {
             order_number?: string | null;
             /** Order Status Name */
             order_status_name?: string | null;
+            /**
+             * Balance Amount
+             * @default 0.00
+             */
+            balance_amount: string;
+            /**
+             * Balance Due
+             * @default false
+             */
+            balance_due: boolean;
         };
         /**
          * NotificationCreate
@@ -11260,6 +11455,34 @@ export interface components {
              * @description Version des CGV acceptée au checkout
              */
             cgv_version?: string | null;
+            /**
+             * Payment Plan
+             * @description full | deposit
+             * @default full
+             */
+            payment_plan: string;
+            /**
+             * Deposit Amount
+             * @description Acompte versé à la commande (0 en plan full)
+             * @default 0.00
+             */
+            deposit_amount: number | string;
+            /**
+             * Deposit Fee Amount
+             * @description Frais de l'option acompte, inclus dans total_fees_amount
+             * @default 0.00
+             */
+            deposit_fee_amount: number | string;
+            /**
+             * Balance Requested At
+             * @description Envoi de la demande de solde au client
+             */
+            balance_requested_at?: string | null;
+            /**
+             * Balance Paid At
+             * @description Encaissement du solde
+             */
+            balance_paid_at?: string | null;
         };
         /**
          * OrderLineAllocation
@@ -11628,6 +11851,34 @@ export interface components {
              * @description Version des CGV acceptée au checkout
              */
             cgv_version?: string | null;
+            /**
+             * Payment Plan
+             * @description full | deposit
+             * @default full
+             */
+            payment_plan: string;
+            /**
+             * Deposit Amount
+             * @description Acompte versé à la commande (0 en plan full)
+             * @default 0.00
+             */
+            deposit_amount: string;
+            /**
+             * Deposit Fee Amount
+             * @description Frais de l'option acompte, inclus dans total_fees_amount
+             * @default 0.00
+             */
+            deposit_fee_amount: string;
+            /**
+             * Balance Requested At
+             * @description Envoi de la demande de solde au client
+             */
+            balance_requested_at?: string | null;
+            /**
+             * Balance Paid At
+             * @description Encaissement du solde
+             */
+            balance_paid_at?: string | null;
             /**
              * Id
              * Format: uuid
@@ -13343,10 +13594,59 @@ export interface components {
              */
             requires_validation: boolean;
             /**
+             * Deposit Pct
+             * @description Part du total versée à la commande (%) ; null = pas d'acompte
+             */
+            deposit_pct?: string | null;
+            /**
+             * Deposit Fee Pct
+             * @description Frais liés à l'option acompte, en % du total
+             * @default 0.00
+             */
+            deposit_fee_pct: string;
+            /**
+             * Deposit Fee Fixed
+             * @description Frais fixes liés à l'option acompte (devise de référence)
+             * @default 0.00
+             */
+            deposit_fee_fixed: string;
+            /**
+             * Deposit Required
+             * @description L'acompte est imposé (sinon au choix du client)
+             * @default false
+             */
+            deposit_required: boolean;
+            /**
              * Id
              * Format: uuid
              */
             id: string;
+        };
+        /**
+         * PriceGroupUpdate
+         * @description Represents price group update.
+         */
+        PriceGroupUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Code */
+            code?: string | null;
+            /** Label */
+            label?: string | null;
+            /** Margin Rate Pct */
+            margin_rate_pct?: number | string | null;
+            /** Default */
+            default?: boolean | null;
+            /** Requires Validation */
+            requires_validation?: boolean | null;
+            /** Deposit Pct */
+            deposit_pct?: number | string | null;
+            /** Deposit Fee Pct */
+            deposit_fee_pct?: number | string | null;
+            /** Deposit Fee Fixed */
+            deposit_fee_fixed?: number | string | null;
+            /** Deposit Required */
+            deposit_required?: boolean | null;
         };
         /**
          * PriceGroupsPublic
@@ -14549,6 +14849,21 @@ export interface components {
              * Format: uuid
              */
             id: string;
+        };
+        /**
+         * RequestBalanceResponse
+         * @description Represents request balance response.
+         */
+        RequestBalanceResponse: {
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Balance Amount */
+            balance_amount: number;
+            /** Sent */
+            sent: boolean;
         };
         /**
          * ResetPasswordRequest
@@ -19636,6 +19951,37 @@ export interface operations {
             };
         };
     };
+    "admin-order-request_order_balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequestBalanceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-grouped-departures-list_departures": {
         parameters: {
             query?: never;
@@ -21214,6 +21560,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PriceGroupsPublic"];
+                };
+            };
+        };
+    };
+    "admin-price-groups-update_price_group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceGroupUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceGroupPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -23225,6 +23606,8 @@ export interface operations {
                 delivery_type?: string | null;
                 /** @description Chosen payment method (its fee is added) */
                 payment_method_id?: string | null;
+                /** @description « deposit » to quote a deposit at checkout */
+                payment_plan?: string | null;
             };
             header?: never;
             path?: never;

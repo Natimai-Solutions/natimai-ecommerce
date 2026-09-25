@@ -1,11 +1,29 @@
 {% extends "_layout.html" %}
-{% block title %}Paiement validé{% endblock %}
+{% block title %}{% if payment_kind == 'deposit' %}Acompte reçu{% elif payment_kind == 'balance' %}Solde reçu{% else %}Paiement validé{% endif %}{% endblock %}
 {% block header_color %}#1a7a4a{% endblock %}
 {% block extra_style %}.badge { background: #e6f4ed; color: #1a7a4a; }{% endblock %}
-{% block heading %}Paiement validé ✓{% endblock %}
+{% block heading %}{% if payment_kind == 'deposit' %}Acompte reçu ✓{% elif payment_kind == 'balance' %}Solde reçu ✓{% else %}Paiement validé ✓{% endif %}{% endblock %}
 {% block content %}
       <p>Bonjour {{ full_name }},</p>
       <span class="badge">Paiement confirmé</span>
+      {% if payment_kind == 'deposit' %}
+      <p>Votre acompte a bien été reçu. Votre commande est lancée ; nous vous demanderons le solde lorsque vos articles seront arrivés, et la facture vous sera envoyée à ce moment-là.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Numéro de commande</td><td>{{ order_ref or (order_id | short_ref) }}</td></tr>
+          <tr><td>Acompte reçu</td><td>{{ total_amount }} {{ currency }}</td></tr>
+          <tr><td>Solde à régler à la réception</td><td>{{ balance_amount }} {{ currency }}</td></tr>
+        </table>
+      </div>
+      {% elif payment_kind == 'balance' %}
+      <p>Le solde de votre commande a bien été reçu : elle est intégralement réglée. Votre facture vous parvient dans un message séparé.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Numéro de commande</td><td>{{ order_ref or (order_id | short_ref) }}</td></tr>
+          <tr><td>Solde reçu</td><td>{{ total_amount }} {{ currency }}</td></tr>
+        </table>
+      </div>
+      {% else %}
       <p>Votre paiement a bien été reçu. Votre commande est maintenant en cours de traitement.</p>
       <div class="summary">
         <table>
@@ -13,5 +31,6 @@
           <tr><td>Montant débité</td><td>{{ total_amount }} {{ currency }}</td></tr>
         </table>
       </div>
+      {% endif %}
       <p>Merci pour votre confiance,<br><strong>L'équipe {{ shop_name }}</strong></p>
 {% endblock %}

@@ -52,6 +52,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/OrderTrackingPage.vue'),
       },
       {
+        // Règlement du solde d'une commande passée avec acompte.
+        path: 'mon-compte/commandes/:id/solde',
+        name: 'order-balance',
+        component: () => import('pages/BalancePaymentPage.vue'),
+      },
+      {
         path: 'checkout',
         name: 'checkout',
         component: () => import('pages/CheckoutPage.vue'),

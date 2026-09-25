@@ -1123,6 +1123,7 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   Pending: 'En attente',
   AwaitingPayment: 'En attente de paiement',
   Paid: 'Payée',
+  DepositPaid: 'Acompte versé',
   PaymentFailed: 'Paiement refusé',
   Processing: 'En préparation',
   Shipped: 'Expédiée',
@@ -1153,6 +1154,7 @@ const PAYMENT_BADGE: Record<string, OrderBadge> = {
   Pending: { label: 'Paiement en attente', color: 'orange', icon: 'schedule' },
   AwaitingPayment: { label: 'En attente de paiement', color: 'orange', icon: 'schedule' },
   Paid: { label: 'Payée', color: 'green', icon: 'check_circle' },
+  DepositPaid: { label: 'Acompte versé', color: 'teal', icon: 'savings' },
   PaymentFailed: { label: 'Paiement refusé', color: 'negative', icon: 'cancel' },
   Processing: { label: 'Payée', color: 'green', icon: 'check_circle' },
   Shipped: { label: 'Payée', color: 'green', icon: 'check_circle' },
@@ -1170,6 +1172,7 @@ const PAYMENT_BADGE: Record<string, OrderBadge> = {
 
 const DELIVERY_BADGE: Record<string, OrderBadge> = {
   Paid: { label: 'En préparation', color: 'grey-7', icon: 'inventory_2' },
+  DepositPaid: { label: 'En préparation', color: 'grey-7', icon: 'inventory_2' },
   Processing: { label: 'En préparation', color: 'grey-7', icon: 'inventory_2' },
   Shipped: { label: 'Expédiée', color: 'primary', icon: 'local_shipping' },
   Delivered: { label: 'Livrée', color: 'green', icon: 'task_alt' },

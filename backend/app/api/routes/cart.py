@@ -73,12 +73,23 @@ from app.features.payment.models.payment_status import (
     PaymentStatus,
     PaymentStatusCreate,
 )
+from app.features.payment.services.deposit import (
+    KIND_DEPOSIT,
+    KIND_FULL,
+    PLAN_DEPOSIT,
+    PLAN_FULL,
+    DepositPolicy,
+    choose_plan,
+    deposit_fee,
+    deposit_split,
+)
 from app.features.payment.services.payment_initiation import (
     PaymentInitiationResult,
     initiate_payment_for_method,
 )
 from app.features.place.crud import crud_place
 from app.features.place.models import Place
+from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import (
     BACKORDER_MODES,
     AvailabilityMode,
@@ -1013,8 +1024,10 @@ def _snapshot_checkout_amounts(
     currency: str,
     shipping_fee_amount: Decimal,
     payment_fee_amount: Decimal,
+    deposit_fee_amount: Decimal = Decimal("0.00"),
 ) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal]:
-    """Execute snapshot checkout amounts."""
+    """Execute snapshot checkout amounts (the deposit fee, when any, is part
+    of the fees total and so of the total)."""
     subtotal_amount = sum(
         (item.unit_price * item.quantity for item in items),
         Decimal("0.00"),
@@ -1023,7 +1036,10 @@ def _snapshot_checkout_amounts(
 
     shipping_fee = quantize_amount(shipping_fee_amount, currency)
     payment_fee = quantize_amount(payment_fee_amount, currency)
-    total_fees_amount = quantize_amount(shipping_fee + payment_fee, currency)
+    total_fees_amount = quantize_amount(
+        shipping_fee + payment_fee + quantize_amount(deposit_fee_amount, currency),
+        currency,
+    )
     total_amount = quantize_amount(subtotal_amount + total_fees_amount, currency)
 
     return (
@@ -1115,6 +1131,19 @@ async def _resolve_payment_fee(
         # unknown/ineligible method with its own contract.
         return Decimal("0.00")
     return quantize_amount(method.fee, currency)
+
+
+async def _resolve_customer_price_group(
+    session: SessionDep, current_user: Any
+) -> PriceGroup | None:
+    """The customer's own price group, else the default one: it decides the
+    deposit policy and the margin snapshotted on the lines."""
+    group_id = getattr(current_user, "price_group_id", None)
+    if group_id is not None:
+        group = await session.get(PriceGroup, group_id)
+        if group is not None and group.is_active:
+            return group
+    return await resolve_default_price_group(session)
 
 
 async def _get_or_create_order_pending_status(session: SessionDep) -> OrderStatus:
@@ -1954,6 +1983,33 @@ class CheckoutQuote:
     payment_fee_amount: Decimal
     total_fees_amount: Decimal
     total_amount: Decimal
+    # Deposit terms (all zero / "full" when the customer pays everything now).
+    payment_plan: str = PLAN_FULL
+    deposit_policy: DepositPolicy = DepositPolicy()
+    deposit_fee_amount: Decimal = Decimal("0.00")
+    deposit_amount: Decimal = Decimal("0.00")
+    balance_amount: Decimal = Decimal("0.00")
+
+    def deposit_terms(self) -> dict[str, Any]:
+        """The ``DepositTerms`` fields of the quote / checkout responses."""
+        return {
+            "payment_plan": self.payment_plan,
+            "deposit_available": self.deposit_policy.available,
+            "deposit_required": self.deposit_policy.required,
+            "deposit_pct": self.deposit_policy.pct,
+            "deposit_fee_amount": self.deposit_fee_amount,
+            "deposit_amount": self.deposit_amount,
+            "balance_amount": self.balance_amount,
+        }
+
+    @property
+    def amount_due_now(self) -> Decimal:
+        """What the payment initiated at checkout must carry."""
+        return (
+            self.deposit_amount
+            if self.payment_plan == PLAN_DEPOSIT
+            else self.total_amount
+        )
 
     @property
     def customs_declaration_fee_total(self) -> Decimal:
@@ -2007,6 +2063,8 @@ async def _quote_checkout(
     shipping_route_ids: list[uuid.UUID] | None = None,
     shipping_preference: CheckoutShippingPreference | None = None,
     shipping_fee_fallback: Decimal | None = None,
+    deposit_policy: DepositPolicy | None = None,
+    payment_plan: str | None = None,
 ) -> CheckoutQuote:
     """Resolve the routes and the amounts of a checkout (no writes).
 
@@ -2015,8 +2073,12 @@ async def _quote_checkout(
     the debited amount if they diverge, so they cannot.
 
     Raises ``checkout.delivery_type.unavailable`` when the chosen delivery
-    mode does not serve the address' destination.
+    mode does not serve the address' destination, and
+    ``checkout.deposit.unavailable`` when a deposit is asked for outside the
+    customer's policy.
     """
+    policy = deposit_policy or DepositPolicy()
+    plan = choose_plan(policy, payment_plan)
     declared_value, total_weight_kg = _compute_checkout_declared_value_and_weight(
         items=items,
         products_by_id=products_by_id,
@@ -2102,6 +2164,16 @@ async def _quote_checkout(
         payment_method_id=payment_method_id,
         currency=currency,
     )
+    # The deposit fee is a share of what the order would cost without it.
+    deposit_fee_amount = Decimal("0.00")
+    if plan == PLAN_DEPOSIT:
+        base_total = _snapshot_checkout_amounts(
+            items=items,
+            currency=currency,
+            shipping_fee_amount=shipping_fee_input,
+            payment_fee_amount=resolved_payment_fee,
+        )[4]
+        deposit_fee_amount = deposit_fee(policy, base_total, currency)
     (
         subtotal_amount,
         shipping_fee_amount,
@@ -2113,9 +2185,18 @@ async def _quote_checkout(
         currency=currency,
         shipping_fee_amount=shipping_fee_input,
         payment_fee_amount=resolved_payment_fee,
+        deposit_fee_amount=deposit_fee_amount,
     )
+    deposit_amount = balance_amount = Decimal("0.00")
+    if plan == PLAN_DEPOSIT:
+        deposit_amount, balance_amount = deposit_split(policy, total_amount, currency)
 
     return CheckoutQuote(
+        payment_plan=plan,
+        deposit_policy=policy,
+        deposit_fee_amount=deposit_fee_amount,
+        deposit_amount=deposit_amount,
+        balance_amount=balance_amount,
         currency=currency,
         declared_value=declared_value,
         total_weight_kg=total_weight_kg,
@@ -2146,6 +2227,9 @@ async def get_checkout_quote(
     payment_method_id: uuid.UUID | None = Query(
         default=None, description="Chosen payment method (its fee is added)"
     ),
+    payment_plan: str | None = Query(
+        default=None, description="« deposit » to quote a deposit at checkout"
+    ),
 ) -> CheckoutQuoteResponse:
     """The amounts ``POST /cart/checkout`` will bill for the current backend
     cart and these choices — same computation, so the recap is the debit.
@@ -2157,6 +2241,9 @@ async def get_checkout_quote(
     cart = await crud_cart.get_active_cart_by_user(session=session, user_id=user_id)
     currency = cart.currency if cart is not None else settings.REFERENCE_CURRENCY
     zero = quantize_amount(Decimal("0"), currency)
+    policy = DepositPolicy.of(
+        await _resolve_customer_price_group(session, current_user)
+    )
     if cart is None:
         return CheckoutQuoteResponse(
             currency=currency,
@@ -2166,6 +2253,10 @@ async def get_checkout_quote(
             total_fees_amount=zero,
             total_amount=zero,
             delivery_type=delivery_type,
+            payment_plan=choose_plan(policy, payment_plan),
+            deposit_available=policy.available,
+            deposit_required=policy.required,
+            deposit_pct=policy.pct,
         )
 
     items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart.id)
@@ -2184,8 +2275,11 @@ async def get_checkout_quote(
         shipping_address_id=address_id,
         delivery_type=delivery_type,
         payment_method_id=payment_method_id,
+        deposit_policy=policy,
+        payment_plan=payment_plan,
     )
     return CheckoutQuoteResponse(
+        **quote.deposit_terms(),
         currency=quote.currency,
         subtotal_amount=quote.subtotal_amount,
         shipping_fee_amount=quote.shipping_fee_amount,
@@ -2352,6 +2446,7 @@ async def checkout_my_cart(
         currency=cart.currency,
     )
 
+    price_group = await _resolve_customer_price_group(session, current_user)
     quote = await _quote_checkout(
         session,
         user_id=user_id,
@@ -2364,6 +2459,8 @@ async def checkout_my_cart(
         shipping_route_ids=payload.shipping_route_ids,
         shipping_preference=payload.shipping_preference,
         shipping_fee_fallback=payload.shipping_fee_amount,
+        deposit_policy=DepositPolicy.of(price_group),
+        payment_plan=payload.payment_plan,
     )
     selected_routes = quote.selected_routes
     priced_routes = quote.priced_routes
@@ -2400,7 +2497,6 @@ async def checkout_my_cart(
     cgv_accepted_at = datetime.now(timezone.utc)
 
     try:
-        price_group = await resolve_default_price_group(session)
         # Départ groupé ouvert le plus proche (None = boutique classique).
         departure = await crud_grouped_departure.get_next_open(session)
 
@@ -2426,6 +2522,9 @@ async def checkout_my_cart(
                 grouped_departure_id=departure.id if departure else None,
                 cgv_accepted_at=cgv_accepted_at,
                 cgv_version=settings.CGV_VERSION,
+                payment_plan=quote.payment_plan,
+                deposit_amount=quote.deposit_amount,
+                deposit_fee_amount=quote.deposit_fee_amount,
             ),
             user=current_user,
         )
@@ -2540,15 +2639,20 @@ async def checkout_my_cart(
             # Single-payment flow: create the payment AND run the provider
             # initiation (CB SmartForm / manual / document) in this same
             # transaction. No separate POST /payments/initiate is needed.
+            # On a deposit order only the deposit is charged now; the balance
+            # is a second payment asked for at reception.
             payment_init = await initiate_payment_for_method(
                 session,
                 payment_method_id=payload.payment_method_id,
-                amount=total_amount,
+                amount=quote.amount_due_now,
                 currency=cart.currency,
                 order_id=order.id,
                 return_url=payload.return_url,
                 metadata=None,
                 current_user=current_user,
+                kind=(
+                    KIND_DEPOSIT if quote.payment_plan == PLAN_DEPOSIT else KIND_FULL
+                ),
             )
             payment = payment_init.payment
         else:
@@ -2558,7 +2662,7 @@ async def checkout_my_cart(
             payment = await crud_payment.create_draft(
                 session=session,
                 data=PaymentCreate(
-                    amount=total_amount,
+                    amount=quote.amount_due_now,
                     currency=cart.currency,
                     order_id=order.id,
                     user_id=current_user.id,
@@ -2566,6 +2670,8 @@ async def checkout_my_cart(
                 user=current_user,
             )
             payment.payment_status_id = payment_status.id
+            if quote.payment_plan == PLAN_DEPOSIT:
+                payment.kind = KIND_DEPOSIT
             session.add(payment)
 
         cart.is_checked_out = True
@@ -2630,6 +2736,7 @@ async def checkout_my_cart(
         )
 
         return CheckoutResponse(
+            **quote.deposit_terms(),
             order_id=order.id,
             order_number=order.order_number,
             # getattr: the mocked checkouts of the unit suite build a bare order.

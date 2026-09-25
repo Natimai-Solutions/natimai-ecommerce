@@ -1,1 +1,1 @@
-Votre paiement pour la commande {{ order_ref or (order_id | short_ref) }} a été validé
+{% if payment_kind == 'deposit' %}Acompte reçu pour la commande {{ order_ref or (order_id | short_ref) }}{% elif payment_kind == 'balance' %}Solde reçu pour la commande {{ order_ref or (order_id | short_ref) }}{% else %}Votre paiement pour la commande {{ order_ref or (order_id | short_ref) }} a été validé{% endif %}

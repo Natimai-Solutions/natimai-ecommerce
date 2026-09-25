@@ -30,8 +30,10 @@ from app.features.order.services.status import ALL_ORDER_STATUSES, set_order_sta
 from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_status import PaymentStatus
 from app.features.payment.providers import provider_supports_in_app_refund
+from app.features.payment.services.deposit import PLAN_DEPOSIT, balance_amount
 from app.features.product.models.product import Product
 from app.features.user.models.user import User
+from app.handlers.order import request_balance
 from app.utils.csv_export import csv_amount, csv_response
 
 router = APIRouter(prefix="/admin/orders", tags=["admin-order"])
@@ -91,6 +93,7 @@ class AdminOrderPaymentItem(BaseModel):
     amount: float
     currency: str
     status: str | None = None
+    kind: str = "full"
     created_at: datetime | None = None
     # True when the admin UI may initiate a refund: the provider supports an
     # in-app refund (card / PayZen) and the payment is in a refundable state.
@@ -115,6 +118,13 @@ class AdminOrderDetail(BaseModel):
     delivery_type: str | None = None
     grouped_departure_id: uuid.UUID | None = None
     notes: str | None = None
+    # Deposit order (« acompte ») : plan, amounts and where the balance stands.
+    payment_plan: str = "full"
+    deposit_amount: float = 0.0
+    deposit_fee_amount: float = 0.0
+    balance_amount: float = 0.0
+    balance_requested_at: datetime | None = None
+    balance_paid_at: datetime | None = None
     lines: list[AdminOrderLineItem]
     payments: list[AdminOrderPaymentItem]
 
@@ -561,6 +571,7 @@ async def get_order_detail(
                 amount=float(p.amount),
                 currency=p.currency,
                 status=payment_status_name,
+                kind=p.kind,
                 created_at=p.created_at,
                 can_refund=(
                     provider_supports_in_app_refund(p.provider_code)
@@ -585,6 +596,49 @@ async def get_order_detail(
         delivery_type=getattr(order, "delivery_type", None),
         grouped_departure_id=order.grouped_departure_id,
         notes=order.notes,
+        payment_plan=order.payment_plan,
+        deposit_amount=float(order.deposit_amount),
+        deposit_fee_amount=float(order.deposit_fee_amount),
+        balance_amount=float(balance_amount(order)),
+        balance_requested_at=order.balance_requested_at,
+        balance_paid_at=order.balance_paid_at,
         lines=line_items,
         payments=payment_items,
+    )
+
+
+class RequestBalanceResponse(BaseModel):
+    """Represents request balance response."""
+
+    order_id: uuid.UUID
+    balance_amount: float
+    sent: bool
+
+
+@router.post("/{order_id}/request-balance", response_model=RequestBalanceResponse)
+async def request_order_balance(
+    order_id: uuid.UUID, session: SessionDep, _admin: CurrentSuperUser
+) -> RequestBalanceResponse:
+    """Send (or re-send) the balance request e-mail of a deposit order — the
+    automatic one goes out when the order is received."""
+    order = await session.get(Order, order_id)
+    if order is None:
+        raise AppError(
+            code="order.not_found",
+            status_code=404,
+            message="Commande introuvable",
+            details={"order_id": str(order_id)},
+        )
+    due = balance_amount(order)
+    if order.payment_plan != PLAN_DEPOSIT or order.balance_paid_at is not None:
+        raise AppError(
+            code="order.balance.not_due",
+            status_code=409,
+            message="Aucun solde à demander sur cette commande",
+            details={"order_id": str(order_id), "payment_plan": order.payment_plan},
+        )
+    sent = await request_balance(session, order)
+    await session.commit()
+    return RequestBalanceResponse(
+        order_id=order_id, balance_amount=float(due), sent=sent
     )

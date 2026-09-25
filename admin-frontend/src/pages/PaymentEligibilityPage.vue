@@ -63,11 +63,49 @@
         </tr>
       </tbody>
     </q-markup-table>
+
+    <!-- Deposit policy per price group (« acompte à la commande ») -->
+    <div v-if="!loading" class="q-mt-lg">
+      <div class="text-h6 q-mb-xs">Acompte à la commande</div>
+      <div class="text-caption text-grey-7 q-mb-md">
+        Par groupe tarifaire : part du total versée à la commande (vide = pas d'acompte proposé),
+        frais de l'option (en % du total et/ou fixes, inclus dans le total facturé), et acompte
+        imposé ou laissé au choix du client. Le solde est demandé par e-mail à la réception des
+        articles.
+      </div>
+      <q-banner v-if="depositNotice" class="bg-green-1 text-green-9 q-mb-sm" dense rounded>
+        {{ depositNotice }}
+      </q-banner>
+      <q-markup-table flat bordered dense>
+        <thead>
+          <tr>
+            <th class="text-left">Groupe</th>
+            <th class="text-left">Acompte (%)</th>
+            <th class="text-left">Frais (%)</th>
+            <th class="text-left">Frais fixes (XPF)</th>
+            <th class="text-left">Imposé</th>
+            <th class="text-right"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="g in groups" :key="g.id">
+            <td class="text-left">{{ g.label }}</td>
+            <td><q-input v-model="depositEdit(g).deposit_pct" type="number" min="1" max="99" dense outlined style="width: 90px" placeholder="—" /></td>
+            <td><q-input v-model="depositEdit(g).deposit_fee_pct" type="number" min="0" step="0.5" dense outlined style="width: 90px" /></td>
+            <td><q-input v-model="depositEdit(g).deposit_fee_fixed" type="number" min="0" dense outlined style="width: 110px" /></td>
+            <td><q-toggle v-model="depositEdit(g).deposit_required" dense /></td>
+            <td class="text-right">
+              <q-btn flat dense icon="save" color="primary" :loading="savingDeposit === g.id" @click="saveDeposit(g)" />
+            </td>
+          </tr>
+        </tbody>
+      </q-markup-table>
+    </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, reactive, ref } from 'vue';
 import {
   addEligibility,
   listEligibleGroups,
@@ -75,10 +113,56 @@ import {
   listPriceGroups,
   removeEligibility,
   setPaymentMethodActive,
+  updatePriceGroup,
   type PaymentMethod,
   type PriceGroup,
 } from 'src/api/eligibility';
 import { extractApiError } from 'src/api/errors';
+
+// --- Deposit policy per group ---
+interface DepositEdit {
+  deposit_pct: string;
+  deposit_fee_pct: string;
+  deposit_fee_fixed: string;
+  deposit_required: boolean;
+}
+const depositEdits = reactive<Record<string, DepositEdit>>({});
+const savingDeposit = ref<string | null>(null);
+const depositNotice = ref<string | null>(null);
+
+function depositEdit(g: PriceGroup): DepositEdit {
+  const existing = depositEdits[g.id];
+  if (existing) return existing;
+  depositEdits[g.id] = {
+    deposit_pct: g.deposit_pct === null ? '' : String(Number(g.deposit_pct)),
+    deposit_fee_pct: String(Number(g.deposit_fee_pct)),
+    deposit_fee_fixed: String(Number(g.deposit_fee_fixed)),
+    deposit_required: g.deposit_required,
+  };
+  return depositEdits[g.id] as DepositEdit;
+}
+
+async function saveDeposit(g: PriceGroup) {
+  const edit = depositEdit(g);
+  savingDeposit.value = g.id;
+  error.value = null;
+  depositNotice.value = null;
+  try {
+    const updated = await updatePriceGroup(g.id, {
+      deposit_pct: edit.deposit_pct === '' ? null : String(Number(edit.deposit_pct)),
+      deposit_fee_pct: String(Number(edit.deposit_fee_pct) || 0),
+      deposit_fee_fixed: String(Number(edit.deposit_fee_fixed) || 0),
+      deposit_required: edit.deposit_required,
+    });
+    Object.assign(g, updated);
+    delete depositEdits[g.id];
+    depositNotice.value = `Politique d'acompte du groupe « ${g.label} » enregistrée.`;
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Enregistrement impossible.';
+  } finally {
+    savingDeposit.value = null;
+  }
+}
 
 const methods = ref<PaymentMethod[]>([]);
 const groups = ref<PriceGroup[]>([]);

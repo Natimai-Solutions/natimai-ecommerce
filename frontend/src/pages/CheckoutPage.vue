@@ -73,13 +73,33 @@
                   <span>Frais de paiement</span>
                   <span>{{ formatMoney(quote.payment_fee_amount) }}</span>
                 </div>
+                <div
+                  v-if="hasFee(quote.deposit_fee_amount)"
+                  class="row justify-between text-body2"
+                  data-testid="checkout-quote-deposit-fee"
+                >
+                  <span>Frais option acompte</span>
+                  <span>{{ formatMoney(quote.deposit_fee_amount) }}</span>
+                </div>
                 <q-separator class="q-my-sm" />
                 <div class="row justify-between text-weight-bold">
-                  <span>Total à payer</span>
+                  <span>{{ quote.payment_plan === 'deposit' ? 'Total de la commande' : 'Total à payer' }}</span>
                   <span data-testid="checkout-quote-total">{{
                     formatMoney(quote.total_amount)
                   }}</span>
                 </div>
+                <template v-if="quote.payment_plan === 'deposit'">
+                  <div class="row justify-between text-body2 text-primary q-mt-xs">
+                    <span>Acompte à payer maintenant ({{ Number(quote.deposit_pct) }} %)</span>
+                    <span data-testid="checkout-quote-deposit">{{
+                      formatMoney(quote.deposit_amount)
+                    }}</span>
+                  </div>
+                  <div class="row justify-between text-body2 text-grey-8">
+                    <span>Solde à régler à la réception</span>
+                    <span>{{ formatMoney(quote.balance_amount) }}</span>
+                  </div>
+                </template>
                 <div
                   v-if="departureStore.next"
                   class="text-caption text-grey-8 q-mt-sm"
@@ -315,6 +335,42 @@
                     </q-list>
                   </template>
 
+                  <!-- Deposit option (offered or imposed by the customer's price group) -->
+                  <template v-if="quote?.deposit_available">
+                    <div class="text-subtitle2 text-weight-medium q-mb-sm">Règlement</div>
+                    <q-banner
+                      v-if="quote.deposit_required"
+                      class="bg-blue-1 text-blue-10 q-mb-md"
+                      rounded
+                      dense
+                      data-testid="checkout-deposit-required"
+                    >
+                      <template #avatar><q-icon name="savings" /></template>
+                      Un acompte de {{ Number(quote.deposit_pct) }} % est demandé à la commande ;
+                      le solde vous sera demandé à la réception de vos articles.
+                    </q-banner>
+                    <q-list v-else bordered separator class="rounded-borders q-mb-md">
+                      <q-item
+                        v-for="p in planOptions"
+                        :key="p.value"
+                        v-ripple
+                        clickable
+                        :data-testid="`checkout-plan-${p.value}`"
+                        :active="paymentPlan === p.value"
+                        active-class="bg-blue-1"
+                        @click="paymentPlan = p.value"
+                      >
+                        <q-item-section avatar>
+                          <q-radio v-model="paymentPlan" :val="p.value" />
+                        </q-item-section>
+                        <q-item-section>
+                          <q-item-label>{{ p.label }}</q-item-label>
+                          <q-item-label caption>{{ p.caption }}</q-item-label>
+                        </q-item-section>
+                      </q-item>
+                    </q-list>
+                  </template>
+
                   <div class="text-subtitle2 text-weight-medium q-mb-sm">Moyen de paiement</div>
                   <q-list bordered separator class="rounded-borders q-mb-md">
                     <q-item
@@ -414,8 +470,7 @@ import {
   type CheckoutQuote,
 } from 'src/api/cart';
 import { listMyAddresses, type Address } from 'src/api/addresses';
-
-const PENDING_PAYMENT_KEY = 'payzen.pending_payment_id';
+import { PENDING_PAYMENT_KEY, loadPayzenSmartForm } from 'src/utils/payzen';
 
 const cartStore = useCartStore();
 const authStore = useAuthStore();
@@ -476,6 +531,28 @@ const customsDeclarationFee = ref('0');
 // une seule source de vérité pour le total, rechargée à chaque choix.
 const quote = ref<CheckoutQuote | null>(null);
 const quoteLoading = ref(false);
+// Acompte : « full » (tout maintenant) ou « deposit » (acompte + solde à la
+// réception), quand le groupe tarifaire du client le propose.
+const paymentPlan = ref<'full' | 'deposit'>('full');
+const planOptions = computed(() => {
+  const q = quote.value;
+  const pct = q ? Number(q.deposit_pct) : 0;
+  return [
+    { value: 'full' as const, label: 'Payer la totalité maintenant', caption: 'Rien à régler ensuite.' },
+    {
+      value: 'deposit' as const,
+      label: `Verser un acompte de ${pct} %`,
+      caption:
+        q && hasFee(q.deposit_fee_amount) && q.payment_plan === 'deposit'
+          ? `Solde à la réception de vos articles · frais de l'option : ${formatMoney(q.deposit_fee_amount)}`
+          : 'Solde à régler à la réception de vos articles.',
+    },
+  ];
+});
+watch(paymentPlan, () => {
+  if (!isAuthenticated.value) return;
+  void loadQuote();
+});
 // Montant sur lequel l'éligibilité des moyens de paiement est jugée : le
 // total hors frais de paiement (sinon le devis dépend du moyen, qui dépend
 // du devis).
@@ -496,8 +573,13 @@ async function loadQuote() {
       addressId: selectedAddressId.value,
       deliveryType: selectedDeliveryType.value,
       paymentMethodId: selectedMethodId.value,
+      paymentPlan: paymentPlan.value,
     });
     quote.value = next;
+    // The backend has the last word (an imposed deposit, or none offered).
+    if (next.payment_plan === 'deposit' || next.payment_plan === 'full') {
+      paymentPlan.value = next.payment_plan;
+    }
     const basis =
       Number.parseFloat(next.subtotal_amount) + Number.parseFloat(next.shipping_fee_amount);
     if (Number.isFinite(basis) && basis !== methodsBasis.value) {
@@ -691,6 +773,7 @@ async function startPayment() {
       payment_method_id: method.id,
       return_url: returnUrl,
       cgv_accepted: cgvAccepted.value,
+      payment_plan: paymentPlan.value,
     });
     orderPlaced.value = true;
     placedOrderRef.value = orderRef(checkout.order_number, checkout.order_id);
@@ -817,38 +900,4 @@ function extractError(err: unknown): string | null {
   return null;
 }
 
-interface SmartFormOptions {
-  serverUrl: string;
-  publicKey: string;
-  token: string;
-  returnUrl: string;
-}
-
-function loadPayzenSmartForm({
-  serverUrl,
-  publicKey,
-  token,
-  returnUrl,
-}: SmartFormOptions): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const existing = document.getElementById('kr-payzen-script');
-    if (existing) existing.remove();
-
-    const script = document.createElement('script');
-    script.id = 'kr-payzen-script';
-    script.src = `${serverUrl}/static/js/krypton-client/V4.0/ext/smartform.min.js`;
-    script.setAttribute('kr-public-key', publicKey);
-    script.setAttribute('kr-post-url-success', returnUrl);
-    script.setAttribute('kr-language', 'fr-FR');
-    script.onload = () => {
-      const container = document.getElementById('kr-smart-form-container');
-      if (container) {
-        container.innerHTML = `<div class="kr-smart-form" kr-form-token="${token}"></div>`;
-      }
-      resolve();
-    };
-    script.onerror = () => reject(new Error('Impossible de charger le script Payzen'));
-    document.head.appendChild(script);
-  });
-}
 </script>

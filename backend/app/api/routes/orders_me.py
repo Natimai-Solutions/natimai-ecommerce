@@ -6,6 +6,7 @@ Phase 3: GET /orders/me/{order_id}/tracking
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 
 from fastapi import APIRouter
 from fastapi import status as http_status
@@ -22,6 +23,7 @@ from app.features.departure.reception import MyOrderLine, customer_lines
 from app.features.order.crud.order_crud import crud_order
 from app.features.order.models.order import Order, OrderPublic
 from app.features.order.models.order_status import OrderStatus
+from app.features.payment.services.deposit import balance_amount, balance_due
 from app.features.shipping.crud import (
     crud_shipping_route_tracking,
     crud_status_definition,
@@ -42,6 +44,10 @@ class MyOrderPublic(OrderPublic):
     """Order summary for the customer, enriched with the human-readable status name."""
 
     order_status_name: str | None = None
+    # Deposit order: what is left to pay (0 otherwise) and whether it is
+    # being asked for right now (goods received, balance not settled).
+    balance_amount: Decimal = Decimal("0.00")
+    balance_due: bool = False
 
 
 class CustomerOrderTrackingResponse(SQLModel):
@@ -112,6 +118,8 @@ async def list_my_orders(
     for order in orders:
         item = MyOrderPublic.model_validate(order)
         item.order_status_name = name_by_id.get(order.order_status_id)
+        item.balance_amount = balance_amount(order)
+        item.balance_due = balance_due(order)
         items.append(item)
     return items
 

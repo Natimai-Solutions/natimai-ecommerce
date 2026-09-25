@@ -31,11 +31,17 @@ from app.features.notification.providers import (
     UnknownNotificationProviderError,
     get_notification_provider,
 )
+from app.features.order.models.order import Order
 from app.features.order.services.order_number import resolve_order_ref
+from app.features.payment.models.payment import Payment
+from app.features.payment.services.deposit import PLAN_DEPOSIT, balance_amount
 from app.features.user.models.user import User
 from app.outbox.decorators import outbox_handler
 
 logger = logging.getLogger(__name__)
+
+#: Order status at which the balance of a deposit order is asked for.
+BALANCE_TRIGGER_STATUS = "Received"
 
 EVENT_ORDER_CREATED = "order.created"
 EVENT_PAYMENT_CAPTURED = "payment.captured"
@@ -177,6 +183,83 @@ async def _resolve_user_from_payload(
 _resolve_order_ref = resolve_order_ref
 
 
+async def _load_payment_and_order(
+    session: AsyncSession, payload: dict[str, Any]
+) -> tuple[Payment | None, Order | None]:
+    """The payment and order named by a payment payload, when loadable."""
+    payment: Payment | None = None
+    order: Order | None = None
+    try:
+        if payload.get("payment_id"):
+            payment = await session.get(Payment, uuid.UUID(str(payload["payment_id"])))
+        if payload.get("order_id"):
+            order = await session.get(Order, uuid.UUID(str(payload["order_id"])))
+    except (TypeError, ValueError):
+        return None, None
+    return (
+        payment if isinstance(payment, Payment) else None,
+        order if isinstance(order, Order) else None,
+    )
+
+
+def _order_pay_url(order_id: uuid.UUID) -> str:
+    return f"{settings.FRONTEND_HOST.rstrip('/')}/mon-compte/commandes/{order_id}/solde"
+
+
+async def request_balance(session: AsyncSession, order: Order) -> bool:
+    """Ask the customer for the balance of a deposit order: e-mail with the
+    amounts and the payment link, ``balance_requested_at`` stamped. Sent
+    again on every call (the admin's « renvoyer » button). Flushes, no commit.
+    Returns whether the e-mail reached the provider."""
+    user = await session.get(User, order.user_id)
+    full_name = (user.full_name or user.email or "") if user else ""
+    currency = order.currency or settings.REFERENCE_CURRENCY
+    email = render_email(
+        "balance_due",
+        full_name=full_name or "client",
+        order_id=str(order.id),
+        order_ref=order.order_number or "",
+        total_amount=str(order.total_amount),
+        deposit_amount=str(order.deposit_amount),
+        balance_amount=str(balance_amount(order)),
+        currency=currency,
+        pay_url=_order_pay_url(order.id),
+        shop_name=_shop_name(),
+    )
+    order.balance_requested_at = datetime.now(timezone.utc)
+    session.add(order)
+    await session.flush()
+    return await _send_order_email(
+        session,
+        user_id_raw=str(order.user_id),
+        subject=email.subject,
+        text=email.text,
+        html=email.html,
+        event_type="order.balance_due",
+        payload={"order_id": str(order.id), "order_number": order.order_number},
+    )
+
+
+@outbox_handler(EVENT_ORDER_STATUS_CHANGED)
+async def on_order_received_request_balance(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    """When the goods are received, a deposit order is asked for its balance
+    (once — the admin can re-send it from the order page)."""
+    if str(payload.get("new_status") or "") != BALANCE_TRIGGER_STATUS:
+        return
+    try:
+        order = await session.get(Order, uuid.UUID(str(payload.get("order_id"))))
+    except (TypeError, ValueError):
+        return
+    if not isinstance(order, Order) or order.payment_plan != PLAN_DEPOSIT:
+        return
+    if order.balance_paid_at is not None or order.balance_requested_at is not None:
+        return
+    await request_balance(session, order)
+    await session.commit()
+
+
 @outbox_handler(EVENT_ORDER_CREATED)
 async def on_order_created(session: AsyncSession, payload: dict[str, Any]) -> None:
     """Send 'Commande reçue' email to the customer after checkout."""
@@ -229,6 +312,10 @@ async def on_payment_captured_customer(
 
     order_ref = await _resolve_order_ref(session, payload)
 
+    # A deposit or a balance gets its own wording (and the balance left).
+    payment, order = await _load_payment_and_order(session, payload)
+    kind = getattr(payment, "kind", None)
+    kind = kind if isinstance(kind, str) else "full"
     email = render_email(
         "payment_captured",
         full_name=full_name or "client",
@@ -236,6 +323,8 @@ async def on_payment_captured_customer(
         order_ref=order_ref,
         total_amount=payload.get("total_amount", ""),
         currency=payload.get("currency", ""),
+        payment_kind=kind,
+        balance_amount=str(balance_amount(order)) if order is not None else "",
         shop_name=_shop_name(),
     )
 
