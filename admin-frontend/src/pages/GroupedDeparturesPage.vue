@@ -236,6 +236,136 @@
         </div>
       </q-card-section>
 
+      <!-- Goods receipt: tally per product, orders reconciliation -->
+      <q-card-section v-if="!showUnassigned">
+        <div class="row items-center q-mb-sm q-gutter-sm">
+          <div class="text-subtitle2 col">Réception — pointage par SKU</div>
+          <span v-if="reception" class="text-caption text-grey-7">
+            attendu {{ reception.expected_units }} · reçu {{ reception.received_units }} ·
+            endommagé {{ reception.damaged_units }} ·
+            <span :class="reception.missing_units ? 'text-orange-9' : 'text-positive'"
+              >manquant {{ reception.missing_units }}</span
+            >
+          </span>
+        </div>
+        <q-table
+          :rows="reception?.lines ?? []"
+          :columns="receiptColumns"
+          row-key="product_id"
+          :loading="receptionLoading"
+          flat
+          dense
+          bordered
+          :rows-per-page-options="[0]"
+          hide-pagination
+        >
+          <template #body-cell-received="props">
+            <q-td :props="props">
+              <q-input
+                v-model.number="receiptEdit(props.row).quantity_received"
+                type="number"
+                min="0"
+                dense
+                outlined
+                style="width: 80px"
+              />
+            </q-td>
+          </template>
+          <template #body-cell-damaged="props">
+            <q-td :props="props">
+              <q-input
+                v-model.number="receiptEdit(props.row).quantity_damaged"
+                type="number"
+                min="0"
+                dense
+                outlined
+                style="width: 80px"
+              />
+            </q-td>
+          </template>
+          <template #body-cell-serials="props">
+            <q-td :props="props">
+              <q-input
+                v-model="receiptEdit(props.row).serials"
+                dense
+                outlined
+                autogrow
+                placeholder="SN1, SN2… (un par exemplaire conforme)"
+                style="min-width: 220px"
+              />
+            </q-td>
+          </template>
+          <template #body-cell-missing="props">
+            <q-td :props="props" :class="missingOf(props.row) ? 'text-orange-9' : 'text-positive'">
+              {{ missingOf(props.row) }}
+            </q-td>
+          </template>
+          <template #body-cell-actions="props">
+            <q-td :props="props" align="right">
+              <q-btn
+                flat
+                dense
+                icon="save"
+                color="primary"
+                :loading="savingReceipt === props.row.product_id"
+                @click="saveReceipt(props.row)"
+              >
+                <q-tooltip>Enregistrer le pointage ; les n° de série sont attribués aux commandes par ordre d'arrivée</q-tooltip>
+              </q-btn>
+            </q-td>
+          </template>
+          <template #no-data>
+            <div class="full-width text-center text-grey-6 q-pa-md">Aucun article attendu (aucune commande payée).</div>
+          </template>
+        </q-table>
+        <div v-if="reception?.orders.length" class="q-mt-sm">
+          <div class="text-caption text-grey-7 q-mb-xs">Rapprochement des commandes (servies par ordre d'arrivée)</div>
+          <q-btn
+            v-for="o in reception.orders"
+            :key="o.order_id"
+            unelevated
+            rounded
+            dense
+            no-caps
+            size="sm"
+            class="q-mr-xs q-mb-xs"
+            :color="fulfilmentColor(o.fulfilment)"
+            :label="`${o.order_number ?? o.order_id.slice(0, 8)} · ${fulfilmentLabel(o.fulfilment)}`"
+            :to="`/orders/${o.order_id}`"
+          >
+            <q-tooltip>
+              <div v-for="ln in o.lines" :key="ln.product_id">
+                {{ ln.product_name }} : {{ ln.allocated }}/{{ ln.quantity }}
+                <template v-if="ln.serial_numbers.length"> ({{ ln.serial_numbers.join(', ') }})</template>
+              </div>
+            </q-tooltip>
+          </q-btn>
+        </div>
+      </q-card-section>
+
+      <!-- Margin dashboard -->
+      <q-card-section v-if="!showUnassigned && board">
+        <div class="text-subtitle2 q-mb-sm">Tableau de bord du départ</div>
+        <div class="row q-col-gutter-sm q-mb-sm">
+          <div v-for="tile in tiles" :key="tile.label" class="col-6 col-md">
+            <q-card flat bordered class="q-pa-sm">
+              <div class="text-caption text-grey-7">{{ tile.label }}</div>
+              <div class="text-subtitle1 text-weight-medium" :class="tile.cls">{{ tile.value }}</div>
+              <div v-if="tile.hint" class="text-caption text-grey-6">{{ tile.hint }}</div>
+            </q-card>
+          </div>
+        </div>
+        <q-banner v-if="board.unconverted_currencies.length" class="bg-orange-1 text-orange-10 q-mb-sm" dense rounded>
+          Bons de commande en {{ board.unconverted_currencies.join(', ') }} ignorés : aucun taux de change actif.
+        </q-banner>
+        <div class="row q-col-gutter-sm items-center">
+          <q-input v-model="costs.freight_cost" class="col" type="number" step="1" min="0" label="Fret réel (XPF)" outlined dense />
+          <q-input v-model="costs.customs_cost" class="col" type="number" step="1" min="0" label="Douane réelle (XPF)" outlined dense />
+          <q-input v-model="costs.other_costs" class="col" type="number" step="1" min="0" label="Autres frais (XPF)" outlined dense />
+          <q-btn color="primary" no-caps label="Enregistrer les coûts" :loading="saving" @click="saveCosts" />
+        </div>
+      </q-card-section>
+
       <!-- Social reminders -->
       <q-card-section v-if="!showUnassigned">
         <div class="row items-center q-mb-sm q-gutter-sm">
@@ -540,15 +670,22 @@ import {
   createReminder,
   deleteDeparture,
   deleteReminder,
+  FULFILMENT_LABELS,
+  getDashboard,
+  getReception,
   listDepartures,
   listReminders,
   publishReminder,
   removeSupplierOrder,
+  saveReceiptLine,
   updateDeparture,
   updateReminder,
   type CloseResult,
   type Departure,
+  type DepartureDashboard,
   type DepartureWrite,
+  type ReceiptLine,
+  type ReceiptReport,
   type Reminder,
 } from 'src/api/departures';
 import {
@@ -686,6 +823,158 @@ function select(row: Departure) {
   selected.value = row;
   showUnassigned.value = false;
   void loadReminders();
+  void loadReception();
+  void loadDashboard();
+}
+
+// --- Goods receipt (Lot C) ---
+const reception = ref<ReceiptReport | null>(null);
+const receptionLoading = ref(false);
+const savingReceipt = ref<string | null>(null);
+interface ReceiptEdit {
+  quantity_received: number;
+  quantity_damaged: number;
+  serials: string;
+}
+const receiptEdits = reactive<Record<string, ReceiptEdit>>({});
+
+const receiptColumns: QTableColumn[] = [
+  {
+    name: 'product',
+    label: 'Article',
+    field: (r: ReceiptLine) => `${r.supplier_sku ?? '—'} · ${r.product_name}`,
+    align: 'left',
+  },
+  { name: 'expected', label: 'Attendu', field: 'expected_quantity', align: 'right' },
+  { name: 'received', label: 'Reçu', field: 'quantity_received', align: 'right' },
+  { name: 'damaged', label: 'Endommagé', field: 'quantity_damaged', align: 'right' },
+  { name: 'missing', label: 'Manquant', field: 'expected_quantity', align: 'right' },
+  { name: 'serials', label: 'N° de série', field: 'serial_numbers', align: 'left' },
+  { name: 'actions', label: '', field: 'product_id', align: 'right' },
+];
+
+/** Editable copy of a tally row (created on first access). */
+function receiptEdit(row: ReceiptLine): ReceiptEdit {
+  const existing = receiptEdits[row.product_id];
+  if (existing) return existing;
+  receiptEdits[row.product_id] = {
+    quantity_received: row.quantity_received,
+    quantity_damaged: row.quantity_damaged,
+    serials: row.serial_numbers.join(', '),
+  };
+  return receiptEdits[row.product_id] as ReceiptEdit;
+}
+
+function missingOf(row: ReceiptLine): number {
+  const edit = receiptEdit(row);
+  return Math.max(0, row.expected_quantity - (Number(edit.quantity_received) - Number(edit.quantity_damaged)));
+}
+
+const fulfilmentLabel = (s: string) => FULFILMENT_LABELS[s] ?? s;
+const fulfilmentColor = (s: string) => (s === 'served' ? 'green' : s === 'partial' ? 'orange-8' : 'grey-7');
+
+function applyReception(report: ReceiptReport) {
+  reception.value = report;
+  for (const key of Object.keys(receiptEdits)) delete receiptEdits[key];
+}
+
+async function loadReception() {
+  if (!selected.value) return;
+  receptionLoading.value = true;
+  try {
+    applyReception(await getReception(selected.value.id));
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Chargement de la réception impossible.';
+  } finally {
+    receptionLoading.value = false;
+  }
+}
+
+async function saveReceipt(row: ReceiptLine) {
+  if (!selected.value) return;
+  const edit = receiptEdit(row);
+  savingReceipt.value = row.product_id;
+  error.value = null;
+  try {
+    applyReception(
+      await saveReceiptLine(selected.value.id, row.product_id, {
+        quantity_received: Number(edit.quantity_received) || 0,
+        quantity_damaged: Number(edit.quantity_damaged) || 0,
+        serial_numbers: edit.serials.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean),
+        notes: row.notes,
+      }),
+    );
+    notice.value = `Pointage enregistré : ${row.product_name}.`;
+    void loadDashboard();
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Enregistrement du pointage impossible.';
+  } finally {
+    savingReceipt.value = null;
+  }
+}
+
+// --- Margin dashboard (Lot C) ---
+const board = ref<DepartureDashboard | null>(null);
+const costs = reactive({ freight_cost: '', customs_cost: '', other_costs: '' });
+
+const tiles = computed(() => {
+  const b = board.value;
+  if (!b) return [];
+  const n = (v: string | number | null) => Number(v ?? 0);
+  const fees = n(b.freight_cost) + n(b.customs_cost) + n(b.other_costs);
+  const margin = n(b.gross_margin);
+  return [
+    { label: `Chiffre d'affaires (${b.orders_count} cmdes, ${b.units} pièces)`, value: formatMoney(n(b.revenue)), cls: '', hint: '' },
+    { label: 'Encaissé (net des remboursements)', value: formatMoney(n(b.collected)), cls: '', hint: '' },
+    {
+      label: b.goods_cost_source === 'supplier_orders' ? 'Payé fournisseur (BC)' : 'Coût marchandises (estimé au checkout)',
+      value: formatMoney(b.goods_cost_source === 'supplier_orders' ? n(b.supplier_paid) : n(b.goods_cost_estimated)),
+      cls: '',
+      hint: b.goods_cost_source === 'supplier_orders' ? `estimé : ${formatMoney(n(b.goods_cost_estimated))}` : 'enregistrez les BC pour le réel',
+    },
+    { label: 'Fret + douane + autres (réels)', value: formatMoney(fees), cls: '', hint: '' },
+    {
+      label: 'Marge brute',
+      value: formatMoney(margin),
+      cls: margin < 0 ? 'text-negative' : 'text-positive',
+      hint: b.margin_rate_pct === null ? '' : `${b.margin_rate_pct} % du CA`,
+    },
+  ];
+});
+
+async function loadDashboard() {
+  if (!selected.value) return;
+  try {
+    board.value = await getDashboard(selected.value.id);
+    Object.assign(costs, {
+      freight_cost: selected.value.freight_cost ?? '',
+      customs_cost: selected.value.customs_cost ?? '',
+      other_costs: selected.value.other_costs ?? '',
+    });
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Chargement du tableau de bord impossible.';
+  }
+}
+
+async function saveCosts() {
+  if (!selected.value) return;
+  saving.value = true;
+  error.value = null;
+  const amount = (v: string) => (v === '' ? null : String(Number(v)));
+  try {
+    await updateDeparture(selected.value.id, {
+      freight_cost: amount(costs.freight_cost),
+      customs_cost: amount(costs.customs_cost),
+      other_costs: amount(costs.other_costs),
+    });
+    await load();
+    await loadDashboard();
+    notice.value = 'Coûts réels enregistrés.';
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Enregistrement des coûts impossible.';
+  } finally {
+    saving.value = false;
+  }
 }
 
 async function loadOrders() {

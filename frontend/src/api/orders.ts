@@ -81,3 +81,21 @@ export async function getMyOrderTracking(orderId: string): Promise<OrderTracking
   const { data } = await api.get<OrderTracking>(`/orders/me/${orderId}/tracking`);
   return data;
 }
+
+/** A line of the order as the customer sees it (`MyOrderLine`). */
+export interface OrderLine {
+  product_id: string;
+  product_name: string;
+  quantity: number;
+  unit_price: string;
+  /** Serial numbers of the units handed over (filled at reception). */
+  serial_numbers: string[];
+  warranty_months: number | null;
+  /** Warranty end, counted from the day the goods were received. */
+  warranty_until: string | null;
+}
+
+export async function getMyOrderLines(orderId: string): Promise<OrderLine[]> {
+  const { data } = await api.get<OrderLine[]>(`/orders/me/${orderId}/lines`);
+  return data;
+}

@@ -61,6 +61,31 @@
         </q-card-section>
       </q-card>
 
+      <!-- Products, serial numbers and warranty -->
+      <q-card v-if="lines.length" flat bordered class="q-mb-md" data-testid="order-lines">
+        <q-card-section>
+          <div class="text-subtitle1 text-weight-medium q-mb-sm">Articles</div>
+          <q-list dense separator>
+            <q-item v-for="line in lines" :key="line.product_id" class="q-px-none">
+              <q-item-section>
+                <q-item-label>{{ line.quantity }} × {{ line.product_name }}</q-item-label>
+                <q-item-label v-if="line.serial_numbers.length" caption>
+                  N° de série : {{ line.serial_numbers.join(', ') }}
+                </q-item-label>
+                <q-item-label v-if="line.warranty_until" caption>
+                  Garantie {{ line.warranty_months }} mois, jusqu'au
+                  {{ formatDate(line.warranty_until) }}
+                </q-item-label>
+                <q-item-label v-else-if="line.warranty_months" caption>
+                  Garantie {{ line.warranty_months }} mois à compter de la remise
+                </q-item-label>
+              </q-item-section>
+              <q-item-section side>{{ money(line.unit_price) }}</q-item-section>
+            </q-item>
+          </q-list>
+        </q-card-section>
+      </q-card>
+
       <q-card v-if="order" flat bordered class="q-mb-md">
         <q-card-section>
           <div class="text-subtitle1 text-weight-medium q-mb-sm">Récapitulatif</div>
@@ -192,8 +217,10 @@ import { departureStatusLabel, formatXpf } from '@app/utils';
 import { useAuthStore } from 'src/stores/auth';
 import {
   getMyOrder,
+  getMyOrderLines,
   getMyOrderTracking,
   type Order,
+  type OrderLine,
   type OrderTracking,
   type OrderTrackingSegment,
 } from 'src/api/orders';
@@ -212,6 +239,8 @@ const tracking = ref<OrderTracking | null>(null);
 const order = ref<Order | null>(null);
 // Grouped departure the order is attached to (best-effort, like the order).
 const departure = ref<Departure | null>(null);
+// Products with their serial numbers and warranty end (best-effort too).
+const lines = ref<OrderLine[]>([]);
 
 const DELIVERY_LABELS: Record<string, string> = {
   pickup: 'Retrait en magasin',
@@ -353,15 +382,17 @@ async function load() {
   errorMessage.value = null;
   try {
     // Tracking drives the page; the order (for the cost recap) is best-effort.
-    const [trackingResult, orderResult] = await Promise.allSettled([
+    const [trackingResult, orderResult, linesResult] = await Promise.allSettled([
       getMyOrderTracking(orderId.value),
       getMyOrder(orderId.value),
+      getMyOrderLines(orderId.value),
     ]);
     if (trackingResult.status === 'fulfilled') {
       tracking.value = trackingResult.value;
     } else {
       throw trackingResult.reason;
     }
+    lines.value = linesResult.status === 'fulfilled' ? linesResult.value : [];
     if (orderResult.status === 'fulfilled') {
       order.value = orderResult.value;
       const departureId = orderResult.value?.grouped_departure_id;

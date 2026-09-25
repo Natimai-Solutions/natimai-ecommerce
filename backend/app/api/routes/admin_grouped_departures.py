@@ -26,7 +26,15 @@ from app.features.departure.models import (
     GroupedDepartureCreate,
     GroupedDeparturePublic,
     GroupedDepartureUpdate,
+    ReceiptLineWrite,
     SupplierOrderEntry,
+)
+from app.features.departure.reception import (
+    DepartureDashboard,
+    ReceiptReport,
+    dashboard,
+    reconcile,
+    upsert_receipt_line,
 )
 from app.features.departure.services import (
     CloseResult,
@@ -293,6 +301,43 @@ async def remove_supplier_order(
     await session.commit()
     departure = await _get_or_404(session, departure_id)
     return (await _to_public(session, [departure]))[0]
+
+
+# --- Goods receipt and dashboard --------------------------------------------
+
+
+@router.get("/{departure_id}/reception", response_model=ReceiptReport)
+async def get_reception(
+    departure_id: uuid.UUID, session: SessionDep, _admin: CurrentSuperUser
+) -> ReceiptReport:
+    """Tally per product (expected from the orders, received, damaged, serial
+    numbers) and the orders served / partially served / not served."""
+    return await reconcile(session, await _get_or_404(session, departure_id))
+
+
+@router.put("/{departure_id}/reception/{product_id}", response_model=ReceiptReport)
+async def put_reception_line(
+    departure_id: uuid.UUID,
+    product_id: uuid.UUID,
+    body: ReceiptLineWrite,
+    session: SessionDep,
+    _admin: CurrentSuperUser,
+) -> ReceiptReport:
+    """Record what came in for one product. The serial numbers are handed to
+    the order lines in order of order date; the report is returned."""
+    departure = await _get_or_404(session, departure_id)
+    await upsert_receipt_line(session, departure, product_id=product_id, data=body)
+    await reconcile(session, departure, write_serials=True)
+    await session.commit()
+    return await reconcile(session, await _get_or_404(session, departure_id))
+
+
+@router.get("/{departure_id}/dashboard", response_model=DepartureDashboard)
+async def get_dashboard(
+    departure_id: uuid.UUID, session: SessionDep, _admin: CurrentSuperUser
+) -> DepartureDashboard:
+    """Revenue, cash collected, goods cost, real shipment costs and margin."""
+    return await dashboard(session, await _get_or_404(session, departure_id))
 
 
 # --- Reminders --------------------------------------------------------------

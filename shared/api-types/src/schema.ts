@@ -1149,6 +1149,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/grouped-departures/{departure_id}/reception": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Reception
+         * @description Tally per product (expected from the orders, received, damaged, serial
+         *     numbers) and the orders served / partially served / not served.
+         */
+        get: operations["admin-grouped-departures-get_reception"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/{departure_id}/reception/{product_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Reception Line
+         * @description Record what came in for one product. The serial numbers are handed to
+         *     the order lines in order of order date; the report is returned.
+         */
+        put: operations["admin-grouped-departures-put_reception_line"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/{departure_id}/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dashboard
+         * @description Revenue, cash collected, goods cost, real shipment costs and margin.
+         */
+        get: operations["admin-grouped-departures-get_dashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/grouped-departures/{departure_id}/reminders": {
         parameters: {
             query?: never;
@@ -3468,6 +3530,26 @@ export interface paths {
          * @description List the authenticated user's orders (most recent first).
          */
         get: operations["order-list_my_orders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/me/{order_id}/lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lines of my order, with serial numbers and warranty end
+         * @description Products of the order; serial numbers and warranty end once received.
+         */
+        get: operations["order-get_my_order_lines"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8875,6 +8957,43 @@ export interface components {
             count: number;
         };
         /**
+         * DepartureDashboard
+         * @description Money view of a departure (XPF).
+         */
+        DepartureDashboard: {
+            /**
+             * Departure Id
+             * Format: uuid
+             */
+            departure_id: string;
+            /** Orders Count */
+            orders_count: number;
+            /** Units */
+            units: number;
+            /** Revenue */
+            revenue: string;
+            /** Collected */
+            collected: string;
+            /** Goods Cost Estimated */
+            goods_cost_estimated: string;
+            /** Supplier Paid */
+            supplier_paid: string;
+            /** Unconverted Currencies */
+            unconverted_currencies: string[];
+            /** Goods Cost Source */
+            goods_cost_source: string;
+            /** Freight Cost */
+            freight_cost: string;
+            /** Customs Cost */
+            customs_cost: string;
+            /** Other Costs */
+            other_costs: string;
+            /** Gross Margin */
+            gross_margin: string;
+            /** Margin Rate Pct */
+            margin_rate_pct: string | null;
+        };
+        /**
          * DepartureReminderPublic
          * @description Admin view, with the message as it will be posted.
          */
@@ -9829,6 +9948,21 @@ export interface components {
              * @description Consolidation logistique portant le transport de ce départ
              */
             consolidation_id?: string | null;
+            /**
+             * Freight Cost
+             * @description Fret réel
+             */
+            freight_cost?: number | string | null;
+            /**
+             * Customs Cost
+             * @description Douane réelle
+             */
+            customs_cost?: number | string | null;
+            /**
+             * Other Costs
+             * @description Autres frais réels (assurance, transitaire…)
+             */
+            other_costs?: number | string | null;
         };
         /**
          * GroupedDeparturePublic
@@ -9916,6 +10050,21 @@ export interface components {
              */
             consolidation_id?: string | null;
             /**
+             * Freight Cost
+             * @description Fret réel
+             */
+            freight_cost?: string | null;
+            /**
+             * Customs Cost
+             * @description Douane réelle
+             */
+            customs_cost?: string | null;
+            /**
+             * Other Costs
+             * @description Autres frais réels (assurance, transitaire…)
+             */
+            other_costs?: string | null;
+            /**
              * Id
              * Format: uuid
              */
@@ -9993,6 +10142,12 @@ export interface components {
             supplier_orders?: {
                 [key: string]: unknown;
             }[] | null;
+            /** Freight Cost */
+            freight_cost?: number | string | null;
+            /** Customs Cost */
+            customs_cost?: number | string | null;
+            /** Other Costs */
+            other_costs?: number | string | null;
         };
         /**
          * GroupsPublic
@@ -10630,6 +10785,32 @@ export interface components {
             task_id?: string | null;
         };
         /**
+         * MyOrderLine
+         * @description An order line as the customer sees it: product, serials, warranty.
+         */
+        MyOrderLine: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Product Name */
+            product_name: string;
+            /** Quantity */
+            quantity: number;
+            /** Unit Price */
+            unit_price: string;
+            /**
+             * Serial Numbers
+             * @default []
+             */
+            serial_numbers: string[];
+            /** Warranty Months */
+            warranty_months?: number | null;
+            /** Warranty Until */
+            warranty_until?: string | null;
+        };
+        /**
          * MyOrderPublic
          * @description Order summary for the customer, enriched with the human-readable status name.
          */
@@ -11081,6 +11262,28 @@ export interface components {
             cgv_version?: string | null;
         };
         /**
+         * OrderLineAllocation
+         * @description Represents order line allocation.
+         */
+        OrderLineAllocation: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Product Name */
+            product_name: string;
+            /** Quantity */
+            quantity: number;
+            /** Allocated */
+            allocated: number;
+            /**
+             * Serial Numbers
+             * @default []
+             */
+            serial_numbers: string[];
+        };
+        /**
          * OrderLineCreate
          * @description Represents order line create.
          */
@@ -11171,6 +11374,11 @@ export interface components {
              * @description Snapshot de l'ID du groupe de prix appliqué
              */
             price_group_id_snapshot?: string | null;
+            /**
+             * Serial Numbers
+             * @description Numéros de série des exemplaires remis au client
+             */
+            serial_numbers?: string[] | null;
         };
         /**
          * OrderLinePublic
@@ -11263,6 +11471,11 @@ export interface components {
              * @description Snapshot de l'ID du groupe de prix appliqué
              */
             price_group_id_snapshot?: string | null;
+            /**
+             * Serial Numbers
+             * @description Numéros de série des exemplaires remis au client
+             */
+            serial_numbers?: string[] | null;
             /**
              * Id
              * Format: uuid
@@ -11422,6 +11635,25 @@ export interface components {
             id: string;
             /** Order Number */
             order_number?: string | null;
+        };
+        /**
+         * OrderReconciliation
+         * @description served: every unit is in; partial: some; unserved: nothing yet.
+         */
+        OrderReconciliation: {
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Order Number */
+            order_number: string | null;
+            /** Status */
+            status: string | null;
+            /** Fulfilment */
+            fulfilment: string;
+            /** Lines */
+            lines: components["schemas"]["OrderLineAllocation"][];
         };
         /**
          * OrderStatusChangeRequest
@@ -14161,6 +14393,94 @@ export interface components {
             database: boolean;
             /** Redis */
             redis: boolean;
+        };
+        /**
+         * ReceiptLineView
+         * @description One product of the shipment: what was expected, what came in.
+         */
+        ReceiptLineView: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Product Name */
+            product_name: string;
+            /** Supplier Sku */
+            supplier_sku: string | null;
+            /** Expected Quantity */
+            expected_quantity: number;
+            /**
+             * Quantity Received
+             * @default 0
+             */
+            quantity_received: number;
+            /**
+             * Quantity Damaged
+             * @default 0
+             */
+            quantity_damaged: number;
+            /**
+             * Serial Numbers
+             * @default []
+             */
+            serial_numbers: string[];
+            /** Notes */
+            notes?: string | null;
+            /** Received At */
+            received_at?: string | null;
+        };
+        /**
+         * ReceiptLineWrite
+         * @description What the admin types when checking in a product of the shipment.
+         */
+        ReceiptLineWrite: {
+            /**
+             * Quantity Received
+             * @description Exemplaires reçus (tous états)
+             */
+            quantity_received: number;
+            /**
+             * Quantity Damaged
+             * @description Dont endommagés / non conformes
+             * @default 0
+             */
+            quantity_damaged: number;
+            /**
+             * Serial Numbers
+             * @description Numéros de série des exemplaires conformes
+             */
+            serial_numbers?: string[];
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Received At
+             * @description Date de réception (défaut : maintenant)
+             */
+            received_at?: string | null;
+        };
+        /**
+         * ReceiptReport
+         * @description The « Réception » section: tally per product + orders reconciliation.
+         */
+        ReceiptReport: {
+            /**
+             * Departure Id
+             * Format: uuid
+             */
+            departure_id: string;
+            /** Lines */
+            lines: components["schemas"]["ReceiptLineView"][];
+            /** Orders */
+            orders: components["schemas"]["OrderReconciliation"][];
+            /** Expected Units */
+            expected_units: number;
+            /** Received Units */
+            received_units: number;
+            /** Damaged Units */
+            damaged_units: number;
+            /** Missing Units */
+            missing_units: number;
         };
         /**
          * RefundPublic
@@ -19570,6 +19890,104 @@ export interface operations {
             };
         };
     };
+    "admin-grouped-departures-get_reception": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-put_reception_line": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptLineWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-get_dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartureDashboard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-grouped-departures-list_reminders": {
         parameters: {
             query?: never;
@@ -24263,6 +24681,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MyOrderPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "order-get_my_order_lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyOrderLine"][];
                 };
             };
             /** @description Validation Error */

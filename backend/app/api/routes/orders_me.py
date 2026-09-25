@@ -18,8 +18,9 @@ from app.api.routes.shipping.tracking import (
 )
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
+from app.features.departure.reception import MyOrderLine, customer_lines
 from app.features.order.crud.order_crud import crud_order
-from app.features.order.models.order import OrderPublic
+from app.features.order.models.order import Order, OrderPublic
 from app.features.order.models.order_status import OrderStatus
 from app.features.shipping.crud import (
     crud_shipping_route_tracking,
@@ -115,6 +116,41 @@ async def list_my_orders(
     return items
 
 
+async def _my_order_or_error(
+    session: SessionDep, order_id: uuid.UUID, current_user: CurrentUser
+) -> Order:
+    try:
+        order: Order = await crud_order.read(session, id=order_id)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="order.not_found",
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            message=f"Order {order_id} not found",
+            details={"order_id": str(order_id)},
+        ) from exc
+    if order.user_id != current_user.id:
+        raise AppError(
+            code="order.not_owned",
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            message="You cannot access this order",
+            details={"order_id": str(order_id)},
+        )
+    return order
+
+
+@router.get(
+    "/me/{order_id}/lines",
+    response_model=list[MyOrderLine],
+    summary="Lines of my order, with serial numbers and warranty end",
+)
+async def get_my_order_lines(
+    order_id: uuid.UUID, session: SessionDep, current_user: CurrentUser
+) -> list[MyOrderLine]:
+    """Products of the order; serial numbers and warranty end once received."""
+    order = await _my_order_or_error(session, order_id, current_user)
+    return await customer_lines(session, order)
+
+
 @router.get(
     "/me/{order_id}/tracking",
     response_model=CustomerOrderTrackingResponse,
@@ -126,23 +162,7 @@ async def get_my_order_tracking(
     current_user: CurrentUser,
 ) -> CustomerOrderTrackingResponse:
     """Return aggregated tracking information for one of the authenticated user's orders."""
-    try:
-        order = await crud_order.read(session, id=order_id)
-    except RecordNotFoundError as exc:
-        raise AppError(
-            code="order.not_found",
-            status_code=http_status.HTTP_404_NOT_FOUND,
-            message=f"Order {order_id} not found",
-            details={"order_id": str(order_id)},
-        ) from exc
-
-    if order.user_id != current_user.id:
-        raise AppError(
-            code="order.not_owned",
-            status_code=http_status.HTTP_403_FORBIDDEN,
-            message="You cannot access this order",
-            details={"order_id": str(order_id)},
-        )
+    await _my_order_or_error(session, order_id, current_user)
 
     trackings = await crud_shipping_route_tracking.get_trackings_by_order_sequence(
         session=session, order_id=order_id

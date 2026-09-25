@@ -15,6 +15,10 @@ export interface Departure extends DepartureLike {
   consolidation_id: string | null;
   /** Real purchase orders placed for this departure (one per supplier). */
   supplier_orders: SupplierOrderEntry[] | null;
+  /** Real costs of the shipment (XPF), typed for the margin dashboard. */
+  freight_cost: string | null;
+  customs_cost: string | null;
+  other_costs: string | null;
   created_at: string | null;
   /** Orders attached (active ones) and their total, computed by the backend. */
   orders_count: number;
@@ -34,6 +38,9 @@ export interface DepartureWrite {
   min_units?: number | null;
   recurrence_days?: number | null;
   notes?: string | null;
+  freight_cost?: string | null;
+  customs_cost?: string | null;
+  other_costs?: string | null;
 }
 
 export async function listDepartures(): Promise<Departure[]> {
@@ -186,3 +193,102 @@ export async function publishReminder(id: string): Promise<Reminder> {
   const { data } = await api.post<Reminder>(`/admin/grouped-departures/reminders/${id}/publish`);
   return data;
 }
+
+// --- Lot C: goods receipt and margin dashboard ---
+
+export interface ReceiptLine {
+  product_id: string;
+  product_name: string;
+  supplier_sku: string | null;
+  /** Σ order lines of the paid orders (never stored). */
+  expected_quantity: number;
+  quantity_received: number;
+  quantity_damaged: number;
+  serial_numbers: string[];
+  notes: string | null;
+  received_at: string | null;
+}
+
+export interface ReceiptLineWrite {
+  quantity_received: number;
+  quantity_damaged?: number;
+  serial_numbers?: string[];
+  notes?: string | null;
+  received_at?: string | null;
+}
+
+export interface OrderReconciliation {
+  order_id: string;
+  order_number: string | null;
+  status: string | null;
+  /** served | partial | unserved */
+  fulfilment: string;
+  lines: {
+    product_id: string;
+    product_name: string;
+    quantity: number;
+    allocated: number;
+    serial_numbers: string[];
+  }[];
+}
+
+export interface ReceiptReport {
+  departure_id: string;
+  lines: ReceiptLine[];
+  orders: OrderReconciliation[];
+  expected_units: number;
+  received_units: number;
+  damaged_units: number;
+  missing_units: number;
+}
+
+export async function getReception(departureId: string): Promise<ReceiptReport> {
+  const { data } = await api.get<ReceiptReport>(
+    `/admin/grouped-departures/${departureId}/reception`,
+  );
+  return data;
+}
+
+/** Upsert the tally of one product; serial numbers flow to the order lines. */
+export async function saveReceiptLine(
+  departureId: string,
+  productId: string,
+  payload: ReceiptLineWrite,
+): Promise<ReceiptReport> {
+  const { data } = await api.put<ReceiptReport>(
+    `/admin/grouped-departures/${departureId}/reception/${productId}`,
+    payload,
+  );
+  return data;
+}
+
+export interface DepartureDashboard {
+  departure_id: string;
+  orders_count: number;
+  units: number;
+  revenue: string | number;
+  collected: string | number;
+  goods_cost_estimated: string | number;
+  supplier_paid: string | number;
+  unconverted_currencies: string[];
+  /** supplier_orders | snapshots */
+  goods_cost_source: string;
+  freight_cost: string | number;
+  customs_cost: string | number;
+  other_costs: string | number;
+  gross_margin: string | number;
+  margin_rate_pct: string | number | null;
+}
+
+export async function getDashboard(departureId: string): Promise<DepartureDashboard> {
+  const { data } = await api.get<DepartureDashboard>(
+    `/admin/grouped-departures/${departureId}/dashboard`,
+  );
+  return data;
+}
+
+export const FULFILMENT_LABELS: Record<string, string> = {
+  served: 'Servie',
+  partial: 'Partielle',
+  unserved: 'Non servie',
+};

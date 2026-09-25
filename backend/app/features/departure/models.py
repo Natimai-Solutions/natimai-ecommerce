@@ -15,7 +15,7 @@ from decimal import Decimal
 from typing import Any
 
 from pydantic import field_validator
-from sqlalchemy import JSON, Column, DateTime
+from sqlalchemy import JSON, Column, DateTime, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
@@ -104,6 +104,21 @@ class GroupedDepartureBase(Base):
         index=True,
         description="Consolidation logistique portant le transport de ce départ",
     )
+    # Real costs of the shipment, typed by the admin (XPF) for the margin
+    # dashboard: what the freight, customs and other fees actually cost.
+    freight_cost: Decimal | None = Field(
+        default=None, ge=0, max_digits=12, decimal_places=2, description="Fret réel"
+    )
+    customs_cost: Decimal | None = Field(
+        default=None, ge=0, max_digits=12, decimal_places=2, description="Douane réelle"
+    )
+    other_costs: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Autres frais réels (assurance, transitaire…)",
+    )
 
     @field_validator("status")
     @classmethod
@@ -140,6 +155,9 @@ class GroupedDepartureUpdate(BaseUpdate):
     notes: str | None = None
     consolidation_id: uuid.UUID | None = None
     supplier_orders: list[dict[str, Any]] | None = None
+    freight_cost: Decimal | None = None
+    customs_cost: Decimal | None = None
+    other_costs: Decimal | None = None
 
     @field_validator("status")
     @classmethod
@@ -283,3 +301,53 @@ class DepartureReminderPublic(DepartureReminderBase, BasePublic):
 
     id: uuid.UUID
     rendered_text: str = ""
+
+
+# --- Goods receipt: one tally per product and departure -------------------
+
+
+class ReceiptLineWrite(SQLModel):
+    """What the admin types when checking in a product of the shipment."""
+
+    quantity_received: int = Field(ge=0, description="Exemplaires reçus (tous états)")
+    quantity_damaged: int = Field(
+        default=0, ge=0, description="Dont endommagés / non conformes"
+    )
+    serial_numbers: list[str] = Field(
+        default_factory=list, description="Numéros de série des exemplaires conformes"
+    )
+    notes: str | None = Field(default=None, max_length=500)
+    received_at: datetime | None = Field(
+        default=None, description="Date de réception (défaut : maintenant)"
+    )
+
+    @field_validator("serial_numbers")
+    @classmethod
+    def _clean_serials(cls, value: list[str]) -> list[str]:
+        cleaned = [s.strip() for s in value if s and s.strip()]
+        if len(set(cleaned)) != len(cleaned):
+            raise ValueError("numéro de série en double")
+        return cleaned
+
+
+class DepartureReceiptLine(ReceiptLineWrite, Base, table=True):
+    """The tally of one product received for a departure (upserted by the
+    admin from the « Réception » section; expected quantities come from the
+    attached orders, never stored)."""
+
+    __tablename__ = "departure_receipt_lines"
+    __table_args__ = (
+        UniqueConstraint(
+            "grouped_departure_id", "product_id", name="uq_receipt_line_product"
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
+    grouped_departure_id: uuid.UUID = Field(
+        foreign_key="grouped_departures.id", index=True
+    )
+    product_id: uuid.UUID = Field(foreign_key="products.id", index=True)
+    serial_numbers: list[str] = Field(
+        default_factory=list, sa_column=Column(JSON, nullable=False)
+    )
+    received_at: datetime | None = Field(default=None, sa_column=_tz_datetime())
