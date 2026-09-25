@@ -20,7 +20,9 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 
 #: Drapeaux et tenue de livre : jamais des « contenus » qu'un admin verrouille.
-LOCK_EXEMPT_FIELDS = frozenset({"is_active", "is_admin_active", "overridden_fields"})
+LOCK_EXEMPT_FIELDS = frozenset(
+    {"is_active", "is_admin_active", "is_draft", "overridden_fields"}
+)
 
 
 def merge_locks(existing: Iterable[str] | None, edited: Iterable[str]) -> list[str]:

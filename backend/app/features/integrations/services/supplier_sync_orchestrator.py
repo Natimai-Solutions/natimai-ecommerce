@@ -487,6 +487,11 @@ class SupplierSyncOrchestrator:
         # as fixed, and the admin edit locks the field).
         if existing_product is None:
             product_data_dict["pricing_mode"] = self._default_pricing_mode()
+            # A supplier set to « new products as drafts »: the article is
+            # created, enriched and refreshed, but shown only once the admin
+            # publishes it. Existing products keep their state.
+            if bool(getattr(self.adapter, "import_as_draft", False)):
+                product_data_dict["is_draft"] = True
 
         # Resolve internal category from supplier_subcategory (get_or_create)
         if item.subcategory:

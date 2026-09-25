@@ -164,6 +164,15 @@ class SupplierBase(SQLModel):
             "fichier}. Champs internes possibles : FILE_MAPPING_TARGETS."
         ),
     )
+    import_as_draft: bool = Field(
+        default=False,
+        description=(
+            "Les articles créés par une synchronisation ou un import de ce "
+            "fournisseur arrivent en brouillon (Product.is_draft) : enrichis "
+            "et rafraîchis, mais invisibles en vitrine tant que l'admin ne "
+            "les publie pas. Les articles existants ne sont pas concernés."
+        ),
+    )
     sku_allowlist: list[str] | None = Field(
         default=None,
         sa_column=Column(JSON),
@@ -234,6 +243,7 @@ class SupplierUpdate(SQLModel):
     default_categories: list[str] | None = None
     price_currency: str | None = None
     column_mapping: dict[str, str] | None = None
+    import_as_draft: bool | None = None
     settings: dict[str, Any] | None = None
     contact_email: str | None = None
     contact_phone: str | None = None

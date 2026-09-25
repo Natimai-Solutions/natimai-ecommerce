@@ -301,6 +301,16 @@ class ProductBase(Base):
         default=False,
         description="Indicates if this product is managed by a supplier",
     )
+    is_draft: bool = Field(
+        default=False,
+        index=True,
+        description=(
+            "Brouillon : créé par une synchronisation ou un import chez un "
+            "fournisseur réglé « nouveaux articles en brouillon », jamais "
+            "montré en vitrine tant que l'admin ne l'a pas publié. Les syncs "
+            "et l'enrichissement continuent de l'alimenter."
+        ),
+    )
     supplier_place_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="places.id",

@@ -50,12 +50,29 @@
     <q-banner v-if="store.error" class="bg-negative text-white q-mb-md" dense>
       {{ store.error }}
     </q-banner>
+    <q-banner v-if="notice" class="bg-green-1 text-green-9 q-mb-md" rounded dense>
+      {{ notice }}
+    </q-banner>
+
+    <div v-if="selectedDrafts.length" class="q-mb-sm">
+      <q-btn
+        color="primary"
+        icon="publish"
+        :label="`Publier ${selectedDrafts.length} brouillon(s)`"
+        no-caps
+        :loading="publishing"
+        data-testid="publish-selected"
+        @click="publish(selectedDrafts.map((p) => p.id))"
+      />
+    </div>
 
     <q-table
+      v-model:selected="selected"
       :rows="store.items"
       :columns="columns"
       row-key="id"
       :loading="store.loading"
+      selection="multiple"
       flat
       bordered
       hide-pagination
@@ -82,7 +99,16 @@
 
       <template #body-cell-name="props">
         <q-td :props="props">
-          <div class="text-body2 ellipsis" :title="props.row.name">{{ props.row.name }}</div>
+          <div class="text-body2 ellipsis" :title="props.row.name">
+            <q-badge
+              v-if="props.row.is_draft"
+              color="orange-8"
+              label="Brouillon"
+              class="q-mr-xs"
+              data-testid="product-draft-badge"
+            />
+            {{ props.row.name }}
+          </div>
           <div class="text-caption text-grey-7">
             {{ props.row.manufacturer || '—' }}
             <q-icon
@@ -135,6 +161,19 @@
 
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
+          <q-btn
+            v-if="props.row.is_draft"
+            flat
+            dense
+            round
+            icon="publish"
+            color="orange-8"
+            :loading="publishing"
+            data-testid="product-publish"
+            @click="publish([props.row.id])"
+          >
+            <q-tooltip>Publier (sortir du brouillon)</q-tooltip>
+          </q-btn>
           <q-btn flat dense round icon="edit" color="primary" @click="openEdit(props.row)">
             <q-tooltip>Modifier</q-tooltip>
           </q-btn>
@@ -197,7 +236,30 @@ const filterOptions = [
   { label: 'Actifs', value: 'active' as const },
   { label: 'Enrichis', value: 'enriched' as const },
   { label: 'Inactifs', value: 'inactive' as const },
+  { label: 'Brouillons (à publier)', value: 'draft' as const },
 ];
+
+// --- Brouillons : publication unitaire ou en masse ------------------------
+const selected = ref<ProductPublic[]>([]);
+const selectedDrafts = computed(() => selected.value.filter((p) => p.is_draft));
+const publishing = ref(false);
+const notice = ref<string | null>(null);
+
+async function publish(ids: string[]) {
+  publishing.value = true;
+  notice.value = null;
+  try {
+    const res = await store.publishProducts(ids);
+    selected.value = [];
+    notice.value = `${res.published} article(s) publié(s)${
+      res.already_published ? `, ${res.already_published} déjà publié(s)` : ''
+    }. La vitrine les montre dès qu'ils sont actifs, enrichis et tarifables.`;
+  } catch (err: unknown) {
+    store.error = err instanceof Error ? err.message : 'Publication impossible';
+  } finally {
+    publishing.value = false;
+  }
+}
 
 const columns: QTableColumn[] = [
   { name: 'image', label: '', field: 'image_url', align: 'left' },

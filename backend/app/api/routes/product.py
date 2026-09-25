@@ -117,6 +117,8 @@ class ProductRouter(
                     conditions.append(col(Product.is_enriched).is_(True))
                 elif status == "inactive":
                     conditions.append(col(Product.is_active).is_(False))
+                elif status == "draft":
+                    conditions.append(col(Product.is_draft).is_(True))
                 term = (search or "").strip()
                 if term:
                     pattern = f"%{term}%"

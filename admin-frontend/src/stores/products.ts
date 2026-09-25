@@ -17,7 +17,13 @@ export type ProductFormValues = Record<string, unknown>;
 
 const PAGE_SIZE = 25;
 
-export type ActiveFilter = 'all' | 'active' | 'enriched' | 'inactive';
+export type ActiveFilter = 'all' | 'active' | 'enriched' | 'inactive' | 'draft';
+
+export interface PublishResponse {
+  published: number;
+  already_published: number;
+  missing: string[];
+}
 
 export const useProductsStore = defineStore('products', () => {
   const items = ref<ProductPublic[]>([]);
@@ -106,6 +112,15 @@ export const useProductsStore = defineStore('products', () => {
     return data;
   }
 
+  /** Sortir des brouillons ; la vitrine applique ensuite ses conditions habituelles. */
+  async function publishProducts(ids: string[]): Promise<PublishResponse> {
+    const { data } = await api.post<PublishResponse>('/admin/products/publish', {
+      product_ids: ids,
+    });
+    await fetchPage();
+    return data;
+  }
+
   function setPage(n: number) {
     page.value = n;
     void fetchPage();
@@ -135,6 +150,7 @@ export const useProductsStore = defineStore('products', () => {
     createProduct,
     updateProduct,
     releaseOverride,
+    publishProducts,
     setPage,
     applyFilters,
   };

@@ -115,6 +115,8 @@ class SupplierConfig:
     settings: dict[str, Any] = field(default_factory=dict)
     #: SKUs the admin chose to follow (empty = the whole synced catalog).
     sku_allowlist: list[str] = field(default_factory=list)
+    #: New products land as drafts, published by the admin.
+    import_as_draft: bool = False
 
     @classmethod
     def from_row(cls, supplier: Any) -> SupplierConfig:
@@ -136,6 +138,7 @@ class SupplierConfig:
             column_mapping=getattr(supplier, "column_mapping", None),
             settings=dict(getattr(supplier, "settings", None) or {}),
             sku_allowlist=list(getattr(supplier, "sku_allowlist", None) or []),
+            import_as_draft=bool(getattr(supplier, "import_as_draft", False)),
         )
 
 
@@ -217,6 +220,11 @@ class SupplierAdapter(ABC):
     def sku_allowlist(self) -> list[str]:
         """SKUs the admin chose to follow; empty means the whole catalog."""
         return list(self.config.sku_allowlist)
+
+    @property
+    def import_as_draft(self) -> bool:
+        """New products of this supplier wait for the admin's publication."""
+        return bool(self.config.import_as_draft)
 
     # -- configuration ----------------------------------------------------
 

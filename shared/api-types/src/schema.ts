@@ -1929,6 +1929,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/products/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Publish Products
+         * @description Take products out of draft. Publication then follows the usual gates
+         *     (active, enriched, priceable): nothing else is forced here.
+         */
+        post: operations["admin-product-admin_publish_products"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/products/{product_id}": {
         parameters: {
             query?: never;
@@ -14277,6 +14298,12 @@ export interface components {
              */
             is_supplier_managed: boolean;
             /**
+             * Is Draft
+             * @description Brouillon : créé par une synchronisation ou un import chez un fournisseur réglé « nouveaux articles en brouillon », jamais montré en vitrine tant que l'admin ne l'a pas publié. Les syncs et l'enrichissement continuent de l'alimenter.
+             * @default false
+             */
+            is_draft: boolean;
+            /**
              * Supplier Place Id
              * @description Origin place when supplier-sourced (drives the first leg)
              */
@@ -14607,6 +14634,12 @@ export interface components {
              */
             is_supplier_managed: boolean;
             /**
+             * Is Draft
+             * @description Brouillon : créé par une synchronisation ou un import chez un fournisseur réglé « nouveaux articles en brouillon », jamais montré en vitrine tant que l'admin ne l'a pas publié. Les syncs et l'enrichissement continuent de l'alimenter.
+             * @default false
+             */
+            is_draft: boolean;
+            /**
              * Supplier Place Id
              * @description Origin place when supplier-sourced (drives the first leg)
              */
@@ -14903,6 +14936,12 @@ export interface components {
             supplier_missing_since?: string | null;
             /** Is Supplier Managed */
             is_supplier_managed?: boolean | null;
+            /**
+             * Is Draft
+             * @description Brouillon : créé par une synchronisation ou un import chez un fournisseur réglé « nouveaux articles en brouillon », jamais montré en vitrine tant que l'admin ne l'a pas publié. Les syncs et l'enrichissement continuent de l'alimenter.
+             * @default false
+             */
+            is_draft: boolean;
             /** Supplier Place Id */
             supplier_place_id?: string | null;
             /** Overridden Fields */
@@ -15028,6 +15067,29 @@ export interface components {
             blocked_weight_missing: number;
             /** Categories */
             categories?: components["schemas"]["CategoryPublicationRow"][];
+        };
+        /**
+         * PublishRequest
+         * @description Drafts to publish (unknown ids are ignored, reported in ``missing``).
+         */
+        PublishRequest: {
+            /** Product Ids */
+            product_ids: string[];
+        };
+        /** PublishResponse */
+        PublishResponse: {
+            /**
+             * Published
+             * @default 0
+             */
+            published: number;
+            /**
+             * Already Published
+             * @default 0
+             */
+            already_published: number;
+            /** Missing */
+            missing?: string[];
         };
         /**
          * QuoteIssueBody
@@ -17633,6 +17695,12 @@ export interface components {
                 [key: string]: string;
             } | null;
             /**
+             * Import As Draft
+             * @description Les articles créés par une synchronisation ou un import de ce fournisseur arrivent en brouillon (Product.is_draft) : enrichis et rafraîchis, mais invisibles en vitrine tant que l'admin ne les publie pas. Les articles existants ne sont pas concernés.
+             * @default false
+             */
+            import_as_draft: boolean;
+            /**
              * Sku Allowlist
              * @description Liste blanche de références fournisseur (SKU). Vide ou absente : tout le catalogue synchronisé est suivi. Renseignée : seules ces références sont créées et rafraîchies (prix / stock) ; les articles gérés par ce fournisseur hors liste sont retirés de la vitrine. Modifiée par PUT /admin/suppliers/{code}/sku-allowlist.
              */
@@ -17805,6 +17873,12 @@ export interface components {
                 [key: string]: string;
             } | null;
             /**
+             * Import As Draft
+             * @description Les articles créés par une synchronisation ou un import de ce fournisseur arrivent en brouillon (Product.is_draft) : enrichis et rafraîchis, mais invisibles en vitrine tant que l'admin ne les publie pas. Les articles existants ne sont pas concernés.
+             * @default false
+             */
+            import_as_draft: boolean;
+            /**
              * Sku Allowlist
              * @description Liste blanche de références fournisseur (SKU). Vide ou absente : tout le catalogue synchronisé est suivi. Renseignée : seules ces références sont créées et rafraîchies (prix / stock) ; les articles gérés par ce fournisseur hors liste sont retirés de la vitrine. Modifiée par PUT /admin/suppliers/{code}/sku-allowlist.
              */
@@ -17898,6 +17972,8 @@ export interface components {
             column_mapping?: {
                 [key: string]: string;
             } | null;
+            /** Import As Draft */
+            import_as_draft?: boolean | null;
             /** Settings */
             settings?: {
                 [key: string]: unknown;
@@ -22206,6 +22282,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-admin_publish_products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishResponse"];
                 };
             };
             /** @description Validation Error */

@@ -25,6 +25,8 @@ export interface Supplier {
   column_mapping: Record<string, string> | null;
   /** Références suivies chez ce fournisseur (null / vide = tout le catalogue synchronisé). */
   sku_allowlist: string[] | null;
+  /** Les nouveaux articles de ce fournisseur arrivent en brouillon (publiés par l'admin). */
+  import_as_draft: boolean;
   settings: Record<string, unknown> | null;
   contact_email: string | null;
   contact_phone: string | null;
@@ -48,6 +50,7 @@ export interface SupplierCreate {
   default_categories?: string[] | null;
   price_currency?: string | null;
   column_mapping?: Record<string, string> | null;
+  import_as_draft?: boolean;
   settings?: Record<string, unknown> | null;
   contact_email?: string | null;
   contact_phone?: string | null;

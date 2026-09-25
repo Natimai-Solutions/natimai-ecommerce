@@ -14,10 +14,13 @@ fill ``supplier_place_id`` and ``pricing_mode`` unless the payload sets them.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any
 
 from fastapi import APIRouter
+from pydantic import BaseModel, Field
+from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.errors import AppError
@@ -26,12 +29,15 @@ from app.features.integrations.models.supplier import Supplier
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import (
     PricingMode,
+    Product,
     ProductCreate,
     ProductPublic,
     ProductUpdate,
 )
 from app.features.product.services.overrides import merge_locks, release_lock
 from app.services.suppliers import load_supplier
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin/products", tags=["admin-product"])
 
@@ -78,6 +84,43 @@ async def admin_create_product(
         session=session, data=create_data, user=current_user
     )
     return ProductPublic.model_validate(product)
+
+
+class PublishRequest(BaseModel):
+    """Drafts to publish (unknown ids are ignored, reported in ``missing``)."""
+
+    product_ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
+
+
+class PublishResponse(BaseModel):
+    published: int = 0
+    already_published: int = 0
+    missing: list[uuid.UUID] = Field(default_factory=list)
+
+
+@router.post("/publish", response_model=PublishResponse)
+async def admin_publish_products(
+    session: SessionDep,
+    current_user: CurrentSuperUser,
+    payload: PublishRequest,
+) -> PublishResponse:
+    """Take products out of draft. Publication then follows the usual gates
+    (active, enriched, priceable): nothing else is forced here."""
+    actor_id = current_user.id
+    ids = list(dict.fromkeys(payload.product_ids))
+    result = await session.exec(select(Product).where(col(Product.id).in_(ids)))
+    found = {p.id: p for p in result.all()}
+    response = PublishResponse(missing=[i for i in ids if i not in found])
+    for product in found.values():
+        if not product.is_draft:
+            response.already_published += 1
+            continue
+        product.is_draft = False
+        session.add(product)
+        response.published += 1
+    await session.commit()
+    logger.info("Admin %s published %d draft product(s)", actor_id, response.published)
+    return response
 
 
 @router.put("/{product_id}", response_model=ProductPublic)

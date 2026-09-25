@@ -253,6 +253,19 @@
               />
             </div>
 
+            <template v-if="form.kind !== 'manual'">
+              <q-toggle
+                v-model="form.import_as_draft"
+                label="Nouveaux articles en brouillon"
+                data-testid="supplier-import-as-draft"
+              />
+              <div class="text-caption text-grey-7 q-ml-md">
+                Un article créé par une synchronisation ou un import reste invisible en vitrine
+                (enrichi et rafraîchi quand même) jusqu'à ce que vous le publiiez depuis la page
+                Articles. Les articles existants ne changent pas.
+              </div>
+            </template>
+
             <template v-if="form.kind === 'api'">
               <q-toggle v-model="form.sync_enabled" label="Synchronisations autorisées" />
               <q-input
@@ -657,6 +670,7 @@ interface FormState {
   origin_place_id: string | null;
   is_domestic: boolean;
   sync_enabled: boolean;
+  import_as_draft: boolean;
   sync_interval_hours: number;
   default_categories_text: string;
   price_currency: string | null;
@@ -675,6 +689,7 @@ function emptyForm(): FormState {
     origin_place_id: null,
     is_domestic: false,
     sync_enabled: true,
+    import_as_draft: false,
     sync_interval_hours: 0,
     default_categories_text: '',
     price_currency: null,
@@ -717,6 +732,7 @@ function openEdit(supplier: Supplier) {
     origin_place_id: supplier.origin_place_id,
     is_domestic: supplier.is_domestic,
     sync_enabled: supplier.sync_enabled,
+    import_as_draft: supplier.import_as_draft,
     sync_interval_hours: supplier.sync_interval_hours,
     default_categories_text: (supplier.default_categories ?? []).join('\n'),
     price_currency: supplier.price_currency,
@@ -743,6 +759,7 @@ function buildPayload(): SupplierCreate {
     origin_place_id: form.origin_place_id,
     is_domestic: form.is_domestic,
     sync_enabled: form.sync_enabled,
+    import_as_draft: form.kind !== 'manual' && form.import_as_draft,
     sync_interval_hours: form.kind === 'api' ? Number(form.sync_interval_hours) || 0 : 0,
     default_categories: categories.length ? categories : null,
     price_currency: form.price_currency,

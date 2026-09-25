@@ -503,3 +503,35 @@ async def test_preview_items_resolves_without_writing(
     assert rows[1]["product_name"] == "Déjà là"
     create.assert_not_awaited()
     session.commit.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_draft_supplier_creates_drafts_but_never_redrafts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """« Nouveaux articles en brouillon » applies at creation only: a product
+    the admin already published is not sent back to draft by the next sync."""
+    captured = _install_crud(monkeypatch, existing=None)
+    await SupplierSyncOrchestrator(_adapter(import_as_draft=True)).upsert_product(
+        AsyncMock(), _item()
+    )
+    assert captured["create"]["is_draft"] is True
+
+    existing = SimpleNamespace(
+        id=uuid.uuid4(),
+        is_supplier_managed=True,
+        supplier_name="generic_fr",
+        supplier_sku="SKU-1",
+        supplier_place_id=uuid.uuid4(),
+        overridden_fields=[],
+        is_draft=False,
+    )
+    captured = _install_crud(monkeypatch, existing=existing)
+    await SupplierSyncOrchestrator(_adapter(import_as_draft=True)).upsert_product(
+        AsyncMock(), _item()
+    )
+    assert "is_draft" not in captured["update"]
+
+    captured = _install_crud(monkeypatch, existing=None)
+    await SupplierSyncOrchestrator(_adapter()).upsert_product(AsyncMock(), _item())
+    assert "is_draft" not in captured["create"]
