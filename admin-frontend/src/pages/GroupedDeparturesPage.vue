@@ -101,6 +101,20 @@
           <span class="text-caption text-grey-7">— {{ cutoffLabel(selected) }}</span>
         </div>
         <q-btn
+          v-if="selected.status === 'open' || selected.status === 'draft'"
+          color="primary"
+          no-caps
+          icon="lock"
+          label="Clôturer le départ"
+          :loading="closing"
+          @click="closeSelected(false)"
+        >
+          <q-tooltip>
+            Vérifie le stock fournisseur de chaque article commandé, les seuils, et crée le
+            départ suivant si récurrent
+          </q-tooltip>
+        </q-btn>
+        <q-btn
           flat
           dense
           no-caps
@@ -193,7 +207,223 @@
           </template>
         </q-table>
       </q-card-section>
+
+      <!-- Real purchase orders placed with the suppliers -->
+      <q-card-section v-if="!showUnassigned">
+        <div class="row items-center q-mb-sm q-gutter-sm">
+          <div class="text-subtitle2 col">Bons de commande passés aux fournisseurs</div>
+          <q-btn flat dense no-caps icon="add" label="Enregistrer un BC" @click="poDialog = true" />
+        </div>
+        <q-list v-if="selected.supplier_orders?.length" dense bordered separator>
+          <q-item v-for="(po, i) in selected.supplier_orders" :key="i">
+            <q-item-section>
+              <q-item-label>
+                {{ po.supplier_name }} — n° {{ po.order_number }}
+                <span class="text-grey-7">· {{ formatDate(po.ordered_at) }}</span>
+              </q-item-label>
+              <q-item-label caption>
+                {{ po.total_amount }} {{ po.currency }}<template v-if="po.notes"> · {{ po.notes }}</template>
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <q-btn flat dense icon="delete" color="grey-8" @click="removePo(i)" />
+            </q-item-section>
+          </q-item>
+        </q-list>
+        <div v-else class="text-caption text-grey-6">
+          Aucun bon de commande enregistré. Le premier BC passe le départ en « commandé »
+          et prévient les clients.
+        </div>
+      </q-card-section>
+
+      <!-- Social reminders -->
+      <q-card-section v-if="!showUnassigned">
+        <div class="row items-center q-mb-sm q-gutter-sm">
+          <div class="text-subtitle2 col">Rappels réseaux sociaux</div>
+          <q-btn flat dense no-caps icon="add" label="Ajouter un rappel" @click="openReminder()" />
+        </div>
+        <q-input
+          v-model="webhookUrl"
+          label="URL du webhook (Make, Zapier, Buffer…) — reçoit {text, link, image_url, departure}"
+          hint="https uniquement. Réglage global, commun à tous les départs."
+          outlined
+          dense
+          class="q-mb-sm"
+          @blur="saveWebhook"
+        >
+          <template #append><q-icon name="webhook" /></template>
+        </q-input>
+        <q-table
+          :rows="reminders"
+          :columns="reminderColumns"
+          row-key="id"
+          :loading="remindersLoading"
+          flat
+          dense
+          bordered
+          :rows-per-page-options="[0]"
+          hide-pagination
+        >
+          <template #body-cell-status="props">
+            <q-td :props="props">
+              <q-chip
+                dense
+                size="sm"
+                :color="reminderColor(props.row.status)"
+                text-color="white"
+                :label="reminderLabel(props.row.status)"
+              />
+              <span v-if="props.row.error" class="text-caption text-negative q-ml-xs">
+                {{ props.row.error }}
+              </span>
+            </q-td>
+          </template>
+          <template #body-cell-actions="props">
+            <q-td :props="props" align="right">
+              <q-btn flat dense icon="send" color="primary" @click="publishNow(props.row)">
+                <q-tooltip>Publier maintenant</q-tooltip>
+              </q-btn>
+              <q-btn
+                v-if="props.row.status !== 'sent'"
+                flat
+                dense
+                icon="edit"
+                color="primary"
+                @click="openReminder(props.row)"
+              />
+              <q-btn flat dense icon="delete" color="grey-8" @click="removeReminder(props.row)" />
+            </q-td>
+          </template>
+          <template #no-data>
+            <div class="full-width text-center text-grey-6 q-pa-md">Aucun rappel.</div>
+          </template>
+        </q-table>
+      </q-card-section>
     </q-card>
+
+    <!-- Close result: what is left to arbitrate -->
+    <q-dialog v-model="closeDialog">
+      <q-card style="min-width: 560px; max-width: 90vw">
+        <q-card-section class="text-h6">
+          {{ closeResult?.closed ? 'Départ clôturé' : 'Départ non clôturé' }}
+        </q-card-section>
+        <q-card-section v-if="closeResult" class="q-pt-none">
+          <div class="q-mb-sm">
+            {{ closeResult.orders_count }} commande(s) payée(s) ·
+            {{ formatMoney(Number(closeResult.orders_total)) }}
+          </div>
+          <q-banner v-if="!closeResult.threshold_reached" class="bg-orange-1 text-orange-10 q-mb-sm" dense rounded>
+            Seuil minimum non atteint : le départ reste ouvert. Reportez la clôture ou forcez-la.
+          </q-banner>
+          <q-banner v-if="closeResult.unpaid_order_ids.length" class="bg-grey-2 q-mb-sm" dense rounded>
+            {{ closeResult.unpaid_order_ids.length }} commande(s) non payée(s) restent rattachées :
+            à exclure ou à déplacer vers le départ suivant depuis la liste des commandes.
+          </q-banner>
+          <template v-if="closeResult.shortages.length">
+            <div class="text-subtitle2 q-mb-xs">Ruptures chez le fournisseur — à arbitrer</div>
+            <q-list dense bordered separator>
+              <q-item v-for="s in closeResult.shortages" :key="s.product_id">
+                <q-item-section>
+                  <q-item-label>{{ s.product_name }} ({{ s.supplier_sku }})</q-item-label>
+                  <q-item-label caption>
+                    {{ s.ordered_quantity }} commandé(s), {{ s.available_quantity }} disponible(s) —
+                    commandes {{ s.order_numbers.filter(Boolean).join(', ') || s.order_ids.length }}
+                  </q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    color="orange-9"
+                    label="Marquer en rupture"
+                    @click="markBackordered(s.order_ids)"
+                  >
+                    <q-tooltip>Statut « rupture / report » + e-mail aux clients concernés</q-tooltip>
+                  </q-btn>
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </template>
+          <div v-else class="text-positive">Stock fournisseur suffisant sur toutes les lignes.</div>
+          <div v-if="closeResult.next_departure_id" class="text-caption text-grey-7 q-mt-sm">
+            Départ suivant créé et publié (récurrence).
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn
+            v-if="closeResult && !closeResult.closed"
+            flat
+            color="orange-9"
+            label="Forcer la clôture"
+            @click="closeSelected(true)"
+          />
+          <q-btn flat label="Fermer" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Supplier purchase order -->
+    <q-dialog v-model="poDialog">
+      <q-card style="min-width: 460px">
+        <q-card-section class="text-h6">Bon de commande fournisseur</q-card-section>
+        <q-form @submit.prevent="submitPo">
+          <q-card-section class="q-pt-none q-gutter-sm">
+            <q-input v-model="poForm.supplier_name" label="Fournisseur *" outlined dense :rules="[(v: string) => !!v.trim() || 'Requis']" />
+            <q-input v-model="poForm.order_number" label="N° de commande *" outlined dense :rules="[(v: string) => !!v.trim() || 'Requis']" />
+            <q-input v-model="poForm.ordered_at" type="date" label="Date *" outlined dense :rules="[(v: string) => !!v || 'Requis']" />
+            <div class="row q-col-gutter-sm">
+              <q-input v-model="poForm.total_amount" class="col-8" type="number" step="0.01" min="0" label="Montant payé *" outlined dense />
+              <q-input v-model="poForm.currency" class="col-4" label="Devise" outlined dense />
+            </div>
+            <q-input v-model="poForm.notes" label="Notes" outlined dense />
+          </q-card-section>
+          <q-card-actions align="right">
+            <q-btn flat label="Annuler" v-close-popup />
+            <q-btn type="submit" color="primary" label="Enregistrer" :loading="saving" />
+          </q-card-actions>
+        </q-form>
+      </q-card>
+    </q-dialog>
+
+    <!-- Reminder -->
+    <q-dialog v-model="reminderDialog">
+      <q-card style="min-width: 520px">
+        <q-card-section class="text-h6">{{ reminderEditId ? 'Modifier le rappel' : 'Nouveau rappel' }}</q-card-section>
+        <q-form @submit.prevent="submitReminder">
+          <q-card-section class="q-pt-none q-gutter-sm">
+            <div class="row q-col-gutter-sm">
+              <q-input v-model.number="reminderForm.offset_days" class="col-6" type="number" min="0" label="Jours avant *" outlined dense />
+              <q-select
+                v-model="reminderForm.anchor"
+                class="col-6"
+                :options="[{ label: 'la clôture des commandes', value: 'cutoff' }, { label: 'le départ physique', value: 'departure' }]"
+                label="Avant…"
+                outlined
+                dense
+                emit-value
+                map-options
+              />
+            </div>
+            <q-input
+              v-model="reminderForm.message_template"
+              type="textarea"
+              autogrow
+              label="Message *"
+              hint="Variables : {name} {cutoff_date} {days_left} {delivery_date} {shop_url}"
+              outlined
+              dense
+              :rules="[(v: string) => !!v.trim() || 'Requis']"
+            />
+            <q-input v-model="reminderForm.image_url" label="URL d'image (optionnel)" outlined dense clearable />
+          </q-card-section>
+          <q-card-actions align="right">
+            <q-btn flat label="Annuler" v-close-popup />
+            <q-btn type="submit" color="primary" label="Enregistrer" :loading="saving" />
+          </q-card-actions>
+        </q-form>
+      </q-card>
+    </q-dialog>
 
     <!-- Create / edit -->
     <q-dialog v-model="dialog">
@@ -298,17 +528,28 @@ import {
   departureCutoffLabel,
   departureStatusLabel,
   formatDate,
+  formatDateTime,
   formatXpf,
   nextDepartureStatus,
 } from '@app/utils';
 import {
+  addSupplierOrder,
   assignOrders,
+  closeDeparture,
   createDeparture,
+  createReminder,
   deleteDeparture,
+  deleteReminder,
   listDepartures,
+  listReminders,
+  publishReminder,
+  removeSupplierOrder,
   updateDeparture,
+  updateReminder,
+  type CloseResult,
   type Departure,
   type DepartureWrite,
+  type Reminder,
 } from 'src/api/departures';
 import {
   downloadOrdersCsv,
@@ -322,6 +563,8 @@ import {
   type SkuSummaryRow,
 } from 'src/api/orders';
 import { extractApiError } from 'src/api/errors';
+import { listSystemSettings, updateSystemSetting } from 'src/api/systemSettings';
+import { setOrderStatus } from 'src/api/orders';
 
 const departures = ref<Departure[]>([]);
 const loading = ref(false);
@@ -442,6 +685,7 @@ const skuColumns: QTableColumn[] = [
 function select(row: Departure) {
   selected.value = row;
   showUnassigned.value = false;
+  void loadReminders();
 }
 
 async function loadOrders() {
@@ -474,6 +718,210 @@ async function moveSelected() {
     await Promise.all([load(), loadOrders()]);
   } catch (err) {
     error.value = extractApiError(err) ?? 'Déplacement impossible.';
+  }
+}
+
+// --- Assisted close ---
+const closing = ref(false);
+const closeDialog = ref(false);
+const closeResult = ref<CloseResult | null>(null);
+
+async function closeSelected(force: boolean) {
+  if (!selected.value) return;
+  closing.value = true;
+  error.value = null;
+  try {
+    closeResult.value = await closeDeparture(selected.value.id, force);
+    closeDialog.value = true;
+    await load();
+    await loadOrders();
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Clôture impossible.';
+  } finally {
+    closing.value = false;
+  }
+}
+
+async function markBackordered(orderIds: string[]) {
+  error.value = null;
+  try {
+    await Promise.all(orderIds.map((id) => setOrderStatus(id, 'Backordered', 'rupture fournisseur')));
+    notice.value = `${orderIds.length} commande(s) marquée(s) en rupture, clients prévenus.`;
+    await loadOrders();
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Changement de statut impossible.';
+  }
+}
+
+// --- Supplier purchase orders ---
+const poDialog = ref(false);
+const poForm = reactive({
+  supplier_name: '',
+  order_number: '',
+  ordered_at: '',
+  total_amount: '',
+  currency: 'XPF',
+  notes: '',
+});
+
+async function submitPo() {
+  if (!selected.value) return;
+  saving.value = true;
+  error.value = null;
+  try {
+    const updated = await addSupplierOrder(selected.value.id, {
+      supplier_name: poForm.supplier_name.trim(),
+      order_number: poForm.order_number.trim(),
+      ordered_at: new Date(`${poForm.ordered_at}T12:00`).toISOString(),
+      total_amount: poForm.total_amount || '0',
+      currency: poForm.currency.trim() || 'XPF',
+      notes: poForm.notes.trim() || null,
+    });
+    poDialog.value = false;
+    Object.assign(poForm, { supplier_name: '', order_number: '', ordered_at: '', total_amount: '', notes: '' });
+    notice.value = `Bon de commande enregistré. ${updated.orders_updated ?? 0} commande(s) passée(s) en « commandée au fournisseur ».`;
+    await load();
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Enregistrement impossible.';
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function removePo(index: number) {
+  if (!selected.value) return;
+  error.value = null;
+  try {
+    await removeSupplierOrder(selected.value.id, index);
+    await load();
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Suppression impossible.';
+  }
+}
+
+// --- Reminders ---
+const reminders = ref<Reminder[]>([]);
+const remindersLoading = ref(false);
+const webhookUrl = ref('');
+const reminderDialog = ref(false);
+const reminderEditId = ref<string | null>(null);
+const reminderForm = reactive<{
+  offset_days: number;
+  anchor: string;
+  message_template: string;
+  image_url: string | null;
+}>({ offset_days: 2, anchor: 'cutoff', message_template: '', image_url: '' });
+
+const reminderColumns: QTableColumn[] = [
+  {
+    name: 'when',
+    label: 'Publication',
+    field: 'scheduled_at',
+    align: 'left',
+    format: (v: string) => formatDateTime(v),
+  },
+  { name: 'offset', label: 'Avant', field: (r: Reminder) => `J-${r.offset_days}`, align: 'left' },
+  { name: 'text', label: 'Message (rendu)', field: 'rendered_text', align: 'left', style: 'white-space: normal; max-width: 480px' },
+  { name: 'status', label: 'État', field: 'status', align: 'left' },
+  { name: 'actions', label: '', field: 'id', align: 'right' },
+];
+
+const REMINDER_LABELS: Record<string, string> = {
+  scheduled: 'Planifié',
+  sent: 'Publié',
+  failed: 'Échec',
+  cancelled: 'Annulé',
+};
+const reminderLabel = (s: string) => REMINDER_LABELS[s] ?? s;
+const reminderColor = (s: string) =>
+  s === 'sent' ? 'green' : s === 'failed' ? 'negative' : s === 'cancelled' ? 'grey-6' : 'primary';
+
+async function loadReminders() {
+  if (!selected.value) return;
+  remindersLoading.value = true;
+  try {
+    reminders.value = await listReminders(selected.value.id);
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Chargement des rappels impossible.';
+  } finally {
+    remindersLoading.value = false;
+  }
+}
+
+async function loadWebhook() {
+  try {
+    const settings = await listSystemSettings();
+    webhookUrl.value = settings.find((s) => s.key === 'social_webhook_url')?.value ?? '';
+  } catch {
+    // the field stays empty; saving it creates the setting
+  }
+}
+
+async function saveWebhook() {
+  error.value = null;
+  try {
+    await updateSystemSetting('social_webhook_url', { value: webhookUrl.value.trim() });
+    notice.value = 'URL du webhook enregistrée.';
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Enregistrement du webhook impossible.';
+  }
+}
+
+function openReminder(r?: Reminder) {
+  reminderEditId.value = r?.id ?? null;
+  Object.assign(reminderForm, {
+    offset_days: r?.offset_days ?? 2,
+    anchor: r?.anchor ?? 'cutoff',
+    message_template:
+      r?.message_template ?? '⏰ Plus que {days_left} jours pour rejoindre le départ groupé « {name} » (clôture le {cutoff_date}). {shop_url}',
+    image_url: r?.image_url ?? '',
+  });
+  reminderDialog.value = true;
+}
+
+async function submitReminder() {
+  if (!selected.value) return;
+  saving.value = true;
+  error.value = null;
+  const payload = {
+    offset_days: Number(reminderForm.offset_days) || 0,
+    anchor: reminderForm.anchor,
+    message_template: reminderForm.message_template.trim(),
+    image_url: (reminderForm.image_url ?? '').trim() || null,
+  };
+  try {
+    if (reminderEditId.value) {
+      await updateReminder(reminderEditId.value, payload);
+    } else {
+      await createReminder(selected.value.id, payload);
+    }
+    reminderDialog.value = false;
+    await loadReminders();
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Enregistrement du rappel impossible.';
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function publishNow(r: Reminder) {
+  error.value = null;
+  try {
+    const result = await publishReminder(r.id);
+    notice.value = result.status === 'sent' ? 'Rappel publié.' : `Publication échouée : ${result.error ?? ''}`;
+    await loadReminders();
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Publication impossible.';
+  }
+}
+
+async function removeReminder(r: Reminder) {
+  error.value = null;
+  try {
+    await deleteReminder(r.id);
+    await loadReminders();
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Suppression impossible.';
   }
 }
 
@@ -618,5 +1066,8 @@ async function submit() {
   }
 }
 
-onMounted(load);
+onMounted(() => {
+  void load();
+  void loadWebhook();
+});
 </script>

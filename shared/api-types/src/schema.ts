@@ -1028,7 +1028,7 @@ export interface paths {
         put?: never;
         /**
          * Create Departure
-         * @description Create a departure (open + published by default from the admin form).
+         * @description Create a departure with its default reminders (J-7, J-2, last day).
          */
         post: operations["admin-grouped-departures-create_departure"];
         delete?: never;
@@ -1079,6 +1079,138 @@ export interface paths {
          * @description Attach / move / detach orders. Unknown order ids are ignored.
          */
         post: operations["admin-grouped-departures-assign_orders"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/{departure_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close Departure Endpoint
+         * @description Close the departure: live supplier stock check on every ordered
+         *     product, thresholds, next departure when recurring. The result lists what
+         *     is left to arbitrate (shortages, unpaid orders).
+         */
+        post: operations["admin-grouped-departures-close_departure_endpoint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/{departure_id}/supplier-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Supplier Order
+         * @description Record the real purchase order placed with a supplier (number, date,
+         *     amount). The first one moves the departure to « ordered » (and its
+         *     orders to « commandée au fournisseur »).
+         */
+        post: operations["admin-grouped-departures-add_supplier_order"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/{departure_id}/supplier-orders/{index}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Supplier Order
+         * @description Remove a recorded purchase order (typo, wrong supplier).
+         */
+        delete: operations["admin-grouped-departures-remove_supplier_order"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/{departure_id}/reminders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Reminders
+         * @description Reminders of a departure, soonest first, with the text as it will post.
+         */
+        get: operations["admin-grouped-departures-list_reminders"];
+        put?: never;
+        /**
+         * Create Reminder
+         * @description Schedule a reminder N days before the cutoff (or the departure).
+         */
+        post: operations["admin-grouped-departures-create_reminder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/reminders/{reminder_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Reminder
+         * @description Drop a reminder (soft).
+         */
+        delete: operations["admin-grouped-departures-delete_reminder"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Reminder
+         * @description Edit a reminder that has not fired yet; it is rescheduled.
+         */
+        patch: operations["admin-grouped-departures-update_reminder"];
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/reminders/{reminder_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish Reminder Now
+         * @description Post the reminder right now, whatever its schedule.
+         */
+        post: operations["admin-grouped-departures-publish_reminder_now"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8243,6 +8375,42 @@ export interface components {
          */
         CheckoutShippingPreference: "fastest" | "eco_friendly" | "cheapest";
         /**
+         * CloseRequest
+         * @description ``force`` closes even when a minimum threshold is not reached.
+         */
+        CloseRequest: {
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+        };
+        /**
+         * CloseResult
+         * @description What the admin has to arbitrate after a close.
+         */
+        CloseResult: {
+            /**
+             * Departure Id
+             * Format: uuid
+             */
+            departure_id: string;
+            /** Closed */
+            closed: boolean;
+            /** Orders Count */
+            orders_count: number;
+            /** Orders Total */
+            orders_total: string;
+            /** Threshold Reached */
+            threshold_reached: boolean;
+            /** Shortages */
+            shortages: components["schemas"]["Shortage"][];
+            /** Unpaid Order Ids */
+            unpaid_order_ids: string[];
+            /** Next Departure Id */
+            next_departure_id?: string | null;
+        };
+        /**
          * CommerceObservabilityMetrics
          * @description Represents commerce observability metrics.
          */
@@ -8705,6 +8873,105 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * DepartureReminderPublic
+         * @description Admin view, with the message as it will be posted.
+         */
+        DepartureReminderPublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * Grouped Departure Id
+             * Format: uuid
+             */
+            grouped_departure_id: string;
+            /**
+             * Offset Days
+             * @description Days before the anchor date (0 = the day itself)
+             */
+            offset_days: number;
+            /**
+             * Anchor
+             * @description cutoff | departure
+             * @default cutoff
+             */
+            anchor: string;
+            /**
+             * Channel
+             * @default webhook
+             */
+            channel: string;
+            /**
+             * Message Template
+             * @description Text with {name}, {cutoff_date}, {days_left}…
+             */
+            message_template: string;
+            /** Image Url */
+            image_url?: string | null;
+            /**
+             * Status
+             * @default scheduled
+             */
+            status: string;
+            /**
+             * Scheduled At
+             * Format: date-time
+             * @description When it fires (anchor − offset, 09:00 local)
+             */
+            scheduled_at: string;
+            /** Sent At */
+            sent_at?: string | null;
+            /** Error */
+            error?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Rendered Text
+             * @default
+             */
+            rendered_text: string;
+        };
+        /**
+         * DepartureReminderWrite
+         * @description Admin create / update payload (the fire time is derived).
+         */
+        DepartureReminderWrite: {
+            /** Offset Days */
+            offset_days: number;
+            /**
+             * Anchor
+             * @default cutoff
+             */
+            anchor: string;
+            /**
+             * Channel
+             * @default webhook
+             */
+            channel: string;
+            /** Message Template */
+            message_template: string;
+            /** Image Url */
+            image_url?: string | null;
         };
         /**
          * DiscountCreate
@@ -9551,6 +9818,13 @@ export interface components {
             /** Notes */
             notes?: string | null;
             /**
+             * Supplier Orders
+             * @description Bons de commande passés
+             */
+            supplier_orders?: {
+                [key: string]: unknown;
+            }[] | null;
+            /**
              * Consolidation Id
              * @description Consolidation logistique portant le transport de ce départ
              */
@@ -9630,6 +9904,13 @@ export interface components {
             /** Notes */
             notes?: string | null;
             /**
+             * Supplier Orders
+             * @description Bons de commande passés
+             */
+            supplier_orders?: {
+                [key: string]: unknown;
+            }[] | null;
+            /**
              * Consolidation Id
              * @description Consolidation logistique portant le transport de ce départ
              */
@@ -9708,6 +9989,10 @@ export interface components {
             notes?: string | null;
             /** Consolidation Id */
             consolidation_id?: string | null;
+            /** Supplier Orders */
+            supplier_orders?: {
+                [key: string]: unknown;
+            }[] | null;
         };
         /**
          * GroupsPublic
@@ -15388,6 +15673,31 @@ export interface components {
             pricing_effective: boolean;
         };
         /**
+         * Shortage
+         * @description A product the supplier can no longer serve in full at close time.
+         */
+        Shortage: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Product Name */
+            product_name: string;
+            /** Supplier Name */
+            supplier_name: string | null;
+            /** Supplier Sku */
+            supplier_sku: string | null;
+            /** Ordered Quantity */
+            ordered_quantity: number;
+            /** Available Quantity */
+            available_quantity: number;
+            /** Order Ids */
+            order_ids: string[];
+            /** Order Numbers */
+            order_numbers: (string | null)[];
+        };
+        /**
          * SignupTokenResponse
          * @description Single-use token proving the email was verified.
          */
@@ -16058,6 +16368,30 @@ export interface components {
          * @enum {string}
          */
         SupplierKind: "manual" | "file" | "api";
+        /**
+         * SupplierOrderEntry
+         * @description A real purchase order recorded on a departure (typed by the admin).
+         */
+        SupplierOrderEntry: {
+            /** Supplier Name */
+            supplier_name: string;
+            /** Order Number */
+            order_number: string;
+            /**
+             * Ordered At
+             * Format: date-time
+             */
+            ordered_at: string;
+            /** Total Amount */
+            total_amount: number | string;
+            /**
+             * Currency
+             * @default XPF
+             */
+            currency: string;
+            /** Notes */
+            notes?: string | null;
+        };
         /**
          * SupplierOrderPublic
          * @description Public schema for supplier orders (admin endpoints).
@@ -19121,6 +19455,271 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssignOrdersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-close_departure_endpoint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CloseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CloseResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-add_supplier_order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplierOrderEntry"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupedDeparturePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-remove_supplier_order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+                index: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupedDeparturePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-list_reminders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartureReminderPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-create_reminder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DepartureReminderWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartureReminderPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-delete_reminder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reminder_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignOrdersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-update_reminder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reminder_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DepartureReminderWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartureReminderPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-publish_reminder_now": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reminder_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartureReminderPublic"];
                 };
             };
             /** @description Validation Error */

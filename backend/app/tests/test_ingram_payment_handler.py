@@ -1,6 +1,7 @@
 """Tests for the payment.captured → Ingram PO outbox handler guards."""
 
 import uuid
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -50,8 +51,29 @@ async def test_handler_delegates_to_service(monkeypatch: pytest.MonkeyPatch) -> 
 
     order_id = uuid.uuid4()
     session = MagicMock()
+    session.get = AsyncMock(return_value=SimpleNamespace(grouped_departure_id=None))
     await handler.on_payment_captured_create_ingram_order(
         session, {"order_id": str(order_id)}
     )
 
     process_spy.assert_awaited_once_with(session, order_id)
+
+
+@pytest.mark.anyio
+async def test_handler_skips_orders_attached_to_a_grouped_departure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Grouped orders are bought with their departure, never one PO each."""
+    monkeypatch.setattr(settings, "INGRAM_ORDER_CREATION_ENABLED", True)
+    process_spy = AsyncMock()
+    monkeypatch.setattr(handler, "process_ingram_purchase_order", process_spy)
+
+    session = MagicMock()
+    session.get = AsyncMock(
+        return_value=SimpleNamespace(grouped_departure_id=uuid.uuid4())
+    )
+    await handler.on_payment_captured_create_ingram_order(
+        session, {"order_id": str(uuid.uuid4())}
+    )
+
+    process_spy.assert_not_awaited()

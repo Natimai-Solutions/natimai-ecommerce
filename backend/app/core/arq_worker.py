@@ -8,6 +8,10 @@ from arq.worker import func
 
 from app.core.config import settings
 from app.outbox.consumer import OUTBOX_HANDLER_MAX_TRIES, execute_outbox_handler
+from app.tasks.departure_tasks import (
+    get_departure_cron_jobs,
+    publish_departure_reminders_task,
+)
 from app.tasks.icecat_tasks import (
     batch_enrich_products_task,
     enrich_product_with_icecat_task,
@@ -104,6 +108,8 @@ class WorkerSettings:
         # Prix vitrine matérialisés (rafraîchis quand un taux ou une marge change)
         refresh_sale_prices_task,
         scheduled_sale_price_refresh_task,
+        # Rappels réseaux sociaux des départs groupés
+        publish_departure_reminders_task,
         # ... tes autres handlers
     ]
 
@@ -115,6 +121,7 @@ class WorkerSettings:
         + get_enrichment_cron_jobs()
         + get_stock_reservation_cron_jobs()
         + get_pricing_cron_jobs()
+        + get_departure_cron_jobs()
     )
 
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)

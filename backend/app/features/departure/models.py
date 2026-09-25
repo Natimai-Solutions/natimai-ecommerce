@@ -12,9 +12,10 @@ can move them by hand. With no open departure the shop behaves as before.
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 from pydantic import field_validator
-from sqlalchemy import Column, DateTime
+from sqlalchemy import JSON, Column, DateTime
 from sqlmodel import Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
@@ -92,6 +93,11 @@ class GroupedDepartureBase(Base):
         description="À la clôture, crée le départ suivant N jours plus tard",
     )
     notes: str | None = Field(default=None, max_length=2000)
+    # Real purchase orders placed for this departure (one per supplier):
+    # [{supplier_name, order_number, ordered_at, total_amount, currency}].
+    supplier_orders: list[dict[str, Any]] | None = Field(
+        default=None, sa_column=Column(JSON), description="Bons de commande passés"
+    )
     consolidation_id: uuid.UUID | None = Field(
         default=None,
         foreign_key="shipping_route_tracking_consolidations.id",
@@ -133,6 +139,7 @@ class GroupedDepartureUpdate(BaseUpdate):
     recurrence_days: int | None = None
     notes: str | None = None
     consolidation_id: uuid.UUID | None = None
+    supplier_orders: list[dict[str, Any]] | None = None
 
     @field_validator("status")
     @classmethod
@@ -166,3 +173,113 @@ class GroupedDepartureSummary(SQLModel):
     estimated_delivery_at: datetime | None = None
     departure_at: datetime | None = None
     status: str
+
+
+class SupplierOrderEntry(SQLModel):
+    """A real purchase order recorded on a departure (typed by the admin)."""
+
+    supplier_name: str = Field(max_length=100)
+    order_number: str = Field(max_length=100)
+    ordered_at: datetime
+    total_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    currency: str = Field(default="XPF", max_length=8)
+    notes: str | None = Field(default=None, max_length=500)
+
+
+# --- Social / e-mail reminders before the cutoff --------------------------
+
+REMINDER_CHANNELS: tuple[str, ...] = ("webhook",)
+REMINDER_ANCHORS: tuple[str, ...] = ("cutoff", "departure")
+REMINDER_STATUSES: tuple[str, ...] = ("scheduled", "sent", "failed", "cancelled")
+
+#: Variables usable in a reminder template.
+REMINDER_TEMPLATE_VARIABLES: tuple[str, ...] = (
+    "name",
+    "cutoff_date",
+    "days_left",
+    "delivery_date",
+    "shop_url",
+)
+
+#: Default reminders created with each departure (days before the cutoff).
+DEFAULT_REMINDERS: tuple[tuple[int, str], ...] = (
+    (
+        7,
+        "📦 Départ groupé « {name} » : commandez avant le {cutoff_date}, "
+        "plus que {days_left} jours ! Livraison estimée le {delivery_date}. {shop_url}",
+    ),
+    (
+        2,
+        "⏰ Plus que {days_left} jours pour rejoindre le départ groupé « {name} » "
+        "(clôture le {cutoff_date}). {shop_url}",
+    ),
+    (
+        0,
+        "🚨 Dernier jour ! Le départ groupé « {name} » se clôture aujourd'hui. "
+        "{shop_url}",
+    ),
+)
+
+
+class DepartureReminderBase(Base):
+    """A social-media / newsletter reminder scheduled before a departure."""
+
+    grouped_departure_id: uuid.UUID = Field(
+        foreign_key="grouped_departures.id", index=True
+    )
+    offset_days: int = Field(
+        ge=0, description="Days before the anchor date (0 = the day itself)"
+    )
+    anchor: str = Field(
+        default="cutoff", max_length=20, description="cutoff | departure"
+    )
+    channel: str = Field(default="webhook", max_length=20)
+    message_template: str = Field(
+        max_length=2000, description="Text with {name}, {cutoff_date}, {days_left}…"
+    )
+    image_url: str | None = Field(default=None, max_length=500)
+    status: str = Field(default="scheduled", max_length=20, index=True)
+    scheduled_at: datetime = Field(
+        sa_column=_tz_datetime(index=True, nullable=False),
+        description="When it fires (anchor − offset, 09:00 local)",
+    )
+    sent_at: datetime | None = Field(default=None, sa_column=_tz_datetime())
+    error: str | None = Field(default=None, max_length=500)
+
+    @field_validator("anchor")
+    @classmethod
+    def _known_anchor(cls, value: str) -> str:
+        if value not in REMINDER_ANCHORS:
+            raise ValueError(f"ancre inconnue '{value}'")
+        return value
+
+    @field_validator("channel")
+    @classmethod
+    def _known_channel(cls, value: str) -> str:
+        if value not in REMINDER_CHANNELS:
+            raise ValueError(f"canal inconnu '{value}'")
+        return value
+
+
+class DepartureReminder(DepartureReminderBase, table=True):
+    """Represents a departure reminder."""
+
+    __tablename__ = "departure_reminders"
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
+
+
+class DepartureReminderWrite(SQLModel):
+    """Admin create / update payload (the fire time is derived)."""
+
+    offset_days: int = Field(ge=0)
+    anchor: str = "cutoff"
+    channel: str = "webhook"
+    message_template: str = Field(max_length=2000)
+    image_url: str | None = None
+
+
+class DepartureReminderPublic(DepartureReminderBase, BasePublic):
+    """Admin view, with the message as it will be posted."""
+
+    id: uuid.UUID
+    rendered_text: str = ""

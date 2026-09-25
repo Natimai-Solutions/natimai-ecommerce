@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.features.content.crud import crud_content_page
 from app.features.content.models import ContentPageCreate
+from app.features.departure.services import SOCIAL_WEBHOOK_SETTING_KEY
 from app.features.order.services.status import (
     ALL_ORDER_STATUSES,
     get_or_create_order_status,
@@ -613,6 +614,27 @@ HOW_IT_WORKS_HTML = """<h2>Des commandes groupées, un prix rendu tout compris</
 """
 
 
+async def _seed_social_webhook_setting(session: AsyncSession) -> None:
+    """Empty ``social_webhook_url`` so the reminders tab has a row to edit."""
+    existing = (
+        await session.exec(
+            select(SystemSetting).where(SystemSetting.key == SOCIAL_WEBHOOK_SETTING_KEY)
+        )
+    ).first()
+    if existing is not None:
+        return
+    session.add(
+        SystemSetting(
+            key=SOCIAL_WEBHOOK_SETTING_KEY,
+            value="",
+            description=(
+                "URL https d'un webhook (Make, Zapier, Buffer…) recevant les rappels "
+                "des départs groupés : {text, link, image_url, departure}"
+            ),
+        )
+    )
+
+
 async def _seed_content_pages(session: AsyncSession) -> None:
     """Seed the « Comment ça marche » page once (idempotent, never overwrites)."""
     if await crud_content_page.get_by_slug(session, "comment-ca-marche") is not None:
@@ -898,6 +920,7 @@ async def initial_data(session: AsyncSession) -> None:
     await _seed_shipping_statuses(session)
     await _seed_order_statuses(session)
     await _seed_content_pages(session)
+    await _seed_social_webhook_setting(session)
     await _seed_security_groups(session)
     await _seed_legal_identity_settings(session)
     await _seed_customs_free_countries_setting(session)

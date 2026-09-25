@@ -28,6 +28,7 @@ from app.core.config import settings
 from app.features.integrations.services.supplier_order_service import (
     process_ingram_purchase_order,
 )
+from app.features.order.models.order import Order
 from app.outbox.decorators import outbox_handler
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,17 @@ async def on_payment_captured_create_ingram_order(
         logger.warning(
             "Invalid order_id %r in payment.captured payload — skipping Ingram PO",
             raw_order_id,
+        )
+        return
+
+    # An order attached to a grouped departure is bought with the departure
+    # (aggregated purchase order at close), never one PO per customer order.
+    order = await session.get(Order, order_id)
+    if order is not None and getattr(order, "grouped_departure_id", None):
+        logger.info(
+            "Order %s belongs to departure %s — no per-order Ingram PO",
+            order_id,
+            order.grouped_departure_id,
         )
         return
 
