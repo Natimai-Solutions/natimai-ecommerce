@@ -113,6 +113,8 @@ class SupplierConfig:
     price_currency: str | None = None
     column_mapping: dict[str, str] | None = None
     settings: dict[str, Any] = field(default_factory=dict)
+    #: SKUs the admin chose to follow (empty = the whole synced catalog).
+    sku_allowlist: list[str] = field(default_factory=list)
 
     @classmethod
     def from_row(cls, supplier: Any) -> SupplierConfig:
@@ -133,6 +135,7 @@ class SupplierConfig:
             price_currency=getattr(supplier, "price_currency", None),
             column_mapping=getattr(supplier, "column_mapping", None),
             settings=dict(getattr(supplier, "settings", None) or {}),
+            sku_allowlist=list(getattr(supplier, "sku_allowlist", None) or []),
         )
 
 
@@ -209,6 +212,11 @@ class SupplierAdapter(ABC):
     def default_categories(self) -> list[str]:
         """Categories synced by default when the caller passes none."""
         return list(self.config.default_categories)
+
+    @property
+    def sku_allowlist(self) -> list[str]:
+        """SKUs the admin chose to follow; empty means the whole catalog."""
+        return list(self.config.sku_allowlist)
 
     # -- configuration ----------------------------------------------------
 

@@ -2489,6 +2489,33 @@ export interface paths {
         patch: operations["admin-suppliers-update_supplier"];
         trace?: never;
     };
+    "/api/v1/admin/suppliers/{code}/sku-allowlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sku Allowlist
+         * @description The references the shop follows at this supplier, against its catalogue.
+         */
+        get: operations["admin-suppliers-get_sku_allowlist"];
+        /**
+         * Put Sku Allowlist
+         * @description Replace the list (empty clears it: the whole catalogue is followed).
+         *
+         *     Managed products outside a non-empty list leave the storefront now; the
+         *     listed ones are created or refreshed by the next syncs.
+         */
+        put: operations["admin-suppliers-put_sku_allowlist"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/spec-definitions": {
         parameters: {
             query?: never;
@@ -7407,6 +7434,55 @@ export interface components {
             next_tracking_id?: string | null;
             /** Message */
             message: string;
+        };
+        /**
+         * AllowlistEntry
+         * @description One listed SKU and the product it currently matches, if any.
+         */
+        AllowlistEntry: {
+            /** Supplier Sku */
+            supplier_sku: string;
+            /** Product Id */
+            product_id?: string | null;
+            /** Product Name */
+            product_name?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
+        /**
+         * AllowlistView
+         * @description What the admin sees: the list, what is known, what will come.
+         */
+        AllowlistView: {
+            /** Supplier Name */
+            supplier_name: string;
+            /** Entries */
+            entries?: components["schemas"]["AllowlistEntry"][];
+            /**
+             * Known
+             * @default 0
+             */
+            known: number;
+            /** Unknown */
+            unknown?: string[];
+            /**
+             * Outside
+             * @default 0
+             */
+            outside: number;
+            /**
+             * Deactivated
+             * @default 0
+             */
+            deactivated: number;
+        };
+        /**
+         * AllowlistWrite
+         * @description The whole list (replaces the previous one; empty clears it).
+         */
+        AllowlistWrite: {
+            /** Skus */
+            skus?: string[];
         };
         /**
          * AnalyticsProductCreate
@@ -17557,6 +17633,11 @@ export interface components {
                 [key: string]: string;
             } | null;
             /**
+             * Sku Allowlist
+             * @description Liste blanche de références fournisseur (SKU). Vide ou absente : tout le catalogue synchronisé est suivi. Renseignée : seules ces références sont créées et rafraîchies (prix / stock) ; les articles gérés par ce fournisseur hors liste sont retirés de la vitrine. Modifiée par PUT /admin/suppliers/{code}/sku-allowlist.
+             */
+            sku_allowlist?: string[] | null;
+            /**
              * Settings
              * @description Configuration non secrète propre à l'intégration (ex. environment, country_code pour Ingram). Jamais d'identifiants.
              */
@@ -17723,6 +17804,11 @@ export interface components {
             column_mapping?: {
                 [key: string]: string;
             } | null;
+            /**
+             * Sku Allowlist
+             * @description Liste blanche de références fournisseur (SKU). Vide ou absente : tout le catalogue synchronisé est suivi. Renseignée : seules ces références sont créées et rafraîchies (prix / stock) ; les articles gérés par ce fournisseur hors liste sont retirés de la vitrine. Modifiée par PUT /admin/suppliers/{code}/sku-allowlist.
+             */
+            sku_allowlist?: string[] | null;
             /**
              * Settings
              * @description Configuration non secrète propre à l'intégration (ex. environment, country_code pour Ingram). Jamais d'identifiants.
@@ -23099,6 +23185,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SupplierPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-get_sku_allowlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllowlistView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-put_sku_allowlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AllowlistWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllowlistView"];
                 };
             };
             /** @description Validation Error */

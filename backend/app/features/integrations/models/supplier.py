@@ -164,6 +164,17 @@ class SupplierBase(SQLModel):
             "fichier}. Champs internes possibles : FILE_MAPPING_TARGETS."
         ),
     )
+    sku_allowlist: list[str] | None = Field(
+        default=None,
+        sa_column=Column(JSON),
+        description=(
+            "Liste blanche de références fournisseur (SKU). Vide ou absente : "
+            "tout le catalogue synchronisé est suivi. Renseignée : seules ces "
+            "références sont créées et rafraîchies (prix / stock) ; les "
+            "articles gérés par ce fournisseur hors liste sont retirés de la "
+            "vitrine. Modifiée par PUT /admin/suppliers/{code}/sku-allowlist."
+        ),
+    )
     settings: dict[str, Any] | None = Field(
         default=None,
         sa_column=Column(JSON),

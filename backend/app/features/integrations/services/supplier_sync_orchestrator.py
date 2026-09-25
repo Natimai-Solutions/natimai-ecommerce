@@ -26,6 +26,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.integrations.crud.supplier_sync import supplier_product_mapping_crud
 from app.features.integrations.models.supplier_sync import SupplierProductMapping
+from app.features.integrations.services.sku_allowlist import allowed_sku
 from app.features.integrations.services.supplier_data_normalization import (
     DEFAULT_CURRENCY,
     evaluate_product_filters,
@@ -434,6 +435,13 @@ class SupplierSyncOrchestrator:
                 self.adapter.name,
                 item.subcategory,
             )
+            return {"action": "filtered", "product_id": ""}
+
+        # The admin's allowlist: a reference outside it is neither created nor
+        # touched (the shop only follows what it chose to sell).
+        if not allowed_sku(
+            getattr(self.adapter, "sku_allowlist", None), item.supplier_sku
+        ):
             return {"action": "filtered", "product_id": ""}
 
         resolution = await self._resolve_existing_product(session=session, item=item)

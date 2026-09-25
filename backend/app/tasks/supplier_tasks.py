@@ -22,6 +22,7 @@ from app.core.config import settings
 from app.core.db import engine
 from app.features.integrations.crud.supplier_sync import supplier_sync_log_crud
 from app.features.integrations.models.supplier_sync import SyncStatus, SyncType
+from app.features.integrations.services.sku_allowlist import restrict_skus
 from app.features.integrations.services.supplier_data_normalization import (
     meets_sync_thresholds,
     normalize_supplier_snapshot,
@@ -288,7 +289,11 @@ async def sync_supplier_inventory_task(
                     include_archived=True,
                 )
                 products = result.get("data", [])
-                skus = [p.supplier_sku for p in products if p.supplier_sku]
+                # Only the references the admin follows (all when no list).
+                skus = restrict_skus(
+                    getattr(adapter, "sku_allowlist", None),
+                    [p.supplier_sku for p in products if p.supplier_sku],
+                )
                 logger.info("Fetched %s SKUs for inventory update", len(skus))
 
             batch_size = adapter.price_batch_size
