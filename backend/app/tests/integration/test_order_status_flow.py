@@ -14,7 +14,11 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.routes.admin_grouped_departures import update_departure
-from app.api.routes.admin_orders import OrderStatusChangeRequest, change_order_status
+from app.api.routes.admin_orders import (
+    OrderStatusChangeRequest,
+    change_order_status,
+    get_order_detail,
+)
 from app.core.errors import AppError
 from app.features.departure.models import GroupedDeparture, GroupedDepartureUpdate
 from app.features.order.models.order import Order
@@ -23,6 +27,8 @@ from app.features.order.services.status import (
     EVENT_ORDER_STATUS_CHANGED,
     set_order_status,
 )
+from app.features.payment.models.payment import Payment
+from app.features.payment.models.payment_status import PaymentStatus
 from app.features.user.models.user import User
 from app.outbox.models import OutboxEvent
 
@@ -203,3 +209,31 @@ async def test_departure_step_moves_only_the_orders_that_follow_it(
     )
     assert closed.orders_updated == 0
     assert await _status_names(db_session, seed.paid_attached) == {"InTransit"}
+
+
+@pytest.mark.asyncio
+async def test_admin_detail_reports_the_order_status_not_the_payment_one(
+    db_session: AsyncSession,
+) -> None:
+    seed = await _seed(db_session)
+    order = await db_session.get(Order, seed.paid_attached[0])
+    assert order is not None
+    order_id, user_id = order.id, order.user_id  # captured: the commit expires them
+    completed = PaymentStatus(name="Completed")
+    db_session.add(completed)
+    await db_session.flush()
+    db_session.add(
+        Payment(
+            amount=Decimal("100"),
+            currency="XPF",
+            provider_code="manual_transfer",
+            order_id=order_id,
+            user_id=user_id,
+            payment_status_id=completed.id,
+        )
+    )
+    await db_session.commit()
+
+    detail = await get_order_detail(order_id, db_session, seed.admin)
+    assert detail.status == "Paid"  # used to come back as "Completed"
+    assert detail.payments[0].status == "Completed"

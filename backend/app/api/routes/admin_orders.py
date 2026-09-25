@@ -550,7 +550,7 @@ async def get_order_detail(
 
     payment_items = []
     for p in payments:
-        status_name = (
+        payment_status_name = (
             pstatus_by_id.get(p.payment_status_id) if p.payment_status_id else None
         )
         payment_items.append(
@@ -560,11 +560,11 @@ async def get_order_detail(
                 provider_reference=p.provider_reference,
                 amount=float(p.amount),
                 currency=p.currency,
-                status=status_name,
+                status=payment_status_name,
                 created_at=p.created_at,
                 can_refund=(
                     provider_supports_in_app_refund(p.provider_code)
-                    and status_name in _REFUNDABLE_PAYMENT_STATUSES
+                    and payment_status_name in _REFUNDABLE_PAYMENT_STATUSES
                 ),
             )
         )

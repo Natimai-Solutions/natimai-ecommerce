@@ -641,7 +641,15 @@ async def import_catalog_file(
         session=session,
         sync_log_id=sync_log_id,
         status=status,
-        statistics={**stats, "source": "file", "filename": filename},
+        statistics={
+            **stats,
+            "source": "file",
+            "filename": filename,
+            # Journal of what was refused and why (first 100 of each), so the
+            # admin can come back to it after the response is gone.
+            "row_errors": [e.model_dump() for e in row_errors],
+            "sync_errors": sync_errors[:100],
+        },
     )
     logger.info(
         "Catalog file %s imported for %s by %s: %s",

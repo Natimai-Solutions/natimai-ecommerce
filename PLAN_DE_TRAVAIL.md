@@ -685,6 +685,15 @@ Autres écarts relevés : commission paiement en % intégrée au prix (aujourd'h
 - **Tests** : règle de slug, cycle création → brouillon invisible → publiée → suppression, seed idempotent qui respecte le texte du propriétaire. Types OpenAPI régénérés.
 - **Reste** : mentions légales et confidentialité restent codées en dur (même mécanisme applicable : slugs `mentions-legales`, `confidentialite`) ; pas de téléversement d'images dans l'éditeur (URL seulement).
 
+#### ✅ Avancement — Lot A item 5 : corrections relevées à l'audit (25/09/2026)
+
+- **Snapshot de marge** : `OrderLine.margin_rate_pct_snapshot` reçoit désormais la marge **réellement appliquée** (produit → catégorie → groupe, via `resolve_margin_rate_pct`) et non celle du groupe tarifaire ([cart.py](backend/app/api/routes/cart.py)) — prérequis du tableau de bord de marge réelle (Lot C).
+- **Verrous admin dans la sync prix/stock** : `sync_supplier_inventory_task` passe sa mise à jour par `strip_locked` comme la sync catalogue ([supplier_tasks.py](backend/app/tasks/supplier_tasks.py)) : une quantité de lot ou un coût saisis en admin ne sont plus écrasés toutes les deux heures.
+- **Statut de commande écrasé** : la fiche commande admin renvoyait le statut du **dernier paiement** à la place de celui de la commande (variable réutilisée dans la boucle des paiements) ; corrigé ([admin_orders.py](backend/app/api/routes/admin_orders.py)).
+- **Journal des rejets d'import** : les lignes refusées (numéro, motif) et les erreurs de sync sont conservées dans `SupplierSyncLog.statistics` (`row_errors`, `sync_errors`, 100 premières) et non plus seulement comptées ([suppliers.py](backend/app/api/routes/suppliers.py)) ; sans migration (colonne JSON existante).
+- **Tests** : verrou respecté par la sync, statut de la fiche admin avec un paiement encaissé, journal des rejets sur l'import fichier ; suites checkout existantes au vert avec le nouveau snapshot.
+- **Lot A terminé** : les 12 points bloquants de la spec sont couverts ou levés (B1, B2, B5, B6, B7, B9, B12 livrés ici ; B3, B4, B8 déjà en place ; B10/B11 partiels : liste blanche de SKU Ingram et import en brouillon restent au Lot D).
+
 **Lot B — départ groupé, suite** : clôture assistée (`POST /admin/grouped-departures/{id}/close` → vérification stock fournisseur via [checkout_availability.py](backend/app/features/integrations/services/checkout_availability.py), onglet « à arbitrer », report si seuil non atteint) ; `SupplierOrder` par départ (`grouped_departure_id`, `total_amount`, `ordered_at`, lignes multi-commandes, export CSV/PDF ; le handler [ingram_micro.py](backend/app/handlers/ingram_micro.py) ignore les commandes rattachées à un départ) ; rappels réseaux sociaux ; récurrence.
 
 **Lot C — réception et tableau de bord** : onglet « Réception » du départ (`GoodsReceipt` / `GoodsReceiptLine` avec quantités, état, numéros de série), rapprochement servi / partiel / non servi, `OrderLine.serial_numbers`, espace client (lignes, n° de série, fin de garantie), tableau de bord par départ (encaissé, payé fournisseur, fret / douane réels, marge brute).

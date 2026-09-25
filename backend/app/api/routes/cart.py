@@ -89,6 +89,7 @@ from app.features.product.services.pricing import (
     product_applies_customs,
     resolve_default_price_group,
     resolve_effective_customs_rate_pct,
+    resolve_margin_rate_pct,
     resolve_tax_rate,
 )
 from app.features.product.services.publication import publication_blockers
@@ -2479,10 +2480,10 @@ async def checkout_my_cart(
                     or settings.REFERENCE_CURRENCY,
                     fx_rate_used=getattr(item, "fx_rate_used", None),
                     customs_rate_pct_snapshot=resolved_customs_rate_pct,
-                    margin_rate_pct_snapshot=getattr(
-                        price_group,
-                        "margin_rate_pct",
-                        None,
+                    # The margin actually applied (product → category →
+                    # group), not the group's: real-margin reports rely on it.
+                    margin_rate_pct_snapshot=await resolve_margin_rate_pct(
+                        session, product, group=price_group
                     ),
                     price_group_id_snapshot=getattr(price_group, "id", None),
                 ),
