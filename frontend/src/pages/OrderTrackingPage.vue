@@ -6,6 +6,7 @@
         <div class="text-caption text-grey-7">Commande #{{ shortId }}</div>
       </div>
       <q-btn
+        v-if="!linkToken"
         flat
         color="primary"
         icon="arrow_back"
@@ -15,6 +16,12 @@
       />
     </div>
 
+    <q-banner v-if="linkToken && !loading" class="bg-grey-2 q-mb-md" rounded dense data-testid="tracking-link-notice">
+      <template #avatar><q-icon name="link" color="primary" /></template>
+      Vous suivez cette commande depuis le lien reçu par e-mail. Gardez-le : il permet à quiconque le
+      détient de consulter l'avancement de cette commande.
+    </q-banner>
+
     <div v-if="loading" class="text-center q-pa-xl">
       <q-spinner color="primary" size="2.5em" />
     </div>
@@ -22,7 +29,7 @@
     <q-banner v-else-if="errorMessage" class="bg-red-1 text-red-9" rounded>
       <template #avatar><q-icon name="error_outline" /></template>
       {{ errorMessage }}
-      <template #action>
+      <template v-if="!linkToken" #action>
         <q-btn flat label="Mes commandes" :to="{ name: 'account', query: { tab: 'orders' } }" />
       </template>
     </q-banner>
@@ -93,7 +100,7 @@
               Le solde vous sera demandé à la réception de vos articles ; vous pouvez aussi le régler dès maintenant.
             </div>
             <q-btn
-              v-if="balancePayable"
+              v-if="balancePayable && !linkToken"
               color="primary"
               icon="payments"
               :label="`Régler le solde (${money(order.balance_amount)})`"
@@ -102,6 +109,9 @@
               :to="{ name: 'order-balance', params: { id: order.id } }"
               data-testid="order-pay-balance"
             />
+            <div v-else-if="balancePayable" class="text-caption text-grey-8 q-mt-sm">
+              Pour régler le solde, connectez-vous à votre espace client.
+            </div>
           </template>
         </q-card-section>
       </q-card>
@@ -264,6 +274,7 @@ import {
   getMyOrder,
   getMyOrderLines,
   getMyOrderTracking,
+  trackOrderByLink,
   type Order,
   type OrderLine,
   type OrderTracking,
@@ -276,6 +287,12 @@ const router = useRouter();
 const authStore = useAuthStore();
 
 const orderId = computed(() => String(route.params.id ?? ''));
+// Signed link from the e-mails (`/suivi/:id?t=…`): read-only, no account.
+const linkToken = computed(() => {
+  const raw = route.query.t;
+  const t = Array.isArray(raw) ? raw[0] : raw;
+  return typeof t === 'string' && t.length > 0 ? t : null;
+});
 const shortId = computed(() => orderId.value.slice(0, 8));
 
 const loading = ref(true);
@@ -430,6 +447,24 @@ function extractError(err: unknown): string | null {
   return null;
 }
 
+async function loadFromLink(token: string) {
+  loading.value = true;
+  errorMessage.value = null;
+  try {
+    const tracked = await trackOrderByLink(orderId.value, token);
+    tracking.value = tracked.tracking;
+    order.value = tracked.order;
+    lines.value = tracked.lines;
+    const departureId = tracked.order.grouped_departure_id;
+    departure.value = departureId ? await getDeparture(departureId).catch(() => null) : null;
+  } catch (err) {
+    errorMessage.value =
+      extractError(err) ?? 'Ce lien de suivi est invalide ou la commande est introuvable.';
+  } finally {
+    loading.value = false;
+  }
+}
+
 async function load() {
   loading.value = true;
   errorMessage.value = null;
@@ -459,6 +494,11 @@ async function load() {
 }
 
 onMounted(async () => {
+  const token = linkToken.value;
+  if (token) {
+    await loadFromLink(token);
+    return;
+  }
   if (!authStore.isAuthenticated) {
     await router.replace({
       name: 'login',

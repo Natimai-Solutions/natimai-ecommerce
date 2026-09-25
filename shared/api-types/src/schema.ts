@@ -3723,6 +3723,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orders/track/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Follow an order from the signed link in its e-mails (no account)
+         * @description The link in the order e-mails carries a signature of the order id:
+         *     it opens that one order's tracking, read-only, without signing in.
+         *     A wrong or missing signature reads like an unknown order.
+         */
+        get: operations["order-track_order_by_link"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/invoices/me": {
         parameters: {
             query?: never;
@@ -18043,6 +18065,16 @@ export interface components {
             upc?: string | null;
         };
         /**
+         * TrackedOrderResponse
+         * @description Everything the tracking page shows, for the holder of a signed link.
+         */
+        TrackedOrderResponse: {
+            order: components["schemas"]["MyOrderPublic"];
+            tracking: components["schemas"]["CustomerOrderTrackingResponse"];
+            /** Lines */
+            lines?: components["schemas"]["MyOrderLine"][];
+        };
+        /**
          * TrackingHistoryResponse
          * @description Historical status changes for a tracking record.
          */
@@ -25836,6 +25868,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CustomerOrderTrackingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "order-track_order_by_link": {
+        parameters: {
+            query?: {
+                t?: string | null;
+            };
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackedOrderResponse"];
                 };
             };
             /** @description Validation Error */

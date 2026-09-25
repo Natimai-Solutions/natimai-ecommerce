@@ -33,6 +33,7 @@ from app.features.notification.providers import (
 )
 from app.features.order.models.order import Order
 from app.features.order.services.order_number import resolve_order_ref
+from app.features.order.services.tracking_link import tracking_url_from_payload
 from app.features.payment.models.payment import Payment
 from app.features.payment.services.deposit import PLAN_DEPOSIT, balance_amount
 from app.features.user.models.user import User
@@ -282,6 +283,7 @@ async def on_order_created(session: AsyncSession, payload: dict[str, Any]) -> No
         total_amount=payload.get("total_amount", ""),
         currency=payload.get("currency", ""),
         item_count=payload.get("item_count", ""),
+        tracking_url=tracking_url_from_payload(payload.get("order_id")),
         shop_name=_shop_name(),
     )
 
@@ -535,6 +537,7 @@ async def on_order_status_changed_customer(
         status_message=body,
         departure_name=departure_name,
         estimated_delivery=estimated_delivery,
+        tracking_url=tracking_url_from_payload(payload.get("order_id")),
         shop_name=_shop_name(),
     )
     await _send_order_email(

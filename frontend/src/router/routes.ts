@@ -52,6 +52,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/OrderTrackingPage.vue'),
       },
       {
+        // Suivi sans compte, depuis le lien signé des e-mails (?t=…).
+        path: 'suivi/:id',
+        name: 'order-tracking-link',
+        component: () => import('pages/OrderTrackingPage.vue'),
+      },
+      {
         // Règlement du solde d'une commande passée avec acompte.
         path: 'mon-compte/commandes/:id/solde',
         name: 'order-balance',

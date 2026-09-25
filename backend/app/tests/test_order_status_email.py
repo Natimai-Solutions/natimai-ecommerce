@@ -64,6 +64,11 @@ async def test_fulfilment_step_is_emailed_with_the_departure(send: AsyncMock) ->
     assert "Bonjour Tehani" in kwargs["text"]
     assert "Octobre" in kwargs["text"] and "10/11/2026" in kwargs["text"]
     assert "en route" in kwargs["html"]
+    # The signed « suivre ma commande » link lets the customer follow the
+    # order without signing in.
+    order_id = send.await_args.kwargs["payload"]["order_id"]
+    assert f"/suivi/{order_id}?t=" in kwargs["text"]
+    assert f"/suivi/{order_id}?t=" in kwargs["html"]
 
 
 @pytest.mark.anyio

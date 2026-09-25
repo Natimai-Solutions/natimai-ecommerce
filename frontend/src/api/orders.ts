@@ -110,3 +110,17 @@ export async function getMyOrderLines(orderId: string): Promise<OrderLine[]> {
   const { data } = await api.get<OrderLine[]>(`/orders/me/${orderId}/lines`);
   return data;
 }
+
+/** What the signed « suivre ma commande » link opens, without an account. */
+export interface TrackedOrder {
+  order: Order;
+  tracking: OrderTracking;
+  lines: OrderLine[];
+}
+
+export async function trackOrderByLink(orderId: string, token: string): Promise<TrackedOrder> {
+  const { data } = await api.get<TrackedOrder>(`/orders/track/${orderId}`, {
+    params: { t: token },
+  });
+  return data;
+}

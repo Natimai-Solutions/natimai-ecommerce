@@ -23,6 +23,7 @@ from app.features.departure.reception import MyOrderLine, customer_lines
 from app.features.order.crud.order_crud import crud_order
 from app.features.order.models.order import Order, OrderPublic
 from app.features.order.models.order_status import OrderStatus
+from app.features.order.services.tracking_link import verify_order_tracking_token
 from app.features.payment.services.deposit import balance_amount, balance_due
 from app.features.shipping.crud import (
     crud_shipping_route_tracking,
@@ -171,7 +172,64 @@ async def get_my_order_tracking(
 ) -> CustomerOrderTrackingResponse:
     """Return aggregated tracking information for one of the authenticated user's orders."""
     await _my_order_or_error(session, order_id, current_user)
+    return await _tracking_for(session, order_id)
 
+
+class TrackedOrderResponse(SQLModel):
+    """Everything the tracking page shows, for the holder of a signed link."""
+
+    order: MyOrderPublic
+    tracking: CustomerOrderTrackingResponse
+    lines: list[MyOrderLine] = Field(default_factory=list)
+
+
+@router.get(
+    "/track/{order_id}",
+    response_model=TrackedOrderResponse,
+    summary="Follow an order from the signed link in its e-mails (no account)",
+)
+async def track_order_by_link(
+    order_id: uuid.UUID, session: SessionDep, t: str | None = None
+) -> TrackedOrderResponse:
+    """The link in the order e-mails carries a signature of the order id:
+    it opens that one order's tracking, read-only, without signing in.
+    A wrong or missing signature reads like an unknown order."""
+    if not verify_order_tracking_token(order_id, t if isinstance(t, str) else None):
+        raise AppError(
+            code="order.not_found",
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            message=f"Order {order_id} not found",
+            details={"order_id": str(order_id)},
+        )
+    try:
+        order: Order = await crud_order.read(session, id=order_id)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="order.not_found",
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            message=f"Order {order_id} not found",
+            details={"order_id": str(order_id)},
+        ) from exc
+    view = MyOrderPublic.model_validate(order)
+    status = (
+        await session.get(OrderStatus, order.order_status_id)
+        if order.order_status_id
+        else None
+    )
+    view.order_status_name = status.name if status else None
+    view.balance_amount = balance_amount(order)
+    view.balance_due = balance_due(order)
+    return TrackedOrderResponse(
+        order=view,
+        tracking=await _tracking_for(session, order_id),
+        lines=await customer_lines(session, order),
+    )
+
+
+async def _tracking_for(
+    session: SessionDep, order_id: uuid.UUID
+) -> CustomerOrderTrackingResponse:
+    """Aggregated tracking of an order whose access has been checked."""
     trackings = await crud_shipping_route_tracking.get_trackings_by_order_sequence(
         session=session, order_id=order_id
     )

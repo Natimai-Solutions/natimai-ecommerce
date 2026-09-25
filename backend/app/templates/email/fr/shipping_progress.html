@@ -10,5 +10,6 @@
           {% if tracking_ref %}<tr><td>Référence de suivi</td><td>{{ tracking_ref }}</td></tr>{% endif %}
         </table>
       </div>
+      {% if tracking_url %}<p><a href="{{ tracking_url }}">Suivre ma commande</a></p>{% endif %}
       <p>L'équipe {{ shop_name }}</p>
 {% endblock %}
