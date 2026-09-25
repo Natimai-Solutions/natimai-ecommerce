@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 
@@ -63,7 +64,7 @@ def test_fee_and_split_add_up_in_xpf() -> None:
 
 
 def test_checkout_amounts_carry_the_deposit_fee_in_the_fees_total() -> None:
-    items = [SimpleNamespace(unit_price=Decimal("500"), quantity=2)]
+    items = cast(Any, [SimpleNamespace(unit_price=Decimal("500"), quantity=2)])
     subtotal, shipping, payment, fees, total = _snapshot_checkout_amounts(
         items=items,
         currency="XPF",

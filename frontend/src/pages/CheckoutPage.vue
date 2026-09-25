@@ -136,6 +136,16 @@
                 <template #avatar><q-icon name="error_outline" /></template>
                 {{ errorMessage }}
               </q-banner>
+              <q-banner
+                v-if="quoteRequestId && !orderPlaced"
+                class="bg-blue-1 text-blue-10 q-mb-md"
+                rounded
+                dense
+                data-testid="checkout-from-quote"
+              >
+                <template #avatar><q-icon name="request_quote" /></template>
+                Commande depuis votre devis : les prix et la livraison du devis s'appliquent.
+              </q-banner>
 
               <!-- Loading payment methods -->
               <div v-if="loadingMethods" class="text-center q-pa-lg">
@@ -451,6 +461,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { countryLabel, formatXpf, orderRef } from '@app/utils';
 import { useCartStore } from 'src/stores/cart';
 import { useAuthStore } from 'src/stores/auth';
@@ -475,6 +486,13 @@ import { PENDING_PAYMENT_KEY, loadPayzenSmartForm } from 'src/utils/payzen';
 const cartStore = useCartStore();
 const authStore = useAuthStore();
 const departureStore = useDepartureStore();
+const route = useRoute();
+// Ordering an issued quote (`?quote=<id>`): its prices and delivery fee apply.
+const quoteRequestId = computed(() => {
+  const raw = route.query.quote;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+});
 
 const loadingMethods = ref(true);
 const methods = ref<PaymentMethod[]>([]);
@@ -574,6 +592,7 @@ async function loadQuote() {
       deliveryType: selectedDeliveryType.value,
       paymentMethodId: selectedMethodId.value,
       paymentPlan: paymentPlan.value,
+      quoteRequestId: quoteRequestId.value,
     });
     quote.value = next;
     // The backend has the last word (an imposed deposit, or none offered).
@@ -678,10 +697,14 @@ onMounted(async () => {
   }
   // The storefront cart is client-side: mirror it into the backend cart so
   // the delivery options and the quote are computed on what is being bought.
-  try {
-    await syncCartToBackend();
-  } catch {
-    // The checkout re-syncs before ordering; the quote will then catch up.
+  // Ordering an issued quote: the backend cart was just loaded from the quote
+  // at the quoted prices (« Commander ce devis »), it must not be overwritten.
+  if (!quoteRequestId.value) {
+    try {
+      await syncCartToBackend();
+    } catch {
+      // The checkout re-syncs before ordering; the quote will then catch up.
+    }
   }
 
   // Load the user's addresses; pre-select a validated one if available, else the first.
@@ -758,8 +781,8 @@ async function startPayment() {
     const returnUrl = `${window.location.origin}/paiement/retour`;
 
     // 1. The storefront cart is client-side — mirror it into the backend cart
-    //    so the order can be created from it.
-    await syncCartToBackend();
+    //    so the order can be created from it (a quote rebuilds it server-side).
+    if (!quoteRequestId.value) await syncCartToBackend();
 
     // 2. Single call: create the order AND run the provider initiation in one
     //    transaction (empties the backend cart, publishes order.created). No
@@ -774,6 +797,7 @@ async function startPayment() {
       return_url: returnUrl,
       cgv_accepted: cgvAccepted.value,
       payment_plan: paymentPlan.value,
+      quote_request_id: quoteRequestId.value,
     });
     orderPlaced.value = true;
     placedOrderRef.value = orderRef(checkout.order_number, checkout.order_id);

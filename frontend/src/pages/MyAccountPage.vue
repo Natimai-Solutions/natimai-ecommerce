@@ -15,6 +15,7 @@
       <q-tab name="preferences" icon="tune" label="Préférences" no-caps />
       <q-tab name="addresses" icon="location_on" label="Adresses" no-caps />
       <q-tab name="orders" icon="receipt_long" label="Commandes" no-caps />
+      <q-tab name="quotes" icon="request_quote" label="Devis" no-caps />
       <q-tab name="group" icon="workspace_premium" label="Groupe tarifaire" no-caps />
     </q-tabs>
 
@@ -257,6 +258,85 @@
             </q-item>
           </q-list>
         </template>
+      </q-tab-panel>
+
+      <!-- ============================ Devis ============================ -->
+      <q-tab-panel name="quotes" class="q-px-none">
+        <q-banner v-if="quotesError" class="bg-red-1 text-red-9 q-mb-md" rounded>
+          <template #avatar><q-icon name="error_outline" /></template>
+          {{ quotesError }}
+        </q-banner>
+        <div v-if="loadingQuotes" class="text-center q-pa-lg">
+          <q-spinner color="primary" size="2em" />
+        </div>
+        <q-banner v-else-if="quotes.length === 0" class="bg-blue-1 text-blue-10" rounded>
+          <template #avatar><q-icon name="info" /></template>
+          Aucune demande de devis. Vous pouvez en faire une depuis votre panier.
+        </q-banner>
+        <q-list v-else bordered separator class="rounded-borders" data-testid="account-quotes">
+          <q-item v-for="quote in quotes" :key="quote.id">
+            <q-item-section avatar>
+              <q-icon name="request_quote" color="primary" />
+            </q-item-section>
+            <q-item-section>
+              <q-item-label>
+                {{ quote.quote_number ? `Devis ${quote.quote_number}` : 'Demande de devis' }}
+              </q-item-label>
+              <q-item-label caption>
+                {{ formatDate(quote.quoted_at ?? quote.created_at) ?? '—' }}
+                <template v-if="quote.valid_until">
+                  · valable jusqu'au {{ formatDate(quote.valid_until) }}
+                </template>
+              </q-item-label>
+              <q-item-label class="q-mt-xs">
+                <q-chip
+                  dense
+                  size="sm"
+                  :color="quote.status === 'quoted' ? 'primary' : quote.status === 'won' ? 'green' : 'grey-7'"
+                  text-color="white"
+                  :label="QUOTE_STATUS_LABELS[quote.status] ?? quote.status"
+                />
+              </q-item-label>
+            </q-item-section>
+            <q-item-section side class="text-right">
+              <q-item-label v-if="quote.total_amount" class="text-weight-medium">
+                {{ formatMoney(quote.total_amount) }}
+              </q-item-label>
+              <q-btn
+                v-if="quote.quote_number"
+                flat
+                dense
+                no-caps
+                color="primary"
+                icon="picture_as_pdf"
+                label="PDF"
+                @click="onDownloadQuote(quote)"
+              />
+              <q-btn
+                v-if="quote.can_order"
+                unelevated
+                dense
+                no-caps
+                color="primary"
+                icon="shopping_cart_checkout"
+                label="Commander ce devis"
+                :loading="orderingQuoteId === quote.id"
+                data-testid="account-order-quote"
+                @click="onOrderQuote(quote)"
+              />
+              <q-btn
+                v-else-if="quote.order_id"
+                flat
+                dense
+                no-caps
+                color="primary"
+                icon="local_shipping"
+                label="Voir la commande"
+                :to="{ name: 'order-tracking', params: { id: quote.order_id } }"
+              />
+            </q-item-section>
+          </q-item>
+        </q-list>
       </q-tab-panel>
 
       <!-- ============================ Groupe tarifaire ============================ -->
@@ -544,6 +624,14 @@ import {
 import { listMyOrders, type Order } from 'src/api/orders';
 import { downloadInvoicePdf, listMyInvoices, type Invoice } from 'src/api/invoices';
 import {
+  acceptMyQuote,
+  downloadMyQuotePdf,
+  listMyQuotes,
+  QUOTE_STATUS_LABELS,
+  type MyQuote,
+} from 'src/api/quotes';
+import { useCartStore } from 'src/stores/cart';
+import {
   getUpgradeOptions,
   listMyUpgradeRequests,
   submitUpgradeRequest,
@@ -554,6 +642,7 @@ import {
 
 const route = useRoute();
 const router = useRouter();
+const cartStore = useCartStore();
 const authStore = useAuthStore();
 const currencyStore = useCurrencyStore();
 
@@ -561,7 +650,7 @@ function onCurrencyPrefChange(code: string) {
   void currencyStore.setCurrency(code);
 }
 
-type AccountTab = 'preferences' | 'addresses' | 'orders' | 'group';
+type AccountTab = 'preferences' | 'addresses' | 'orders' | 'quotes' | 'group';
 const tab = ref<AccountTab>('preferences');
 
 // --------------------------------------------------------------------------
@@ -963,6 +1052,58 @@ const loadingOrders = ref(true);
 const ordersError = ref<string | null>(null);
 const orders = ref<Order[]>([]);
 
+// --------------------------------------------------------------------------
+// Quotes (« devis ») — issued PDFs, and ordering one at its prices
+// --------------------------------------------------------------------------
+const quotes = ref<MyQuote[]>([]);
+const loadingQuotes = ref(true);
+const quotesError = ref<string | null>(null);
+const orderingQuoteId = ref<string | null>(null);
+
+async function loadQuotes() {
+  loadingQuotes.value = true;
+  quotesError.value = null;
+  try {
+    quotes.value = await listMyQuotes();
+  } catch (err) {
+    quotesError.value = extractError(err) ?? 'Impossible de charger vos devis.';
+  } finally {
+    loadingQuotes.value = false;
+  }
+}
+
+async function onDownloadQuote(quote: MyQuote) {
+  quotesError.value = null;
+  try {
+    await downloadMyQuotePdf(quote);
+  } catch (err) {
+    quotesError.value = extractError(err) ?? 'Le PDF du devis est indisponible.';
+  }
+}
+
+/** The backend cart is loaded from the quote; the local cart mirrors it, and
+ * the checkout runs in quote mode (`?quote=`) so the quoted prices apply. */
+async function onOrderQuote(quote: MyQuote) {
+  orderingQuoteId.value = quote.id;
+  quotesError.value = null;
+  try {
+    const cart = await acceptMyQuote(quote.id);
+    const items = cart.items ?? [];
+    cartStore.clearCart();
+    for (const item of items) {
+      await cartStore.addItem(item.product_id, item.quantity);
+    }
+    cartStore.applyServerPrices(
+      items.map((item) => ({ product_id: item.product_id, current_unit_price: String(item.unit_price) })),
+    );
+    await router.push({ name: 'checkout', query: { quote: quote.id } });
+  } catch (err) {
+    quotesError.value = extractError(err) ?? 'Ce devis ne peut pas être commandé.';
+  } finally {
+    orderingQuoteId.value = null;
+  }
+}
+
 async function loadOrders() {
   loadingOrders.value = true;
   ordersError.value = null;
@@ -1213,7 +1354,12 @@ onMounted(async () => {
     return;
   }
   const requestedTab = route.query.tab;
-  if (requestedTab === 'addresses' || requestedTab === 'orders' || requestedTab === 'group') {
+  if (
+    requestedTab === 'addresses' ||
+    requestedTab === 'orders' ||
+    requestedTab === 'quotes' ||
+    requestedTab === 'group'
+  ) {
     tab.value = requestedTab;
   }
   await Promise.all([
@@ -1221,6 +1367,7 @@ onMounted(async () => {
     loadAddresses(),
     loadOrders(),
     loadInvoices(),
+    loadQuotes(),
     loadGroup(),
   ]);
 });

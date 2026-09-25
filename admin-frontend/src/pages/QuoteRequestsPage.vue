@@ -162,6 +162,81 @@
 
           <q-separator class="q-my-md" />
 
+          <!-- Le devis : lignes au prix consenti, livraison, validité, PDF -->
+          <div class="row items-center q-mb-xs q-gutter-sm">
+            <div class="text-subtitle2 col">
+              Devis
+              <span v-if="detail.quote_number" class="text-primary">{{ detail.quote_number }}</span>
+              <span v-if="detail.quoted_at" class="text-caption text-grey-7">
+                — émis le {{ formatDate(detail.quoted_at) }}
+              </span>
+            </div>
+            <q-btn
+              v-if="detail.quote_number"
+              flat
+              dense
+              no-caps
+              icon="picture_as_pdf"
+              label="PDF"
+              @click="downloadQuotePdf(detail.quote_request_id, detail.quote_number)"
+            />
+          </div>
+          <q-banner v-if="detail.order_id" class="bg-green-1 text-green-9 q-mb-sm" dense rounded>
+            Devis commandé par le client :
+            <router-link :to="`/orders/${detail.order_id}`">voir la commande</router-link>.
+          </q-banner>
+          <template v-else>
+            <q-markup-table flat bordered dense class="q-mb-sm">
+              <thead>
+                <tr>
+                  <th class="text-left">Désignation</th>
+                  <th class="text-right">Qté</th>
+                  <th class="text-right">PU TTC</th>
+                  <th class="text-right">Total</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(line, index) in issueLines" :key="index">
+                  <td>
+                    <q-input v-model="line.product_name" dense outlined />
+                    <div v-if="!line.product_id" class="text-caption text-orange-9">
+                      Hors catalogue : non commandable en ligne
+                    </div>
+                  </td>
+                  <td><q-input v-model.number="line.quantity" type="number" min="1" dense outlined style="width: 70px" /></td>
+                  <td><q-input v-model="line.unit_price" type="number" min="0" dense outlined style="width: 120px" /></td>
+                  <td class="text-right">{{ lineTotal(line) }}</td>
+                  <td><q-btn flat dense icon="close" color="grey-7" @click="issueLines.splice(index, 1)" /></td>
+                </tr>
+              </tbody>
+            </q-markup-table>
+            <q-btn flat dense no-caps icon="add" label="Ligne libre" class="q-mb-sm" @click="issueLines.push({ product_id: null, product_name: '', quantity: 1, unit_price: '0' })" />
+            <div class="row q-col-gutter-sm">
+              <q-input v-model="issueForm.shipping_fee_amount" class="col-4" type="number" min="0" label="Livraison (TTC)" dense outlined />
+              <q-input v-model="issueForm.valid_until" class="col-4" type="date" label="Valable jusqu'au" dense outlined clearable hint="Défaut : 30 jours" />
+              <div class="col-4 text-right text-weight-medium q-pt-sm">
+                Total : {{ issueTotal }} {{ detail.currency ?? '' }}
+              </div>
+            </div>
+            <q-input v-model="issueForm.customer_message" type="textarea" autogrow dense outlined label="Message au client (imprimé sur le devis)" class="q-mt-sm" />
+            <div class="row items-center q-mt-sm q-gutter-sm">
+              <q-toggle v-model="issueForm.send_email" label="Envoyer le PDF au client par e-mail" dense />
+              <q-space />
+              <q-btn
+                color="primary"
+                no-caps
+                icon="send"
+                :label="detail.quote_number ? 'Ré-émettre le devis' : 'Émettre le devis'"
+                :loading="issuing"
+                :disable="issueLines.length === 0"
+                @click="issue"
+              />
+            </div>
+          </template>
+
+          <q-separator class="q-my-md" />
+
           <q-select
             v-model="editStatus"
             :options="QUOTE_STATUS_OPTIONS"
@@ -180,6 +255,9 @@
             autogrow
             label="Suivi interne (non visible du client)"
           />
+          <q-banner v-if="issueNotice" class="bg-green-1 text-green-9 q-mt-sm" dense rounded>
+            {{ issueNotice }}
+          </q-banner>
           <q-banner v-if="saveError" class="bg-red-1 text-red-9 q-mt-sm" dense rounded>
             {{ saveError }}
           </q-banner>
@@ -201,10 +279,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import {
+  downloadQuotePdf,
   getQuoteRequest,
+  issueQuote,
   listQuoteRequests,
   QUOTE_STATUS_OPTIONS,
   quoteStatusColor,
@@ -212,9 +292,72 @@ import {
   updateQuoteRequest,
   type AdminQuoteRequestDetail,
   type AdminQuoteRequestListItem,
+  type QuoteLine,
   type QuoteRequestStatus,
 } from 'src/api/quoteRequests';
 import { extractApiError } from 'src/api/errors';
+
+// --- Issuing the quote (lines at the granted price, delivery, validity) ---
+const issueLines = ref<QuoteLine[]>([]);
+const issueForm = ref({
+  shipping_fee_amount: '0',
+  valid_until: '',
+  customer_message: '',
+  send_email: true,
+});
+const issuing = ref(false);
+const issueNotice = ref<string | null>(null);
+
+function lineTotal(line: QuoteLine): string {
+  const total = (Number(line.quantity) || 0) * (Number(line.unit_price) || 0);
+  return Number.isFinite(total) ? String(Math.round(total * 100) / 100) : '—';
+}
+const issueTotal = computed(() => {
+  const lines = issueLines.value.reduce((sum, l) => sum + (Number(lineTotal(l)) || 0), 0);
+  return String(Math.round((lines + (Number(issueForm.value.shipping_fee_amount) || 0)) * 100) / 100);
+});
+
+function prefillIssue(loaded: AdminQuoteRequestDetail) {
+  issueLines.value = loaded.proposed_lines.map((l) => ({ ...l, unit_price: String(Number(l.unit_price)) }));
+  const snapshot = loaded.quote_snapshot;
+  issueForm.value = {
+    shipping_fee_amount: snapshot ? String(Number(snapshot.shipping_fee_amount)) : '0',
+    valid_until: loaded.valid_until ?? '',
+    customer_message: snapshot?.customer_message ?? '',
+    send_email: true,
+  };
+}
+
+async function issue() {
+  if (!detail.value) return;
+  issuing.value = true;
+  saveError.value = null;
+  try {
+    const result = await issueQuote(detail.value.quote_request_id, {
+      lines: issueLines.value.map((l) => ({
+        product_id: l.product_id,
+        product_name: l.product_name.trim() || 'Article',
+        quantity: Math.max(1, Math.floor(Number(l.quantity) || 1)),
+        unit_price: String(Number(l.unit_price) || 0),
+      })),
+      shipping_fee_amount: String(Number(issueForm.value.shipping_fee_amount) || 0),
+      valid_until: issueForm.value.valid_until || null,
+      customer_message: issueForm.value.customer_message.trim() || null,
+      send_email: issueForm.value.send_email,
+    });
+    detail.value = result;
+    editStatus.value = result.status;
+    prefillIssue(result);
+    issueNotice.value = result.email_sent
+      ? `Devis ${result.quote_number} émis et envoyé au client.`
+      : `Devis ${result.quote_number} émis (sans e-mail).`;
+    await load();
+  } catch (err) {
+    saveError.value = extractApiError(err) ?? 'Émission du devis impossible.';
+  } finally {
+    issuing.value = false;
+  }
+}
 
 const rows = ref<AdminQuoteRequestListItem[]>([]);
 const loading = ref(false);
@@ -254,6 +397,7 @@ const columns: QTableColumn[] = [
     format: (v: string | null) => formatDate(v),
   },
   { name: 'client', label: 'Client', field: 'email', align: 'left' },
+  { name: 'number', label: 'Devis', field: (r: AdminQuoteRequestListItem) => r.quote_number ?? '—', align: 'left' },
   { name: 'origin', label: 'Origine', field: 'is_registered_customer', align: 'left' },
   { name: 'items', label: 'Articles', field: 'item_count', align: 'right' },
   {
@@ -291,6 +435,8 @@ async function openDetail(id: string) {
     detail.value = loaded;
     editStatus.value = loaded.status;
     editComment.value = loaded.admin_comment ?? '';
+    prefillIssue(loaded);
+    issueNotice.value = null;
     dialog.value = true;
   } catch (err) {
     error.value = extractApiError(err) ?? 'Chargement impossible.';

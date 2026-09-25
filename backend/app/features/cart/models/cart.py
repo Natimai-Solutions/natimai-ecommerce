@@ -305,6 +305,13 @@ class CheckoutRequest(SQLModel):
             "policy of the customer's price group."
         ),
     )
+    quote_request_id: uuid.UUID | None = Field(
+        default=None,
+        description=(
+            "Order an issued quote: the cart is rebuilt from its lines at the "
+            "quoted prices and delivery fee, whatever the catalogue says now."
+        ),
+    )
 
 
 class DepositTerms(SQLModel):

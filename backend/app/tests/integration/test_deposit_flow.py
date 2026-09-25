@@ -192,10 +192,10 @@ async def test_deposit_order_is_paid_in_two_guarded_payments(
     assert await _status_name(db_session, seed.order_id) == "Received"
 
     # 5. The balance is captured: settled, invoiced, nothing more to pay.
-    balance = await db_session.get(Payment, balance_id)
-    assert balance is not None
-    balance.payment_status_id = seed.completed_id
-    db_session.add(balance)
+    settled_balance = await db_session.get(Payment, balance_id)
+    assert settled_balance is not None
+    settled_balance.payment_status_id = seed.completed_id
+    db_session.add(settled_balance)
     await db_session.commit()
     payload = _payload(seed, balance_id, "714")
     await payment_handlers.on_payment_captured(db_session, payload)

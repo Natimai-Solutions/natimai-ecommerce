@@ -149,3 +149,31 @@ def render_credit_note_pdf(
 def credit_note_pdf_filename(credit_note: CreditNote) -> str:
     """Download filename for a credit note PDF."""
     return f"{credit_note.credit_note_number}.pdf"
+
+
+def _html_to_pdf(html: str) -> bytes:
+    try:
+        from weasyprint import HTML  # noqa: PLC0415 — lazy on purpose
+    except Exception as exc:  # noqa: BLE001 — missing lib or missing system deps
+        raise PdfRenderingUnavailableError(
+            "WeasyPrint is unavailable in this environment "
+            "(package or system libraries missing): "
+            f"{exc}"
+        ) from exc
+    return bytes(HTML(string=html).write_pdf())
+
+
+def render_quote_html(quote: Any, *, lang: str = DEFAULT_LANG) -> str:
+    """Render a quote (« devis ») from its frozen ``quote_snapshot``."""
+    template = _env.get_template(f"{lang}/quote.html")
+    return template.render(**dict(quote.quote_snapshot or {}))
+
+
+def render_quote_pdf(quote: Any, *, lang: str = DEFAULT_LANG) -> bytes:
+    """Render a quote as a PDF (same lazy WeasyPrint import as the invoice)."""
+    return _html_to_pdf(render_quote_html(quote, lang=lang))
+
+
+def quote_pdf_filename(quote: Any) -> str:
+    """Download filename for a quote PDF."""
+    return f"{quote.quote_number or 'devis'}.pdf"

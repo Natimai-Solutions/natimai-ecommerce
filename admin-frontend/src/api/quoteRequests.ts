@@ -23,6 +23,8 @@ export interface AdminQuoteRequestListItem {
   currency: string | null;
   subtotal_amount: string | null;
   handled_at: string | null;
+  /** DEV-AAAA-NNNNN une fois le devis émis. */
+  quote_number: string | null;
 }
 
 /** Une ligne du panier figé au moment de la demande. */
@@ -34,11 +36,64 @@ export interface QuoteRequestItem {
   image_url?: string | null;
 }
 
+/** Une ligne du devis émis (ou proposée pour l'émission). */
+export interface QuoteLine {
+  product_id: string | null;
+  product_name: string;
+  quantity: number;
+  unit_price: string;
+}
+
 export interface AdminQuoteRequestDetail extends AdminQuoteRequestListItem {
   shipping_address: string | null;
   notes: string | null;
   admin_comment: string | null;
   items: QuoteRequestItem[];
+  quoted_at: string | null;
+  valid_until: string | null;
+  /** Commande créée depuis le devis (statut won). */
+  order_id: string | null;
+  /** Le devis émis, figé (lignes, livraison, totaux, message). */
+  quote_snapshot: {
+    lines: QuoteLine[];
+    shipping_fee_amount: string;
+    subtotal_amount: string;
+    total_amount: string;
+    customer_message: string;
+    valid_until: string;
+  } | null;
+  /** Lignes pré-remplies : celles du devis émis, sinon le panier de la demande. */
+  proposed_lines: QuoteLine[];
+}
+
+export interface QuoteIssueBody {
+  lines: QuoteLine[];
+  shipping_fee_amount: string;
+  valid_until?: string | null;
+  customer_message?: string | null;
+  send_email: boolean;
+}
+
+export interface QuoteIssueResponse extends AdminQuoteRequestDetail {
+  email_sent: boolean;
+}
+
+/** Émettre (ou ré-émettre) le devis : numéro DEV, PDF, e-mail au client. */
+export async function issueQuote(id: string, body: QuoteIssueBody): Promise<QuoteIssueResponse> {
+  const { data } = await api.post<QuoteIssueResponse>(`/admin/quote-requests/${id}/issue`, body);
+  return data;
+}
+
+export async function downloadQuotePdf(id: string, quoteNumber: string | null): Promise<void> {
+  const { data } = await api.get<Blob>(`/admin/quote-requests/${id}/pdf`, {
+    responseType: 'blob',
+  });
+  const url = URL.createObjectURL(data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${quoteNumber ?? 'devis'}.pdf`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export interface QuoteRequestFilters {

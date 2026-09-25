@@ -873,6 +873,48 @@ export interface paths {
         patch: operations["admin-quote-requests-update_quote_request"];
         trace?: never;
     };
+    "/api/v1/admin/quote-requests/{quote_id}/issue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue Quote Request
+         * @description Émettre (ou ré-émettre) le devis : lignes au prix consenti, livraison,
+         *     validité, message ; numéro DEV alloué la première fois ; PDF envoyé au
+         *     client par e-mail quand ``send_email`` est vrai.
+         */
+        post: operations["admin-quote-requests-issue_quote_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/quote-requests/{quote_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Quote Pdf
+         * @description Le PDF du devis émis.
+         */
+        get: operations["admin-quote-requests-download_quote_pdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/orders": {
         parameters: {
             query?: never;
@@ -2944,6 +2986,68 @@ export interface paths {
          * @description Create a quote request from the active cart and notify support.
          */
         post: operations["cart-create_quote_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/quote-requests/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Quotes
+         * @description The customer's quote requests and issued quotes, newest first.
+         */
+        get: operations["cart-list_my_quotes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/quote-requests/me/{quote_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download My Quote Pdf
+         * @description The PDF of one of the customer's issued quotes.
+         */
+        get: operations["cart-download_my_quote_pdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/quote-requests/me/{quote_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept My Quote
+         * @description Load the quote into the cart at the quoted prices; the checkout then
+         *     orders it with ``quote_request_id`` (which rebuilds the cart the same way,
+         *     so nothing typed in between can change the amounts).
+         */
+        post: operations["cart-accept_my_quote"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6963,7 +7067,8 @@ export interface components {
         };
         /**
          * AdminQuoteRequestDetail
-         * @description Le détail, avec le panier figé au moment de la demande.
+         * @description Le détail, avec le panier figé au moment de la demande et, une fois
+         *     émis, le devis lui-même (numéro, validité, lignes consenties).
          */
         AdminQuoteRequestDetail: {
             /**
@@ -6991,6 +7096,8 @@ export interface components {
             subtotal_amount?: string | null;
             /** Handled At */
             handled_at?: string | null;
+            /** Quote Number */
+            quote_number?: string | null;
             /** Shipping Address */
             shipping_address?: string | null;
             /** Notes */
@@ -7001,6 +7108,18 @@ export interface components {
             items?: {
                 [key: string]: string | null;
             }[];
+            /** Quoted At */
+            quoted_at?: string | null;
+            /** Valid Until */
+            valid_until?: string | null;
+            /** Order Id */
+            order_id?: string | null;
+            /** Quote Snapshot */
+            quote_snapshot?: {
+                [key: string]: unknown;
+            } | null;
+            /** Proposed Lines */
+            proposed_lines?: components["schemas"]["QuoteLine-Output"][];
         };
         /**
          * AdminQuoteRequestListItem
@@ -7032,6 +7151,8 @@ export interface components {
             subtotal_amount?: string | null;
             /** Handled At */
             handled_at?: string | null;
+            /** Quote Number */
+            quote_number?: string | null;
         };
         /**
          * AdminReviewBody
@@ -8494,6 +8615,11 @@ export interface components {
              * @description « deposit » to pay a deposit now and the balance at reception, « full » (default) to pay everything now. Subject to the deposit policy of the customer's price group.
              */
             payment_plan?: string | null;
+            /**
+             * Quote Request Id
+             * @description Order an issued quote: the cart is rebuilt from its lines at the quoted prices and delivery fee, whatever the catalogue says now.
+             */
+            quote_request_id?: string | null;
         };
         /**
          * CheckoutResponse
@@ -11121,6 +11247,35 @@ export interface components {
              * @default false
              */
             balance_due: boolean;
+        };
+        /**
+         * MyQuoteItem
+         * @description An issued (or pending) quote as the customer sees it.
+         */
+        MyQuoteItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Quote Number */
+            quote_number: string | null;
+            /** Status */
+            status: string;
+            /** Created At */
+            created_at: string | null;
+            /** Quoted At */
+            quoted_at: string | null;
+            /** Valid Until */
+            valid_until: string | null;
+            /** Currency */
+            currency: string | null;
+            /** Total Amount */
+            total_amount: string | null;
+            /** Order Id */
+            order_id: string | null;
+            /** Can Order */
+            can_order: boolean;
         };
         /**
          * NotificationCreate
@@ -14632,6 +14787,116 @@ export interface components {
             blocked_weight_missing: number;
             /** Categories */
             categories?: components["schemas"]["CategoryPublicationRow"][];
+        };
+        /**
+         * QuoteIssueBody
+         * @description What the admin fills in to issue (or re-issue) the quote.
+         */
+        QuoteIssueBody: {
+            /** Lines */
+            lines: components["schemas"]["QuoteLine-Input"][];
+            /**
+             * Shipping Fee Amount
+             * @default 0.00
+             */
+            shipping_fee_amount: number | string;
+            /** Valid Until */
+            valid_until?: string | null;
+            /** Customer Message */
+            customer_message?: string | null;
+            /**
+             * Send Email
+             * @default true
+             */
+            send_email: boolean;
+        };
+        /**
+         * QuoteIssueResponse
+         * @description Le détail après émission, avec le sort de l'e-mail au client.
+         */
+        QuoteIssueResponse: {
+            /**
+             * Quote Request Id
+             * Format: uuid
+             */
+            quote_request_id: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Email */
+            email: string;
+            /** Full Name */
+            full_name?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Status */
+            status: string;
+            /** Is Registered Customer */
+            is_registered_customer: boolean;
+            /** Item Count */
+            item_count: number;
+            /** Currency */
+            currency?: string | null;
+            /** Subtotal Amount */
+            subtotal_amount?: string | null;
+            /** Handled At */
+            handled_at?: string | null;
+            /** Quote Number */
+            quote_number?: string | null;
+            /** Shipping Address */
+            shipping_address?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Admin Comment */
+            admin_comment?: string | null;
+            /** Items */
+            items?: {
+                [key: string]: string | null;
+            }[];
+            /** Quoted At */
+            quoted_at?: string | null;
+            /** Valid Until */
+            valid_until?: string | null;
+            /** Order Id */
+            order_id?: string | null;
+            /** Quote Snapshot */
+            quote_snapshot?: {
+                [key: string]: unknown;
+            } | null;
+            /** Proposed Lines */
+            proposed_lines?: components["schemas"]["QuoteLine-Output"][];
+            /**
+             * Email Sent
+             * @default false
+             */
+            email_sent: boolean;
+        };
+        /**
+         * QuoteLine
+         * @description A line of the quote as the admin grants it.
+         */
+        "QuoteLine-Input": {
+            /** Product Id */
+            product_id?: string | null;
+            /** Product Name */
+            product_name: string;
+            /** Quantity */
+            quantity: number;
+            /** Unit Price */
+            unit_price: number | string;
+        };
+        /**
+         * QuoteLine
+         * @description A line of the quote as the admin grants it.
+         */
+        "QuoteLine-Output": {
+            /** Product Id */
+            product_id?: string | null;
+            /** Product Name */
+            product_name: string;
+            /** Quantity */
+            quantity: number;
+            /** Unit Price */
+            unit_price: string;
         };
         /**
          * QuoteRequestResponse
@@ -19703,6 +19968,72 @@ export interface operations {
             };
         };
     };
+    "admin-quote-requests-issue_quote_request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                quote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuoteIssueBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuoteIssueResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-quote-requests-download_quote_pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                quote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-order-list_orders": {
         parameters: {
             query?: {
@@ -23564,6 +23895,88 @@ export interface operations {
             };
         };
     };
+    "cart-list_my_quotes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyQuoteItem"][];
+                };
+            };
+        };
+    };
+    "cart-download_my_quote_pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                quote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "cart-accept_my_quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                quote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CartDetailPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "cart-create_guest_quote_request": {
         parameters: {
             query?: never;
@@ -23608,6 +24021,8 @@ export interface operations {
                 payment_method_id?: string | null;
                 /** @description « deposit » to quote a deposit at checkout */
                 payment_plan?: string | null;
+                /** @description Issued quote being ordered (its delivery fee) */
+                quote_request_id?: string | null;
             };
             header?: never;
             path?: never;

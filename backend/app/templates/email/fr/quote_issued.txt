@@ -1,0 +1,17 @@
+Bonjour {{ full_name }},
+
+Veuillez trouver ci-joint votre devis {{ quote_number }}.
+
+Montant total TTC : {{ total_amount }} {{ currency }}
+Valable jusqu'au : {{ valid_until }}
+{% if customer_message %}
+{{ customer_message }}
+{% endif %}
+{% if has_account -%}
+Pour l'accepter, connectez-vous à votre espace client et cliquez sur « Commander ce devis » : les prix du devis s'appliquent à votre commande.
+{{ accept_url }}
+{%- else -%}
+Pour l'accepter, répondez simplement à ce message : nous vous guiderons pour finaliser la commande.
+{%- endif %}
+
+L'équipe {{ shop_name }}

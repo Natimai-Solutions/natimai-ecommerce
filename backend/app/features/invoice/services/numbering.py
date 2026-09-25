@@ -21,11 +21,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 INVOICE_NUMBER_PREFIX = "FAC"
 CREDIT_NOTE_NUMBER_PREFIX = "AV"
+QUOTE_NUMBER_PREFIX = "DEV"
 _COUNTER_WIDTH = 5
 
 #: Only these table names are ever interpolated into the SQL below.
 _INVOICE_COUNTER_TABLE = "invoice_counters"
 _CREDIT_NOTE_COUNTER_TABLE = "credit_note_counters"
+_QUOTE_COUNTER_TABLE = "quote_counters"
 
 
 def _format_number(counter: int, *, prefix: str, fiscal_year: int) -> str:
@@ -98,6 +100,20 @@ async def allocate_invoice_number(
     return (
         format_invoice_number(sequence_number, fiscal_year=fiscal_year),
         sequence_number,
+    )
+
+
+async def allocate_quote_number(session: AsyncSession, *, fiscal_year: int) -> str:
+    """Allocate the next quote number (``DEV-{year}-{counter}``).
+
+    A quote is not an accounting document, but the same locked counter gives
+    it a readable, chronological number for free.
+    """
+    sequence_number = await _allocate_from_counter(
+        session, table=_QUOTE_COUNTER_TABLE, fiscal_year=fiscal_year
+    )
+    return _format_number(
+        sequence_number, prefix=QUOTE_NUMBER_PREFIX, fiscal_year=fiscal_year
     )
 
 

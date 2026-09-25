@@ -1,7 +1,7 @@
 import type { components } from '@app/api-types';
 import { api } from 'src/boot/api';
 
-type CartDetailPublic = components['schemas']['CartDetailPublic'];
+export type CartDetailPublic = components['schemas']['CartDetailPublic'];
 type CartItemAddRequest = components['schemas']['CartItemAddRequest'];
 type CartItemQuantityUpdateRequest = components['schemas']['CartItemQuantityUpdateRequest'];
 type CartReplaceRequest = components['schemas']['CartReplaceRequest'];
@@ -22,6 +22,10 @@ type CheckoutRequest = Omit<
   delivery_type?: string | null;
   /** Id of the saved shipping address to link (avoids duplicate creation). */
   shipping_address_id?: string | null;
+  /** full | deposit (see DepositTerms). */
+  payment_plan?: string | null;
+  /** Order an issued quote at its prices and delivery fee. */
+  quote_request_id?: string | null;
 };
 type CheckoutResponse = components['schemas']['CheckoutResponse'] & {
   provider_code?: string | null;
@@ -178,12 +182,14 @@ export async function getCheckoutQuote(params: {
   deliveryType?: string | null;
   paymentMethodId?: string | null;
   paymentPlan?: string | null;
+  quoteRequestId?: string | null;
 }): Promise<CheckoutQuote> {
   const query: Record<string, string> = {};
   if (params.addressId) query.address_id = params.addressId;
   if (params.deliveryType) query.delivery_type = params.deliveryType;
   if (params.paymentMethodId) query.payment_method_id = params.paymentMethodId;
   if (params.paymentPlan) query.payment_plan = params.paymentPlan;
+  if (params.quoteRequestId) query.quote_request_id = params.quoteRequestId;
   const { data } = await api.get<CheckoutQuote>('/cart/me/checkout-quote', { params: query });
   return data;
 }

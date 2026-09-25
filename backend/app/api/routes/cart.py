@@ -2,14 +2,15 @@ import logging
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import Enum
 from time import perf_counter
 from typing import Any
 
-from fastapi import APIRouter, Query, status
-from sqlmodel import col, select
+from fastapi import APIRouter, Query, Response, status
+from pydantic import BaseModel
+from sqlmodel import col, or_, select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.core.config import settings
@@ -40,6 +41,12 @@ from app.features.cart.models.quote_request import (
     QuoteRequestResponse,
     QuoteRequestStatus,
     QuoteRequestSubmit,
+)
+from app.features.cart.services.quote import (
+    check_convertible,
+    quote_currency,
+    quote_pdf_response,
+    quoted_prices,
 )
 from app.features.departure.crud import crud_grouped_departure
 from app.features.integrations.services.checkout_availability import (
@@ -1836,6 +1843,151 @@ async def create_quote_request(
     )
 
 
+# --- Issued quotes, customer side: list, PDF, order at the quoted prices ----
+
+
+class MyQuoteItem(BaseModel):
+    """An issued (or pending) quote as the customer sees it."""
+
+    id: uuid.UUID
+    quote_number: str | None
+    status: str
+    created_at: datetime | None
+    quoted_at: datetime | None
+    valid_until: date | None
+    currency: str | None
+    total_amount: str | None
+    order_id: uuid.UUID | None
+    #: Issued, in date, not converted, made of catalogue products.
+    can_order: bool
+
+
+def _my_quote_item(quote: QuoteRequest, *, user: User) -> MyQuoteItem:
+    snapshot = quote.quote_snapshot or {}
+    try:
+        check_convertible(quote, user=user)
+        can_order = True
+    except AppError:
+        can_order = False
+    return MyQuoteItem(
+        id=quote.id,
+        quote_number=quote.quote_number,
+        status=quote.status,
+        created_at=quote.created_at,
+        quoted_at=quote.quoted_at,
+        valid_until=quote.valid_until,
+        currency=str(snapshot.get("currency") or quote_currency(quote)),
+        total_amount=snapshot.get("total_amount"),
+        order_id=quote.order_id,
+        can_order=can_order,
+    )
+
+
+async def _my_quote_or_404(
+    session: SessionDep, quote_id: uuid.UUID, current_user: User
+) -> QuoteRequest:
+    """A quote of the customer (by account, or by e-mail for a request made
+    before signing up); a foreign one reads as missing."""
+    quote = await session.get(QuoteRequest, quote_id)
+    owned = quote is not None and (
+        quote.user_id == current_user.id
+        or (
+            quote.user_id is None
+            and quote.email.lower() == str(current_user.email).lower()
+        )
+    )
+    if quote is None or not owned:
+        raise AppError(
+            code="quote.not_found",
+            status_code=404,
+            message="Devis introuvable",
+            details={"quote_request_id": str(quote_id)},
+        )
+    return quote
+
+
+async def _load_convertible_quote(
+    session: SessionDep, quote_id: uuid.UUID, current_user: User
+) -> QuoteRequest:
+    quote = await _my_quote_or_404(session, quote_id, current_user)
+    check_convertible(quote, user=current_user)
+    return quote
+
+
+async def _install_quote_in_cart(
+    session: SessionDep,
+    *,
+    cart_id: uuid.UUID,
+    prices: dict[uuid.UUID, tuple[int, Decimal]],
+) -> list[CartItem]:
+    """Replace the cart content with the quote's lines (``quoted_prices``) at
+    the quoted prices. Commits (the cart CRUD does), so the caller reads what
+    it needs from the quote *before* calling."""
+    entries: list[tuple[Product, int]] = []
+    for product_id, (quantity, _price) in prices.items():
+        entries.append(
+            (await _get_active_product_or_404(session, product_id=product_id), quantity)
+        )
+    items = await crud_cart_item.replace_cart_items(
+        session, cart_id=cart_id, entries=entries
+    )
+    for item in items:
+        item.unit_price = prices[item.product_id][1]
+        session.add(item)
+    await session.commit()
+    for item in items:
+        await session.refresh(item)
+    return items
+
+
+@router.get("/quote-requests/me", response_model=list[MyQuoteItem])
+async def list_my_quotes(
+    session: SessionDep, current_user: CurrentUser
+) -> list[MyQuoteItem]:
+    """The customer's quote requests and issued quotes, newest first."""
+    rows = (
+        await session.exec(
+            select(QuoteRequest)
+            .where(
+                or_(
+                    col(QuoteRequest.user_id) == current_user.id,
+                    col(QuoteRequest.email) == str(current_user.email).lower(),
+                )
+            )
+            .order_by(col(QuoteRequest.created_at).desc())
+        )
+    ).all()
+    return [_my_quote_item(q, user=current_user) for q in rows]
+
+
+@router.get("/quote-requests/me/{quote_id}/pdf")
+async def download_my_quote_pdf(
+    quote_id: uuid.UUID, session: SessionDep, current_user: CurrentUser
+) -> Response:
+    """The PDF of one of the customer's issued quotes."""
+    return quote_pdf_response(await _my_quote_or_404(session, quote_id, current_user))
+
+
+@router.post("/quote-requests/me/{quote_id}/accept", response_model=CartDetailPublic)
+async def accept_my_quote(
+    quote_id: uuid.UUID, session: SessionDep, current_user: CurrentUser
+) -> CartDetailPublic:
+    """Load the quote into the cart at the quoted prices; the checkout then
+    orders it with ``quote_request_id`` (which rebuilds the cart the same way,
+    so nothing typed in between can change the amounts)."""
+    quote = await _load_convertible_quote(session, quote_id, current_user)
+    prices = quoted_prices(quote)  # before the cart commits expire the quote
+    cart = await crud_cart.get_or_create_active_cart(
+        session=session, user_id=current_user.id
+    )
+    cart_id = cart.id
+    items = await _install_quote_in_cart(session, cart_id=cart_id, prices=prices)
+    cart = await crud_cart.get_or_create_active_cart(
+        session=session, user_id=current_user.id
+    )
+    return _build_cart_detail(cart, items)
+
+
 @router.post(
     "/guest-quote-request",
     response_model=GuestQuoteRequestResponse,
@@ -2065,6 +2217,7 @@ async def _quote_checkout(
     shipping_fee_fallback: Decimal | None = None,
     deposit_policy: DepositPolicy | None = None,
     payment_plan: str | None = None,
+    fixed_shipping_fee: Decimal | None = None,
 ) -> CheckoutQuote:
     """Resolve the routes and the amounts of a checkout (no writes).
 
@@ -2157,6 +2310,10 @@ async def _quote_checkout(
         )
         shipping_fee_input = shipping_cost_summary.total_fee
         shipping_cost_breakdown = serialize_shipping_cost_summary(shipping_cost_summary)
+    # An issued quote names its own delivery fee: the routes are still
+    # resolved (tracking), their tariff is not billed.
+    if fixed_shipping_fee is not None:
+        shipping_fee_input = fixed_shipping_fee
 
     # The fee belongs to the payment method, never to the caller.
     resolved_payment_fee = await _resolve_payment_fee(
@@ -2230,6 +2387,9 @@ async def get_checkout_quote(
     payment_plan: str | None = Query(
         default=None, description="« deposit » to quote a deposit at checkout"
     ),
+    quote_request_id: uuid.UUID | None = Query(
+        default=None, description="Issued quote being ordered (its delivery fee)"
+    ),
 ) -> CheckoutQuoteResponse:
     """The amounts ``POST /cart/checkout`` will bill for the current backend
     cart and these choices — same computation, so the recap is the debit.
@@ -2265,6 +2425,13 @@ async def get_checkout_quote(
         products_by_id[item.product_id] = await _get_active_product_or_404(
             session, product_id=item.product_id
         )
+    fixed_shipping_fee: Decimal | None = None
+    # isinstance: called directly (tests) the FastAPI defaults are Query objects.
+    if isinstance(quote_request_id, uuid.UUID):
+        issued = await _load_convertible_quote(session, quote_request_id, current_user)
+        fixed_shipping_fee = Decimal(
+            str((issued.quote_snapshot or {}).get("shipping_fee_amount") or 0)
+        )
 
     quote = await _quote_checkout(
         session,
@@ -2277,6 +2444,7 @@ async def get_checkout_quote(
         payment_method_id=payment_method_id,
         deposit_policy=policy,
         payment_plan=payment_plan,
+        fixed_shipping_fee=fixed_shipping_fee,
     )
     return CheckoutQuoteResponse(
         **quote.deposit_terms(),
@@ -2415,6 +2583,27 @@ async def checkout_my_cart(
             details={"user_id": str(current_user.id)},
         )
 
+    # Ordering an issued quote: the cart is rebuilt from the quote, at the
+    # quoted prices, whatever the browser or the catalogue say.
+    issued_quote_id: uuid.UUID | None = None
+    fixed_shipping_fee: Decimal | None = None
+    if payload.quote_request_id is not None:
+        issued_quote = await _load_convertible_quote(
+            session, payload.quote_request_id, current_user
+        )
+        # Read everything now: the cart rebuild commits and expires the row.
+        issued_quote_id = issued_quote.id
+        fixed_shipping_fee = Decimal(
+            str((issued_quote.quote_snapshot or {}).get("shipping_fee_amount") or 0)
+        )
+        cart_id = cart.id
+        await _install_quote_in_cart(
+            session, cart_id=cart_id, prices=quoted_prices(issued_quote)
+        )
+        cart = await crud_cart.get_or_create_active_cart(
+            session=session, user_id=user_id
+        )
+
     items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart.id)
     if not items:
         raise AppError(
@@ -2439,12 +2628,14 @@ async def checkout_my_cart(
 
     # Server-authoritative amounts: a line whose price moved since it was
     # added stops the checkout (the cart is refreshed so the client sees why).
-    await _revalidate_checkout_prices(
-        session,
-        items=items,
-        products_by_id=products_by_id,
-        currency=cart.currency,
-    )
+    # A quote is the price the customer was promised: it is billed as is.
+    if issued_quote_id is None:
+        await _revalidate_checkout_prices(
+            session,
+            items=items,
+            products_by_id=products_by_id,
+            currency=cart.currency,
+        )
 
     price_group = await _resolve_customer_price_group(session, current_user)
     quote = await _quote_checkout(
@@ -2461,6 +2652,7 @@ async def checkout_my_cart(
         shipping_fee_fallback=payload.shipping_fee_amount,
         deposit_policy=DepositPolicy.of(price_group),
         payment_plan=payload.payment_plan,
+        fixed_shipping_fee=fixed_shipping_fee,
     )
     selected_routes = quote.selected_routes
     priced_routes = quote.priced_routes
@@ -2677,6 +2869,15 @@ async def checkout_my_cart(
         cart.is_checked_out = True
         cart.total_amount = total_amount
         session.add(cart)
+
+        if issued_quote_id is not None:
+            # The quote is won: it points at its order and cannot be ordered twice.
+            won_quote = await session.get(QuoteRequest, issued_quote_id)
+            if won_quote is not None:
+                won_quote.order_id = order.id
+                won_quote.status = QuoteRequestStatus.WON.value
+                won_quote.handled_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                session.add(won_quote)
 
         for item in items:
             item.is_active = False
