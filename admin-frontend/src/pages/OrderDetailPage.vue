@@ -18,13 +18,25 @@
         <div class="col-12 col-md-6">
           <q-card flat bordered>
             <q-card-section>
-              <div class="row items-center q-mb-sm">
+              <div class="row items-center q-mb-sm q-gutter-sm">
                 <div class="text-subtitle1 col">Informations</div>
                 <q-chip
                   dense
                   :color="orderStatusColor(order.status)"
                   text-color="white"
                   :label="orderStatusLabel(order.status)"
+                />
+                <q-select
+                  :model-value="order.status"
+                  :options="statusOptions"
+                  label="Changer le statut"
+                  dense
+                  outlined
+                  emit-value
+                  map-options
+                  style="min-width: 230px"
+                  :loading="statusSaving"
+                  @update:model-value="changeStatus"
                 />
               </div>
               <q-list dense>
@@ -396,8 +408,10 @@ import { useRoute } from 'vue-router';
 import { formatXpf } from '@app/utils';
 import {
   getOrder,
+  listOrderStatuses,
   orderStatusColor,
   orderStatusLabel,
+  setOrderStatus,
   type AdminOrderDetail,
   type AdminOrderPaymentItem,
 } from 'src/api/orders';
@@ -413,6 +427,27 @@ import {
 } from 'src/api/shipping';
 import { extractApiError } from 'src/api/errors';
 import { assignOrders, listDepartures, type Departure } from 'src/api/departures';
+
+// --- Order status (one order by hand; the departure handles the bulk case) ---
+const statusNames = ref<string[]>([]);
+const statusSaving = ref(false);
+const statusOptions = computed(() =>
+  statusNames.value.map((s) => ({ label: orderStatusLabel(s), value: s })),
+);
+
+async function changeStatus(status: string) {
+  if (!order.value || status === order.value.status) return;
+  statusSaving.value = true;
+  error.value = null;
+  try {
+    await setOrderStatus(order.value.order_id, status);
+    order.value.status = status;
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Changement de statut impossible.';
+  } finally {
+    statusSaving.value = false;
+  }
+}
 
 const route = useRoute();
 const orderId = computed(() => String(route.params.id ?? ''));
@@ -480,6 +515,7 @@ async function load() {
   try {
     order.value = await getOrder(orderId.value);
     departures.value = await listDepartures().catch(() => []);
+    statusNames.value = await listOrderStatuses().catch(() => []);
   } catch (err) {
     error.value = extractApiError(err) ?? 'Chargement impossible.';
   } finally {

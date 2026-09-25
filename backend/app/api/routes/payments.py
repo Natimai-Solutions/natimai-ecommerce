@@ -18,6 +18,7 @@ from app.features.attachment.service import (
 from app.features.base.crud import RecordNotFoundError
 from app.features.order.models.order import Order
 from app.features.order.models.order_status import OrderStatus
+from app.features.order.services.status import FULFILLMENT_STATUSES
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_status import crud_payment_status
 from app.features.payment.models.payment import Payment
@@ -56,7 +57,7 @@ _SUCCESS_TRANS_STATUSES = {_PAID_TRANS_STATUS, _AUTHORISED_TRANS_STATUS}
 # "PaymentReview" is set by app.handlers.payment when a capture does not match
 # the order total: the order is under human arbitration, never re-payable.
 _NON_PAYABLE_ORDER_STATUS_NAMES: frozenset[str] = frozenset(
-    {"Paid", "Refunded", "PartiallyRefunded", "PaymentReview"}
+    {"Paid", "Refunded", "PartiallyRefunded", "PaymentReview", *FULFILLMENT_STATUSES}
 )
 _WEBHOOK_RECEIVED_EVENT = "payment.webhook_received"
 

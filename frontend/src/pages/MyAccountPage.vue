@@ -1128,6 +1128,12 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   Shipped: 'Expédiée',
   Delivered: 'Livrée',
   Cancelled: 'Annulée',
+  OrderedFromSupplier: 'Commandée au fournisseur',
+  InTransit: 'En transit',
+  AtCustoms: 'En douane',
+  Received: 'Reçue, contrôle en cours',
+  ReadyForPickup: 'Disponible',
+  Backordered: 'Article en rupture',
 };
 
 function orderStatusLabel(name: string | null): string {
@@ -1154,6 +1160,12 @@ const PAYMENT_BADGE: Record<string, OrderBadge> = {
   Cancelled: { label: 'Annulée', color: 'grey-6', icon: 'block' },
   Refunded: { label: 'Remboursée', color: 'blue', icon: 'undo' },
   PartiallyRefunded: { label: 'Remboursée en partie', color: 'blue', icon: 'undo' },
+  OrderedFromSupplier: { label: 'Payée', color: 'green', icon: 'check_circle' },
+  InTransit: { label: 'Payée', color: 'green', icon: 'check_circle' },
+  AtCustoms: { label: 'Payée', color: 'green', icon: 'check_circle' },
+  Received: { label: 'Payée', color: 'green', icon: 'check_circle' },
+  ReadyForPickup: { label: 'Payée', color: 'green', icon: 'check_circle' },
+  Backordered: { label: 'Payée', color: 'green', icon: 'check_circle' },
 };
 
 const DELIVERY_BADGE: Record<string, OrderBadge> = {
@@ -1161,6 +1173,12 @@ const DELIVERY_BADGE: Record<string, OrderBadge> = {
   Processing: { label: 'En préparation', color: 'grey-7', icon: 'inventory_2' },
   Shipped: { label: 'Expédiée', color: 'primary', icon: 'local_shipping' },
   Delivered: { label: 'Livrée', color: 'green', icon: 'task_alt' },
+  OrderedFromSupplier: { label: 'Commandée au fournisseur', color: 'primary', icon: 'storefront' },
+  InTransit: { label: 'En transit', color: 'primary', icon: 'flight' },
+  AtCustoms: { label: 'En douane', color: 'primary', icon: 'gavel' },
+  Received: { label: 'Reçue, contrôle en cours', color: 'primary', icon: 'inventory' },
+  ReadyForPickup: { label: 'Disponible', color: 'green', icon: 'store' },
+  Backordered: { label: 'Rupture / report', color: 'orange', icon: 'report' },
 };
 
 function paymentBadge(name: string | null): OrderBadge {

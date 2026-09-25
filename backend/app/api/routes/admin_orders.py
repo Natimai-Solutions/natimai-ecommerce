@@ -26,6 +26,7 @@ from app.features.order.crud.order_line_crud import crud_order_line
 from app.features.order.models.order import Order
 from app.features.order.models.order_line import OrderLine
 from app.features.order.models.order_status import OrderStatus
+from app.features.order.services.status import ALL_ORDER_STATUSES, set_order_status
 from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_status import PaymentStatus
 from app.features.payment.providers import provider_supports_in_app_refund
@@ -417,6 +418,63 @@ async def sku_summary_csv(
             for r in rows
         ),
         filename="bon-de-commande-par-sku.csv",
+    )
+
+
+class OrderStatusChangeRequest(BaseModel):
+    """Represents order status change request."""
+
+    status: str
+    reason: str | None = None
+
+
+class OrderStatusChangeResponse(BaseModel):
+    """Represents order status change response."""
+
+    order_id: uuid.UUID
+    status: str
+    changed: bool
+
+
+@router.get("/statuses", response_model=list[str])
+async def list_order_statuses(_admin: CurrentSuperUser) -> list[str]:
+    """Every order status name, payment ones first then the fulfilment steps."""
+    return list(ALL_ORDER_STATUSES)
+
+
+@router.post("/{order_id}/status", response_model=OrderStatusChangeResponse)
+async def change_order_status(
+    order_id: uuid.UUID,
+    body: OrderStatusChangeRequest,
+    session: SessionDep,
+    admin: CurrentSuperUser,
+) -> OrderStatusChangeResponse:
+    """Move one order to a status by hand (the bulk path is the departure)."""
+    if body.status not in ALL_ORDER_STATUSES:
+        raise AppError(
+            code="order.status.unknown",
+            status_code=400,
+            message=f"Statut inconnu '{body.status}'",
+            details={"status": body.status, "known": list(ALL_ORDER_STATUSES)},
+        )
+    order = await session.get(Order, order_id)
+    if order is None:
+        raise AppError(
+            code="order.not_found",
+            status_code=404,
+            message="Commande introuvable",
+            details={"order_id": str(order_id)},
+        )
+    changed = await set_order_status(
+        session,
+        order=order,
+        status_name=body.status,
+        changed_by_id=admin.id,
+        reason=body.reason,
+    )
+    await session.commit()
+    return OrderStatusChangeResponse(
+        order_id=order_id, status=body.status, changed=changed
     )
 
 

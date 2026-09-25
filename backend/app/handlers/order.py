@@ -23,6 +23,7 @@ from typing import Any
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.features.departure.models import GroupedDeparture
 from app.features.invoice.models.invoice import Invoice
 from app.features.notification.email_renderer import render_email
 from app.features.notification.providers import (
@@ -41,6 +42,52 @@ EVENT_PAYMENT_CAPTURED = "payment.captured"
 EVENT_PAYMENT_REJECTED = "payment.rejected"
 EVENT_PAYMENT_REFUNDED = "payment.refunded"
 EVENT_INVOICE_ISSUED = "invoice.issued"
+EVENT_ORDER_STATUS_CHANGED = "order.status_changed"
+
+#: Fulfilment statuses the customer is told about: (title, message). Payment
+#: statuses have their own e-mails and are skipped here.
+ORDER_STATUS_MESSAGES: dict[str, tuple[str, str]] = {
+    "OrderedFromSupplier": (
+        "Commandée auprès de notre fournisseur",
+        "Votre commande est lancée auprès de notre fournisseur. Nous vous "
+        "tiendrons informé(e) à chaque étape jusqu'à sa remise.",
+    ),
+    "InTransit": (
+        "En transit",
+        "Votre commande est en route. Nous vous préviendrons à son arrivée.",
+    ),
+    "AtCustoms": (
+        "En douane",
+        "Votre commande est arrivée et passe le dédouanement. Cette étape "
+        "peut prendre quelques jours.",
+    ),
+    "Received": (
+        "Reçue, contrôle en cours",
+        "Nous avons reçu votre commande et la contrôlons. Elle vous sera "
+        "remise sous quelques jours.",
+    ),
+    "ReadyForPickup": (
+        "Disponible",
+        "Votre commande est disponible : retrait ou livraison selon le mode "
+        "choisi à la commande.",
+    ),
+    "Delivered": (
+        "Livrée",
+        "Votre commande a été remise. Nous espérons qu'elle vous donne entière "
+        "satisfaction.",
+    ),
+    "Backordered": (
+        "Article en rupture",
+        "Un article de votre commande est en rupture chez notre fournisseur. "
+        "Nous revenons vers vous pour un report sur le prochain départ, une "
+        "substitution ou un remboursement.",
+    ),
+    "Cancelled": (
+        "Annulée",
+        "Votre commande a été annulée. Si un paiement avait été encaissé, il "
+        "vous est remboursé.",
+    ),
+}
 
 
 def _shop_name() -> str:
@@ -351,3 +398,58 @@ async def on_invoice_issued_customer(
     invoice.emailed_at = datetime.now(timezone.utc)
     session.add(invoice)
     await session.commit()
+
+
+@outbox_handler(EVENT_ORDER_STATUS_CHANGED)
+async def on_order_status_changed_customer(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    """Tell the customer about a fulfilment step (one template, one message
+    per status). Payment statuses are covered by their own handlers."""
+    new_status = str(payload.get("new_status") or "")
+    message = ORDER_STATUS_MESSAGES.get(new_status)
+    if message is None:
+        logger.debug("order.status_changed %s: no customer message", new_status)
+        return
+    title, body = message
+
+    user = await _resolve_user_from_payload(session, payload)
+    full_name = (user.full_name or user.email or "") if user else ""
+
+    departure_name: str | None = None
+    estimated_delivery: str | None = None
+    raw_departure = payload.get("grouped_departure_id")
+    if raw_departure:
+        try:
+            departure = await session.get(
+                GroupedDeparture, uuid.UUID(str(raw_departure))
+            )
+        except (TypeError, ValueError):
+            departure = None
+        if departure is not None:
+            departure_name = departure.name
+            if departure.estimated_delivery_at:
+                estimated_delivery = departure.estimated_delivery_at.strftime(
+                    "%d/%m/%Y"
+                )
+
+    email = render_email(
+        "order_status_changed",
+        full_name=full_name or "client",
+        order_id=payload.get("order_id", ""),
+        order_ref=payload.get("order_number") or "",
+        status_title=title,
+        status_message=body,
+        departure_name=departure_name,
+        estimated_delivery=estimated_delivery,
+        shop_name=_shop_name(),
+    )
+    await _send_order_email(
+        session,
+        user_id_raw=payload.get("user_id"),
+        subject=email.subject,
+        text=email.text,
+        html=email.html,
+        event_type=EVENT_ORDER_STATUS_CHANGED,
+        payload=payload,
+    )

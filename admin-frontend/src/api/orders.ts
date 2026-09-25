@@ -132,10 +132,21 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   AwaitingPayment: 'En attente de paiement',
   Paid: 'Payée',
   PaymentFailed: 'Paiement refusé',
+  PaymentReview: 'Encaissement à vérifier',
+  Refunded: 'Remboursée',
+  PartiallyRefunded: 'Remboursée en partie',
+  // Fulfilment steps (set by hand or by the grouped departure).
+  OrderedFromSupplier: 'Commandée au fournisseur',
+  InTransit: 'En transit',
+  AtCustoms: 'En douane',
+  Received: 'Reçue, contrôle en cours',
+  ReadyForPickup: 'Disponible',
+  Delivered: 'Livrée',
+  Backordered: 'Rupture / report',
+  Cancelled: 'Annulée',
+  // Legacy labels never set by the backend.
   Processing: 'En préparation',
   Shipped: 'Expédiée',
-  Delivered: 'Livrée',
-  Cancelled: 'Annulée',
 };
 
 export function orderStatusLabel(name: string | null): string {
@@ -144,8 +155,29 @@ export function orderStatusLabel(name: string | null): string {
 }
 
 export function orderStatusColor(name: string | null): string {
-  if (name === 'Paid' || name === 'Delivered') return 'green';
+  if (name === 'Paid' || name === 'Delivered' || name === 'ReadyForPickup') return 'green';
   if (name === 'PaymentFailed' || name === 'Cancelled') return 'negative';
-  if (name === 'Shipped' || name === 'Processing') return 'primary';
+  if (name === 'Backordered' || name === 'PaymentReview') return 'orange';
+  if (['OrderedFromSupplier', 'InTransit', 'AtCustoms', 'Received', 'Shipped', 'Processing'].includes(name ?? '')) {
+    return 'primary';
+  }
   return 'grey-7';
+}
+
+/** Every status name the backend accepts (payment ones first, then fulfilment). */
+export async function listOrderStatuses(): Promise<string[]> {
+  const { data } = await api.get<string[]>('/admin/orders/statuses');
+  return data;
+}
+
+export async function setOrderStatus(
+  orderId: string,
+  status: string,
+  reason?: string,
+): Promise<{ order_id: string; status: string; changed: boolean }> {
+  const { data } = await api.post<{ order_id: string; status: string; changed: boolean }>(
+    `/admin/orders/${orderId}/status`,
+    { status, reason: reason || null },
+  );
+  return data;
 }

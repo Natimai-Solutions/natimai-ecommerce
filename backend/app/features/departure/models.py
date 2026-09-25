@@ -146,6 +146,8 @@ class GroupedDeparturePublic(GroupedDepartureBase, BasePublic):
     id: uuid.UUID
     orders_count: int = 0
     orders_total: Decimal = Decimal("0")
+    # Orders moved by the status change of this update (PATCH only).
+    orders_updated: int = 0
 
 
 class GroupedDeparturesPublic(SQLModel):

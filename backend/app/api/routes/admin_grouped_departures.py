@@ -24,6 +24,7 @@ from app.features.departure.models import (
     GroupedDeparturePublic,
     GroupedDepartureUpdate,
 )
+from app.features.order.services.status import propagate_departure_status
 
 router = APIRouter(
     prefix="/admin/grouped-departures", tags=["admin-grouped-departures"]
@@ -105,8 +106,14 @@ async def update_departure(
     session: SessionDep,
     admin: CurrentSuperUser,
 ) -> GroupedDeparturePublic:
-    """Partial update: dates, publication, status, thresholds, notes."""
+    """Partial update: dates, publication, status, thresholds, notes.
+
+    A status change is pushed to the orders that follow the departure
+    (paid or already on the way) and each one e-mails its customer.
+    """
     departure = await _get_or_404(session, departure_id)
+    previous_status = departure.status
+    admin_id = admin.id
     departure = await crud_grouped_departure.update(
         session,
         id=departure_id,
@@ -114,7 +121,19 @@ async def update_departure(
         user=admin,
         record=departure,
     )
-    return (await _to_public(session, [departure]))[0]
+    orders_updated = 0
+    if departure.status != previous_status:
+        orders_updated = await propagate_departure_status(
+            session,
+            departure_id=departure_id,
+            departure_status=departure.status,
+            changed_by_id=admin_id,
+        )
+        await session.commit()
+        departure = await _get_or_404(session, departure_id)
+    result = (await _to_public(session, [departure]))[0]
+    result.orders_updated = orders_updated
+    return result
 
 
 @router.delete("/{departure_id}", response_model=AssignOrdersResponse)

@@ -483,8 +483,9 @@ async function advance(d: Departure) {
   if (!next) return;
   error.value = null;
   try {
-    await updateDeparture(d.id, { status: next });
-    notice.value = `« ${d.name} » → ${departureStatusLabel(next)}.`;
+    const updated = await updateDeparture(d.id, { status: next });
+    const moved = updated.orders_updated ?? 0;
+    notice.value = `« ${d.name} » → ${departureStatusLabel(next)}. ${moved} commande(s) mise(s) à jour et client(s) prévenu(s).`;
     await load();
   } catch (err) {
     error.value = extractApiError(err) ?? 'Changement de statut impossible.';

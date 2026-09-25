@@ -1,0 +1,19 @@
+{% extends "_layout.html" %}
+{% block title %}{{ status_title }}{% endblock %}
+{% block header_color %}#3949ab{% endblock %}
+{% block heading %}{{ status_title }}{% endblock %}
+{% block content %}
+      <p>Bonjour {{ full_name }},</p>
+      <p>Votre commande <strong>{{ order_ref or (order_id | short_ref) }}</strong> : {{ status_title | lower }}.</p>
+      <p>{{ status_message }}</p>
+      {% if departure_name %}
+      <div class="summary">
+        <table>
+          <tr><td>Départ groupé</td><td>{{ departure_name }}</td></tr>
+          {% if estimated_delivery %}<tr><td>Livraison estimée</td><td>{{ estimated_delivery }}</td></tr>{% endif %}
+        </table>
+      </div>
+      {% endif %}
+      <p>Vous pouvez suivre l'avancement de votre commande dans votre espace client.</p>
+      <p>L'équipe {{ shop_name }}</p>
+{% endblock %}

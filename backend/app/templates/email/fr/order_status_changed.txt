@@ -1,0 +1,11 @@
+Bonjour {{ full_name }},
+
+Votre commande {{ order_ref or (order_id | short_ref) }} : {{ status_title }}.
+
+{{ status_message }}
+{% if departure_name %}
+Départ groupé : {{ departure_name }}{% if estimated_delivery %} — livraison estimée le {{ estimated_delivery }}{% endif %}.
+{% endif %}
+Vous pouvez suivre l'avancement de votre commande dans votre espace client.
+
+L'équipe {{ shop_name }}

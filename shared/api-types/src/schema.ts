@@ -953,6 +953,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/orders/statuses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Order Statuses
+         * @description Every order status name, payment ones first then the fulfilment steps.
+         */
+        get: operations["admin-order-list_order_statuses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/{order_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change Order Status
+         * @description Move one order to a status by hand (the bulk path is the departure).
+         */
+        post: operations["admin-order-change_order_status"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/orders/{order_id}": {
         parameters: {
             query?: never;
@@ -1018,6 +1058,9 @@ export interface paths {
         /**
          * Update Departure
          * @description Partial update: dates, publication, status, thresholds, notes.
+         *
+         *     A status change is pushed to the orders that follow the departure
+         *     (paid or already on the way) and each one e-mails its customer.
          */
         patch: operations["admin-grouped-departures-update_departure"];
         trace?: never;
@@ -9465,6 +9508,11 @@ export interface components {
              * @default 0
              */
             orders_total: string;
+            /**
+             * Orders Updated
+             * @default 0
+             */
+            orders_updated: number;
         };
         /**
          * GroupedDepartureSummary
@@ -10948,6 +10996,31 @@ export interface components {
             id: string;
             /** Order Number */
             order_number?: string | null;
+        };
+        /**
+         * OrderStatusChangeRequest
+         * @description Represents order status change request.
+         */
+        OrderStatusChangeRequest: {
+            /** Status */
+            status: string;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
+         * OrderStatusChangeResponse
+         * @description Represents order status change response.
+         */
+        OrderStatusChangeResponse: {
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Status */
+            status: string;
+            /** Changed */
+            changed: boolean;
         };
         /**
          * OrderStatusCreate
@@ -18669,6 +18742,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-order-list_order_statuses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+        };
+    };
+    "admin-order-change_order_status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderStatusChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderStatusChangeResponse"];
                 };
             };
             /** @description Validation Error */

@@ -17,6 +17,8 @@ export interface Departure extends DepartureLike {
   /** Orders attached (active ones) and their total, computed by the backend. */
   orders_count: number;
   orders_total: string | number;
+  /** Orders moved by a status change (PATCH response only). */
+  orders_updated?: number;
 }
 
 export interface DepartureWrite {

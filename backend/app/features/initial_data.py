@@ -6,6 +6,10 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.features.order.services.status import (
+    ALL_ORDER_STATUSES,
+    get_or_create_order_status,
+)
 from app.features.payment.crud.payment_method import crud_payment_method
 from app.features.payment.crud.payment_status import crud_payment_status
 from app.features.payment.models.payment_method import (
@@ -591,6 +595,13 @@ _SHIPPING_STATUS_TRANSITIONS: tuple[tuple[str, str, str], ...] = (
 )
 
 
+async def _seed_order_statuses(session: AsyncSession) -> None:
+    """Every order status by name (idempotent), so the admin select and the
+    departure propagation never depend on a status being created on the fly."""
+    for name in ALL_ORDER_STATUSES:
+        await get_or_create_order_status(session, name)
+
+
 async def _seed_shipping_statuses(session: AsyncSession) -> None:
     """Seed the logistics status catalog + allowed transitions (idempotent).
 
@@ -851,6 +862,7 @@ async def initial_data(session: AsyncSession) -> None:
     # (its origin warehouse is filled in only when the corridor was seeded).
     await _seed_suppliers(session)
     await _seed_shipping_statuses(session)
+    await _seed_order_statuses(session)
     await _seed_security_groups(session)
     await _seed_legal_identity_settings(session)
     await _seed_customs_free_countries_setting(session)
