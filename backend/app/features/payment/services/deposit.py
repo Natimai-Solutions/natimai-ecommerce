@@ -13,6 +13,7 @@ handlers share them.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -110,16 +111,22 @@ def expected_amount(order: Any, kind: str) -> Decimal:
     return Decimal(order.total_amount)
 
 
-def next_payment_kind(order: Any, settled_kinds: set[str]) -> str | None:
-    """Which payment the order still accepts, given the kinds already
-    settled; ``None`` when nothing is due any more."""
+def remaining_amount(order: Any, kind: str, settled: Mapping[str, Decimal]) -> Decimal:
+    """What is left to pay on a part, given the amounts already settled on
+    it (a store credit and a card payment can share one part)."""
+    return max(_ZERO, expected_amount(order, kind) - settled.get(kind, _ZERO))
+
+
+def next_payment_kind(order: Any, settled: Mapping[str, Decimal]) -> str | None:
+    """Which payment the order still accepts, given the amounts already
+    settled per kind; ``None`` when nothing is due any more."""
     if getattr(order, "payment_plan", PLAN_FULL) != PLAN_DEPOSIT:
-        return None if settled_kinds else KIND_FULL
-    if KIND_DEPOSIT not in settled_kinds:
+        return KIND_FULL if remaining_amount(order, KIND_FULL, settled) > 0 else None
+    if remaining_amount(order, KIND_DEPOSIT, settled) > 0:
         return KIND_DEPOSIT
-    if KIND_BALANCE in settled_kinds or getattr(order, "balance_paid_at", None):
+    if getattr(order, "balance_paid_at", None):
         return None
-    return KIND_BALANCE
+    return KIND_BALANCE if remaining_amount(order, KIND_BALANCE, settled) > 0 else None
 
 
 def balance_due(order: Any) -> bool:
@@ -148,4 +155,5 @@ __all__ = [
     "deposit_split",
     "expected_amount",
     "next_payment_kind",
+    "remaining_amount",
 ]

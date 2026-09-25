@@ -66,6 +66,7 @@ from app.api.routes.product_catalog import router as product_catalog_router
 from app.api.routes.shipping import shipping_router
 from app.api.routes.signup import router as signup_router
 from app.api.routes.stock_movement import router as stock_movement_router
+from app.api.routes.store_credit import router as store_credit_router
 from app.api.routes.suppliers import router as suppliers_router
 from app.api.routes.system_settings import router as system_settings_router
 from app.api.routes.user_notification import (
@@ -138,6 +139,7 @@ api_router.include_router(system_settings_router)
 api_router.include_router(currency_router)
 api_router.include_router(content_pages_router)
 api_router.include_router(grouped_departures_router)
+api_router.include_router(store_credit_router)
 api_router.include_router(utils_router, prefix="/utils")
 api_router.include_router(webhooks_router)
 api_router.include_router(health_router)

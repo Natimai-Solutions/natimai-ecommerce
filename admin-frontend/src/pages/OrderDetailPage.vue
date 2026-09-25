@@ -88,7 +88,15 @@
         <div class="col-12 col-md-6">
           <q-card flat bordered>
             <q-card-section>
-              <div class="text-subtitle1 q-mb-sm">Montants</div>
+              <div class="row items-center q-mb-sm">
+                <div class="text-subtitle1 col">Montants</div>
+                <q-btn flat dense no-caps icon="savings" color="primary" label="Avoir-crédit" @click="openCredit">
+                  <q-tooltip>Accorder (ou reprendre) un avoir au client, utilisable sur sa prochaine commande</q-tooltip>
+                </q-btn>
+              </div>
+              <q-banner v-if="storeCredit && Number(storeCredit.balance) > 0" class="bg-green-1 text-green-9 q-mb-sm" dense rounded>
+                Avoir disponible du client : {{ formatMoney(Number(storeCredit.balance)) }}
+              </q-banner>
               <q-list dense>
                 <q-item class="q-px-none">
                   <q-item-section>Sous-total</q-item-section>
@@ -399,6 +407,36 @@
         </q-card-section>
       </q-card>
 
+      <!-- Store credit dialog -->
+      <q-dialog v-model="creditDialog">
+        <q-card style="min-width: 420px">
+          <q-card-section class="text-h6">Avoir-crédit client</q-card-section>
+          <q-form @submit.prevent="submitCredit">
+            <q-card-section class="q-pt-none q-gutter-sm">
+              <q-banner v-if="creditError" class="bg-red-1 text-red-9" dense rounded>{{ creditError }}</q-banner>
+              <div class="text-caption text-grey-7">
+                Solde actuel : {{ storeCredit ? formatMoney(Number(storeCredit.balance)) : '—' }}. Un montant négatif reprend de l'avoir.
+              </div>
+              <q-input v-model="creditAmount" type="number" step="1" label="Montant (XPF) *" outlined dense autofocus />
+              <q-input v-model="creditReason" label="Motif *" outlined dense :rules="[(v: string) => !!v.trim() || 'Requis']" />
+              <q-list v-if="storeCredit?.entries.length" dense bordered class="q-mt-sm">
+                <q-item v-for="e in storeCredit.entries.slice(0, 5)" :key="e.id">
+                  <q-item-section>
+                    <q-item-label>{{ STORE_CREDIT_KIND_LABELS[e.kind] ?? e.kind }} · {{ e.reason }}</q-item-label>
+                    <q-item-label caption>{{ formatDate(e.created_at) }}</q-item-label>
+                  </q-item-section>
+                  <q-item-section side>{{ formatMoney(Number(e.amount)) }}</q-item-section>
+                </q-item>
+              </q-list>
+            </q-card-section>
+            <q-card-actions align="right">
+              <q-btn flat label="Annuler" v-close-popup />
+              <q-btn type="submit" color="primary" label="Enregistrer" :loading="creditSaving" />
+            </q-card-actions>
+          </q-form>
+        </q-card>
+      </q-dialog>
+
       <!-- Refund dialog -->
       <q-dialog v-model="refundDialog">
         <q-card style="min-width: 380px">
@@ -460,6 +498,45 @@ import {
 
 // --- Deposit order: ask for (or re-send) the balance ---
 const requestingBalance = ref(false);
+
+// --- Store credit (« avoir-crédit ») of the customer ---
+const storeCredit = ref<StoreCreditBalance | null>(null);
+const creditDialog = ref(false);
+const creditAmount = ref('');
+const creditReason = ref('');
+const creditSaving = ref(false);
+const creditError = ref<string | null>(null);
+
+async function loadStoreCredit() {
+  if (!order.value) return;
+  storeCredit.value = await getUserStoreCredit(order.value.user_id).catch(() => null);
+}
+
+function openCredit() {
+  creditAmount.value = '';
+  creditReason.value = '';
+  creditError.value = null;
+  creditDialog.value = true;
+}
+
+async function submitCredit() {
+  if (!order.value) return;
+  creditSaving.value = true;
+  creditError.value = null;
+  try {
+    storeCredit.value = await grantStoreCredit(order.value.user_id, {
+      amount: String(Number(creditAmount.value) || 0),
+      reason: creditReason.value.trim(),
+      order_id: order.value.order_id,
+    });
+    creditDialog.value = false;
+    refundNotice.value = `Avoir enregistré. Solde du client : ${formatMoney(Number(storeCredit.value.balance))}.`;
+  } catch (err) {
+    creditError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+  } finally {
+    creditSaving.value = false;
+  }
+}
 async function sendBalanceRequest() {
   if (!order.value) return;
   requestingBalance.value = true;
@@ -488,6 +565,7 @@ import {
 } from 'src/api/shipping';
 import { extractApiError } from 'src/api/errors';
 import { assignOrders, listDepartures, type Departure } from 'src/api/departures';
+import { getUserStoreCredit, grantStoreCredit, STORE_CREDIT_KIND_LABELS, type StoreCreditBalance } from 'src/api/storeCredit';
 
 // --- Order status (one order by hand; the departure handles the bulk case) ---
 const statusNames = ref<string[]>([]);
@@ -575,6 +653,7 @@ async function load() {
   error.value = null;
   try {
     order.value = await getOrder(orderId.value);
+    await loadStoreCredit();
     departures.value = await listDepartures().catch(() => []);
     statusNames.value = await listOrderStatuses().catch(() => []);
   } catch (err) {

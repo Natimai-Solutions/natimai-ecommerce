@@ -28,11 +28,11 @@ from app.features.payment.services.deposit import (
     KIND_DEPOSIT,
     KIND_FULL,
     ORDER_STATUS_DEPOSIT_PAID,
-    expected_amount,
 )
 from app.features.payment.services.notifications import (
     send_payment_event_notifications,
 )
+from app.features.payment.services.store_credit import part_coverage
 from app.outbox.decorators import outbox_handler
 from app.outbox.registry import outbox_registry
 
@@ -216,27 +216,38 @@ def _payment_kind(payment: Payment | None) -> str:
     return kind if isinstance(kind, str) and kind else KIND_FULL
 
 
+#: Sentinel of ``_captured_amount_mismatch``: the part is not fully covered
+#: yet but another payment on it is still pending (a store credit next to a
+#: card payment): nothing to do until the other one lands.
+PARTIAL = "partial"
+
+
 async def _captured_amount_mismatch(
     session: AsyncSession, *, payload: dict[str, Any]
-) -> dict[str, str] | None:
+) -> dict[str, str] | str | None:
     """Last line of defence before flipping an order to Paid.
 
-    Returns the mismatch details when the captured payment amount differs from
-    what its part of the order is worth (the total, or the deposit / balance
-    of a deposit order), or ``None`` when the capture is consistent — or
-    simply cannot be checked.
+    Returns the mismatch details when the payments settled on the part this
+    capture belongs to (the total, or the deposit / balance of a deposit
+    order) do not add up to what it is worth, :data:`PARTIAL` when they fall
+    short but another payment on that part is still pending, or ``None`` when
+    the part is exactly covered — or simply cannot be checked.
     """
     payment, order = await _load_payment_and_order(session, payload)
     if payment is None or order is None:
         return None
 
-    expected = expected_amount(order, _payment_kind(payment))
-    if payment.amount == expected:
+    covered, expected, still_pending = await part_coverage(
+        session, payment=payment, order=order
+    )
+    if covered == expected:
         return None
+    if covered < expected and still_pending:
+        return PARTIAL
 
     return {
         "expected_amount": str(expected),
-        "received_amount": str(payment.amount),
+        "received_amount": str(covered),
         "currency": str(payment.currency),
     }
 
@@ -299,7 +310,13 @@ async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) ->
         payload.get("order_id"),
     )
     mismatch = await _captured_amount_mismatch(session, payload=payload)
-    if mismatch is not None:
+    if mismatch == PARTIAL:
+        logger.info(
+            "payment.captured: order %s part still awaiting another payment",
+            payload.get("order_id"),
+        )
+        return
+    if isinstance(mismatch, dict):
         await _handle_captured_amount_mismatch(
             session, payload=payload, mismatch=mismatch
         )
@@ -357,7 +374,9 @@ async def on_payment_captured_issue_invoice(
     # Same guard as the status sync: never invoice an order whose captured
     # payment does not cover its part.
     mismatch = await _captured_amount_mismatch(session, payload=payload)
-    if mismatch is not None:
+    if mismatch == PARTIAL:
+        return
+    if isinstance(mismatch, dict):
         logger.error(
             "Invoice not issued for order %s: captured amount %s does not cover "
             "the amount due %s",

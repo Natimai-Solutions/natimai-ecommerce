@@ -312,6 +312,10 @@ class CheckoutRequest(SQLModel):
             "quoted prices and delivery fee, whatever the catalogue says now."
         ),
     )
+    use_store_credit: bool = Field(
+        default=False,
+        description="Spend the customer's store credit on the amount due now",
+    )
 
 
 class DepositTerms(SQLModel):
@@ -333,6 +337,14 @@ class DepositTerms(SQLModel):
     )
     balance_amount: Decimal = Field(
         default=Decimal("0.00"), description="Asked for at reception"
+    )
+    # Store credit (« avoir ») : what the customer has, what this checkout
+    # spends on the amount due now, and what is left to pay by card / transfer.
+    store_credit_available: Decimal = Field(default=Decimal("0.00"))
+    store_credit_applied: Decimal = Field(default=Decimal("0.00"))
+    amount_due_now: Decimal = Field(
+        default=Decimal("0.00"),
+        description="Charged by the payment method now (0 = settled by credit)",
     )
 
 

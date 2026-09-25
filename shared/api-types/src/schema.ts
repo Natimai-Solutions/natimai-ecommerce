@@ -5018,6 +5018,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/store-credit/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Store Credit
+         * @description The customer's credit balance and its history.
+         */
+        get: operations["store-credit-my_store_credit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/store-credit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * User Store Credit
+         * @description A customer's credit balance and ledger.
+         */
+        get: operations["store-credit-user_store_credit"];
+        put?: never;
+        /**
+         * Grant Store Credit
+         * @description Grant credit (positive amount) or take it back (negative), with a
+         *     reason; optionally tied to the order it compensates.
+         */
+        post: operations["store-credit-grant_store_credit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/utils/health-check": {
         parameters: {
             query?: never;
@@ -8507,6 +8552,22 @@ export interface components {
              * @default 0.00
              */
             balance_amount: string;
+            /**
+             * Store Credit Available
+             * @default 0.00
+             */
+            store_credit_available: string;
+            /**
+             * Store Credit Applied
+             * @default 0.00
+             */
+            store_credit_applied: string;
+            /**
+             * Amount Due Now
+             * @description Charged by the payment method now (0 = settled by credit)
+             * @default 0.00
+             */
+            amount_due_now: string;
             /** Currency */
             currency: string;
             /**
@@ -8620,6 +8681,12 @@ export interface components {
              * @description Order an issued quote: the cart is rebuilt from its lines at the quoted prices and delivery fee, whatever the catalogue says now.
              */
             quote_request_id?: string | null;
+            /**
+             * Use Store Credit
+             * @description Spend the customer's store credit on the amount due now
+             * @default false
+             */
+            use_store_credit: boolean;
         };
         /**
          * CheckoutResponse
@@ -8667,6 +8734,22 @@ export interface components {
              * @default 0.00
              */
             balance_amount: string;
+            /**
+             * Store Credit Available
+             * @default 0.00
+             */
+            store_credit_available: string;
+            /**
+             * Store Credit Applied
+             * @default 0.00
+             */
+            store_credit_applied: string;
+            /**
+             * Amount Due Now
+             * @description Charged by the payment method now (0 = settled by credit)
+             * @default 0.00
+             */
+            amount_due_now: string;
             /**
              * Order Id
              * Format: uuid
@@ -17182,6 +17265,96 @@ export interface components {
             count: number;
         };
         /**
+         * StoreCreditBalance
+         * @description Balance and ledger of one customer.
+         */
+        StoreCreditBalance: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Currency */
+            currency: string;
+            /** Balance */
+            balance: string;
+            /** Entries */
+            entries?: components["schemas"]["StoreCreditEntryPublic"][];
+        };
+        /**
+         * StoreCreditEntryPublic
+         * @description Represents store credit entry public.
+         */
+        StoreCreditEntryPublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /**
+             * Amount
+             * @description Signé : positif pour un octroi, négatif pour une utilisation
+             */
+            amount: string;
+            /**
+             * Currency
+             * @default XPF
+             */
+            currency: string;
+            /**
+             * Kind
+             * @description grant | use | revoke
+             */
+            kind: string;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Order Id
+             * @description Commande d'origine (octroi) ou réglée (utilisation)
+             */
+            order_id?: string | null;
+            /**
+             * Payment Id
+             * @description Paiement « store_credit » créé par une utilisation
+             */
+            payment_id?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /**
+         * StoreCreditGrant
+         * @description Admin payload: grant (positive) or revoke (negative) credit.
+         */
+        StoreCreditGrant: {
+            /** Amount */
+            amount: number | string;
+            /** Reason */
+            reason: string;
+            /** Order Id */
+            order_id?: string | null;
+        };
+        /**
          * SupplierCreate
          * @description Création d'un fournisseur (le code est choisi une fois pour toutes).
          */
@@ -24023,6 +24196,8 @@ export interface operations {
                 payment_plan?: string | null;
                 /** @description Issued quote being ordered (its delivery fee) */
                 quote_request_id?: string | null;
+                /** @description Spend the store credit on the amount due now */
+                use_store_credit?: boolean;
             };
             header?: never;
             path?: never;
@@ -28361,6 +28536,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GroupedDepartureSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "store-credit-my_store_credit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoreCreditBalance"];
+                };
+            };
+        };
+    };
+    "store-credit-user_store_credit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoreCreditBalance"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "store-credit-grant_store_credit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoreCreditGrant"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoreCreditBalance"];
                 };
             };
             /** @description Validation Error */

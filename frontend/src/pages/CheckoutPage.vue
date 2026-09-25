@@ -100,6 +100,16 @@
                     <span>{{ formatMoney(quote.balance_amount) }}</span>
                   </div>
                 </template>
+                <template v-if="hasFee(quote.store_credit_applied)">
+                  <div class="row justify-between text-body2 text-positive q-mt-xs">
+                    <span>Avoir utilisé</span>
+                    <span data-testid="checkout-quote-credit">− {{ formatMoney(quote.store_credit_applied) }}</span>
+                  </div>
+                  <div class="row justify-between text-weight-bold">
+                    <span>Reste à payer maintenant</span>
+                    <span data-testid="checkout-quote-due">{{ formatMoney(quote.amount_due_now) }}</span>
+                  </div>
+                </template>
                 <div
                   v-if="departureStore.next"
                   class="text-caption text-grey-8 q-mt-sm"
@@ -381,6 +391,22 @@
                     </q-list>
                   </template>
 
+                  <!-- Store credit (« avoir ») -->
+                  <q-banner
+                    v-if="quote && hasFee(quote.store_credit_available)"
+                    class="bg-green-1 text-green-9 q-mb-md"
+                    rounded
+                    dense
+                    data-testid="checkout-store-credit"
+                  >
+                    <template #avatar><q-icon name="savings" /></template>
+                    Vous disposez d'un avoir de {{ formatMoney(quote.store_credit_available) }}.
+                    <template #action>
+                      <q-toggle v-model="useStoreCredit" label="L'utiliser sur cette commande" dense />
+                    </template>
+                  </q-banner>
+
+                  <template v-if="!creditCoversEverything">
                   <div class="text-subtitle2 text-weight-medium q-mb-sm">Moyen de paiement</div>
                   <q-list bordered separator class="rounded-borders q-mb-md">
                     <q-item
@@ -410,6 +436,11 @@
                       </q-item-section>
                     </q-item>
                   </q-list>
+                  </template>
+                  <q-banner v-else class="bg-green-1 text-green-9 q-mb-md" rounded dense data-testid="checkout-credit-covers">
+                    <template #avatar><q-icon name="check_circle" /></template>
+                    Votre avoir couvre la totalité du montant à régler maintenant : aucun paiement n'est nécessaire.
+                  </q-banner>
 
                   <q-checkbox
                     v-model="cgvAccepted"
@@ -436,7 +467,7 @@
                     :disable="
                       initiating ||
                       !cgvAccepted ||
-                      !selectedMethodId ||
+                      (!selectedMethodId && !creditCoversEverything) ||
                       !selectedAddressId ||
                       (deliveryOptions.length > 0 && !selectedDeliveryType) ||
                       quoteLoading ||
@@ -571,6 +602,20 @@ watch(paymentPlan, () => {
   if (!isAuthenticated.value) return;
   void loadQuote();
 });
+// Store credit (« avoir ») : spent on the amount due now when the customer
+// asks; when it covers everything, no payment method is needed.
+const useStoreCredit = ref(false);
+const creditCoversEverything = computed(
+  () =>
+    !!quote.value &&
+    useStoreCredit.value &&
+    hasFee(quote.value.store_credit_applied) &&
+    Number.parseFloat(quote.value.amount_due_now) <= 0,
+);
+watch(useStoreCredit, () => {
+  if (!isAuthenticated.value) return;
+  void loadQuote();
+});
 // Montant sur lequel l'éligibilité des moyens de paiement est jugée : le
 // total hors frais de paiement (sinon le devis dépend du moyen, qui dépend
 // du devis).
@@ -593,6 +638,7 @@ async function loadQuote() {
       paymentMethodId: selectedMethodId.value,
       paymentPlan: paymentPlan.value,
       quoteRequestId: quoteRequestId.value,
+      useStoreCredit: useStoreCredit.value,
     });
     quote.value = next;
     // The backend has the last word (an imposed deposit, or none offered).
@@ -763,8 +809,8 @@ watch(selectedMethodId, () => {
 });
 
 async function startPayment() {
-  const method = methods.value.find((m) => m.id === selectedMethodId.value);
-  if (!method) return;
+  const method = methods.value.find((m) => m.id === selectedMethodId.value) ?? null;
+  if (!method && !creditCoversEverything.value) return;
   if (!isAuthenticated.value) {
     errorMessage.value = 'Vous devez être connecté pour payer.';
     return;
@@ -793,11 +839,12 @@ async function startPayment() {
       delivery_type: selectedDeliveryType.value,
       shipping_address: formatAddress(selectedAddress.value),
       shipping_address_id: selectedAddressId.value,
-      payment_method_id: method.id,
+      payment_method_id: creditCoversEverything.value ? null : (method?.id ?? null),
       return_url: returnUrl,
       cgv_accepted: cgvAccepted.value,
       payment_plan: paymentPlan.value,
       quote_request_id: quoteRequestId.value,
+      use_store_credit: useStoreCredit.value,
     });
     orderPlaced.value = true;
     placedOrderRef.value = orderRef(checkout.order_number, checkout.order_id);
@@ -829,6 +876,12 @@ async function startPayment() {
     if (checkout.instructions) {
       instructions.value = checkout.instructions;
       pendingPaymentId.value = checkout.payment_id;
+      return;
+    }
+
+    // Settled by the store credit alone: nothing to pay, the order is placed.
+    if (Number.parseFloat(String(checkout.amount_due_now ?? '0')) <= 0 && hasFee(String(checkout.store_credit_applied ?? '0'))) {
+      instructions.value = `Votre commande est réglée par votre avoir (${formatMoney(String(checkout.store_credit_applied))}). Vous recevrez une confirmation par e-mail.`;
       return;
     }
 

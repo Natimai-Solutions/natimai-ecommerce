@@ -83,8 +83,9 @@ def test_checkout_amounts_carry_the_deposit_fee_in_the_fees_total() -> None:
 
 def test_amount_due_follows_the_plan_and_the_settled_kinds() -> None:
     full = SimpleNamespace(payment_plan="full", total_amount=Decimal("1000"))
-    assert next_payment_kind(full, set()) == "full"
-    assert next_payment_kind(full, {"full"}) is None
+    assert next_payment_kind(full, {}) == "full"
+    assert next_payment_kind(full, {"full": Decimal("1000")}) is None
+    assert next_payment_kind(full, {"full": Decimal("400")}) == "full"  # credit first
     assert expected_amount(full, "full") == Decimal("1000")
     assert balance_amount(full) == Decimal("0")
 
@@ -95,14 +96,19 @@ def test_amount_due_follows_the_plan_and_the_settled_kinds() -> None:
         balance_paid_at=None,
         balance_requested_at=None,
     )
-    assert next_payment_kind(deposit, set()) == "deposit"
+    assert next_payment_kind(deposit, {}) == "deposit"
     assert expected_amount(deposit, "deposit") == Decimal("367")
-    assert next_payment_kind(deposit, {"deposit"}) == "balance"
+    assert next_payment_kind(deposit, {"deposit": Decimal("367")}) == "balance"
     assert expected_amount(deposit, "balance") == Decimal("857")
-    assert next_payment_kind(deposit, {"deposit", "balance"}) is None
+    assert (
+        next_payment_kind(
+            deposit, {"deposit": Decimal("367"), "balance": Decimal("857")}
+        )
+        is None
+    )
     assert not balance_due(deposit)
     deposit.balance_requested_at = "2026-10-01"
     assert balance_due(deposit)
     deposit.balance_paid_at = "2026-10-02"
     assert not balance_due(deposit)
-    assert next_payment_kind(deposit, {"deposit"}) is None
+    assert next_payment_kind(deposit, {"deposit": Decimal("367")}) is None

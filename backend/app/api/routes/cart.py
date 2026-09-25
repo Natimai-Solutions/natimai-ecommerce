@@ -80,6 +80,7 @@ from app.features.payment.models.payment_status import (
     PaymentStatus,
     PaymentStatusCreate,
 )
+from app.features.payment.services import store_credit
 from app.features.payment.services.deposit import (
     KIND_DEPOSIT,
     KIND_FULL,
@@ -2141,6 +2142,9 @@ class CheckoutQuote:
     deposit_fee_amount: Decimal = Decimal("0.00")
     deposit_amount: Decimal = Decimal("0.00")
     balance_amount: Decimal = Decimal("0.00")
+    # Store credit: the balance, and the share of the part due now it settles.
+    store_credit_available: Decimal = Decimal("0.00")
+    store_credit_applied: Decimal = Decimal("0.00")
 
     def deposit_terms(self) -> dict[str, Any]:
         """The ``DepositTerms`` fields of the quote / checkout responses."""
@@ -2152,16 +2156,24 @@ class CheckoutQuote:
             "deposit_fee_amount": self.deposit_fee_amount,
             "deposit_amount": self.deposit_amount,
             "balance_amount": self.balance_amount,
+            "store_credit_available": self.store_credit_available,
+            "store_credit_applied": self.store_credit_applied,
+            "amount_due_now": self.amount_due_now,
         }
 
     @property
-    def amount_due_now(self) -> Decimal:
-        """What the payment initiated at checkout must carry."""
+    def part_due_now(self) -> Decimal:
+        """The part settled at checkout: the deposit, or the total."""
         return (
             self.deposit_amount
             if self.payment_plan == PLAN_DEPOSIT
             else self.total_amount
         )
+
+    @property
+    def amount_due_now(self) -> Decimal:
+        """What the payment initiated at checkout must carry, credit deducted."""
+        return self.part_due_now - self.store_credit_applied
 
     @property
     def customs_declaration_fee_total(self) -> Decimal:
@@ -2218,6 +2230,8 @@ async def _quote_checkout(
     deposit_policy: DepositPolicy | None = None,
     payment_plan: str | None = None,
     fixed_shipping_fee: Decimal | None = None,
+    store_credit_available: Decimal = Decimal("0.00"),
+    use_store_credit: bool = False,
 ) -> CheckoutQuote:
     """Resolve the routes and the amounts of a checkout (no writes).
 
@@ -2347,6 +2361,14 @@ async def _quote_checkout(
     deposit_amount = balance_amount = Decimal("0.00")
     if plan == PLAN_DEPOSIT:
         deposit_amount, balance_amount = deposit_split(policy, total_amount, currency)
+    # The credit settles the part due now, up to what the customer has; the
+    # rest of the credit stays on the account.
+    part_due_now = deposit_amount if plan == PLAN_DEPOSIT else total_amount
+    credit_applied = (
+        min(quantize_amount(store_credit_available, currency), part_due_now)
+        if use_store_credit
+        else Decimal("0.00")
+    )
 
     return CheckoutQuote(
         payment_plan=plan,
@@ -2354,6 +2376,8 @@ async def _quote_checkout(
         deposit_fee_amount=deposit_fee_amount,
         deposit_amount=deposit_amount,
         balance_amount=balance_amount,
+        store_credit_available=quantize_amount(store_credit_available, currency),
+        store_credit_applied=credit_applied,
         currency=currency,
         declared_value=declared_value,
         total_weight_kg=total_weight_kg,
@@ -2390,6 +2414,9 @@ async def get_checkout_quote(
     quote_request_id: uuid.UUID | None = Query(
         default=None, description="Issued quote being ordered (its delivery fee)"
     ),
+    use_store_credit: bool = Query(
+        default=False, description="Spend the store credit on the amount due now"
+    ),
 ) -> CheckoutQuoteResponse:
     """The amounts ``POST /cart/checkout`` will bill for the current backend
     cart and these choices — same computation, so the recap is the debit.
@@ -2404,6 +2431,7 @@ async def get_checkout_quote(
     policy = DepositPolicy.of(
         await _resolve_customer_price_group(session, current_user)
     )
+    credit_available = await store_credit.balance(session, user_id)
     if cart is None:
         return CheckoutQuoteResponse(
             currency=currency,
@@ -2417,6 +2445,7 @@ async def get_checkout_quote(
             deposit_available=policy.available,
             deposit_required=policy.required,
             deposit_pct=policy.pct,
+            store_credit_available=credit_available,
         )
 
     items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart.id)
@@ -2445,6 +2474,8 @@ async def get_checkout_quote(
         deposit_policy=policy,
         payment_plan=payment_plan,
         fixed_shipping_fee=fixed_shipping_fee,
+        store_credit_available=credit_available,
+        use_store_credit=use_store_credit is True,
     )
     return CheckoutQuoteResponse(
         **quote.deposit_terms(),
@@ -2653,6 +2684,12 @@ async def checkout_my_cart(
         deposit_policy=DepositPolicy.of(price_group),
         payment_plan=payload.payment_plan,
         fixed_shipping_fee=fixed_shipping_fee,
+        store_credit_available=(
+            await store_credit.balance(session, user_id)
+            if payload.use_store_credit
+            else Decimal("0.00")
+        ),
+        use_store_credit=payload.use_store_credit,
     )
     selected_routes = quote.selected_routes
     priced_routes = quote.priced_routes
@@ -2826,8 +2863,23 @@ async def checkout_my_cart(
                     error=str(tracking_exc),
                 )
 
+        payment_kind = KIND_DEPOSIT if quote.payment_plan == PLAN_DEPOSIT else KIND_FULL
         payment_init: PaymentInitiationResult | None = None
-        if payload.payment_method_id is not None:
+        credit_payment = None
+        if quote.store_credit_applied > 0:
+            # The avoir settles its share of the part due now as a payment of
+            # its own; its capture event drives the order once the part is
+            # fully covered (right away when nothing is left to charge).
+            credit_payment = await store_credit.apply_to_order(
+                session,
+                order=order,
+                user=current_user,
+                amount=quote.store_credit_applied,
+                kind=payment_kind,
+            )
+        if credit_payment is not None and quote.amount_due_now <= 0:
+            payment = credit_payment
+        elif payload.payment_method_id is not None:
             # Single-payment flow: create the payment AND run the provider
             # initiation (CB SmartForm / manual / document) in this same
             # transaction. No separate POST /payments/initiate is needed.
@@ -2842,9 +2894,7 @@ async def checkout_my_cart(
                 return_url=payload.return_url,
                 metadata=None,
                 current_user=current_user,
-                kind=(
-                    KIND_DEPOSIT if quote.payment_plan == PLAN_DEPOSIT else KIND_FULL
-                ),
+                kind=payment_kind,
             )
             payment = payment_init.payment
         else:
@@ -2862,8 +2912,7 @@ async def checkout_my_cart(
                 user=current_user,
             )
             payment.payment_status_id = payment_status.id
-            if quote.payment_plan == PLAN_DEPOSIT:
-                payment.kind = KIND_DEPOSIT
+            payment.kind = payment_kind
             session.add(payment)
 
         cart.is_checked_out = True

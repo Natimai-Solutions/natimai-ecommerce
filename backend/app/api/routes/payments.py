@@ -31,8 +31,8 @@ from app.features.payment.services.deposit import (
     KIND_FULL,
     PLAN_DEPOSIT,
     PLAN_FULL,
-    expected_amount,
     next_payment_kind,
+    remaining_amount,
 )
 from app.features.payment.services.document_payment import (
     DOCUMENT_PROVIDER_CODES,
@@ -50,6 +50,7 @@ from app.features.payment.services.provider_dispatch import (
     parse_api_webhook,
     resolve_api_provider,
 )
+from app.features.payment.services.store_credit import settled_by_kind
 from app.outbox.registry import outbox_registry
 from app.utils.money import minor_units_to_decimal, parse_minor_units, quantize_amount
 
@@ -650,9 +651,8 @@ async def _validate_order_for_initiation(
         for payment, status_name in order_payments
         if status_name in _SETTLED_PAYMENT_STATUS_NAMES
     ]
-    kind = next_payment_kind(
-        order, {getattr(payment, "kind", KIND_FULL) for payment, _ in settled}
-    )
+    settled_amounts, _pending = settled_by_kind(settled)
+    kind = next_payment_kind(order, settled_amounts)
     if kind is None:
         settled_payment, settled_status = settled[-1]
         raise AppError(
@@ -696,7 +696,8 @@ async def _validate_order_for_initiation(
             },
         )
 
-    expected = quantize_amount(expected_amount(order, kind), currency)
+    # The part may already be partly settled by a store credit.
+    expected = quantize_amount(remaining_amount(order, kind, settled_amounts), currency)
     if quantize_amount(amount, currency) != expected:
         raise AppError(
             code="payment.amount.mismatch",

@@ -185,6 +185,34 @@
           {{ ordersError }}
         </q-banner>
 
+        <!-- Store credit (« avoir ») : balance and history -->
+        <q-card v-if="storeCredit && hasCredit" flat bordered class="q-mb-md bg-green-1" data-testid="account-store-credit">
+          <q-card-section>
+            <div class="row items-center">
+              <div class="col">
+                <div class="text-subtitle1 text-weight-medium">
+                  <q-icon name="savings" class="q-mr-xs" />Votre avoir : {{ formatMoney(storeCredit.balance) }}
+                </div>
+                <div class="text-caption text-grey-8">
+                  Utilisable sur votre prochaine commande, au moment du paiement.
+                </div>
+              </div>
+              <q-btn flat dense no-caps label="Historique" icon="history" @click="showCreditHistory = !showCreditHistory" />
+            </div>
+            <q-list v-if="showCreditHistory" dense class="q-mt-sm">
+              <q-item v-for="entry in storeCredit.entries" :key="entry.id" class="q-px-none">
+                <q-item-section>
+                  <q-item-label>{{ STORE_CREDIT_KIND_LABELS[entry.kind] ?? entry.kind }}</q-item-label>
+                  <q-item-label caption>{{ entry.reason }} · {{ formatDate(entry.created_at) ?? '' }}</q-item-label>
+                </q-item-section>
+                <q-item-section side :class="Number(entry.amount) < 0 ? 'text-grey-8' : 'text-positive'">
+                  {{ Number(entry.amount) < 0 ? '−' : '+' }} {{ formatMoney(String(Math.abs(Number(entry.amount)))) }}
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-card-section>
+        </q-card>
+
         <div v-if="loadingOrders" class="text-center q-pa-lg">
           <q-spinner color="primary" size="2em" />
         </div>
@@ -631,6 +659,7 @@ import {
   type MyQuote,
 } from 'src/api/quotes';
 import { useCartStore } from 'src/stores/cart';
+import { getMyStoreCredit, STORE_CREDIT_KIND_LABELS, type StoreCreditBalance } from 'src/api/storeCredit';
 import {
   getUpgradeOptions,
   listMyUpgradeRequests,
@@ -1050,6 +1079,18 @@ async function performDelete() {
 // --------------------------------------------------------------------------
 const loadingOrders = ref(true);
 const ordersError = ref<string | null>(null);
+const storeCredit = ref<StoreCreditBalance | null>(null);
+const showCreditHistory = ref(false);
+const hasCredit = computed(
+  () => !!storeCredit.value && (Number(storeCredit.value.balance) > 0 || storeCredit.value.entries.length > 0),
+);
+async function loadStoreCredit() {
+  try {
+    storeCredit.value = await getMyStoreCredit();
+  } catch {
+    storeCredit.value = null; // best-effort: the orders list does not depend on it
+  }
+}
 const orders = ref<Order[]>([]);
 
 // --------------------------------------------------------------------------
@@ -1368,6 +1409,7 @@ onMounted(async () => {
     loadOrders(),
     loadInvoices(),
     loadQuotes(),
+    loadStoreCredit(),
     loadGroup(),
   ]);
 });

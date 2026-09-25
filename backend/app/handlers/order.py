@@ -301,6 +301,10 @@ async def on_payment_captured_customer(
     session: AsyncSession, payload: dict[str, Any]
 ) -> None:
     """Send 'Paiement validé' HTML email to the customer."""
+    if payload.get("provider_code") == "store_credit":
+        # Spending an avoir is not a payment the customer made: the money
+        # payment (if any) carries the e-mail, the order e-mail the rest.
+        return
     logger.info(
         "Payment captured (customer email): order_id=%s user_id=%s",
         payload.get("order_id"),
