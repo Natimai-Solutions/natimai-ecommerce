@@ -73,6 +73,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/ResetPasswordPage.vue'),
       },
       {
+        path: 'comment-ca-marche',
+        name: 'how-it-works',
+        component: () => import('pages/HowItWorksPage.vue'),
+      },
+      {
         path: 'cgv',
         name: 'cgv',
         component: () => import('pages/legal/CgvPage.vue'),

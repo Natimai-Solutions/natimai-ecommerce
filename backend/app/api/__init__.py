@@ -33,6 +33,7 @@ from app.api.routes.analytics_user import router as analytics_user_router
 from app.api.routes.brand import router as brand_router
 from app.api.routes.cart import router as cart_router
 from app.api.routes.category import router as category_router
+from app.api.routes.content_pages import router as content_pages_router
 from app.api.routes.currency import router as currency_router
 from app.api.routes.discount import router as discount_router
 from app.api.routes.group import router as group_router
@@ -135,6 +136,7 @@ api_router.include_router(user_preferences_router)
 api_router.include_router(group_upgrade_router)
 api_router.include_router(system_settings_router)
 api_router.include_router(currency_router)
+api_router.include_router(content_pages_router)
 api_router.include_router(grouped_departures_router)
 api_router.include_router(utils_router, prefix="/utils")
 api_router.include_router(webhooks_router)

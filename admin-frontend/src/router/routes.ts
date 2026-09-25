@@ -35,6 +35,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'supplier-orders', component: () => import('pages/SupplierOrdersPage.vue') },
       { path: 'suppliers', component: () => import('pages/SuppliersPage.vue') },
       { path: 'system-settings', component: () => import('pages/SystemSettingsPage.vue') },
+      { path: 'pages', component: () => import('pages/PagesPage.vue') },
       {
         path: 'group-upgrade-requests',
         component: () => import('pages/GroupUpgradeRequestsPage.vue'),

@@ -111,6 +111,9 @@
           © {{ currentYear }} Natimai Solutions — Tous droits réservés
         </div>
         <nav class="col-12 col-sm-auto row q-gutter-md text-caption">
+          <router-link :to="{ name: 'how-it-works' }" class="footer-link">
+            Comment ça marche ?
+          </router-link>
           <router-link :to="{ name: 'cgv' }" class="footer-link">CGV</router-link>
           <router-link :to="{ name: 'mentions-legales' }" class="footer-link">
             Mentions légales

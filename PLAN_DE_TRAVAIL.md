@@ -676,6 +676,15 @@ Autres écarts relevés : commission paiement en % intégrée au prix (aujourd'h
 - **Tests** : 3 d'intégration (service + événement outbox, endpoint, propagation sélective et étapes sans effet), 3 unitaires du handler (contenu avec départ, un message par statut, silence sur les statuts de paiement). Types OpenAPI régénérés.
 - **Reste** : modèles d'e-mail éditables en admin (Lot D), statut « rupture / report » à relier à la clôture assistée (Lot B), `Delivered` posé automatiquement par la livraison du dernier tronçon (aujourd'hui à la main ou via le suivi logistique).
 
+#### ✅ Avancement — Lot A item 4 : pages éditables « Comment ça marche » et CGV (25/09/2026)
+
+- **Modèle** `ContentPage(slug unique, title, body_html, is_published)` ([content/models.py](backend/app/features/content/models.py)), migration `e5b3d7a9c4f1`. Endpoints : `GET /pages/{slug}` (publié seulement, sans auth), `GET /admin/pages`, `PUT /admin/pages/{slug}` (création ou remplacement, slug validé), `DELETE /admin/pages/{slug}` ([content_pages.py](backend/app/api/routes/content_pages.py)).
+- **Seed** : la page `comment-ca-marche` (principe des départs, paiement à la commande, étapes, délai 3 à 5 semaines, reconditionné signalé) est créée publiée une seule fois et **jamais réécrite** par un déploiement.
+- **Vitrine** : composant [DbContentPage.vue](frontend/src/components/DbContentPage.vue) (préchargé en SSR, HTML assaini par DOMPurify, slot de repli) ; route `/comment-ca-marche` ; lien dans le bandeau « prochain départ » et dans le pied de page ; la page CGV codée en dur devient le **repli** d'une page `cgv` publiée depuis l'admin (supprimer la page rétablit le texte par défaut). **Couvre B12.**
+- **Admin** : écran « Pages du site » (Système) avec éditeur riche `q-editor` (titres, listes, liens), brouillon / publiée, suppression.
+- **Tests** : règle de slug, cycle création → brouillon invisible → publiée → suppression, seed idempotent qui respecte le texte du propriétaire. Types OpenAPI régénérés.
+- **Reste** : mentions légales et confidentialité restent codées en dur (même mécanisme applicable : slugs `mentions-legales`, `confidentialite`) ; pas de téléversement d'images dans l'éditeur (URL seulement).
+
 **Lot B — départ groupé, suite** : clôture assistée (`POST /admin/grouped-departures/{id}/close` → vérification stock fournisseur via [checkout_availability.py](backend/app/features/integrations/services/checkout_availability.py), onglet « à arbitrer », report si seuil non atteint) ; `SupplierOrder` par départ (`grouped_departure_id`, `total_amount`, `ordered_at`, lignes multi-commandes, export CSV/PDF ; le handler [ingram_micro.py](backend/app/handlers/ingram_micro.py) ignore les commandes rattachées à un départ) ; rappels réseaux sociaux ; récurrence.
 
 **Lot C — réception et tableau de bord** : onglet « Réception » du départ (`GoodsReceipt` / `GoodsReceiptLine` avec quantités, état, numéros de série), rapprochement servi / partiel / non servi, `OrderLine.serial_numbers`, espace client (lignes, n° de série, fin de garantie), tableau de bord par départ (encaissé, payé fournisseur, fret / douane réels, marge brute).

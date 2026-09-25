@@ -106,7 +106,10 @@ const nav: NavSection[] = [
   },
   {
     label: 'Système',
-    links: [{ label: 'Paramètres', icon: 'settings', to: '/system-settings' }],
+    links: [
+      { label: 'Paramètres', icon: 'settings', to: '/system-settings' },
+      { label: 'Pages du site', icon: 'article', to: '/pages' },
+    ],
   },
 ];
 

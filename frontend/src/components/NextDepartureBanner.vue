@@ -10,6 +10,9 @@
     — {{ store.cutoffLabel }}<template v-if="store.deliveryLabel">
       · {{ store.deliveryLabel }}</template
     >
+    <router-link :to="{ name: 'how-it-works' }" class="q-ml-sm text-primary">
+      Comment ça marche ?
+    </router-link>
   </q-banner>
 </template>
 

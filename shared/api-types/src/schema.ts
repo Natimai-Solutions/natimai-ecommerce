@@ -4554,6 +4554,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pages/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Page
+         * @description A published page (no auth). The storefront sanitises the HTML.
+         */
+        get: operations["content-pages-get_public_page"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Pages
+         * @description Every page, published or not.
+         */
+        get: operations["content-pages-list_pages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/pages/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upsert Page
+         * @description Create or replace a page by slug (title, body, publication).
+         */
+        put: operations["content-pages-upsert_page"];
+        post?: never;
+        /**
+         * Delete Page
+         * @description Remove a page (a built-in legal page falls back to its default text).
+         */
+        delete: operations["content-pages-delete_page"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/grouped-departures/next": {
         parameters: {
             query?: never;
@@ -8218,6 +8282,83 @@ export interface components {
             name: string;
             /** Notes */
             notes?: string | null;
+        };
+        /**
+         * ContentPagePublic
+         * @description Admin view.
+         */
+        ContentPagePublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * Slug
+             * @description URL key, e.g. comment-ca-marche
+             */
+            slug: string;
+            /** Title */
+            title: string;
+            /**
+             * Body Html
+             * @description HTML from the admin editor
+             * @default
+             */
+            body_html: string;
+            /**
+             * Is Published
+             * @default false
+             */
+            is_published: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /**
+         * ContentPageSummary
+         * @description Storefront view: what the page shows, nothing more.
+         */
+        ContentPageSummary: {
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+            /** Body Html */
+            body_html: string;
+        };
+        /**
+         * ContentPageWrite
+         * @description Admin upsert payload (the slug is in the URL).
+         */
+        ContentPageWrite: {
+            /** Title */
+            title: string;
+            /**
+             * Body Html
+             * @default
+             */
+            body_html: string;
+            /**
+             * Is Published
+             * @default false
+             */
+            is_published: boolean;
         };
         /**
          * CreditNotePublic
@@ -26215,6 +26356,123 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DisplayRatesResponse"];
+                };
+            };
+        };
+    };
+    "content-pages-get_public_page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentPageSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "content-pages-list_pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentPagePublic"][];
+                };
+            };
+        };
+    };
+    "content-pages-upsert_page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContentPageWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentPagePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "content-pages-delete_page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentPageSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

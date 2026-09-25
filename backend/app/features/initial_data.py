@@ -6,6 +6,8 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.features.content.crud import crud_content_page
+from app.features.content.models import ContentPageCreate
 from app.features.order.services.status import (
     ALL_ORDER_STATUSES,
     get_or_create_order_status,
@@ -595,6 +597,38 @@ _SHIPPING_STATUS_TRANSITIONS: tuple[tuple[str, str, str], ...] = (
 )
 
 
+# Default « Comment ça marche » page: explains the grouped-departure model
+# (why the customer pays up front). Seeded once, never overwritten: the owner
+# rewrites it in the back-office.
+HOW_IT_WORKS_HTML = """<h2>Des commandes groupées, un prix rendu tout compris</h2>
+<p>Nous ne stockons pas les produits à l'avance : vos commandes sont regroupées par <strong>départ</strong>. Chaque départ a une date limite de commande, affichée sur le site. À cette date, nous passons une seule commande à nos fournisseurs, les colis voyagent ensemble, sont dédouanés ensemble, puis remis à chacun.</p>
+<h3>1. Vous commandez et payez</h3>
+<p>Le prix affiché est le prix final en XPF, fret, douane et taxes compris : rien à payer à l'arrivée. Votre paiement à la commande est ce qui rend ce modèle possible sans stock, et donc sans surcoût.</p>
+<h3>2. Le départ est clôturé</h3>
+<p>À la date limite, la commande fournisseur est passée. Si un article n'est plus disponible, nous vous proposons le report sur le départ suivant, un article équivalent ou le remboursement.</p>
+<h3>3. Transport, douane, réception</h3>
+<p>Vous êtes prévenu(e) par e-mail à chaque étape : commandée au fournisseur, en transit, en douane, reçue et contrôlée, puis disponible. Comptez 3 à 5 semaines entre la clôture et la remise.</p>
+<h3>4. Remise</h3>
+<p>Retrait sur place ou livraison, selon le mode choisi à la commande. Les produits reconditionnés sont signalés comme tels, avec leur grade et leur garantie.</p>
+"""
+
+
+async def _seed_content_pages(session: AsyncSession) -> None:
+    """Seed the « Comment ça marche » page once (idempotent, never overwrites)."""
+    if await crud_content_page.get_by_slug(session, "comment-ca-marche") is not None:
+        return
+    await crud_content_page.create_draft(
+        session,
+        data=ContentPageCreate(
+            slug="comment-ca-marche",
+            title="Comment ça marche ?",
+            body_html=HOW_IT_WORKS_HTML,
+            is_published=True,
+        ),
+        user=None,
+    )
+
+
 async def _seed_order_statuses(session: AsyncSession) -> None:
     """Every order status by name (idempotent), so the admin select and the
     departure propagation never depend on a status being created on the fly."""
@@ -863,6 +897,7 @@ async def initial_data(session: AsyncSession) -> None:
     await _seed_suppliers(session)
     await _seed_shipping_statuses(session)
     await _seed_order_statuses(session)
+    await _seed_content_pages(session)
     await _seed_security_groups(session)
     await _seed_legal_identity_settings(session)
     await _seed_customs_free_countries_setting(session)
