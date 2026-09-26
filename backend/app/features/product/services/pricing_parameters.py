@@ -10,6 +10,11 @@ are editable without a deployment, and a change re-prices the catalogue.
   than added as a fee at checkout: ``price = price_before / (1 − c)``, so
   the shop nets ``price_before`` after the commission. Applies to the
   domestic and import modes (a fixed price is what the admin typed).
+* ``pricing_fx_safety_margin_pct`` — a cushion on costs quoted in a foreign
+  currency: the converted cost is raised by this percentage before the
+  formula runs, so a rate that moves between the sale and the supplier
+  invoice does not eat the margin. A cost already in the reference
+  currency carries no exchange risk and is left alone.
 """
 
 from __future__ import annotations
@@ -36,6 +41,7 @@ class PricingParameterSpec:
 
 
 PAYMENT_COMMISSION_KEY = "pricing_payment_commission_pct"
+FX_SAFETY_MARGIN_KEY = "pricing_fx_safety_margin_pct"
 
 PRICING_SETTINGS: tuple[PricingParameterSpec, ...] = (
     PricingParameterSpec(
@@ -43,6 +49,16 @@ PRICING_SETTINGS: tuple[PricingParameterSpec, ...] = (
         "Commission de paiement (CB / prestataire) en % du prix payé, intégrée "
         "dans le prix de vente : prix = prix hors commission ÷ (1 − c). "
         "0 = aucune. Modifier cette valeur recalcule tous les prix.",
+        default=Decimal("0"),
+        minimum=Decimal("0"),
+        below=Decimal("100"),
+    ),
+    PricingParameterSpec(
+        FX_SAFETY_MARGIN_KEY,
+        "Marge de sécurité sur le change en % : les coûts fournisseur en devise "
+        "étrangère (USD, EUR…) sont majorés de ce pourcentage après conversion, "
+        "avant le calcul du prix. 0 = aucune. Modifier cette valeur recalcule "
+        "tous les prix.",
         default=Decimal("0"),
         minimum=Decimal("0"),
         below=Decimal("100"),
@@ -74,6 +90,7 @@ class PricingParameters:
     """The knobs the formula reads, already parsed (defaults when unset)."""
 
     payment_commission_pct: Decimal = Decimal("0")
+    fx_safety_margin_pct: Decimal = Decimal("0")
 
 
 async def load_pricing_parameters(session: AsyncSession) -> PricingParameters:
@@ -90,7 +107,21 @@ async def load_pricing_parameters(session: AsyncSession) -> PricingParameters:
             values[key] = parse_pricing_value(key, str(getattr(row, "value", "")))
         except ValueError:
             continue
-    return PricingParameters(payment_commission_pct=values[PAYMENT_COMMISSION_KEY])
+    return PricingParameters(
+        payment_commission_pct=values[PAYMENT_COMMISSION_KEY],
+        fx_safety_margin_pct=values[FX_SAFETY_MARGIN_KEY],
+    )
+
+
+def apply_fx_safety_margin(
+    cost_in_reference: Decimal, margin_pct: Decimal, *, converted: bool
+) -> Decimal:
+    """Raise a converted cost by the safety margin; untouched when the cost
+    was already in the reference currency (no exchange risk)."""
+    if not converted or margin_pct <= 0:
+        return cost_in_reference
+    raised = cost_in_reference * (Decimal("1") + margin_pct / Decimal("100"))
+    return raised.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def apply_payment_commission(price: Decimal, commission_pct: Decimal) -> Decimal:
@@ -102,11 +133,13 @@ def apply_payment_commission(price: Decimal, commission_pct: Decimal) -> Decimal
 
 
 __all__ = [
+    "FX_SAFETY_MARGIN_KEY",
     "PAYMENT_COMMISSION_KEY",
     "PRICING_SETTINGS",
     "PRICING_SETTING_KEYS",
     "PricingParameterSpec",
     "PricingParameters",
+    "apply_fx_safety_margin",
     "apply_payment_commission",
     "load_pricing_parameters",
     "parse_pricing_value",

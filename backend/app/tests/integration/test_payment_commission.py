@@ -121,3 +121,68 @@ async def test_the_setting_drives_both_price_paths_and_reprices_the_catalogue(
     await refresh_sale_prices(db_session, product_ids=[product_id])
     product = cast(Product, await db_session.get(Product, product_id))
     assert product.sale_price_cached == single
+
+
+@pytest.mark.asyncio
+async def test_the_fx_safety_margin_cushions_foreign_costs_only(
+    db_session: AsyncSession,
+) -> None:
+    from datetime import date, timedelta
+
+    from app.features.product.models.currency_rate import (
+        CurrencyRate,
+        CurrencyRateSource,
+    )
+    from app.features.product.services.pricing_parameters import (
+        FX_SAFETY_MARGIN_KEY,
+    )
+
+    db_session.add(
+        CurrencyRate(
+            currency_code="USD",
+            rate_to_reference=Decimal("110"),
+            valid_from=date.today() - timedelta(days=30),
+            source=CurrencyRateSource.manual,
+            is_active=True,
+            is_admin_active=True,
+        )
+    )
+    foreign = Product(
+        name="Coût en USD",
+        pricing_mode=PricingMode.DOMESTIC,
+        cost_amount=Decimal("100"),
+        cost_currency="USD",
+        margin_rate_pct=Decimal("0"),
+        tax_rate_id=None,
+    )
+    local = Product(
+        name="Coût en XPF",
+        pricing_mode=PricingMode.DOMESTIC,
+        cost_amount=Decimal("11000"),
+        cost_currency="XPF",
+        margin_rate_pct=Decimal("0"),
+    )
+    db_session.add_all([foreign, local])
+    await db_session.flush()
+    foreign_id, local_id = foreign.id, local.id
+    await db_session.commit()
+
+    foreign = cast(Product, await db_session.get(Product, foreign_id))
+    local = cast(Product, await db_session.get(Product, local_id))
+    # Same cost once converted: same price before any margin.
+    base_foreign = await calculate_sale_price(db_session, foreign)
+    base_local = await calculate_sale_price(db_session, local)
+    assert base_foreign == base_local
+
+    db_session.add(SystemSetting(key=FX_SAFETY_MARGIN_KEY, value="3"))
+    await db_session.commit()
+    foreign = cast(Product, await db_session.get(Product, foreign_id))
+    local = cast(Product, await db_session.get(Product, local_id))
+    with_margin = await calculate_sale_price(db_session, foreign)
+    assert with_margin == (base_foreign * Decimal("1.03")).quantize(Decimal("0.01"))
+    # The XPF cost carries no exchange risk: untouched.
+    assert await calculate_sale_price(db_session, local) == base_local
+    context = await PricingContext.load(db_session)
+    assert context.fx_safety_margin_pct == Decimal("3")
+    assert context.price(foreign) == with_margin
+    assert context.price(local) == base_local

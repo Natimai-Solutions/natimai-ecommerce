@@ -18,6 +18,7 @@ from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import PricingMode, Product
 from app.features.product.models.tax_rate import TaxRate
 from app.features.product.services.pricing_parameters import (
+    apply_fx_safety_margin,
     apply_payment_commission,
     load_pricing_parameters,
 )
@@ -467,7 +468,8 @@ async def calculate_sale_price(
     )
     # The payment commission grosses the final (tax-inclusive) price up so the
     # shop nets the price the formula computed (see pricing_parameters.py).
-    commission_pct = (await load_pricing_parameters(session)).payment_commission_pct
+    parameters = await load_pricing_parameters(session)
+    commission_pct = parameters.payment_commission_pct
     raw_cost = _as_decimal(
         getattr(product, "cost_amount", None),
         default=_as_decimal(getattr(product, "base_price", None)),
@@ -478,6 +480,13 @@ async def calculate_sale_price(
 
     cost_in_reference, _fx_rate = await convert_to_reference_currency(
         session, raw_cost, cost_currency
+    )
+    # A cost quoted in a foreign currency carries an exchange risk until the
+    # supplier is paid: the safety margin cushions it (pricing_parameters.py).
+    cost_in_reference = apply_fx_safety_margin(
+        cost_in_reference,
+        parameters.fx_safety_margin_pct,
+        converted=cost_currency != settings.REFERENCE_CURRENCY,
     )
 
     tax_rate = await resolve_tax_rate(session, product, territory=territory)
@@ -642,6 +651,8 @@ class PricingContext:
     free_countries: frozenset[str] = frozenset()
     #: Payment commission grossed into the price (pricing_parameters.py).
     payment_commission_pct: Decimal = Decimal("0")
+    #: Cushion on costs converted from a foreign currency (same module).
+    fx_safety_margin_pct: Decimal = Decimal("0")
     loaded_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     #: How long :meth:`for_session` keeps reusing an instance.
@@ -764,6 +775,7 @@ class PricingContext:
             main_warehouse=main_warehouse,
             free_countries=origin.free_countries,
             payment_commission_pct=parameters.payment_commission_pct,
+            fx_safety_margin_pct=parameters.fx_safety_margin_pct,
         )
 
     @classmethod
@@ -886,7 +898,11 @@ class PricingContext:
             default=_as_decimal(getattr(product, "base_price", None)),
         )
         currency = getattr(product, "cost_currency", None) or self.reference_currency
-        cost = self.to_reference(raw_cost, currency)
+        cost = apply_fx_safety_margin(
+            self.to_reference(raw_cost, currency),
+            self.fx_safety_margin_pct,
+            converted=currency != self.reference_currency,
+        )
         tax = self.tax_rate_pct(product)
 
         if mode is PricingMode.DOMESTIC:
