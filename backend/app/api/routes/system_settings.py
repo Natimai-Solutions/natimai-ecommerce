@@ -20,12 +20,17 @@ from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.errors import AppError
+from app.features.product.services.pricing_parameters import (
+    PRICING_SETTING_KEYS,
+    parse_pricing_value,
+)
 from app.features.system.legal_identity import LEGAL_SETTING_KEYS
 from app.features.system.models.system_setting import (
     SystemSetting,
     SystemSettingPublic,
     SystemSettingUpdate,
 )
+from app.tasks.pricing_tasks import schedule_price_refresh
 
 # Keys exposed to any caller (no auth required).
 #
@@ -83,7 +88,21 @@ async def admin_upsert_setting(
     session: SessionDep,
     _current_user: CurrentSuperUser,
 ) -> SystemSettingPublic:
-    """Create or update a system setting."""
+    """Create or update a system setting.
+
+    A pricing parameter is checked (a number within its bounds) and, once
+    saved, re-prices the whole catalogue in the background.
+    """
+    if key in PRICING_SETTING_KEYS:
+        try:
+            parse_pricing_value(key, data.value)
+        except ValueError as exc:
+            raise AppError(
+                code="system_setting.invalid_value",
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                message=str(exc),
+                details={"key": key, "value": data.value},
+            ) from exc
     stmt = select(SystemSetting).where(SystemSetting.key == key)
     result = await session.exec(stmt)
     row = result.first()
@@ -105,4 +124,6 @@ async def admin_upsert_setting(
     session.add(row)
     await session.commit()
     await session.refresh(row)
+    if key in PRICING_SETTING_KEYS:
+        await schedule_price_refresh(reason=f"system_setting:{key}")
     return SystemSettingPublic.model_validate(row)

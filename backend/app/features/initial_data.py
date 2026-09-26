@@ -34,6 +34,7 @@ from app.features.place.models import Place, PlacePostalCode
 from app.features.product.models.currency_rate import CurrencyRate, CurrencyRateSource
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.tax_rate import TaxRate
+from app.features.product.services.pricing_parameters import PRICING_SETTINGS
 from app.features.shipping.models.carrier import Carrier
 from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.models.status import StatusDefinition, StatusTransition
@@ -804,6 +805,28 @@ async def _seed_security_groups(session: AsyncSession) -> None:
             )
 
 
+async def _seed_pricing_settings(session: AsyncSession) -> None:
+    """Créer les paramètres de prix éditables (commission de paiement…) à
+    leur valeur par défaut, description rafraîchie, valeur saisie jamais
+    réécrite — même règle que l'identité légale."""
+    for spec in PRICING_SETTINGS:
+        result = await session.exec(
+            select(SystemSetting).where(SystemSetting.key == spec.key)
+        )
+        existing = result.first()
+        if existing is not None:
+            if existing.description != spec.description:
+                existing.description = spec.description
+                session.add(existing)
+            continue
+        session.add(
+            SystemSetting(
+                key=spec.key, value=str(spec.default), description=spec.description
+            )
+        )
+    await session.commit()
+
+
 async def _seed_legal_identity_settings(session: AsyncSession) -> None:
     """Créer les clés d'identité légale, vides, pour qu'elles soient éditables.
 
@@ -923,4 +946,5 @@ async def initial_data(session: AsyncSession) -> None:
     await _seed_social_webhook_setting(session)
     await _seed_security_groups(session)
     await _seed_legal_identity_settings(session)
+    await _seed_pricing_settings(session)
     await _seed_customs_free_countries_setting(session)
