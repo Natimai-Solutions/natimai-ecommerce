@@ -174,12 +174,69 @@
           >
             <q-tooltip>Publier (sortir du brouillon)</q-tooltip>
           </q-btn>
+          <q-btn
+            flat
+            dense
+            round
+            icon="history"
+            color="grey-8"
+            data-testid="product-price-history"
+            @click="openHistory(props.row)"
+          >
+            <q-tooltip>Journal des prix</q-tooltip>
+          </q-btn>
           <q-btn flat dense round icon="edit" color="primary" @click="openEdit(props.row)">
             <q-tooltip>Modifier</q-tooltip>
           </q-btn>
         </q-td>
       </template>
     </q-table>
+
+    <!-- Journal des prix -->
+    <q-dialog v-model="historyOpen">
+      <q-card style="min-width: 560px; max-width: 92vw">
+        <q-card-section class="text-h6">
+          Journal des prix — {{ historyProduct?.name }}
+        </q-card-section>
+        <q-card-section class="q-pt-none">
+          <div class="text-caption text-grey-7 q-mb-sm">
+            Chaque changement du prix de vente affiché en vitrine, avec sa cause : édition ou
+            synchronisation de l'article, taux de change ou de taxe, marge de catégorie,
+            paramètre de prix, recalcul nocturne.
+          </div>
+          <q-banner v-if="historyError" class="bg-red-1 text-red-9" dense rounded>{{
+            historyError
+          }}</q-banner>
+          <div v-else-if="historyLoading" class="text-center q-pa-md">
+            <q-spinner color="primary" size="2em" />
+          </div>
+          <div v-else-if="!history.length" class="text-grey-6 q-pa-md text-center">
+            Aucun changement de prix enregistré.
+          </div>
+          <q-markup-table v-else dense flat bordered>
+            <thead>
+              <tr>
+                <th class="text-left">Date</th>
+                <th class="text-right">Ancien prix</th>
+                <th class="text-right">Nouveau prix</th>
+                <th class="text-left">Cause</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="e in history" :key="e.id">
+                <td>{{ formatDateTime(e.created_at) }}</td>
+                <td class="text-right">{{ e.old_price ?? '—' }}</td>
+                <td class="text-right">{{ e.new_price ?? '—' }}</td>
+                <td>{{ reasonLabel(e.reason) }}</td>
+              </tr>
+            </tbody>
+          </q-markup-table>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Fermer" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <ProductFormDialog v-model="formOpen" :product="editingProduct" @saved="store.fetchPage()" />
 
@@ -198,7 +255,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
-import { useProductsStore, type ActiveFilter, type ProductPublic } from 'src/stores/products';
+import {
+  useProductsStore,
+  type ActiveFilter,
+  type PriceHistoryEntry,
+  type ProductPublic,
+} from 'src/stores/products';
 import { listPlaces, type Place } from 'src/api/logistics';
 import ProductFormDialog from 'src/components/ProductFormDialog.vue';
 
@@ -244,6 +306,50 @@ const selected = ref<ProductPublic[]>([]);
 const selectedDrafts = computed(() => selected.value.filter((p) => p.is_draft));
 const publishing = ref(false);
 const notice = ref<string | null>(null);
+
+// --- Journal des prix -------------------------------------------------------
+const historyOpen = ref(false);
+const historyProduct = ref<ProductPublic | null>(null);
+const history = ref<PriceHistoryEntry[]>([]);
+const historyLoading = ref(false);
+const historyError = ref<string | null>(null);
+
+const REASON_LABELS: Record<string, string> = {
+  product_write: "Édition ou synchronisation de l'article",
+  nightly: 'Recalcul nocturne (dates de validité)',
+  admin_inline: 'Recalcul manuel',
+  scheduled: 'Recalcul planifié',
+  refresh: 'Recalcul',
+};
+
+function reasonLabel(reason: string): string {
+  const [kind, detail] = reason.split(':', 2);
+  if (kind === 'currency_rate') return `Taux de change ${detail ?? ''}`.trim();
+  if (kind === 'system_setting') return `Paramètre de prix ${detail ?? ''}`.trim();
+  if (kind?.startsWith('tax_rate')) return `Taux de taxe ${detail ?? ''}`.trim();
+  if (kind?.startsWith('category')) return `Catégorie (${kind.replace('category_', '')})`;
+  return REASON_LABELS[reason] ?? reason;
+}
+
+function formatDateTime(raw: string): string {
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? raw : d.toLocaleString('fr-FR');
+}
+
+async function openHistory(product: ProductPublic) {
+  historyProduct.value = product;
+  historyOpen.value = true;
+  historyLoading.value = true;
+  historyError.value = null;
+  history.value = [];
+  try {
+    history.value = await store.priceHistory(product.id);
+  } catch (err: unknown) {
+    historyError.value = err instanceof Error ? err.message : 'Chargement impossible';
+  } finally {
+    historyLoading.value = false;
+  }
+}
 
 async function publish(ids: string[]) {
   publishing.value = true;

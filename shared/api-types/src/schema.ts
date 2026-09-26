@@ -1950,6 +1950,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/products/{product_id}/price-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Product Price History
+         * @description The product's price journal, newest first: every change of the
+         *     storefront price with what caused it.
+         */
+        get: operations["admin-product-admin_product_price_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/products/{product_id}": {
         parameters: {
             query?: never;
@@ -4954,6 +4975,9 @@ export interface paths {
         /**
          * Admin Upsert Setting
          * @description Create or update a system setting.
+         *
+         *     A pricing parameter is checked (a number within its bounds) and, once
+         *     saved, re-prices the whole catalogue in the background.
          */
         put: operations["system-admin_upsert_setting"];
         post?: never;
@@ -14476,6 +14500,30 @@ export interface components {
             /** Cheapest Product Id */
             cheapest_product_id?: string | null;
         };
+        /** ProductPriceEntryPublic */
+        ProductPriceEntryPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Old Price */
+            old_price: string | null;
+            /** New Price */
+            new_price: string | null;
+            /** Reason */
+            reason: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /**
          * ProductPublic
          * @description Represents product public.
@@ -22315,6 +22363,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublishResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-admin_product_price_history": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductPriceEntryPublic"][];
                 };
             };
             /** @description Validation Error */

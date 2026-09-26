@@ -27,6 +27,10 @@ from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.integrations.models.supplier import Supplier
 from app.features.product.crud.product import crud_product
+from app.features.product.models.price_history import (
+    ProductPriceEntry,
+    ProductPriceEntryPublic,
+)
 from app.features.product.models.product import (
     PricingMode,
     Product,
@@ -121,6 +125,24 @@ async def admin_publish_products(
     await session.commit()
     logger.info("Admin %s published %d draft product(s)", actor_id, response.published)
     return response
+
+
+@router.get("/{product_id}/price-history", response_model=list[ProductPriceEntryPublic])
+async def admin_product_price_history(
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+    product_id: uuid.UUID,
+    limit: int = 50,
+) -> list[ProductPriceEntryPublic]:
+    """The product's price journal, newest first: every change of the
+    storefront price with what caused it."""
+    result = await session.exec(
+        select(ProductPriceEntry)
+        .where(ProductPriceEntry.product_id == product_id)
+        .order_by(col(ProductPriceEntry.created_at).desc())
+        .limit(max(1, min(limit, 500)))
+    )
+    return [ProductPriceEntryPublic.model_validate(e) for e in result.all()]
 
 
 @router.put("/{product_id}", response_model=ProductPublic)

@@ -19,6 +19,17 @@ const PAGE_SIZE = 25;
 
 export type ActiveFilter = 'all' | 'active' | 'enriched' | 'inactive' | 'draft';
 
+/** Une ligne du journal des prix (`ProductPriceEntryPublic`). */
+export interface PriceHistoryEntry {
+  id: string;
+  product_id: string;
+  old_price: string | null;
+  new_price: string | null;
+  /** Cause : product_write, nightly, currency_rate:EUR, system_setting:…, admin_inline… */
+  reason: string;
+  created_at: string;
+}
+
 export interface PublishResponse {
   published: number;
   already_published: number;
@@ -112,6 +123,12 @@ export const useProductsStore = defineStore('products', () => {
     return data;
   }
 
+  /** Journal des prix d'un article, du plus récent au plus ancien. */
+  async function priceHistory(id: string): Promise<PriceHistoryEntry[]> {
+    const { data } = await api.get<PriceHistoryEntry[]>(`/admin/products/${id}/price-history`);
+    return data;
+  }
+
   /** Sortir des brouillons ; la vitrine applique ensuite ses conditions habituelles. */
   async function publishProducts(ids: string[]): Promise<PublishResponse> {
     const { data } = await api.post<PublishResponse>('/admin/products/publish', {
@@ -151,6 +168,7 @@ export const useProductsStore = defineStore('products', () => {
     updateProduct,
     releaseOverride,
     publishProducts,
+    priceHistory,
     setPage,
     applyFilters,
   };

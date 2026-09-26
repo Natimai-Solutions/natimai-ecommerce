@@ -790,7 +790,16 @@ Autres écarts relevés : commission paiement en % intégrée au prix (aujourd'h
 - **Principe** : un coût fournisseur en devise étrangère (USD, EUR…) est majoré de `pricing_fx_safety_margin_pct` **après conversion et avant la formule** (CAF, douane, marge, taxe), pour qu'une variation du taux entre la vente et le règlement du fournisseur n'entame pas la marge. Un coût déjà en XPF ne porte aucun risque de change et n'est pas touché. Même module que la commission ([pricing_parameters.py](backend/app/features/product/services/pricing_parameters.py)) : réglage dans **Paramètres système**, défaut 0, validation 0 ≤ m < 100, recalcul de tout le catalogue à l'enregistrement, seed sans réécriture. Appliqué à l'identique par `calculate_sale_price` et `PricingContext.price`.
 - **Périmètre** : seule la **formule de prix** est majorée. La conversion « vraie » reste inchangée partout ailleurs : `fx_rate_used` figé sur la ligne de commande, coût des bons de commande dans le tableau de bord de marge du départ, seuil de prix minimum de la sync fournisseur.
 - **Tests** : deux articles au même coût (100 USD à 110, 11 000 XPF) tarifés pareil sans réglage ; à 3 %, seul le coût en USD est majoré ; parité des deux chemins de prix.
-- **Reste** : marge par devise si le risque diffère (USD vs EUR) ; journal des prix (dernier item du Lot D) pour tracer l'effet d'un changement de paramètre.
+- **Reste** : marge par devise si le risque diffère (USD vs EUR).
+
+#### ✅ Avancement — Lot D, journal des prix (26/09/2026)
+
+- **Principe** : table `product_price_history` ([price_history.py](backend/app/features/product/models/price_history.py), migration `n5e2a8c3d9f1`, réversible) : une ligne par **changement** du prix de vente matérialisé (`sale_price_cached`) — ancien prix, nouveau prix, cause, date. Écrite aux deux endroits où le prix est écrit : le hook d'enregistrement d'un article (création, édition admin, synchronisation fournisseur → cause `product_write`) et le rafraîchissement en masse ([pricing_tasks.py](backend/app/tasks/pricing_tasks.py), qui transmet désormais sa cause : `currency_rate:EUR`, `tax_rate_created:…`, `category_merge`, `system_setting:pricing_…`, `nightly`, `admin_inline`). Une valeur inchangée n'écrit rien : le balayage nocturne ne remplit pas la table.
+- **Admin** : `GET /admin/products/{id}/price-history` (du plus récent au plus ancien, 50 par défaut) ; page Articles → bouton « Journal des prix » sur chaque ligne, dialogue avec date, ancien / nouveau prix et cause en clair.
+- **Tests** : helper (pas de ligne sans changement) ; parcours réel : création (rien → 1 500), édition (1 500 → 1 990), édition sans effet sur le prix (aucune ligne), rafraîchissement manuel puis changement de taux EUR (deux lignes avec leurs causes), article non concerné sans ligne.
+- **Reste** : purge des lignes anciennes (rétention) ; le comblement à la volée des prix `NULL` en lecture vitrine (`_price_and_persist_now`) n'est pas journalisé (chemin de secours, hors session) ; export CSV du journal.
+
+**Lot D terminé** : les onze souhaitables sont livrés (acompte, devis, avoir-crédit, « me prévenir », suivi sans compte, liste blanche SKU, import en brouillon, commission dans le prix, marge FX, journal des prix) ; seul **SMS / WhatsApp** reste ouvert (aucun prestataire choisi).
 
 ### Faisabilité de l'acompte à la commande (50 % / 30 % selon type de client, frais optionnels)
 
