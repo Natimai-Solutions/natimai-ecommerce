@@ -20,6 +20,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.routes.admin_product import admin_create_product, admin_update_product
 from app.api.routes.cart import _customs_declaration_fees
+from app.core.config import settings
 from app.features.place.models import Place
 from app.features.product.models.category import Category
 from app.features.product.models.currency_rate import CurrencyRate, CurrencyRateSource
@@ -220,9 +221,13 @@ async def _seed_places(session: AsyncSession) -> tuple[Place, Place, Place]:
 @pytest.mark.asyncio
 async def test_context_price_follows_the_origin_regime_like_the_reference(
     db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """An import-mode product from a local place prices as domestic — in the
     reference formula and in the materialized one alike."""
+    # The expected prices below include 0.5 % insurance; the setting defaults
+    # to 0, so pin it rather than depend on the environment.
+    monkeypatch.setattr(settings, "INSURANCE_RATE_PCT", 0.5)
     _main, local, foreign = await _seed_places(db_session)
     products = [
         Product(
