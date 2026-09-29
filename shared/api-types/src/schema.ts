@@ -2172,6 +2172,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product/{product_id}/key-specs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Product Key Specs
+         * @description Up to four key-spec tiles for the product page (processeur, mémoire…).
+         *
+         *     Driven by ``highlight_rank`` on the spec definitions; only specs the
+         *     product has a projected value for are returned.
+         */
+        get: operations["product-get_product_key_specs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/product/search": {
         parameters: {
             query?: never;
@@ -12477,6 +12500,31 @@ export interface components {
             featured_until?: string | null;
         };
         /**
+         * ProductKeySpec
+         * @description One key-spec tile of the product page (ex: « Mémoire RAM » / « 16 Go »).
+         */
+        ProductKeySpec: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
+        /**
+         * ProductKeySpecsResponse
+         * @description Response for GET /product/{id}/key-specs.
+         */
+        ProductKeySpecsResponse: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Specs */
+            specs?: components["schemas"]["ProductKeySpec"][];
+        };
+        /**
          * ProductOfferPublic
          * @description One supplier's offer for a physical item (product page « autres offres »).
          */
@@ -14684,6 +14732,11 @@ export interface components {
              * @default true
              */
             is_active: boolean;
+            /**
+             * Highlight Rank
+             * @description Position among the key-spec tiles of the product page (1 = first); None = not highlighted. The page shows the first four the product has.
+             */
+            highlight_rank?: number | null;
         };
         /** SpecDefinitionPublic */
         SpecDefinitionPublic: {
@@ -14723,6 +14776,11 @@ export interface components {
              */
             is_active: boolean;
             /**
+             * Highlight Rank
+             * @description Position among the key-spec tiles of the product page (1 = first); None = not highlighted. The page shows the first four the product has.
+             */
+            highlight_rank?: number | null;
+            /**
              * Id
              * Format: uuid
              */
@@ -14752,6 +14810,8 @@ export interface components {
             aliases?: string[] | null;
             /** Is Active */
             is_active?: boolean | null;
+            /** Highlight Rank */
+            highlight_rank?: number | null;
         };
         /** SpecDefinitionsPublic */
         SpecDefinitionsPublic: {
@@ -20214,6 +20274,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductOffersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "product-get_product_key_specs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductKeySpecsResponse"];
                 };
             };
             /** @description Validation Error */

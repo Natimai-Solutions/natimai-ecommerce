@@ -66,3 +66,18 @@ class CategorySpecFacetsResponse(SQLModel):
 
     category_id: uuid.UUID
     specs: list[SpecFacet] = Field(default_factory=list)
+
+
+class ProductKeySpec(SQLModel):
+    """One key-spec tile of the product page (ex: « Mémoire RAM » / « 16 Go »)."""
+
+    key: str
+    label: str
+    value: str
+
+
+class ProductKeySpecsResponse(SQLModel):
+    """Response for GET /product/{id}/key-specs."""
+
+    product_id: uuid.UUID
+    specs: list[ProductKeySpec] = Field(default_factory=list)
