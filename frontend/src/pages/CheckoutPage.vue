@@ -16,13 +16,12 @@
     </div>
 
     <!-- Cart empty guard (not while a payment is already in progress) -->
-    <q-banner v-if="cartEmpty && !orderPlaced" class="bg-orange-1 text-orange-10 q-mb-md" rounded>
-      <template #avatar><q-icon name="warning_amber" /></template>
+    <AppNotice v-if="cartEmpty && !orderPlaced" tone="warning" class="q-mb-md">
       Votre panier est vide.
       <template #action>
         <q-btn flat label="Voir le catalogue" :to="{ name: 'catalogue' }" />
       </template>
-    </q-banner>
+    </AppNotice>
 
     <template v-else>
       <div class="row q-col-gutter-lg">
@@ -101,10 +100,9 @@
               <div class="text-subtitle1 text-weight-medium q-mb-md">Paiement</div>
 
               <!-- Error banner -->
-              <q-banner v-if="errorMessage" class="bg-red-1 text-red-9 q-mb-md" rounded>
-                <template #avatar><q-icon name="error_outline" /></template>
+              <AppNotice v-if="errorMessage" tone="error" class="q-mb-md">
                 {{ errorMessage }}
-              </q-banner>
+              </AppNotice>
 
               <!-- Loading payment methods -->
               <div v-if="loadingMethods" class="text-center q-pa-lg">
@@ -114,10 +112,9 @@
 
               <!-- Authentication required: payment is tied to a user account -->
               <template v-else-if="!isAuthenticated">
-                <q-banner class="bg-blue-1 text-blue-10 q-mb-md" rounded>
-                  <template #avatar><q-icon name="lock" /></template>
+                <AppNotice tone="info" icon="lock" class="q-mb-md">
                   Vous devez être connecté pour finaliser votre paiement.
-                </q-banner>
+                </AppNotice>
                 <q-btn
                   color="primary"
                   icon="login"
@@ -129,17 +126,15 @@
               </template>
 
               <!-- No method available -->
-              <q-banner v-else-if="methods.length === 0" class="bg-orange-1 text-orange-10" rounded>
-                <template #avatar><q-icon name="info" /></template>
+              <AppNotice v-else-if="methods.length === 0" tone="warning" icon="info">
                 Aucun moyen de paiement n'est disponible pour votre compte. Veuillez contacter notre
                 équipe.
-              </q-banner>
+              </AppNotice>
 
               <template v-else>
                 <!-- Manual / document payment confirmation (chèque, virement, BC) -->
                 <template v-if="instructions">
-                  <q-banner class="bg-green-1 text-green-9 q-mb-md" rounded>
-                    <template #avatar><q-icon name="check_circle" /></template>
+                  <AppNotice tone="success" class="q-mb-md">
                     <div>Votre demande de paiement a bien été enregistrée.</div>
                     <div
                       v-if="placedOrderRef"
@@ -148,7 +143,7 @@
                     >
                       Commande {{ placedOrderRef }}
                     </div>
-                  </q-banner>
+                  </AppNotice>
                   <div class="text-body2 q-mb-md" style="white-space: pre-line">
                     {{ instructions }}
                   </div>
@@ -158,9 +153,9 @@
                     <div class="text-caption text-grey-7 q-mb-xs">
                       Joignez votre bon de commande pour permettre la validation de la commande.
                     </div>
-                    <q-banner v-if="uploadError" class="bg-red-1 text-red-9 q-mb-sm" rounded dense>
+                    <AppNotice v-if="uploadError" dense tone="error" class="q-mb-sm">
                       {{ uploadError }}
-                    </q-banner>
+                    </AppNotice>
                     <q-file
                       v-model="selectedFile"
                       outlined
@@ -182,10 +177,9 @@
                     />
                   </template>
 
-                  <q-banner v-else-if="uploadDone" class="bg-green-1 text-green-9 q-mb-md" rounded>
-                    <template #avatar><q-icon name="task_alt" /></template>
+                  <AppNotice v-else-if="uploadDone" tone="success" icon="task_alt" class="q-mb-md">
                     Bon de commande reçu — il sera vérifié par notre équipe avant validation.
-                  </q-banner>
+                  </AppNotice>
 
                   <q-btn
                     v-if="!needsUpload || uploadDone"
@@ -201,13 +195,13 @@
                 <template v-else-if="!formToken">
                   <!-- Shipping address (validated addresses only) -->
                   <div class="text-subtitle2 text-weight-medium q-mb-sm">Adresse de livraison</div>
-                  <q-banner
+                  <AppNotice
                     v-if="addresses.length === 0"
-                    class="bg-orange-1 text-orange-10 q-mb-md"
-                    rounded
                     dense
+                    tone="warning"
+                    icon="location_off"
+                    class="q-mb-md"
                   >
-                    <template #avatar><q-icon name="location_off" /></template>
                     Aucune adresse enregistrée. Ajoutez-en une depuis « Mon compte ».
                     <template #action>
                       <q-btn
@@ -218,7 +212,7 @@
                         :to="{ name: 'account', query: { tab: 'addresses' } }"
                       />
                     </template>
-                  </q-banner>
+                  </AppNotice>
                   <q-list v-else bordered separator class="rounded-borders q-mb-md">
                     <q-item
                       v-for="a in addresses"
@@ -377,6 +371,7 @@
 </template>
 
 <script setup lang="ts">
+import AppNotice from 'src/components/AppNotice.vue';
 import { computed, onMounted, ref, watch } from 'vue';
 import { countryLabel, formatXpf, orderRef } from '@app/utils';
 import { useCartStore } from 'src/stores/cart';

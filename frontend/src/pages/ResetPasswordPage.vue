@@ -11,24 +11,21 @@
       </q-card-section>
 
       <q-card-section class="q-pt-none">
-        <q-banner v-if="!token" class="bg-red-1 text-red-9" rounded>
-          <template #avatar><q-icon name="error_outline" /></template>
+        <AppNotice v-if="!token" tone="error">
           Ce lien est incomplet. Demandez-en un nouveau depuis la page « mot de passe oublié ».
-        </q-banner>
+        </AppNotice>
 
         <template v-else-if="doneMessage">
-          <q-banner class="bg-green-1 text-green-9 q-mb-md" rounded>
-            <template #avatar><q-icon name="check_circle" /></template>
+          <AppNotice tone="success" class="q-mb-md">
             {{ doneMessage }}
-          </q-banner>
+          </AppNotice>
           <q-btn color="primary" label="Se connecter" class="full-width" :to="{ name: 'login' }" />
         </template>
 
         <template v-else>
-          <q-banner v-if="errorMessage" class="bg-red-1 text-red-9 q-mb-md" rounded>
-            <template #avatar><q-icon name="error_outline" /></template>
+          <AppNotice v-if="errorMessage" tone="error" class="q-mb-md">
             {{ errorMessage }}
-          </q-banner>
+          </AppNotice>
 
           <q-form @submit.prevent="onSubmit">
             <q-input
@@ -80,6 +77,7 @@
 </template>
 
 <script setup lang="ts">
+import AppNotice from 'src/components/AppNotice.vue';
 import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { resetPassword } from 'src/api/passwordReset';

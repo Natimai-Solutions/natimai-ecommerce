@@ -1,0 +1,49 @@
+import { watch } from 'vue';
+import { defineBoot } from '#q-app/wrappers';
+import { Cookies } from 'quasar';
+
+import '@fontsource-variable/geist';
+import '@fontsource-variable/geist-mono';
+import '@phosphor-icons/web/light';
+
+import { phosphorIconMapFn } from 'src/icons/phosphor';
+import {
+  THEME_COOKIE,
+  THEME_HINT_COOKIE,
+  THEME_COOKIE_OPTIONS,
+  parseThemePreference,
+  toDarkValue,
+} from 'src/utils/theme';
+
+/**
+ * Fondations visuelles : polices Geist auto-hébergées, icônes Phosphor et
+ * thème clair / sombre.
+ *
+ * Le choix explicite du visiteur est gardé dans un cookie. Sans choix, la
+ * vitrine suit le système (« auto ») ; le dernier mode résolu côté navigateur
+ * est mémorisé à part pour que le rendu serveur suivant sorte déjà dans le bon
+ * mode, sans flash.
+ */
+export default defineBoot(({ app, ssrContext }) => {
+  const $q = app.config.globalProperties.$q;
+  $q.iconMapFn = phosphorIconMapFn;
+
+  const cookies = process.env.SERVER && ssrContext ? Cookies.parseSSR(ssrContext) : Cookies;
+  const preference = parseThemePreference(cookies.get(THEME_COOKIE));
+
+  if (process.env.SERVER) {
+    $q.dark.set(
+      preference === 'auto' ? cookies.get(THEME_HINT_COOKIE) === 'dark' : toDarkValue(preference),
+    );
+    return;
+  }
+
+  $q.dark.set(toDarkValue(preference));
+  watch(
+    () => $q.dark.isActive,
+    (isDark) => {
+      Cookies.set(THEME_HINT_COOKIE, isDark ? 'dark' : 'light', THEME_COOKIE_OPTIONS);
+    },
+    { immediate: true },
+  );
+});

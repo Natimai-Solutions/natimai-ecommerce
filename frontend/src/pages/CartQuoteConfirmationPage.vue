@@ -61,7 +61,6 @@ const customerEmail = computed(() => {
 
 .quote-confirmation__card {
   text-align: center;
-  border-radius: 20px;
-  background: linear-gradient(180deg, #f6fff8 0%, #ffffff 70%);
+  background: var(--n-surface);
 }
 </style>

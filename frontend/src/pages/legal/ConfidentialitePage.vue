@@ -170,13 +170,13 @@ const legalEntity = computed(() => store.entity);
 
   th,
   td {
-    border: 1px solid rgba(0, 0, 0, 0.12);
+    border: 1px solid var(--n-line);
     padding: 8px 12px;
     text-align: left;
   }
 
   th {
-    background: rgba(0, 0, 0, 0.04);
+    background: var(--n-tile);
   }
 }
 </style>

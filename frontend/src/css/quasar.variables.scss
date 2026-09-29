@@ -1,25 +1,41 @@
 // Quasar Sass (& SCSS) Variables
 // --------------------------------------------------
-// To customize the look and feel of this app, you can override
-// the Sass/SCSS variables found in Quasar's source Sass/SCSS files.
+// Natimai « Précision » : neutres zinc, encre comme couleur principale,
+// un seul accent (orange signal). Les valeurs du mode sombre sont posées en
+// variables CSS dans app.scss (body.body--dark), car ces variables Sass ne
+// servent qu'au mode clair et aux couleurs compilées par Quasar.
 
-// Check documentation for full list of Quasar variables
+// Couleurs de marque
+$primary: #18181b; // encre : boutons principaux, état sélectionné
+$secondary: #52525b; // encre secondaire
+$accent: #c2410c; // orange signal : focus, badge panier, filtres actifs
 
-// Your own variables (that are declared here) and Quasar's own
-// ones will be available out of the box in your .vue/.scss/.sass files
+$dark: #131316; // surfaces (cartes, menus) en mode sombre
+$dark-page: #0b0b0d; // fond de page en mode sombre
 
-// It's highly recommended to change the default colors
-// to match your app's branding.
-// Tip: Use the "Theme Builder" on Quasar's documentation website.
+// États sémantiques (uniquement pour une information réelle)
+$positive: #15803d;
+$negative: #b91c1c;
+$info: #52525b;
+$warning: #a16207;
 
-$primary: #1976d2;
-$secondary: #26a69a;
-$accent: #9c27b0;
+// Typographie
+$typography-font-family:
+  'Geist Variable',
+  system-ui,
+  -apple-system,
+  'Segoe UI',
+  sans-serif;
 
-$dark: #1d1d1d;
-$dark-page: #121212;
+// Forme : un seul rayon de 8px pour cartes, champs et boutons
+$generic-border-radius: 8px;
+$button-border-radius: 8px;
+$button-font-weight: 500;
+$button-shadow: none;
+$button-shadow-active: none;
 
-$positive: #21ba45;
-$negative: #c10015;
-$info: #31ccec;
-$warning: #f2c037;
+// Ombres teintées zinc, jamais noir pur
+$shadow-color: #18181b;
+
+$separator-color: #e4e4e7;
+$separator-dark-color: #26262b;

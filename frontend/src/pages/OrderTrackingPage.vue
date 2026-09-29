@@ -19,13 +19,12 @@
       <q-spinner color="primary" size="2.5em" />
     </div>
 
-    <q-banner v-else-if="errorMessage" class="bg-red-1 text-red-9" rounded>
-      <template #avatar><q-icon name="error_outline" /></template>
+    <AppNotice v-else-if="errorMessage" tone="error">
       {{ errorMessage }}
       <template #action>
         <q-btn flat label="Mes commandes" :to="{ name: 'account', query: { tab: 'orders' } }" />
       </template>
-    </q-banner>
+    </AppNotice>
 
     <template v-else-if="tracking">
       <!-- Overall status -->
@@ -73,26 +72,20 @@
       </q-card>
 
       <!-- Exception scenarios -->
-      <q-banner
+      <AppNotice
         v-for="scenario in tracking.exception_scenarios"
         :key="scenario"
-        class="bg-orange-1 text-orange-10 q-mb-sm"
-        rounded
         dense
+        tone="warning"
+        class="q-mb-sm"
       >
-        <template #avatar><q-icon name="warning_amber" /></template>
         {{ scenarioLabel(scenario) }}
-      </q-banner>
+      </AppNotice>
 
       <!-- No tracking yet -->
-      <q-banner
-        v-if="tracking.trackings.length === 0"
-        class="bg-blue-1 text-blue-10 q-mt-md"
-        rounded
-      >
-        <template #avatar><q-icon name="info" /></template>
+      <AppNotice v-if="tracking.trackings.length === 0" tone="info" class="q-mt-md">
         Aucune information d'expédition n'est encore disponible pour cette commande.
-      </q-banner>
+      </AppNotice>
 
       <!-- Segments timeline -->
       <q-card v-else flat bordered class="q-mt-md">
@@ -171,6 +164,7 @@
 </template>
 
 <script setup lang="ts">
+import AppNotice from 'src/components/AppNotice.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { formatXpf } from '@app/utils';

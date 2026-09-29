@@ -18,13 +18,12 @@
       </div>
     </div>
 
-    <q-banner v-else-if="error" class="bg-red-1 text-red-8" rounded>
-      <template #avatar><q-icon name="error_outline" /></template>
+    <AppNotice v-else-if="error" tone="error">
       {{ error }}
       <template #action>
         <q-btn flat color="primary" label="Retour au catalogue" :to="{ name: 'catalogue' }" />
       </template>
-    </q-banner>
+    </AppNotice>
 
     <q-card v-else-if="product" class="product-page-card" flat bordered>
       <q-card-section class="row q-col-gutter-lg">
@@ -130,22 +129,19 @@
         />
       </q-card-actions>
 
-      <q-banner
+      <AppNotice
         v-if="cartFeedback"
-        :class="cartFeedback.ok ? 'bg-green-1 text-green-9' : 'bg-orange-1 text-orange-10'"
+        :tone="cartFeedback.ok ? 'success' : 'warning'"
         class="q-mx-lg q-mb-lg"
-        rounded
       >
-        <template #avatar>
-          <q-icon :name="cartFeedback.ok ? 'check_circle' : 'warning_amber'" />
-        </template>
         {{ cartFeedback.message }}
-      </q-banner>
+      </AppNotice>
     </q-card>
   </q-page>
 </template>
 
 <script setup lang="ts">
+import AppNotice from 'src/components/AppNotice.vue';
 import DOMPurify from 'isomorphic-dompurify';
 import { useMeta } from 'quasar';
 import { computed, onMounted, onServerPrefetch, ref, watch } from 'vue';
@@ -380,7 +376,7 @@ async function onAddToCart() {
   if (ok) {
     cartFeedback.value = {
       ok: true,
-      message: `${product.value.name} ajoute au panier.`,
+      message: `${product.value.name} ajouté au panier.`,
     };
     return;
   }

@@ -7,10 +7,9 @@
       </q-card-section>
 
       <q-card-section>
-        <q-banner v-if="authStore.loginError" class="bg-red-1 text-red-9 q-mb-md" rounded>
-          <template #avatar><q-icon name="error_outline" /></template>
+        <AppNotice v-if="authStore.loginError" tone="error" class="q-mb-md">
           {{ authStore.loginError }}
-        </q-banner>
+        </AppNotice>
 
         <q-form @submit.prevent="onSubmit">
           <q-input
@@ -107,6 +106,7 @@
 </template>
 
 <script setup lang="ts">
+import AppNotice from 'src/components/AppNotice.vue';
 import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';

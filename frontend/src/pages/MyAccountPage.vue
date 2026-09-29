@@ -28,14 +28,12 @@
             </div>
 
             <template v-else>
-              <q-banner v-if="prefsError" class="bg-red-1 text-red-9 q-mb-md" rounded>
-                <template #avatar><q-icon name="error_outline" /></template>
+              <AppNotice v-if="prefsError" tone="error" class="q-mb-md">
                 {{ prefsError }}
-              </q-banner>
-              <q-banner v-if="prefsSaved" class="bg-green-1 text-green-9 q-mb-md" rounded>
-                <template #avatar><q-icon name="check_circle" /></template>
+              </AppNotice>
+              <AppNotice v-if="prefsSaved" tone="success" class="q-mb-md">
                 Préférences enregistrées.
-              </q-banner>
+              </AppNotice>
 
               <div class="text-subtitle1 text-weight-medium q-mb-sm">Notifications</div>
               <q-toggle
@@ -122,19 +120,17 @@
           <q-btn color="primary" icon="add" label="Ajouter" no-caps @click="openAddressDialog()" />
         </div>
 
-        <q-banner v-if="addressesError" class="bg-red-1 text-red-9 q-mb-md" rounded>
-          <template #avatar><q-icon name="error_outline" /></template>
+        <AppNotice v-if="addressesError" tone="error" class="q-mb-md">
           {{ addressesError }}
-        </q-banner>
+        </AppNotice>
 
         <div v-if="loadingAddresses" class="text-center q-pa-lg">
           <q-spinner color="primary" size="2em" />
         </div>
 
-        <q-banner v-else-if="addresses.length === 0" class="bg-blue-1 text-blue-10" rounded>
-          <template #avatar><q-icon name="info" /></template>
+        <AppNotice v-else-if="addresses.length === 0" tone="info">
           Vous n'avez pas encore enregistré d'adresse.
-        </q-banner>
+        </AppNotice>
 
         <div v-else class="row q-col-gutter-md">
           <div v-for="address in addresses" :key="address.id" class="col-12 col-sm-6 col-md-4">
@@ -179,25 +175,22 @@
 
       <!-- ============================= Commandes ============================= -->
       <q-tab-panel name="orders" class="q-px-none">
-        <q-banner v-if="ordersError" class="bg-red-1 text-red-9 q-mb-md" rounded>
-          <template #avatar><q-icon name="error_outline" /></template>
+        <AppNotice v-if="ordersError" tone="error" class="q-mb-md">
           {{ ordersError }}
-        </q-banner>
+        </AppNotice>
 
         <div v-if="loadingOrders" class="text-center q-pa-lg">
           <q-spinner color="primary" size="2em" />
         </div>
 
-        <q-banner v-else-if="orders.length === 0" class="bg-blue-1 text-blue-10" rounded>
-          <template #avatar><q-icon name="info" /></template>
+        <AppNotice v-else-if="orders.length === 0" tone="info">
           Vous n'avez pas encore passé de commande.
-        </q-banner>
+        </AppNotice>
 
         <template v-else>
-          <q-banner v-if="invoiceError" dense rounded class="bg-orange-1 text-orange-9 q-mb-md">
-            <template #avatar><q-icon name="warning" /></template>
+          <AppNotice v-if="invoiceError" dense tone="warning" class="q-mb-md">
             {{ invoiceError }}
-          </q-banner>
+          </AppNotice>
 
           <q-list bordered separator class="rounded-borders">
             <q-item v-for="order in orders" :key="order.id">
@@ -268,14 +261,12 @@
             </div>
 
             <template v-else>
-              <q-banner v-if="groupError" class="bg-red-1 text-red-9 q-mb-md" rounded>
-                <template #avatar><q-icon name="error_outline" /></template>
+              <AppNotice v-if="groupError" tone="error" class="q-mb-md">
                 {{ groupError }}
-              </q-banner>
-              <q-banner v-if="groupSaved" class="bg-green-1 text-green-9 q-mb-md" rounded>
-                <template #avatar><q-icon name="check_circle" /></template>
+              </AppNotice>
+              <AppNotice v-if="groupSaved" tone="success" class="q-mb-md">
                 Votre demande a été envoyée. Elle sera examinée par notre équipe.
-              </q-banner>
+              </AppNotice>
 
               <div class="text-subtitle1 text-weight-medium q-mb-sm">Votre groupe tarifaire</div>
               <q-chip
@@ -376,9 +367,9 @@
         </q-card-section>
         <q-form @submit.prevent="saveAddress">
           <q-card-section class="q-pt-none">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9 q-mb-md" rounded dense>
+            <AppNotice v-if="dialogError" dense tone="error" class="q-mb-md">
               {{ dialogError }}
-            </q-banner>
+            </AppNotice>
             <q-select
               v-model="addressForm.type"
               :options="addressTypeOptions"
@@ -459,19 +450,13 @@
               class="q-mb-sm"
               :disable="!postalFilled"
             />
-            <q-banner
-              v-if="detectedZoneLabel"
-              dense
-              rounded
-              class="bg-green-1 text-green-9 q-mt-sm"
-            >
-              <q-icon name="place" class="q-mr-xs" />
+            <AppNotice v-if="detectedZoneLabel" dense tone="success" icon="place" class="q-mt-sm">
               Zone de livraison détectée : {{ detectedZoneLabel }}
-            </q-banner>
+            </AppNotice>
             <template v-else-if="zoneLookupDone && zoneOptions.length > 0">
-              <q-banner dense rounded class="bg-orange-1 text-orange-10 q-mt-sm q-mb-sm">
+              <AppNotice dense tone="warning" class="q-mt-sm q-mb-sm">
                 Code postal non reconnu — indiquez votre île / zone de livraison.
-              </q-banner>
+              </AppNotice>
               <q-select
                 v-model="manualPlaceId"
                 :options="zoneOptions"
@@ -521,6 +506,7 @@
 </template>
 
 <script setup lang="ts">
+import AppNotice from 'src/components/AppNotice.vue';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { countryLabel, countryOptions, formatXpf, type CountryOption } from '@app/utils';

@@ -1,14 +1,12 @@
 <template>
   <!-- fff : le footer défile avec le contenu (non fixé) -->
   <q-layout view="hHh lpR fff">
-    <q-header elevated class="bg-white text-dark">
+    <q-header class="app-header">
       <q-toolbar>
         <q-btn flat dense round icon="menu" aria-label="Menu" class="lt-md" @click="toggleDrawer" />
 
         <q-toolbar-title shrink>
-          <router-link to="/" class="text-dark text-weight-bold no-underline">
-            Natimai
-          </router-link>
+          <router-link to="/" class="text-ink text-weight-bold no-underline"> Natimai </router-link>
         </q-toolbar-title>
 
         <!-- Navigation principale (desktop) -->
@@ -40,9 +38,18 @@
           <template #prepend><q-icon name="payments" size="xs" /></template>
         </q-select>
 
+        <!-- Thème clair / sombre -->
+        <q-btn
+          flat
+          round
+          :icon="$q.dark.isActive ? 'ph:sun' : 'ph:moon'"
+          :aria-label="$q.dark.isActive ? 'Passer en mode clair' : 'Passer en mode sombre'"
+          @click="toggleTheme"
+        />
+
         <!-- Icône panier -->
         <q-btn flat round icon="shopping_cart" :to="{ name: 'cart' }">
-          <q-badge v-if="cartCount > 0" color="primary" floating>
+          <q-badge v-if="cartCount > 0" color="accent" floating>
             {{ cartCount }}
           </q-badge>
         </q-btn>
@@ -85,7 +92,7 @@
           <q-item-section avatar><q-icon name="shopping_cart" /></q-item-section>
           <q-item-section>Panier</q-item-section>
           <q-item-section side>
-            <q-badge v-if="cartCount > 0" color="primary">{{ cartCount }}</q-badge>
+            <q-badge v-if="cartCount > 0" color="accent">{{ cartCount }}</q-badge>
           </q-item-section>
         </q-item>
         <q-item
@@ -129,6 +136,7 @@ import { useRouter } from 'vue-router';
 import { useCartStore } from 'src/stores/cart';
 import { useAuthStore } from 'src/stores/auth';
 import { useCurrencyStore } from 'src/stores/currency';
+import { toggleTheme } from 'src/utils/theme';
 
 const drawerOpen = ref(false);
 const cartStore = useCartStore();
@@ -158,6 +166,12 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+.app-header {
+  background: var(--n-surface);
+  color: var(--n-ink);
+  border-bottom: 1px solid var(--n-line);
+}
+
 .no-underline {
   text-decoration: none;
 }

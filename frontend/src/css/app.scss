@@ -1,1 +1,167 @@
-// app global css
+// Natimai « Précision » : jetons de design et base globale.
+//
+// Les couleurs passent par des variables CSS `--n-*`, redéfinies en mode
+// sombre (classe body--dark posée par le plugin Dark de Quasar). Les
+// composants utilisent ces variables plutôt que des couleurs en dur.
+
+body.body--light,
+body:not(.body--dark) {
+  --n-bg: #fafafa;
+  --n-surface: #ffffff;
+  --n-tile: #f1f1f3;
+  --n-tile-hover: #eaeaed;
+  --n-line: #e4e4e7;
+  --n-line-2: #d4d4d8;
+  --n-ink: #18181b;
+  --n-ink-2: #52525b;
+  --n-ink-3: #6b6b74;
+  --n-on-ink: #fafafa;
+  --n-accent: #c2410c;
+  --n-on-accent: #ffffff;
+  --n-accent-soft: #fdede3;
+  --n-ok: #15803d;
+  --n-warn: #a16207;
+  --n-danger: #b91c1c;
+  --n-glyph: #b4b4bc;
+  --n-scrim: rgb(24 24 27 / 32%);
+  --n-shadow: 0 24px 64px -24px rgb(24 24 27 / 28%);
+}
+
+body.body--dark {
+  --n-bg: #0b0b0d;
+  --n-surface: #131316;
+  --n-tile: #1a1a1e;
+  --n-tile-hover: #212126;
+  --n-line: #26262b;
+  --n-line-2: #3a3a41;
+  --n-ink: #f4f4f5;
+  --n-ink-2: #b4b4bc;
+  --n-ink-3: #8e8e98;
+  --n-on-ink: #0b0b0d;
+  --n-accent: #f2742f;
+  --n-on-accent: #0b0b0d;
+  --n-accent-soft: rgb(242 116 47 / 14%);
+  --n-ok: #4ade80;
+  --n-warn: #facc15;
+  --n-danger: #f87171;
+  --n-glyph: #4a4a52;
+  --n-scrim: rgb(0 0 0 / 55%);
+  --n-shadow: 0 24px 64px -24px rgb(0 0 0 / 80%);
+
+  // Couleurs de marque Quasar recalées pour le fond sombre.
+  --q-primary: #f4f4f5;
+  --q-secondary: #b4b4bc;
+  --q-accent: #f2742f;
+  --q-positive: #4ade80;
+  --q-negative: #f87171;
+  --q-info: #b4b4bc;
+  --q-warning: #facc15;
+  --q-dark: #131316;
+  --q-dark-page: #0b0b0d;
+
+  // Un fond clair (encre inversée, accent, états) garde un texte sombre.
+  .bg-primary.text-white,
+  .bg-accent.text-white,
+  .bg-positive.text-white,
+  .bg-negative.text-white,
+  .bg-warning.text-white,
+  .bg-info.text-white {
+    color: var(--n-on-ink) !important;
+  }
+}
+
+body {
+  background: var(--n-bg);
+  color: var(--n-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// Palette unique : les gris Quasar (Material) sont ramenés sur l'échelle zinc,
+// dans les deux modes. Transitoire : les pages passent progressivement aux
+// classes sémantiques ci-dessous.
+body {
+  .bg-grey-1,
+  .bg-grey-2 {
+    background: var(--n-tile) !important;
+  }
+
+  .bg-grey-3 {
+    background: var(--n-line) !important;
+  }
+
+  .text-grey-5,
+  .text-grey-6 {
+    color: var(--n-ink-3) !important;
+  }
+
+  .text-grey-7,
+  .text-grey-8,
+  .text-grey-9 {
+    color: var(--n-ink-2) !important;
+  }
+}
+
+// Classes sémantiques
+.text-ink {
+  color: var(--n-ink) !important;
+}
+
+.text-muted {
+  color: var(--n-ink-2) !important;
+}
+
+.text-subtle {
+  color: var(--n-ink-3) !important;
+}
+
+.bg-tile {
+  background: var(--n-tile) !important;
+}
+
+// Références, EAN, prix et valeurs techniques : chiffres à chasse fixe.
+.font-mono {
+  font-family: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+// Boutons : pas de majuscules forcées, retour tactile à l'appui.
+.q-btn {
+  text-transform: none;
+  letter-spacing: 0;
+  transition:
+    transform 0.16s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.2s ease;
+
+  &:active {
+    transform: translateY(1px) scale(0.98);
+  }
+}
+
+// Focus clavier visible, à l'accent.
+:focus-visible {
+  outline: 2px solid var(--n-accent);
+  outline-offset: 2px;
+}
+
+.q-card {
+  box-shadow: none;
+}
+
+.q-card--bordered {
+  border-color: var(--n-line);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

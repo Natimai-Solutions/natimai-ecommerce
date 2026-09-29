@@ -170,17 +170,13 @@
           </div>
         </div>
 
-        <q-banner
+        <AppNotice
           v-if="cartFeedback"
-          :class="cartFeedback.ok ? 'bg-green-1 text-green-9' : 'bg-orange-1 text-orange-10'"
+          :tone="cartFeedback.ok ? 'success' : 'warning'"
           class="q-mb-md"
-          rounded
         >
-          <template #avatar>
-            <q-icon :name="cartFeedback.ok ? 'check_circle' : 'warning_amber'" />
-          </template>
           {{ cartFeedback.message }}
-        </q-banner>
+        </AppNotice>
 
         <!-- État chargement -->
         <div v-if="store.loading" class="row q-col-gutter-md">
@@ -196,13 +192,12 @@
         </div>
 
         <!-- Erreur -->
-        <q-banner v-else-if="store.error" class="bg-red-1 text-red-8 q-mb-md" rounded>
-          <template #avatar><q-icon name="error_outline" /></template>
+        <AppNotice v-else-if="store.error" tone="error" class="q-mb-md">
           {{ store.error }}
           <template #action>
             <q-btn flat label="Réessayer" @click="store.search()" />
           </template>
-        </q-banner>
+        </AppNotice>
 
         <!-- Aucun résultat -->
         <div v-else-if="store.items.length === 0" class="column items-center q-py-xl text-grey-6">
@@ -240,6 +235,7 @@
 </template>
 
 <script setup lang="ts">
+import AppNotice from 'src/components/AppNotice.vue';
 import { computed, onMounted, onServerPrefetch, ref } from 'vue';
 import { useMeta } from 'quasar';
 import { useRoute, useRouter } from 'vue-router';
@@ -401,7 +397,7 @@ async function onAddToCart(product: ProductPublic) {
   if (ok) {
     cartFeedback.value = {
       ok: true,
-      message: `${product.name} ajoute au panier.`,
+      message: `${product.name} ajouté au panier.`,
     };
     return;
   }

@@ -9,10 +9,9 @@
       </q-card-section>
 
       <q-card-section>
-        <q-banner v-if="error" class="bg-red-1 text-red-9 q-mb-md" rounded dense>
-          <template #avatar><q-icon name="error_outline" /></template>
+        <AppNotice v-if="error" dense tone="error" class="q-mb-md">
           {{ error }}
-        </q-banner>
+        </AppNotice>
 
         <q-stepper v-model="step" flat animated color="primary" header-nav>
           <!-- Step 1 — email -->
@@ -157,6 +156,7 @@
 </template>
 
 <script setup lang="ts">
+import AppNotice from 'src/components/AppNotice.vue';
 import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';

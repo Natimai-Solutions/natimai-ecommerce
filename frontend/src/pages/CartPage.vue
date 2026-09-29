@@ -15,13 +15,12 @@
       </div>
     </div>
 
-    <q-banner v-if="cartStore.error" class="bg-red-1 text-red-8 q-mb-md" rounded>
-      <template #avatar><q-icon name="error_outline" /></template>
+    <AppNotice v-if="cartStore.error" tone="error" class="q-mb-md">
       {{ cartStore.error }}
       <template #action>
         <q-btn flat label="Réessayer" @click="loadCart" />
       </template>
-    </q-banner>
+    </AppNotice>
 
     <div class="row q-col-gutter-lg">
       <div class="col-12 col-lg-8">
@@ -166,6 +165,7 @@
 </template>
 
 <script setup lang="ts">
+import AppNotice from 'src/components/AppNotice.vue';
 import { onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCartStore } from 'src/stores/cart';
