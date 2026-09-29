@@ -154,8 +154,18 @@
         </div>
       </section>
 
-      <section v-if="specGroups.length > 0" class="product__specs" aria-labelledby="specs-title">
+      <section
+        v-if="specGroups.length > 0 || showKeySpecs"
+        class="product__specs"
+        aria-labelledby="specs-title"
+      >
         <h2 id="specs-title" class="product__h2">Caractéristiques techniques</h2>
+        <dl v-if="showKeySpecs" class="key-specs">
+          <div v-for="spec in keySpecs" :key="spec.key" class="key-specs__tile">
+            <dt class="key-specs__label">{{ spec.label }}</dt>
+            <dd class="key-specs__value tabular-nums">{{ spec.value }}</dd>
+          </div>
+        </dl>
         <div class="product__spec-groups">
           <div v-for="grp in visibleSpecGroups" :key="grp.group" class="spec-group">
             <h3 class="spec-group__title">{{ grp.group || 'Général' }}</h3>
@@ -211,8 +221,10 @@ import { useRoute, useRouter } from 'vue-router';
 import type { components } from '@app/api-types';
 import {
   getProductById,
+  getProductKeySpecs,
   getProductOffers,
   getProductShippingModes,
+  type ProductKeySpec,
   type ProductOffersResponse,
   type ShippingModePricePublic,
 } from 'src/api/products';
@@ -247,6 +259,10 @@ const selectedImage = ref<string | null>(null);
 const shippingModes = ref<ShippingModePricePublic[]>([]);
 const selectedModeKey = ref<string | null>(null);
 const offers = ref<ProductOffersResponse | null>(null);
+const keySpecs = ref<ProductKeySpec[]>([]);
+
+/** Tuiles affichées seulement à partir de deux : une seule ne résume rien. */
+const showKeySpecs = computed(() => keySpecs.value.length >= 2);
 
 const isOutOfStock = computed(() => {
   if (!product.value) return true;
@@ -410,6 +426,7 @@ async function loadProduct() {
   shippingModes.value = [];
   selectedModeKey.value = null;
   offers.value = null;
+  keySpecs.value = [];
 
   const routeId = typeof route.params.id === 'string' ? route.params.id : null;
   if (!routeId) {
@@ -427,6 +444,7 @@ async function loadProduct() {
     if (typeof window !== 'undefined') {
       void loadShippingModes(routeId);
       void loadOffers(routeId);
+      void loadKeySpecs(routeId);
     }
 
     const expectedSlug = slugifyProductName(data.name);
@@ -485,6 +503,14 @@ async function loadShippingModes(productId: string): Promise<void> {
   } catch {
     shippingModes.value = [];
     selectedModeKey.value = null;
+  }
+}
+
+async function loadKeySpecs(productId: string): Promise<void> {
+  try {
+    keySpecs.value = (await getProductKeySpecs(productId)).specs;
+  } catch {
+    keySpecs.value = [];
   }
 }
 
@@ -842,6 +868,50 @@ watch(
   @media (max-width: 1023px) {
     margin-top: 56px;
   }
+}
+
+.key-specs {
+  margin: 0 0 16px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+
+  @media (max-width: 1023px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.key-specs__tile {
+  min-width: 0;
+  padding: 24px;
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: 6px;
+  border-radius: 8px;
+  background: var(--n-tile);
+
+  @media (max-width: 767px) {
+    padding: 16px;
+  }
+}
+
+.key-specs__value {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+
+  @media (max-width: 767px) {
+    font-size: 18px;
+  }
+}
+
+.key-specs__label {
+  font-size: 13px;
+  color: var(--n-ink-2);
 }
 
 .product__spec-groups {

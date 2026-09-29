@@ -91,3 +91,22 @@ export async function getProductOffers(productId: string): Promise<ProductOffers
   const { data } = await api.get<ProductOffersResponse>(`/product/${productId}/offers`);
   return data;
 }
+
+// --- Caractéristiques clés (tuiles de la fiche produit) --------------------
+
+export interface ProductKeySpec {
+  key: string;
+  label: string;
+  value: string;
+}
+
+export interface ProductKeySpecsResponse {
+  product_id: string;
+  specs: ProductKeySpec[];
+}
+
+/** Jusqu'à quatre tuiles (processeur, mémoire…), dans l'ordre choisi en admin. */
+export async function getProductKeySpecs(productId: string): Promise<ProductKeySpecsResponse> {
+  const { data } = await api.get<ProductKeySpecsResponse>(`/product/${productId}/key-specs`);
+  return data;
+}

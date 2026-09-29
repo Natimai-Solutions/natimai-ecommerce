@@ -11,6 +11,7 @@ from app.features.integrations.models.supplier import Supplier
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import (
     PricingMode,
+    Product,
     ProductFeatureRequest,
     ProductOfferPublic,
     ProductOffersResponse,
@@ -22,11 +23,13 @@ from app.features.product.models.product import (
 )
 from app.features.product.models.product_spec import (
     CategorySpecFacetsResponse,
+    ProductKeySpecsResponse,
     ProductSpec,
     SpecFacet,
     SpecFacetValue,
 )
 from app.features.product.services.identity import product_identity_key
+from app.features.product.services.key_specs import compute_key_specs
 from app.features.product.services.pricing import (
     CurrencyRateMissing,
     PricingContext,
@@ -179,21 +182,12 @@ async def get_product_shipping_modes(
     )
 
 
-@router.get("/{product_id}/offers", response_model=ProductOffersResponse)
-async def get_product_offers(
-    product_id: uuid.UUID,
-    session: SessionDep,
-    current_user: object = Depends(get_current_user_optional),
-) -> ProductOffersResponse:
-    """Every storefront offer of the same physical item, current product included.
+async def _load_published_product(
+    session: SessionDep, product_id: uuid.UUID, current_user: object
+) -> Product:
+    """The product as the storefront may show it: 404 when missing or unpublished.
 
-    One product is one source: the same item stocked by two suppliers is two
-    products, and this is where the customer compares them. Siblings are
-    found by barcode (EAN / UPC), else by manufacturer + part number.
-
-    Prices are what the product page shows by default: for import-mode
-    products, the default import route's freight is included; local and
-    fixed-price products carry no import leg.
+    Admins see unpublished products too (preview from the back office).
     """
     try:
         product = await crud_product.read(session, id=product_id, user=current_user)
@@ -215,6 +209,26 @@ async def get_product_offers(
             message="Product not found",
             details={"product_id": str(product_id), "reason": "not_publishable"},
         )
+    return product
+
+
+@router.get("/{product_id}/offers", response_model=ProductOffersResponse)
+async def get_product_offers(
+    product_id: uuid.UUID,
+    session: SessionDep,
+    current_user: object = Depends(get_current_user_optional),
+) -> ProductOffersResponse:
+    """Every storefront offer of the same physical item, current product included.
+
+    One product is one source: the same item stocked by two suppliers is two
+    products, and this is where the customer compares them. Siblings are
+    found by barcode (EAN / UPC), else by manufacturer + part number.
+
+    Prices are what the product page shows by default: for import-mode
+    products, the default import route's freight is included; local and
+    fixed-price products carry no import leg.
+    """
+    product = await _load_published_product(session, product_id, current_user)
 
     siblings = await crud_product.find_offers(session, product)
     everyone = [product, *siblings]
@@ -278,6 +292,23 @@ async def get_product_offers(
         identity_key=product_identity_key(product),
         offers=offers,
         cheapest_product_id=cheapest.product_id if cheapest is not None else None,
+    )
+
+
+@router.get("/{product_id}/key-specs", response_model=ProductKeySpecsResponse)
+async def get_product_key_specs(
+    product_id: uuid.UUID,
+    session: SessionDep,
+    current_user: object = Depends(get_current_user_optional),
+) -> ProductKeySpecsResponse:
+    """Up to four key-spec tiles for the product page (processeur, mémoire…).
+
+    Driven by ``highlight_rank`` on the spec definitions; only specs the
+    product has a projected value for are returned.
+    """
+    product = await _load_published_product(session, product_id, current_user)
+    return ProductKeySpecsResponse(
+        product_id=product_id, specs=await compute_key_specs(session, product)
     )
 
 
