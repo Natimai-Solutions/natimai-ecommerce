@@ -1,11 +1,11 @@
 <template>
-  <q-page class="flex flex-center q-pa-md">
-    <q-card flat bordered style="width: min(420px, 100%)">
+  <q-page class="auth-page flex flex-center">
+    <q-card flat class="auth-card">
       <q-card-section>
-        <div class="text-h6">Mot de passe oublié</div>
+        <h1 class="auth-title">Mot de passe oublié</h1>
         <div class="text-body2 text-grey-7 q-mt-xs">
-          Indiquez votre adresse email : si un compte y est associé, vous recevrez un lien
-          pour choisir un nouveau mot de passe.
+          Indiquez votre adresse email : si un compte y est associé, vous recevrez un lien pour
+          choisir un nouveau mot de passe.
         </div>
       </q-card-section>
 
@@ -15,15 +15,13 @@
           affiche donc simplement sa réponse, sans laisser entendre qu'un
           compte a été trouvé.
         -->
-        <q-banner v-if="sentMessage" class="bg-green-1 text-green-9 q-mb-md" rounded>
-          <template #avatar><q-icon name="mark_email_read" /></template>
+        <AppNotice v-if="sentMessage" tone="success" icon="mark_email_read" class="q-mb-md">
           {{ sentMessage }}
-        </q-banner>
+        </AppNotice>
 
-        <q-banner v-if="errorMessage" class="bg-red-1 text-red-9 q-mb-md" rounded>
-          <template #avatar><q-icon name="error_outline" /></template>
+        <AppNotice v-if="errorMessage" tone="error" class="q-mb-md">
           {{ errorMessage }}
-        </q-banner>
+        </AppNotice>
 
         <q-form v-if="!sentMessage" @submit.prevent="onSubmit">
           <q-input
@@ -31,7 +29,7 @@
             type="email"
             data-testid="forgot-email"
             outlined
-            dense
+            stack-label
             label="Email"
             autocomplete="email"
             class="q-mb-md"
@@ -56,6 +54,7 @@
 </template>
 
 <script setup lang="ts">
+import AppNotice from 'src/components/AppNotice.vue';
 import { ref } from 'vue';
 import { requestPasswordReset } from 'src/api/passwordReset';
 

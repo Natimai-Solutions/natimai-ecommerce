@@ -1,16 +1,15 @@
 <template>
-  <q-page class="login-page flex flex-center q-pa-md">
-    <q-card flat bordered style="width: 100%; max-width: 420px">
+  <q-page class="login-page auth-page flex flex-center">
+    <q-card flat class="auth-card">
       <q-card-section>
-        <div class="text-h5 q-mb-xs">Connexion</div>
+        <h1 class="auth-title">Connexion</h1>
         <div class="text-body2 text-grey-7">Connectez-vous pour accéder à votre compte.</div>
       </q-card-section>
 
       <q-card-section>
-        <q-banner v-if="authStore.loginError" class="bg-red-1 text-red-9 q-mb-md" rounded>
-          <template #avatar><q-icon name="error_outline" /></template>
+        <AppNotice v-if="authStore.loginError" tone="error" class="q-mb-md">
           {{ authStore.loginError }}
-        </q-banner>
+        </AppNotice>
 
         <q-form @submit.prevent="onSubmit">
           <q-input
@@ -18,7 +17,7 @@
             type="email"
             data-testid="login-email"
             outlined
-            dense
+            stack-label
             label="Email"
             autocomplete="email"
             class="q-mb-sm"
@@ -29,7 +28,7 @@
             :type="showPassword ? 'text' : 'password'"
             data-testid="login-password"
             outlined
-            dense
+            stack-label
             label="Mot de passe"
             autocomplete="current-password"
             class="q-mb-md"
@@ -107,6 +106,7 @@
 </template>
 
 <script setup lang="ts">
+import AppNotice from 'src/components/AppNotice.vue';
 import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';

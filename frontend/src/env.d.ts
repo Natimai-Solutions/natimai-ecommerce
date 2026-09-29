@@ -26,3 +26,6 @@ interface ImportMeta {
     invalidate(): void;
   };
 }
+
+// Feuille de style de la police d'icônes Phosphor (import pour effet de bord).
+declare module '@phosphor-icons/web/light';

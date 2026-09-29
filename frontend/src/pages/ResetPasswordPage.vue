@@ -1,34 +1,31 @@
 <template>
-  <q-page class="flex flex-center q-pa-md">
-    <q-card flat bordered style="width: min(420px, 100%)">
+  <q-page class="auth-page flex flex-center">
+    <q-card flat class="auth-card">
       <q-card-section>
-        <div class="text-h6">
+        <h1 class="auth-title">
           {{ invitation ? 'Activez votre compte' : 'Nouveau mot de passe' }}
-        </div>
+        </h1>
         <div v-if="invitation" class="text-body2 text-grey-8 q-mt-xs">
           Un compte a été créé pour vous. Choisissez votre mot de passe pour l'ouvrir.
         </div>
       </q-card-section>
 
       <q-card-section class="q-pt-none">
-        <q-banner v-if="!token" class="bg-red-1 text-red-9" rounded>
-          <template #avatar><q-icon name="error_outline" /></template>
+        <AppNotice v-if="!token" tone="error">
           Ce lien est incomplet. Demandez-en un nouveau depuis la page « mot de passe oublié ».
-        </q-banner>
+        </AppNotice>
 
         <template v-else-if="doneMessage">
-          <q-banner class="bg-green-1 text-green-9 q-mb-md" rounded>
-            <template #avatar><q-icon name="check_circle" /></template>
+          <AppNotice tone="success" class="q-mb-md">
             {{ doneMessage }}
-          </q-banner>
+          </AppNotice>
           <q-btn color="primary" label="Se connecter" class="full-width" :to="{ name: 'login' }" />
         </template>
 
         <template v-else>
-          <q-banner v-if="errorMessage" class="bg-red-1 text-red-9 q-mb-md" rounded>
-            <template #avatar><q-icon name="error_outline" /></template>
+          <AppNotice v-if="errorMessage" tone="error" class="q-mb-md">
             {{ errorMessage }}
-          </q-banner>
+          </AppNotice>
 
           <q-form @submit.prevent="onSubmit">
             <q-input
@@ -36,7 +33,7 @@
               :type="showPassword ? 'text' : 'password'"
               data-testid="reset-password"
               outlined
-              dense
+              stack-label
               label="Nouveau mot de passe"
               autocomplete="new-password"
               class="q-mb-sm"
@@ -58,7 +55,7 @@
               :type="showPassword ? 'text' : 'password'"
               data-testid="reset-confirmation"
               outlined
-              dense
+              stack-label
               label="Confirmer le mot de passe"
               autocomplete="new-password"
               class="q-mb-md"
@@ -80,6 +77,7 @@
 </template>
 
 <script setup lang="ts">
+import AppNotice from 'src/components/AppNotice.vue';
 import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { resetPassword } from 'src/api/passwordReset';

@@ -1,258 +1,295 @@
 <template>
-  <q-page class="catalogue-page">
-    <div class="row q-col-gutter-md q-pa-md">
-      <!-- Sidebar filtres -->
-      <div class="col-12 col-md-3 col-lg-2">
-        <q-card flat bordered class="q-pa-md">
-          <div class="text-subtitle2 q-mb-sm">Filtres</div>
+  <q-page class="catalogue page-container">
+    <!-- Catégories -->
+    <nav v-if="categoryOptions.length > 0" class="catalogue__cats" aria-label="Catégories">
+      <button
+        type="button"
+        class="chip"
+        :class="{ 'chip--active': selectedCategory === null }"
+        :aria-pressed="selectedCategory === null"
+        @click="onCategoryChange(null)"
+      >
+        Tout le catalogue
+      </button>
+      <button
+        v-for="cat in categoryOptions"
+        :key="cat.value"
+        type="button"
+        class="chip"
+        :class="{ 'chip--active': selectedCategory === cat.value }"
+        :aria-pressed="selectedCategory === cat.value"
+        @click="onCategoryChange(cat.value)"
+      >
+        {{ cat.label }}
+      </button>
+    </nav>
 
-          <!-- Catégorie -->
-          <div v-if="categoryOptions.length > 0" class="q-mb-md">
-            <div class="text-caption text-grey-7 q-mb-xs">Catégorie</div>
-            <q-select
-              v-model="selectedCategory"
-              :options="categoryOptions"
-              option-value="value"
-              option-label="label"
-              emit-value
-              map-options
-              clearable
-              dense
-              outlined
-              placeholder="Toutes"
-              @update:model-value="onCategoryChange"
-            />
-          </div>
-
-          <!-- Caractéristiques (specs) — dépend de la catégorie sélectionnée -->
-          <div v-if="store.specFacets.length > 0" class="q-mb-md">
-            <div class="text-caption text-weight-medium text-grey-8 q-mb-xs">Caractéristiques</div>
-            <div v-for="facet in store.specFacets" :key="facet.key" class="q-mb-sm">
-              <div class="text-caption text-grey-7">{{ facet.label_fr }}</div>
-
-              <!-- numérique : minimum (≥) -->
-              <q-select
-                v-if="facet.type === 'numeric'"
-                :model-value="numericMin[facet.key] ?? null"
-                :options="numericOptions(facet)"
-                option-value="value"
-                option-label="label"
-                emit-value
-                map-options
-                clearable
-                dense
-                outlined
-                :placeholder="`≥ minimum${facet.unit ? ' (' + facet.unit + ')' : ''}`"
-                @update:model-value="(v: number | null) => onNumericChange(facet.key, v)"
-              />
-
-              <!-- enum : cases à cocher -->
-              <template v-else>
-                <q-checkbox
-                  v-for="val in facet.values ?? []"
-                  :key="String(val.value_text)"
-                  :model-value="(enumSelections[facet.key] ?? []).includes(val.value_text ?? '')"
-                  :label="`${val.value_text} (${val.count})`"
-                  dense
-                  size="sm"
-                  class="block"
-                  @update:model-value="
-                    (c: boolean) => onEnumToggle(facet.key, val.value_text ?? '', c)
-                  "
-                />
-              </template>
-            </div>
-          </div>
-
-          <!-- Fabricant -->
-          <div v-if="manufacturerOptions.length > 0" class="q-mb-md">
-            <div class="text-caption text-grey-7 q-mb-xs">Fabricant</div>
-            <q-select
-              v-model="selectedManufacturer"
-              :options="manufacturerOptions"
-              option-value="value"
-              option-label="label"
-              emit-value
-              map-options
-              clearable
-              dense
-              outlined
-              placeholder="Tous"
-              @update:model-value="onManufacturerChange"
-            />
-          </div>
-
-          <!-- Stock
-          <div class="q-mb-md">
-            <q-toggle
-              v-model="inStockOnly"
-              label="En stock uniquement"
-              dense
-              @update:model-value="onStockToggle"
-            />
-          </div>
-          -->
-
-          <!-- Prix -->
-          <div class="q-mb-md">
-            <div class="text-caption text-grey-7 q-mb-xs">Prix (XPF)</div>
-            <div class="row q-col-gutter-xs">
-              <div class="col-6">
-                <q-input
-                  v-model.number="priceMin"
-                  type="number"
-                  dense
-                  outlined
-                  placeholder="Min"
-                  @keyup.enter="onPriceChange"
-                />
-              </div>
-              <div class="col-6">
-                <q-input
-                  v-model.number="priceMax"
-                  type="number"
-                  dense
-                  outlined
-                  placeholder="Max"
-                  @keyup.enter="onPriceChange"
-                />
-              </div>
-            </div>
-            <q-btn
-              flat
-              dense
-              size="sm"
-              color="primary"
-              label="Appliquer"
-              class="q-mt-xs"
-              @click="onPriceChange"
-            />
-          </div>
-
+    <div class="catalogue__layout">
+      <!-- Filtres : colonne sur ordinateur, panneau plein écran sur mobile -->
+      <aside
+        id="catalogue-filters"
+        class="filters"
+        :class="{ 'filters--open': filtersOpen }"
+        aria-label="Filtres"
+      >
+        <div class="filters__sheet-head">
+          <span class="filters__sheet-title">Filtres</span>
           <q-btn
             flat
-            dense
-            color="grey-7"
-            label="Réinitialiser"
-            icon="filter_alt_off"
-            class="full-width"
-            @click="resetFilters"
+            round
+            icon="ph:x"
+            aria-label="Fermer les filtres"
+            @click="filtersOpen = false"
           />
-        </q-card>
-      </div>
+        </div>
 
-      <!-- Contenu principal -->
-      <div class="col-12 col-md-9 col-lg-10">
-        <!-- Barre de recherche -->
-        <div class="row items-center q-mb-md q-col-gutter-sm">
-          <div class="col">
-            <q-input
-              v-model="searchQuery"
-              outlined
-              dense
-              placeholder="Rechercher un produit, une référence…"
-              clearable
-              @keyup.enter="onSearch"
-              @clear="onSearch"
-            >
-              <template #prepend>
-                <q-icon name="search" />
-              </template>
-              <template #append>
-                <q-btn flat dense round icon="search" color="primary" @click="onSearch" />
-              </template>
-            </q-input>
+        <div class="filters__body">
+          <div v-if="manufacturerOptions.length > 0" class="filters__group">
+            <fieldset class="filters__fieldset">
+              <legend class="filters__legend">Fabricant</legend>
+              <label class="filters__option">
+                <input
+                  type="radio"
+                  name="manufacturer"
+                  :checked="selectedManufacturer === null"
+                  @change="onManufacturerChange(null)"
+                />
+                <span class="filters__option-label">Tous les fabricants</span>
+              </label>
+              <label v-for="opt in visibleManufacturers" :key="opt.value" class="filters__option">
+                <input
+                  type="radio"
+                  name="manufacturer"
+                  :checked="selectedManufacturer === opt.value"
+                  @change="onManufacturerChange(opt.value)"
+                />
+                <span class="filters__option-label">{{ opt.value }}</span>
+                <span class="filters__count font-mono">{{ opt.count }}</span>
+              </label>
+              <button
+                v-if="hiddenManufacturerCount > 0"
+                type="button"
+                class="text-link filters__more"
+                @click="showAllManufacturers = true"
+              >
+                Voir {{ hiddenManufacturerCount }} autres fabricants
+              </button>
+            </fieldset>
           </div>
-          <div class="col-auto">
-            <span class="text-caption text-grey-6">
-              {{ store.count }} résultat{{ store.count !== 1 ? 's' : '' }}
+
+          <template v-for="facet in store.specFacets" :key="facet.key">
+            <div v-if="facet.type === 'numeric'" class="filters__group">
+              <label :for="`spec-${facet.key}`" class="filters__legend">
+                {{ facet.label_fr }} minimum
+              </label>
+              <select
+                :id="`spec-${facet.key}`"
+                class="field-input"
+                :value="numericMin[facet.key] ?? ''"
+                @change="onNumericSelect(facet.key, $event)"
+              >
+                <option value="">Indifférent</option>
+                <option v-for="opt in numericOptions(facet)" :key="opt.value" :value="opt.value">
+                  {{ opt.label }}
+                </option>
+              </select>
+            </div>
+
+            <div v-else class="filters__group">
+              <fieldset class="filters__fieldset">
+                <legend class="filters__legend">{{ facet.label_fr }}</legend>
+                <label
+                  v-for="val in facet.values ?? []"
+                  :key="String(val.value_text)"
+                  class="filters__option"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="(enumSelections[facet.key] ?? []).includes(val.value_text ?? '')"
+                    @change="
+                      onEnumToggle(
+                        facet.key,
+                        val.value_text ?? '',
+                        ($event.target as HTMLInputElement).checked,
+                      )
+                    "
+                  />
+                  <span class="filters__option-label">{{ val.value_text }}</span>
+                  <span class="filters__count font-mono">{{ val.count }}</span>
+                </label>
+              </fieldset>
+            </div>
+          </template>
+
+          <form class="filters__group" @submit.prevent="onPriceChange">
+            <span class="filters__legend">Prix (XPF)</span>
+            <div class="filters__price">
+              <div class="field">
+                <label for="price-min" class="field__label">Minimum</label>
+                <input
+                  id="price-min"
+                  v-model.number="priceMin"
+                  type="number"
+                  min="0"
+                  inputmode="numeric"
+                  class="field-input font-mono"
+                />
+              </div>
+              <div class="field">
+                <label for="price-max" class="field__label">Maximum</label>
+                <input
+                  id="price-max"
+                  v-model.number="priceMax"
+                  type="number"
+                  min="0"
+                  inputmode="numeric"
+                  class="field-input font-mono"
+                />
+              </div>
+            </div>
+            <q-btn type="submit" outline color="primary" label="Appliquer" class="filters__apply" />
+          </form>
+
+          <button type="button" class="text-link filters__reset" @click="resetFilters">
+            Réinitialiser les filtres
+          </button>
+        </div>
+
+        <div class="filters__sheet-foot">
+          <q-btn
+            unelevated
+            color="primary"
+            class="full-width"
+            :label="`Voir ${resultLabel}`"
+            @click="filtersOpen = false"
+          />
+        </div>
+      </aside>
+
+      <section class="catalogue__results" aria-labelledby="catalogue-title">
+        <div class="catalogue__head">
+          <div class="catalogue__heading">
+            <h1 id="catalogue-title" class="page-title">{{ pageTitle }}</h1>
+            <span v-if="!store.loading && !store.error" class="catalogue__count font-mono">
+              {{ resultLabel }}
             </span>
           </div>
+          <q-btn
+            outline
+            color="primary"
+            icon="ph:sliders-horizontal"
+            :label="activeFilters.length > 0 ? `Filtres (${activeFilters.length})` : 'Filtres'"
+            class="lt-md"
+            aria-controls="catalogue-filters"
+            :aria-expanded="filtersOpen"
+            @click="filtersOpen = true"
+          />
         </div>
 
-        <q-banner
-          v-if="cartFeedback"
-          :class="cartFeedback.ok ? 'bg-green-1 text-green-9' : 'bg-orange-1 text-orange-10'"
-          class="q-mb-md"
-          rounded
-        >
-          <template #avatar>
-            <q-icon :name="cartFeedback.ok ? 'check_circle' : 'warning_amber'" />
-          </template>
-          {{ cartFeedback.message }}
-        </q-banner>
+        <div v-if="activeFilters.length > 0" class="catalogue__active">
+          <button
+            v-for="f in activeFilters"
+            :key="f.key"
+            type="button"
+            class="active-filter"
+            :aria-label="`Retirer le filtre ${f.label}`"
+            @click="f.remove()"
+          >
+            {{ f.label }}
+            <q-icon name="ph:x" size="14px" />
+          </button>
+          <button type="button" class="text-link" @click="resetFilters">Tout effacer</button>
+        </div>
 
-        <!-- État chargement -->
-        <div v-if="store.loading" class="row q-col-gutter-md">
-          <div v-for="n in 12" :key="n" class="col-12 col-sm-6 col-md-4 col-lg-3">
-            <q-card flat bordered>
-              <q-skeleton height="180px" square />
-              <q-card-section>
-                <q-skeleton type="text" />
-                <q-skeleton type="text" width="60%" />
-              </q-card-section>
-            </q-card>
+        <AppNotice v-if="cartError" tone="warning" class="catalogue__notice">
+          {{ cartError }}
+        </AppNotice>
+
+        <!-- Chargement : squelettes à la forme des cartes -->
+        <div v-if="store.loading" class="product-grid" aria-busy="true">
+          <div v-for="n in 8" :key="n" class="skeleton-card">
+            <q-skeleton square class="skeleton-card__media" />
+            <q-skeleton type="text" width="40%" />
+            <q-skeleton type="text" width="90%" />
+            <q-skeleton type="text" width="55%" />
           </div>
         </div>
 
-        <!-- Erreur -->
-        <q-banner v-else-if="store.error" class="bg-red-1 text-red-8 q-mb-md" rounded>
-          <template #avatar><q-icon name="error_outline" /></template>
+        <AppNotice v-else-if="store.error" tone="error">
           {{ store.error }}
           <template #action>
             <q-btn flat label="Réessayer" @click="store.search()" />
           </template>
-        </q-banner>
+        </AppNotice>
 
-        <!-- Aucun résultat -->
-        <div v-else-if="store.items.length === 0" class="column items-center q-py-xl text-grey-6">
-          <q-icon name="search_off" size="4rem" class="q-mb-md" />
-          <div class="text-h6">Aucun produit trouvé</div>
-          <div class="text-body2">Modifiez vos critères de recherche</div>
+        <div v-else-if="store.items.length === 0" class="catalogue__empty">
+          <q-icon name="ph:magnifying-glass" size="40px" class="text-subtle" />
+          <h2>Aucun produit ne correspond</h2>
+          <p>Modifiez la recherche ou retirez des filtres.</p>
+          <q-btn
+            v-if="activeFilters.length > 0"
+            outline
+            color="primary"
+            label="Tout effacer"
+            @click="resetFilters"
+          />
         </div>
 
-        <!-- Grille produits -->
-        <div v-else class="row q-col-gutter-md">
-          <div
+        <div v-else class="product-grid">
+          <ProductCard
             v-for="product in store.items"
             :key="product.id"
-            class="col-12 col-sm-6 col-md-4 col-lg-3"
-          >
-            <ProductCard :product="product" @add-to-cart="onAddToCart" />
-          </div>
+            :product="product"
+            @add-to-cart="onAddToCart"
+          />
         </div>
 
-        <!-- Pagination -->
-        <div v-if="store.totalPages > 1" class="row justify-center q-mt-lg">
+        <nav v-if="store.totalPages > 1" class="catalogue__pagination" aria-label="Pagination">
+          <span class="font-mono text-subtle"
+            >Page {{ currentPage }} sur {{ store.totalPages }}</span
+          >
           <q-pagination
             v-model="currentPage"
             :max="store.totalPages"
-            :max-pages="7"
+            :max-pages="5"
             boundary-numbers
             direction-links
-            color="primary"
-            @update:model-value="store.setPage($event)"
+            flat
+            color="grey-7"
+            active-design="unelevated"
+            active-color="primary"
+            active-text-color="white"
+            class="font-mono"
+            @update:model-value="onPageChange"
           />
-        </div>
-      </div>
+        </nav>
+      </section>
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onServerPrefetch, ref } from 'vue';
+import { computed, onMounted, onServerPrefetch, ref, watch } from 'vue';
 import { useMeta } from 'quasar';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute, useRouter, type LocationQuery } from 'vue-router';
 import { useProductsStore } from 'src/stores/products';
 import { useCartStore } from 'src/stores/cart';
+import { useCurrencyStore } from 'src/stores/currency';
+import { useUiStore } from 'src/stores/ui';
+import AppNotice from 'src/components/AppNotice.vue';
 import ProductCard from 'src/components/ProductCard.vue';
 import type { components } from '@app/api-types';
 
 type ProductPublic = components['schemas']['ProductPublic'];
 type SpecFacet = components['schemas']['SpecFacet'];
 
+/** Fabricants affichés avant « Voir N autres ». */
+const MANUFACTURERS_SHOWN = 6;
+
 const store = useProductsStore();
 const cartStore = useCartStore();
+const currencyStore = useCurrencyStore();
+const uiStore = useUiStore();
 const route = useRoute();
 const router = useRouter();
 
@@ -272,12 +309,45 @@ const selectedCategory = ref<string | null>(null);
 // Spec filters: enum key → selected value_text[]; numeric key → minimum value.
 const enumSelections = ref<Record<string, string[]>>({});
 const numericMin = ref<Record<string, number | null>>({});
-const priceMin = ref<number | null>(null);
-const priceMax = ref<number | null>(null);
-const cartFeedback = ref<{ ok: boolean; message: string } | null>(null);
+const priceMin = ref<number | ''>('');
+const priceMax = ref<number | ''>('');
+const cartError = ref<string | null>(null);
+const filtersOpen = ref(false);
+const showAllManufacturers = ref(false);
 
 const categoryOptions = computed(() =>
   store.categories.map((c) => ({ label: c.title ?? c.name, value: c.id })),
+);
+
+const pageTitle = computed(() => {
+  if (store.filters.q) return `Résultats pour « ${store.filters.q} »`;
+  const cat = categoryOptions.value.find((c) => c.value === selectedCategory.value);
+  return cat?.label ?? 'Catalogue';
+});
+
+const resultLabel = computed(() =>
+  store.count === 1 ? '1 résultat' : `${store.count.toLocaleString('fr-FR')} résultats`,
+);
+
+const manufacturerOptions = computed(() => {
+  const mfrs = store.facets?.manufacturers ?? {};
+  return Object.entries(mfrs)
+    .sort((a, b) => b[1] - a[1])
+    .map(([value, count]) => ({ value, count }));
+});
+
+const visibleManufacturers = computed(() => {
+  const all = manufacturerOptions.value;
+  if (showAllManufacturers.value || all.length <= MANUFACTURERS_SHOWN + 1) return all;
+  const shown = all.slice(0, MANUFACTURERS_SHOWN);
+  // Le fabricant choisi reste visible même s'il est au-delà de la coupure.
+  const selected = all.find((o) => o.value === selectedManufacturer.value);
+  if (selected && !shown.includes(selected)) shown.push(selected);
+  return shown;
+});
+
+const hiddenManufacturerCount = computed(
+  () => manufacturerOptions.value.length - visibleManufacturers.value.length,
 );
 
 function numericOptions(facet: SpecFacet): { label: string; value: number }[] {
@@ -289,7 +359,7 @@ function numericOptions(facet: SpecFacet): { label: string; value: number }[] {
     if (!Number.isFinite(num) || seen.has(num)) continue;
     seen.add(num);
     opts.push({
-      label: `≥ ${num}${facet.unit ? ' ' + facet.unit : ''} (${v.count})`,
+      label: `${num}${facet.unit ? ' ' + facet.unit : ''} et plus (${v.count})`,
       value: num,
     });
   }
@@ -308,6 +378,67 @@ function buildSpecs(): Record<string, unknown> {
   return specs;
 }
 
+type ActiveFilter = { key: string; label: string; remove: () => void };
+
+/** Filtres en cours, affichés en puces retirables au-dessus de la grille. */
+const activeFilters = computed<ActiveFilter[]>(() => {
+  const list: ActiveFilter[] = [];
+  const q = store.filters.q;
+  if (q) {
+    list.push({
+      key: 'q',
+      label: `« ${q} »`,
+      remove: () => {
+        searchQuery.value = '';
+        void store.applyFilters({ q: null }).then(syncQueryParams);
+      },
+    });
+  }
+  if (selectedManufacturer.value) {
+    list.push({
+      key: 'mfr',
+      label: selectedManufacturer.value,
+      remove: () => void onManufacturerChange(null),
+    });
+  }
+  for (const facet of store.specFacets) {
+    for (const value of enumSelections.value[facet.key] ?? []) {
+      list.push({
+        key: `enum-${facet.key}-${value}`,
+        label: value,
+        remove: () => onEnumToggle(facet.key, value, false),
+      });
+    }
+    const min = numericMin.value[facet.key];
+    if (min != null) {
+      list.push({
+        key: `num-${facet.key}`,
+        label: `${facet.label_fr} ${min}${facet.unit ? ' ' + facet.unit : ''} et plus`,
+        remove: () => onNumericChange(facet.key, null),
+      });
+    }
+  }
+  const { price_min: pMin, price_max: pMax } = store.filters;
+  if (pMin != null || pMax != null) {
+    const label =
+      pMin != null && pMax != null
+        ? `${currencyStore.format(pMin)} à ${currencyStore.format(pMax)}`
+        : pMin != null
+          ? `Dès ${currencyStore.format(pMin)}`
+          : `Jusqu'à ${currencyStore.format(pMax ?? 0)}`;
+    list.push({
+      key: 'price',
+      label,
+      remove: () => {
+        priceMin.value = '';
+        priceMax.value = '';
+        void onPriceChange();
+      },
+    });
+  }
+  return list;
+});
+
 const currentPage = computed({
   get: () => store.currentPage,
   set: (v) => {
@@ -315,24 +446,19 @@ const currentPage = computed({
   },
 });
 
-const manufacturerOptions = computed(() => {
-  const mfrs = store.facets?.manufacturers ?? {};
-  return Object.entries(mfrs)
-    .sort((a, b) => b[1] - a[1])
-    .map(([name, cnt]) => ({ label: `${name} (${cnt})`, value: name }));
-});
-
-async function onSearch() {
-  await store.applyFilters({ q: searchQuery.value || null });
-  syncQueryParams();
+async function onPageChange(page: number) {
+  await store.setPage(page);
+  window.scrollTo({ top: 0 });
 }
 
 async function onManufacturerChange(val: string | null) {
+  selectedManufacturer.value = val;
   await store.applyFilters({ manufacturer: val });
   syncQueryParams();
 }
 
 async function onCategoryChange(catId: string | null) {
+  if (catId === selectedCategory.value) return;
   selectedCategory.value = catId;
   // Spec facets are per-category — reset any previous spec selection.
   enumSelections.value = {};
@@ -342,26 +468,31 @@ async function onCategoryChange(catId: string | null) {
   syncQueryParams();
 }
 
-async function onSpecChange() {
-  await store.applyFilters({ specs: buildSpecs() });
+function onSpecChange() {
+  void store.applyFilters({ specs: buildSpecs() });
+}
+
+function onNumericSelect(key: string, event: Event) {
+  const raw = (event.target as HTMLSelectElement).value;
+  onNumericChange(key, raw === '' ? null : Number(raw));
 }
 
 function onNumericChange(key: string, value: number | null) {
   numericMin.value = { ...numericMin.value, [key]: value };
-  void onSpecChange();
+  onSpecChange();
 }
 
 function onEnumToggle(key: string, value: string, checked: boolean) {
   const current = enumSelections.value[key] ?? [];
   const next = checked ? [...current, value] : current.filter((v) => v !== value);
   enumSelections.value = { ...enumSelections.value, [key]: next };
-  void onSpecChange();
+  onSpecChange();
 }
 
 async function onPriceChange() {
   await store.applyFilters({
-    price_min: priceMin.value ?? null,
-    price_max: priceMax.value ?? null,
+    price_min: priceMin.value === '' ? null : priceMin.value,
+    price_max: priceMax.value === '' ? null : priceMax.value,
   });
 }
 
@@ -371,8 +502,9 @@ async function resetFilters() {
   selectedCategory.value = null;
   enumSelections.value = {};
   numericMin.value = {};
-  priceMin.value = null;
-  priceMax.value = null;
+  priceMin.value = '';
+  priceMax.value = '';
+  showAllManufacturers.value = false;
   await store.loadSpecFacets(null);
   await store.applyFilters({
     q: null,
@@ -386,45 +518,41 @@ async function resetFilters() {
   void router.replace({ query: {} });
 }
 
-function syncQueryParams() {
+function stateQuery(): Record<string, string> {
   const query: Record<string, string> = {};
   if (searchQuery.value) query['q'] = searchQuery.value;
   if (selectedManufacturer.value) query['mfr'] = selectedManufacturer.value;
   if (selectedCategory.value) query['cat'] = selectedCategory.value;
-  void router.replace({ query });
+  return query;
+}
+
+function syncQueryParams() {
+  void router.replace({ query: stateQuery() });
 }
 
 async function onAddToCart(product: ProductPublic) {
-  cartFeedback.value = null;
+  cartError.value = null;
   const ok = await cartStore.addItem(product.id, 1, product);
-
   if (ok) {
-    cartFeedback.value = {
-      ok: true,
-      message: `${product.name} ajoute au panier.`,
-    };
+    uiStore.openCartDrawer(product.id);
     return;
   }
-
-  cartFeedback.value = {
-    ok: false,
-    message: cartStore.error ?? "Impossible d'ajouter cet article au panier.",
-  };
+  cartError.value = cartStore.error ?? "Impossible d'ajouter cet article au panier.";
 }
 
-function initFromQuery() {
-  const q = route.query['q'];
-  const mfr = route.query['mfr'];
-  const cat = route.query['cat'];
-  if (typeof q === 'string') searchQuery.value = q;
-  if (typeof mfr === 'string') selectedManufacturer.value = mfr;
-  if (typeof cat === 'string') selectedCategory.value = cat;
+function initFromQuery(query: LocationQuery = route.query) {
+  const q = query['q'];
+  const mfr = query['mfr'];
+  const cat = query['cat'];
+  searchQuery.value = typeof q === 'string' ? q : '';
+  selectedManufacturer.value = typeof mfr === 'string' ? mfr : null;
+  selectedCategory.value = typeof cat === 'string' ? cat : null;
 }
 
 async function loadCatalogueData() {
   initFromQuery();
   await store.loadCategories();
-  if (selectedCategory.value) await store.loadSpecFacets(selectedCategory.value);
+  await store.loadSpecFacets(selectedCategory.value);
   await store.applyFilters({
     q: searchQuery.value || null,
     manufacturer: selectedManufacturer.value,
@@ -432,6 +560,26 @@ async function loadCatalogueData() {
     specs: buildSpecs(),
   });
 }
+
+// La recherche de l'en-tête (ou un lien) change l'URL : on recharge alors le
+// catalogue depuis l'URL, en ignorant les URL que la page a elle-même écrites.
+watch(
+  () => route.query,
+  (query) => {
+    if (route.name !== 'catalogue') return;
+    const current = stateQuery();
+    const same =
+      ['q', 'mfr', 'cat'].every((k) => (query[k] ?? undefined) === current[k]) &&
+      Object.keys(query).every((k) => ['q', 'mfr', 'cat'].includes(k));
+    if (same) return;
+    const categoryChanged = (query['cat'] ?? null) !== selectedCategory.value;
+    if (categoryChanged) {
+      enumSelections.value = {};
+      numericMin.value = {};
+    }
+    void loadCatalogueData();
+  },
+);
 
 onServerPrefetch(loadCatalogueData);
 
@@ -441,7 +589,395 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-.catalogue-page {
-  min-height: 100vh;
+.catalogue {
+  padding-top: 20px;
+  padding-bottom: 72px;
+}
+
+.catalogue__cats {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 -40px;
+  padding: 0 40px 4px;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (max-width: 767px) {
+    margin: 0 -16px;
+    padding: 0 16px 4px;
+  }
+}
+
+.chip {
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 16px;
+  border: 1px solid var(--n-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--n-ink-2);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+
+  &:hover {
+    border-color: var(--n-line-2);
+    color: var(--n-ink);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  &--active,
+  &--active:hover {
+    border-color: var(--n-ink);
+    background: var(--n-ink);
+    color: var(--n-on-ink);
+  }
+}
+
+.catalogue__layout {
+  margin-top: 36px;
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  gap: 48px;
+  align-items: start;
+
+  @media (max-width: 1023px) {
+    margin-top: 24px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+// Filtres
+.filters__fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filters__body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.filters__group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+
+  & + & {
+    padding-top: 24px;
+    border-top: 1px solid var(--n-line);
+  }
+}
+
+.filters__legend {
+  padding: 0;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--n-ink);
+}
+
+.filters__option {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  cursor: pointer;
+
+  input {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--n-accent);
+    cursor: pointer;
+  }
+}
+
+.filters__option-label {
+  flex-grow: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filters__count {
+  font-size: 12px;
+  color: var(--n-ink-3);
+}
+
+.filters__more {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.filters__price {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.filters__apply {
+  margin-top: 4px;
+  min-height: 40px;
+}
+
+.filters__reset {
+  align-self: flex-start;
+}
+
+.filters__sheet-head,
+.filters__sheet-foot {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .filters {
+    display: none;
+  }
+
+  .filters--open {
+    position: fixed;
+    inset: 0;
+    z-index: 3000; // au-dessus de l'en-tête Quasar (2000)
+    display: flex;
+    flex-direction: column;
+    background: var(--n-surface);
+  }
+
+  .filters__sheet-head {
+    flex-shrink: 0;
+    height: 56px;
+    padding: 0 8px 0 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--n-line);
+  }
+
+  .filters__sheet-title {
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .filters__body {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 24px 16px;
+  }
+
+  .filters__sheet-foot {
+    flex-shrink: 0;
+    display: block;
+    padding: 12px 16px 20px;
+    border-top: 1px solid var(--n-line);
+
+    .q-btn {
+      min-height: 48px;
+    }
+  }
+}
+
+// Champs
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field__label {
+  font-size: 12px;
+  color: var(--n-ink-2);
+}
+
+.field-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--n-line-2);
+  border-radius: 8px;
+  background: var(--n-surface);
+  color: var(--n-ink);
+  font: inherit;
+  font-size: 14px;
+  outline: 0;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:focus {
+    border-color: var(--n-accent);
+    box-shadow: 0 0 0 3px var(--n-accent-soft);
+  }
+
+  @media (max-width: 1023px) {
+    height: 44px;
+    font-size: 16px;
+  }
+}
+
+// Résultats
+.catalogue__results {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.catalogue__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.catalogue__heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  min-width: 0;
+}
+
+.catalogue__count {
+  font-size: 13px;
+  color: var(--n-ink-3);
+}
+
+.catalogue__active {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.active-filter {
+  height: 32px;
+  padding: 0 10px 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--n-accent-soft);
+  color: var(--n-accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+.text-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--n-ink-2);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--n-accent);
+  }
+}
+
+.product-grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 20px;
+  row-gap: 48px;
+
+  @media (max-width: 1279px) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  @media (max-width: 767px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 12px;
+    row-gap: 32px;
+  }
+}
+
+.skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.skeleton-card__media {
+  aspect-ratio: 1;
+  height: auto;
+  margin-bottom: 8px;
+  border-radius: 8px;
+}
+
+.catalogue__empty {
+  padding: 72px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+
+  h2 {
+    margin: 8px 0 0;
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  p {
+    margin: 0 0 12px;
+    color: var(--n-ink-2);
+  }
+}
+
+.catalogue__pagination {
+  margin-top: 40px;
+  padding-top: 24px;
+  border-top: 1px solid var(--n-line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 13px;
+
+  @media (max-width: 767px) {
+    flex-direction: column;
+  }
 }
 </style>

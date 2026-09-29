@@ -1,55 +1,31 @@
 <template>
-  <div v-if="others.length > 0" class="product-offers">
-    <div class="text-subtitle2 q-mb-xs">
-      {{ others.length === 1 ? 'Autre offre' : `${others.length} autres offres` }}
-      <span class="text-caption text-grey-6"> — même article, autre fournisseur</span>
-    </div>
-    <q-list bordered separator dense class="rounded-borders">
-      <q-item
-        v-for="offer in others"
-        :key="offer.product_id"
-        clickable
-        :to="getProductRouteByIdAndName(offer.product_id, offer.name)"
-        @click="emit('navigate')"
-      >
-        <q-item-section avatar>
-          <q-avatar rounded size="40px" class="bg-grey-1">
-            <img
-              v-if="offer.image_url"
-              :src="offer.image_url"
-              :alt="offer.name"
-              style="object-fit: contain"
-            />
-            <q-icon v-else name="inventory_2" color="grey-5" />
-          </q-avatar>
-        </q-item-section>
-        <q-item-section>
-          <q-item-label class="ellipsis">{{ offer.supplier_label ?? offer.name }}</q-item-label>
-          <q-item-label caption>
-            <q-badge
-              :color="offer.is_domestic ? 'teal' : 'orange'"
-              :label="offer.is_domestic ? 'Stock local' : 'Import'"
-              class="q-mr-xs"
-            />
-            <span :class="offer.in_stock ? 'text-positive' : 'text-grey-6'">
-              {{ offer.in_stock ? `${stockOf(offer)} en stock` : 'Sur commande' }}
-            </span>
-          </q-item-label>
-        </q-item-section>
-        <q-item-section side>
-          <div class="text-weight-bold text-primary">{{ priceOf(offer) }}</div>
-          <q-badge
-            v-if="offer.product_id === cheapestId"
-            color="positive"
-            label="Meilleur prix"
-          />
-        </q-item-section>
-      </q-item>
-    </q-list>
-    <div v-if="currentIsCheapest" class="text-caption text-positive q-mt-xs">
-      <q-icon name="check_circle" size="14px" class="q-mr-xs" />Cette offre est la moins chère.
-    </div>
-  </div>
+  <section v-if="others.length > 0" class="offers" aria-labelledby="offers-title">
+    <h2 id="offers-title" class="offers__title">
+      {{ others.length === 1 ? 'Autre offre pour cet article' : 'Autres offres pour cet article' }}
+    </h2>
+    <router-link
+      v-for="offer in others"
+      :key="offer.product_id"
+      :to="getProductRouteByIdAndName(offer.product_id, offer.name)"
+      class="offers__row"
+      @click="emit('navigate')"
+    >
+      <span class="offers__who">
+        <span class="offers__name">{{ offer.supplier_label ?? offer.name }}</span>
+        <span class="offers__detail">
+          {{ offer.is_domestic ? 'Stock local' : 'Import' }},
+          {{ offer.in_stock ? `${stockOf(offer)} en stock` : 'sur commande' }}
+        </span>
+      </span>
+      <span class="offers__price-col">
+        <span class="offers__price font-mono">{{ priceOf(offer) }}</span>
+        <span v-if="offer.product_id === cheapestId" class="offers__best">Meilleur prix</span>
+      </span>
+    </router-link>
+    <p v-if="currentIsCheapest" class="offers__note">
+      <q-icon name="ph:check-circle" size="16px" />Cette offre est la moins chère.
+    </p>
+  </section>
 </template>
 
 <script setup lang="ts">
@@ -79,3 +55,84 @@ function stockOf(offer: ProductOfferPublic): number {
   return Math.max(0, Math.round(parseFloat(offer.supplier_quantity)));
 }
 </script>
+
+<style scoped lang="scss">
+.offers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.offers__title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.offers__row {
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--n-line);
+  border-radius: 8px;
+  color: var(--n-ink);
+  text-decoration: none;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+
+  &:hover {
+    border-color: var(--n-line-2);
+    background: var(--n-bg);
+  }
+}
+
+.offers__who,
+.offers__price-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.offers__price-col {
+  flex-shrink: 0;
+  align-items: flex-end;
+}
+
+.offers__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.offers__detail {
+  font-size: 13px;
+  color: var(--n-ink-3);
+}
+
+.offers__price {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.offers__best {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--n-accent);
+}
+
+.offers__note {
+  margin: 4px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--n-ink-2);
+}
+</style>

@@ -23,7 +23,7 @@
       <p>
         Le responsable du traitement des données collectées sur ce site est
         <strong>{{ legalEntity.tradingName }}</strong>,
-        <LegalValue :value="legalEntity.headOfficeAddress" /> — contact&nbsp;:
+        <LegalValue :value="legalEntity.headOfficeAddress" />. Contact&nbsp;:
         <LegalValue :value="legalEntity.contactEmail" />.
       </p>
 
@@ -98,7 +98,7 @@
       <p>
         Le site n'utilise <strong>aucun cookie publicitaire ni de mesure d'audience</strong>.
         Seuls des cookies et stockages strictement nécessaires au fonctionnement du service sont
-        utilisés — ils sont à ce titre exemptés de recueil de consentement&nbsp;:
+        utilisés. Ils sont à ce titre exemptés de recueil de consentement&nbsp;:
       </p>
       <div class="legal-page__table-wrapper">
         <table class="legal-page__table">
@@ -170,13 +170,13 @@ const legalEntity = computed(() => store.entity);
 
   th,
   td {
-    border: 1px solid rgba(0, 0, 0, 0.12);
+    border: 1px solid var(--n-line);
     padding: 8px 12px;
     text-align: left;
   }
 
   th {
-    background: rgba(0, 0, 0, 0.04);
+    background: var(--n-tile);
   }
 }
 </style>
