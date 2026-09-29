@@ -1,8 +1,8 @@
 <template>
-  <q-page class="flex flex-center q-pa-md">
-    <q-card flat bordered style="width: 100%; max-width: 460px">
+  <q-page class="auth-page flex flex-center">
+    <q-card flat class="auth-card">
       <q-card-section>
-        <div class="text-h5 q-mb-xs">Créer un compte</div>
+        <h1 class="auth-title">Créer un compte</h1>
         <div class="text-body2 text-grey-7">
           Vérifiez votre email avec un code, puis choisissez un mot de passe.
         </div>
@@ -21,7 +21,7 @@
                 v-model="email"
                 type="email"
                 outlined
-                dense
+                stack-label
                 label="Email"
                 autocomplete="email"
                 :rules="[(v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || 'Email invalide']"
@@ -70,7 +70,7 @@
               <q-input
                 v-model="code"
                 outlined
-                dense
+                stack-label
                 label="Code de vérification"
                 mask="######"
                 inputmode="numeric"
@@ -103,7 +103,7 @@
               <q-input
                 v-model="fullName"
                 outlined
-                dense
+                stack-label
                 label="Nom complet (optionnel)"
                 autocomplete="name"
                 class="q-mb-sm"
@@ -112,7 +112,7 @@
                 v-model="password"
                 :type="showPassword ? 'text' : 'password'"
                 outlined
-                dense
+                stack-label
                 label="Mot de passe"
                 autocomplete="new-password"
                 class="q-mb-sm"
@@ -130,7 +130,7 @@
                 v-model="passwordConfirm"
                 :type="showPassword ? 'text' : 'password'"
                 outlined
-                dense
+                stack-label
                 label="Confirmer le mot de passe"
                 autocomplete="new-password"
                 :rules="[(v) => v === password || 'Les mots de passe ne correspondent pas']"

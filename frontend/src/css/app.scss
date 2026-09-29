@@ -236,3 +236,38 @@ body {
     padding-bottom: calc(72px + env(safe-area-inset-bottom));
   }
 }
+
+// Pages d'application (checkout, compte, suivi) : même gouttière que la vitrine.
+.app-page {
+  padding-top: 32px;
+  padding-bottom: 72px;
+}
+
+// Connexion, inscription, mot de passe : colonne étroite, sans carte.
+.auth-page {
+  padding: 48px 16px 72px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: transparent;
+  border: 0;
+
+  .q-card__section {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .q-btn.full-width {
+    min-height: 48px;
+  }
+}
+
+.auth-title {
+  margin: 0 0 6px;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}

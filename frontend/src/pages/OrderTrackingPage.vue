@@ -1,8 +1,8 @@
 <template>
-  <q-page class="order-tracking-page q-pa-md">
+  <q-page class="order-tracking-page page-container app-page">
     <div class="row items-center q-mb-md">
       <div class="col">
-        <h1 class="text-h5 q-my-none">Suivi de commande</h1>
+        <h1 class="page-title">Suivi de commande</h1>
         <div class="text-caption text-grey-7">Commande #{{ shortId }}</div>
       </div>
       <q-btn
@@ -34,12 +34,10 @@
             <div class="text-caption text-grey-7">Statut d'expédition</div>
             <div class="text-h6">{{ statusLabel(tracking.overall_status) }}</div>
           </div>
-          <q-chip
-            :color="statusColor(tracking.overall_status)"
-            text-color="white"
+          <StatusTag
+            :tone="toneOf(statusColor(tracking.overall_status))"
             :icon="statusIcon(tracking.overall_status)"
             :label="statusLabel(tracking.overall_status)"
-            class="text-weight-medium"
           />
         </q-card-section>
       </q-card>
@@ -55,7 +53,7 @@
           <div class="row justify-between q-mb-xs">
             <span>
               <q-icon name="local_shipping" size="xs" class="q-mr-xs" />
-              Livraison<template v-if="deliveryLabel"> — {{ deliveryLabel }}</template>
+              Livraison<template v-if="deliveryLabel"> : {{ deliveryLabel }}</template>
             </span>
             <span>{{ money(order.shipping_fee_amount) }}</span>
           </div>
@@ -107,7 +105,7 @@
                 <div v-if="segment.tracking_ref || segment.carrier_name" class="row items-center">
                   <q-icon name="local_shipping" size="xs" class="q-mr-xs" />
                   <span v-if="segment.carrier_name">{{ segment.carrier_name }}</span>
-                  <span v-if="segment.carrier_name && segment.tracking_ref" class="q-mx-xs">—</span>
+                  <span v-if="segment.carrier_name && segment.tracking_ref" class="q-mx-xs">·</span>
                   <span v-if="segment.tracking_ref" class="text-weight-medium">{{
                     segment.tracking_ref
                   }}</span>
@@ -164,6 +162,8 @@
 </template>
 
 <script setup lang="ts">
+import StatusTag from 'src/components/StatusTag.vue';
+import { toneOf } from 'src/utils/statusTone';
 import AppNotice from 'src/components/AppNotice.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';

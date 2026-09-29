@@ -101,7 +101,7 @@ export const MATERIAL_TO_PHOSPHOR: Readonly<Record<string, string>> = {
   visibility: 'eye',
   visibility_off: 'eye-slash',
   warning_amber: 'warning',
-  window: 'app-window',
+  window: 'windows-logo',
   workspace_premium: 'seal-check',
 };
 

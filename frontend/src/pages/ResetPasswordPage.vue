@@ -1,10 +1,10 @@
 <template>
-  <q-page class="flex flex-center q-pa-md">
-    <q-card flat bordered style="width: min(420px, 100%)">
+  <q-page class="auth-page flex flex-center">
+    <q-card flat class="auth-card">
       <q-card-section>
-        <div class="text-h6">
+        <h1 class="auth-title">
           {{ invitation ? 'Activez votre compte' : 'Nouveau mot de passe' }}
-        </div>
+        </h1>
         <div v-if="invitation" class="text-body2 text-grey-8 q-mt-xs">
           Un compte a été créé pour vous. Choisissez votre mot de passe pour l'ouvrir.
         </div>
@@ -33,7 +33,7 @@
               :type="showPassword ? 'text' : 'password'"
               data-testid="reset-password"
               outlined
-              dense
+              stack-label
               label="Nouveau mot de passe"
               autocomplete="new-password"
               class="q-mb-sm"
@@ -55,7 +55,7 @@
               :type="showPassword ? 'text' : 'password'"
               data-testid="reset-confirmation"
               outlined
-              dense
+              stack-label
               label="Confirmer le mot de passe"
               autocomplete="new-password"
               class="q-mb-md"

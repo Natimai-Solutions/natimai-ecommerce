@@ -1,8 +1,8 @@
 <template>
-  <q-page class="checkout-page q-pa-md">
+  <q-page class="checkout-page page-container app-page">
     <div class="row q-mb-md items-center">
       <div class="col">
-        <h1 class="text-h5 q-my-none">Paiement sécurisé</h1>
+        <h1 class="page-title">Paiement sécurisé</h1>
       </div>
       <div class="col-auto">
         <q-btn
@@ -178,7 +178,7 @@
                   </template>
 
                   <AppNotice v-else-if="uploadDone" tone="success" icon="task_alt" class="q-mb-md">
-                    Bon de commande reçu — il sera vérifié par notre équipe avant validation.
+                    Bon de commande reçu. Il sera vérifié par notre équipe avant validation.
                   </AppNotice>
 
                   <q-btn
@@ -221,7 +221,7 @@
                       clickable
                       :data-testid="`checkout-address-${a.id}`"
                       :active="selectedAddressId === a.id"
-                      active-class="bg-blue-1"
+                      active-class="bg-tile"
                       @click="selectedAddressId = a.id"
                     >
                       <q-item-section avatar>
@@ -233,27 +233,17 @@
                       <q-item-section>
                         <q-item-label>{{ a.street }}</q-item-label>
                         <q-item-label caption>
-                          {{ a.postal_code }} {{ a.city }} — {{ countryLabel(a.country) }}
+                          {{ a.postal_code }} {{ a.city }}, {{ countryLabel(a.country) }}
                         </q-item-label>
                       </q-item-section>
                       <q-item-section side>
-                        <q-chip
+                        <StatusTag
                           v-if="a.is_validated"
-                          dense
-                          size="sm"
-                          color="green"
-                          text-color="white"
+                          tone="ok"
                           icon="verified"
                           label="Validée"
                         />
-                        <q-chip
-                          v-else
-                          dense
-                          size="sm"
-                          color="orange-2"
-                          text-color="orange-10"
-                          label="Non validée"
-                        />
+                        <StatusTag v-else tone="warn" icon="schedule" label="Non validée" />
                       </q-item-section>
                     </q-item>
                   </q-list>
@@ -268,7 +258,7 @@
                         clickable
                         :data-testid="`checkout-delivery-${d.value}`"
                         :active="selectedDeliveryType === d.value"
-                        active-class="bg-blue-1"
+                        active-class="bg-tile"
                         @click="selectedDeliveryType = d.value"
                       >
                         <q-item-section avatar>
@@ -301,7 +291,7 @@
                       clickable
                       :data-testid="`checkout-method-${m.provider_code}`"
                       :active="selectedMethodId === m.id"
-                      active-class="bg-blue-1"
+                      active-class="bg-tile"
                       @click="selectedMethodId = m.id"
                     >
                       <q-item-section avatar>
@@ -371,6 +361,7 @@
 </template>
 
 <script setup lang="ts">
+import StatusTag from 'src/components/StatusTag.vue';
 import AppNotice from 'src/components/AppNotice.vue';
 import { computed, onMounted, ref, watch } from 'vue';
 import { countryLabel, formatXpf, orderRef } from '@app/utils';

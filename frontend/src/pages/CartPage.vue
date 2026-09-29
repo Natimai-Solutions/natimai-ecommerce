@@ -1,165 +1,155 @@
 <template>
-  <q-page class="cart-page q-pa-md">
-    <div class="row items-center q-mb-md">
-      <div class="col">
-        <h1 class="text-h5 q-my-none">Mon panier</h1>
-      </div>
-      <div class="col-auto">
-        <q-btn
-          flat
-          color="primary"
-          icon="storefront"
-          label="Continuer mes achats"
-          :to="{ name: 'catalogue' }"
-        />
-      </div>
+  <q-page class="cart page-container">
+    <div class="cart__head">
+      <h1 class="page-title">Panier</h1>
+      <span v-if="cartStore.totalItems > 0" class="font-mono text-subtle">
+        {{ cartStore.totalItems }} article{{ cartStore.totalItems > 1 ? 's' : '' }}
+      </span>
     </div>
 
-    <AppNotice v-if="cartStore.error" tone="error" class="q-mb-md">
+    <AppNotice v-if="cartStore.error" tone="error" class="cart__notice">
       {{ cartStore.error }}
       <template #action>
         <q-btn flat label="Réessayer" @click="loadCart" />
       </template>
     </AppNotice>
 
-    <div class="row q-col-gutter-lg">
-      <div class="col-12 col-lg-8">
-        <q-card v-if="cartStore.loading" flat bordered>
-          <q-list>
-            <q-item v-for="n in 3" :key="n">
-              <q-item-section avatar>
-                <q-skeleton square size="72px" />
-              </q-item-section>
-              <q-item-section>
-                <q-skeleton type="text" width="55%" />
-                <q-skeleton type="text" width="35%" />
-              </q-item-section>
-              <q-item-section side>
-                <q-skeleton type="text" width="80px" />
-              </q-item-section>
-            </q-item>
-          </q-list>
-        </q-card>
+    <div v-if="cartStore.loading" class="cart__layout" aria-busy="true">
+      <div class="cart__lines">
+        <div v-for="n in 3" :key="n" class="cart-line">
+          <q-skeleton square class="cart-line__skeleton" />
+          <div class="cart-line__body">
+            <q-skeleton type="text" width="55%" />
+            <q-skeleton type="text" width="30%" />
+          </div>
+        </div>
+      </div>
+    </div>
 
-        <q-card
-          v-else-if="cartStore.items.length === 0"
-          flat
-          bordered
-          class="column items-center q-py-xl text-grey-7"
+    <div v-else-if="cartStore.items.length === 0" class="cart__empty">
+      <q-icon name="ph:shopping-bag" size="44px" class="text-subtle" />
+      <h2>Votre panier est vide</h2>
+      <p>Ajoutez des produits depuis le catalogue.</p>
+      <q-btn unelevated color="primary" label="Voir le catalogue" :to="{ name: 'catalogue' }" />
+    </div>
+
+    <div v-else class="cart__layout">
+      <ul class="cart__lines">
+        <li v-for="entry in cartStore.detailedItems" :key="entry.item.id" class="cart-line">
+          <router-link
+            v-if="entry.product"
+            :to="getProductRoute(entry.product)"
+            class="cart-line__media"
+            tabindex="-1"
+            aria-hidden="true"
+          >
+            <ProductImage
+              :src="entry.product.image_url ?? entry.product.supplier_image_url"
+              :alt="entry.product.name"
+              glyph-size="32px"
+            />
+          </router-link>
+          <div v-else class="cart-line__media">
+            <ProductImage :src="null" alt="" glyph-size="32px" />
+          </div>
+
+          <div class="cart-line__body">
+            <span v-if="entry.product?.manufacturer" class="cart-line__brand">
+              {{ entry.product.manufacturer }}
+            </span>
+            <router-link
+              v-if="entry.product"
+              :to="getProductRoute(entry.product)"
+              class="cart-line__name"
+            >
+              {{ entry.product.name }}
+            </router-link>
+            <span v-else class="cart-line__name">
+              {{ fallbackProductName(entry.item.product_id) }}
+            </span>
+            <span class="cart-line__meta font-mono">
+              <template v-if="entry.product?.vendor_part_number">
+                {{ entry.product.vendor_part_number }} ·
+              </template>
+              {{ moneyLabel(entry.item.unit_price) }} l'unité
+            </span>
+
+            <div class="cart-line__controls">
+              <div class="qty" role="group" :aria-label="`Quantité, ${entry.product?.name ?? ''}`">
+                <button
+                  type="button"
+                  class="qty__btn"
+                  :aria-label="entry.item.quantity <= 1 ? 'Retirer' : 'Diminuer la quantité'"
+                  :disabled="cartStore.mutating"
+                  @click="decreaseQuantity(entry.item.id, entry.item.quantity)"
+                >
+                  <q-icon :name="entry.item.quantity <= 1 ? 'ph:trash' : 'ph:minus'" size="16px" />
+                </button>
+                <span class="qty__value font-mono" aria-live="polite">
+                  {{ entry.item.quantity }}
+                </span>
+                <button
+                  type="button"
+                  class="qty__btn"
+                  aria-label="Augmenter la quantité"
+                  :disabled="cartStore.mutating"
+                  @click="increaseQuantity(entry.item.id, entry.item.quantity)"
+                >
+                  <q-icon name="ph:plus" size="16px" />
+                </button>
+              </div>
+              <button
+                type="button"
+                class="text-link"
+                :disabled="cartStore.mutating"
+                @click="removeItem(entry.item.id)"
+              >
+                Supprimer
+              </button>
+            </div>
+          </div>
+
+          <span class="cart-line__total font-mono">{{ moneyLabel(entry.item.line_total) }}</span>
+        </li>
+      </ul>
+
+      <aside class="cart__summary" aria-label="Récapitulatif">
+        <h2 class="cart__summary-title">Récapitulatif</h2>
+        <div class="cart__row">
+          <span>Articles</span>
+          <span class="font-mono">{{ cartStore.totalItems }}</span>
+        </div>
+        <div class="cart__row cart__row--total">
+          <span>Sous-total</span>
+          <span class="font-mono">{{ moneyNumberLabel(cartStore.totalAmount) }}</span>
+        </div>
+        <p class="cart__note">Frais de livraison calculés à la commande.</p>
+
+        <q-btn
+          unelevated
+          data-testid="cart-checkout"
+          color="primary"
+          label="Passer commande"
+          class="cart__checkout"
+          :disable="cartStore.items.length === 0 || cartStore.mutating"
+          @click="goToCheckout"
+        />
+        <q-btn
+          outline
+          color="primary"
+          label="Continuer mes achats"
+          class="cart__continue"
+          :to="{ name: 'catalogue' }"
+        />
+        <button
+          type="button"
+          class="text-link cart__clear"
+          :disabled="cartStore.mutating"
+          @click="clearCart"
         >
-          <q-icon name="remove_shopping_cart" size="4rem" class="q-mb-sm" />
-          <div class="text-h6">Votre panier est vide</div>
-          <div class="text-body2 q-mt-xs">Ajoutez des produits depuis le catalogue.</div>
-        </q-card>
-
-        <q-card v-else flat bordered>
-          <q-list separator>
-            <q-item v-for="entry in cartStore.detailedItems" :key="entry.item.id" class="q-py-md">
-              <q-item-section avatar top>
-                <q-img
-                  :src="
-                    entry.product?.image_url ?? entry.product?.supplier_image_url ?? placeholderImg
-                  "
-                  width="72px"
-                  height="72px"
-                  fit="contain"
-                  class="rounded-borders bg-grey-1"
-                />
-              </q-item-section>
-
-              <q-item-section>
-                <div class="text-subtitle2 text-weight-medium">
-                  {{ entry.product?.name ?? fallbackProductName(entry.item.product_id) }}
-                </div>
-                <div v-if="entry.product?.vendor_part_number" class="text-caption text-grey-6">
-                  Réf. {{ entry.product.vendor_part_number }}
-                </div>
-                <div class="text-caption text-grey-7 q-mt-xs">
-                  Prix unitaire: {{ moneyLabel(entry.item.unit_price) }}
-                </div>
-              </q-item-section>
-
-              <q-item-section side top class="items-end">
-                <div class="row items-center q-gutter-xs q-mb-sm">
-                  <q-btn
-                    flat
-                    round
-                    dense
-                    size="sm"
-                    icon="remove"
-                    :disable="cartStore.mutating"
-                    @click="decreaseQuantity(entry.item.id, entry.item.quantity)"
-                  />
-                  <div class="text-body2 text-weight-medium cart-qty">
-                    {{ entry.item.quantity }}
-                  </div>
-                  <q-btn
-                    flat
-                    round
-                    dense
-                    size="sm"
-                    icon="add"
-                    :disable="cartStore.mutating"
-                    @click="increaseQuantity(entry.item.id, entry.item.quantity)"
-                  />
-                </div>
-
-                <div class="text-subtitle2 text-weight-bold q-mb-xs">
-                  {{ moneyLabel(entry.item.line_total) }}
-                </div>
-
-                <q-btn
-                  flat
-                  dense
-                  color="negative"
-                  icon="delete_outline"
-                  label="Supprimer"
-                  :disable="cartStore.mutating"
-                  @click="removeItem(entry.item.id)"
-                />
-              </q-item-section>
-            </q-item>
-          </q-list>
-        </q-card>
-      </div>
-
-      <div class="col-12 col-lg-4">
-        <q-card flat bordered class="q-pa-md summary-card">
-          <div class="text-h6 q-mb-sm">Commander</div>
-
-          <div class="row justify-between text-body2 q-mb-xs">
-            <span>Articles</span>
-            <strong>{{ cartStore.totalItems }}</strong>
-          </div>
-          <div class="row justify-between text-body2 q-mb-sm">
-            <span>Total panier</span>
-            <strong>{{ moneyNumberLabel(cartStore.totalAmount) }}</strong>
-          </div>
-
-          <q-separator class="q-my-md" />
-
-          <q-btn
-            unelevated
-            data-testid="cart-checkout"
-            color="positive"
-            icon="shopping_cart_checkout"
-            label="Passer commande"
-            class="full-width q-mb-sm"
-            :disable="cartStore.items.length === 0 || cartStore.mutating"
-            @click="goToCheckout"
-          />
-
-          <q-btn
-            flat
-            color="grey-7"
-            icon="delete_sweep"
-            label="Vider le panier"
-            class="full-width"
-            :disable="cartStore.items.length === 0 || cartStore.mutating"
-            @click="clearCart"
-          />
-        </q-card>
-      </div>
+          Vider le panier
+        </button>
+      </aside>
     </div>
   </q-page>
 </template>
@@ -170,12 +160,12 @@ import { onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCartStore } from 'src/stores/cart';
 import { useCurrencyStore } from 'src/stores/currency';
+import ProductImage from 'src/components/ProductImage.vue';
+import { getProductRoute } from 'src/utils/productRoute';
 
 const cartStore = useCartStore();
 const currencyStore = useCurrencyStore();
 const router = useRouter();
-
-const placeholderImg = '/icons/placeholder-product.svg';
 
 function parseMoney(raw: string): number {
   const value = Number.parseFloat(raw);
@@ -228,24 +218,258 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-.cart-page {
-  max-width: 1240px;
-  margin: 0 auto;
+.cart {
+  padding-top: 32px;
+  padding-bottom: 96px;
 }
 
-.cart-qty {
-  min-width: 2rem;
+.cart__head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.cart__notice {
+  margin-bottom: 24px;
+}
+
+.cart__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 64px;
+  align-items: start;
+
+  @media (max-width: 1023px) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+  }
+}
+
+.cart__lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--n-line);
+}
+
+.cart-line {
+  padding: 24px 0;
+  display: flex;
+  gap: 20px;
+  border-bottom: 1px solid var(--n-line);
+
+  @media (max-width: 767px) {
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+}
+
+.cart-line__media {
+  flex-shrink: 0;
+  width: 112px;
+  display: block;
+
+  @media (max-width: 767px) {
+    width: 80px;
+  }
+}
+
+.cart-line__skeleton {
+  width: 112px;
+  height: 112px;
+  border-radius: 8px;
+}
+
+.cart-line__body {
+  flex-grow: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  @media (max-width: 767px) {
+    flex-basis: calc(100% - 94px);
+  }
+}
+
+.cart-line__brand {
+  font-size: 13px;
+  color: var(--n-ink-2);
+}
+
+.cart-line__name {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--n-ink);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--n-accent);
+  }
+}
+
+.cart-line__meta {
+  font-size: 12px;
+  color: var(--n-ink-3);
+}
+
+.cart-line__controls {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.cart-line__total {
+  flex-shrink: 0;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+
+  @media (max-width: 767px) {
+    margin-left: 94px;
+  }
+}
+
+.qty {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--n-line-2);
+  border-radius: 8px;
+}
+
+.qty__btn {
+  width: 40px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--n-ink);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--n-tile);
+  }
+
+  &:disabled {
+    color: var(--n-line-2);
+    cursor: default;
+  }
+}
+
+.qty__value {
+  min-width: 28px;
   text-align: center;
+  font-size: 14px;
+  font-weight: 500;
 }
 
-.summary-card {
+.text-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--n-ink-2);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: var(--n-accent);
+  }
+}
+
+.cart__summary {
   position: sticky;
   top: 88px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: 8px;
+  background: var(--n-tile);
+
+  @media (max-width: 1023px) {
+    position: static;
+  }
 }
 
-@media (max-width: 1023px) {
-  .summary-card {
-    position: static;
+.cart__summary-title {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.cart__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 14px;
+  color: var(--n-ink-2);
+
+  &--total {
+    padding-top: 12px;
+    border-top: 1px solid var(--n-line-2);
+    color: var(--n-ink);
+
+    .font-mono {
+      font-size: 20px;
+      font-weight: 600;
+    }
+  }
+}
+
+.cart__note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--n-ink-3);
+}
+
+.cart__checkout,
+.cart__continue {
+  min-height: 48px;
+}
+
+.cart__checkout {
+  margin-top: 8px;
+}
+
+.cart__clear {
+  align-self: center;
+  margin-top: 4px;
+}
+
+.cart__empty {
+  padding: 80px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+
+  h2 {
+    margin: 8px 0 0;
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  p {
+    margin: 0 0 16px;
+    color: var(--n-ink-2);
+  }
+
+  .q-btn {
+    min-height: 48px;
+    padding: 0 24px;
   }
 }
 </style>

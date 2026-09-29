@@ -1,7 +1,7 @@
 <template>
-  <q-page class="account-page q-pa-md">
+  <q-page class="account-page page-container app-page">
     <div class="row items-center q-mb-md">
-      <h1 class="text-h5 q-my-none col">Mon compte</h1>
+      <h1 class="page-title col">Mon compte</h1>
     </div>
 
     <q-tabs
@@ -87,7 +87,7 @@
                   :model-value="currencyStore.currency"
                   :options="currencyStore.available"
                   label="Devise d'affichage"
-                  hint="Affichage uniquement — le paiement reste en XPF."
+                  hint="Affichage uniquement : le paiement reste en XPF."
                   class="col-12 col-sm-6"
                   outlined
                   dense
@@ -137,19 +137,10 @@
             <q-card flat bordered class="full-height column">
               <q-card-section class="col">
                 <div class="row items-center q-mb-xs">
-                  <q-chip
-                    dense
-                    square
-                    :color="typeColor(address.type)"
-                    text-color="white"
-                    :label="typeLabel(address.type)"
-                  />
+                  <StatusTag :label="typeLabel(address.type)" />
                   <q-space />
-                  <q-chip
-                    dense
-                    square
-                    :color="address.is_validated ? 'green' : 'grey-5'"
-                    text-color="white"
+                  <StatusTag
+                    :tone="address.is_validated ? 'ok' : 'neutral'"
                     :icon="address.is_validated ? 'verified' : 'schedule'"
                     :label="address.is_validated ? 'Validée' : 'En attente'"
                   />
@@ -200,25 +191,19 @@
               <q-item-section>
                 <q-item-label>Commande {{ orderRef(order) }}</q-item-label>
                 <q-item-label caption>
-                  {{ formatDate(order.created_at) ?? '—' }}
+                  {{ formatDate(order.created_at) ?? '' }}
                 </q-item-label>
                 <q-item-label class="q-mt-xs">
-                  <q-chip
-                    dense
-                    size="sm"
-                    :color="paymentBadge(order.order_status_name).color"
-                    text-color="white"
+                  <StatusTag
+                    :tone="toneOf(paymentBadge(order.order_status_name).color)"
                     :icon="paymentBadge(order.order_status_name).icon"
                     :label="paymentBadge(order.order_status_name).label"
                   />
-                  <q-chip
+                  <StatusTag
                     v-if="deliveryBadge(order.order_status_name)"
-                    dense
-                    size="sm"
-                    :color="deliveryBadge(order.order_status_name)?.color"
-                    text-color="white"
-                    :icon="deliveryBadge(order.order_status_name)?.icon"
-                    :label="deliveryBadge(order.order_status_name)?.label"
+                    :tone="toneOf(deliveryBadge(order.order_status_name)?.color)"
+                    :icon="deliveryBadge(order.order_status_name)?.icon ?? 'info'"
+                    :label="deliveryBadge(order.order_status_name)?.label ?? ''"
                   />
                 </q-item-label>
               </q-item-section>
@@ -269,10 +254,8 @@
               </AppNotice>
 
               <div class="text-subtitle1 text-weight-medium q-mb-sm">Votre groupe tarifaire</div>
-              <q-chip
+              <StatusTag
                 :label="groupOptions?.current_group?.label ?? 'Standard'"
-                color="primary"
-                text-color="white"
                 icon="workspace_premium"
               />
 
@@ -339,14 +322,12 @@
                       <q-item-label>{{ upgradeGroupLabel(req.price_group_id) }}</q-item-label>
                       <q-item-label caption>
                         Demandée le {{ formatDate(req.created_at) }}
-                        <template v-if="req.admin_comment"> — {{ req.admin_comment }}</template>
+                        <template v-if="req.admin_comment">. {{ req.admin_comment }}</template>
                       </q-item-label>
                     </q-item-section>
                     <q-item-section side>
-                      <q-chip
-                        :color="upgradeStatusColor(req.status)"
-                        text-color="white"
-                        dense
+                      <StatusTag
+                        :tone="toneOf(upgradeStatusColor(req.status))"
                         :label="upgradeStatusLabel(req.status)"
                       />
                     </q-item-section>
@@ -455,7 +436,7 @@
             </AppNotice>
             <template v-else-if="zoneLookupDone && zoneOptions.length > 0">
               <AppNotice dense tone="warning" class="q-mt-sm q-mb-sm">
-                Code postal non reconnu — indiquez votre île / zone de livraison.
+                Code postal non reconnu. Indiquez votre île ou zone de livraison.
               </AppNotice>
               <q-select
                 v-model="manualPlaceId"
@@ -506,6 +487,8 @@
 </template>
 
 <script setup lang="ts">
+import StatusTag from 'src/components/StatusTag.vue';
+import { toneOf } from 'src/utils/statusTone';
 import AppNotice from 'src/components/AppNotice.vue';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -749,7 +732,7 @@ const manualPlaceId = ref<string | null>(null);
 // livraison (code inconnu et aucune île choisie à la main).
 const cityRequired = computed(() => !detectedZoneLabel.value && !manualPlaceId.value);
 const cityRules = computed(() =>
-  cityRequired.value ? [(v: string) => !!v?.trim() || 'Requis — code postal non reconnu'] : [],
+  cityRequired.value ? [(v: string) => !!v?.trim() || 'Requis : code postal non reconnu'] : [],
 );
 
 // Valeurs posées par l'auto-remplissage : on ne les efface / remplace que si
@@ -1086,12 +1069,6 @@ function upgradeStatusColor(s: UpgradeRequestStatus): string {
 function typeLabel(type: string): string {
   return addressTypeOptions.find((o) => o.value === type)?.label ?? type;
 }
-function typeColor(type: string): string {
-  if (type === 'billing') return 'deep-purple';
-  if (type === 'shipping') return 'primary';
-  return 'grey-7';
-}
-
 function formatMoney(raw: string): string {
   const n = Number.parseFloat(raw);
   return Number.isFinite(n) ? formatXpf(n) : raw;

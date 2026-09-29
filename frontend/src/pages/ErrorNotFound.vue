@@ -1,19 +1,47 @@
 <template>
-  <div class="fullscreen bg-blue text-white text-center q-pa-md flex flex-center">
-    <div>
-      <div style="font-size: 30vh">404</div>
-
-      <div class="text-h2" style="opacity: 0.4">Oops. Nothing here...</div>
-
-      <q-btn
-        class="q-mt-xl"
-        color="white"
-        text-color="blue"
-        unelevated
-        to="/"
-        label="Go Home"
-        no-caps
-      />
-    </div>
-  </div>
+  <main class="not-found">
+    <span class="not-found__code font-mono">404</span>
+    <h1 class="not-found__title">Page introuvable</h1>
+    <p class="not-found__text">Ce lien ne mène à aucune page. Le produit a peut-être été retiré.</p>
+    <q-btn unelevated color="primary" label="Voir le catalogue" to="/catalogue" />
+  </main>
 </template>
+
+<style scoped lang="scss">
+.not-found {
+  min-height: 100dvh;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  background: var(--n-bg);
+  color: var(--n-ink);
+}
+
+.not-found__code {
+  font-size: 14px;
+  color: var(--n-ink-3);
+}
+
+.not-found__title {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+
+.not-found__text {
+  max-width: 44ch;
+  margin: 0 0 16px;
+  color: var(--n-ink-2);
+}
+
+.q-btn {
+  min-height: 48px;
+  padding: 0 24px;
+}
+</style>

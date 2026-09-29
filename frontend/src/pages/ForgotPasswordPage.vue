@@ -1,8 +1,8 @@
 <template>
-  <q-page class="flex flex-center q-pa-md">
-    <q-card flat bordered style="width: min(420px, 100%)">
+  <q-page class="auth-page flex flex-center">
+    <q-card flat class="auth-card">
       <q-card-section>
-        <div class="text-h6">Mot de passe oublié</div>
+        <h1 class="auth-title">Mot de passe oublié</h1>
         <div class="text-body2 text-grey-7 q-mt-xs">
           Indiquez votre adresse email : si un compte y est associé, vous recevrez un lien pour
           choisir un nouveau mot de passe.
@@ -29,7 +29,7 @@
             type="email"
             data-testid="forgot-email"
             outlined
-            dense
+            stack-label
             label="Email"
             autocomplete="email"
             class="q-mb-md"
