@@ -3,12 +3,13 @@ from collections.abc import Callable
 from typing import Any, cast
 
 from fastapi import Depends
-from sqlmodel import col, select
+from sqlmodel import col, not_, select
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
+from app.features.inventory.services.availability import publish_with_availability
 from app.features.product.crud.product import (
     ProductCrud,
     crud_product,
@@ -21,6 +22,8 @@ from app.features.product.models.product import (
     ProductUpdate,
 )
 from app.features.product.services.publication import (
+    content_ready_condition,
+    has_storefront_content,
     publication_blockers,
     publication_conditions,
 )
@@ -39,7 +42,7 @@ class ProductRouter(
     """Represents product router."""
 
     def generate_read_endpoint(self) -> Callable[..., Any]:
-        """Override: returns 404 for non-enriched products on public reads."""
+        """Override: 404 on public reads of products without storefront content."""
 
         async def read(
             session: SessionDep,
@@ -58,7 +61,7 @@ class ProductRouter(
                 )
 
             is_admin = current_user is not None and current_user.is_superuser
-            if not is_admin and not record.is_enriched:
+            if not is_admin and not has_storefront_content(record):
                 raise AppError(
                     code="product.not_found",
                     status_code=404,
@@ -80,13 +83,13 @@ class ProductRouter(
                         },
                     )
 
-            return cast(ProductPublic, record)
+            return (await publish_with_availability(session, [record]))[0]
 
         read.__name__ = "get_one_product"
         return read
 
     def generate_read_multi_endpoint(self) -> Callable[..., Any]:
-        """Override: filters to enriched products only for public listing."""
+        """Override: public listing shows only products with storefront content."""
 
         async def read_multi(
             session: SessionDep,
@@ -106,7 +109,8 @@ class ProductRouter(
                 statement = select(Product).where(
                     col(Product.is_active).is_(True),
                     col(Product.is_admin_active).is_(True),
-                    col(Product.is_enriched).is_(True),
+                    col(Product.parent_product_id).is_(None),
+                    content_ready_condition(),
                     *publication_conditions(),
                 )
             else:
@@ -117,6 +121,11 @@ class ProductRouter(
                     conditions.append(col(Product.is_enriched).is_(True))
                 elif status == "inactive":
                     conditions.append(col(Product.is_active).is_(False))
+                elif status == "hidden":
+                    # Active but invisible on the storefront: waiting for
+                    # Icecat, and not published as it stands by the admin.
+                    conditions.append(col(Product.is_active).is_(True))
+                    conditions.append(not_(content_ready_condition()))
                 term = (search or "").strip()
                 if term:
                     pattern = f"%{term}%"
@@ -142,7 +151,10 @@ class ProductRouter(
                 include_archived=include_archived,
                 user=current_user,
             )
-            return result
+            return ProductsPublic(
+                data=await publish_with_availability(session, result["data"]),
+                count=result["count"],
+            )
 
         read_multi.__name__ = "get_multiple_products"
         return read_multi

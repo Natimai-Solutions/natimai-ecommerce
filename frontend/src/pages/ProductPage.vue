@@ -81,12 +81,52 @@
               Prix en livraison {{ selectedMode.customer_label.toLowerCase() }}. Le mode se choisit
               à la commande.
             </span>
-            <span v-if="isOutOfStock" class="product__stock product__stock--order">
-              <span class="stock-dot stock-dot--order" aria-hidden="true" />Sur commande
-            </span>
-            <span v-else class="product__stock">
-              <span class="stock-dot" aria-hidden="true" />{{ stockQuantity }} en stock fournisseur
-            </span>
+            <template v-if="!needsVariantChoice">
+              <span v-if="isOutOfStock" class="product__stock product__stock--order">
+                <span class="stock-dot stock-dot--order" aria-hidden="true" />Sur commande
+              </span>
+              <span v-else class="product__stock">
+                <span class="stock-dot" aria-hidden="true" />{{ stockQuantity }} en stock
+              </span>
+            </template>
+            <router-link
+              v-if="product.parent_product_id"
+              :to="getProductRouteByIdAndName(product.parent_product_id, product.name)"
+              class="product__variants-link"
+            >
+              Voir toutes les déclinaisons
+            </router-link>
+          </div>
+
+          <div v-if="hasVariants && variants" class="variants" data-testid="variant-selectors">
+            <div v-for="axis in variants.axes" :key="axis" class="variants__axis">
+              <span :id="`axis-${axis}`" class="variants__label">{{ axis }}</span>
+              <div class="variants__options" role="group" :aria-labelledby="`axis-${axis}`">
+                <button
+                  v-for="value in optionValues[axis] ?? []"
+                  :key="value"
+                  type="button"
+                  class="variants__option"
+                  :class="{
+                    'variants__option--active': selectedOptions[axis] === value,
+                    'variants__option--unavailable': !isValueAvailable(axis, value),
+                  }"
+                  :aria-pressed="selectedOptions[axis] === value"
+                  @click="selectOption(axis, value)"
+                >
+                  {{ value }}
+                </button>
+              </div>
+            </div>
+            <p v-if="selectedVariant" class="variants__hint">
+              {{ selectedVariant.name }}
+              <span v-if="selectedVariant.supplier_sku" class="font-mono">
+                Réf. {{ selectedVariant.supplier_sku }}
+              </span>
+            </p>
+            <p v-else class="variants__hint">
+              Choisissez une déclinaison pour voir son prix et sa disponibilité.
+            </p>
           </div>
 
           <div class="product__actions">
@@ -123,7 +163,7 @@
               label="Ajouter au panier"
               class="product__add"
               data-testid="product-page-add-to-cart"
-              :disable="isOutOfStock"
+              :disable="needsVariantChoice || isOutOfStock"
               :loading="cartStore.mutating"
               @click="onAddToCart"
             />
@@ -194,7 +234,7 @@
           color="primary"
           label="Ajouter"
           class="product__add"
-          :disable="isOutOfStock"
+          :disable="needsVariantChoice || isOutOfStock"
           :loading="cartStore.mutating"
           @click="onAddToCart"
         />
@@ -213,8 +253,12 @@ import {
   getProductById,
   getProductOffers,
   getProductShippingModes,
+  getProductVariants,
   type ProductOffersResponse,
+  type ProductVariantsResponse,
   type ShippingModePricePublic,
+  sellableQuantity,
+  trackProductView,
 } from 'src/api/products';
 import ProductImage from 'src/components/ProductImage.vue';
 import ProductOffers from 'src/components/ProductOffers.vue';
@@ -248,15 +292,65 @@ const shippingModes = ref<ShippingModePricePublic[]>([]);
 const selectedModeKey = ref<string | null>(null);
 const offers = ref<ProductOffersResponse | null>(null);
 
-const isOutOfStock = computed(() => {
-  if (!product.value) return true;
-  return parseFloat(product.value.supplier_quantity) <= 0;
+// Variants: the page opens on the parent; the customer picks option values
+// and the matching variant (a product of its own) is what gets priced,
+// stocked and added to the cart.
+const variants = ref<ProductVariantsResponse | null>(null);
+const selectedOptions = ref<Record<string, string>>({});
+const hasVariants = computed(() => Boolean(product.value?.has_variants));
+
+const optionValues = computed<Record<string, string[]>>(() => {
+  const out: Record<string, string[]> = {};
+  for (const axis of variants.value?.axes ?? []) {
+    const values: string[] = [];
+    for (const v of variants.value?.variants ?? []) {
+      const value = v.variant_options?.[axis];
+      if (value && !values.includes(value)) values.push(value);
+    }
+    out[axis] = values;
+  }
+  return out;
 });
 
-const stockQuantity = computed(() => {
-  if (!product.value) return 0;
-  return Math.max(0, Math.round(parseFloat(product.value.supplier_quantity)));
+const selectedVariant = computed<ProductPublic | null>(() => {
+  const list = variants.value?.variants ?? [];
+  const axes = variants.value?.axes ?? [];
+  if (!list.length || axes.some((axis) => !selectedOptions.value[axis])) return null;
+  return (
+    list.find((v) =>
+      axes.every((axis) => v.variant_options?.[axis] === selectedOptions.value[axis]),
+    ) ?? null
+  );
 });
+
+/** Whether a value is still reachable given the other axes already chosen. */
+function isValueAvailable(axis: string, value: string): boolean {
+  const list = variants.value?.variants ?? [];
+  return list.some((v) => {
+    if (v.variant_options?.[axis] !== value) return false;
+    for (const [other, chosen] of Object.entries(selectedOptions.value)) {
+      if (other !== axis && chosen && v.variant_options?.[other] !== chosen) return false;
+    }
+    return sellableQuantity(v) > 0;
+  });
+}
+
+function selectOption(axis: string, value: string) {
+  selectedOptions.value = { ...selectedOptions.value, [axis]: value };
+  justAdded.value = false;
+  selectedImage.value = null;
+}
+
+/** The product actually shown / sold: the chosen variant, else the page's product. */
+const effectiveProduct = computed<ProductPublic | null>(
+  () => selectedVariant.value ?? product.value,
+);
+
+const stockQuantity = computed(() =>
+  effectiveProduct.value ? sellableQuantity(effectiveProduct.value) : 0,
+);
+const isOutOfStock = computed(() => stockQuantity.value <= 0);
+const needsVariantChoice = computed(() => hasVariants.value && !selectedVariant.value);
 
 const selectedMode = computed(
   () => shippingModes.value.find((m) => m.service_level === selectedModeKey.value) ?? null,
@@ -264,13 +358,17 @@ const selectedMode = computed(
 
 const priceValue = computed(() => {
   if (selectedMode.value) return parseFloat(selectedMode.value.sale_price);
-  return product.value ? parseFloat(product.value.base_price) : 0;
+  return effectiveProduct.value ? parseFloat(effectiveProduct.value.base_price) : 0;
 });
 
 /** Prix nul : l'article est vendu sur devis. */
 const isQuote = computed(() => !(priceValue.value > 0));
 
-const displayPrice = computed(() => currencyStore.format(priceValue.value));
+const displayPrice = computed(() => {
+  const formatted = currencyStore.format(priceValue.value);
+  // Tant qu'aucune déclinaison n'est choisie, le parent affiche la moins chère.
+  return needsVariantChoice.value ? `À partir de ${formatted}` : formatted;
+});
 
 const categoryLabel = computed(() => {
   const id = product.value?.category_id;
@@ -324,8 +422,10 @@ function pickUrl(obj: unknown): string | null {
 
 const gallery = computed<string[]>(() => {
   const urls: string[] = [];
+  const variantImage = selectedVariant.value?.image_url ?? null;
+  if (variantImage) urls.push(variantImage);
   const main = product.value?.image_url ?? product.value?.supplier_image_url;
-  if (main) urls.push(main);
+  if (main && !urls.includes(main)) urls.push(main);
   for (const raw of product.value?.icecat_images ?? []) {
     const url =
       pickUrl(raw['medium']) ??
@@ -422,6 +522,19 @@ async function loadProduct() {
   try {
     const data = await getProductById(routeId);
     product.value = data;
+    variants.value = null;
+    selectedOptions.value = {};
+    if (data.has_variants) {
+      try {
+        variants.value = await getProductVariants(routeId);
+        // One variant only: nothing to choose, select it.
+        if (variants.value.variants.length === 1) {
+          selectedOptions.value = { ...(variants.value.variants[0]?.variant_options ?? {}) };
+        }
+      } catch {
+        variants.value = null;
+      }
+    }
 
     // Shipping modes and sibling offers are interactive/client-only — skip on SSR
     if (typeof window !== 'undefined') {
@@ -463,10 +576,15 @@ function setQuantity(value: number) {
 }
 
 async function onAddToCart() {
-  if (!product.value) return;
+  const target = effectiveProduct.value;
+  if (!target) return;
+  if (needsVariantChoice.value) {
+    cartError.value = 'Choisissez une déclinaison.';
+    return;
+  }
 
   cartError.value = null;
-  const ok = await cartStore.addItem(product.value.id, quantity.value, product.value);
+  const ok = await cartStore.addItem(target.id, quantity.value, target);
   if (ok) {
     justAdded.value = true;
     return;
@@ -508,6 +626,9 @@ onMounted(async () => {
   document.body.classList.add('has-buy-bar');
   void productsStore.loadCategories();
   await loadProduct();
+  // Client only: the SSR pass must not count a view, and a bot-heavy server
+  // render would skew the « plus consultés » ranking.
+  if (process.env.CLIENT && product.value) void trackProductView(product.value.id);
 });
 
 watch(
@@ -691,6 +812,78 @@ watch(
   &--order {
     color: var(--n-ink-3);
   }
+}
+
+.product__variants-link {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--n-ink-2);
+
+  &:hover {
+    color: var(--n-accent);
+  }
+}
+
+.variants {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.variants__axis {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.variants__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--n-ink-2);
+}
+
+.variants__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.variants__option {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--n-line-2);
+  border-radius: 8px;
+  background: var(--n-surface);
+  color: var(--n-ink);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+
+  &:hover {
+    border-color: var(--n-ink-3);
+  }
+
+  &--active,
+  &--active:hover {
+    border-color: var(--n-ink);
+    box-shadow: inset 0 0 0 1px var(--n-ink);
+  }
+
+  &--unavailable {
+    border-style: dashed;
+    color: var(--n-ink-3);
+  }
+}
+
+.variants__hint {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 13px;
+  color: var(--n-ink-3);
 }
 
 .product__actions {

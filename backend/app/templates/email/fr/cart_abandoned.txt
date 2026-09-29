@@ -1,0 +1,17 @@
+Bonjour {{ full_name }},
+
+Vous avez laissé des articles dans votre panier :
+{% for item in items %}
+- {{ item.name }} × {{ item.quantity }} — {{ item.line_total }} {{ currency }}
+{%- endfor %}
+
+Total : {{ total_amount }} {{ currency }}
+
+Ils sont toujours disponibles. Retrouvez votre panier ici :
+{{ cart_url }}
+
+Vous recevez ce message car les rappels commerciaux sont activés sur votre compte.
+Pour ne plus les recevoir : {{ preferences_url }} (rubrique Préférences).
+
+À bientôt,
+L'équipe {{ shop_name }}

@@ -85,6 +85,8 @@ class AdminOrderDetail(BaseModel):
     shipping_fee_amount: float
     payment_fee_amount: float
     total_fees_amount: float
+    discount_code: str | None = None
+    discount_amount: float = 0.0
     total_amount: float
     shipping_address: str | None = None
     delivery_type: str | None = None
@@ -241,6 +243,8 @@ async def get_order_detail(
         shipping_fee_amount=float(order.shipping_fee_amount),
         payment_fee_amount=float(order.payment_fee_amount),
         total_fees_amount=float(order.total_fees_amount),
+        discount_code=getattr(order, "discount_code", None),
+        discount_amount=float(getattr(order, "discount_amount", None) or 0),
         total_amount=float(order.total_amount),
         shipping_address=order.shipping_address,
         delivery_type=getattr(order, "delivery_type", None),

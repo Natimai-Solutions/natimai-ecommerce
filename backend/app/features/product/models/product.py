@@ -117,6 +117,20 @@ class ProductBase(Base):
             "unresolved rate makes the product non-publishable."
         ),
     )
+    parent_product_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="products.id",
+        index=True,
+        description=(
+            "Parent of this variant. A variant is a full product row (own SKU, "
+            "price, stock, image); the parent is the storefront entry."
+        ),
+    )
+    variant_options: dict[str, str] | None = Field(
+        default=None,
+        sa_column=Column(JSON),
+        description='Option values of this variant, e.g. {"Taille": "M", "Couleur": "Noir"}',
+    )
     has_variants: bool = Field(
         default=False,
         description="Indicates if the product has variants",
@@ -264,6 +278,14 @@ class ProductBase(Base):
         default=None,
         description="Last synchronization timestamp for enrichment data",
     )
+    published_without_enrichment: bool = Field(
+        default=False,
+        description=(
+            "Admin decision to show the product on the storefront without "
+            "waiting for Icecat enrichment (file imports, items Icecat does "
+            "not know). Manual products never need it."
+        ),
+    )
     is_enriched: bool = Field(
         default=False,
         description="Indicates if the product has been enriched with external data",
@@ -352,6 +374,8 @@ class ProductUpdate(ProductBase, BaseUpdate):
     cost_currency: str | None = None
     customs_rate_pct: Decimal | None = None
     has_variants: bool | None = None
+    parent_product_id: uuid.UUID | None = None
+    variant_options: dict[str, str] | None = None
     category_id: uuid.UUID | None = None
     supplier_quantity: Decimal | None = None
     supplier_price: Decimal | None = None
@@ -373,6 +397,7 @@ class ProductUpdate(ProductBase, BaseUpdate):
     last_supplier_sync: datetime | None = None
     supplier_missing_since: datetime | None = None
     is_supplier_managed: bool | None = None
+    published_without_enrichment: bool | None = None
     supplier_place_id: uuid.UUID | None = None
     overridden_fields: list[str] | None = None
     tax_rate_id: uuid.UUID | None = None
@@ -434,6 +459,14 @@ class ProductPublic(ProductBase, BasePublic):
     #: suppliers behind its cheapest offer: how many offers this entry stands
     #: for (1 = no sibling).
     offers_count: int = 1
+    #: Warehouse stock (place-less ``Inventory`` row). ``None`` = not computed
+    #: by this endpoint; storefront endpoints always fill it.
+    local_quantity: Decimal | None = None
+    #: What the checkout will accept: local + supplier stock (the latter only
+    #: when the product has a supplier). ``None`` = not computed.
+    available_quantity: Decimal | None = None
+    #: Active variants of a parent product (0 for a plain product).
+    variants_count: int = 0
 
 
 class ProductsPublic(SQLModel):
@@ -498,6 +531,8 @@ class ProductOfferPublic(SQLModel):
     pricing_mode: PricingMode = PricingMode.IMPORT
     sale_price: Decimal
     supplier_quantity: Decimal
+    local_quantity: Decimal = Decimal("0.00")
+    available_quantity: Decimal = Decimal("0.00")
     in_stock: bool
     image_url: str | None = None
 

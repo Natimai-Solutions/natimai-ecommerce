@@ -77,6 +77,23 @@ PostgreSQL GIN index on `to_tsvector` enables fast full-text product search acro
 └── DEPLOYMENT.md          # Deployment & environment variables reference
 ```
 
+## Simple shop in ten minutes
+
+The platform started as an import business in French Polynesia, but a shop
+that sells its own stock from one warehouse and ships directly needs none of
+that machinery. Two settings in `.env` shape the deployment:
+
+```bash
+TERRITORY_PROFILE=FR   # or PF — currency, tax rates, country and starter data
+SHOP_MODE=simple       # hides suppliers, customs, exchange rates and multi-leg logistics
+```
+
+Then `docker compose up -d && docker compose run --rm migrate`, log into the
+admin, fill the legal identity under **Système → Paramètres**, create your
+products (fixed price, warehouse stock) and, if you charge shipping, one
+carrier and one route under **Logistique**. Cheque and bank transfer work out
+of the box; card payments need a PayZen account.
+
 ## Getting Started
 
 ### Prerequisites

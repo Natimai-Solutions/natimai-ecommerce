@@ -59,8 +59,8 @@
             bottom-slots
           />
 
-          <div class="text-subtitle2 q-mt-sm q-mb-xs">Approvisionnement</div>
-          <div class="row" style="gap: 8px">
+          <div v-if="!isSimpleShop" class="text-subtitle2 q-mt-sm q-mb-xs">Approvisionnement</div>
+          <div v-if="!isSimpleShop" class="row" style="gap: 8px">
             <q-select
               v-model="form.supplier_name"
               :options="supplierOptions"
@@ -86,7 +86,7 @@
             />
           </div>
           <q-input
-            v-if="form.supplier_name && !product?.is_supplier_managed"
+            v-if="!isSimpleShop && form.supplier_name && !product?.is_supplier_managed"
             v-model="form.supplier_quantity"
             label="Stock disponible chez le fournisseur"
             hint="Tenu à jour à la main (ou par import fichier) — 0 = indisponible"
@@ -97,14 +97,20 @@
             dense
             bottom-slots
           />
+          <q-input
+            v-model="form.local_quantity"
+            label="Stock entrepôt (unités physiquement chez vous)"
+            :hint="localStockHint"
+            type="number"
+            step="1"
+            min="0"
+            outlined
+            dense
+            bottom-slots
+          />
 
           <div class="text-subtitle2 q-mt-sm q-mb-xs">Prix &amp; taxes</div>
-          <q-option-group
-            v-model="form.pricing_mode"
-            :options="pricingModeOptions"
-            inline
-            dense
-          />
+          <q-option-group v-model="form.pricing_mode" :options="pricingModeOptions" inline dense />
           <div class="text-caption text-grey-7 q-mb-sm">{{ pricingModeHint }}</div>
 
           <template v-if="form.pricing_mode === 'fixed'">
@@ -264,6 +270,25 @@
             />
           </div>
 
+          <template v-if="isEdit && product && !product.parent_product_id">
+            <q-separator class="q-my-md" />
+            <ProductVariantsPanel :product-id="product.id" @changed="emit('saved')" />
+          </template>
+          <div
+            v-else-if="isEdit && product?.parent_product_id"
+            class="text-caption text-grey-7 q-mt-md"
+          >
+            Variante d'un autre article
+            <span v-if="product.variant_options">
+              ({{
+                Object.entries(product.variant_options)
+                  .map(([k, v]) => `${k} : ${v}`)
+                  .join(', ')
+              }})
+            </span>
+            — les options se modifient depuis la fiche parente.
+          </div>
+
           <div class="row justify-end q-mt-md" style="gap: 8px">
             <q-btn
               flat
@@ -290,7 +315,10 @@ import { categoryLabel, listCategories, type Category } from 'src/api/categories
 import { listTaxRates, type TaxRate } from 'src/api/taxRates';
 import { listPlaces, type Place } from 'src/api/logistics';
 import { listSuppliers, type Supplier } from 'src/api/suppliers';
+import { adjustInventory } from 'src/api/inventory';
+import ProductVariantsPanel from 'src/components/ProductVariantsPanel.vue';
 import { useProductsStore, type ProductPublic } from 'src/stores/products';
+import { useShopConfigStore } from 'src/stores/shopConfig';
 
 const props = defineProps<{ modelValue: boolean; product: ProductPublic | null }>();
 const emit = defineEmits<{
@@ -299,6 +327,9 @@ const emit = defineEmits<{
 }>();
 
 const store = useProductsStore();
+const shopConfig = useShopConfigStore();
+/** SHOP_MODE=simple: own stock sold at a fixed price, no supplier, no customs. */
+const isSimpleShop = computed(() => shopConfig.isSimple);
 
 type PricingMode = 'import' | 'domestic' | 'fixed';
 
@@ -309,6 +340,8 @@ interface FormState {
   supplier_name: string | null;
   supplier_sku: string;
   supplier_quantity: string;
+  /** Stock entrepôt — pas un champ produit : enregistré par un ajustement d'inventaire. */
+  local_quantity: string;
   pricing_mode: PricingMode;
   margin_rate_pct: string;
   cost_amount: string;
@@ -348,10 +381,11 @@ function emptyForm(): FormState {
     supplier_name: null,
     supplier_sku: '',
     supplier_quantity: '0',
-    pricing_mode: 'import',
+    local_quantity: '0',
+    pricing_mode: isSimpleShop.value ? 'fixed' : 'import',
     margin_rate_pct: '',
     cost_amount: '0.00',
-    cost_currency: 'XPF',
+    cost_currency: shopConfig.currency,
     customs_rate_pct: '',
     base_price: '0.00',
     category_id: null,
@@ -374,22 +408,26 @@ const saving = ref(false);
 const error = ref<string | null>(null);
 const req = [(v: string) => (!!v && v.trim().length > 0) || 'Requis'];
 
-const currencyOptions = [
-  { label: 'XPF', value: 'XPF' },
-  { label: 'USD', value: 'USD' },
-  { label: 'EUR', value: 'EUR' },
-];
+const currencyOptions = computed(() => {
+  const codes = Array.from(new Set([shopConfig.currency, 'XPF', 'USD', 'EUR']));
+  return codes.map((code) => ({ label: code, value: code }));
+});
 const categories = ref<Category[]>([]);
 const taxRates = ref<TaxRate[]>([]);
 const places = ref<Place[]>([]);
 const suppliers = ref<Supplier[]>([]);
 const supplierOptions = ref<{ label: string; value: string }[]>([]);
 
-const pricingModeOptions: { label: string; value: PricingMode }[] = [
+const allPricingModeOptions: { label: string; value: PricingMode }[] = [
   { label: 'Import (CAF + douane)', value: 'import' },
   { label: 'Local (coût + marge)', value: 'domestic' },
   { label: 'Prix TTC fixé', value: 'fixed' },
 ];
+const pricingModeOptions = computed(() =>
+  isSimpleShop.value
+    ? allPricingModeOptions.filter((o) => o.value !== 'import')
+    : allPricingModeOptions,
+);
 const PRICING_MODE_HINTS: Record<PricingMode, string> = {
   import:
     'Coût + fret import + assurance, puis douane, marge et taxe. Douane et poids obligatoires pour la publication.',
@@ -398,6 +436,17 @@ const PRICING_MODE_HINTS: Record<PricingMode, string> = {
   fixed: 'Vous saisissez le prix de vente TTC ; rien n’est recalculé.',
 };
 const pricingModeHint = computed(() => PRICING_MODE_HINTS[form.pricing_mode]);
+
+/**
+ * The warehouse stock is what the checkout serves first; for a product with
+ * no supplier it is the only sellable stock. Saved through the audited
+ * inventory adjustment (a stock movement is written), not as a product field.
+ */
+const localStockHint = computed(() =>
+  form.supplier_name || props.product?.is_supplier_managed
+    ? 'Servi en premier au checkout, avant la dispo fournisseur. Un mouvement de stock est tracé.'
+    : 'Sans fournisseur, c’est le seul stock vendable en boutique. Un mouvement de stock est tracé.',
+);
 
 /**
  * Choosing a supplier pre-fills what the supplier decides: its origin
@@ -472,6 +521,11 @@ function str(v: unknown): string {
   if (typeof v === 'number' || typeof v === 'boolean') return String(v);
   return '';
 }
+/** Decimal string from the API ("12.00") → integer text for the field ("12"). */
+function formatQty(v: unknown): string {
+  const n = Number(v);
+  return Number.isFinite(n) ? String(Math.max(0, Math.round(n))) : '0';
+}
 function num(v: unknown): number | null {
   if (v == null || v === '') return null;
   const n = Number(v);
@@ -488,11 +542,12 @@ function loadFromProduct(p: ProductPublic | null) {
     base.supplier_name = (rec.supplier_name as string | null) ?? null;
     base.supplier_sku = str(rec.supplier_sku);
     base.supplier_quantity = str(rec.supplier_quantity) || '0';
+    base.local_quantity = formatQty(rec.local_quantity);
     const mode = str(rec.pricing_mode);
     base.pricing_mode = mode === 'domestic' || mode === 'fixed' ? mode : 'import';
     base.margin_rate_pct = str(rec.margin_rate_pct);
     base.cost_amount = str(rec.cost_amount) || '0.00';
-    base.cost_currency = str(rec.cost_currency) || 'XPF';
+    base.cost_currency = str(rec.cost_currency) || shopConfig.currency;
     base.customs_rate_pct = str(rec.customs_rate_pct);
     base.base_price = str(rec.base_price) || '0.00';
     base.category_id = (rec.category_id as string | null) ?? null;
@@ -515,6 +570,7 @@ function buildPayload(): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   const keys = Object.keys(form) as (keyof FormState)[];
   for (const key of keys) {
+    if (key === 'local_quantity') continue; // inventory adjustment, not a product field
     const value = form[key];
     if (isEdit.value && value === original[key]) continue;
     if (MONEY_FIELDS.includes(key as (typeof MONEY_FIELDS)[number])) {
@@ -539,11 +595,14 @@ async function onSubmit() {
   error.value = null;
   try {
     const payload = buildPayload();
+    let productId: string;
     if (isEdit.value && props.product) {
       await store.updateProduct(props.product.id, payload);
+      productId = props.product.id;
     } else {
-      await store.createProduct(payload);
+      productId = (await store.createProduct(payload)).id;
     }
+    await saveLocalStock(productId);
     emit('saved');
     emit('update:modelValue', false);
   } catch (err: unknown) {
@@ -553,7 +612,28 @@ async function onSubmit() {
   }
 }
 
+/**
+ * Warehouse stock goes through the audited inventory adjustment (the same
+ * one as the « Inventaire » page): the quantity becomes the new absolute
+ * local stock and a movement records the delta. Nothing is sent when it did
+ * not change, so an edit never rewrites the stock silently.
+ */
+async function saveLocalStock(productId: string) {
+  const next = formatQty(form.local_quantity);
+  const previous = formatQty(original.local_quantity);
+  if (next === previous) return;
+  await adjustInventory({
+    product_id: productId,
+    place_id: null,
+    quantity: next,
+    reason: isEdit.value
+      ? 'Modification depuis la fiche produit'
+      : 'Stock initial saisi à la création',
+  });
+}
+
 async function loadLookups() {
+  void shopConfig.load();
   try {
     [categories.value, taxRates.value, places.value, suppliers.value] = await Promise.all([
       listCategories(),

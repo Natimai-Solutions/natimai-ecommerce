@@ -491,7 +491,7 @@ adapté.
 
 - Adresse « ship-to » des bons de commande Ingram : toujours `INGRAM_SHIP_TO_*` ; à déplacer vers l'entrepôt principal (`Place`) quand la commande fournisseur sera généralisée aux autres fournisseurs (`supplier_order_service` reste spécifique Ingram).
 - Stratification du rafraîchissement des prix (voir *Rafraîchissement stratifié*) : le tick inventaire enfile tous les fournisseurs à la même cadence.
-- Import fichier volumineux (> 50 000 lignes) : passer par un job ARQ avec fichier déposé dans le stockage plutôt qu'en ligne dans la requête.
+- ✅ Import fichier volumineux (10/09/2026) : au-delà de `SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS` (2 000 lignes) le fichier est déposé dans le stockage et importé par le job ARQ `import_supplier_file_task` ; l'admin suit le journal de synchronisation (`GET /suppliers/{code}/import-file/{sync_log_id}`). Plafond `SUPPLIER_FILE_IMPORT_MAX_ROWS` (250 000).
 
 ---
 
@@ -1281,24 +1281,24 @@ Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/my
 
 | Feature | Backend | Vitrine (`frontend`) | Admin (`admin-frontend`) |
 |---------|---------|----------------------|--------------------------|
-| M1 — produits les plus vus | 🔲 | 🔲 section accueil / carrousel | — |
+| M1 — produits les plus vus | ✅ (10/09/2026) compteur journalier + `GET /product/popular` | ✅ accueil : vedettes + « les plus consultés » | — |
 | M3 — factures PDF (**WeasyPrint**) + export comptable | ✅ (25/08/2026) | ✅ téléchargement facture (compte) | ✅ écran factures + export CSV |
 | M5 — numéro de commande séquentiel | ✅ (25/08/2026) | ✅ affichage (compte) | ✅ affichage (factures) |
-| Z2 — avoir comptable | 🔲 | 🔲 affichage avoir | 🔲 écran avoir |
-| Z3 — relance paniers abandonnés | 🔲 | — | 🔲 dashboard relances |
+| Z2 — avoir comptable | ✅ (N10 + e-mail d'envoi 10/09/2026) | ✅ téléchargement des avoirs (compte, par commande) | ✅ écran Avoirs + export CSV |
+| Z3 — relance paniers abandonnés | ✅ (10/09/2026) balayage horaire + `cart.abandoned` + e-mail | ✅ miroir serveur du panier, opt-out marketing | ✅ page Paniers abandonnés (compteurs ouverts / relancés / récupérés) |
 | Z4 — recherche IA | 🔲 | 🔲 UI recherche sémantique | — |
 
 ### Périmètre
 
 | ID | Fonctionnalité | Notes |
 |----|----------------|-------|
-| M1 | Produits les plus vus | Tracking de vues + endpoint top-N |
+| M1 ✅ | Produits les plus vus | `POST /product/{id}/view` (page produit, côté client seulement) → `product_view_daily` ; `GET /product/popular?days&limit` ; accueil vitrine |
 | M2 | Déploiement Kubernetes | Helm chart à partir du `docker-compose.prod.yml` |
 | M3 ✅ | Factures + export comptable | **Livré 25/08/2026** (cf. PP-C). Modèle Invoice + numérotation + PDF **WeasyPrint** (avec ventilation TVA par taux via `OrderLine.tax_rate_id`) + export FEC/CSV Sage — cf. *Note technique — génération PDF des factures* ci-dessous |
 | M4 | Alerting actif | Job ARQ surveille dashboard → Slack/email sur seuils |
 | Z1 | Paiement en plusieurs fois | Dépend Phase 4 (tokenisation Payzen) |
-| Z2 | Avoir comptable | Dépend M3 (facture ✅ livrée) + Phase 4 (refund) — **débloqué** |
-| Z3 | Relance paniers abandonnés | Cron horaire + handler outbox `cart.abandoned` |
+| Z2 ✅ | Avoir comptable | **Livré** : backend (N10), e-mail `credit_note.issued`, écran admin Avoirs, téléchargement client (10/09/2026) |
+| Z3 ✅ | Relance paniers abandonnés | Livré : `remind_abandoned_carts_task` (horaire), `carts.last_activity_at` / `abandonment_reminded_at`, `user_preferences.marketing_email_enabled`, handler `cart.abandoned` |
 | Z4 | Recherche IA | Refonte du draft `ia_search_agent.py` (placeholders à remplacer) ; pgvector recommandé |
 | M5 ✅ | Numéro de commande séquentiel | **Livré 25/08/2026** (cf. PP-C). Cf. *Note technique — numéro de commande séquentiel (M5)* ci-dessous |
 
@@ -1646,22 +1646,26 @@ Items sortis du périmètre actif sur décision produit — à reconsidérer plu
 
 ---
 
+## Profil de territoire et mode « boutique simple » ✅ (11/09/2026)
+
+`TERRITORY_PROFILE` (`PF` par défaut, `FR`) résout devise de référence, pays, territoire fiscal, taux par défaut (produits et frais), devise PayZen et données de démarrage (taux de taxe et de change du profil, arbre des îles ou simple nœud pays) — chaque réglage reste surchargeable individuellement (`app/core/territory.py`). Plus aucun « PF » / « XPF » / « TGC_NORMAL » codé en dur sur le chemin de vente : le pricing, le panier, les préférences, la facture et l'identité légale lisent les réglages. `SHOP_MODE=simple` masque dans l'admin fournisseurs, douane, taux de change, catalogue de specs et trajets multi-tronçons, passe la fiche produit en prix fixe par défaut et ne planifie ni la synchro fournisseur ni Icecat. `GET /system/config` expose profil, mode et devise aux deux frontends.
+
 ## Backlog e-commerce — fonctionnalités classiques (à planifier)
 
 Idées de fonctionnalités e-commerce standard à instruire plus tard. État de l'existant noté pour ne pas refaire.
 
-### Variantes d'articles 🔲
-Aujourd'hui : seulement un flag `Product.has_variants` (pas de modèle de variante). À concevoir :
+### Variantes d'articles ✅ (10/09/2026)
+Une variante est une ligne `products` rattachée à son parent (`parent_product_id`, `variant_options`) : SKU, prix, coût, stock, image, poids, mapping fournisseur, panier, commande, facture et mouvements de stock inchangés. Le parent (`has_variants`) est l'entrée boutique, affiche « à partir de » (prix de la variante la moins chère, remonté à chaque changement et par le rafraîchissement des prix), n'est jamais vendu tel quel (409 `cart.product.has_variants`) ; les variantes ne sont jamais listées seules. Vitrine : sélecteurs par option sur la page produit (`GET /product/{id}/variants`), « Choisir » sur les cartes. Admin : panneau Variantes dans la fiche produit (`/admin/products/{id}/variants`). Conception initiale :
 - Modèle **`ProductVariant`** (SKU, options ex. taille/couleur, **prix/coût**, **stock** propres, image), rattaché au `Product` parent.
 - Sélection de variante côté **vitrine** (sélecteurs d'options) ; **panier/commande** référencent la variante.
 - Mapping **sync fournisseur** (Ingram renvoie-t-il des variantes ? sinon variantes « manuelles »).
 - Impact pricing (le runtime pricing s'applique par variante) et logistique (poids/volume par variante).
 
-### Réductions / codes promo / vouchers 🟡 (backend partiel)
+### Réductions / codes promo / vouchers ✅ codes promo livrés (10/09/2026) — vouchers nominatifs à instruire
 Le feature **`discount`** existe déjà ([models.py](backend/app/features/discount/models.py)) : `DiscountType`, `DiscountTarget`, champ **`code`**, CRUD. Reste à **câbler le parcours client** :
-- Saisie d'un **code promo au panier/checkout** → validation (existence, dates, montant min, **limites d'usage** globales/par client) → recalcul du total (backend autoritaire).
+- ✅ Saisie d'un **code promo au checkout** → validation serveur (existence insensible à la casse, dates, minimum d'articles concernés, quotas global **et par client**, cible commande / produit / catégorie), remise en % ou en montant, ventilée par ligne (`OrderLine.discount_amount`), figée sur la commande (`discount_id` / `discount_code` / `discount_amount`), quota pris atomiquement à la commande, remise portée sur la facture.
 - **Vouchers / bons d'achat** (montant prépayé nominatif) si distinct des remises % / montant.
-- **Écran admin** de gestion des remises/codes (création, conditions, suivi d'usage).
+- ✅ **Écran admin** « Codes promo » (création, conditions, suivi d'usage, activation).
 - Cohérence avec **groupes de prix** (cumul ou exclusivité ?) et **devise** (remise en XPF).
 
 ### PayPal (intégration standard) 🔲

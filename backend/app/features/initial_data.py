@@ -207,56 +207,42 @@ async def _seed_carriers(session: AsyncSession) -> None:
 
 
 async def _seed_tax_rates(session: AsyncSession) -> None:
-    """Seed baseline PF tax rates used by pricing resolution."""
-    rates = (
-        {
-            "code": "TGC_NORMAL",
-            "label": "TGC normal",
-            "rate_pct": Decimal("16.00"),
-            "territory_code": "PF",
-            "valid_from": date.today(),
-            "valid_until": None,
-        },
-        {
-            "code": "TGC_REDUIT",
-            "label": "TGC reduit",
-            "rate_pct": Decimal("5.00"),
-            "territory_code": "PF",
-            "valid_from": date.today(),
-            "valid_until": None,
-        },
-        {
-            "code": "TGC_EXONERE",
-            "label": "TGC exonere",
-            "rate_pct": Decimal("0.00"),
-            "territory_code": "PF",
-            "valid_from": date.today(),
-            "valid_until": None,
-        },
-    )
+    """Seed the tax rates of the territory profile (TGC for PF, TVA for FR).
 
-    for rate in rates:
+    Idempotent per (code, territory); rates of another territory are left
+    alone, so switching the profile adds the new set without touching the old.
+    """
+    profile = settings.territory_profile
+    for spec in profile.tax_rates:
         statement = select(TaxRate).where(
-            TaxRate.code == rate["code"],
-            TaxRate.territory_code == rate["territory_code"],
+            TaxRate.code == spec.code,
+            TaxRate.territory_code == profile.tax_territory_code,
         )
         result = await session.exec(statement)
         if result.first() is not None:
             continue
-        session.add(TaxRate.model_validate(rate))
+        session.add(
+            TaxRate(
+                code=spec.code,
+                label=spec.label,
+                rate_pct=spec.rate_pct,
+                territory_code=profile.tax_territory_code,
+                valid_from=date.today(),
+                valid_until=None,
+            )
+        )
 
 
 async def _seed_currency_rates(session: AsyncSession) -> None:
-    """Seed baseline FX rates used by pricing conversion (cost → reference currency)."""
-    rates = (
-        {
-            "currency_code": "EUR",
-            "rate_to_reference": Decimal("119.332"),
-        },
-        {
-            "currency_code": "USD",
-            "rate_to_reference": Decimal("100.000"),
-        },
+    """Seed starter FX rates (cost → reference currency) of the territory profile.
+
+    Indicative values to be maintained in the admin; the reference currency
+    itself never needs a rate.
+    """
+    rates = tuple(
+        {"currency_code": code, "rate_to_reference": rate}
+        for code, rate in settings.territory_profile.currency_rates
+        if code != settings.REFERENCE_CURRENCY
     )
 
     for rate in rates:
@@ -433,6 +419,7 @@ async def _get_or_create_place_by_code(
     name: str,
     place_type: str,
     parent_id: Any = None,
+    country: str | None = None,
 ) -> Place:
     """Fetch a place by stable code, creating it when missing (idempotent)."""
     result = await session.exec(select(Place).where(Place.code == code))
@@ -442,7 +429,7 @@ async def _get_or_create_place_by_code(
             name=name,
             type=place_type,
             code=code,
-            country="PF",
+            country=country or settings.SHOP_COUNTRY_CODE,
             parent_id=parent_id,
         )
         session.add(place)
@@ -589,6 +576,24 @@ _SHIPPING_STATUS_TRANSITIONS: tuple[tuple[str, str, str], ...] = (
     ("consolidation", "pending", "shipped"),
     ("consolidation", "shipped", "delivered"),
 )
+
+
+async def _seed_shop_country(session: AsyncSession) -> None:
+    """Root of the place tree for a shop outside French Polynesia.
+
+    Addresses attach to it by country; finer zones (regions, postal codes)
+    are the admin's to add from « Trajets & Lieux » when a delivery tariff
+    depends on the destination.
+    """
+    profile = settings.territory_profile
+    await _get_or_create_place_by_code(
+        session,
+        code=profile.country_code,
+        name=profile.label,
+        place_type="country",
+        country=profile.country_code,
+    )
+    await session.commit()
 
 
 async def _seed_shipping_statuses(session: AsyncSession) -> None:
@@ -847,6 +852,8 @@ async def initial_data(session: AsyncSession) -> None:
     if settings.SEED_FRENCH_POLYNESIA_LOGISTICS:
         await _seed_france_papeete_import_corridor(session)
         await _seed_french_polynesia_geography(session)
+    else:
+        await _seed_shop_country(session)
     # The historical distributor is not territory-specific: always declared
     # (its origin warehouse is filled in only when the corridor was seeded).
     await _seed_suppliers(session)

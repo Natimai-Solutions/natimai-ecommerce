@@ -39,9 +39,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
+import { useShopConfigStore } from 'src/stores/shopConfig';
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -57,7 +58,20 @@ interface NavSection {
   links: NavLink[];
 }
 
-const nav: NavSection[] = [
+/**
+ * Screens that only make sense with suppliers, customs or multi-leg
+ * logistics. Hidden in SHOP_MODE=simple; the routes stay reachable by URL.
+ */
+const FULL_MODE_ONLY = new Set([
+  '/spec-definitions',
+  '/customs-rates',
+  '/currency-rates',
+  '/logistics-routes',
+  '/suppliers',
+  '/supplier-orders',
+]);
+
+const allNav: NavSection[] = [
   {
     label: 'Catalogue',
     links: [
@@ -72,6 +86,7 @@ const nav: NavSection[] = [
       { label: 'Taux TVA / TGC', icon: 'percent', to: '/tax-rates' },
       { label: 'Douane par catégorie', icon: 'gavel', to: '/customs-rates' },
       { label: 'Taux de change', icon: 'currency_exchange', to: '/currency-rates' },
+      { label: 'Codes promo', icon: 'local_offer', to: '/discounts' },
     ],
   },
   {
@@ -79,6 +94,7 @@ const nav: NavSection[] = [
     links: [
       { label: 'Commandes clients', icon: 'receipt_long', to: '/orders' },
       { label: 'Factures', icon: 'request_quote', to: '/invoices' },
+      { label: 'Avoirs', icon: 'receipt', to: '/credit-notes' },
       { label: 'Demandes de devis', icon: 'request_page', to: '/quote-requests' },
       { label: 'Logistique', icon: 'inventory_2', to: '/shipping' },
       { label: 'Inventaire', icon: 'warehouse', to: '/inventory' },
@@ -101,6 +117,7 @@ const nav: NavSection[] = [
       { label: 'Utilisateurs', icon: 'people', to: '/users' },
       { label: 'Demandes de groupe', icon: 'group_add', to: '/group-upgrade-requests' },
       { label: 'Adresses', icon: 'location_on', to: '/addresses' },
+      { label: 'Paniers abandonnés', icon: 'remove_shopping_cart', to: '/abandoned-carts' },
     ],
   },
   {
@@ -108,6 +125,20 @@ const nav: NavSection[] = [
     links: [{ label: 'Paramètres', icon: 'settings', to: '/system-settings' }],
   },
 ];
+
+const shopConfig = useShopConfigStore();
+onMounted(() => void shopConfig.load());
+
+const nav = computed<NavSection[]>(() =>
+  shopConfig.isSimple
+    ? allNav
+        .map((section) => ({
+          ...section,
+          links: section.links.filter((link) => !FULL_MODE_ONLY.has(link.to)),
+        }))
+        .filter((section) => section.links.length > 0)
+    : allNav,
+);
 
 function onLogout() {
   void auth.logout();

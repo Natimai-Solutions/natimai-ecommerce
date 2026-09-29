@@ -23,6 +23,7 @@ from typing import Any
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.features.invoice.models.credit_note import CreditNote
 from app.features.invoice.models.invoice import Invoice
 from app.features.notification.email_renderer import render_email
 from app.features.notification.providers import (
@@ -41,6 +42,7 @@ EVENT_PAYMENT_CAPTURED = "payment.captured"
 EVENT_PAYMENT_REJECTED = "payment.rejected"
 EVENT_PAYMENT_REFUNDED = "payment.refunded"
 EVENT_INVOICE_ISSUED = "invoice.issued"
+EVENT_CREDIT_NOTE_ISSUED = "credit_note.issued"
 
 
 def _shop_name() -> str:
@@ -350,4 +352,76 @@ async def on_invoice_issued_customer(
 
     invoice.emailed_at = datetime.now(timezone.utc)
     session.add(invoice)
+    await session.commit()
+
+
+@outbox_handler(EVENT_CREDIT_NOTE_ISSUED)
+async def on_credit_note_issued_customer(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    """Deliver the credit note that corrects an invoice (Z2).
+
+    Same contract as the invoice mail: numbers and a link to the account page
+    rather than the PDF, ``CreditNote.emailed_at`` for idempotence, and a
+    failed delivery raises so the outbox retries.
+    """
+    raw_id = payload.get("credit_note_id")
+    if not raw_id:
+        logger.warning("credit note email: missing credit_note_id, skipping")
+        return
+    try:
+        credit_note_id = uuid.UUID(str(raw_id))
+    except (TypeError, ValueError):
+        logger.warning("credit note email: invalid credit_note_id %r", raw_id)
+        return
+
+    credit_note = await session.get(CreditNote, credit_note_id)
+    if credit_note is None:
+        logger.warning("credit note email: credit note %s not found", credit_note_id)
+        return
+    if credit_note.emailed_at is not None:
+        logger.info(
+            "Credit note %s already e-mailed at %s — skipping replay",
+            credit_note.credit_note_number,
+            credit_note.emailed_at,
+        )
+        return
+
+    user = await _resolve_user_from_payload(session, payload)
+    full_name = (user.full_name or user.email or "") if user else ""
+    order_ref = await _resolve_order_ref(session, payload)
+    snapshot: dict[str, Any] = getattr(credit_note, "snapshot", None) or {}
+    invoice_number = (snapshot.get("invoice") or {}).get("number") or ""
+
+    email = render_email(
+        "credit_note_issued",
+        full_name=full_name or "client",
+        credit_note_number=credit_note.credit_note_number,
+        invoice_number=invoice_number,
+        order_id=payload.get("order_id", ""),
+        order_ref=order_ref,
+        total_incl_tax=payload.get("total_incl_tax", ""),
+        total_tax=payload.get("total_tax", ""),
+        currency=payload.get("currency", ""),
+        reason=payload.get("reason", "") or credit_note.reason or "",
+        account_url=f"{settings.FRONTEND_HOST.rstrip('/')}/mon-compte",
+        shop_name=_shop_name(),
+    )
+
+    delivered = await _send_order_email(
+        session,
+        user_id_raw=payload.get("user_id"),
+        subject=email.subject,
+        text=email.text,
+        html=email.html,
+        event_type=EVENT_CREDIT_NOTE_ISSUED,
+        payload=payload,
+    )
+    if not delivered:
+        raise RuntimeError(
+            f"Credit note {credit_note.credit_note_number} e-mail was not delivered"
+        )
+
+    credit_note.emailed_at = datetime.now(timezone.utc)
+    session.add(credit_note)
     await session.commit()

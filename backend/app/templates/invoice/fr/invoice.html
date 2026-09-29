@@ -196,6 +196,15 @@
         </tr>
         {% endfor %}
 
+        {% if discount and discount.amount and discount.amount != '0.00' and discount.amount != '0' %}
+        <tr>
+          <td>Remise{% if discount.code %} — code {{ discount.code }}{% endif %}</td>
+          <td class="num">1</td>
+          <td class="num">-{{ discount.amount | amount(currency) }}</td>
+          <td class="num"></td>
+          <td class="num">-{{ discount.amount | amount(currency) }}</td>
+        </tr>
+        {% endif %}
         {% if fees.shipping_incl_tax and fees.shipping_incl_tax != '0.00' and fees.shipping_incl_tax != '0' %}
         <tr>
           <td>Frais de livraison</td>

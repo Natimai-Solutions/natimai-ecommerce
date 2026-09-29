@@ -20,6 +20,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.features.invoice.models.credit_note import CreditNote
 from app.features.invoice.models.invoice import Invoice
+from app.utils.money import ZERO_DECIMAL_CURRENCIES
 
 # app/features/invoice/services/pdf.py → app/templates/invoice
 _TEMPLATES_DIR = Path(__file__).resolve().parents[3] / "templates" / "invoice"
@@ -40,16 +41,17 @@ _CURRENCY_SEPARATOR = "\u00a0"
 def _format_amount(value: Any, currency: str = "") -> str:
     """Render an amount in French convention (``472 700 XPF`` (espaces insécables)).
 
-    XPF has no minor unit, so its amounts are printed without decimals.
+    A currency without minor unit (XPF…) is printed without decimals.
     """
     try:
         amount = Decimal(str(value))
     except Exception:  # noqa: BLE001 — templates must never crash on bad data
         return str(value)
 
-    quantized = amount.quantize(Decimal("1")) if currency == "XPF" else amount
+    no_minor_unit = currency in ZERO_DECIMAL_CURRENCIES
+    quantized = amount.quantize(Decimal("1")) if no_minor_unit else amount
     sign = "-" if quantized < 0 else ""
-    digits = f"{abs(quantized):,.0f}" if currency == "XPF" else f"{abs(quantized):,.2f}"
+    digits = f"{abs(quantized):,.0f}" if no_minor_unit else f"{abs(quantized):,.2f}"
     formatted = digits.replace(",", _THOUSANDS_SEPARATOR).replace(".", ",")
     if not currency:
         return f"{sign}{formatted}"

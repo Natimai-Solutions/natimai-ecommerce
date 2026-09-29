@@ -24,12 +24,26 @@
           <span class="stock-dot" aria-hidden="true" />{{ stockQuantity }} en stock
         </span>
 
+        <span v-if="variantsCount > 1" class="product-card__offers">
+          {{ variantsCount }} déclinaisons
+        </span>
+
         <span v-if="offersCount > 1" class="product-card__offers">
           {{ offersCount }} offres, meilleur prix affiché
         </span>
       </div>
 
+      <router-link
+        v-if="product.has_variants"
+        :to="productRoute"
+        class="product-card__add"
+        data-testid="product-choose-variant"
+        :aria-label="`Choisir une déclinaison de ${product.name}`"
+      >
+        <q-icon name="ph:arrow-right" size="20px" />
+      </router-link>
       <button
+        v-else
         type="button"
         class="product-card__add"
         data-testid="product-add-to-cart"
@@ -48,6 +62,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { components } from '@app/api-types';
+import { sellableQuantity } from 'src/api/products';
 import ProductImage from 'src/components/ProductImage.vue';
 import { getProductRoute } from 'src/utils/productRoute';
 import { useCurrencyStore } from 'src/stores/currency';
@@ -66,13 +81,16 @@ const productRoute = computed(() => getProductRoute(props.product));
 const imageUrl = computed(() => props.product.image_url ?? props.product.supplier_image_url);
 const brand = computed(() => props.product.manufacturer ?? props.product.supplier_name ?? '');
 
-const isOutOfStock = computed(() => parseFloat(props.product.supplier_quantity) <= 0);
-const stockQuantity = computed(() =>
-  Math.max(0, Math.round(parseFloat(props.product.supplier_quantity))),
-);
+const stockQuantity = computed(() => sellableQuantity(props.product));
+const isOutOfStock = computed(() => stockQuantity.value <= 0);
+const variantsCount = computed(() => props.product.variants_count ?? 0);
 
 const isQuote = computed(() => parseFloat(props.product.base_price) === 0);
-const displayPrice = computed(() => currencyStore.format(parseFloat(props.product.base_price)));
+const displayPrice = computed(() => {
+  const formatted = currencyStore.format(parseFloat(props.product.base_price));
+  // A parent is listed at its cheapest variant.
+  return props.product.has_variants ? `À partir de ${formatted}` : formatted;
+});
 </script>
 
 <style scoped lang="scss">
@@ -183,6 +201,7 @@ const displayPrice = computed(() => currencyStore.format(parseFloat(props.produc
   border-radius: 8px;
   background: var(--n-surface);
   color: var(--n-ink);
+  text-decoration: none;
   cursor: pointer;
   transition:
     border-color 0.2s ease,

@@ -61,5 +61,11 @@ class FileStorage(ABC):
         """Return full file contents — only for AV scan / internal use."""
 
     @abstractmethod
+    async def put_bytes(
+        self, *, key: str, data: bytes, content_type: str | None = None
+    ) -> None:
+        """Store ``data`` under ``key`` from the server side (no presigned URL)."""
+
+    @abstractmethod
     async def delete(self, *, key: str) -> None:
         """Remove the object."""

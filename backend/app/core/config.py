@@ -15,6 +15,7 @@ from pydantic_core import MultiHostUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing_extensions import Self
 
+from app.core.territory import get_profile
 from app.features.integrations.services.supplier_data_normalization import (
     ProductFilterRule,
 )
@@ -282,6 +283,20 @@ class Settings(BaseSettings):
     S3_BUCKET_NAME: str | None = None
     S3_REGION: str = "us-east-1"
 
+    # Abandoned carts (Z3): a cart untouched for this long, never checked out,
+    # gets one reminder e-mail (marketing opt-out honoured). 0 disables the
+    # hourly sweep. Carts older than the max age are left alone: a reminder
+    # for a basket from last month is noise, not a sale.
+    CART_ABANDONMENT_REMINDER_DELAY_HOURS: int = 24
+    CART_ABANDONMENT_MAX_AGE_DAYS: int = 14
+
+    # Supplier catalog file import (CSV / Excel). Up to the inline limit the
+    # import runs inside the request; above it the file is stored
+    # (FILE_STORAGE_BACKEND) and an ARQ job imports it, the admin polls the
+    # sync log. The hard cap bounds memory in the worker.
+    SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS: int = 2000
+    SUPPLIER_FILE_IMPORT_MAX_ROWS: int = 250_000
+
     # File storage backend selection for payment attachments
     FILE_STORAGE_BACKEND: Literal["s3", "local"] = "local"
     FILE_STORAGE_LOCAL_ROOT: str = "/tmp/fastapi_ecommerce_storage"
@@ -390,10 +405,27 @@ class Settings(BaseSettings):
     # shipment — via POST /admin/payments/{id}/capture or the ship action.
     # PayZen authorisations expire (~7 days): capture before then or re-authorise.
     PAYZEN_MANUAL_VALIDATION: bool = False
+    # --- Territoire et mode de la boutique --------------------------------
+    # TERRITORY_PROFILE picks the currency, the tax territory and its seeded
+    # rates, the country and the starter data (see app/core/territory.py):
+    # "PF" (Polynésie française, XPF, TGC — the historical default) or "FR"
+    # (France métropolitaine, EUR, TVA). Every value below can still be set
+    # on its own; the profile only fills what the environment leaves unset.
+    TERRITORY_PROFILE: Literal["PF", "FR"] = "PF"
+    # SHOP_MODE=simple: a one-warehouse shop selling its own stock, shipped
+    # directly to the customer. The admin hides suppliers, customs, exchange
+    # rates and multi-leg logistics; the supplier sync and Icecat crons are
+    # not scheduled. Nothing is removed: switching back to "full" shows it all.
+    SHOP_MODE: Literal["full", "simple"] = "full"
     # Reference (pivot) currency: the currency in which costs are normalized,
-    # prices are computed and orders are billed. One per deployment. Override
-    # per territory via the environment, never hardcode it in the code.
+    # prices are computed and orders are billed. One per deployment.
     REFERENCE_CURRENCY: str = "XPF"
+    # ISO country of the shop: address fallback and root of the place tree.
+    SHOP_COUNTRY_CODE: str = "PF"
+    # Tax territory of the shop's own rates, and the rate applied when neither
+    # the product nor its category says otherwise.
+    TAX_TERRITORY_CODE: str = "PF"
+    DEFAULT_TAX_CODE: str = "TGC_NORMAL"
     # Insurance rate applied on (cost + variable import freight) before customs
     # — the CAF/CIF basis, which is what an ad valorem policy actually covers.
     # Expressed as a percentage (e.g. 1.0 = 1 %). Default 0 = no insurance in
@@ -441,6 +473,34 @@ class Settings(BaseSettings):
             else "http://localhost:8000"
         )
         return f"{backend_url}{self.API_V1_STR}/payments/webhooks/payzen"
+
+    @model_validator(mode="after")
+    def _apply_territory_profile(self) -> Self:
+        """Fill the territory-dependent settings the environment left unset."""
+        profile = get_profile(self.TERRITORY_PROFILE)
+        defaults = {
+            "REFERENCE_CURRENCY": profile.currency,
+            "SHOP_COUNTRY_CODE": profile.country_code,
+            "TAX_TERRITORY_CODE": profile.tax_territory_code,
+            "DEFAULT_TAX_CODE": profile.default_tax_code,
+            "INVOICE_FEES_TAX_CODE": profile.default_tax_code,
+            "PAYZEN_CURRENCY": profile.currency,
+            "SEED_FRENCH_POLYNESIA_LOGISTICS": profile.seed_french_polynesia_logistics,
+        }
+        for name, value in defaults.items():
+            if name not in self.model_fields_set:
+                object.__setattr__(self, name, value)
+        return self
+
+    @property
+    def territory_profile(self) -> Any:
+        """The active :class:`~app.core.territory.TerritoryProfile`."""
+        return get_profile(self.TERRITORY_PROFILE)
+
+    @property
+    def is_simple_shop(self) -> bool:
+        """``SHOP_MODE=simple``: own stock, direct shipping, no supplier machinery."""
+        return self.SHOP_MODE == "simple"
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
         """Check default secret."""

@@ -9,6 +9,11 @@ export type ProductPublic = components['schemas']['ProductPublic'] & {
   id: string;
   supplier_place_id?: string | null;
   overridden_fields?: string[] | null;
+  /** Stock entrepôt (ligne Inventory) — servi par la liste, absent d'une création. */
+  local_quantity?: string | null;
+  parent_product_id?: string | null;
+  variant_options?: Record<string, string> | null;
+  variants_count?: number;
 };
 type ProductsPublic = components['schemas']['ProductsPublic'];
 
@@ -17,7 +22,7 @@ export type ProductFormValues = Record<string, unknown>;
 
 const PAGE_SIZE = 25;
 
-export type ActiveFilter = 'all' | 'active' | 'enriched' | 'inactive';
+export type ActiveFilter = 'all' | 'active' | 'enriched' | 'hidden' | 'inactive';
 
 export const useProductsStore = defineStore('products', () => {
   const items = ref<ProductPublic[]>([]);
@@ -84,15 +89,30 @@ export const useProductsStore = defineStore('products', () => {
   }
 
   /** Create a manual product via the admin endpoint, then refresh the list. */
-  async function createProduct(payload: ProductFormValues): Promise<void> {
-    await api.post('/admin/products', payload);
+  async function createProduct(payload: ProductFormValues): Promise<ProductPublic> {
+    const { data } = await api.post<ProductPublic>('/admin/products', payload);
     await fetchPage();
+    return data;
   }
 
   /** Update a product; edited fields are locked against the supplier sync. */
   async function updateProduct(id: string, changed: ProductFormValues): Promise<void> {
     await api.put(`/admin/products/${id}`, changed);
     await fetchPage();
+  }
+
+  /**
+   * Show products on the storefront as they stand, without waiting for Icecat
+   * (or take that back with `published = false`). Manual products are always
+   * visible; this only matters for supplier-synced rows Icecat has not enriched.
+   */
+  async function publishProducts(ids: string[], published = true): Promise<number> {
+    const { data } = await api.post<{ updated: number; missing: string[] }>(
+      '/admin/products/publish',
+      { product_ids: ids, published },
+    );
+    await fetchPage();
+    return data.updated;
   }
 
   /**
@@ -134,6 +154,7 @@ export const useProductsStore = defineStore('products', () => {
     updateOriginPlace,
     createProduct,
     updateProduct,
+    publishProducts,
     releaseOverride,
     setPage,
     applyFilters,

@@ -5,8 +5,8 @@
         <div class="text-h6">Fournisseurs</div>
         <div class="text-caption text-grey-7">
           Un fournisseur est déclaré ici avec son entrepôt d'origine et son régime douanier. Sa
-          méthode d'approvisionnement décide comment ses articles arrivent : à la main, par
-          fichier CSV / Excel, ou par une intégration API.
+          méthode d'approvisionnement décide comment ses articles arrivent : à la main, par fichier
+          CSV / Excel, ou par une intégration API.
         </div>
       </div>
       <q-btn color="primary" icon="add" label="Nouveau fournisseur" no-caps @click="openCreate" />
@@ -178,8 +178,8 @@
               dense
               rounded
             >
-              Les identifiants de cette intégration ne sont pas configurés dans l'environnement
-              du serveur : la synchronisation restera impossible tant qu'ils manquent.
+              Les identifiants de cette intégration ne sont pas configurés dans l'environnement du
+              serveur : la synchronisation restera impossible tant qu'ils manquent.
             </q-banner>
 
             <q-select
@@ -306,15 +306,15 @@
             </div>
             <div class="text-subtitle2 q-mt-sm">Correspondance des colonnes</div>
             <div class="text-caption text-grey-7 q-mb-xs">
-              Associez chaque champ de notre système à une colonne du fichier. Les champs marqués
-              * sont obligatoires. La correspondance est mémorisée sur le fournisseur.
+              Associez chaque champ de notre système à une colonne du fichier. Les champs marqués *
+              sont obligatoires. La correspondance est mémorisée sur le fournisseur.
             </div>
             <div class="text-caption text-grey-7 q-mb-xs">
               Un article déjà présent chez ce fournisseur est reconnu par sa référence, sinon par
               son code-barres EAN/UPC, sinon par marque + référence fabricant : mappez ces colonnes
-              pour qu'un changement de référence ne crée pas de doublon. Un article saisi à la
-              main et rattaché à ce fournisseur est adopté (son contenu est conservé). Les articles
-              des autres fournisseurs ne sont jamais rapprochés.
+              pour qu'un changement de référence ne crée pas de doublon. Un article saisi à la main
+              et rattaché à ce fournisseur est adopté (son contenu est conservé). Les articles des
+              autres fournisseurs ne sont jamais rapprochés.
             </div>
             <div class="row q-col-gutter-sm">
               <div
@@ -333,6 +333,16 @@
                 />
               </div>
             </div>
+            <q-checkbox
+              v-model="publishNew"
+              dense
+              class="q-mt-sm"
+              label="Afficher les nouveaux articles en boutique sans attendre l’enrichissement Icecat"
+            />
+            <div class="text-caption text-grey-7 q-mb-xs">
+              Décoché, un article créé reste masqué tant qu’Icecat ne l’a pas reconnu (page
+              Produits, filtre « Masqués », pour le publier ensuite).
+            </div>
             <q-expansion-item dense label="Aperçu des premières lignes" class="q-mt-sm">
               <q-markup-table dense flat bordered>
                 <thead>
@@ -348,6 +358,15 @@
               </q-markup-table>
             </q-expansion-item>
           </template>
+
+          <q-banner v-if="queuedImport" class="bg-blue-1 text-blue-10" dense rounded>
+            <template #avatar>
+              <q-spinner color="primary" size="sm" />
+            </template>
+            Import en tâche de fond ({{ queuedImport.totalRows }} lignes) — l'avancement se met à
+            jour ici ; vous pouvez fermer cette fenêtre, le résultat restera dans le journal de
+            synchronisation.
+          </q-banner>
 
           <q-banner
             v-if="importResult"
@@ -365,6 +384,8 @@
                 {{ importResult.statistics.adopted_products ?? 0 }} adopté(s),
                 {{ importResult.statistics.ambiguous_products ?? 0 }} ambigu(s),
                 {{ importResult.statistics.errors ?? 0 }} erreur(s)
+                <span v-if="importResult.published_new">— publiés en boutique</span>
+                <span v-else>— masqués jusqu’à enrichissement</span>
               </span>
               <span v-else>
                 — {{ importResult.resolution.new ?? 0 }} nouveau(x),
@@ -372,6 +393,11 @@
                 {{ importResult.resolution.adopted ?? 0 }} adopté(s),
                 {{ importResult.resolution.ambiguous ?? 0 }} ambigu(s)
               </span>
+            </div>
+            <div v-if="importResult.resolution_limited_to" class="text-caption">
+              Fichier volumineux : reconnaissance simulée sur les
+              {{ importResult.resolution_limited_to }} premières lignes seulement ; l'import réel
+              tournera en tâche de fond.
             </div>
             <div v-if="importResult.dry_run && matchedByLine" class="text-caption">
               Reconnus par : {{ matchedByLine }}
@@ -432,7 +458,7 @@
           <q-btn
             color="primary"
             label="Importer"
-            :disable="!importFile || !inspection"
+            :disable="!importFile || !inspection || !!queuedImport"
             :loading="importBusy === 'run'"
             @click="runImport(false)"
           />
@@ -443,7 +469,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import type { QTableColumn } from 'quasar';
 import {
   MAPPING_TARGET_LABELS,
@@ -453,6 +479,7 @@ import {
   checkSupplierHealth,
   createSupplier,
   deactivateSupplier,
+  getImportStatus,
   importCatalogFile,
   inspectCatalogFile,
   listAdapters,
@@ -461,6 +488,7 @@ import {
   updateSupplier,
   type AdapterDescriptor,
   type FileImportResponse,
+  type FileImportStatus,
   type FileInspectResponse,
   type ImportMatchKey,
   type ImportResolutionAction,
@@ -716,8 +744,72 @@ const importing = ref<Supplier | null>(null);
 const importFile = ref<File | null>(null);
 const inspection = ref<FileInspectResponse | null>(null);
 const importResult = ref<FileImportResponse | null>(null);
+const publishNew = ref(true);
 const importError = ref<string | null>(null);
 const importBusy = ref<'dry' | 'run' | null>(null);
+
+// --- Import en tâche de fond : suivi du journal de synchronisation ----------
+const POLL_INTERVAL_MS = 3000;
+const queuedImport = ref<{ code: string; syncLogId: string; totalRows: number } | null>(null);
+let pollTimer: ReturnType<typeof setTimeout> | null = null;
+
+function stopPolling() {
+  if (pollTimer !== null) clearTimeout(pollTimer);
+  pollTimer = null;
+  queuedImport.value = null;
+}
+
+/** Le journal terminé, présenté comme un import en ligne. */
+function statusToResult(status: FileImportStatus, supplierCode: string): FileImportResponse {
+  return {
+    supplier_name: supplierCode,
+    filename: status.filename ?? '',
+    dry_run: false,
+    total_rows: status.total_rows ?? 0,
+    parsed_products: status.parsed_products ?? 0,
+    rejected_rows: status.rejected_rows ?? 0,
+    row_errors: status.row_errors,
+    statistics: status.statistics,
+    sync_errors: status.sync_errors,
+    sync_log_id: status.sync_log_id,
+    published_new: status.published_new,
+    queued: false,
+    job_id: null,
+    message: null,
+    sample: [],
+    resolution: {},
+    sample_resolutions: [],
+    resolution_limited_to: null,
+  };
+}
+
+async function pollQueuedImport() {
+  const current = queuedImport.value;
+  if (!current) return;
+  try {
+    const status = await getImportStatus(current.code, current.syncLogId);
+    if (status.status === 'pending' || status.status === 'running') {
+      pollTimer = setTimeout(() => void pollQueuedImport(), POLL_INTERVAL_MS);
+      return;
+    }
+    stopPolling();
+    if (status.status === 'failed') {
+      importError.value = status.error_message ?? 'Import échoué.';
+      return;
+    }
+    importResult.value = statusToResult(status, current.code);
+    notice.value = `Import ${status.filename ?? ''} terminé (${status.status}).`;
+    await load();
+  } catch (err) {
+    stopPolling();
+    importError.value = extractApiError(err) ?? 'Suivi de l’import impossible.';
+  }
+}
+
+watch(importDialog, (open) => {
+  if (!open) stopPolling();
+});
+onUnmounted(stopPolling);
 const mapping = reactive<Record<string, string | null>>({});
 
 /** « 3 par référence, 2 par code-barres » — seules les clés non nulles. */
@@ -782,12 +874,24 @@ async function runImport(dryRun: boolean) {
       // Remember the mapping on the supplier for the next file.
       await updateSupplier(importing.value.code, { column_mapping: chosen });
     }
-    importResult.value = await importCatalogFile(importing.value.code, importFile.value, {
+    const result = await importCatalogFile(importing.value.code, importFile.value, {
       mapping: chosen,
       dryRun,
+      publishNew: publishNew.value,
     });
+    if (result.queued && result.sync_log_id) {
+      // Large file: the worker imports it; follow the sync log until it ends.
+      queuedImport.value = {
+        code: importing.value.code,
+        syncLogId: result.sync_log_id,
+        totalRows: result.total_rows,
+      };
+      pollTimer = setTimeout(() => void pollQueuedImport(), POLL_INTERVAL_MS);
+      return;
+    }
+    importResult.value = result;
     if (!dryRun) {
-      notice.value = `Import ${importResult.value.filename} terminé pour ${importing.value.name}.`;
+      notice.value = `Import ${result.filename} terminé pour ${importing.value.name}.`;
       await load();
     }
   } catch (err) {

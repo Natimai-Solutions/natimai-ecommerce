@@ -11,6 +11,8 @@ export interface UserPreferences {
   user_id: string;
   notification_email_enabled: boolean;
   notification_shipping_steps: boolean;
+  /** Commercial reminders (forgotten cart, offers) — distinct from transactional mail. */
+  marketing_email_enabled: boolean;
   /** Checkout fallback: fastest | cheapest | eco_friendly */
   default_shipping_preference: string | null;
   /** UI language: fr | en */

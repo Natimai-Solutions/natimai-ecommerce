@@ -23,7 +23,7 @@ from typing import Any
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.features.invoice.models.credit_note import CreditNote
+from app.features.invoice.models.credit_note import CreditNote, CreditNotePublic
 from app.features.invoice.models.invoice import Invoice
 from app.features.invoice.services.numbering import allocate_credit_note_number
 from app.features.payment.models.refund import Refund
@@ -32,6 +32,28 @@ from app.utils.money import quantize_amount
 logger = logging.getLogger(__name__)
 
 _ZERO = Decimal("0")
+
+
+def credit_note_to_public(credit_note: CreditNote) -> CreditNotePublic:
+    """API view of a credit note; references come from the frozen snapshot."""
+    snapshot: dict[str, Any] = getattr(credit_note, "snapshot", None) or {}
+    order_snapshot = snapshot.get("order") or {}
+    invoice_snapshot = snapshot.get("invoice") or {}
+    return CreditNotePublic(
+        id=credit_note.id,
+        credit_note_number=credit_note.credit_note_number,
+        fiscal_year=credit_note.fiscal_year,
+        invoice_id=credit_note.invoice_id,
+        order_id=credit_note.order_id,
+        issued_at=credit_note.issued_at,
+        currency=credit_note.currency,
+        total_excl_tax=credit_note.total_excl_tax,
+        total_tax=credit_note.total_tax,
+        total_incl_tax=credit_note.total_incl_tax,
+        reason=credit_note.reason,
+        order_number=order_snapshot.get("number") or None,
+        invoice_number=invoice_snapshot.get("number") or None,
+    )
 
 
 class CreditNoteIssuanceError(RuntimeError):

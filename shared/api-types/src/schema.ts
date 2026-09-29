@@ -7769,6 +7769,17 @@ export interface components {
             payment_fee_amount: string;
             /** Total Fees Amount */
             total_fees_amount: string;
+            /** Discount Code */
+            discount_code?: string | null;
+            /**
+             * Discount Amount
+             * @default 0.00
+             */
+            discount_amount: string;
+            /** Discount Label */
+            discount_label?: string | null;
+            /** Discount Error */
+            discount_error?: string | null;
             /**
              * Total Amount
              * @description Montant qui sera débité
@@ -7847,6 +7858,8 @@ export interface components {
              * @description Return URL for provider redirect/SmartForm (CB).
              */
             return_url?: string | null;
+            /** Discount Code */
+            discount_code?: string | null;
         };
         /**
          * CheckoutResponse
@@ -7872,6 +7885,13 @@ export interface components {
             cart_id: string;
             /** Subtotal Amount */
             subtotal_amount: string;
+            /** Discount Code */
+            discount_code?: string | null;
+            /**
+             * Discount Amount
+             * @default 0.00
+             */
+            discount_amount: string;
             /** Shipping Fee Amount */
             shipping_fee_amount: string;
             /** Payment Fee Amount */
@@ -8003,6 +8023,10 @@ export interface components {
             total_incl_tax: string;
             /** Reason */
             reason: string | null;
+            /** Order Number */
+            order_number?: string | null;
+            /** Invoice Number */
+            invoice_number?: string | null;
         };
         /**
          * CurrencyRatePublic
@@ -12508,6 +12532,16 @@ export interface components {
             sale_price: string;
             /** Supplier Quantity */
             supplier_quantity: string;
+            /**
+             * Local Quantity
+             * @default 0.00
+             */
+            local_quantity: string;
+            /**
+             * Available Quantity
+             * @default 0.00
+             */
+            available_quantity: string;
             /** In Stock */
             in_stock: boolean;
             /** Image Url */
@@ -12694,6 +12728,12 @@ export interface components {
              */
             is_enriched: boolean;
             /**
+             * Published Without Enrichment
+             * @description Admin decision to show the product on the storefront without waiting for Icecat enrichment
+             * @default false
+             */
+            published_without_enrichment: boolean;
+            /**
              * Enrichment Supplier Id
              * @description Identifier of the enrichment data supplier
              */
@@ -12775,6 +12815,19 @@ export interface components {
              * @default 1
              */
             offers_count: number;
+            /** Parent Product Id */
+            parent_product_id?: string | null;
+            /** Variant Options */
+            variant_options?: { [key: string]: string } | null;
+            /**
+             * Variants Count
+             * @default 0
+             */
+            variants_count: number;
+            /** Local Quantity */
+            local_quantity?: string | null;
+            /** Available Quantity */
+            available_quantity?: string | null;
         };
         /**
          * ProductSearchFacets

@@ -22,14 +22,25 @@ from fastapi import UploadFile
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.routes.admin_product import admin_create_product
+from app.api.routes.admin_product import (
+    ProductPublishRequest,
+    admin_create_product,
+    admin_publish_products,
+)
 from app.api.routes.admin_suppliers import (
     create_supplier,
     deactivate_supplier,
     update_supplier,
 )
-from app.api.routes.suppliers import import_catalog_file, inspect_catalog_file
+from app.api.routes.suppliers import (
+    get_catalog_import_status,
+    import_catalog_file,
+    inspect_catalog_file,
+)
+from app.core.config import settings
 from app.core.errors import AppError
+from app.features.attachment.storage.local import LocalFileStorage
+from app.features.integrations.crud.supplier_sync import supplier_sync_log_crud
 from app.features.integrations.models.supplier import (
     Supplier,
     SupplierCreate,
@@ -39,11 +50,15 @@ from app.features.integrations.models.supplier import (
 from app.features.integrations.models.supplier_sync import (
     SupplierProductMapping,
     SupplierSyncLog,
+    SyncStatus,
+    SyncType,
 )
 from app.features.place.models import Place
 from app.features.product.models.product import PricingMode, Product, ProductCreate
 from app.features.product.services.publication import publication_conditions
 from app.features.user.models.user import User
+from app.tasks import supplier_file_import_tasks
+from app.tasks.supplier_file_import_tasks import run_queued_file_import
 
 
 async def _seed_admin(session: AsyncSession) -> User:
@@ -281,9 +296,11 @@ async def test_file_import_creates_domestic_products_with_cost_and_stock(
         file=_upload(content),
         mapping=None,
         dry_run=False,
+        publish_new=True,
     )
 
     assert response.parsed_products == 2
+    assert response.published_new is True
     assert response.rejected_rows == 1
     assert response.statistics["new_products"] == 2
     assert response.statistics["errors"] == 0
@@ -299,6 +316,9 @@ async def test_file_import_creates_domestic_products_with_cost_and_stock(
     }
     keyboard = products["LOC-1"]
     assert keyboard.is_supplier_managed is True
+    # Published as the file describes it: visible before (and without) Icecat.
+    assert keyboard.published_without_enrichment is True
+    assert keyboard.is_enriched is False
     assert keyboard.pricing_mode == PricingMode.DOMESTIC
     assert keyboard.supplier_place_id == origin_id
     assert keyboard.cost_amount == Decimal("4500.00")
@@ -340,6 +360,7 @@ async def test_file_import_creates_domestic_products_with_cost_and_stock(
             {"supplier_sku": "Ref", "name": "Désignation", "quantity": "Stock"}
         ),
         dry_run=False,
+        publish_new=True,
     )
     assert again.statistics["new_products"] == 0
     assert again.statistics["updated_products"] == 2
@@ -492,6 +513,7 @@ async def _run_import(
     content: bytes,
     *,
     dry_run: bool,
+    publish_new: bool = True,
 ) -> Any:
     await db_session.refresh(row)
     return await import_catalog_file(
@@ -501,6 +523,7 @@ async def _run_import(
         file=_upload(content),
         mapping=None,
         dry_run=dry_run,
+        publish_new=publish_new,
     )
 
 
@@ -625,6 +648,9 @@ async def test_manual_product_of_the_supplier_is_adopted_and_keeps_its_content(
     adopted = products[0]
     assert adopted.id == manual_id
     assert adopted.is_supplier_managed is True
+    # Adoption makes it supplier-managed: without this it would vanish from
+    # the storefront until Icecat knows it.
+    assert adopted.published_without_enrichment is True
     assert adopted.name == "Onduleur 800 VA (fiche rédigée)"
     assert adopted.pricing_mode == PricingMode.FIXED
     assert adopted.base_price == Decimal("29900.00")
@@ -704,3 +730,165 @@ async def test_ambiguous_identity_is_reported_and_leaves_both_untouched(
         "A-1",
         "A-2",
     }
+
+
+@pytest.mark.asyncio
+async def test_import_can_leave_new_rows_hidden_until_enrichment(
+    db_session: AsyncSession,
+) -> None:
+    admin = await _seed_admin(db_session)
+    origin = await _seed_place(db_session, code="PPT_DISTRIB", country="PF")
+    origin_id = origin.id
+    await db_session.commit()
+    row = await _seed_file_supplier(
+        db_session, admin, code="distrib_h", origin_id=origin_id
+    )
+    header = "Ref;Désignation;Prix HT;Stock;Marque;Réf fabricant;EAN\n"
+    content = (header + "H-1;Câble HDMI 2 m;1200;30;NoName;;\n").encode()
+
+    result = await _run_import(
+        db_session, admin, row, content, dry_run=False, publish_new=False
+    )
+    assert result.published_new is False
+    (product,) = await _products_of(db_session, "distrib_h")
+    assert product.published_without_enrichment is False
+
+    # The admin publishes it as it stands from the products page.
+    outcome = await admin_publish_products(
+        session=db_session,
+        current_user=await _fresh(db_session, admin),
+        payload=ProductPublishRequest(product_ids=[product.id, uuid.uuid4()]),
+    )
+    assert outcome.updated == 1
+    assert len(outcome.missing) == 1
+    await db_session.refresh(product)
+    assert product.published_without_enrichment is True
+
+
+# ---------------------------------------------------------------------------
+# large file: stored, queued, imported by the worker
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_large_file_is_queued_then_imported_by_the_worker(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Above the inline limit the request only stores and logs; the task imports."""
+    admin = await _seed_admin(db_session)
+    origin = await _seed_place(db_session, code="PPT_DISTRIB", country="PF")
+    origin_id = origin.id
+    await db_session.commit()
+    row = await _seed_file_supplier(
+        db_session, admin, code="distrib_big", origin_id=origin_id
+    )
+
+    storage = LocalFileStorage(str(tmp_path))
+    monkeypatch.setattr(settings, "SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS", 1)
+    import app.api.routes.suppliers as routes
+
+    monkeypatch.setattr(routes, "get_file_storage", lambda: storage)
+    monkeypatch.setattr(supplier_file_import_tasks, "get_file_storage", lambda: storage)
+    queued_jobs: list[dict[str, Any]] = []
+
+    async def fake_trigger(**kwargs: Any) -> str:
+        queued_jobs.append(kwargs)
+        return "file_import_distrib_big_1"
+
+    monkeypatch.setattr(routes, "trigger_file_import", fake_trigger)
+
+    header = "Ref;Désignation;Prix HT;Stock;Marque;Réf fabricant;EAN\n"
+    content = (
+        header
+        + "BIG-1;Câble HDMI 2 m;1200;30;NoName;;\n"
+        + "BIG-2;Câble HDMI 5 m;1900;12;NoName;;\n"
+        + ";Sans référence;10;1;;;\n"
+    ).encode()
+
+    response = await _run_import(db_session, admin, row, content, dry_run=False)
+    assert response.queued is True
+    assert response.job_id == "file_import_distrib_big_1"
+    assert response.total_rows == 3
+    assert response.sync_log_id is not None
+    assert await _products_of(db_session, "distrib_big") == []
+    (job,) = queued_jobs
+    assert job["sync_log_id"] == uuid.UUID(response.sync_log_id)
+    assert await storage.head(key=job["storage_key"]) is not None
+
+    pending = (
+        await db_session.exec(
+            select(SupplierSyncLog).where(SupplierSyncLog.id == job["sync_log_id"])
+        )
+    ).one()
+    assert pending.status == SyncStatus.PENDING
+    assert pending.job_id == "file_import_distrib_big_1"
+
+    # The worker picks the job up.
+    outcome = await run_queued_file_import(
+        db_session,
+        sync_log_id=job["sync_log_id"],
+        supplier_code=job["supplier_code"],
+        storage_key=job["storage_key"],
+        filename=job["filename"],
+        mapping=job["mapping"],
+        publish_new=job["publish_new"],
+    )
+    assert outcome["status"] == "partial"  # one rejected row
+    assert outcome["statistics"]["new_products"] == 2
+
+    products = {
+        p.supplier_sku: p for p in await _products_of(db_session, "distrib_big")
+    }
+    assert set(products) == {"BIG-1", "BIG-2"}
+    assert products["BIG-1"].supplier_quantity == Decimal("30.00")
+    assert products["BIG-1"].published_without_enrichment is True
+    assert await storage.head(key=job["storage_key"]) is None  # discarded
+
+    await db_session.refresh(row)
+    status = await get_catalog_import_status(
+        supplier=row,
+        session=db_session,
+        _current_user=await _fresh(db_session, admin),
+        sync_log_id=job["sync_log_id"],
+    )
+    assert status.status == SyncStatus.PARTIAL
+    assert status.total_rows == 3
+    assert status.parsed_products == 2
+    assert status.rejected_rows == 1
+    assert status.row_errors[0].row_number == 4
+    assert status.statistics["new_products"] == 2
+    assert status.published_new is True
+
+
+@pytest.mark.asyncio
+async def test_worker_closes_the_log_when_the_stored_file_is_unreadable(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    admin = await _seed_admin(db_session)
+    origin = await _seed_place(db_session, code="PPT_DISTRIB", country="PF")
+    origin_id = origin.id
+    await db_session.commit()
+    row = await _seed_file_supplier(
+        db_session, admin, code="distrib_ko", origin_id=origin_id
+    )
+    storage = LocalFileStorage(str(tmp_path))
+    monkeypatch.setattr(supplier_file_import_tasks, "get_file_storage", lambda: storage)
+    log = await supplier_sync_log_crud.create_sync_log(
+        session=db_session,
+        supplier_name=row.code,
+        sync_type=SyncType.PRODUCT_CATALOG,
+    )
+
+    outcome = await run_queued_file_import(
+        db_session,
+        sync_log_id=log.id,
+        supplier_code="distrib_ko",
+        storage_key="supplier-imports/distrib_ko/missing.csv",
+        filename="missing.csv",
+        mapping={"supplier_sku": "Ref", "name": "Désignation"},
+        publish_new=True,
+    )
+    assert outcome["status"] == "error"
+    await db_session.refresh(log)
+    assert log.status == SyncStatus.FAILED
+    assert log.error_message

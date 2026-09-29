@@ -120,6 +120,18 @@ class S3FileStorage(FileStorage):
             return bytes(data)
         raise StorageError(f"Unexpected S3 payload type for {key}: {type(data)!r}")
 
+    async def put_bytes(
+        self, *, key: str, data: bytes, content_type: str | None = None
+    ) -> None:
+        """Store ``data`` under ``key``."""
+        params: dict[str, Any] = {"Bucket": self.bucket, "Key": key, "Body": data}
+        if content_type:
+            params["ContentType"] = content_type
+        try:
+            self.client.put_object(**params)
+        except Exception as e:
+            raise StorageError(f"Failed to store S3 object {key}: {e}") from e
+
     async def delete(self, *, key: str) -> None:
         """Execute delete."""
         self.client.delete_object(Bucket=self.bucket, Key=key)

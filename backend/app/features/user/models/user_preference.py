@@ -16,6 +16,10 @@ class UserPreferenceBase(SQLModel):
     notification_shipping_steps: bool = Field(
         default=True, description="Receive shipping status notifications"
     )
+    marketing_email_enabled: bool = Field(
+        default=True,
+        description="Receive commercial reminders (forgotten cart, offers)",
+    )
     default_shipping_preference: str | None = Field(
         default=None,
         description="Checkout fallback: fastest | cheapest | eco_friendly",
@@ -37,6 +41,7 @@ class UserPreferenceUpdate(SQLModel):
 
     notification_email_enabled: bool | None = None
     notification_shipping_steps: bool | None = None
+    marketing_email_enabled: bool | None = None
     default_shipping_preference: str | None = None
     locale: str | None = None
     currency_pref: str | None = None
