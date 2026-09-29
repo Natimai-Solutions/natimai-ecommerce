@@ -229,3 +229,10 @@ body {
     border: 1px solid var(--n-ink-3);
   }
 }
+
+// Réserve la place de la barre d'achat fixe de la fiche produit (mobile).
+@media (max-width: 1023px) {
+  body.has-buy-bar {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+}
