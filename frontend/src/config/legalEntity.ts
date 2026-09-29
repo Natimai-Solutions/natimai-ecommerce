@@ -104,7 +104,7 @@ export const LEGAL_FIELDS: ReadonlyArray<{
     key: 'legal_withdrawal_regime',
     missing:
       'régime de rétractation applicable à la vente à distance en Polynésie ' +
-      'française — À FAIRE VALIDER PAR UN CONSEIL JURIDIQUE',
+      'française (À FAIRE VALIDER PAR UN CONSEIL JURIDIQUE)',
   },
   {
     field: 'mediationScheme',

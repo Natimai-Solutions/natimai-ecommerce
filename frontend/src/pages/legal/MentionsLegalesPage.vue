@@ -22,7 +22,7 @@
         numéro TAHITI <LegalValue :value="legalEntity.tahitiNumber" />.
       </p>
       <p>
-        Contact&nbsp;: <LegalValue :value="legalEntity.contactEmail" /> —
+        Contact&nbsp;: <LegalValue :value="legalEntity.contactEmail" />.
         Téléphone&nbsp;: <LegalValue :value="legalEntity.contactPhone" />.
       </p>
 
@@ -32,7 +32,7 @@
       <h2 class="text-h6 q-mt-lg q-mb-sm">Hébergement</h2>
       <p>
         Le site est hébergé par <LegalValue :value="legalEntity.hostName" />,
-        <LegalValue :value="legalEntity.hostAddress" /> —
+        <LegalValue :value="legalEntity.hostAddress" />,
         <LegalValue :value="legalEntity.hostContact" />.
       </p>
 

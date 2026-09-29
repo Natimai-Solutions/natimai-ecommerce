@@ -14,7 +14,7 @@
         Version du <LegalValue :value="legalEntity.cgvVersionDate" />.
       </p>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 1 — Identité du vendeur</h2>
+      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 1&nbsp;: Identité du vendeur</h2>
       <p>
         <strong>{{ legalEntity.tradingName }}</strong>,
         <LegalValue :value="legalEntity.legalForm" />, siège social
@@ -24,7 +24,7 @@
         <LegalValue :value="legalEntity.contactEmail" /> (ci-après « le Vendeur »).
       </p>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 2 — Champ d'application</h2>
+      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 2&nbsp;: Champ d'application</h2>
       <p>
         Les présentes conditions générales de vente (CGV) s'appliquent à toute commande passée
         sur le présent site par un client professionnel ou particulier livré en Polynésie
@@ -32,7 +32,7 @@
         vigueur au jour de la commande.
       </p>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 3 — Produits et disponibilité</h2>
+      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 3&nbsp;: Produits et disponibilité</h2>
       <p>
         Les produits proposés sont des matériels et équipements importés, décrits sur leurs
         fiches respectives à partir des données des fabricants. Les photographies et
@@ -43,7 +43,7 @@
         remboursement des sommes versées.
       </p>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 4 — Prix</h2>
+      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 4&nbsp;: Prix</h2>
       <p>
         Les prix sont exprimés en francs pacifiques (XPF) toutes taxes comprises. Ils intègrent
         le coût du produit, le fret international selon le mode d'acheminement choisi (aérien ou
@@ -57,7 +57,7 @@
         celui confirmé au moment de la validation de la commande ou du devis accepté.
       </p>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 5 — Commande et devis</h2>
+      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 5&nbsp;: Commande et devis</h2>
       <p>
         La commande est passée en ligne via le panier, ou par acceptation d'un devis établi par
         le Vendeur. Le Vendeur se réserve le droit de refuser ou d'annuler une commande en cas
@@ -65,7 +65,7 @@
         moyennant remboursement intégral des sommes versées.
       </p>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 6 — Paiement</h2>
+      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 6&nbsp;: Paiement</h2>
       <p>
         Le règlement s'effectue selon les moyens proposés au moment de la commande&nbsp;:
         carte bancaire (paiement sécurisé PayZen&nbsp;/&nbsp;Lyra), virement bancaire, chèque ou
@@ -75,7 +75,7 @@
         moyen de paiement.
       </p>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 7 — Livraison</h2>
+      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 7&nbsp;: Livraison</h2>
       <p>
         Les livraisons sont assurées en Polynésie française, sur les îles desservies indiquées
         au moment de la commande. Les délais affichés sont indicatifs&nbsp;: ils dépendent du
@@ -90,7 +90,7 @@
         <LegalValue :value="legalEntity.deliveryReservationDelay" />.
       </p>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 8 — Droit de rétractation</h2>
+      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 8&nbsp;: Droit de rétractation</h2>
       <!--
         À arrêter avec le conseil juridique : délai, modalités d'exercice,
         exclusions (produits déscellés, logiciels, produits personnalisés…),
@@ -101,7 +101,7 @@
         <LegalValue :value="legalEntity.withdrawalRegime" />
       </p>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 9 — Garanties et SAV</h2>
+      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 9&nbsp;: Garanties et SAV</h2>
       <p>
         Les produits bénéficient de la garantie légale applicable ainsi que, le cas échéant, de
         la garantie commerciale du fabricant (dont la durée et les conditions figurent sur la
@@ -113,7 +113,7 @@
         Polynésie française.
       </p>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 10 — Responsabilité</h2>
+      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 10&nbsp;: Responsabilité</h2>
       <p>
         La responsabilité du Vendeur ne saurait être engagée en cas d'inexécution imputable au
         client, au fait imprévisible et insurmontable d'un tiers ou à un cas de force majeure
@@ -122,13 +122,13 @@
         est en toute hypothèse limitée au montant de la commande concernée.
       </p>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 11 — Données personnelles</h2>
+      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 11&nbsp;: Données personnelles</h2>
       <p>
         Les données collectées dans le cadre de la commande sont traitées conformément à la
         <router-link :to="{ name: 'confidentialite' }">politique de confidentialité</router-link>.
       </p>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 12 — Droit applicable et litiges</h2>
+      <h2 class="text-h6 q-mt-lg q-mb-sm">Article 12&nbsp;: Droit applicable et litiges</h2>
       <p>
         Les présentes CGV sont soumises au droit applicable en Polynésie française. En cas de
         litige, le client s'adresse en priorité au service client afin de rechercher une
