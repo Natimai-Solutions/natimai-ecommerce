@@ -15,8 +15,15 @@ import { expect, test, type Page } from '@playwright/test'
 const CUSTOMER_EMAIL = process.env.E2E_EMAIL ?? 'e2e-customer@example.com'
 const CUSTOMER_PASSWORD = process.env.E2E_PASSWORD ?? 'e2e-customer-password-123'
 
+// The SSR markup is interactive before Vue hydrates it, and hydration resets
+// filled inputs, so wait for the app to mount before touching the page.
+async function gotoHydrated(page: Page, path: string) {
+  await page.goto(path)
+  await page.locator('html[data-hydrated]').waitFor({ state: 'attached' })
+}
+
 async function login(page: Page) {
-  await page.goto('/connexion')
+  await gotoHydrated(page, '/connexion')
   // Quasar forwards fallthrough attributes to the *native* input, not to the
   // q-field wrapper, so the test id already targets the fillable element.
   await page.getByTestId('login-email').fill(CUSTOMER_EMAIL)
@@ -32,13 +39,13 @@ test('a customer can order from the catalogue and gets an order number', async (
   await login(page)
 
   await test.step('catalogue lists purchasable products', async () => {
-    await page.goto('/catalogue')
+    await gotoHydrated(page, '/catalogue')
     await expect(page.getByTestId('product-card').first()).toBeVisible()
   })
 
   await test.step('adding to the cart fills it', async () => {
     await page.getByTestId('product-add-to-cart').first().click()
-    await page.goto('/panier')
+    await gotoHydrated(page, '/panier')
     await expect(page.getByTestId('cart-checkout')).toBeEnabled()
   })
 
