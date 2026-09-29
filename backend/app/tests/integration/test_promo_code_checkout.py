@@ -115,6 +115,8 @@ async def test_per_customer_quota_counts_their_past_orders(
             discount_amount=Decimal("300"),
         )
     )
+    # Read before the commit: committed rows expire and cannot lazy-load.
+    customer_id, other_id = customer.id, other.id
     await db_session.commit()
     product_id = uuid.uuid4()
     products = {product_id: SimpleNamespace(id=product_id, category_id=None)}
@@ -123,7 +125,7 @@ async def test_per_customer_quota_counts_their_past_orders(
         await resolve_coupon(
             db_session,
             code="UNEFOIS",
-            user_id=customer.id,
+            user_id=customer_id,
             items=_items(product_id),
             products_by_id=products,
             currency="XPF",
@@ -133,7 +135,7 @@ async def test_per_customer_quota_counts_their_past_orders(
     applied = await resolve_coupon(
         db_session,
         code="UNEFOIS",
-        user_id=other.id,
+        user_id=other_id,
         items=_items(product_id),
         products_by_id=products,
         currency="XPF",

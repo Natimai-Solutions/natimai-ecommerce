@@ -214,13 +214,20 @@ async def test_popular_products_rank_by_views_and_hide_the_unpublishable(
         supplier_managed=True,
     )
     db_session.add(hidden)
+    await db_session.flush()
+    # Read before the commits: committed rows expire and cannot lazy-load.
+    warehouse_id, linked_id, hidden_id = (
+        products["warehouse"].id,
+        products["linked"].id,
+        hidden.id,
+    )
     await db_session.commit()
 
     for _ in range(3):
-        await record_product_view(db_session, product_id=products["warehouse"].id)
-    await record_product_view(db_session, product_id=products["linked"].id)
+        await record_product_view(db_session, product_id=warehouse_id)
+    await record_product_view(db_session, product_id=linked_id)
     for _ in range(5):
-        await record_product_view(db_session, product_id=hidden.id)
+        await record_product_view(db_session, product_id=hidden_id)
 
     ranked = await popular_products(
         db_session, conditions=crud_product.storefront_conditions(), days=30, limit=5

@@ -426,4 +426,6 @@ async def admin_deactivate_variant(
     assert parent is not None
     await refresh_parent_from_variants(session, parent)
     await session.commit()
+    # The commit expired the row; reload it before serialising (no lazy IO).
+    await session.refresh(updated)
     return ProductPublic.model_validate(updated)

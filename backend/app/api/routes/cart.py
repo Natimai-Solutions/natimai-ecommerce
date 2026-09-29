@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
 from time import perf_counter
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, status
 from sqlmodel import col, select
@@ -2179,9 +2179,11 @@ async def get_checkout_quote(
     payment_method_id: uuid.UUID | None = Query(
         default=None, description="Chosen payment method (its fee is added)"
     ),
-    discount_code: str | None = Query(
-        default=None, max_length=50, description="Promo code to price"
-    ),
+    # Annotated so a direct call (tests, other routes) gets a real None rather
+    # than the Query marker when the code is omitted.
+    discount_code: Annotated[
+        str | None, Query(max_length=50, description="Promo code to price")
+    ] = None,
 ) -> CheckoutQuoteResponse:
     """The amounts ``POST /cart/checkout`` will bill for the current backend
     cart and these choices — same computation, so the recap is the debit.

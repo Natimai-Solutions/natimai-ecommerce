@@ -102,6 +102,8 @@ async def test_quiet_open_carts_are_reminded_once(
     opted_out = await _cart(
         db_session, await _user(db_session, marketing=False), product, quiet_hours=30
     )
+    # Read before any commit: committed rows expire and cannot lazy-load.
+    quiet_id = quiet.id
     await db_session.commit()
 
     stats = await remind_abandoned_carts(db_session, now=NOW)
@@ -113,7 +115,7 @@ async def test_quiet_open_carts_are_reminded_once(
             select(OutboxEvent).where(col(OutboxEvent.type) == EVENT_CART_ABANDONED)
         )
     ).all()
-    assert [e.payload["cart_id"] for e in events] == [str(quiet.id)]
+    assert [e.payload["cart_id"] for e in events] == [str(quiet_id)]
     assert events[0].payload["items"][0]["name"] == "Câble"
 
     for cart in (quiet, fresh, ordered, empty, ancient, opted_out):

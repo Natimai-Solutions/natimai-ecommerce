@@ -132,14 +132,22 @@ async def remind_abandoned_carts(
         )
     )
     carts = list(rows.all())
+    # Each cart commits on its own, which expires every loaded row: read the
+    # fields now, the async session cannot lazy-load them back later.
+    snapshots = [
+        (
+            cart,
+            cart.id,
+            cart.user_id,
+            cart.currency,
+            cart.total_amount,
+            cart.last_activity_at,
+        )
+        for cart in carts
+    ]
     reminded = 0
     skipped = 0
-    for cart in carts:
-        cart_id = cart.id
-        user_id = cart.user_id
-        currency = cart.currency
-        total_amount = cart.total_amount
-        last_activity = cart.last_activity_at
+    for cart, cart_id, user_id, currency, total_amount, last_activity in snapshots:
         cart.abandonment_reminded_at = _naive(current)
         session.add(cart)
         if not await marketing_emails_allowed(session, user_id):
