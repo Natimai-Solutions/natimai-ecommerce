@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from collections.abc import Iterator
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -29,7 +30,7 @@ with _YAML_PATH.open(encoding="utf-8") as _f:
     _RAW_DEFS: list[dict[str, Any]] = yaml.safe_load(_f)["specs"]
 
 
-def _build_alias_index_from_defs(
+def build_alias_index_from_defs(
     defs: list[dict[str, Any]],
 ) -> dict[str, dict[str, Any]]:
     """Build {normalized_alias → spec_def} index for O(1) matching."""
@@ -41,7 +42,7 @@ def _build_alias_index_from_defs(
 
 
 # YAML-backed fallback index (used when no session provided)
-_ALIAS_INDEX = _build_alias_index_from_defs(_RAW_DEFS)
+_ALIAS_INDEX = build_alias_index_from_defs(_RAW_DEFS)
 
 
 async def _load_defs_from_db(session: AsyncSession) -> list[dict[str, Any]] | None:
@@ -62,6 +63,7 @@ async def _load_defs_from_db(session: AsyncSession) -> list[dict[str, Any]] | No
                 "unit": r.unit,
                 "categories": list(r.categories or []),
                 "aliases": list(r.aliases or []),
+                "highlight_rank": r.highlight_rank,
             }
             for r in rows
         ]
@@ -134,20 +136,19 @@ def _project_spec_value(
     return normalized, None
 
 
-def project_specs_from_payload(
+def iter_matched_specs(
     technical_specifications: list[dict[str, Any]],
     *,
     supplier_category: str | None = None,
     alias_index: dict[str, dict[str, Any]] | None = None,
-) -> dict[str, tuple[str | None, Decimal | None, str | None]]:
-    """Return {spec_key → (value_text, value_numeric, unit)} from raw Icecat payload.
+) -> Iterator[tuple[dict[str, Any], str]]:
+    """Yield (spec_def, raw_value) for each Icecat entry matching a definition.
 
-    alias_index: override the YAML-backed default index (used when DB
-    definitions have been loaded for the current request).
+    Shared by the projection (normalized values) and the key-spec tiles, which
+    need the supplier's original wording (« Intel Core Ultra 5 », not the
+    lowercased projection).
     """
     active_index = alias_index if alias_index is not None else _ALIAS_INDEX
-
-    results: dict[str, tuple[str | None, Decimal | None, str | None]] = {}
 
     for item in technical_specifications:
         if not isinstance(item, dict):
@@ -178,6 +179,26 @@ def project_specs_from_payload(
         ):
             continue
 
+        yield spec_def, value_str
+
+
+def project_specs_from_payload(
+    technical_specifications: list[dict[str, Any]],
+    *,
+    supplier_category: str | None = None,
+    alias_index: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, tuple[str | None, Decimal | None, str | None]]:
+    """Return {spec_key → (value_text, value_numeric, unit)} from raw Icecat payload.
+
+    alias_index: override the YAML-backed default index (used when DB
+    definitions have been loaded for the current request).
+    """
+    results: dict[str, tuple[str | None, Decimal | None, str | None]] = {}
+    for spec_def, value_str in iter_matched_specs(
+        technical_specifications,
+        supplier_category=supplier_category,
+        alias_index=alias_index,
+    ):
         key = spec_def["key"]
         # First match wins for each key
         if key in results:
@@ -201,7 +222,7 @@ async def upsert_product_specs(
     # Prefer DB definitions (editable via admin); fall back to YAML on error.
     db_defs = await _load_defs_from_db(session)
     if db_defs:
-        alias_index = _build_alias_index_from_defs(db_defs)
+        alias_index = build_alias_index_from_defs(db_defs)
         projected = project_specs_from_payload(
             specs_payload,
             supplier_category=supplier_category or None,

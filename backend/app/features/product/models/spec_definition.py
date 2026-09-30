@@ -26,6 +26,14 @@ class SpecDefinitionBase(SQLModel):
         description="Icecat field name aliases (case-insensitive matching)",
     )
     is_active: bool = Field(default=True)
+    highlight_rank: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Position among the key-spec tiles of the product page (1 = first); "
+            "None = not highlighted. The page shows the first four the product has."
+        ),
+    )
 
 
 class SpecDefinitionCreate(SpecDefinitionBase):
@@ -39,6 +47,7 @@ class SpecDefinitionUpdate(SQLModel):
     categories: list[str] | None = None
     aliases: list[str] | None = None
     is_active: bool | None = None
+    highlight_rank: int | None = Field(default=None, ge=1)
 
 
 class SpecDefinition(SpecDefinitionBase, table=True):
