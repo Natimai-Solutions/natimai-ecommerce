@@ -26,7 +26,9 @@ const DEFAULT_ICONS: Record<NoticeTone, string> = {
 };
 </script>
 
-<style scoped lang="scss">
+<style scoped>
+/* CSS simple (pas de SCSS) : Quasar injecte ses variables Sass dans chaque bloc
+   SCSS, introuvables depuis ce paquet partagé. */
 .app-notice {
   --notice-tone: var(--n-ink-2);
 
@@ -40,28 +42,28 @@ const DEFAULT_ICONS: Record<NoticeTone, string> = {
   color: var(--n-ink);
   font-size: 14px;
   line-height: 1.5;
+}
 
-  &--info {
-    border-color: var(--n-line);
-    background: var(--n-tile);
-  }
+.app-notice--info {
+  border-color: var(--n-line);
+  background: var(--n-tile);
+}
 
-  &--success {
-    --notice-tone: var(--n-ok);
-  }
+.app-notice--success {
+  --notice-tone: var(--n-ok);
+}
 
-  &--warning {
-    --notice-tone: var(--n-warn);
-  }
+.app-notice--warning {
+  --notice-tone: var(--n-warn);
+}
 
-  &--error {
-    --notice-tone: var(--n-danger);
-  }
+.app-notice--error {
+  --notice-tone: var(--n-danger);
+}
 
-  &--dense {
-    padding: 10px 12px;
-    gap: 10px;
-  }
+.app-notice--dense {
+  padding: 10px 12px;
+  gap: 10px;
 }
 
 .app-notice__icon {

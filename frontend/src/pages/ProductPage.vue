@@ -363,7 +363,7 @@
   </q-page>
 </template>
 <script setup lang="ts">
-import AppNotice from '@/components/AppNotice.vue';
+import AppNotice from '@app/ui/AppNotice.vue';
 import DOMPurify from 'isomorphic-dompurify';
 import { useMeta } from 'quasar';
 import { computed, onBeforeUnmount, onMounted, onServerPrefetch, ref, watch } from 'vue';

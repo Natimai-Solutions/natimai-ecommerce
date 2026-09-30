@@ -169,7 +169,7 @@ import { computed, onMounted, onServerPrefetch, ref } from 'vue';
 import { useMeta } from 'quasar';
 import type { components } from '@app/api-types';
 
-import AppNotice from '@/components/AppNotice.vue';
+import AppNotice from '@app/ui/AppNotice.vue';
 import ProductCard from '@/components/ProductCard.vue';
 import { useCartStore } from '@/stores/cart';
 import { categoryTitle, useHomeStore } from '@/stores/home';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { toneOf } from './statusTone';
+import { toneIcon, toneOf } from './statusTone';
 
 describe('toneOf', () => {
   it('traduit les couleurs de statut en tons', () => {
@@ -16,5 +16,12 @@ describe('toneOf', () => {
     expect(toneOf('grey-7')).toBe('neutral');
     expect(toneOf('blue')).toBe('neutral');
     expect(toneOf(undefined)).toBe('neutral');
+  });
+});
+
+describe('toneIcon', () => {
+  it('donne une icône Phosphor par ton', () => {
+    expect(toneIcon('ok')).toBe('ph:check-circle');
+    expect(toneIcon('danger')).toBe('ph:warning-circle');
   });
 });

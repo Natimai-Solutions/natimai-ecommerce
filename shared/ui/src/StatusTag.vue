@@ -6,7 +6,7 @@
 </template>
 
 <script setup lang="ts">
-import type { StatusTone } from '@/utils/statusTone';
+import type { StatusTone } from './statusTone';
 
 /**
  * Étiquette d'état : pilule neutre, seule l'icône porte la couleur de l'état
@@ -17,7 +17,8 @@ withDefaults(defineProps<{ label: string; tone?: StatusTone; icon?: string }>(),
 });
 </script>
 
-<style scoped lang="scss">
+<style scoped>
+/* CSS simple (pas de SCSS) : voir AppNotice.vue. */
 .status-tag {
   display: inline-flex;
   align-items: center;
@@ -32,25 +33,25 @@ withDefaults(defineProps<{ label: string; tone?: StatusTone; icon?: string }>(),
   line-height: 1;
   white-space: nowrap;
   vertical-align: middle;
+}
 
-  & + & {
-    margin-left: 6px;
-  }
+.status-tag + .status-tag {
+  margin-left: 6px;
 }
 
 .status-tag__icon {
   color: var(--n-ink-3);
+}
 
-  .status-tag--ok & {
-    color: var(--n-ok);
-  }
+.status-tag--ok .status-tag__icon {
+  color: var(--n-ok);
+}
 
-  .status-tag--warn & {
-    color: var(--n-warn);
-  }
+.status-tag--warn .status-tag__icon {
+  color: var(--n-warn);
+}
 
-  .status-tag--danger & {
-    color: var(--n-danger);
-  }
+.status-tag--danger .status-tag__icon {
+  color: var(--n-danger);
 }
 </style>

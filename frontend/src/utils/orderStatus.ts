@@ -1,4 +1,4 @@
-import type { StatusTone } from './statusTone';
+import type { StatusTone } from '@app/ui/statusTone';
 
 /**
  * Présentation client des statuts de commande.

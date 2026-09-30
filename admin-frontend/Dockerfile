@@ -14,6 +14,7 @@ COPY admin-frontend/package.json  ./admin-frontend/
 COPY shared/api-types/package.json  ./shared/api-types/
 COPY shared/api-client/package.json ./shared/api-client/
 COPY shared/utils/package.json      ./shared/utils/
+COPY shared/ui/package.json         ./shared/ui/
 
 # Full source only for what we're building
 COPY shared/         ./shared/

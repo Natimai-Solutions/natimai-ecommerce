@@ -91,8 +91,8 @@ import { computed, onMounted, ref } from 'vue';
 import type { RouteLocationRaw } from 'vue-router';
 import { formatDate, orderRef } from '@app/utils';
 
-import AppNotice from '@/components/AppNotice.vue';
-import StatusTag from '@/components/StatusTag.vue';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
 import { listMyOrders, type Order } from '@/api/orders';
 import { useCurrencyStore } from '@/stores/currency';
 import { apiErrorMessage } from '@/utils/errors';

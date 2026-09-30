@@ -93,7 +93,7 @@ import { onMounted, ref } from 'vue';
 import { formatDate } from '@app/utils';
 import type { components } from '@app/api-types';
 
-import AppNotice from '@/components/AppNotice.vue';
+import AppNotice from '@app/ui/AppNotice.vue';
 import ProductCard from '@/components/ProductCard.vue';
 import { getProductById } from '@/api/products';
 import { cancelStockAlert, listMyStockAlerts, type StockAlert } from '@/api/stockAlerts';

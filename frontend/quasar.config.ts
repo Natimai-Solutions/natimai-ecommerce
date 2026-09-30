@@ -39,6 +39,7 @@ export default defineConfig((ctx) => {
             '@app/api-client': ['../../shared/api-client/src/index.ts'],
             '@app/api-types': ['../../shared/api-types/src/index.ts'],
             '@app/utils': ['../../shared/utils/src/index.ts'],
+            '@app/ui/*': ['../../shared/ui/src/*'],
           });
         },
       },
@@ -70,6 +71,7 @@ export default defineConfig((ctx) => {
           '@app/api-client': path.resolve(__dirname, '../shared/api-client/src/index.ts'),
           '@app/api-types': path.resolve(__dirname, '../shared/api-types/src/index.ts'),
           '@app/utils': path.resolve(__dirname, '../shared/utils/src/index.ts'),
+          '@app/ui': path.resolve(__dirname, '../shared/ui/src'),
         };
         // Allow Vite to serve pnpm hoisted packages outside the frontend root
         viteConf.server = viteConf.server ?? {};
@@ -87,6 +89,7 @@ export default defineConfig((ctx) => {
           '@app/api-client',
           '@app/api-types',
           '@app/utils',
+          '@app/ui',
         ];
       },
       // viteVuePluginOptions: {},

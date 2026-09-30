@@ -1,5 +1,6 @@
 /**
- * Phosphor (graisse « light ») comme famille d'icônes unique de la vitrine.
+ * Phosphor (graisse « light ») comme famille d'icônes unique de la vitrine et
+ * de l'admin.
  *
  * Quasar et les pages désignent encore les icônes par leur nom Material
  * (`shopping_cart`, `chevron_left`…). Plutôt que de charger la police
@@ -27,12 +28,30 @@ export const MATERIAL_TO_PHOSPHOR: Readonly<Record<string, string>> = {
   clear_all: 'x',
   close: 'x',
   cloud_upload: 'cloud-arrow-up',
+  code: 'code',
   done: 'check',
   done_all: 'checks',
   edit: 'pencil-simple',
   error: 'warning-circle',
   first_page: 'caret-double-left',
+  font_download: 'text-aa',
+  format_align_center: 'text-align-center',
+  format_align_justify: 'text-align-justify',
+  format_align_left: 'text-align-left',
+  format_align_right: 'text-align-right',
+  format_bold: 'text-b',
+  format_clear: 'eraser',
+  format_indent_decrease: 'text-outdent',
+  format_indent_increase: 'text-indent',
+  format_italic: 'text-italic',
+  format_list_bulleted: 'list-bullets',
+  format_list_numbered: 'list-numbers',
+  format_quote: 'quotes',
+  format_size: 'text-t',
+  format_underlined: 'text-underline',
+  fullscreen: 'arrows-out',
   grade: 'star',
+  gradient: 'gradient',
   info: 'info',
   keyboard_arrow_down: 'caret-down',
   keyboard_arrow_left: 'caret-left',
@@ -41,9 +60,16 @@ export const MATERIAL_TO_PHOSPHOR: Readonly<Record<string, string>> = {
   last_page: 'caret-double-right',
   lens: 'circle',
   play_arrow: 'caret-right',
+  print: 'printer',
   priority_high: 'warning-circle',
+  redo: 'arrow-clockwise',
   refresh: 'arrow-clockwise',
+  strikethrough_s: 'text-strikethrough',
+  style: 'paint-brush',
+  text_format: 'text-aa',
   today: 'calendar-blank',
+  vertical_align_bottom: 'align-bottom',
+  vertical_align_top: 'align-top',
   warning: 'warning',
 
   // Vitrine
@@ -112,10 +138,52 @@ export const MATERIAL_TO_PHOSPHOR: Readonly<Record<string, string>> = {
   savings: 'piggy-bank',
   notifications_active: 'bell-ringing',
   publish: 'upload-simple',
+
+  // Admin
+  add_photo_alternate: 'image',
+  admin_panel_settings: 'shield-check',
+  article: 'article',
+  category: 'folders',
+  chat: 'chat-circle',
+  currency_exchange: 'arrows-left-right',
+  download: 'download-simple',
+  favorite: 'heart',
+  forward_to_inbox: 'paper-plane-right',
+  home: 'house',
+  image: 'image',
+  local_offer: 'tag',
+  local_post_office: 'mailbox',
+  merge: 'git-merge',
+  monitor_heart: 'heartbeat',
+  my_location: 'crosshair',
+  people: 'users',
+  percent: 'percent',
+  person_add: 'user-plus',
+  person_off: 'user-minus',
+  photo_library: 'images',
+  playlist_add_check: 'list-checks',
+  price_check: 'check-square-offset',
+  public: 'globe',
+  record_voice_over: 'megaphone',
+  replay: 'arrow-counter-clockwise',
+  report_problem: 'warning',
+  request_page: 'note-pencil',
+  rss_feed: 'rss',
+  school: 'graduation-cap',
+  send: 'paper-plane-tilt',
+  settings: 'gear',
+  shield: 'shield',
+  skip_next: 'skip-forward',
+  star: 'star',
+  star_outline: 'star',
+  sync: 'arrows-clockwise',
+  timeline: 'chart-line-up',
+  title: 'text-h',
+  warehouse: 'warehouse',
+  webhook: 'webhooks-logo',
 };
 
 const FALLBACK = 'question';
-const warned = new Set<string>();
 
 /** Nom Phosphor pour un nom d'icône Quasar/Material ou `ph:<nom>`. */
 export function resolvePhosphorName(iconName: string): string | null {
@@ -124,20 +192,34 @@ export function resolvePhosphorName(iconName: string): string | null {
 }
 
 /**
- * `$q.iconMapFn` : laisse passer les formes gérées nativement par Quasar
- * (`img:`, `svguse:`…) et traduit tout le reste vers une classe Phosphor.
+ * Fabrique le `$q.iconMapFn` : laisse passer les formes gérées nativement par
+ * Quasar (`img:`, `svguse:`, tracés SVG) et traduit tout le reste vers une
+ * classe Phosphor. `onMissing` est appelé une fois par nom inconnu (les apps
+ * l'utilisent pour avertir en développement).
  */
-export function phosphorIconMapFn(iconName: string): { cls: string } | undefined {
-  if (/^(img:|svguse:)/.test(iconName) || /^[Mm][\d.-]/.test(iconName)) return undefined;
-  let name = resolvePhosphorName(iconName);
-  if (name === null) {
-    if (import.meta.env.QUASAR_DEV && !warned.has(iconName)) {
-      warned.add(iconName);
-      console.warn(
-        `[icons] « ${iconName} » n'a pas d'équivalent Phosphor, ajoutez-le à MATERIAL_TO_PHOSPHOR.`,
-      );
+export function createPhosphorIconMapFn(
+  onMissing?: (iconName: string) => void,
+): (iconName: string) => { cls: string } | undefined {
+  const reported = new Set<string>();
+  return (iconName) => {
+    if (/^(img:|svguse:)/.test(iconName) || /^[Mm][\d.-]/.test(iconName)) return undefined;
+    let name = resolvePhosphorName(iconName);
+    if (name === null) {
+      if (onMissing && !reported.has(iconName)) {
+        reported.add(iconName);
+        onMissing(iconName);
+      }
+      name = FALLBACK;
     }
-    name = FALLBACK;
-  }
-  return { cls: `ph-light ph-${name}` };
+    return { cls: `ph-light ph-${name}` };
+  };
+}
+
+/** Variante sans avertissement (tests, rendu serveur). */
+export const phosphorIconMapFn = createPhosphorIconMapFn();
+
+export function warnMissingIcon(iconName: string): void {
+  console.warn(
+    `[icons] « ${iconName} » n'a pas d'équivalent Phosphor, ajoutez-le à MATERIAL_TO_PHOSPHOR (shared/ui).`,
+  );
 }

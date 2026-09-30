@@ -13,7 +13,7 @@ export default defineConfig((ctx) => {
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: ['i18n', 'api'],
+    boot: ['design', 'i18n', 'api'],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css
     css: ['app.scss'],
@@ -28,8 +28,8 @@ export default defineConfig((ctx) => {
       // 'line-awesome',
       // 'roboto-font-latin-ext', // this or either 'roboto-font', NEVER both!
 
-      'roboto-font', // optional, you are not bound to it
-      'material-icons', // optional, you are not bound to it
+      // Polices Geist et icônes Phosphor : chargées par boot/design.ts, comme
+      // sur la vitrine (aucune police Roboto ni Material Icons).
     ],
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#build
@@ -49,6 +49,7 @@ export default defineConfig((ctx) => {
             '@app/api-client': ['../../shared/api-client/src/index.ts'],
             '@app/api-types': ['../../shared/api-types/src/index.ts'],
             '@app/utils': ['../../shared/utils/src/index.ts'],
+            '@app/ui/*': ['../../shared/ui/src/*'],
           });
         },
       },
@@ -80,6 +81,7 @@ export default defineConfig((ctx) => {
           '@app/api-client': path.resolve(__dirname, '../shared/api-client/src/index.ts'),
           '@app/api-types': path.resolve(__dirname, '../shared/api-types/src/index.ts'),
           '@app/utils': path.resolve(__dirname, '../shared/utils/src/index.ts'),
+          '@app/ui': path.resolve(__dirname, '../shared/ui/src'),
         };
         viteConf.server = viteConf.server ?? {};
         viteConf.server.fs = viteConf.server.fs ?? {};

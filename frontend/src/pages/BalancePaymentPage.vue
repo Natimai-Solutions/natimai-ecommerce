@@ -97,7 +97,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { orderRef } from '@app/utils';
 
-import AppNotice from '@/components/AppNotice.vue';
+import AppNotice from '@app/ui/AppNotice.vue';
 import ChoiceList, { type ChoiceOption } from '@/components/ChoiceList.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useCurrencyStore } from '@/stores/currency';

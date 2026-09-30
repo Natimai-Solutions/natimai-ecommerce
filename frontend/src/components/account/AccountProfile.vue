@@ -137,7 +137,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { formatDate } from '@app/utils';
 
-import AppNotice from '@/components/AppNotice.vue';
+import AppNotice from '@app/ui/AppNotice.vue';
 import { changeMyPassword, getMyProfile, updateMyProfile, type MyProfile } from '@/api/profile';
 import { useAuthStore } from '@/stores/auth';
 import { apiErrorCode, apiErrorMessage } from '@/utils/errors';

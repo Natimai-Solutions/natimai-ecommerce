@@ -1,0 +1,7 @@
+{
+  "name": "@app/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Socle visuel « Précision » partagé par la vitrine et l'admin : jetons, icônes Phosphor, AppNotice, StatusTag."
+}

@@ -1,9 +1,15 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
 // Unit tests + coverage for the shared engine (@app/utils: currency / pricing /
 // date helpers shared by the storefront and admin apps). The Quasar apps are
 // covered by typecheck + lint in CI; this is the "frontend" coverage badge.
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@app/ui': fileURLToPath(new URL('./shared/ui/src', import.meta.url)),
+    },
+  },
   test: {
     // Le moteur partagé, plus les tests unitaires purement TS de la vitrine
     // (config légale…) : il n'existait aucun point d'entrée pour eux.

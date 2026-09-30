@@ -314,9 +314,9 @@ import { useMeta } from 'quasar';
 import { useRoute, useRouter } from 'vue-router';
 import { departureStatusLabel, formatDate, formatDateTime, orderRef } from '@app/utils';
 
-import AppNotice from '@/components/AppNotice.vue';
+import AppNotice from '@app/ui/AppNotice.vue';
 import ProductImage from '@/components/ProductImage.vue';
-import StatusTag from '@/components/StatusTag.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
 import { getDeparture, type Departure } from '@/api/departures';
 import { downloadInvoicePdf, listMyInvoices, type Invoice } from '@/api/invoices';
 import {
@@ -335,7 +335,7 @@ import { useCurrencyStore } from '@/stores/currency';
 import { apiErrorMessage } from '@/utils/errors';
 import { isPositiveAmount, orderMoney } from '@/utils/money';
 import { DELIVERY_TYPE_LABELS, deliveryFacet, paymentFacet } from '@/utils/orderStatus';
-import type { StatusTone } from '@/utils/statusTone';
+import type { StatusTone } from '@app/ui/statusTone';
 
 const route = useRoute();
 const router = useRouter();

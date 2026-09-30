@@ -78,7 +78,7 @@
 
 <script setup lang="ts">
 import { apiErrorMessage } from '@/utils/errors';
-import AppNotice from '@/components/AppNotice.vue';
+import AppNotice from '@app/ui/AppNotice.vue';
 import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { resetPassword } from '@/api/passwordReset';

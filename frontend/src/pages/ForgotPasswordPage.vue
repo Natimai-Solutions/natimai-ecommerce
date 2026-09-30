@@ -55,7 +55,7 @@
 
 <script setup lang="ts">
 import { apiErrorMessage } from '@/utils/errors';
-import AppNotice from '@/components/AppNotice.vue';
+import AppNotice from '@app/ui/AppNotice.vue';
 import { ref } from 'vue';
 import { requestPasswordReset } from '@/api/passwordReset';
 

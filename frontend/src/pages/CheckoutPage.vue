@@ -411,7 +411,7 @@ import { useMeta } from 'quasar';
 import { useRoute } from 'vue-router';
 import { countryLabel, orderRef } from '@app/utils';
 
-import AppNotice from '@/components/AppNotice.vue';
+import AppNotice from '@app/ui/AppNotice.vue';
 import ChoiceList, { type ChoiceOption } from '@/components/ChoiceList.vue';
 import { useCurrencyStore } from '@/stores/currency';
 import { apiErrorMessage } from '@/utils/errors';

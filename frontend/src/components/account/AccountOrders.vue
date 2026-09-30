@@ -145,8 +145,8 @@
 import { computed, onMounted, ref } from 'vue';
 import { formatDate, orderRef } from '@app/utils';
 
-import AppNotice from '@/components/AppNotice.vue';
-import StatusTag from '@/components/StatusTag.vue';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
 import { downloadCreditNotePdf, listMyCreditNotes, type CreditNote } from '@/api/creditNotes';
 import { downloadInvoicePdf, listMyInvoices, type Invoice } from '@/api/invoices';
 import { listMyOrders, type Order } from '@/api/orders';

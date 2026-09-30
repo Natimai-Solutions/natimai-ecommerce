@@ -3,12 +3,21 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { MATERIAL_TO_PHOSPHOR, phosphorIconMapFn, resolvePhosphorName } from './phosphor';
+import {
+  createPhosphorIconMapFn,
+  MATERIAL_TO_PHOSPHOR,
+  phosphorIconMapFn,
+  resolvePhosphorName,
+} from './icons';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
-const srcDir = join(here, '..');
+const repoRoot = join(here, '../../..');
+const APPS = {
+  vitrine: join(repoRoot, 'frontend/src'),
+  admin: join(repoRoot, 'admin-frontend/src'),
+} as const;
 const phosphorCss = readFileSync(
-  join(here, '../../node_modules/@phosphor-icons/web/src/light/style.css'),
+  join(repoRoot, 'frontend/node_modules/@phosphor-icons/web/src/light/style.css'),
   'utf8',
 );
 const phosphorNames = new Set(
@@ -23,8 +32,8 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-/** Noms d'icônes écrits en dur dans la vitrine (attributs et helpers *Icon). */
-function iconNamesInSource(): Map<string, string> {
+/** Noms d'icônes écrits en dur dans une app (attributs et helpers *Icon). */
+function iconNamesInSource(srcDir: string): Map<string, string> {
   const found = new Map<string, string>();
   const add = (name: string, file: string) => {
     if (name) found.set(name, file.replace(srcDir, 'src'));
@@ -53,19 +62,31 @@ describe('MATERIAL_TO_PHOSPHOR', () => {
     expect(unknown).toEqual([]);
   });
 
-  it('couvre toutes les icônes utilisées par la vitrine', () => {
-    const used = iconNamesInSource();
-    // Garde-fou : le scan doit réellement trouver les icônes des pages. Les
-    // pages refondues nomment Phosphor directement (`ph:…`) : ces noms-là
-    // sont vérifiés aussi, une faute de frappe y donnerait un glyphe vide.
+  // Garde-fou : le scan doit réellement trouver les icônes des pages. Les
+  // pages refondues nomment Phosphor directement (`ph:…`) : ces noms-là sont
+  // vérifiés aussi, une faute de frappe y donnerait un glyphe vide.
+  it.each([
+    ['vitrine', APPS.vitrine, ['ph:list', 'ph:map-pin']],
+    ['admin', APPS.admin, ['ph:sign-out', 'ph:gear']],
+  ] as const)('couvre toutes les icônes utilisées par %s', (_app, srcDir, sentinels) => {
+    const used = iconNamesInSource(srcDir);
     expect(used.size).toBeGreaterThan(40);
-    expect(used.has('ph:list')).toBe(true);
-    expect(used.has('ph:map-pin')).toBe(true);
+    for (const sentinel of sentinels) expect(used.has(sentinel)).toBe(true);
     const missing = [...used].filter(([name]) => {
       const resolved = resolvePhosphorName(name);
       return resolved === null || !phosphorNames.has(resolved);
     });
     expect(missing).toEqual([]);
+  });
+
+  it("couvre le jeu d'icônes interne de Quasar (tables, éditeur, dates)", () => {
+    const iconSet = readFileSync(
+      join(repoRoot, 'admin-frontend/node_modules/quasar/icon-set/material-icons.js'),
+      'utf8',
+    );
+    const names = new Set([...iconSet.matchAll(/'([a-z_]+)'/g)].map((m) => m[1] ?? ''));
+    expect(names.size).toBeGreaterThan(50);
+    expect([...names].filter((name) => !(name in MATERIAL_TO_PHOSPHOR))).toEqual([]);
   });
 });
 
@@ -87,5 +108,14 @@ describe('phosphorIconMapFn', () => {
 
   it('retombe sur un glyphe neutre pour un nom inconnu', () => {
     expect(phosphorIconMapFn('definitely_not_an_icon')).toEqual({ cls: 'ph-light ph-question' });
+  });
+
+  it('signale une seule fois chaque nom inconnu', () => {
+    const missing: string[] = [];
+    const mapFn = createPhosphorIconMapFn((name) => missing.push(name));
+    mapFn('nope');
+    mapFn('nope');
+    mapFn('add');
+    expect(missing).toEqual(['nope']);
   });
 });

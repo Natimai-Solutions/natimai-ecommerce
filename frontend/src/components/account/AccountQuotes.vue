@@ -84,8 +84,8 @@ import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { formatDate } from '@app/utils';
 
-import AppNotice from '@/components/AppNotice.vue';
-import StatusTag from '@/components/StatusTag.vue';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
 import {
   acceptMyQuote,
   downloadMyQuotePdf,

@@ -93,8 +93,8 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { formatDate } from '@app/utils';
 
-import AppNotice from '@/components/AppNotice.vue';
-import StatusTag from '@/components/StatusTag.vue';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
 import {
   getUpgradeOptions,
   listMyUpgradeRequests,
@@ -104,7 +104,7 @@ import {
   type UpgradeRequestStatus,
 } from '@/api/groupUpgrade';
 import { apiErrorMessage } from '@/utils/errors';
-import type { StatusTone } from '@/utils/statusTone';
+import type { StatusTone } from '@app/ui/statusTone';
 
 const STATUS: Record<UpgradeRequestStatus, { label: string; tone: StatusTone }> = {
   PENDING: { label: 'En attente', tone: 'warn' },
