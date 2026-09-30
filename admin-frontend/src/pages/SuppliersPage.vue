@@ -608,9 +608,9 @@ import {
   type Supplier,
   type SupplierCreate,
   type SupplierKind,
-} from 'src/api/suppliers';
-import { listPlaces, type Place } from 'src/api/logistics';
-import { extractApiError } from 'src/api/errors';
+} from '@/api/suppliers';
+import { listPlaces, type Place } from '@/api/logistics';
+import { extractApiError } from '@/api/errors';
 
 const rows = ref<Supplier[]>([]);
 const adapters = ref<AdapterDescriptor[]>([]);

@@ -70,10 +70,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import ProductImage from 'src/components/ProductImage.vue';
-import { useCartStore } from 'src/stores/cart';
-import { useCurrencyStore } from 'src/stores/currency';
-import { useUiStore } from 'src/stores/ui';
+import ProductImage from '@/components/ProductImage.vue';
+import { useCartStore } from '@/stores/cart';
+import { useCurrencyStore } from '@/stores/currency';
+import { useUiStore } from '@/stores/ui';
 
 const uiStore = useUiStore();
 const cartStore = useCartStore();

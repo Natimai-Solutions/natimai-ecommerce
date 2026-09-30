@@ -1,4 +1,4 @@
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 
 /** Un compte tel que le back-office le voit (A15) — jamais d'empreinte ni de jeton. */
 export interface AdminUser {

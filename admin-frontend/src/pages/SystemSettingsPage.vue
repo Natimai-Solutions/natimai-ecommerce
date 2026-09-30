@@ -57,12 +57,8 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
-import {
-  listSystemSettings,
-  updateSystemSetting,
-  type SystemSetting,
-} from 'src/api/systemSettings';
-import { extractApiError } from 'src/api/errors';
+import { listSystemSettings, updateSystemSetting, type SystemSetting } from '@/api/systemSettings';
+import { extractApiError } from '@/api/errors';
 
 const rows = ref<SystemSetting[]>([]);
 const loading = ref(false);

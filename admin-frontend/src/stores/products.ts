@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import type { components } from '@app/api-types';
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 
 // `supplier_place_id` / `overridden_fields` are served by the backend (inherited
 // from ProductBase) but the generated OpenAPI schema may lag — declare locally.

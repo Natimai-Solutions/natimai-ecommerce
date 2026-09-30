@@ -50,7 +50,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { useAuthStore } from 'src/stores/auth';
+import { useAuthStore } from '@/stores/auth';
 
 const email = ref('');
 const password = ref('');

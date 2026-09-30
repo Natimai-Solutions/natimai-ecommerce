@@ -3,5 +3,5 @@
 </template>
 
 <script setup lang="ts">
-import DbContentPage from 'src/components/DbContentPage.vue';
+import DbContentPage from '@/components/DbContentPage.vue';
 </script>

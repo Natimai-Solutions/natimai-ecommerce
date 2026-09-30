@@ -1,4 +1,4 @@
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 
 /** One whitelisted system setting (`GET /system/settings`, no auth). */
 export interface SystemSetting {

@@ -1,4 +1,4 @@
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 
 /**
  * User preferences (storefront self-service).

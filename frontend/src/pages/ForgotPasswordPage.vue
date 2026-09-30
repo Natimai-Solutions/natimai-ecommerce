@@ -54,9 +54,9 @@
 </template>
 
 <script setup lang="ts">
-import AppNotice from 'src/components/AppNotice.vue';
+import AppNotice from '@/components/AppNotice.vue';
 import { ref } from 'vue';
-import { requestPasswordReset } from 'src/api/passwordReset';
+import { requestPasswordReset } from '@/api/passwordReset';
 
 const email = ref('');
 const submitting = ref(false);

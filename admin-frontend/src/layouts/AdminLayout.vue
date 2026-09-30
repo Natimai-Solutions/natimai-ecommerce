@@ -41,8 +41,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { useAuthStore } from 'src/stores/auth';
-import { useShopConfigStore } from 'src/stores/shopConfig';
+import { useAuthStore } from '@/stores/auth';
+import { useShopConfigStore } from '@/stores/shopConfig';
 
 const auth = useAuthStore();
 const router = useRouter();

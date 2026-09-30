@@ -76,7 +76,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
-import { listAddresses, validateAddress, type AdminAddress } from 'src/api/addresses';
+import { listAddresses, validateAddress, type AdminAddress } from '@/api/addresses';
 import { countryLabel } from '@app/utils';
 
 type Filter = 'all' | 'pending' | 'validated';

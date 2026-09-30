@@ -481,9 +481,9 @@ import {
   type Place,
   type ShippingRoute,
   setMainWarehouse,
-} from 'src/api/logistics';
-import type { WeightBand } from 'src/api/logistics';
-import { extractApiError } from 'src/api/errors';
+} from '@/api/logistics';
+import type { WeightBand } from '@/api/logistics';
+import { extractApiError } from '@/api/errors';
 import { countryOptions, type CountryOption } from '@app/utils';
 
 const places = ref<Place[]>([]);

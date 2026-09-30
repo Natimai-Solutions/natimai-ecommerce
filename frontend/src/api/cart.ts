@@ -1,5 +1,5 @@
 import type { components } from '@app/api-types';
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 
 export type CartDetailPublic = components['schemas']['CartDetailPublic'];
 type CartItemAddRequest = components['schemas']['CartItemAddRequest'];

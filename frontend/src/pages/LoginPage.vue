@@ -106,10 +106,10 @@
 </template>
 
 <script setup lang="ts">
-import AppNotice from 'src/components/AppNotice.vue';
+import AppNotice from '@/components/AppNotice.vue';
 import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useAuthStore } from 'src/stores/auth';
+import { useAuthStore } from '@/stores/auth';
 
 const authStore = useAuthStore();
 const route = useRoute();

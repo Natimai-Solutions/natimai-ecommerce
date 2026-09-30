@@ -197,13 +197,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import CartDrawer from 'src/components/CartDrawer.vue';
-import { useCartStore } from 'src/stores/cart';
-import { useAuthStore } from 'src/stores/auth';
-import { useCurrencyStore } from 'src/stores/currency';
-import { toggleTheme } from 'src/utils/theme';
-import { useDepartureStore } from 'src/stores/departure';
-import NextDepartureBanner from 'src/components/NextDepartureBanner.vue';
+import CartDrawer from '@/components/CartDrawer.vue';
+import { useCartStore } from '@/stores/cart';
+import { useAuthStore } from '@/stores/auth';
+import { useCurrencyStore } from '@/stores/currency';
+import { toggleTheme } from '@/utils/theme';
+import { useDepartureStore } from '@/stores/departure';
+import NextDepartureBanner from '@/components/NextDepartureBanner.vue';
 
 const drawerOpen = ref(false);
 const cartStore = useCartStore();

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { accessToken, api } from 'src/boot/api';
+import { accessToken, api } from '@/boot/api';
 
 interface AccessTokenResponse {
   access_token: string;

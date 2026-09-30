@@ -99,8 +99,8 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
-import { listCurrencyRates, upsertCurrencyRate, type CurrencyRate } from 'src/api/currencyRates';
-import { extractApiError } from 'src/api/errors';
+import { listCurrencyRates, upsertCurrencyRate, type CurrencyRate } from '@/api/currencyRates';
+import { extractApiError } from '@/api/errors';
 
 const rows = ref<CurrencyRate[]>([]);
 const loading = ref(false);

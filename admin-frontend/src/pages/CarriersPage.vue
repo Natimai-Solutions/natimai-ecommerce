@@ -126,8 +126,8 @@ import {
   retireCarrier,
   updateCarrier,
   type Carrier,
-} from 'src/api/shipping';
-import { extractApiError } from 'src/api/errors';
+} from '@/api/shipping';
+import { extractApiError } from '@/api/errors';
 
 const carriers = ref<Carrier[]>([]);
 const loading = ref(false);

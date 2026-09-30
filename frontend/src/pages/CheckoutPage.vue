@@ -533,30 +533,30 @@
 </template>
 
 <script setup lang="ts">
-import StatusTag from 'src/components/StatusTag.vue';
-import AppNotice from 'src/components/AppNotice.vue';
+import StatusTag from '@/components/StatusTag.vue';
+import AppNotice from '@/components/AppNotice.vue';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { countryLabel, formatXpf, orderRef } from '@app/utils';
-import { useCartStore } from 'src/stores/cart';
-import { useAuthStore } from 'src/stores/auth';
-import { useDepartureStore } from 'src/stores/departure';
+import { useCartStore } from '@/stores/cart';
+import { useAuthStore } from '@/stores/auth';
+import { useDepartureStore } from '@/stores/departure';
 import {
   confirmDocumentUploaded,
   issueDocumentUploadUrl,
   listMyPaymentMethods,
   uploadFileToPresignedUrl,
   type PaymentMethod,
-} from 'src/api/payments';
+} from '@/api/payments';
 import {
   checkoutMyCart,
   getCheckoutQuote,
   getLastLegOptions,
   replaceMyCartItems,
   type CheckoutQuote,
-} from 'src/api/cart';
-import { listMyAddresses, type Address } from 'src/api/addresses';
-import { PENDING_PAYMENT_KEY, loadPayzenSmartForm } from 'src/utils/payzen';
+} from '@/api/cart';
+import { listMyAddresses, type Address } from '@/api/addresses';
+import { PENDING_PAYMENT_KEY, loadPayzenSmartForm } from '@/utils/payzen';
 
 const cartStore = useCartStore();
 const authStore = useAuthStore();

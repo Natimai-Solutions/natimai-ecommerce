@@ -109,13 +109,13 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import AppNotice from 'src/components/AppNotice.vue';
+import AppNotice from '@/components/AppNotice.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { formatXpf, orderRef } from '@app/utils';
-import { useAuthStore } from 'src/stores/auth';
-import { getMyOrder, type Order } from 'src/api/orders';
-import { initiatePayment, listMyPaymentMethods, type PaymentMethod } from 'src/api/payments';
-import { PENDING_PAYMENT_KEY, loadPayzenSmartForm } from 'src/utils/payzen';
+import { useAuthStore } from '@/stores/auth';
+import { getMyOrder, type Order } from '@/api/orders';
+import { initiatePayment, listMyPaymentMethods, type PaymentMethod } from '@/api/payments';
+import { PENDING_PAYMENT_KEY, loadPayzenSmartForm } from '@/utils/payzen';
 
 const route = useRoute();
 const router = useRouter();

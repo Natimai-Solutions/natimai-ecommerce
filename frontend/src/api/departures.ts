@@ -1,4 +1,4 @@
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 import type { DepartureLike } from '@app/utils';
 
 /** Public view of a grouped departure (`GroupedDepartureSummary`, no auth). */

@@ -25,7 +25,7 @@
  */
 import DOMPurify from 'isomorphic-dompurify';
 import { computed, onMounted, onServerPrefetch, ref } from 'vue';
-import { getPage, type ContentPage } from 'src/api/pages';
+import { getPage, type ContentPage } from '@/api/pages';
 
 const props = defineProps<{ slug: string; fallbackTitle?: string }>();
 

@@ -1,4 +1,4 @@
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 
 /** Credit note metadata as returned by `GET /admin/credit-notes` (`CreditNotePublic`). */
 export interface CreditNote {

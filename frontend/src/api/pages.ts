@@ -1,4 +1,4 @@
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 
 /** A published editable page (`GET /pages/{slug}`, no auth). */
 export interface ContentPage {

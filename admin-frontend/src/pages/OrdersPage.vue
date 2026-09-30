@@ -97,9 +97,9 @@ import {
   orderStatusColor,
   orderStatusLabel,
   type AdminOrderListItem,
-} from 'src/api/orders';
-import { extractApiError } from 'src/api/errors';
-import { listDepartures, type Departure } from 'src/api/departures';
+} from '@/api/orders';
+import { extractApiError } from '@/api/errors';
+import { listDepartures, type Departure } from '@/api/departures';
 
 const rows = ref<AdminOrderListItem[]>([]);
 // null = all orders, 'none' = orders without a departure, otherwise a departure id.

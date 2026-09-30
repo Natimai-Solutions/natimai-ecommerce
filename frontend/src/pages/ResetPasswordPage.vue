@@ -77,10 +77,10 @@
 </template>
 
 <script setup lang="ts">
-import AppNotice from 'src/components/AppNotice.vue';
+import AppNotice from '@/components/AppNotice.vue';
 import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { resetPassword } from 'src/api/passwordReset';
+import { resetPassword } from '@/api/passwordReset';
 
 const route = useRoute();
 // Le jeton arrive dans le lien de l'email.

@@ -1,4 +1,4 @@
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 
 /** Allowed address types (backend `validate_address_type`). */
 export type AddressType = 'billing' | 'shipping' | 'other';

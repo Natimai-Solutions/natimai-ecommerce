@@ -1,4 +1,4 @@
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 
 /** Editable storefront page (`ContentPagePublic`). */
 export interface ContentPage {

@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { useDepartureStore } from 'src/stores/departure';
+import { useDepartureStore } from '@/stores/departure';
 
 const store = useDepartureStore();
 </script>

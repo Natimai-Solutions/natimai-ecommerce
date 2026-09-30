@@ -229,8 +229,8 @@ import {
   rejectPayment,
   type PaymentAttachment,
   type PendingPayment,
-} from 'src/api/paymentValidations';
-import { extractApiError } from 'src/api/errors';
+} from '@/api/paymentValidations';
+import { extractApiError } from '@/api/errors';
 
 const rows = ref<PendingPayment[]>([]);
 const loading = ref(false);

@@ -224,10 +224,10 @@ import {
   type Discount,
   type DiscountCreate,
   type DiscountTarget,
-} from 'src/api/discounts';
-import { listCategories, type Category } from 'src/api/categories';
-import { extractApiError } from 'src/api/errors';
-import { useShopConfigStore } from 'src/stores/shopConfig';
+} from '@/api/discounts';
+import { listCategories, type Category } from '@/api/categories';
+import { extractApiError } from '@/api/errors';
+import { useShopConfigStore } from '@/stores/shopConfig';
 
 const shopConfig = useShopConfigStore();
 const currency = computed(() => shopConfig.currency);

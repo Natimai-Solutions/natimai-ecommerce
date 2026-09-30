@@ -1,4 +1,4 @@
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 
 /** Cycle de vie d'une demande, aligné sur QuoteRequestStatus côté backend. */
 export type QuoteRequestStatus =

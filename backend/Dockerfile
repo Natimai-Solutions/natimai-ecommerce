@@ -1,6 +1,7 @@
-# Python 3.13 : possible depuis le retrait de passlib, qui importait le module
-# stdlib `crypt` supprimé en 3.13. Toute la suite tourne déjà sur 3.13 en local.
-FROM python:3.13-slim
+# Python 3.14 : uvloop >= 0.22 est requis (0.21 importait
+# asyncio.events.BaseDefaultEventLoopPolicy, retiré en 3.14 ; les workers
+# uvicorn mouraient à l'import). Voir uv.lock.
+FROM python:3.14-slim
 
 ENV PYTHONUNBUFFERED=1
 

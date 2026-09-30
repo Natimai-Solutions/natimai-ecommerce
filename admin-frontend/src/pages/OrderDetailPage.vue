@@ -547,7 +547,7 @@ import {
   setOrderStatus,
   type AdminOrderDetail,
   type AdminOrderPaymentItem,
-} from 'src/api/orders';
+} from '@/api/orders';
 
 // --- Deposit order: ask for (or re-send) the balance ---
 const requestingBalance = ref(false);
@@ -606,7 +606,7 @@ async function sendBalanceRequest() {
     requestingBalance.value = false;
   }
 }
-import { capturePayment, refundPayment } from 'src/api/paymentValidations';
+import { capturePayment, refundPayment } from '@/api/paymentValidations';
 import {
   advanceTracking,
   deliverTracking,
@@ -615,15 +615,15 @@ import {
   shipTracking,
   type Carrier,
   type JourneyLeg,
-} from 'src/api/shipping';
-import { extractApiError } from 'src/api/errors';
-import { assignOrders, listDepartures, type Departure } from 'src/api/departures';
+} from '@/api/shipping';
+import { extractApiError } from '@/api/errors';
+import { assignOrders, listDepartures, type Departure } from '@/api/departures';
 import {
   getUserStoreCredit,
   grantStoreCredit,
   STORE_CREDIT_KIND_LABELS,
   type StoreCreditBalance,
-} from 'src/api/storeCredit';
+} from '@/api/storeCredit';
 
 // --- Order status (one order by hand; the departure handles the bulk case) ---
 const statusNames = ref<string[]>([]);

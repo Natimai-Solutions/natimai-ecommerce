@@ -6,12 +6,12 @@
  */
 
 /**
- * Make sure to yarn add / npm install (in your project root)
- * anything you import here (except for express and compression).
+ * Make sure to pnpm install (in /src-ssr folder, see its package.json)
+ * anything you import here.
  */
-import { Server } from 'node:http';
+import { type Server } from 'node:http';
 import compression from 'compression';
-import express, { Application, Request, Response } from 'express';
+import express, { type Application, type Request, type Response } from 'express';
 import {
   defineSsrCreate,
   defineSsrInjectDevMiddleware,
@@ -19,7 +19,7 @@ import {
   defineSsrClose,
   defineSsrServeStaticContent,
   defineSsrRenderPreloadTag,
-} from '#q-app/wrappers';
+} from '#q-app';
 
 declare module '#q-app' {
   interface SsrDriver {
@@ -44,7 +44,7 @@ export const create = defineSsrCreate((/* { ... } */) => {
 
   // place here any middlewares that
   // absolutely need to run before anything else
-  if (process.env.PROD) {
+  if (import.meta.env.QUASAR_PROD) {
     app.use(compression());
   }
 
@@ -75,12 +75,23 @@ export const injectDevMiddleware = defineSsrInjectDevMiddleware(({ app }) => {
  * For production, you can instead export your
  * handler for serverless use or whatever else fits your needs.
  *
- * Can be async: defineSsrListen(async ({ app, devHttpsApp, port }) => { ... })
+ * Can be async: defineSsrListen(async ({ app, devHttpsOptions, port }) => { ... })
  */
-export const listen = defineSsrListen(({ app, devHttpsApp, port }) => {
-  const server = devHttpsApp || app;
+export const listen = defineSsrListen(async ({ app, devHttpsOptions, port }) => {
+  if (import.meta.env.QUASAR_DEV && devHttpsOptions) {
+    const https = await import('node:https');
+    const server = https.createServer(devHttpsOptions, (req, res) => {
+      app(req, res);
+    });
+    return server.listen(port);
+  }
+
+  const http = await import('node:http');
+  const server = http.createServer((req, res) => {
+    app(req, res);
+  });
   return server.listen(port, () => {
-    if (process.env.PROD) {
+    if (import.meta.env.QUASAR_PROD) {
       console.log('Server listening at port ' + port);
     }
   });
@@ -100,7 +111,7 @@ export const close = defineSsrClose(({ listenResult }) => {
   return listenResult.close();
 });
 
-const maxAge = process.env.DEV ? 0 : 1000 * 60 * 60 * 24 * 30;
+const maxAge = import.meta.env.QUASAR_DEV ? 0 : 1000 * 60 * 60 * 24 * 30;
 
 /**
  * Should return a function that will be used to configure the webserver

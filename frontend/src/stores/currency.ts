@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { formatMoney } from '@app/utils';
-import { getDisplayRates } from 'src/api/currency';
-import { updateMyPreferences } from 'src/api/account';
-import { useAuthStore } from 'src/stores/auth';
+import { getDisplayRates } from '@/api/currency';
+import { updateMyPreferences } from '@/api/account';
+import { useAuthStore } from '@/stores/auth';
 
 const STORAGE_KEY = 'frontend.display_currency';
 

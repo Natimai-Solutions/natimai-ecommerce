@@ -1,24 +1,6 @@
-declare namespace NodeJS {
-  interface ProcessEnv {
-    NODE_ENV: string;
-    VUE_ROUTER_MODE: 'hash' | 'history' | 'abstract' | undefined;
-    VUE_ROUTER_BASE: string | undefined;
-    VITE_API_URL: string;
-  }
-}
-
+// Variables d'environnement exposées au code client (préfixe `VITE_`, voir
+// quasar.config.ts > build > env.clientPrefix). Les constantes propres à Quasar
+// (import.meta.env.QUASAR_DEV, QUASAR_SERVER…) sont typées par @quasar/app-vite.
 interface ImportMetaEnv {
   readonly VITE_API_URL: string;
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv;
-  readonly hot?: {
-    readonly data: Record<string, unknown>;
-    accept(): void;
-    accept(cb: (mod: unknown) => void): void;
-    dispose(cb: (data: Record<string, unknown>) => void): void;
-    decline(): void;
-    invalidate(): void;
-  };
 }

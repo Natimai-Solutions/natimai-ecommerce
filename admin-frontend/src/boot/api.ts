@@ -1,4 +1,4 @@
-import { defineBoot } from '#q-app/wrappers';
+import { defineBoot } from '#q-app';
 import { ref } from 'vue';
 import { createApiClient } from '@app/api-client';
 import type { AxiosInstance } from '@app/api-client';

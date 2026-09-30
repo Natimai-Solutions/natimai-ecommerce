@@ -1,5 +1,5 @@
-import { defineBoot } from '#q-app/wrappers';
-import { useAuthStore } from 'src/stores/auth';
+import { defineBoot } from '#q-app';
+import { useAuthStore } from '@/stores/auth';
 
 /**
  * Restore the session from the HttpOnly refresh cookie before the app mounts,
@@ -9,7 +9,7 @@ import { useAuthStore } from 'src/stores/auth';
  * the access token therefore never exists server-side.
  */
 export default defineBoot(async () => {
-  if (process.env.CLIENT) {
+  if (import.meta.env.QUASAR_CLIENT) {
     await useAuthStore().tryRestore();
   }
 });

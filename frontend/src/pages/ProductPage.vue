@@ -349,7 +349,7 @@
   </q-page>
 </template>
 <script setup lang="ts">
-import AppNotice from 'src/components/AppNotice.vue';
+import AppNotice from '@/components/AppNotice.vue';
 import DOMPurify from 'isomorphic-dompurify';
 import { useMeta } from 'quasar';
 import { computed, onBeforeUnmount, onMounted, onServerPrefetch, ref, watch } from 'vue';
@@ -367,17 +367,17 @@ import {
   type ShippingModePricePublic,
   sellableQuantity,
   trackProductView,
-} from 'src/api/products';
-import ProductImage from 'src/components/ProductImage.vue';
-import ProductOffers from 'src/components/ProductOffers.vue';
-import { useAuthStore } from 'src/stores/auth';
-import { useCartStore } from 'src/stores/cart';
-import { useProductsStore } from 'src/stores/products';
-import { useCurrencyStore } from 'src/stores/currency';
-import { useDepartureStore } from 'src/stores/departure';
-import { subscribeStockAlert } from 'src/api/stockAlerts';
-import { conditionLabel, productAvailability, refurbishedDetails } from 'src/utils/availability';
-import { getProductRouteByIdAndName, slugifyProductName } from 'src/utils/productRoute';
+} from '@/api/products';
+import ProductImage from '@/components/ProductImage.vue';
+import ProductOffers from '@/components/ProductOffers.vue';
+import { useAuthStore } from '@/stores/auth';
+import { useCartStore } from '@/stores/cart';
+import { useProductsStore } from '@/stores/products';
+import { useCurrencyStore } from '@/stores/currency';
+import { useDepartureStore } from '@/stores/departure';
+import { subscribeStockAlert } from '@/api/stockAlerts';
+import { conditionLabel, productAvailability, refurbishedDetails } from '@/utils/availability';
+import { getProductRouteByIdAndName, slugifyProductName } from '@/utils/productRoute';
 
 type ProductPublic = components['schemas']['ProductPublic'];
 type Spec = { name: string; value: string; unit: string };
@@ -799,7 +799,7 @@ onMounted(async () => {
   await loadProduct();
   // Client only: the SSR pass must not count a view, and a bot-heavy server
   // render would skew the « plus consultés » ranking.
-  if (process.env.CLIENT && product.value) void trackProductView(product.value.id);
+  if (import.meta.env.QUASAR_CLIENT && product.value) void trackProductView(product.value.id);
 });
 
 watch(

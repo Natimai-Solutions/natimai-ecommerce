@@ -356,8 +356,8 @@ import {
   type AdminQuoteRequestListItem,
   type QuoteLine,
   type QuoteRequestStatus,
-} from 'src/api/quoteRequests';
-import { extractApiError } from 'src/api/errors';
+} from '@/api/quoteRequests';
+import { extractApiError } from '@/api/errors';
 
 // --- Issuing the quote (lines at the granted price, delivery, validity) ---
 const issueLines = ref<QuoteLine[]>([]);

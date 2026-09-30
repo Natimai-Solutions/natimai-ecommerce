@@ -120,9 +120,9 @@ import {
   rejectGroupUpgradeRequest,
   type GroupUpgradeRequest,
   type UpgradeRequestStatus,
-} from 'src/api/groupUpgrades';
-import { listPriceGroups, type PriceGroup } from 'src/api/eligibility';
-import { extractApiError } from 'src/api/errors';
+} from '@/api/groupUpgrades';
+import { listPriceGroups, type PriceGroup } from '@/api/eligibility';
+import { extractApiError } from '@/api/errors';
 
 const rows = ref<GroupUpgradeRequest[]>([]);
 const groups = ref<PriceGroup[]>([]);

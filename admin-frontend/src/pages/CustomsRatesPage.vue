@@ -166,8 +166,8 @@ import {
   setCategoryCustomsRate,
   type CategoryPublicationRow,
   type PublicationReport,
-} from 'src/api/taxRates';
-import { extractApiError } from 'src/api/errors';
+} from '@/api/taxRates';
+import { extractApiError } from '@/api/errors';
 
 const report = ref<PublicationReport | null>(null);
 const loading = ref(false);

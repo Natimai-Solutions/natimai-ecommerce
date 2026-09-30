@@ -172,8 +172,8 @@ import {
   listSpecDefinitions,
   updateSpecDefinition,
   type SpecDefinition,
-} from 'src/api/specDefinitions';
-import { extractApiError } from 'src/api/errors';
+} from '@/api/specDefinitions';
+import { extractApiError } from '@/api/errors';
 
 const rows = ref<SpecDefinition[]>([]);
 const loading = ref(false);

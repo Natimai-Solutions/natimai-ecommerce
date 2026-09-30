@@ -153,8 +153,8 @@ import {
   updatePriceGroup,
   type PaymentMethod,
   type PriceGroup,
-} from 'src/api/eligibility';
-import { extractApiError } from 'src/api/errors';
+} from '@/api/eligibility';
+import { extractApiError } from '@/api/errors';
 
 // --- Deposit policy per group ---
 interface DepositEdit {

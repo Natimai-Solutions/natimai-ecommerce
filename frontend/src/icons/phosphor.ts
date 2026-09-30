@@ -131,7 +131,7 @@ export function phosphorIconMapFn(iconName: string): { cls: string } | undefined
   if (/^(img:|svguse:)/.test(iconName) || /^[Mm][\d.-]/.test(iconName)) return undefined;
   let name = resolvePhosphorName(iconName);
   if (name === null) {
-    if (process.env.DEV && !warned.has(iconName)) {
+    if (import.meta.env.QUASAR_DEV && !warned.has(iconName)) {
       warned.add(iconName);
       console.warn(
         `[icons] « ${iconName} » n'a pas d'équivalent Phosphor, ajoutez-le à MATERIAL_TO_PHOSPHOR.`,
