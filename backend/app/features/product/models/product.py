@@ -252,12 +252,12 @@ class ProductBase(Base):
     )
     supplier_category: str | None = Field(
         default=None,
-        max_length=50,
+        max_length=255,
         description="Supplier's product category",
     )
     supplier_subcategory: str | None = Field(
         default=None,
-        max_length=50,
+        max_length=255,
         description="Supplier's product subcategory",
     )
     weight: float | None = Field(

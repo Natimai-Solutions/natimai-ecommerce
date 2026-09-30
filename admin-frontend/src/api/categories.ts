@@ -82,3 +82,12 @@ export async function mergeCategory(sourceId: string, targetId: string): Promise
   });
   return data;
 }
+
+export async function createAdminCategory(payload: {
+  name: string;
+  display_name?: string | null;
+  description?: string | null;
+}): Promise<AdminCategory> {
+  const { data } = await api.post<AdminCategory>('/admin/categories', payload);
+  return data;
+}

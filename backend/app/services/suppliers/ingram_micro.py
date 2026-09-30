@@ -29,6 +29,9 @@ from app.core.http_retry import (
 from app.services.suppliers.base import (
     NormalizedPricing,
     NormalizedProductData,
+    PurchaseOrderLine,
+    PurchaseOrderResult,
+    ShipTo,
     SupplierAdapter,
     SupplierConfig,
     SupplierHealth,
@@ -512,6 +515,7 @@ class IngramMicroAdapter(SupplierAdapter):
     # Enforced by the shared limiter in this module, which every
     # IngramMicroService call goes through.
     requests_per_minute = INGRAM_REQUESTS_PER_MINUTE
+    supports_purchase_orders = True
 
     def __init__(
         self,
@@ -590,6 +594,53 @@ class IngramMicroAdapter(SupplierAdapter):
             }
         )
         return summary
+
+    # -- purchase orders --------------------------------------------------
+
+    async def create_purchase_order(
+        self,
+        *,
+        customer_order_number: str,
+        lines: list[PurchaseOrderLine],
+        ship_to: ShipTo,
+        notes: str | None = None,
+    ) -> PurchaseOrderResult:
+        """POST /resellers/v6/orders — Ingram deduplicates on the order number."""
+        body_lines: list[dict[str, Any]] = []
+        for line in lines:
+            item: dict[str, Any] = {
+                "ingramPartNumber": line.supplier_sku,
+                "quantity": line.quantity,
+            }
+            if line.unit_price is not None and line.unit_price > 0:
+                item["unitPrice"] = float(line.unit_price)
+            if line.vendor_part_number:
+                item["vendorPartNumber"] = line.vendor_part_number
+            body_lines.append(item)
+        ship: dict[str, Any] = {
+            "addressLine1": ship_to.address_line1,
+            "city": ship_to.city,
+            "countryCode": ship_to.country_code,
+        }
+        optional = {
+            "addressLine2": ship_to.address_line2,
+            "contact": ship_to.contact,
+            "companyName": ship_to.company_name,
+            "postalCode": ship_to.postal_code,
+            "phoneNumber": ship_to.phone,
+        }
+        ship.update({k: v for k, v in optional.items() if v})
+        response = await self.service.create_purchase_order(
+            customer_order_number=customer_order_number,
+            lines=body_lines,
+            ship_to=ship,
+            notes=notes,
+        )
+        return PurchaseOrderResult(
+            order_number=response.get("ingramOrderNumber"),
+            status_label=response.get("orderStatus"),
+            raw=response,
+        )
 
     # -- catalog ----------------------------------------------------------
 

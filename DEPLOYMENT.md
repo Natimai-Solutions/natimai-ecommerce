@@ -222,22 +222,45 @@ Catalog sync:
 | `SUPPLIER_SYNC_MIN_PRICE` | `0` | Minimum price **in XPF** (0 = off) |
 | `SUPPLIER_SYNC_MIN_QUANTITY` | `0` | Minimum quantity (0 = off) |
 
-Automatic purchase‑order creation on `payment.captured`:
+Catalogue files downloaded from a supplier link (Foxway, Picata…): declare
+the supplier with *Intégration* = « Fichier en ligne (lien) » (`kind=api`,
+`adapter_key=file_feed`), its URL and login mode, then its portal login
+(stored encrypted) and its column mapping (Importer → « Lire le flux »).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `INGRAM_ORDER_CREATION_ENABLED` | `false` | Master switch for auto PO creation |
-| `INGRAM_SHIP_TO_ADDRESS_LINE1` | — | **Required** when enabled — our warehouse address |
-| `INGRAM_SHIP_TO_CITY` | — | **Required** when enabled |
-| `INGRAM_SHIP_TO_COUNTRY_CODE` | `PF` | Ship‑to country |
-| `INGRAM_SHIP_TO_CONTACT` | — | Contact name |
-| `INGRAM_SHIP_TO_COMPANY_NAME` | — | Company name |
-| `INGRAM_SHIP_TO_POSTAL_CODE` | — | Postal code |
-| `INGRAM_SHIP_TO_PHONE` | — | Phone |
+| `SUPPLIER_SECRETS_KEY` | — | Fernet key encrypting the portal logins (comma-separated keys for a rotation, the first encrypts). **Required** to store a login |
+| `SUPPLIER_FEED_MAX_BYTES` | `26214400` | Size cap of a downloaded file |
+| `SUPPLIER_FEED_TIMEOUT_SECONDS` | `60` | Download timeout |
 
-> Enable `INGRAM_ORDER_CREATION_ENABLED=true` **only after**
-> `INGRAM_SHIP_TO_ADDRESS_LINE1` + `INGRAM_SHIP_TO_CITY` are set, otherwise every
-> generated PO is persisted as `ERROR` (ship‑to not configured).
+Only `https://` towards public addresses is fetched (redirects re-checked);
+portals that need JavaScript or a captcha, and `.xls` files, are out of
+scope. A failing download fails the sync and posts to `ALERT_WEBHOOK_URL`.
+
+Automatic purchase‑order creation on `payment.captured` (any supplier whose
+integration can order — Ingram today):
+
+* per supplier, **Admin → Fournisseurs → Modifier → « Commande fournisseur
+  automatique à l'encaissement »** (`suppliers.auto_purchase_order`);
+* delivered to the **main warehouse** (Trajets et lieux → « entrepôt
+  principal »): its address line, city, postal code and country are the
+  ship‑to. The variables below only complete it (contact, phone, company) or
+  replace it when the main warehouse has no address.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `INGRAM_ORDER_CREATION_ENABLED` | `false` | Historical switch: also turns Ingram's automatic orders on |
+| `INGRAM_SHIP_TO_ADDRESS_LINE1` | — | Fallback ship‑to when the main warehouse has no address |
+| `INGRAM_SHIP_TO_CITY` | — | Fallback ship‑to city |
+| `INGRAM_SHIP_TO_COUNTRY_CODE` | `PF` | Ship‑to country when the warehouse has none |
+| `INGRAM_SHIP_TO_CONTACT` | — | Contact name (sent to every supplier) |
+| `INGRAM_SHIP_TO_COMPANY_NAME` | `SHOP_NAME` | Company name |
+| `INGRAM_SHIP_TO_POSTAL_CODE` | — | Fallback postal code |
+| `INGRAM_SHIP_TO_PHONE` | — | Phone (sent to every supplier) |
+
+> Fill in the main warehouse's address **before** switching automatic orders
+> on, otherwise every generated PO is persisted as `ERROR` (no delivery
+> address) — retry them from Admin → Commandes fournisseurs once it is set.
 
 Inbound order‑status webhook (Phase 3):
 

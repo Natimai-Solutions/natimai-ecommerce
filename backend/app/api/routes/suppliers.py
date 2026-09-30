@@ -13,6 +13,7 @@ Declaring suppliers is the job of ``/admin/suppliers`` (admin_suppliers.py).
 import json
 import logging
 import uuid
+from collections import Counter
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Any
@@ -32,7 +33,11 @@ from app.features.integrations.models.supplier import (
     Supplier,
     SupplierKind,
 )
+from app.features.integrations.models.supplier_category_mapping import (
+    ObservedCategory,
+)
 from app.features.integrations.models.supplier_sync import SyncStatus, SyncType
+from app.features.integrations.services.category_mapping import describe_pairs
 from app.features.integrations.services.file_import_run import (
     ERROR_SAMPLE_SIZE,
     orchestrator_for_file_import,
@@ -42,7 +47,9 @@ from app.features.integrations.services.file_import_run import (
 )
 from app.features.integrations.services.supplier_sync_orchestrator import (
     ImportThresholds,
+    global_filter_action,
 )
+from app.features.product.models.category import Category
 from app.services.suppliers import (
     SupplierAdapter,
     adapter_for_supplier,
@@ -241,6 +248,9 @@ class FileImportResponse(BaseModel):
     sample_resolutions: list[FileImportResolutionRow] = Field(default_factory=list)
     #: Dry run of a large file: only the first N rows were resolved.
     resolution_limited_to: int | None = None
+    #: Dry run: every (category, subcategory) couple of the file, with its
+    #: row count, its rule and where the import would put it (R4 / S5).
+    category_pairs: list[ObservedCategory] = Field(default_factory=list)
 
 
 class FileImportStatusResponse(BaseModel):
@@ -509,6 +519,32 @@ def _parse_mapping_field(raw: str | None) -> dict[str, str] | None:
     return {k: v for k, v in parsed.items() if v}
 
 
+async def _ensure_category(session: SessionDep, category_id: uuid.UUID) -> None:
+    if await session.get(Category, category_id) is None:
+        raise AppError(
+            code="category.not_found",
+            status_code=404,
+            message=f"Catégorie inconnue : {category_id}",
+            details={"category_id": str(category_id)},
+        )
+
+
+def _global_effect(code: str) -> Any:
+    """The environment's filter rules for a couple (dry run, no I/O)."""
+
+    def _effect(
+        category: str | None, subcategory: str | None, has_rules: bool
+    ) -> str | None:
+        return global_filter_action(
+            code,
+            category=category,
+            subcategory=subcategory,
+            supplier_has_rules=has_rules,
+        )
+
+    return _effect
+
+
 @router.post("/{supplier_name}/import-file/inspect", response_model=FileInspectResponse)
 async def inspect_catalog_file(
     supplier: SupplierDep,
@@ -588,6 +624,15 @@ async def import_catalog_file(
             ),
         ),
     ] = None,
+    default_category_id: Annotated[
+        uuid.UUID | None,
+        Form(
+            description=(
+                "Shop category for every row the supplier's category rules do "
+                "not place (a file without category column)"
+            ),
+        ),
+    ] = None,
 ) -> FileImportResponse:
     """Import a CSV / Excel catalog for the supplier through the column mapping.
 
@@ -641,6 +686,8 @@ async def import_catalog_file(
 
     inline_limit = settings.SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS
     if not dry_run and parsed.total_rows > inline_limit:
+        if default_category_id is not None:
+            await _ensure_category(session, default_category_id)
         return await _queue_file_import(
             session,
             supplier_code=supplier_code,
@@ -652,6 +699,7 @@ async def import_catalog_file(
             publish_new=publish_new,
             total_rows=parsed.total_rows,
             thresholds=thresholds,
+            default_category_id=default_category_id,
         )
 
     result = rows_to_products(
@@ -675,6 +723,12 @@ async def import_catalog_file(
         for p in result.products[:5]
     ]
 
+    if default_category_id is not None:
+        await _ensure_category(session, default_category_id)
+    await orchestrator.load_category_rules(
+        session, default_category_id=default_category_id
+    )
+
     if dry_run:
         # Resolution reads the catalog row by row: a large file is previewed
         # on its first rows only, the real import runs in the worker.
@@ -682,6 +736,16 @@ async def import_catalog_file(
         orchestrator.thresholds = thresholds if thresholds.active else None
         counts, resolved_rows = await orchestrator.preview_items(
             session, result.products[:inline_limit]
+        )
+        pairs: Counter[tuple[str | None, str | None]] = Counter(
+            (p.category, p.subcategory) for p in result.products
+        )
+        category_pairs = await describe_pairs(
+            session,
+            supplier_code,
+            pairs,
+            global_effect=_global_effect(supplier_code),
+            default_category_id=default_category_id,
         )
         return FileImportResponse(
             supplier_name=supplier_code,
@@ -697,6 +761,7 @@ async def import_catalog_file(
                 FileImportResolutionRow.model_validate(r) for r in resolved_rows
             ],
             resolution_limited_to=inline_limit if limited else None,
+            category_pairs=category_pairs,
         )
 
     sync_log = await supplier_sync_log_crud.create_sync_log(
@@ -762,6 +827,7 @@ async def _queue_file_import(
     publish_new: bool,
     total_rows: int,
     thresholds: ImportThresholds,
+    default_category_id: uuid.UUID | None = None,
 ) -> FileImportResponse:
     """Store the file, open its sync log and hand the import to the worker.
 
@@ -791,6 +857,9 @@ async def _queue_file_import(
             mapping=mapping,
             publish_new=publish_new,
             thresholds=thresholds_payload(thresholds),
+            default_category_id=(
+                str(default_category_id) if default_category_id else None
+            ),
         )
     except Exception as exc:
         logger.error(

@@ -18,6 +18,7 @@ from arq import cron
 from sqlmodel import and_, col, or_
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.alerting import send_alert
 from app.core.config import settings
 from app.core.db import engine
 from app.features.integrations.crud.supplier_sync import supplier_sync_log_crud
@@ -122,6 +123,10 @@ async def sync_supplier_products_task(
                     sync_log_id=sync_log.id,
                     status=SyncStatus.FAILED,
                     error_message=str(e),
+                )
+                await send_alert(
+                    f"Synchronisation catalogue {supplier_name} en échec : {e}",
+                    source="supplier_sync",
                 )
                 raise
 
@@ -496,6 +501,9 @@ async def _due_suppliers(
     now = _now()
     for supplier, adapter in await api_suppliers(session):
         if not adapter.is_sync_enabled() or not adapter.is_configured():
+            continue
+        if not catalog and not getattr(adapter, "supports_live_availability", True):
+            # A file feed refreshes its stock with the catalogue sync.
             continue
         if catalog:
             recent = await supplier_sync_log_crud.get_recent_syncs(

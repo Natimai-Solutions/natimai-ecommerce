@@ -2,9 +2,11 @@
   <q-page class="admin-page">
     <PageHeader title="Catégories">
       <template #hint>
-        Les catégories viennent de la synchronisation fournisseur : leur nom d'origine sert de clé
-        de rapprochement et ne se modifie pas. Personnalisez le titre vitrine, la description,
-        l'image, la marge et le taux de TVA par défaut ; fusionnez les doublons.
+        Les catégories viennent de la synchronisation fournisseur ou sont créées ici : leur nom
+        d'origine sert de clé de rapprochement et ne se modifie pas. Personnalisez le titre vitrine,
+        la description, l'image, la marge et le taux de TVA par défaut ; fusionnez les doublons.
+        Pour ranger les catégories d'un fournisseur dans les vôtres : Fournisseurs → icône «
+        Catégories ».
       </template>
       <template #actions>
         <q-toggle v-model="showMerged" label="Afficher les fusionnées" />
@@ -15,6 +17,15 @@
           label="Actualiser"
           :loading="loading"
           @click="load"
+        />
+        <q-btn
+          color="primary"
+          unelevated
+          no-caps
+          icon="ph:plus"
+          label="Nouvelle catégorie"
+          data-testid="category-create"
+          @click="openCreate"
         />
       </template>
     </PageHeader>
@@ -225,6 +236,46 @@
         </q-form>
       </q-card>
     </q-dialog>
+    <q-dialog v-model="createDialog">
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">Nouvelle catégorie</h2>
+        </q-card-section>
+        <q-form @submit.prevent="submitCreate">
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="createError" tone="error" dense>{{ createError }}</AppNotice>
+            <q-input
+              v-model="createForm.name"
+              label="Nom *"
+              hint="Clé de rapprochement : ne se modifie plus ensuite (le titre vitrine, si)"
+              outlined
+              dense
+              autofocus
+              :rules="[(v: string) => !!v?.trim() || 'Requis']"
+              data-testid="category-create-name"
+            />
+            <q-input
+              v-model="createForm.display_name"
+              label="Titre vitrine"
+              hint="Vide = le nom"
+              outlined
+              dense
+            />
+          </q-card-section>
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn v-close-popup flat no-caps label="Annuler" />
+            <q-btn
+              type="submit"
+              color="primary"
+              unelevated
+              no-caps
+              label="Créer"
+              :loading="creating"
+            />
+          </q-card-actions>
+        </q-form>
+      </q-card>
+    </q-dialog>
     <MediaPicker
       v-model="mediaPickerOpen"
       kind="category"
@@ -241,6 +292,7 @@ import StatusTag from '@app/ui/StatusTag.vue';
 import MediaPicker from '@/components/MediaPicker.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import {
+  createAdminCategory,
   listAdminCategories,
   mergeCategory,
   updateAdminCategory,
@@ -284,6 +336,36 @@ const columns: QTableColumn[] = [
   },
   { name: 'actions', label: '', field: 'id', align: 'right' },
 ];
+
+const createDialog = ref(false);
+const creating = ref(false);
+const createError = ref<string | null>(null);
+const createForm = reactive({ name: '', display_name: '' });
+
+function openCreate() {
+  createForm.name = '';
+  createForm.display_name = '';
+  createError.value = null;
+  createDialog.value = true;
+}
+
+async function submitCreate() {
+  creating.value = true;
+  createError.value = null;
+  try {
+    const created = await createAdminCategory({
+      name: createForm.name.trim(),
+      display_name: createForm.display_name.trim() || null,
+    });
+    createDialog.value = false;
+    notice.value = `Catégorie « ${created.title} » créée.`;
+    await load();
+  } catch (err) {
+    createError.value = extractApiError(err) ?? 'Création impossible.';
+  } finally {
+    creating.value = false;
+  }
+}
 
 async function load() {
   loading.value = true;

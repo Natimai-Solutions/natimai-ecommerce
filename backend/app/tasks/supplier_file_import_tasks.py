@@ -61,6 +61,7 @@ async def trigger_file_import(
     mapping: dict[str, str],
     publish_new: bool,
     thresholds: dict[str, str | None] | None = None,
+    default_category_id: str | None = None,
 ) -> str:
     """Queue the import of a stored file; returns the ARQ job id."""
     return await enqueue_with_dedup(
@@ -76,6 +77,7 @@ async def trigger_file_import(
             "mapping": mapping,
             "publish_new": publish_new,
             "thresholds": thresholds,
+            "default_category_id": default_category_id,
         },
     )
 
@@ -98,6 +100,7 @@ async def run_queued_file_import(
     mapping: dict[str, str],
     publish_new: bool,
     thresholds: dict[str, str | None] | None = None,
+    default_category_id: str | None = None,
 ) -> dict[str, Any]:
     """Import the stored file under ``sync_log_id`` (the task body, testable).
 
@@ -116,6 +119,12 @@ async def run_queued_file_import(
             thresholds_from_payload(thresholds)
             if thresholds is not None
             else thresholds_for(supplier)
+        )
+        await orchestrator.load_category_rules(
+            session,
+            default_category_id=(
+                uuid.UUID(default_category_id) if default_category_id else None
+            ),
         )
 
         content = await storage.get_bytes(key=storage_key)
@@ -181,6 +190,7 @@ async def import_supplier_file_task(
     mapping: dict[str, str],
     publish_new: bool = True,
     thresholds: dict[str, str | None] | None = None,
+    default_category_id: str | None = None,
     **_kwargs: Any,
 ) -> dict[str, Any]:
     """ARQ entry point: see :func:`run_queued_file_import`."""
@@ -194,4 +204,5 @@ async def import_supplier_file_task(
             mapping=mapping,
             publish_new=publish_new,
             thresholds=thresholds,
+            default_category_id=default_category_id,
         )

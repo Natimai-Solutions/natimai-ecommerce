@@ -7,6 +7,9 @@ from app.features.content.models import ContentPage, HomepageBlock
 from app.features.departure.models import DepartureReminder, GroupedDeparture
 from app.features.discount.models import Discount
 from app.features.integrations.models.supplier import Supplier
+from app.features.integrations.models.supplier_category_mapping import (
+    SupplierCategoryMapping,
+)
 from app.features.integrations.models.supplier_order import SupplierOrder
 from app.features.integrations.models.supplier_sync import (
     SupplierProductMapping,
@@ -115,6 +118,7 @@ __all__ = [
     "StatusDefinition",
     "StatusTransition",
     "Supplier",
+    "SupplierCategoryMapping",
     "SupplierOrder",
     "SupplierProductMapping",
     "SupplierSyncLog",

@@ -2769,7 +2769,14 @@ export interface paths {
          */
         get: operations["admin-categories-list_categories"];
         put?: never;
-        post?: never;
+        /**
+         * Create Category
+         * @description Créer une catégorie (cible d'un mappage fournisseur, rayon manuel…).
+         *
+         *     Le nom est unique sans tenir compte de la casse, catégories fusionnées ou
+         *     inactives comprises : la synchronisation les résout par leur nom.
+         */
+        post: operations["admin-categories-create_category"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2873,9 +2880,9 @@ export interface paths {
         put?: never;
         /**
          * Retry Supplier Order
-         * @description Manually re-attempt creating the Ingram PO for this supplier order's local order.
+         * @description Manually re-attempt the purchase order of this row (its supplier, its order).
          *
-         *     Idempotent: an already-``SUBMITTED`` order is returned unchanged. On an Ingram
+         *     Idempotent: an already-``SUBMITTED`` order is returned unchanged. On a supplier
          *     API failure the persisted ``ERROR`` record is returned (200 with the error
          *     message) rather than surfacing a 5xx, so operators can read why it failed.
          */
@@ -2983,6 +2990,142 @@ export interface paths {
          *     listed ones are created or refreshed by the next syncs.
          */
         put: operations["admin-suppliers-put_sku_allowlist"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suppliers/{code}/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Supplier Credentials
+         * @description Store the supplier's portal login, encrypted. Never read back.
+         */
+        put: operations["admin-suppliers-put_supplier_credentials"];
+        post?: never;
+        /**
+         * Delete Supplier Credentials
+         * @description Forget the supplier's stored login.
+         */
+        delete: operations["admin-suppliers-delete_supplier_credentials"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suppliers/{code}/feed/inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inspect Supplier Feed
+         * @description Download the supplier's feed and return its headers and first rows.
+         */
+        post: operations["admin-suppliers-inspect_supplier_feed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suppliers/{code}/category-mappings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Category Mappings
+         * @description The supplier's category rules (source couple → shop category, action).
+         */
+        get: operations["admin-suppliers-get_category_mappings"];
+        /**
+         * Put Category Mappings
+         * @description Create or replace the listed rules (keyed by their source couple).
+         *
+         *     Rules not listed stay. Products already in base are not moved: see
+         *     ``POST …/category-mappings/reapply``.
+         */
+        put: operations["admin-suppliers-put_category_mappings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suppliers/{code}/category-mappings/{mapping_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Category Mapping
+         * @description Remove one rule: its couple falls back to the unmapped behaviour.
+         */
+        delete: operations["admin-suppliers-remove_category_mapping"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suppliers/{code}/category-mappings/reapply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reapply Category Mappings
+         * @description Apply the rules to the supplier's products already in base.
+         *
+         *     Products move to their target category (unless their category was set by
+         *     hand), couples set to « hors vitrine » / « ignorer » leave the storefront;
+         *     list prices are refreshed for the moved products.
+         */
+        post: operations["admin-suppliers-reapply_category_mappings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suppliers/{code}/observed-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Observed Categories
+         * @description The (category, subcategory) couples of the supplier's products in base,
+         *     with their count, their rule and where the next sync would put them.
+         */
+        get: operations["admin-suppliers-get_observed_categories"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -7376,6 +7519,12 @@ export interface components {
              * @description Clés acceptées dans Supplier.settings pour cette intégration
              */
             settings_keys?: string[];
+            /**
+             * Supports Purchase Orders
+             * @description L'intégration sait passer une commande fournisseur
+             * @default false
+             */
+            supports_purchase_orders: boolean;
         };
         /**
          * AddTrackingsRequest
@@ -7722,6 +7871,18 @@ export interface components {
             data: components["schemas"]["AdminCategoryItem"][];
             /** Count */
             count: number;
+        };
+        /**
+         * AdminCategoryCreate
+         * @description Une catégorie créée à la main (le nom devient sa clé de rapprochement).
+         */
+        AdminCategoryCreate: {
+            /** Name */
+            name: string;
+            /** Display Name */
+            display_name?: string | null;
+            /** Description */
+            description?: string | null;
         };
         /**
          * AdminCategoryItem
@@ -9132,6 +9293,11 @@ export interface components {
              * @description Minimum cost for this import, in the file's currency (defaults to the supplier's; 0 disables it)
              */
             min_price?: number | string | null;
+            /**
+             * Default Category Id
+             * @description Shop category for every row the supplier's category rules do not place (a file without category column)
+             */
+            default_category_id?: string | null;
         };
         /** Body_suppliers-inspect_catalog_file */
         "Body_suppliers-inspect_catalog_file": {
@@ -9499,6 +9665,48 @@ export interface components {
              * @description Default margin percentage for products in this category. None → the customer's price group margin applies (Product.margin_rate_pct still overrides both).
              */
             default_margin_rate_pct?: number | string | null;
+        };
+        /**
+         * CategoryMappingAction
+         * @description Sort des articles d'un couple (catégorie, sous-catégorie) fournisseur.
+         * @enum {string}
+         */
+        CategoryMappingAction: "import" | "draft" | "deactivate" | "skip";
+        /** CategoryMappingPublic */
+        CategoryMappingPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Source Category */
+            source_category: string | null;
+            /** Source Subcategory */
+            source_subcategory: string | null;
+            /** Category Id */
+            category_id: string | null;
+            /** Category Name */
+            category_name?: string | null;
+            action: components["schemas"]["CategoryMappingAction"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * CategoryMappingWrite
+         * @description Une règle envoyée par l'admin (créée ou remplacée selon sa clé).
+         */
+        CategoryMappingWrite: {
+            /** Source Category */
+            source_category?: string | null;
+            /** Source Subcategory */
+            source_subcategory?: string | null;
+            /** Category Id */
+            category_id?: string | null;
+            /** @default import */
+            action: components["schemas"]["CategoryMappingAction"];
         };
         /**
          * CategoryPublic
@@ -11152,6 +11360,32 @@ export interface components {
             timestamp: string;
         };
         /**
+         * FeedInspection
+         * @description First rows of a supplier's feed, to build the column mapping (same
+         *     shape as the inspection of an uploaded file).
+         */
+        FeedInspection: {
+            /**
+             * Filename
+             * @default flux
+             */
+            filename: string;
+            /** Headers */
+            headers: string[];
+            /** Sample Rows */
+            sample_rows: {
+                [key: string]: string;
+            }[];
+            /** Total Rows */
+            total_rows: number;
+            /** Mapping Targets */
+            mapping_targets?: string[];
+            /** Required Targets */
+            required_targets?: string[];
+            /** Mapping Problems */
+            mapping_problems?: string[];
+        };
+        /**
          * FileImportResolutionRow
          * @description How one parsed row would be (or was) matched against the catalog.
          */
@@ -11226,6 +11460,8 @@ export interface components {
             sample_resolutions?: components["schemas"]["FileImportResolutionRow"][];
             /** Resolution Limited To */
             resolution_limited_to?: number | null;
+            /** Category Pairs */
+            category_pairs?: components["schemas"]["ObservedCategory"][];
         };
         /**
          * FileImportRowError
@@ -13555,6 +13791,26 @@ export interface components {
             commerce: components["schemas"]["CommerceObservabilityMetrics"];
             outbox_jobs: components["schemas"]["OutboxObservabilityMetrics"];
             checkout: components["schemas"]["CheckoutObservabilityMetrics"];
+        };
+        /**
+         * ObservedCategory
+         * @description Un couple (catégorie, sous-catégorie) vu chez un fournisseur.
+         */
+        ObservedCategory: {
+            /** Source Category */
+            source_category: string | null;
+            /** Source Subcategory */
+            source_subcategory: string | null;
+            /** Count */
+            count: number;
+            mapping?: components["schemas"]["CategoryMappingPublic"] | null;
+            /** Resolved Category Name */
+            resolved_category_name?: string | null;
+            /**
+             * Effect
+             * @default import
+             */
+            effect: string;
         };
         /**
          * OkResponse
@@ -17478,6 +17734,16 @@ export interface components {
             /** Redis */
             redis: boolean;
         };
+        /**
+         * ReapplyResult
+         * @description Products moved to their mapped category / taken off the storefront.
+         */
+        ReapplyResult: {
+            /** Moved */
+            moved: number;
+            /** Deactivated */
+            deactivated: number;
+        };
         /** ReceiptCancel */
         ReceiptCancel: {
             /** Reason */
@@ -20021,11 +20287,22 @@ export interface components {
                 [key: string]: string;
             } | null;
             /**
+             * Auto Purchase Order
+             * @description kind=api, intégration qui sait commander : la commande fournisseur est passée automatiquement à l'encaissement d'une commande client (hors départ groupé), livrée à l'entrepôt principal.
+             * @default false
+             */
+            auto_purchase_order: boolean;
+            /**
              * Import As Draft
              * @description Les articles créés par une synchronisation ou un import de ce fournisseur arrivent en brouillon (Product.is_draft) : enrichis et rafraîchis, mais invisibles en vitrine tant que l'admin ne les publie pas. Les articles existants ne sont pas concernés.
              * @default false
              */
             import_as_draft: boolean;
+            /**
+             * @description Sort d'un article dont la catégorie fournisseur n'a pas de mappage : auto (catégorie au nom de la sous-catégorie, comportement historique) | draft | deactivate | skip
+             * @default auto
+             */
+            unmapped_category_action: components["schemas"]["UnmappedCategoryAction"];
             /**
              * Min Quantity
              * @description Import fichier : quantité minimale d'une ligne. En dessous, une référence nouvelle n'est pas créée et un article existant est mis à jour puis retiré de la vitrine (is_active=False). Une ligne sans quantité n'est pas jugée. Vide = pas de seuil.
@@ -20061,6 +20338,16 @@ export interface components {
             is_active: boolean;
             /** Code */
             code: string;
+        };
+        /**
+         * SupplierCredentialsWrite
+         * @description Portal login of a file-feed supplier (write-only).
+         */
+        SupplierCredentialsWrite: {
+            /** Username */
+            username: string;
+            /** Password */
+            password: string;
         };
         /**
          * SupplierKind
@@ -20209,11 +20496,22 @@ export interface components {
                 [key: string]: string;
             } | null;
             /**
+             * Auto Purchase Order
+             * @description kind=api, intégration qui sait commander : la commande fournisseur est passée automatiquement à l'encaissement d'une commande client (hors départ groupé), livrée à l'entrepôt principal.
+             * @default false
+             */
+            auto_purchase_order: boolean;
+            /**
              * Import As Draft
              * @description Les articles créés par une synchronisation ou un import de ce fournisseur arrivent en brouillon (Product.is_draft) : enrichis et rafraîchis, mais invisibles en vitrine tant que l'admin ne les publie pas. Les articles existants ne sont pas concernés.
              * @default false
              */
             import_as_draft: boolean;
+            /**
+             * @description Sort d'un article dont la catégorie fournisseur n'a pas de mappage : auto (catégorie au nom de la sous-catégorie, comportement historique) | draft | deactivate | skip
+             * @default auto
+             */
+            unmapped_category_action: components["schemas"]["UnmappedCategoryAction"];
             /**
              * Min Quantity
              * @description Import fichier : quantité minimale d'une ligne. En dessous, une référence nouvelle n'est pas créée et un article existant est mis à jour puis retiré de la vitrine (is_active=False). Une ligne sans quantité n'est pas jugée. Vide = pas de seuil.
@@ -20269,6 +20567,11 @@ export interface components {
              * @default true
              */
             configured: boolean;
+            /**
+             * Has Credentials
+             * @default false
+             */
+            has_credentials: boolean;
             /** Products Withdrawn */
             products_withdrawn?: number | null;
         };
@@ -20322,6 +20625,9 @@ export interface components {
             } | null;
             /** Import As Draft */
             import_as_draft?: boolean | null;
+            /** Auto Purchase Order */
+            auto_purchase_order?: boolean | null;
+            unmapped_category_action?: components["schemas"]["UnmappedCategoryAction"] | null;
             /** Min Quantity */
             min_quantity?: number | string | null;
             /** Min Price */
@@ -20686,6 +20992,12 @@ export interface components {
             /** Suggest Ungroup */
             suggest_ungroup: boolean;
         };
+        /**
+         * UnmappedCategoryAction
+         * @description Sort des articles d'une catégorie fournisseur sans mappage.
+         * @enum {string}
+         */
+        UnmappedCategoryAction: "auto" | "draft" | "deactivate" | "skip";
         /**
          * UpdateStatusRequest
          * @description Request payload for updating tracking status.
@@ -26180,6 +26492,39 @@ export interface operations {
             };
         };
     };
+    "admin-categories-create_category": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCategoryCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCategoryItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-categories-update_category": {
         parameters: {
             query?: never;
@@ -26255,7 +26600,7 @@ export interface operations {
             query?: {
                 /** @description Filter by supplier order status */
                 status?: components["schemas"]["SupplierOrderStatus"] | null;
-                /** @description Filter by supplier machine name (e.g. ingram_micro) */
+                /** @description Filter by supplier code (e.g. ingram_micro) */
                 supplier_name?: string | null;
                 skip?: number;
                 limit?: number;
@@ -26574,6 +26919,261 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AllowlistView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-put_supplier_credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplierCredentialsWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-delete_supplier_credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-inspect_supplier_feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedInspection"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-get_category_mappings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryMappingPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-put_category_mappings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryMappingWrite"][];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryMappingPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-remove_category_mapping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+                mapping_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-reapply_category_mappings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReapplyResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-get_observed_categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObservedCategory"][];
                 };
             };
             /** @description Validation Error */

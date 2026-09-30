@@ -273,6 +273,12 @@ class Settings(BaseSettings):
     ICECAT_USERNAME: str | None = None
     ICECAT_API_KEY: str | None = None
     ICECAT_LANGUAGE: str = "fr"  # Default language
+    # Fernet key(s) encrypting the credentials of file-feed suppliers
+    # (comma-separated for a rotation, the first one encrypts).
+    SUPPLIER_SECRETS_KEY: str | None = None
+    # Catalogue files downloaded from a supplier URL: size cap and timeout.
+    SUPPLIER_FEED_MAX_BYTES: int = 25 * 1024 * 1024
+    SUPPLIER_FEED_TIMEOUT_SECONDS: int = 60
     ICECAT_ENABLED: bool = True  # Enable/disable Icecat enrichment
     ICECAT_USE_OPEN: bool = True  # Use Open Icecat (free) instead of Full Icecat (paid)
     # Recurring batch enrichment: drains the backlog of un-enriched products so

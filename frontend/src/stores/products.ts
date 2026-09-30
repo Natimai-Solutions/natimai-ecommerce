@@ -78,7 +78,11 @@ export const useProductsStore = defineStore('products', () => {
     if (categories.value.length > 0) return;
     try {
       const resp = await getCategories();
-      categories.value = resp.data ?? [];
+      // Merged (A12) or switched-off categories stay in base for the supplier
+      // sync but have no place in the storefront filter.
+      categories.value = (resp.data ?? []).filter(
+        (c) => c.is_active !== false && c.is_admin_active !== false && !c.merged_into_id,
+      );
     } catch {
       // non-critical
     }

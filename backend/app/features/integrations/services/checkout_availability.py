@@ -93,6 +93,9 @@ async def refresh_supplier_availability(
                 supplier_name,
             )
             continue
+        if not getattr(adapter, "supports_live_availability", True):
+            # A downloaded file has no live answer: its last import stands.
+            continue
         if not adapter.is_sync_enabled():
             # A supplier whose syncs were switched off is not called either:
             # the admin turned it off, the snapshot stands.

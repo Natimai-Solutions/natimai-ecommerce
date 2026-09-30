@@ -26,6 +26,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.integrations.crud.supplier_sync import supplier_product_mapping_crud
 from app.features.integrations.models.supplier_sync import SupplierProductMapping
+from app.features.integrations.services.category_mapping import CategoryMapper
 from app.features.integrations.services.sku_allowlist import allowed_sku
 from app.features.integrations.services.supplier_data_normalization import (
     DEFAULT_CURRENCY,
@@ -193,6 +194,35 @@ def adoption_locks(product: Product) -> list[str]:
     return merge_locks(getattr(product, "overridden_fields", None), locked)
 
 
+def global_filter_action(
+    supplier_name: str,
+    *,
+    category: str | None,
+    subcategory: str | None,
+    name: str | None = None,
+    supplier_has_rules: bool = False,
+) -> Literal["skip", "deactivate"] | None:
+    """The environment's filter rules and subcategory allowlist, for a row.
+
+    The global allowlist (``SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST``) steps aside
+    for a supplier that curates its own categories (mapping, whole-file
+    category or a non-``auto`` unmapped action): both at once would contradict
+    each other.
+    """
+    from app.core.config import settings
+
+    return evaluate_product_filters(
+        supplier_name=supplier_name,
+        supplier_subcategory=subcategory,
+        supplier_category=category,
+        name=name,
+        rules=settings.SUPPLIER_PRODUCT_FILTER_RULES,
+        subcategory_allowlist=(
+            None if supplier_has_rules else settings.SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST
+        ),
+    )
+
+
 class SupplierSyncOrchestrator:
     """Application-level orchestrator for one supplier's sync workflows."""
 
@@ -207,6 +237,20 @@ class SupplierSyncOrchestrator:
         self.publish_without_enrichment = False
         #: File import only: the supplier's minimum quantity / price.
         self.thresholds: ImportThresholds | None = None
+        #: The supplier's category rules, loaded once per run (R4 / S5).
+        self.category_mapper: CategoryMapper | None = None
+
+    async def load_category_rules(
+        self,
+        session: AsyncSession,
+        *,
+        default_category_id: uuid.UUID | None = None,
+    ) -> CategoryMapper:
+        """Load the supplier's category mapping for this run."""
+        self.category_mapper = await CategoryMapper.load(
+            session, self.adapter.name, default_category_id=default_category_id
+        )
+        return self.category_mapper
 
     async def _resolve_origin_place_id(self, session: AsyncSession) -> uuid.UUID | None:
         """Resolve the supplier's origin ``Place`` id.
@@ -472,6 +516,10 @@ class SupplierSyncOrchestrator:
                 item.subcategory,
             )
             return {"action": "filtered", "product_id": ""}
+        mapper = self.category_mapper or CategoryMapper()
+        decision = await mapper.decide(session, item.category, item.subcategory)
+        if decision.action == "skip":
+            return {"action": "filtered", "product_id": ""}
 
         resolution = await self._resolve_existing_product(session=session, item=item)
         if resolution.ambiguous:
@@ -524,7 +572,10 @@ class SupplierSyncOrchestrator:
             # A supplier set to « new products as drafts »: the article is
             # created, enriched and refreshed, but shown only once the admin
             # publishes it. Existing products keep their state.
-            if bool(getattr(self.adapter, "import_as_draft", False)):
+            if (
+                bool(getattr(self.adapter, "import_as_draft", False))
+                or decision.action == "draft"
+            ):
                 product_data_dict["is_draft"] = True
 
         # Publish as it stands (import option): a new row, or a manual product
@@ -533,14 +584,13 @@ class SupplierSyncOrchestrator:
         if self.publish_without_enrichment and (existing_product is None or adopted):
             product_data_dict["published_without_enrichment"] = True
 
-        # Resolve internal category from supplier_subcategory (get_or_create)
-        if item.subcategory:
-            from app.features.product.crud.category import crud_category
+        # Shop category: the supplier's mapping, else a category named after
+        # the subcategory (or the category when there is none), see S5.
+        if decision.category_id is not None:
+            product_data_dict["category_id"] = decision.category_id
 
-            category, _created = await crud_category.get_or_create_by_name(
-                session, name=item.subcategory
-            )
-            product_data_dict["category_id"] = category.id
+        if decision.action == "deactivate":
+            product_data_dict["is_active"] = False
 
         if filter_action == "deactivate":
             logger.debug(
@@ -559,6 +609,7 @@ class SupplierSyncOrchestrator:
         elif (
             threshold == "meets"
             and filter_action is None
+            and decision.action != "deactivate"
             and existing_product is not None
             and not existing_product.is_active
         ):
@@ -608,7 +659,6 @@ class SupplierSyncOrchestrator:
         ``skip``: neither created nor touched; ``deactivate``: written but kept
         off the storefront. Shared by the import and its dry run.
         """
-        from app.core.config import settings
 
         # The admin's allowlist: a reference outside it is neither created nor
         # touched (the shop only follows what it chose to sell).
@@ -616,13 +666,14 @@ class SupplierSyncOrchestrator:
             getattr(self.adapter, "sku_allowlist", None), item.supplier_sku
         ):
             return "skip"
-        return evaluate_product_filters(
-            supplier_name=self.adapter.name,
-            supplier_subcategory=item.subcategory,
-            supplier_category=item.category,
+        return global_filter_action(
+            self.adapter.name,
+            category=item.category,
+            subcategory=item.subcategory,
             name=item.name,
-            rules=settings.SUPPLIER_PRODUCT_FILTER_RULES,
-            subcategory_allowlist=settings.SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST,
+            supplier_has_rules=bool(
+                self.category_mapper and self.category_mapper.has_rules
+            ),
         )
 
     async def preview_items(
@@ -672,6 +723,14 @@ class SupplierSyncOrchestrator:
                 row["action"] = "filtered"
                 row["message"] = "écartée par un filtre ou la liste blanche"
                 counts["filtered"] += 1
+            elif (
+                decision := await (self.category_mapper or CategoryMapper()).decide(
+                    session, item.category, item.subcategory, dry=True
+                )
+            ).action == "skip":
+                row["action"] = "filtered"
+                row["message"] = "catégorie ignorée par le mappage"
+                counts["filtered"] += 1
             else:
                 resolution = await self._resolve_existing_product(session, item)
                 if resolution.ambiguous:
@@ -705,9 +764,17 @@ class SupplierSyncOrchestrator:
                             f"sous le seuil ({self.thresholds.describe()}) : "
                             "mise à jour puis retirée de la vitrine"
                         )
-                elif filter_action == "deactivate" and row["action"] != "ambiguous":
+                elif (
+                    filter_action == "deactivate" or decision.action == "deactivate"
+                ) and row["action"] != "ambiguous":
                     counts["deactivated"] += 1
-                    row["message"] = "importée désactivée (filtre de sous-catégorie)"
+                    row["message"] = (
+                        "importée hors vitrine (mappage de catégorie)"
+                        if decision.action == "deactivate"
+                        else "importée désactivée (filtre de sous-catégorie)"
+                    )
+                elif decision.action == "draft" and row["action"] == "new":
+                    row["message"] = "créée en brouillon (mappage de catégorie)"
             if len(rows) < sample_size:
                 rows.append(row)
 
@@ -827,6 +894,8 @@ class SupplierSyncOrchestrator:
         """
         self.publish_without_enrichment = publish_without_enrichment
         self.thresholds = thresholds if thresholds and thresholds.active else None
+        if self.category_mapper is None:
+            await self.load_category_rules(session)
         stats = await self.sync_items(session, items, errors=errors)
         logger.info("%s file import completed. Stats: %s", self.adapter.name, stats)
         await self._enqueue_enrichment(session, stats["new_products"])
@@ -840,8 +909,16 @@ class SupplierSyncOrchestrator:
         Commits incrementally (one product per commit) so a failure mid-run
         does not roll back already-imported products.
         """
-        # Minimums are a file-import notion: never carried into an API sync.
+        # Minimums are a file notion: a file feed applies its supplier's, an
+        # API sync never does.
         self.thresholds = None
+        if getattr(self.adapter, "applies_file_thresholds", False):
+            config = self.adapter.config
+            candidate = ImportThresholds(
+                min_quantity=config.min_quantity, min_price=config.min_price
+            )
+            self.thresholds = candidate if candidate.active else None
+        await self.load_category_rules(session)
         sync_categories = list(categories or self.adapter.default_categories)
         stats = _empty_stats()
 
@@ -858,6 +935,9 @@ class SupplierSyncOrchestrator:
                     await asyncio.sleep(0.5)
 
             except Exception as e:  # noqa: BLE001
+                if getattr(self.adapter, "single_source", False):
+                    # One file: nothing was read, the sync failed as a whole.
+                    raise
                 logger.error(
                     "Error syncing category %s (%s): %s",
                     category,

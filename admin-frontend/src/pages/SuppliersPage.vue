@@ -135,6 +135,17 @@
             flat
             round
             dense
+            icon="ph:tree-structure"
+            data-testid="supplier-categories"
+            @click="openCategories(props.row)"
+          >
+            <q-tooltip>Catégories : où ranger les articles de ce fournisseur</q-tooltip>
+          </q-btn>
+          <q-btn
+            v-if="props.row.kind !== 'manual'"
+            flat
+            round
+            dense
             icon="ph:list-checks"
             :disable="!props.row.is_active"
             data-testid="supplier-allowlist"
@@ -357,30 +368,135 @@
                 à jour puis retiré de la vitrine (il revient quand il repasse au-dessus). Une ligne
                 sans quantité n'est pas jugée sur la quantité.
               </div>
+              <q-select
+                v-model="form.unmapped_category_action"
+                :options="unmappedOptions"
+                label="Catégories sans règle"
+                hint="Les règles se règlent par l'icône « Catégories » de la liste"
+                outlined
+                dense
+                emit-value
+                map-options
+                class="q-mt-sm"
+                data-testid="supplier-unmapped-action"
+              />
             </template>
 
             <template v-if="form.kind === 'api'">
               <q-toggle v-model="form.sync_enabled" label="Synchronisations autorisées" />
-              <q-input
-                v-model="form.default_categories_text"
+              <template v-if="selectedAdapter?.supports_purchase_orders">
+                <q-toggle
+                  v-model="form.auto_purchase_order"
+                  label="Commande fournisseur automatique à l'encaissement"
+                  data-testid="supplier-auto-po"
+                />
+                <div class="text-caption text-muted q-ml-md">
+                  Chaque commande client payée (hors départ groupé) déclenche une commande chez ce
+                  fournisseur pour ses articles, livrée à l'entrepôt principal (son adresse doit
+                  être renseignée dans Trajets et lieux). Suivi : Commandes fournisseurs.
+                </div>
+              </template>
+              <q-select
+                v-model="form.default_categories"
                 label="Catégories fournisseur synchronisées"
-                hint="Une par ligne"
-                type="textarea"
-                autogrow
+                hint="Tapez une catégorie puis Entrée"
+                multiple
+                use-chips
+                use-input
+                hide-dropdown-icon
+                new-value-mode="add-unique"
+                input-debounce="0"
                 outlined
                 dense
               />
               <div v-if="selectedAdapter?.settings_keys.length" class="q-gutter-sm">
                 <h3 class="admin-subtitle q-mb-none">Réglages de l'intégration</h3>
-                <q-input
-                  v-for="key in selectedAdapter.settings_keys"
-                  :key="key"
-                  v-model="form.settings[key]"
-                  :label="key"
-                  outlined
-                  dense
-                />
+                <template v-for="key in selectedAdapter.settings_keys" :key="key">
+                  <q-select
+                    v-if="SETTING_CHOICES[key]"
+                    v-model="form.settings[key]"
+                    :options="SETTING_CHOICES[key]"
+                    :label="SETTING_LABELS[key] ?? key"
+                    outlined
+                    dense
+                    emit-value
+                    map-options
+                  />
+                  <q-input
+                    v-else
+                    v-model="form.settings[key]"
+                    :label="SETTING_LABELS[key] ?? key"
+                    outlined
+                    dense
+                  />
+                </template>
+                <AppNotice v-if="isFeedForm" tone="info" dense>
+                  Le fichier est téléchargé à la cadence ci-dessus puis importé comme un fichier
+                  déposé à la main (mapping de colonnes, seuils, règles de catégories). Le mapping
+                  se règle depuis l'icône « Importer » → « Lire le flux ». Les portails qui exigent
+                  JavaScript ou un captcha ne sont pas pris en charge.
+                </AppNotice>
               </div>
+              <div v-if="isFeedForm && editing" class="q-gutter-sm" data-testid="feed-credentials">
+                <h3 class="admin-subtitle q-mb-none">
+                  Identifiants du portail
+                  <StatusTag
+                    v-if="editing.has_credentials"
+                    tone="ok"
+                    icon="ph:lock-key"
+                    label="Enregistrés"
+                    class="q-ml-sm"
+                  />
+                </h3>
+                <div class="text-caption text-muted">
+                  Chiffrés sur le serveur, jamais réaffichés. Saisissez-les pour les remplacer.
+                </div>
+                <div class="row" style="gap: 8px">
+                  <q-input
+                    v-model="credentials.username"
+                    label="Identifiant"
+                    autocomplete="off"
+                    outlined
+                    dense
+                    class="col"
+                  />
+                  <q-input
+                    v-model="credentials.password"
+                    label="Mot de passe"
+                    type="password"
+                    autocomplete="new-password"
+                    outlined
+                    dense
+                    class="col"
+                  />
+                </div>
+                <div class="row" style="gap: 8px">
+                  <q-btn
+                    outline
+                    dense
+                    no-caps
+                    icon="ph:floppy-disk"
+                    label="Enregistrer les identifiants"
+                    :disable="!credentials.username || !credentials.password"
+                    :loading="credentialsBusy"
+                    @click="onSaveCredentials"
+                  />
+                  <q-btn
+                    v-if="editing.has_credentials"
+                    flat
+                    dense
+                    no-caps
+                    icon="ph:trash"
+                    label="Effacer"
+                    :loading="credentialsBusy"
+                    @click="onClearCredentials"
+                  />
+                </div>
+              </div>
+              <AppNotice v-else-if="isFeedForm" tone="info" dense>
+                Enregistrez d'abord le fournisseur : les identifiants du portail se saisissent
+                ensuite, en le modifiant.
+              </AppNotice>
             </template>
 
             <div class="row" style="gap: 8px">
@@ -496,6 +612,45 @@
       </q-card>
     </q-dialog>
 
+    <!-- Catégories du fournisseur -->
+    <q-dialog v-model="categoriesDialog">
+      <q-card class="app-dialog app-dialog--xl">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">Catégories — {{ categoriesOf?.name }}</h2>
+        </q-card-section>
+        <q-card-section class="q-gutter-sm">
+          <AppNotice v-if="categoriesError" tone="error" dense>{{ categoriesError }}</AppNotice>
+          <AppNotice v-if="categoriesNotice" tone="success" dense>{{ categoriesNotice }}</AppNotice>
+          <p class="admin-hint">
+            Les catégories que ce fournisseur donne à ses articles déjà en base, et où la boutique
+            les range. Une règle sur la catégorie seule vaut pour toutes ses sous-catégories. Sans
+            règle : {{ unmappedLabel }}. Les nouvelles règles valent pour les prochains imports ; «
+            Réappliquer » y range aussi les articles existants (sauf catégorie choisie à la main).
+          </p>
+          <div v-if="categoriesLoading" class="text-center q-pa-md"><q-spinner size="2em" /></div>
+          <CategoryPairsTable
+            v-else
+            :pairs="observed"
+            :categories="categories"
+            :saving="categoriesSaving"
+            @save="saveSupplierRules"
+          />
+        </q-card-section>
+        <q-card-actions align="right" class="app-dialog__actions">
+          <q-btn flat no-caps label="Fermer" v-close-popup />
+          <q-btn
+            outline
+            no-caps
+            icon="ph:arrows-counter-clockwise"
+            label="Réappliquer aux articles existants"
+            :loading="reapplying"
+            data-testid="supplier-categories-reapply"
+            @click="onReapply"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <!-- Import fichier -->
     <q-dialog v-model="importDialog">
       <q-card class="app-dialog app-dialog--wide">
@@ -505,6 +660,33 @@
         <q-card-section class="q-gutter-sm">
           <AppNotice v-if="importError" tone="error" dense>{{ importError }}</AppNotice>
 
+          <div v-if="importing?.adapter_key === FEED_ADAPTER_KEY" class="row items-center q-mb-sm">
+            <q-btn
+              outline
+              no-caps
+              dense
+              icon="ph:cloud-arrow-down"
+              label="Lire le flux"
+              :loading="feedReading"
+              data-testid="feed-inspect"
+              @click="onReadFeed"
+            />
+            <span class="text-caption text-muted q-ml-sm">
+              ou déposez un exemplaire du fichier ci-dessous
+            </span>
+            <q-space />
+            <q-btn
+              v-if="inspection"
+              color="primary"
+              unelevated
+              no-caps
+              dense
+              icon="ph:floppy-disk"
+              label="Enregistrer le mapping"
+              :loading="mappingSaving"
+              @click="onSaveFeedMapping"
+            />
+          </div>
           <q-file
             v-model="importFile"
             label="Fichier CSV ou Excel (.xlsx)"
@@ -551,6 +733,19 @@
                 />
               </div>
             </div>
+            <q-select
+              v-model="importDefaultCategory"
+              :options="categoryOptions"
+              label="Catégorie pour tout le fichier (facultatif)"
+              hint="Pour les lignes qu'aucune règle ne place — utile sans colonne catégorie"
+              outlined
+              dense
+              emit-value
+              map-options
+              clearable
+              class="q-mt-sm"
+              data-testid="import-default-category"
+            />
             <div class="row q-mt-sm" style="gap: 8px">
               <q-input
                 v-model="importMinQuantity"
@@ -676,6 +871,21 @@
                 </tbody>
               </q-markup-table>
             </q-expansion-item>
+            <q-expansion-item
+              v-if="importResult.dry_run && importResult.category_pairs?.length"
+              dense
+              default-opened
+              :label="`Catégories du fichier (${importResult.category_pairs.length})`"
+              class="q-mt-xs"
+            >
+              <CategoryPairsTable
+                :pairs="importResult.category_pairs"
+                :categories="categories"
+                :saving="categoriesSaving"
+                count-label="Lignes"
+                @save="saveImportRules"
+              />
+            </q-expansion-item>
             <ul v-if="importResult.row_errors.length" class="q-mb-none">
               <li v-for="e in importResult.row_errors.slice(0, 10)" :key="e.row_number">
                 Ligne {{ e.row_number }} : {{ e.message }}
@@ -747,7 +957,20 @@ import {
   type SupplierCreate,
   type SupplierKind,
   type SupplierWithdrawal,
+  UNMAPPED_ACTION_LABELS,
+  listObservedCategories,
+  reapplyCategoryMappings,
+  saveCategoryMappings,
+  type CategoryMappingWrite,
+  type ObservedCategory,
+  type UnmappedCategoryAction,
+  FEED_ADAPTER_KEY,
+  deleteSupplierCredentials,
+  inspectSupplierFeed,
+  saveSupplierCredentials,
 } from '@/api/suppliers';
+import { categoryLabel, listAdminCategories, type AdminCategory } from '@/api/categories';
+import CategoryPairsTable from '@/components/CategoryPairsTable.vue';
 import { listPlaces, type Place } from '@/api/logistics';
 import { extractApiError } from '@/api/errors';
 
@@ -840,7 +1063,9 @@ interface FormState {
   min_quantity: string;
   min_price: string;
   sync_interval_hours: number;
-  default_categories_text: string;
+  default_categories: string[];
+  unmapped_category_action: UnmappedCategoryAction;
+  auto_purchase_order: boolean;
   price_currency: string | null;
   settings: Record<string, string>;
   contact_email: string;
@@ -861,7 +1086,9 @@ function emptyForm(): FormState {
     min_quantity: '',
     min_price: '',
     sync_interval_hours: 0,
-    default_categories_text: '',
+    default_categories: [],
+    unmapped_category_action: 'auto',
+    auto_purchase_order: false,
     price_currency: null,
     settings: {},
     contact_email: '',
@@ -890,6 +1117,8 @@ function openCreate() {
 function openEdit(supplier: Supplier) {
   editing.value = supplier;
   dialogError.value = null;
+  credentials.username = '';
+  credentials.password = '';
   const settings: Record<string, string> = {};
   for (const [k, v] of Object.entries(supplier.settings ?? {})) {
     settings[k] = typeof v === 'string' ? v : v == null ? '' : JSON.stringify(v);
@@ -906,7 +1135,9 @@ function openEdit(supplier: Supplier) {
     min_quantity: supplier.min_quantity != null ? String(Number(supplier.min_quantity)) : '',
     min_price: supplier.min_price != null ? String(Number(supplier.min_price)) : '',
     sync_interval_hours: supplier.sync_interval_hours,
-    default_categories_text: (supplier.default_categories ?? []).join('\n'),
+    default_categories: [...(supplier.default_categories ?? [])],
+    unmapped_category_action: supplier.unmapped_category_action ?? 'auto',
+    auto_purchase_order: !!supplier.auto_purchase_order,
     price_currency: supplier.price_currency,
     settings,
     contact_email: supplier.contact_email ?? '',
@@ -926,10 +1157,7 @@ function optionalNumber(value: string | number | null | undefined): number | nul
 function buildPayload(): SupplierCreate {
   const settings: Record<string, string> = {};
   for (const [k, v] of Object.entries(form.settings)) if (v.trim()) settings[k] = v.trim();
-  const categories = form.default_categories_text
-    .split('\n')
-    .map((c) => c.trim())
-    .filter(Boolean);
+  const categories = form.default_categories.map((c) => c.trim()).filter(Boolean);
   return {
     code: form.code.trim().toLowerCase(),
     name: form.name.trim(),
@@ -939,6 +1167,11 @@ function buildPayload(): SupplierCreate {
     is_domestic: form.is_domestic,
     sync_enabled: form.sync_enabled,
     import_as_draft: form.kind !== 'manual' && form.import_as_draft,
+    unmapped_category_action: form.unmapped_category_action,
+    auto_purchase_order:
+      form.kind === 'api' && !!selectedAdapter.value?.supports_purchase_orders
+        ? form.auto_purchase_order
+        : false,
     min_quantity: optionalNumber(form.min_quantity),
     min_price: optionalNumber(form.min_price),
     sync_interval_hours: form.kind === 'api' ? Number(form.sync_interval_hours) || 0 : 0,
@@ -1099,6 +1332,163 @@ async function onHealth(supplier: Supplier) {
 
 // --- Import fichier -------------------------------------------------------
 
+// --- Catégories (R4 / S5) ---
+const categories = ref<AdminCategory[]>([]);
+const categoryOptions = computed(() =>
+  categories.value.map((c) => ({ label: categoryLabel(c), value: c.id })),
+);
+const unmappedOptions = (Object.keys(UNMAPPED_ACTION_LABELS) as UnmappedCategoryAction[]).map(
+  (value) => ({ value, label: UNMAPPED_ACTION_LABELS[value] }),
+);
+
+async function loadCategories() {
+  try {
+    categories.value = (await listAdminCategories()).filter(
+      (c) => c.is_active && !c.merged_into_id,
+    );
+  } catch {
+    categories.value = [];
+  }
+}
+
+const categoriesDialog = ref(false);
+const categoriesOf = ref<Supplier | null>(null);
+const observed = ref<ObservedCategory[]>([]);
+const categoriesLoading = ref(false);
+const categoriesSaving = ref(false);
+const reapplying = ref(false);
+const categoriesError = ref<string | null>(null);
+const categoriesNotice = ref<string | null>(null);
+const unmappedLabel = computed(() =>
+  UNMAPPED_ACTION_LABELS[categoriesOf.value?.unmapped_category_action ?? 'auto'].toLowerCase(),
+);
+
+async function refreshObserved() {
+  if (!categoriesOf.value) return;
+  categoriesLoading.value = true;
+  try {
+    observed.value = await listObservedCategories(categoriesOf.value.code);
+  } catch (err) {
+    categoriesError.value = extractApiError(err) ?? 'Chargement impossible.';
+  } finally {
+    categoriesLoading.value = false;
+  }
+}
+
+function openCategories(supplier: Supplier) {
+  categoriesOf.value = supplier;
+  categoriesError.value = null;
+  categoriesNotice.value = null;
+  observed.value = [];
+  categoriesDialog.value = true;
+  void loadCategories();
+  void refreshObserved();
+}
+
+async function saveSupplierRules(rules: CategoryMappingWrite[]) {
+  if (!categoriesOf.value) return;
+  categoriesSaving.value = true;
+  categoriesError.value = null;
+  try {
+    await saveCategoryMappings(categoriesOf.value.code, rules);
+    categoriesNotice.value = `${rules.length} règle(s) enregistrée(s).`;
+    await refreshObserved();
+  } catch (err) {
+    categoriesError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+  } finally {
+    categoriesSaving.value = false;
+  }
+}
+
+async function onReapply() {
+  if (!categoriesOf.value) return;
+  reapplying.value = true;
+  categoriesError.value = null;
+  try {
+    const res = await reapplyCategoryMappings(categoriesOf.value.code);
+    categoriesNotice.value = `${res.moved} article(s) rangé(s), ${res.deactivated} retiré(s) de la vitrine.`;
+    await refreshObserved();
+  } catch (err) {
+    categoriesError.value = extractApiError(err) ?? 'Réapplication impossible.';
+  } finally {
+    reapplying.value = false;
+  }
+}
+
+const importDefaultCategory = ref<string | null>(null);
+
+async function saveImportRules(rules: CategoryMappingWrite[]) {
+  if (!importing.value) return;
+  categoriesSaving.value = true;
+  importError.value = null;
+  try {
+    await saveCategoryMappings(importing.value.code, rules);
+    // The simulation reflects the new rules at once.
+    await runImport(true);
+  } catch (err) {
+    importError.value = extractApiError(err) ?? 'Enregistrement des règles impossible.';
+  } finally {
+    categoriesSaving.value = false;
+  }
+}
+
+// --- Fichier en ligne (R4 / S3) ---
+const SETTING_LABELS: Record<string, string> = {
+  feed_url: 'Adresse du fichier (https://…)',
+  auth_mode: 'Connexion au portail',
+  login_url: 'Adresse du formulaire de connexion',
+  username_field: "Nom du champ identifiant (formulaire, défaut 'username')",
+  password_field: "Nom du champ mot de passe (formulaire, défaut 'password')",
+  file_format: 'Format du fichier',
+  sheet_name: 'Feuille Excel (réservé)',
+  environment: 'Environnement',
+  country_code: 'Code pays',
+  origin_place_code: "Code du lieu d'origine",
+};
+const SETTING_CHOICES: Record<string, { label: string; value: string }[]> = {
+  auth_mode: [
+    { label: 'Aucune (lien direct)', value: 'none' },
+    { label: 'Authentification HTTP (basic)', value: 'basic' },
+    { label: 'Formulaire de connexion + cookies', value: 'form' },
+  ],
+  file_format: [
+    { label: "Deviner d'après le lien", value: 'auto' },
+    { label: 'CSV', value: 'csv' },
+    { label: 'Excel (.xlsx)', value: 'xlsx' },
+  ],
+};
+const isFeedForm = computed(() => form.kind === 'api' && form.adapter_key === FEED_ADAPTER_KEY);
+const credentials = reactive({ username: '', password: '' });
+const credentialsBusy = ref(false);
+
+async function onSaveCredentials() {
+  if (!editing.value) return;
+  credentialsBusy.value = true;
+  dialogError.value = null;
+  try {
+    editing.value = await saveSupplierCredentials(editing.value.code, { ...credentials });
+    credentials.username = '';
+    credentials.password = '';
+  } catch (err) {
+    dialogError.value = extractApiError(err) ?? 'Enregistrement des identifiants impossible.';
+  } finally {
+    credentialsBusy.value = false;
+  }
+}
+
+async function onClearCredentials() {
+  if (!editing.value) return;
+  credentialsBusy.value = true;
+  dialogError.value = null;
+  try {
+    editing.value = await deleteSupplierCredentials(editing.value.code);
+  } catch (err) {
+    dialogError.value = extractApiError(err) ?? 'Suppression impossible.';
+  } finally {
+    credentialsBusy.value = false;
+  }
+}
+
 const importDialog = ref(false);
 const importing = ref<Supplier | null>(null);
 const importFile = ref<File | null>(null);
@@ -1201,6 +1591,8 @@ function openImport(supplier: Supplier) {
   importMinQuantity.value =
     supplier.min_quantity != null ? String(Number(supplier.min_quantity)) : '';
   importMinPrice.value = supplier.min_price != null ? String(Number(supplier.min_price)) : '';
+  importDefaultCategory.value = null;
+  void loadCategories();
   for (const key of Object.keys(mapping)) delete mapping[key];
   for (const [k, v] of Object.entries(supplier.column_mapping ?? {})) mapping[k] = v;
   importDialog.value = true;
@@ -1212,21 +1604,62 @@ async function onFileChosen(file: File | null) {
   importError.value = null;
   if (!file || !importing.value) return;
   try {
-    inspection.value = await inspectCatalogFile(importing.value.code, file);
-    // Drop stored mappings that point at columns the file does not have.
-    for (const [k, v] of Object.entries(mapping)) {
-      if (v && !inspection.value.headers.includes(v)) mapping[k] = null;
-    }
-    // Pre-fill obvious matches when nothing is mapped yet.
-    for (const target of inspection.value.mapping_targets) {
-      if (mapping[target]) continue;
-      const hit = inspection.value.headers.find(
-        (h) => h.trim().toLowerCase() === target.toLowerCase(),
-      );
-      if (hit) mapping[target] = hit;
-    }
+    applyInspection(await inspectCatalogFile(importing.value.code, file));
   } catch (err) {
     importError.value = extractApiError(err) ?? 'Lecture du fichier impossible.';
+  }
+}
+
+const feedReading = ref(false);
+const mappingSaving = ref(false);
+
+async function onReadFeed() {
+  if (!importing.value) return;
+  feedReading.value = true;
+  importError.value = null;
+  importResult.value = null;
+  try {
+    applyInspection(await inspectSupplierFeed(importing.value.code));
+    notice.value = null;
+  } catch (err) {
+    importError.value = extractApiError(err) ?? 'Lecture du flux impossible.';
+  } finally {
+    feedReading.value = false;
+  }
+}
+
+async function onSaveFeedMapping() {
+  if (!importing.value) return;
+  mappingSaving.value = true;
+  importError.value = null;
+  try {
+    const saved = await updateSupplier(importing.value.code, {
+      column_mapping: currentMapping(),
+    });
+    importing.value = saved;
+    notice.value = `Mapping de ${saved.name} enregistré : la prochaine synchronisation l'utilise.`;
+    importDialog.value = false;
+    await load();
+  } catch (err) {
+    importError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+  } finally {
+    mappingSaving.value = false;
+  }
+}
+
+function applyInspection(result: FileInspectResponse) {
+  inspection.value = result;
+  {
+    // Drop stored mappings that point at columns the file does not have.
+    for (const [k, v] of Object.entries(mapping)) {
+      if (v && !result.headers.includes(v)) mapping[k] = null;
+    }
+    // Pre-fill obvious matches when nothing is mapped yet.
+    for (const target of result.mapping_targets) {
+      if (mapping[target]) continue;
+      const hit = result.headers.find((h) => h.trim().toLowerCase() === target.toLowerCase());
+      if (hit) mapping[target] = hit;
+    }
   }
 }
 
@@ -1253,6 +1686,7 @@ async function runImport(dryRun: boolean) {
       publishNew: publishNew.value,
       minQuantity: optionalNumber(importMinQuantity.value),
       minPrice: optionalNumber(importMinPrice.value),
+      defaultCategoryId: importDefaultCategory.value,
     });
     if (result.queued && result.sync_log_id) {
       // Large file: the worker imports it; follow the sync log until it ends.
