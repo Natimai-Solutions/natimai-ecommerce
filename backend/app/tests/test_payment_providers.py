@@ -1,7 +1,9 @@
+from decimal import Decimal
 from typing import Any
 
 import pytest
 
+from app.core.config import settings
 from app.features.payment.providers import (
     SUPPORTED_PROVIDERS,
     get_provider,
@@ -41,13 +43,14 @@ def test_get_provider_unknown_provider_raises() -> None:
         get_provider("unknown")
 
 
-def test_only_payzen_supports_in_app_refund() -> None:
+def test_only_card_providers_support_in_app_refund() -> None:
     # Card payments can be refunded from the admin UI…
     assert provider_supports_in_app_refund("payzen") is True
     assert provider_supports_in_app_refund("  PayZen ") is True
     # …manual / document / unknown providers cannot (refunded out-of-band).
     assert provider_supports_in_app_refund("manual_check") is False
     assert provider_supports_in_app_refund("manual_transfer") is False
+    assert provider_supports_in_app_refund("paypal") is True
     assert provider_supports_in_app_refund("po_public") is False
     assert provider_supports_in_app_refund("unknown") is False
     assert provider_supports_in_app_refund(None) is False
@@ -115,3 +118,51 @@ def test_payzen_provider_parse_webhook_delegates_to_utility(
     assert result.provider_reference == "order_123"
     assert result.payment_status == "PAID"
     assert result.payload == expected_fields
+
+
+@pytest.mark.anyio
+async def test_payzen_refund_stays_pending_without_the_api_switch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "PAYZEN_API_REFUND_ENABLED", False)
+
+    async def _unexpected(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("the PayZen API must not be called")
+
+    monkeypatch.setattr(
+        "app.features.payment.providers.payzen.refund_payzen_transaction", _unexpected
+    )
+    result = await PayzenProvider().refund(
+        payment_reference="uuid-1", amount=Decimal("1000"), currency="XPF"
+    )
+    assert result.status == "pending"
+
+
+@pytest.mark.anyio
+async def test_payzen_refund_through_the_api_when_switched_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "PAYZEN_API_REFUND_ENABLED", True)
+    calls: list[tuple[str, int, str]] = []
+
+    async def _fake_refund(
+        trans_uuid: str, *, amount_minor: int, currency: str
+    ) -> dict[str, Any]:
+        calls.append((trans_uuid, amount_minor, currency))
+        return {"uuid": "refund-uuid", "detailedStatus": "AUTHORISED"}
+
+    monkeypatch.setattr(
+        "app.features.payment.providers.payzen.refund_payzen_transaction", _fake_refund
+    )
+    provider = PayzenProvider()
+    reference = provider.refund_reference(
+        provider_data={"trans_uuid": "trans-1"},
+        provider_reference="payment-id",
+        fallback="order-id",
+    )
+    result = await provider.refund(
+        payment_reference=reference, amount=Decimal("1500"), currency="XPF"
+    )
+    assert calls == [("trans-1", 1500, "XPF")]
+    assert result.status == "completed"
+    assert result.provider_reference == "refund-uuid"

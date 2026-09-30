@@ -45,6 +45,7 @@ from app.features.payment.services.provider_dispatch import (
     initiate_api_payment,
     resolve_provider_code_for_payment_method,
 )
+from app.features.payment.services.provider_settings import provider_available
 from app.features.system.payment_instructions import load_payment_instructions
 from app.utils.money import decimal_to_minor_units
 
@@ -136,6 +137,15 @@ async def initiate_payment_for_method(
             message=str(e),
             details={"payment_method_id": str(payment_method_id)},
         ) from e
+
+    # 1b. A provider switched off (or without credentials) takes no new payment.
+    if not await provider_available(session, provider_code):
+        raise AppError(
+            code="payment.provider.disabled",
+            status_code=400,
+            message="Ce moyen de paiement est momentanément indisponible",
+            details={"provider_code": provider_code},
+        )
 
     # 2. Group eligibility + max_amount check.
     eligible = await check_payment_method_eligible(

@@ -26,6 +26,7 @@ from app.features.payment.models.payment_status import (
     PaymentStatus,
     PaymentStatusCreate,
 )
+from app.features.payment.providers.base import PaymentProviderError
 from app.features.payment.services.deposit import (
     KIND_BALANCE,
     KIND_FULL,
@@ -51,6 +52,7 @@ from app.features.payment.services.provider_dispatch import (
     resolve_api_provider,
 )
 from app.features.payment.services.store_credit import settled_by_kind
+from app.features.payment.services.webhook_pipeline import apply_provider_outcome
 from app.outbox.registry import outbox_registry
 from app.utils.money import minor_units_to_decimal, parse_minor_units, quantize_amount
 
@@ -1047,6 +1049,13 @@ async def get_my_payment_status(
     Designed for frontend polling after a Payzen SmartForm submission.
     Returns immediately with the latest DB state — no blocking wait.
     """
+    payment = await _read_owned_payment(session, payment_id, current_user)
+    return await _payment_status_response(session, payment)
+
+
+async def _read_owned_payment(
+    session: SessionDep, payment_id: uuid.UUID, current_user: CurrentUser
+) -> Payment:
     try:
         payment = await crud_payment.read(session, id=payment_id)
     except RecordNotFoundError as exc:
@@ -1064,13 +1073,20 @@ async def get_my_payment_status(
             message="You cannot access this payment",
             details={"payment_id": str(payment_id)},
         )
+    return payment
 
-    status_name: str | None = None
-    if payment.payment_status_id is not None:
-        status_record = await session.get(PaymentStatus, payment.payment_status_id)
-        if status_record is not None:
-            status_name = status_record.name
 
+async def _payment_status_name(session: SessionDep, payment: Payment) -> str | None:
+    if payment.payment_status_id is None:
+        return None
+    status_record = await session.get(PaymentStatus, payment.payment_status_id)
+    return status_record.name if status_record is not None else None
+
+
+async def _payment_status_response(
+    session: SessionDep, payment: Payment
+) -> PaymentStatusResponse:
+    status_name = await _payment_status_name(session, payment)
     return PaymentStatusResponse(
         payment_id=payment.id,
         status_name=status_name,
@@ -1082,30 +1098,105 @@ async def get_my_payment_status(
     )
 
 
+@router.post("/me/{payment_id}/confirm", response_model=PaymentStatusResponse)
+async def confirm_my_payment(
+    payment_id: uuid.UUID,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> PaymentStatusResponse:
+    """Finish a payment the customer approved on the provider's page.
+
+    PayPal sends the customer back to the shop with the order approved but
+    not paid: the shop captures (or authorizes) it server-side. Idempotent —
+    a payment already decided is returned as is, and the provider's webhook
+    for the same capture is recognised as a duplicate.
+    """
+    payment = await _read_owned_payment(session, payment_id, current_user)
+    status_name = await _payment_status_name(session, payment)
+    if status_name not in _TERMINAL_PAYMENT_STATUS_NAMES:
+        provider_code = (payment.provider_code or "").strip().lower()
+        try:
+            provider = resolve_api_provider(provider_code)
+        except PaymentApiProviderResolutionError as exc:
+            raise AppError(
+                code="payment.confirm.unsupported",
+                status_code=400,
+                message="Ce paiement n'a pas d'étape de confirmation.",
+                details={"payment_id": str(payment_id)},
+            ) from exc
+        if not payment.provider_reference:
+            raise AppError(
+                code="payment.confirm.no_reference",
+                status_code=400,
+                message="Référence du prestataire introuvable pour ce paiement.",
+                details={"payment_id": str(payment_id)},
+            )
+        try:
+            outcome = await provider.confirm_payment(
+                provider_reference=payment.provider_reference,
+                provider_data=_provider_data_as_dict(payment),
+            )
+        except PaymentProviderError as exc:
+            logger.warning("Payment %s confirmation failed: %s", payment_id, exc)
+            raise AppError(
+                code="payment.confirm.failed",
+                status_code=502,
+                message="Le prestataire n'a pas confirmé le paiement.",
+                details={"payment_id": str(payment_id)},
+            ) from exc
+        await apply_provider_outcome(
+            session, outcome, payment=payment, action="confirm"
+        )
+        payment = await _read_owned_payment(session, payment_id, current_user)
+    return await _payment_status_response(session, payment)
+
+
 @router.post("/webhooks/{provider_code}")
 async def process_provider_webhook(
     provider_code: str,
     session: SessionDep,
     request: Request,
 ) -> JSONResponse:
-    """Execute process provider webhook."""
+    """Receive a provider notification.
+
+    PayZen keeps its historical IPN; the other providers authenticate and
+    normalize their notification (``parse_webhook``) and go through the
+    generic pipeline. A switched-off provider still receives the
+    notifications of the payments it already started.
+    """
     normalized_provider_code = provider_code.strip().lower()
 
     if normalized_provider_code == "payzen":
         return await payzen_ipn(session=session, request=request)
 
     try:
-        resolve_api_provider(normalized_provider_code)
+        provider = resolve_api_provider(normalized_provider_code)
     except PaymentApiProviderResolutionError as e:
         return JSONResponse(
             status_code=404,
             content={"status": "error", "message": str(e)},
         )
 
-    return JSONResponse(
-        status_code=501,
-        content={
-            "status": "error",
-            "message": f"Webhook processing not implemented for provider: {normalized_provider_code}",
-        },
-    )
+    if not provider.generic_webhooks:
+        return JSONResponse(
+            status_code=501,
+            content={
+                "status": "error",
+                "message": f"Webhook processing not implemented for provider: {normalized_provider_code}",
+            },
+        )
+
+    raw_body = await request.body()
+    try:
+        outcome = await provider.parse_webhook(raw_body, request.headers)
+    except PaymentProviderError as exc:
+        logger.warning("Rejected %s notification: %s", normalized_provider_code, exc)
+        raise AppError(
+            code="payment.webhook.invalid_signature",
+            status_code=400,
+            message="Notification du prestataire non authentifiée",
+            details={"provider_code": normalized_provider_code},
+        ) from exc
+
+    result = await apply_provider_outcome(session, outcome)
+    return JSONResponse(content={"status": "ok", "result": result.result})

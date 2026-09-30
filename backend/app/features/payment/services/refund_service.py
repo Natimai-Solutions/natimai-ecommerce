@@ -83,6 +83,7 @@ async def refund_payment(
     currency = payment.currency
     provider_code = payment.provider_code
     provider_reference = payment.provider_reference
+    provider_data = dict(payment.provider_data or {})
     admin_id = admin.id
 
     already_refunded = await crud_refund.get_total_refunded(
@@ -116,12 +117,24 @@ async def refund_payment(
             details={"provider_code": provider_code},
         ) from exc
 
-    result = await provider.refund(
-        payment_reference=provider_reference or str(order_id or payment_id),
-        amount=refund_amount,
-        currency=currency,
-        reason=reason,
-    )
+    try:
+        result = await provider.refund(
+            payment_reference=provider.refund_reference(
+                provider_data=provider_data,
+                provider_reference=provider_reference,
+                fallback=str(order_id or payment_id),
+            ),
+            amount=refund_amount,
+            currency=currency,
+            reason=reason,
+        )
+    except PaymentProviderError as exc:
+        raise AppError(
+            code="refund.provider_failed",
+            status_code=502,
+            message=f"Le prestataire n'a pas pu rembourser : {exc}",
+            details={"payment_id": str(payment_id)},
+        ) from exc
     completed = result.status == "completed"
     now = datetime.now(timezone.utc)
 

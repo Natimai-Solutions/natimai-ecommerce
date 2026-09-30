@@ -23,6 +23,67 @@
     </div>
 
     <template v-else>
+      <section class="app-section" aria-labelledby="providers-title">
+        <div class="app-section__head">
+          <h2 id="providers-title" class="app-section__title">Prestataires de paiement</h2>
+        </div>
+        <p class="admin-hint">
+          Un prestataire éteint disparaît du paiement pour tous les clients, sans redéploiement ;
+          les paiements qu'il a déjà lancés continuent d'être suivis. Les identifiants restent dans
+          la configuration du serveur.
+        </p>
+        <q-markup-table flat bordered data-testid="payment-providers">
+          <thead>
+            <tr>
+              <th class="text-left">Prestataire</th>
+              <th class="text-center">Activé</th>
+              <th class="text-left">Identifiants</th>
+              <th class="text-left">État</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="provider in providers" :key="provider.code">
+              <td class="text-left">
+                <div>{{ provider.label }}</div>
+                <div class="text-caption text-subtle font-mono">{{ provider.code }}</div>
+              </td>
+              <td class="text-center">
+                <q-toggle
+                  :model-value="provider.enabled"
+                  :disable="!provider.implemented || updatingKey === providerKey(provider.code)"
+                  :data-testid="`provider-enabled-${provider.code}`"
+                  @update:model-value="(val) => toggleProvider(provider, val)"
+                />
+              </td>
+              <td class="text-left">
+                <StatusTag
+                  v-if="provider.credentials_present"
+                  tone="ok"
+                  icon="ph:key"
+                  label="Présents"
+                />
+                <StatusTag v-else tone="warn" icon="ph:key" label="Absents" />
+              </td>
+              <td class="text-left">
+                <StatusTag
+                  v-if="!provider.implemented"
+                  tone="neutral"
+                  icon="ph:hourglass"
+                  label="À venir"
+                />
+                <StatusTag
+                  v-else-if="provider.available"
+                  tone="ok"
+                  icon="ph:check-circle"
+                  label="Proposé aux clients"
+                />
+                <StatusTag v-else tone="neutral" icon="ph:prohibit" label="Non proposé" />
+              </td>
+            </tr>
+          </tbody>
+        </q-markup-table>
+      </section>
+
       <section class="app-section" aria-labelledby="eligibility-title">
         <div class="app-section__head">
           <h2 id="eligibility-title" class="app-section__title">Ouverture par groupe</h2>
@@ -186,6 +247,9 @@ import {
   removeEligibility,
   setPaymentMethodActive,
   setPaymentMethodDepositAllowed,
+  listPaymentProviders,
+  setPaymentProviderEnabled,
+  type PaymentProvider,
   updatePriceGroup,
   type PaymentMethod,
   type PriceGroup,
@@ -238,6 +302,7 @@ async function saveDeposit(g: PriceGroup) {
 }
 
 const methods = ref<PaymentMethod[]>([]);
+const providers = ref<PaymentProvider[]>([]);
 const groups = ref<PriceGroup[]>([]);
 /** methodId → list of eligible group ids (empty = open to all). */
 const eligible = ref<Record<string, string[]>>({});
@@ -259,7 +324,12 @@ async function load() {
   loading.value = true;
   error.value = null;
   try {
-    const [pm, pg] = await Promise.all([listPaymentMethods(), listPriceGroups()]);
+    const [pm, pg, psp] = await Promise.all([
+      listPaymentMethods(),
+      listPriceGroups(),
+      listPaymentProviders(),
+    ]);
+    providers.value = psp;
     methods.value = pm;
     groups.value = pg;
     const entries = await Promise.all(
@@ -279,6 +349,22 @@ async function toggleActive(method: PaymentMethod, value: boolean) {
   try {
     await setPaymentMethodActive(method.id, value);
     method.is_admin_active = value;
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Mise à jour impossible.';
+  } finally {
+    updatingKey.value = null;
+  }
+}
+
+function providerKey(code: string): string {
+  return `provider:${code}`;
+}
+
+async function toggleProvider(provider: PaymentProvider, value: boolean) {
+  updatingKey.value = providerKey(provider.code);
+  error.value = null;
+  try {
+    providers.value = await setPaymentProviderEnabled(provider.code, value);
   } catch (err) {
     error.value = extractApiError(err) ?? 'Mise à jour impossible.';
   } finally {

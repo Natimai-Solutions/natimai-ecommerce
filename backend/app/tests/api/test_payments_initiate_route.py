@@ -21,6 +21,16 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
+@pytest.fixture(autouse=True)
+def _payzen_available(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The card provider takes payments here (switch and credentials are
+    covered in test_payment_provider_switches.py)."""
+    monkeypatch.setattr(
+        "app.features.payment.services.payment_initiation.provider_available",
+        AsyncMock(return_value=True),
+    )
+
+
 @pytest.mark.anyio
 async def test_payments_initiate_dispatches_by_payment_method(
     monkeypatch: pytest.MonkeyPatch,

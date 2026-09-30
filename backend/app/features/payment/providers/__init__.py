@@ -19,10 +19,12 @@ from app.features.payment.providers.manual import (
     ManualCheckProvider,
     ManualTransferProvider,
 )
+from app.features.payment.providers.paypal import PaypalProvider
 from app.features.payment.providers.payzen import PayzenProvider
 
 SUPPORTED_PROVIDERS: dict[str, type[PaymentProvider]] = {
     PayzenProvider.code: PayzenProvider,
+    PaypalProvider.code: PaypalProvider,
     ManualCashProvider.code: ManualCashProvider,
     ManualCheckProvider.code: ManualCheckProvider,
     ManualTransferProvider.code: ManualTransferProvider,
@@ -63,6 +65,7 @@ __all__ = [
     "ManualTransferProvider",
     "PaymentProvider",
     "PaymentProviderError",
+    "PaypalProvider",
     "PayzenProvider",
     "PublicPurchaseOrderProvider",
     "SUPPORTED_PROVIDERS",

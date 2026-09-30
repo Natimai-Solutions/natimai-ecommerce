@@ -31,6 +31,7 @@ from app.features.payment.models.payment_method_eligibility import (
 from app.features.payment.models.payment_receipt import PaymentReceipt
 from app.features.payment.models.payment_status import PaymentStatus
 from app.features.payment.models.payment_validation import PaymentValidation
+from app.features.payment.models.payment_webhook_event import PaymentWebhookEvent
 from app.features.payment.models.refund import Refund
 from app.features.payment.models.store_credit import StoreCreditEntry
 from app.features.place.models import Place, PlacePostalCode
@@ -99,6 +100,7 @@ __all__ = [
     "StoreCreditEntry",
     "PaymentReceipt",
     "PaymentValidation",
+    "PaymentWebhookEvent",
     "Place",
     "PlacePostalCode",
     "Product",

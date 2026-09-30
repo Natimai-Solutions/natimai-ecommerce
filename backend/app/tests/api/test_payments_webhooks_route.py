@@ -86,7 +86,7 @@ async def test_payments_webhooks_known_non_payzen_returns_501(
 
     monkeypatch.setattr(
         "app.api.routes.payments.resolve_api_provider",
-        Mock(return_value=cast(Any, object())),
+        Mock(return_value=cast(Any, SimpleNamespace(generic_webhooks=False))),
     )
 
     response = await process_provider_webhook(

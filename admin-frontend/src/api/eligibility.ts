@@ -93,3 +93,29 @@ export async function setPaymentMethodDepositAllowed(
 ): Promise<void> {
   await api.put(`/payment_method/${methodId}`, { deposit_allowed: allowed });
 }
+
+/** A card / wallet provider (PayZen, PayPal, Stripe) and its switch. */
+export interface PaymentProvider {
+  code: string;
+  label: string;
+  enabled: boolean;
+  credentials_present: boolean;
+  implemented: boolean;
+  /** Switched on, implemented and with credentials: takes new payments. */
+  available: boolean;
+}
+
+export async function listPaymentProviders(): Promise<PaymentProvider[]> {
+  const { data } = await api.get<PaymentProvider[]>('/admin/payment-providers');
+  return data;
+}
+
+export async function setPaymentProviderEnabled(
+  code: string,
+  enabled: boolean,
+): Promise<PaymentProvider[]> {
+  const { data } = await api.put<PaymentProvider[]>(`/admin/payment-providers/${code}`, {
+    enabled,
+  });
+  return data;
+}
