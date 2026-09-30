@@ -157,7 +157,7 @@ def _make_invoice() -> Invoice:
                 "total_excl_tax": "400000",
                 "tax_amount": "64000",
                 "tax_rate_pct": "16.00",
-                "tax_label": "TGC normal",
+                "tax_label": "TVA taux normal",
             }
         ],
         "fees": {

@@ -208,7 +208,7 @@ async def test_fixed_mode_ignores_import_routes() -> None:
 
 @pytest.mark.anyio
 async def test_domestic_mode_has_no_customs_and_no_freight() -> None:
-    """cost=100 000, margin=30 %, TGC=16 % → 100 000 × 1.30 × 1.16."""
+    """cost=100 000, margin=30 %, TVA=16 % → 100 000 × 1.30 × 1.16."""
     product = _product(pricing_mode=PricingMode.DOMESTIC, customs_rate_pct="20")
 
     price = await calculate_sale_price(

@@ -73,15 +73,19 @@ async def refresh_parent_from_variants(
     """
     variants = await list_variants(session, parent.id)
     parent.has_variants = bool(variants)
-    prices = [
-        v.sale_price_cached
+    priced = [
+        v
         for v in variants
         if v.sale_price_cached is not None and v.sale_price_cached > ZERO
     ]
-    if prices:
-        cheapest = min(prices)
-        parent.sale_price_cached = cheapest
-        parent.base_price = cheapest
+    if priced:
+        cheapest = min(priced, key=lambda v: v.sale_price_cached or ZERO)
+        parent.sale_price_cached = cheapest.sale_price_cached
+        parent.base_price = cheapest.sale_price_cached or ZERO
+        # The listing shows the parent: its margin is the « à partir de » one.
+        parent.unit_cost_cached = cheapest.unit_cost_cached
+        parent.margin_cached = cheapest.margin_cached
+        parent.margin_pct_cached = cheapest.margin_pct_cached
     session.add(parent)
     return parent
 

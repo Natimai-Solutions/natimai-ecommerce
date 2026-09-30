@@ -12,7 +12,7 @@ class TaxRateBase(Base):
     """Represents tax rate base."""
 
     code: str = Field(
-        max_length=50, index=True, description="Tax code (ex: TGC_NORMAL)"
+        max_length=50, index=True, description="Tax code (ex: TVA_NORMALE)"
     )
     label: str = Field(max_length=120, description="Tax label")
     rate_pct: Decimal = Field(

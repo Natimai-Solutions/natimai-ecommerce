@@ -40,14 +40,14 @@ _DEFAULT_VALID_FROM = date(2026, 1, 1)
 
 def _rate(
     *,
-    code: str = "TGC_NORMAL",
+    code: str = "TVA_NORMALE",
     valid_from: date = _DEFAULT_VALID_FROM,
     is_active: bool = True,
 ) -> TaxRate:
     return TaxRate(
         id=uuid4(),
         code=code,
-        label="TGC 16%",
+        label="TVA 16%",
         rate_pct=Decimal("16.00"),
         territory_code="PF",
         valid_from=valid_from,
@@ -79,7 +79,7 @@ async def test_get_active_tax_rate_404(returned: object) -> None:
 @pytest.mark.anyio
 @pytest.mark.parametrize("valid", [None, True, False])
 async def test_list_tax_rates_filters(valid: bool | None) -> None:
-    rates = [_rate(), _rate(code="TGC_REDUCED")]
+    rates = [_rate(), _rate(code="TVA_REDUITE")]
     session = AsyncMock()
     session.exec = AsyncMock(return_value=SimpleNamespace(all=Mock(return_value=rates)))
     resp = await list_tax_rates(
@@ -89,7 +89,7 @@ async def test_list_tax_rates_filters(valid: bool | None) -> None:
         valid=valid,
     )
     assert resp.count == 2
-    assert {r.code for r in resp.data} == {"TGC_NORMAL", "TGC_REDUCED"}
+    assert {r.code for r in resp.data} == {"TVA_NORMALE", "TVA_REDUITE"}
 
 
 @pytest.mark.anyio
@@ -97,8 +97,8 @@ async def test_create_tax_rate() -> None:
     session = AsyncMock()
     session.add = Mock()
     payload = TaxRateCreate(
-        code="TGC_NORMAL",
-        label="TGC 16%",
+        code="TVA_NORMALE",
+        label="TVA 16%",
         rate_pct=Decimal("16.00"),
         territory_code="PF",
         valid_from=date(2026, 1, 1),
@@ -106,7 +106,7 @@ async def test_create_tax_rate() -> None:
     resp = await create_tax_rate(
         payload=payload, session=session, current_user=_admin()
     )
-    assert resp.code == "TGC_NORMAL"
+    assert resp.code == "TVA_NORMALE"
     assert resp.rate_pct == Decimal("16.00")
     session.add.assert_called_once()
     session.commit.assert_awaited_once()
@@ -120,11 +120,11 @@ async def test_update_tax_rate_label_and_valid_until() -> None:
     session.get = AsyncMock(return_value=rate)
     resp = await update_tax_rate(
         tax_rate_id=rate.id,
-        payload=TaxRateUpdate(label="TGC normal", valid_until=date(2026, 12, 31)),
+        payload=TaxRateUpdate(label="TVA taux normal", valid_until=date(2026, 12, 31)),
         session=session,
         _current_user=_admin(),
     )
-    assert resp.label == "TGC normal"
+    assert resp.label == "TVA taux normal"
     assert resp.valid_until == date(2026, 12, 31)
 
 

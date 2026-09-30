@@ -13,6 +13,7 @@ from app.core.cache import RedisCache
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.errors import AppError
+from app.core.field_visibility import reveal_internal_fields
 from app.features.user.models.user import TokenPayload, User
 
 reusable_oauth2 = OAuth2PasswordBearer(
@@ -71,6 +72,9 @@ async def get_current_user(session: SessionDep, token: TokenDep) -> User:
             message="Inactive user",
             details={"user_id": str(user.id)},
         )
+    if user.is_superuser:
+        # Cost, supplier price and margins serialize for this request only.
+        reveal_internal_fields()
     return user
 
 

@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.core.config import settings
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.integrations.models.supplier import Supplier
@@ -41,6 +42,7 @@ from app.features.product.models.product import (
     ProductUpdate,
 )
 from app.features.product.services.overrides import merge_locks, release_lock
+from app.features.product.services.pricing import CurrencyRateMissing, PricingContext
 from app.features.product.services.variants import (
     list_variants,
     option_axes,
@@ -160,6 +162,111 @@ class PublishDraftsResponse(BaseModel):
     published: int = 0
     already_published: int = 0
     missing: list[uuid.UUID] = Field(default_factory=list)
+
+
+class MarginPreviewRequest(BaseModel):
+    """Price inputs of the product form, as they stand (unsaved)."""
+
+    #: Existing product: its other fields (supplier place, weight…) apply.
+    product_id: uuid.UUID | None = None
+    pricing_mode: PricingMode | None = None
+    base_price: Decimal | None = Field(default=None, ge=0)
+    cost_amount: Decimal | None = Field(default=None, ge=0)
+    cost_currency: str | None = Field(default=None, max_length=8)
+    margin_rate_pct: Decimal | None = None
+    customs_rate_pct: Decimal | None = Field(default=None, ge=0)
+    tax_rate_id: uuid.UUID | None = None
+    category_id: uuid.UUID | None = None
+
+
+class MarginPreview(BaseModel):
+    """What one unit sells for, what it costs and what is left."""
+
+    price_incl_tax: Decimal | None
+    tax_rate_pct: Decimal
+    price_excl_tax: Decimal | None
+    tax_amount: Decimal | None
+    commission_amount: Decimal | None
+    unit_cost: Decimal | None
+    margin_amount: Decimal | None
+    #: Margin / price excl. tax (taux de marque).
+    margin_pct: Decimal | None
+    #: Margin / cost (taux de marge).
+    markup_pct: Decimal | None
+    currency: str
+    #: Why a figure is missing (no cost, no exchange rate…).
+    note: str | None = None
+
+
+@router.post("/margin-preview", response_model=MarginPreview)
+async def preview_margin(
+    payload: MarginPreviewRequest,
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+) -> MarginPreview:
+    """Price, cost price and margin of the form's values, before saving."""
+    fields: dict[str, Any] = {}
+    if payload.product_id is not None:
+        existing = await session.get(Product, payload.product_id)
+        if existing is None:
+            raise AppError(
+                code="product.not_found",
+                status_code=404,
+                message="Product not found",
+                details={"product_id": str(payload.product_id)},
+            )
+        fields = existing.model_dump()
+    fields.update(payload.model_dump(exclude={"product_id"}, exclude_unset=True))
+    fields.pop("id", None)
+    fields.setdefault("name", "aperçu")
+    # A transient row, never added to the session.
+    draft = Product.model_validate(fields)
+    if draft.cost_currency is None:
+        draft.cost_currency = settings.REFERENCE_CURRENCY
+
+    context = await PricingContext.load(session)
+    tax_pct = context.tax_rate_pct(draft)
+    empty = MarginPreview(
+        price_incl_tax=None,
+        tax_rate_pct=tax_pct,
+        price_excl_tax=None,
+        tax_amount=None,
+        commission_amount=None,
+        unit_cost=None,
+        margin_amount=None,
+        margin_pct=None,
+        markup_pct=None,
+        currency=settings.REFERENCE_CURRENCY,
+    )
+    try:
+        price = context.price(draft)
+    except CurrencyRateMissing as exc:
+        return empty.model_copy(update={"note": f"Pas de taux de change pour {exc}"})
+    figures = context.margin(draft, price)
+    if figures is None:
+        return empty.model_copy(
+            update={
+                "price_incl_tax": price,
+                "note": "Saisissez le coût d'achat pour voir la marge.",
+            }
+        )
+    return MarginPreview(
+        price_incl_tax=figures.price_incl_tax,
+        tax_rate_pct=figures.tax_rate_pct,
+        price_excl_tax=figures.price_excl_tax,
+        tax_amount=figures.tax_amount,
+        commission_amount=figures.commission_amount,
+        unit_cost=figures.unit_cost,
+        margin_amount=figures.margin_amount,
+        margin_pct=figures.margin_pct,
+        markup_pct=figures.markup_pct,
+        currency=settings.REFERENCE_CURRENCY,
+        note=(
+            "Vendu à perte : le prix HT ne couvre pas le coût de revient."
+            if figures.margin_amount < 0
+            else None
+        ),
+    )
 
 
 @router.post("/publish-drafts", response_model=PublishDraftsResponse)

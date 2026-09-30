@@ -31,7 +31,7 @@ TODAY = date(2026, 9, 5)
 def _tax(rate: str, **over: Any) -> TaxRate:
     fields: dict[str, Any] = {
         "id": uuid4(),
-        "code": "TGC_REDUCED",
+        "code": "TVA_REDUITE",
         "label": "Taxe",
         "rate_pct": Decimal(rate),
         "territory_code": "PF",

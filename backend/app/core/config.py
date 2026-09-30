@@ -433,7 +433,7 @@ class Settings(BaseSettings):
     # --- Territoire et mode de la boutique --------------------------------
     # TERRITORY_PROFILE picks the currency, the tax territory and its seeded
     # rates, the country and the starter data (see app/core/territory.py):
-    # "PF" (Polynésie française, XPF, TGC — the historical default) or "FR"
+    # "PF" (Polynésie française, XPF, TVA — the historical default) or "FR"
     # (France métropolitaine, EUR, TVA). Every value below can still be set
     # on its own; the profile only fills what the environment leaves unset.
     TERRITORY_PROFILE: Literal["PF", "FR"] = "PF"
@@ -450,7 +450,7 @@ class Settings(BaseSettings):
     # Tax territory of the shop's own rates, and the rate applied when neither
     # the product nor its category says otherwise.
     TAX_TERRITORY_CODE: str = "PF"
-    DEFAULT_TAX_CODE: str = "TGC_NORMAL"
+    DEFAULT_TAX_CODE: str = "TVA_NORMALE"
     # Insurance rate applied on (cost + variable import freight) before customs
     # — the CAF/CIF basis, which is what an ad valorem policy actually covers.
     # Expressed as a percentage (e.g. 1.0 = 1 %). Default 0 = no insurance in
@@ -478,7 +478,7 @@ class Settings(BaseSettings):
     # Taux appliqué aux frais (livraison, paiement) pour la ventilation de
     # taxe. Code de TaxRate résolu sur le territoire de référence.
     # ⚠️ À faire confirmer par le comptable (cf. PLAN_DE_TRAVAIL, écart F3).
-    INVOICE_FEES_TAX_CODE: str = "TGC_NORMAL"
+    INVOICE_FEES_TAX_CODE: str = "TVA_NORMALE"
     PAYZEN_CURRENCY: str = "XPF"  # Default currency for French Polynesia
     PAYZEN_IPN_URL: str | None = None  # Will be computed based on backend URL
     PAYZEN_RETURN_URL: str | None = None  # Frontend URL to return after payment

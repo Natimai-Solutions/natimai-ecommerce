@@ -4,12 +4,14 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any
+from typing import Any, cast
 
+from pydantic import SerializerFunctionWrapHandler, model_serializer
 from sqlalchemy import JSON, Column, event
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, Relationship, SQLModel
 
+from app.core.field_visibility import redact
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 from app.features.product.models.category import Category
 
@@ -365,6 +367,29 @@ class ProductBase(Base):
     sale_price_cached_at: datetime | None = Field(
         default=None, description="When sale_price_cached was last computed"
     )
+    unit_cost_cached: Decimal | None = Field(
+        default=None,
+        ge=0,
+        decimal_places=2,
+        description=(
+            "Unit cost price materialized with sale_price_cached, excl. tax, in "
+            "the reference currency: purchase cost converted, plus insurance and "
+            "customs in import mode (no import leg). None = cost unknown."
+        ),
+    )
+    margin_cached: Decimal | None = Field(
+        default=None,
+        decimal_places=2,
+        description=(
+            "Unit margin excl. tax: price excl. tax − payment commission − "
+            "unit_cost_cached. None = cost unknown."
+        ),
+    )
+    margin_pct_cached: Decimal | None = Field(
+        default=None,
+        decimal_places=2,
+        description="margin_cached as a share of the price excl. tax (taux de marque)",
+    )
     last_enrichment_sync: datetime | None = Field(
         default=None,
         description="Last synchronization timestamp for enrichment data",
@@ -530,8 +555,37 @@ class Product(ProductBase, table=True):
     )
 
 
+#: Back-office figures a storefront visitor must never receive (see
+#: app/core/field_visibility.py): purchase cost, supplier price, the rates of
+#: the price formula and the margin computed from them.
+PRODUCT_INTERNAL_FIELDS: frozenset[str] = frozenset(
+    {
+        "cost_amount",
+        "cost_currency",
+        "supplier_price",
+        "supplier_price_currency",
+        "margin_rate_pct",
+        "customs_rate_pct",
+        "overridden_fields",
+        "unit_cost_cached",
+        "margin_cached",
+        "margin_pct_cached",
+    }
+)
+
+
 class ProductPublic(ProductBase, BasePublic):
-    """Represents product public."""
+    """Represents product public.
+
+    The internal fields (:data:`PRODUCT_INTERNAL_FIELDS`) are only serialized
+    for a superuser's request.
+    """
+
+    @model_serializer(mode="wrap")
+    def _hide_internal_fields(
+        self, handler: SerializerFunctionWrapHandler
+    ) -> dict[str, Any]:
+        return cast(dict[str, Any], redact(handler(self), PRODUCT_INTERNAL_FIELDS))
 
     id: uuid.UUID
     category_id: uuid.UUID | None = None

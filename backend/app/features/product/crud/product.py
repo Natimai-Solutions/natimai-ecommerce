@@ -43,6 +43,25 @@ from app.features.product.services.publication import (
 logger = logging.getLogger(__name__)
 
 
+def margin_values(context: PricingContext, product: Product) -> dict[str, Any]:
+    """Cost price and margin to store next to ``sale_price_cached``."""
+    try:
+        figures = context.margin(product, product.sale_price_cached)
+    except Exception as exc:  # noqa: BLE001 - never blocks a price write
+        logger.warning("Margin not computed for product %s: %s", product.id, exc)
+        figures = None
+    return {
+        "unit_cost_cached": figures.unit_cost if figures else None,
+        "margin_cached": figures.margin_amount if figures else None,
+        "margin_pct_cached": figures.margin_pct if figures else None,
+    }
+
+
+def stamp_margin(context: PricingContext, product: Product) -> None:
+    for name, value in margin_values(context, product).items():
+        setattr(product, name, value)
+
+
 class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
     """Represents product crud."""
 
@@ -101,6 +120,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             )
             return
         record.sale_price_cached_at = datetime.now(timezone.utc)
+        stamp_margin(context, record)
         entry = price_change_entry(
             record.id, previous, record.sale_price_cached, reason=REASON_PRODUCT_WRITE
         )
@@ -153,6 +173,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             except CurrencyRateMissing:
                 product.sale_price_cached = None
             product.sale_price_cached_at = now
+            stamp_margin(context, product)
             session.add(product)
             entry = price_change_entry(
                 product.id, previous, product.sale_price_cached, reason=reason
@@ -716,6 +737,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             return
         now = datetime.now(timezone.utc)
         priced: dict[uuid.UUID, Decimal | None] = {}
+        margins: dict[uuid.UUID, dict[str, Any]] = {}
         for product in products:
             try:
                 priced[product.id] = context.price(product)
@@ -723,6 +745,9 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
                 priced[product.id] = None
             set_committed_value(product, "sale_price_cached", priced[product.id])
             set_committed_value(product, "sale_price_cached_at", now)
+            margins[product.id] = margin_values(context, product)
+            for name, value in margins[product.id].items():
+                set_committed_value(product, name, value)
 
         bind = getattr(session, "bind", None)
         if bind is None or not hasattr(bind, "begin"):
@@ -733,7 +758,11 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
                     await connection.execute(
                         sa_update(Product)
                         .where(col(Product.id) == product_id)
-                        .values(sale_price_cached=price, sale_price_cached_at=now)
+                        .values(
+                            sale_price_cached=price,
+                            sale_price_cached_at=now,
+                            **margins[product_id],
+                        )
                     )
         except Exception as exc:  # noqa: BLE001
             logger.warning("Fallback prices not persisted: %s", exc)

@@ -29,8 +29,8 @@ def test_default_profile_keeps_the_historical_polynesian_values() -> None:
     assert s.TERRITORY_PROFILE == "PF"
     assert s.REFERENCE_CURRENCY == "XPF"
     assert s.TAX_TERRITORY_CODE == "PF"
-    assert s.DEFAULT_TAX_CODE == "TGC_NORMAL"
-    assert s.INVOICE_FEES_TAX_CODE == "TGC_NORMAL"
+    assert s.DEFAULT_TAX_CODE == "TVA_NORMALE"
+    assert s.INVOICE_FEES_TAX_CODE == "TVA_NORMALE"
     assert s.SHOP_COUNTRY_CODE == "PF"
     assert s.SEED_FRENCH_POLYNESIA_LOGISTICS is True
     assert s.territory_profile is PF

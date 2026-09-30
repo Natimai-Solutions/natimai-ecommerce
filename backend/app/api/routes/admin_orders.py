@@ -43,6 +43,8 @@ from app.features.payment.services.receipts import (
     record_counter_payment,
 )
 from app.features.product.models.product import Product
+from app.features.product.models.tax_rate import TaxRate
+from app.features.product.services.margin import compute_margin, line_unit_cost
 from app.features.user.models.user import User
 from app.handlers.order import request_balance
 from app.utils.csv_export import csv_amount, csv_response
@@ -89,6 +91,27 @@ class AdminOrderLineItem(BaseModel):
     quantity: int
     unit_price: float
     line_total: float
+    #: Tax of the line (its snapshotted rate) and the line excl. tax.
+    tax_rate_pct: float | None = None
+    line_total_excl_tax: float | None = None
+    #: Cost price of one unit at order time; None = cost unknown.
+    unit_cost: float | None = None
+    line_cost: float | None = None
+    line_margin: float | None = None
+    #: Margin / line excl. tax (taux de marque).
+    margin_pct: float | None = None
+
+
+class OrderMarginSummary(BaseModel):
+    """Gross margin on the goods of an order (fees and shipping excluded)."""
+
+    goods_excl_tax: float
+    goods_cost: float
+    margin: float
+    margin_pct: float | None = None
+    #: False when a line has no known cost: the figures cover the others only.
+    complete: bool = True
+    lines_without_cost: int = 0
 
 
 # Payment status names from which a refund can still be issued.
@@ -144,6 +167,8 @@ class AdminOrderDetail(BaseModel):
     balance_requested_at: datetime | None = None
     balance_paid_at: datetime | None = None
     lines: list[AdminOrderLineItem]
+    #: Gross margin on the goods (None: no line has a known cost).
+    margin: OrderMarginSummary | None = None
     payments: list[AdminOrderPaymentItem]
     #: Money in (settled payments + instalments − refunds) and what is left.
     amount_paid: float = 0.0
@@ -555,20 +580,73 @@ async def get_order_detail(
         )
         products_by_id = {p.id: p for p in products_res.all()}
 
-    line_items = [
-        AdminOrderLineItem(
-            product_id=line.product_id,
-            product_name=(
-                products_by_id[line.product_id].name
-                if line.product_id in products_by_id
+    tax_ids = {line.tax_rate_id for line in lines if line.tax_rate_id}
+    tax_pct_by_id: dict[uuid.UUID, Decimal] = {}
+    if tax_ids:
+        tax_res = await session.exec(
+            select(TaxRate).where(col(TaxRate.id).in_(tax_ids))
+        )
+        tax_pct_by_id = {r.id: Decimal(r.rate_pct) for r in tax_res.all()}
+
+    line_items: list[AdminOrderLineItem] = []
+    margin_totals = {"excl": Decimal("0"), "cost": Decimal("0")}
+    lines_without_cost = 0
+    for line in lines:
+        total = line.unit_price * line.quantity - line.discount_amount
+        tax_pct = tax_pct_by_id.get(line.tax_rate_id) if line.tax_rate_id else None
+        unit_cost = line_unit_cost(line)
+        figures = compute_margin(
+            price_incl_tax=total,
+            tax_rate_pct=tax_pct,
+            unit_cost=unit_cost * line.quantity if unit_cost is not None else None,
+        )
+        if figures is None:
+            lines_without_cost += 1
+        else:
+            margin_totals["excl"] += figures.price_excl_tax
+            margin_totals["cost"] += figures.unit_cost
+        line_items.append(
+            AdminOrderLineItem(
+                product_id=line.product_id,
+                product_name=(
+                    products_by_id[line.product_id].name
+                    if line.product_id in products_by_id
+                    else None
+                ),
+                quantity=line.quantity,
+                unit_price=float(line.unit_price),
+                line_total=float(total),
+                tax_rate_pct=float(tax_pct) if tax_pct is not None else None,
+                line_total_excl_tax=(
+                    float(figures.price_excl_tax) if figures is not None else None
+                ),
+                unit_cost=float(unit_cost) if unit_cost is not None else None,
+                line_cost=float(figures.unit_cost) if figures is not None else None,
+                line_margin=(
+                    float(figures.margin_amount) if figures is not None else None
+                ),
+                margin_pct=(
+                    float(figures.margin_pct)
+                    if figures is not None and figures.margin_pct is not None
+                    else None
+                ),
+            )
+        )
+    margin_summary: OrderMarginSummary | None = None
+    if lines and lines_without_cost < len(lines):
+        goods_margin = margin_totals["excl"] - margin_totals["cost"]
+        margin_summary = OrderMarginSummary(
+            goods_excl_tax=float(margin_totals["excl"]),
+            goods_cost=float(margin_totals["cost"]),
+            margin=float(goods_margin),
+            margin_pct=(
+                float(round(goods_margin / margin_totals["excl"] * 100, 2))
+                if margin_totals["excl"] > 0
                 else None
             ),
-            quantity=line.quantity,
-            unit_price=float(line.unit_price),
-            line_total=float(line.unit_price * line.quantity - line.discount_amount),
+            complete=lines_without_cost == 0,
+            lines_without_cost=lines_without_cost,
         )
-        for line in lines
-    ]
 
     # Payments (all of them — legacy orders may carry more than one)
     payments_result = await session.exec(
@@ -641,6 +719,7 @@ async def get_order_detail(
         balance_requested_at=order.balance_requested_at,
         balance_paid_at=order.balance_paid_at,
         lines=line_items,
+        margin=margin_summary,
         payments=payment_items,
         amount_paid=float(summary.paid),
         amount_due=float(summary.due),

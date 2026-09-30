@@ -8,6 +8,8 @@ PUT  /admin/categories/{id}/tax-rate       — assign a tax rate to a category
 PUT  /admin/products/{id}/customs-rate     — set/clear a product's customs rate
 PUT  /admin/categories/{id}/customs-rate   — set/clear a category's default customs rate
 GET  /admin/catalog/publication-report     — what blocks products from the storefront
+GET  /admin/tax-settings                   — default rate and fees rate (codes)
+PUT  /admin/tax-settings                   — choose them among today's rates
 
 Invariant: rate_pct is immutable once created. To change a rate create a new one
 and set valid_until on the old one to close it.
@@ -33,6 +35,7 @@ from sqlalchemy import func
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.core.config import settings
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.product.crud.category import crud_category
@@ -50,6 +53,11 @@ from app.features.product.services.publication import (
     customs_rate_condition,
     publication_conditions,
     weight_condition,
+)
+from app.features.product.services.tax_settings import (
+    load_tax_codes,
+    normalize_code,
+    save_tax_codes,
 )
 from app.tasks.pricing_tasks import schedule_price_refresh
 
@@ -140,12 +148,19 @@ async def create_tax_rate(
     current_user: CurrentSuperUser,
 ) -> TaxRatePublic:
     """Create a new tax rate (never modifies an existing one)."""
+    code = payload.code.strip().upper()
+    if not code:
+        raise AppError(
+            code="tax_rate.code_required",
+            status_code=400,
+            message="Le code du taux est obligatoire",
+        )
     rate = TaxRate(
         id=uuid.uuid4(),
-        code=payload.code,
-        label=payload.label,
+        code=code,
+        label=payload.label.strip(),
         rate_pct=payload.rate_pct,
-        territory_code=payload.territory_code,
+        territory_code=payload.territory_code.strip().upper(),
         valid_from=payload.valid_from,
         valid_until=payload.valid_until,
         is_active=True,
@@ -208,6 +223,96 @@ async def update_tax_rate(
         # Closing a rate changes which one applies: refresh list prices.
         await schedule_price_refresh(reason=f"tax_rate_closed:{rate.code}")
     return TaxRatePublic.model_validate(rate)
+
+
+# ---------------------------------------------------------------------------
+# Shop choices: default rate and fees rate (stored in base, editable)
+# ---------------------------------------------------------------------------
+
+
+class TaxSettingsPublic(BaseModel):
+    """The shop's default rate and fees rate, by code, with today's rate."""
+
+    default_code: str
+    fees_code: str
+    #: The rate each code resolves to today (None: no active rate under it).
+    default_rate: TaxRatePublic | None
+    fees_rate: TaxRatePublic | None
+    territory_code: str
+
+
+class TaxSettingsUpdate(BaseModel):
+    default_code: str = Field(min_length=1, max_length=50)
+    fees_code: str = Field(min_length=1, max_length=50)
+
+
+async def _current_rate(session: SessionDep, code: str) -> TaxRate | None:
+    today = date.today()
+    statement = (
+        select(TaxRate)
+        .where(
+            TaxRate.code == code,
+            TaxRate.territory_code == settings.TAX_TERRITORY_CODE,
+            col(TaxRate.is_active).is_(True),
+            TaxRate.valid_from <= today,
+            col(TaxRate.valid_until).is_(None) | (col(TaxRate.valid_until) >= today),
+        )
+        .order_by(col(TaxRate.valid_from).desc())
+        .limit(1)
+    )
+    return (await session.exec(statement)).first()
+
+
+async def _tax_settings(session: SessionDep) -> TaxSettingsPublic:
+    codes = await load_tax_codes(session)
+    default_rate = await _current_rate(session, codes.default_code)
+    fees_rate = await _current_rate(session, codes.fees_code)
+    return TaxSettingsPublic(
+        default_code=codes.default_code,
+        fees_code=codes.fees_code,
+        default_rate=TaxRatePublic.model_validate(default_rate)
+        if default_rate
+        else None,
+        fees_rate=TaxRatePublic.model_validate(fees_rate) if fees_rate else None,
+        territory_code=settings.TAX_TERRITORY_CODE,
+    )
+
+
+@router.get("/tax-settings", response_model=TaxSettingsPublic)
+async def get_tax_settings(
+    session: SessionDep, _current_user: CurrentSuperUser
+) -> TaxSettingsPublic:
+    """Which rate applies by default, and which one taxes the fees."""
+    return await _tax_settings(session)
+
+
+@router.put("/tax-settings", response_model=TaxSettingsPublic)
+async def update_tax_settings(
+    payload: TaxSettingsUpdate,
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+) -> TaxSettingsPublic:
+    """Choose the default rate and the fees rate among today's rates."""
+    for field, code in (
+        ("default_code", payload.default_code),
+        ("fees_code", payload.fees_code),
+    ):
+        if await _current_rate(session, normalize_code(code)) is None:
+            raise AppError(
+                code="tax_rate.code_not_active",
+                status_code=400,
+                message=f"Aucun taux en vigueur sous le code « {code} »",
+                details={"field": field, "code": code},
+            )
+    before = await load_tax_codes(session)
+    saved = await save_tax_codes(
+        session, default_code=payload.default_code, fees_code=payload.fees_code
+    )
+    await session.commit()
+    if saved.default_code != before.default_code:
+        # Products without a rate of their own now resolve to another one.
+        await schedule_price_refresh(reason=f"tax_default:{saved.default_code}")
+    return await _tax_settings(session)
 
 
 # ---------------------------------------------------------------------------

@@ -111,6 +111,7 @@ from app.features.product.models.product import (
     Product,
 )
 from app.features.product.services.pricing import (
+    PricingContext,
     calculate_sale_price,
     product_applies_customs,
     resolve_default_price_group,
@@ -1153,6 +1154,20 @@ async def _resolve_payment_fee(
         # unknown/ineligible method with its own contract.
         return Decimal("0.00")
     return quantize_amount(method.fee, currency)
+
+
+async def _unit_cost_snapshot(
+    session: SessionDep, product: Product | None
+) -> Decimal | None:
+    """Cost price excl. tax of one unit at order time (margin of the line)."""
+    if product is None:
+        return None
+    try:
+        context = await PricingContext.for_session(session)
+        return context.unit_cost(product)
+    except Exception as exc:  # noqa: BLE001 - a missing figure never blocks an order
+        logger.warning("Unit cost not snapshotted for product %s: %s", product.id, exc)
+        return None
 
 
 async def _resolve_customer_price_group(
@@ -2937,6 +2952,7 @@ async def checkout_my_cart(
                         session, product, group=price_group
                     ),
                     price_group_id_snapshot=getattr(price_group, "id", None),
+                    unit_cost_snapshot=await _unit_cost_snapshot(session, product),
                 ),
                 user=current_user,
             )

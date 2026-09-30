@@ -254,7 +254,7 @@ async def _seed_carriers(session: AsyncSession) -> None:
 
 
 async def _seed_tax_rates(session: AsyncSession) -> None:
-    """Seed the tax rates of the territory profile (TGC for PF, TVA for FR).
+    """Seed the tax rates of the territory profile (TVA 16 / 13 / 5 / 0 % for PF, 20 / 10 / 5,5 / 2,1 / 0 % for FR).
 
     Idempotent per (code, territory); rates of another territory are left
     alone, so switching the profile adds the new set without touching the old.

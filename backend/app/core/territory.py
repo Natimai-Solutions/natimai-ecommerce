@@ -1,6 +1,6 @@
 """Territory profiles: what a deployment assumes about where it sells.
 
-The platform was built for French Polynesia (XPF, TGC, Papeete customs,
+The platform was built for French Polynesia (XPF, TVA, Papeete customs,
 island geography). Nothing in the code should hard-code that: a profile
 gathers the currency, the tax territory and its rates, the country and the
 starter data, and ``TERRITORY_PROFILE`` picks one. Every individual value
@@ -52,11 +52,14 @@ PF = TerritoryProfile(
     country_code="PF",
     currency="XPF",
     tax_territory_code="PF",
-    default_tax_code="TGC_NORMAL",
+    default_tax_code="TVA_NORMALE",
+    # TVA de Polynésie française : taux normal 16 %, intermédiaire 13 %
+    # (prestations de services…), réduit 5 % (produits de première nécessité…).
     tax_rates=(
-        TaxRateSpec("TGC_NORMAL", "TGC normal", Decimal("16.00")),
-        TaxRateSpec("TGC_REDUIT", "TGC reduit", Decimal("5.00")),
-        TaxRateSpec("TGC_EXONERE", "TGC exonere", Decimal("0.00")),
+        TaxRateSpec("TVA_NORMALE", "TVA taux normal", Decimal("16.00")),
+        TaxRateSpec("TVA_INTERMEDIAIRE", "TVA taux intermédiaire", Decimal("13.00")),
+        TaxRateSpec("TVA_REDUITE", "TVA taux réduit", Decimal("5.00")),
+        TaxRateSpec("TVA_EXONEREE", "Exonéré de TVA", Decimal("0.00")),
     ),
     currency_rates=(("EUR", Decimal("119.332")), ("USD", Decimal("100.000"))),
     seed_french_polynesia_logistics=True,

@@ -43,8 +43,8 @@ async def _seed_paid_order(
     )
     status = OrderStatus(name=f"Paid-{uuid.uuid4().hex[:6]}")
     tax_rate = TaxRate(
-        code=f"TGC_{uuid.uuid4().hex[:6]}",
-        label="TGC normal",
+        code=f"TVA_{uuid.uuid4().hex[:6]}",
+        label="TVA taux normal",
         rate_pct=tax_rate_pct,
         territory_code="PF",
         valid_from=date(2020, 1, 1),
@@ -55,7 +55,7 @@ async def _seed_paid_order(
     # échouer l'assertion positionnelle plus bas.
     fees_tax_rate = TaxRate(
         code=settings.INVOICE_FEES_TAX_CODE,
-        label="TGC normal (frais)",
+        label="TVA taux normal (frais)",
         rate_pct=tax_rate_pct,
         territory_code="PF",
         valid_from=date(2020, 1, 1),
