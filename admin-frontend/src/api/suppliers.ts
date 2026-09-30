@@ -1,4 +1,5 @@
 import { api } from '@/boot/api';
+import type { ProductPublic } from '@/stores/products';
 
 /** Méthode d'approvisionnement d'un fournisseur (voir backend `SupplierKind`). */
 export type SupplierKind = 'manual' | 'file' | 'api';
@@ -27,6 +28,10 @@ export interface Supplier {
   sku_allowlist: string[] | null;
   /** Les nouveaux articles de ce fournisseur arrivent en brouillon (publiés par l'admin). */
   import_as_draft: boolean;
+  /** Import fichier : quantité minimale d'une ligne (null = pas de seuil). */
+  min_quantity: string | null;
+  /** Import fichier : prix d'achat minimal, dans la devise du fichier (null = pas de seuil). */
+  min_price: string | null;
   settings: Record<string, unknown> | null;
   contact_email: string | null;
   contact_phone: string | null;
@@ -36,6 +41,8 @@ export interface Supplier {
   updated_at: string;
   /** kind=api : l'intégration existe et ses identifiants sont présents. */
   configured: boolean;
+  /** Réponse de la désactivation : articles retirés (stock à zéro / masqués). */
+  products_withdrawn?: number | null;
 }
 
 export interface SupplierCreate {
@@ -50,6 +57,8 @@ export interface SupplierCreate {
   default_categories?: string[] | null;
   price_currency?: string | null;
   column_mapping?: Record<string, string> | null;
+  min_quantity?: number | null;
+  min_price?: number | null;
   import_as_draft?: boolean;
   settings?: Record<string, unknown> | null;
   contact_email?: string | null;
@@ -211,8 +220,16 @@ export async function updateSupplier(code: string, payload: SupplierUpdate): Pro
   return data;
 }
 
-export async function deactivateSupplier(code: string): Promise<Supplier> {
-  const { data } = await api.delete<Supplier>(`/admin/suppliers/${code}`);
+/** Sort des articles d'un fournisseur désactivé. */
+export type SupplierWithdrawal = 'keep' | 'zero_stock' | 'hide';
+
+export async function deactivateSupplier(
+  code: string,
+  products: SupplierWithdrawal = 'keep',
+): Promise<Supplier> {
+  const { data } = await api.delete<Supplier>(`/admin/suppliers/${code}`, {
+    params: { products },
+  });
   return data;
 }
 
@@ -264,12 +281,21 @@ export async function inspectCatalogFile(code: string, file: File): Promise<File
 export async function importCatalogFile(
   code: string,
   file: File,
-  options: { mapping?: Record<string, string> | null; dryRun?: boolean; publishNew?: boolean },
+  options: {
+    mapping?: Record<string, string> | null;
+    dryRun?: boolean;
+    publishNew?: boolean;
+    /** Seuils de cet import ; absents = ceux du fournisseur, 0 = aucun. */
+    minQuantity?: number | null;
+    minPrice?: number | null;
+  },
 ): Promise<FileImportResponse> {
   const form = new FormData();
   form.append('file', file);
   if (options.mapping) form.append('mapping', JSON.stringify(options.mapping));
   form.append('publish_new', options.publishNew === false ? 'false' : 'true');
+  if (options.minQuantity != null) form.append('min_quantity', String(options.minQuantity));
+  if (options.minPrice != null) form.append('min_price', String(options.minPrice));
   const { data } = await api.post<FileImportResponse>(`/suppliers/${code}/import-file`, form, {
     headers: { 'Content-Type': 'multipart/form-data' },
     params: { dry_run: options.dryRun ? 'true' : 'false' },
@@ -294,5 +320,29 @@ export async function triggerInventorySync(code: string): Promise<SyncResponse> 
 
 export async function checkSupplierHealth(code: string): Promise<HealthResponse> {
   const { data } = await api.get<HealthResponse>(`/suppliers/${code}/health`);
+  return data;
+}
+
+/** « Rattacher maintenant » : `adopted` = coût et stock repris ; `pending` = au prochain import. */
+export interface SupplierAttachResponse {
+  status: 'adopted' | 'pending';
+  message: string;
+  product: ProductPublic;
+}
+
+export async function attachProductToSupplier(
+  productId: string,
+  payload: { supplier_name?: string | null; supplier_sku?: string | null },
+): Promise<SupplierAttachResponse> {
+  const { data } = await api.post<SupplierAttachResponse>(
+    `/admin/products/${productId}/attach-supplier`,
+    payload,
+  );
+  return data;
+}
+
+/** « Détacher » : l'article redevient manuel (verrous conservés, stock fournisseur à 0). */
+export async function detachProductFromSupplier(productId: string): Promise<ProductPublic> {
+  const { data } = await api.post<ProductPublic>(`/admin/products/${productId}/detach-supplier`);
   return data;
 }

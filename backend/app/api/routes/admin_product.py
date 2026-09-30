@@ -28,6 +28,10 @@ from app.core.config import settings
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.integrations.models.supplier import Supplier
+from app.features.integrations.services.supplier_attachment import (
+    attach_now,
+    detach,
+)
 from app.features.inventory.services.availability import publish_with_availability
 from app.features.product.crud.product import crud_product
 from app.features.product.models.price_group import PriceGroup
@@ -534,6 +538,85 @@ async def admin_update_product(
     )
     await _refresh_parent_of(session, updated)
     return ProductPublic.model_validate(updated)
+
+
+class SupplierAttachRequest(BaseModel):
+    """Supplier and reference to attach; both default to the product's own."""
+
+    supplier_name: str | None = Field(default=None, max_length=100)
+    supplier_sku: str | None = Field(default=None, max_length=100)
+
+
+class SupplierAttachResponse(BaseModel):
+    #: ``adopted`` (cost and stock taken now) or ``pending`` (next file import).
+    status: str
+    message: str
+    product: ProductPublic
+
+
+async def _read_product(session: SessionDep, product_id: uuid.UUID) -> Product:
+    try:
+        return await crud_product.read(session=session, id=product_id)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="product.not_found",
+            status_code=404,
+            message=f"Product '{product_id}' not found",
+            details={"product_id": str(product_id)},
+        ) from exc
+
+
+@router.post("/{product_id}/attach-supplier", response_model=SupplierAttachResponse)
+async def admin_attach_supplier(
+    session: SessionDep,
+    current_user: CurrentSuperUser,
+    product_id: uuid.UUID,
+    payload: SupplierAttachRequest,
+) -> SupplierAttachResponse:
+    """Attach a product to a supplier reference now (« Rattacher maintenant »).
+
+    API supplier: the reference is fetched and the product adopted on the
+    spot (cost, stock, mapping; the admin's content stays locked). File
+    supplier: the link is recorded, the next import adopts it.
+    """
+    actor_id = current_user.id
+    product = await _read_product(session, product_id)
+    code = payload.supplier_name or product.supplier_name
+    sku = payload.supplier_sku or product.supplier_sku or ""
+    supplier = await _resolve_supplier(session, code)
+    if supplier is None:
+        raise AppError(
+            code="supplier.attach.missing_reference",
+            status_code=400,
+            message="Choisissez le fournisseur et saisissez sa référence (SKU)",
+            details={"product_id": str(product_id)},
+        )
+    outcome = await attach_now(session, product, supplier, supplier_sku=sku)
+    status, message = outcome.status, outcome.message
+    await session.commit()
+    refreshed = await crud_product.read(session=session, id=product_id)
+    await _refresh_parent_of(session, refreshed)
+    logger.info("Admin %s attached product %s (%s)", actor_id, product_id, status)
+    return SupplierAttachResponse(
+        status=status, message=message, product=ProductPublic.model_validate(refreshed)
+    )
+
+
+@router.post("/{product_id}/detach-supplier", response_model=ProductPublic)
+async def admin_detach_supplier(
+    session: SessionDep,
+    current_user: CurrentSuperUser,
+    product_id: uuid.UUID,
+) -> ProductPublic:
+    """Turn a supplier product back into a manual one (« Détacher »)."""
+    actor_id = current_user.id
+    product = await _read_product(session, product_id)
+    await detach(session, product)
+    await session.commit()
+    refreshed = await crud_product.read(session=session, id=product_id)
+    await _refresh_parent_of(session, refreshed)
+    logger.info("Admin %s detached product %s from its supplier", actor_id, product_id)
+    return ProductPublic.model_validate(refreshed)
 
 
 async def _refresh_parent_of(session: SessionDep, product: Product) -> None:

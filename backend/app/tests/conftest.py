@@ -30,6 +30,16 @@ def arq_queue(monkeypatch: pytest.MonkeyPatch) -> FakeArqRedis:
     return fake
 
 
+@pytest.fixture(autouse=True)
+def _fresh_module_switches() -> Generator[None, None, None]:
+    """Module switches are cached per process: never carry one across tests."""
+    from app.features.system.modules import invalidate_cache
+
+    invalidate_cache()
+    yield
+    invalidate_cache()
+
+
 @pytest_asyncio.fixture(scope="session")
 async def db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSession(engine) as session:

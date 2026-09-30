@@ -22,6 +22,7 @@ from app.features.integrations.services.supplier_data_normalization import (
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product, ProductUpdate
 from app.features.product.services.overrides import strip_locked
+from app.features.system.modules import module_enabled
 from app.services.icecat_service import icecat_service
 
 logger = logging.getLogger(__name__)
@@ -124,6 +125,9 @@ async def enrich_product_with_icecat_task(
         return {"status": "error", "message": "Invalid product ID"}
 
     async with AsyncSession(engine) as session:
+        if not await module_enabled(session, "icecat"):
+            logger.info("Icecat enrichment is switched off: %s skipped", product_id)
+            return {"status": "disabled", "message": "Icecat enrichment is off"}
         try:
             # Get product from database
             product = await crud_product.read(session, id=product_uuid)
@@ -269,6 +273,9 @@ async def batch_enrich_products_task(
     }
 
     async with AsyncSession(engine) as session:
+        if not await module_enabled(session, "icecat"):
+            logger.info("Icecat enrichment is switched off: batch skipped")
+            return {**stats, "status": "disabled"}
         try:
             # Query products that need enrichment:
             # - Have supplier managed flag

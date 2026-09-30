@@ -18,7 +18,7 @@ from uuid import uuid4
 import aiohttp
 from pydantic import BaseModel, Field
 
-from app.core.config import settings
+from app.core.config import secret_is_set, settings
 from app.core.http_retry import (
     RETRYABLE_STATUSES,
     AsyncRateLimiter,
@@ -568,11 +568,12 @@ class IngramMicroAdapter(SupplierAdapter):
     def credentials_present(cls) -> bool:
         """The three Ingram secrets live in the environment."""
         return all(
-            [
+            secret_is_set(value)
+            for value in (
                 settings.INGRAM_CLIENT_ID,
                 settings.INGRAM_CLIENT_SECRET,
                 settings.INGRAM_CUSTOMER_NUMBER,
-            ]
+            )
         )
 
     def is_sync_enabled(self) -> bool:

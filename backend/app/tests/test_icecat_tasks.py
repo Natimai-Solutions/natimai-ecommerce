@@ -14,6 +14,41 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
+@pytest.fixture(autouse=True)
+def icecat_module_on(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """The fake sessions cannot be queried: the module switch is stubbed."""
+    switch = AsyncMock(return_value=True)
+    monkeypatch.setattr(icecat_tasks, "module_enabled", switch)
+    return switch
+
+
+@pytest.mark.anyio
+async def test_tasks_do_nothing_while_the_icecat_module_is_off(
+    monkeypatch: pytest.MonkeyPatch, icecat_module_on: AsyncMock
+) -> None:
+    class _FakeAsyncSession:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_exc: object) -> bool:
+            return False
+
+    icecat_module_on.return_value = False
+    enrich = AsyncMock()
+    monkeypatch.setattr(icecat_tasks, "AsyncSession", _FakeAsyncSession)
+    monkeypatch.setattr(icecat_service, "enrich_product_with_icecat", enrich)
+
+    single = await icecat_tasks.enrich_product_with_icecat_task({}, str(uuid4()))
+    batch = await icecat_tasks.batch_enrich_products_task({}, limit=5)
+
+    assert single["status"] == "disabled"
+    assert batch["status"] == "disabled"
+    enrich.assert_not_awaited()
+
+
 @pytest.mark.anyio
 async def test_enrich_product_with_icecat_task_skips_admin_inactive(
     monkeypatch: pytest.MonkeyPatch,

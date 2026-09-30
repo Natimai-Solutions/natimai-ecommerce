@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any, TypedDict
 
@@ -47,6 +47,7 @@ from app.features.shipping.services.origin import (
 )
 from app.features.system.legal_identity import LEGAL_SETTINGS, seed_value_for
 from app.features.system.models.system_setting import SystemSetting
+from app.features.system.modules import seed_rows as module_seed_rows
 from app.features.system.payment_instructions import PAYMENT_INSTRUCTION_SETTINGS
 from app.features.user.models.group import Group
 from app.features.user.models.group_security import GroupSecurity
@@ -962,6 +963,10 @@ async def _seed_suppliers(session: AsyncSession) -> None:
 
     result = await session.exec(select(Supplier).where(Supplier.code == "ingram_micro"))
     supplier = result.first()
+    # SHOP_MODE=simple: declared but switched off, re-enabled from the admin
+    # (Fournisseurs → Réactiver) without a restart. Only at creation: the
+    # admin owns the row afterwards.
+    simple = settings.is_simple_shop
     if supplier is None:
         session.add(
             Supplier(
@@ -971,7 +976,8 @@ async def _seed_suppliers(session: AsyncSession) -> None:
                 adapter_key="ingram_micro",
                 origin_place_id=origin.id if origin is not None else None,
                 is_domestic=False,
-                sync_enabled=bool(settings.INGRAM_SYNC_ENABLED),
+                is_active=not simple,
+                sync_enabled=bool(settings.INGRAM_SYNC_ENABLED) and not simple,
                 sync_interval_hours=int(settings.INGRAM_SYNC_INTERVAL_HOURS),
                 default_categories=list(settings.INGRAM_SYNC_CATEGORIES),
                 settings={
@@ -980,9 +986,72 @@ async def _seed_suppliers(session: AsyncSession) -> None:
                 },
             )
         )
-    elif supplier.origin_place_id is None and origin is not None:
-        supplier.origin_place_id = origin.id
+    else:
+        if supplier.origin_place_id is None and origin is not None:
+            supplier.origin_place_id = origin.id
+            session.add(supplier)
+        if simple:
+            await _switch_off_suppliers_once_in_simple_mode(session, supplier)
+
+
+#: Marker of the one-time switch-off below (never rewritten once present).
+SIMPLE_MODE_SUPPLIERS_MARKER = "seed.simple_mode_suppliers_switched_off"
+
+
+async def _switch_off_suppliers_once_in_simple_mode(
+    session: AsyncSession, supplier: Any
+) -> None:
+    """Carry the old ``SHOP_MODE=simple`` behaviour over, once.
+
+    Until the switches moved to the database, simple mode never scheduled the
+    supplier crons: an ``ingram_micro`` row seeded active stayed idle. The
+    crons now always run, so a simple shop upgraded from that version gets its
+    row switched off here, one time, as it effectively was. The marker keeps
+    this from ever overriding the admin's later « Réactiver ».
+    """
+    marker = (
+        await session.exec(
+            select(SystemSetting).where(
+                SystemSetting.key == SIMPLE_MODE_SUPPLIERS_MARKER
+            )
+        )
+    ).first()
+    if marker is not None:
+        return
+    if supplier.is_active or supplier.sync_enabled:
+        supplier.is_active = False
+        supplier.sync_enabled = False
+        supplier.updated_at = datetime.now(timezone.utc)
         session.add(supplier)
+    session.add(
+        SystemSetting(
+            key=SIMPLE_MODE_SUPPLIERS_MARKER,
+            value="true",
+            description=(
+                "Mode simple : Ingram a été désactivé une fois lors du passage "
+                "aux réglages en base (ne pas modifier)"
+            ),
+        )
+    )
+
+
+async def _seed_module_switches(session: AsyncSession) -> None:
+    """Créer les interrupteurs de modules au préréglage de ``SHOP_MODE``.
+
+    Premier démarrage seulement : un interrupteur existant n'est jamais
+    réécrit (l'admin en est maître), seule sa description est rafraîchie.
+    """
+    for row in module_seed_rows():
+        existing = (
+            await session.exec(
+                select(SystemSetting).where(SystemSetting.key == row.key)
+            )
+        ).first()
+        if existing is None:
+            session.add(row)
+        elif existing.description != row.description:
+            existing.description = row.description
+            session.add(existing)
 
 
 async def _seed_customs_free_countries_setting(session: AsyncSession) -> None:
@@ -1032,5 +1101,6 @@ async def initial_data(session: AsyncSession) -> None:
     await _seed_legal_identity_settings(session)
     await _seed_payment_instruction_settings(session)
     await _seed_payment_provider_switches(session)
+    await _seed_module_switches(session)
     await _seed_pricing_settings(session)
     await _seed_customs_free_countries_setting(session)

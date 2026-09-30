@@ -93,6 +93,14 @@ async def refresh_supplier_availability(
                 supplier_name,
             )
             continue
+        if not adapter.is_sync_enabled():
+            # A supplier whose syncs were switched off is not called either:
+            # the admin turned it off, the snapshot stands.
+            logger.debug(
+                "Checkout availability check skipped: %s has syncs disabled",
+                supplier_name,
+            )
+            continue
 
         try:
             pricing = await asyncio.wait_for(

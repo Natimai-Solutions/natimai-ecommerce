@@ -152,9 +152,22 @@
             dense
             icon="ph:prohibit"
             color="negative"
-            @click="onDeactivate(props.row)"
+            data-testid="supplier-deactivate"
+            @click="openDeactivate(props.row)"
           >
             <q-tooltip>Désactiver (les articles gardent leur lien)</q-tooltip>
+          </q-btn>
+          <q-btn
+            v-else
+            flat
+            round
+            dense
+            icon="ph:power"
+            :loading="busy === props.row.code"
+            data-testid="supplier-reactivate"
+            @click="onReactivate(props.row)"
+          >
+            <q-tooltip>Réactiver (synchronisations comprises)</q-tooltip>
           </q-btn>
         </q-td>
       </template>
@@ -162,6 +175,40 @@
         <div class="full-width text-center text-subtle q-pa-md">Aucun fournisseur déclaré.</div>
       </template>
     </q-table>
+
+    <!-- Désactivation -->
+    <q-dialog v-model="deactivateDialog">
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">Désactiver {{ deactivating?.name }}</h2>
+        </q-card-section>
+        <q-card-section class="q-gutter-sm">
+          <p class="q-mb-sm">
+            Plus aucune synchronisation ni vérification au paiement. Le fournisseur reste déclaré et
+            peut être réactivé à tout moment ; rien n'est supprimé.
+          </p>
+          <p class="text-subtle q-mb-xs">Et ses articles ?</p>
+          <q-option-group
+            v-model="deactivateProducts"
+            :options="deactivateOptions"
+            type="radio"
+            data-testid="supplier-deactivate-products"
+          />
+        </q-card-section>
+        <q-card-actions align="right" class="app-dialog__actions">
+          <q-btn v-close-popup flat no-caps label="Annuler" />
+          <q-btn
+            color="negative"
+            unelevated
+            no-caps
+            label="Désactiver"
+            :loading="busy === deactivating?.code"
+            data-testid="supplier-deactivate-confirm"
+            @click="confirmDeactivate"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <!-- Création / édition -->
     <q-dialog v-model="formDialog">
@@ -279,6 +326,36 @@
                 Un article créé par une synchronisation ou un import reste invisible en vitrine
                 (enrichi et rafraîchi quand même) jusqu'à ce que vous le publiiez depuis la page
                 Articles. Les articles existants ne changent pas.
+              </div>
+              <div class="row q-mt-sm" style="gap: 8px">
+                <q-input
+                  v-model="form.min_quantity"
+                  label="Quantité minimale (import fichier)"
+                  hint="Vide = pas de seuil"
+                  type="number"
+                  min="0"
+                  outlined
+                  dense
+                  class="col"
+                  data-testid="supplier-min-quantity"
+                />
+                <q-input
+                  v-model="form.min_price"
+                  label="Prix d'achat minimal (import fichier)"
+                  hint="Dans la devise du fichier ; vide = pas de seuil"
+                  type="number"
+                  min="0"
+                  step="any"
+                  outlined
+                  dense
+                  class="col"
+                  data-testid="supplier-min-price"
+                />
+              </div>
+              <div class="text-caption text-muted q-ml-md">
+                Sous le seuil, une référence nouvelle n'est pas créée et un article existant est mis
+                à jour puis retiré de la vitrine (il revient quand il repasse au-dessus). Une ligne
+                sans quantité n'est pas jugée sur la quantité.
               </div>
             </template>
 
@@ -474,6 +551,31 @@
                 />
               </div>
             </div>
+            <div class="row q-mt-sm" style="gap: 8px">
+              <q-input
+                v-model="importMinQuantity"
+                label="Quantité minimale (cet import)"
+                hint="Réglage du fournisseur par défaut ; 0 = aucun seuil"
+                type="number"
+                min="0"
+                outlined
+                dense
+                class="col"
+                data-testid="import-min-quantity"
+              />
+              <q-input
+                v-model="importMinPrice"
+                label="Prix d'achat minimal (cet import)"
+                hint="Dans la devise du fichier ; 0 = aucun seuil"
+                type="number"
+                min="0"
+                step="any"
+                outlined
+                dense
+                class="col"
+                data-testid="import-min-price"
+              />
+            </div>
             <q-checkbox
               v-model="publishNew"
               dense
@@ -518,6 +620,7 @@
                 {{ importResult.statistics.adopted_products ?? 0 }} adopté(s),
                 {{ importResult.statistics.ambiguous_products ?? 0 }} ambigu(s),
                 {{ importResult.statistics.errors ?? 0 }} erreur(s)
+                <template v-if="belowThresholdLine">— {{ belowThresholdLine }}</template>
                 <span v-if="importResult.published_new">— publiés en boutique</span>
                 <span v-else>— masqués jusqu’à enrichissement</span>
               </span>
@@ -526,6 +629,12 @@
                 {{ importResult.resolution.updated ?? 0 }} reconnu(s),
                 {{ importResult.resolution.adopted ?? 0 }} adopté(s),
                 {{ importResult.resolution.ambiguous ?? 0 }} ambigu(s)
+                <template v-if="importResult.resolution.filtered">
+                  , {{ importResult.resolution.filtered }} écartée(s) par un filtre
+                </template>
+                <template v-if="importResult.resolution.below_threshold">
+                  , {{ importResult.resolution.below_threshold }} sous le seuil
+                </template>
               </span>
             </div>
             <div v-if="importResult.resolution_limited_to" class="text-caption">
@@ -637,6 +746,7 @@ import {
   type Supplier,
   type SupplierCreate,
   type SupplierKind,
+  type SupplierWithdrawal,
 } from '@/api/suppliers';
 import { listPlaces, type Place } from '@/api/logistics';
 import { extractApiError } from '@/api/errors';
@@ -727,6 +837,8 @@ interface FormState {
   is_domestic: boolean;
   sync_enabled: boolean;
   import_as_draft: boolean;
+  min_quantity: string;
+  min_price: string;
   sync_interval_hours: number;
   default_categories_text: string;
   price_currency: string | null;
@@ -746,6 +858,8 @@ function emptyForm(): FormState {
     is_domestic: false,
     sync_enabled: true,
     import_as_draft: false,
+    min_quantity: '',
+    min_price: '',
     sync_interval_hours: 0,
     default_categories_text: '',
     price_currency: null,
@@ -789,6 +903,8 @@ function openEdit(supplier: Supplier) {
     is_domestic: supplier.is_domestic,
     sync_enabled: supplier.sync_enabled,
     import_as_draft: supplier.import_as_draft,
+    min_quantity: supplier.min_quantity != null ? String(Number(supplier.min_quantity)) : '',
+    min_price: supplier.min_price != null ? String(Number(supplier.min_price)) : '',
     sync_interval_hours: supplier.sync_interval_hours,
     default_categories_text: (supplier.default_categories ?? []).join('\n'),
     price_currency: supplier.price_currency,
@@ -798,6 +914,13 @@ function openEdit(supplier: Supplier) {
     notes: supplier.notes ?? '',
   });
   formDialog.value = true;
+}
+
+/** Champ numérique facultatif : vide → null. */
+function optionalNumber(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined || String(value).trim() === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
 }
 
 function buildPayload(): SupplierCreate {
@@ -816,6 +939,8 @@ function buildPayload(): SupplierCreate {
     is_domestic: form.is_domestic,
     sync_enabled: form.sync_enabled,
     import_as_draft: form.kind !== 'manual' && form.import_as_draft,
+    min_quantity: optionalNumber(form.min_quantity),
+    min_price: optionalNumber(form.min_price),
     sync_interval_hours: form.kind === 'api' ? Number(form.sync_interval_hours) || 0 : 0,
     default_categories: categories.length ? categories : null,
     price_currency: form.price_currency,
@@ -895,14 +1020,57 @@ async function saveAllowlist() {
   }
 }
 
-async function onDeactivate(supplier: Supplier) {
+const deactivateDialog = ref(false);
+const deactivating = ref<Supplier | null>(null);
+const deactivateProducts = ref<SupplierWithdrawal>('keep');
+const deactivateOptions: { value: SupplierWithdrawal; label: string }[] = [
+  { value: 'keep', label: 'Les laisser tels quels (le dernier stock synchronisé reste vendable)' },
+  {
+    value: 'zero_stock',
+    label: 'Remettre leur stock fournisseur à zéro (plus vendus sur ce stock)',
+  },
+  { value: 'hide', label: 'Stock fournisseur à zéro et retirés de la vitrine' },
+];
+
+function openDeactivate(supplier: Supplier) {
+  deactivating.value = supplier;
+  deactivateProducts.value = 'keep';
+  deactivateDialog.value = true;
+}
+
+async function confirmDeactivate() {
+  const supplier = deactivating.value;
+  if (!supplier) return;
+  busy.value = supplier.code;
   error.value = null;
   try {
-    await deactivateSupplier(supplier.code);
-    notice.value = `Fournisseur ${supplier.name} désactivé.`;
+    const res = await deactivateSupplier(supplier.code, deactivateProducts.value);
+    const withdrawn =
+      res.products_withdrawn != null ? ` ${res.products_withdrawn} article(s) retiré(s).` : '';
+    notice.value = `Fournisseur ${supplier.name} désactivé.${withdrawn}`;
+    deactivateDialog.value = false;
     await load();
   } catch (err) {
     error.value = extractApiError(err) ?? 'Désactivation impossible.';
+  } finally {
+    busy.value = null;
+  }
+}
+
+async function onReactivate(supplier: Supplier) {
+  busy.value = supplier.code;
+  error.value = null;
+  try {
+    await updateSupplier(supplier.code, { is_active: true, sync_enabled: true });
+    notice.value =
+      supplier.kind === 'api' && !supplier.configured
+        ? `${supplier.name} réactivé — ses identifiants manquent encore dans l'environnement.`
+        : `${supplier.name} réactivé : les synchronisations reprennent sans redémarrage.`;
+    await load();
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Réactivation impossible.';
+  } finally {
+    busy.value = null;
   }
 }
 
@@ -937,6 +1105,16 @@ const importFile = ref<File | null>(null);
 const inspection = ref<FileInspectResponse | null>(null);
 const importResult = ref<FileImportResponse | null>(null);
 const publishNew = ref(true);
+const importMinQuantity = ref<string>('');
+const importMinPrice = ref<string>('');
+
+const belowThresholdLine = computed(() => {
+  const stats = importResult.value?.statistics ?? {};
+  const skipped = stats.below_threshold_skipped ?? 0;
+  const hidden = stats.below_threshold_deactivated ?? 0;
+  if (!skipped && !hidden) return '';
+  return `sous le seuil : ${skipped} non créé(s), ${hidden} retiré(s) de la vitrine`;
+});
 const importError = ref<string | null>(null);
 const importBusy = ref<'dry' | 'run' | null>(null);
 
@@ -1020,6 +1198,9 @@ function openImport(supplier: Supplier) {
   inspection.value = null;
   importResult.value = null;
   importError.value = null;
+  importMinQuantity.value =
+    supplier.min_quantity != null ? String(Number(supplier.min_quantity)) : '';
+  importMinPrice.value = supplier.min_price != null ? String(Number(supplier.min_price)) : '';
   for (const key of Object.keys(mapping)) delete mapping[key];
   for (const [k, v] of Object.entries(supplier.column_mapping ?? {})) mapping[k] = v;
   importDialog.value = true;
@@ -1070,6 +1251,8 @@ async function runImport(dryRun: boolean) {
       mapping: chosen,
       dryRun,
       publishNew: publishNew.value,
+      minQuantity: optionalNumber(importMinQuantity.value),
+      minPrice: optionalNumber(importMinPrice.value),
     });
     if (result.queued && result.sync_log_id) {
       // Large file: the worker imports it; follow the sync log until it ends.

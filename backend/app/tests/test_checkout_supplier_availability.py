@@ -50,6 +50,7 @@ def _install_adapter(
     pricing: dict[str, Any] | None = None,
     raises: Exception | None = None,
     configured: bool = True,
+    sync_enabled: bool = True,
     hangs: bool = False,
 ) -> AsyncMock:
     async def _fetch(_skus: list[str]) -> dict[str, Any]:
@@ -62,6 +63,7 @@ def _install_adapter(
     fetch = AsyncMock(side_effect=_fetch)
     adapter = SimpleNamespace(
         is_configured=lambda: configured,
+        is_sync_enabled=lambda: sync_enabled,
         fetch_price_and_availability=fetch,
     )
     monkeypatch.setattr(
@@ -234,6 +236,23 @@ async def test_an_unconfigured_supplier_is_skipped(
 ) -> None:
     """No credentials is a deployment state, not an out-of-stock signal."""
     fetch = _install_adapter(monkeypatch, configured=False)
+    product = _product(quantity="5")
+
+    refreshed = await refresh_supplier_availability(
+        _session(), cast(list[Product], [product])
+    )
+
+    assert refreshed == {}
+    assert product.supplier_quantity == Decimal("5")
+    fetch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_supplier_with_syncs_switched_off_is_not_called(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The admin switched the supplier's syncs off: the checkout leaves it be."""
+    fetch = _install_adapter(monkeypatch, sync_enabled=False)
     product = _product(quantity="5")
 
     refreshed = await refresh_supplier_availability(

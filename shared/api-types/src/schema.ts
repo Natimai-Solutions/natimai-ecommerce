@@ -2286,6 +2286,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/products/{product_id}/attach-supplier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Attach Supplier
+         * @description Attach a product to a supplier reference now (« Rattacher maintenant »).
+         *
+         *     API supplier: the reference is fetched and the product adopted on the
+         *     spot (cost, stock, mapping; the admin's content stays locked). File
+         *     supplier: the link is recorded, the next import adopts it.
+         */
+        post: operations["admin-product-admin_attach_supplier"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/products/{product_id}/detach-supplier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Detach Supplier
+         * @description Turn a supplier product back into a manual one (« Détacher »).
+         */
+        post: operations["admin-product-admin_detach_supplier"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/products/{product_id}/overrides/{field}": {
         parameters: {
             query?: never;
@@ -2905,7 +2949,9 @@ export interface paths {
          * @description Deactivate a supplier (its products keep their ``supplier_name``).
          *
          *     Nothing is deleted: the code stays reserved so the links from products,
-         *     mappings, sync logs and supplier orders keep resolving.
+         *     mappings, sync logs and supplier orders keep resolving. A product keeps
+         *     selling its last synced supplier stock unless ``products`` says otherwise:
+         *     nobody refreshes it any more.
          */
         delete: operations["admin-suppliers-deactivate_supplier"];
         options?: never;
@@ -2937,6 +2983,46 @@ export interface paths {
          *     listed ones are created or refreshed by the next syncs.
          */
         put: operations["admin-suppliers-put_sku_allowlist"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/modules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Modules
+         * @description Every module with its switch, its effective state and its preset.
+         */
+        get: operations["admin-modules-list_modules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/modules/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Switch Module
+         * @description Turn a module on or off. Nothing is deleted either way.
+         */
+        put: operations["admin-modules-switch_module"];
         post?: never;
         delete?: never;
         options?: never;
@@ -9036,6 +9122,16 @@ export interface components {
              * @default true
              */
             publish_new: boolean;
+            /**
+             * Min Quantity
+             * @description Minimum quantity for this import (defaults to the supplier's; 0 disables it). A new row below it is not created; an existing product below it is updated and taken off the storefront.
+             */
+            min_quantity?: number | string | null;
+            /**
+             * Min Price
+             * @description Minimum cost for this import, in the file's currency (defaults to the supplier's; 0 disables it)
+             */
+            min_price?: number | string | null;
         };
         /** Body_suppliers-inspect_catalog_file */
         "Body_suppliers-inspect_catalog_file": {
@@ -12755,6 +12851,30 @@ export interface components {
             message: string;
             /** Task Id */
             task_id?: string | null;
+        };
+        /** ModuleState */
+        ModuleState: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Description */
+            description: string;
+            /** Group */
+            group: string;
+            /** Switched On */
+            switched_on: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Preset */
+            preset: boolean;
+            /** Blocked By Env */
+            blocked_by_env?: string | null;
+        };
+        /** ModuleWrite */
+        ModuleWrite: {
+            /** Enabled */
+            enabled: boolean;
         };
         /**
          * MyOrderDetail
@@ -19037,6 +19157,13 @@ export interface components {
             tax_territory_code: string;
             /** Shop Name */
             shop_name: string;
+            /**
+             * Modules
+             * @default {}
+             */
+            modules: {
+                [key: string]: boolean;
+            };
         };
         /**
          * Shortage
@@ -19816,6 +19943,24 @@ export interface components {
             order_id?: string | null;
         };
         /**
+         * SupplierAttachRequest
+         * @description Supplier and reference to attach; both default to the product's own.
+         */
+        SupplierAttachRequest: {
+            /** Supplier Name */
+            supplier_name?: string | null;
+            /** Supplier Sku */
+            supplier_sku?: string | null;
+        };
+        /** SupplierAttachResponse */
+        SupplierAttachResponse: {
+            /** Status */
+            status: string;
+            /** Message */
+            message: string;
+            product: components["schemas"]["ProductPublic"];
+        };
+        /**
          * SupplierCreate
          * @description Création d'un fournisseur (le code est choisi une fois pour toutes).
          */
@@ -19881,6 +20026,16 @@ export interface components {
              * @default false
              */
             import_as_draft: boolean;
+            /**
+             * Min Quantity
+             * @description Import fichier : quantité minimale d'une ligne. En dessous, une référence nouvelle n'est pas créée et un article existant est mis à jour puis retiré de la vitrine (is_active=False). Une ligne sans quantité n'est pas jugée. Vide = pas de seuil.
+             */
+            min_quantity?: number | string | null;
+            /**
+             * Min Price
+             * @description Import fichier : prix d'achat minimal d'une ligne, dans la devise du fichier (même règle que la quantité minimale). Vide = pas de seuil.
+             */
+            min_price?: number | string | null;
             /**
              * Sku Allowlist
              * @description Liste blanche de références fournisseur (SKU). Vide ou absente : tout le catalogue synchronisé est suivi. Renseignée : seules ces références sont créées et rafraîchies (prix / stock) ; les articles gérés par ce fournisseur hors liste sont retirés de la vitrine. Modifiée par PUT /admin/suppliers/{code}/sku-allowlist.
@@ -20060,6 +20215,16 @@ export interface components {
              */
             import_as_draft: boolean;
             /**
+             * Min Quantity
+             * @description Import fichier : quantité minimale d'une ligne. En dessous, une référence nouvelle n'est pas créée et un article existant est mis à jour puis retiré de la vitrine (is_active=False). Une ligne sans quantité n'est pas jugée. Vide = pas de seuil.
+             */
+            min_quantity?: string | null;
+            /**
+             * Min Price
+             * @description Import fichier : prix d'achat minimal d'une ligne, dans la devise du fichier (même règle que la quantité minimale). Vide = pas de seuil.
+             */
+            min_price?: string | null;
+            /**
              * Sku Allowlist
              * @description Liste blanche de références fournisseur (SKU). Vide ou absente : tout le catalogue synchronisé est suivi. Renseignée : seules ces références sont créées et rafraîchies (prix / stock) ; les articles gérés par ce fournisseur hors liste sont retirés de la vitrine. Modifiée par PUT /admin/suppliers/{code}/sku-allowlist.
              */
@@ -20104,6 +20269,8 @@ export interface components {
              * @default true
              */
             configured: boolean;
+            /** Products Withdrawn */
+            products_withdrawn?: number | null;
         };
         /**
          * SupplierSummary
@@ -20155,6 +20322,10 @@ export interface components {
             } | null;
             /** Import As Draft */
             import_as_draft?: boolean | null;
+            /** Min Quantity */
+            min_quantity?: number | string | null;
+            /** Min Price */
+            min_price?: number | string | null;
             /** Settings */
             settings?: {
                 [key: string]: unknown;
@@ -25154,6 +25325,72 @@ export interface operations {
             };
         };
     };
+    "admin-product-admin_attach_supplier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplierAttachRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierAttachResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-admin_detach_supplier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-product-admin_release_override": {
         parameters: {
             query?: never;
@@ -26217,7 +26454,10 @@ export interface operations {
     };
     "admin-suppliers-deactivate_supplier": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description What happens to the supplier's products: keep (as they are), zero_stock (supplier stock set to 0: no longer sold on it), hide (zero_stock and taken off the storefront) */
+                products?: "keep" | "zero_stock" | "hide";
+            };
             header?: never;
             path: {
                 code: string;
@@ -26334,6 +26574,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AllowlistView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-modules-list_modules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModuleState"][];
+                };
+            };
+        };
+    };
+    "admin-modules-switch_module": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModuleWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModuleState"];
                 };
             };
             /** @description Validation Error */

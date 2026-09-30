@@ -14,6 +14,7 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Form, Path, Query, UploadFile
@@ -36,6 +37,11 @@ from app.features.integrations.services.file_import_run import (
     ERROR_SAMPLE_SIZE,
     orchestrator_for_file_import,
     run_file_import,
+    thresholds_for,
+    thresholds_payload,
+)
+from app.features.integrations.services.supplier_sync_orchestrator import (
+    ImportThresholds,
 )
 from app.services.suppliers import (
     SupplierAdapter,
@@ -561,6 +567,27 @@ async def import_catalog_file(
             ),
         ),
     ] = True,
+    min_quantity: Annotated[
+        Decimal | None,
+        Form(
+            ge=0,
+            description=(
+                "Minimum quantity for this import (defaults to the supplier's; "
+                "0 disables it). A new row below it is not created; an existing "
+                "product below it is updated and taken off the storefront."
+            ),
+        ),
+    ] = None,
+    min_price: Annotated[
+        Decimal | None,
+        Form(
+            ge=0,
+            description=(
+                "Minimum cost for this import, in the file's currency (defaults "
+                "to the supplier's; 0 disables it)"
+            ),
+        ),
+    ] = None,
 ) -> FileImportResponse:
     """Import a CSV / Excel catalog for the supplier through the column mapping.
 
@@ -581,6 +608,9 @@ async def import_catalog_file(
     supplier_code = supplier.code
     supplier_currency = supplier.price_currency
     orchestrator = orchestrator_for_file_import(supplier)
+    thresholds = thresholds_for(
+        supplier, min_quantity=min_quantity, min_price=min_price
+    )
     effective_mapping = _parse_mapping_field(mapping) or supplier.column_mapping
 
     try:
@@ -621,6 +651,7 @@ async def import_catalog_file(
             mapping=effective_mapping,
             publish_new=publish_new,
             total_rows=parsed.total_rows,
+            thresholds=thresholds,
         )
 
     result = rows_to_products(
@@ -648,6 +679,7 @@ async def import_catalog_file(
         # Resolution reads the catalog row by row: a large file is previewed
         # on its first rows only, the real import runs in the worker.
         limited = len(result.products) > inline_limit
+        orchestrator.thresholds = thresholds if thresholds.active else None
         counts, resolved_rows = await orchestrator.preview_items(
             session, result.products[:inline_limit]
         )
@@ -686,6 +718,7 @@ async def import_catalog_file(
             filename=filename,
             total_rows=parsed.total_rows,
             publish_new=publish_new,
+            thresholds=thresholds,
         )
     except Exception as exc:
         raise AppError(
@@ -728,6 +761,7 @@ async def _queue_file_import(
     mapping: dict[str, str],
     publish_new: bool,
     total_rows: int,
+    thresholds: ImportThresholds,
 ) -> FileImportResponse:
     """Store the file, open its sync log and hand the import to the worker.
 
@@ -756,6 +790,7 @@ async def _queue_file_import(
             filename=filename,
             mapping=mapping,
             publish_new=publish_new,
+            thresholds=thresholds_payload(thresholds),
         )
     except Exception as exc:
         logger.error(

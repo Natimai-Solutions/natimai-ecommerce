@@ -26,6 +26,7 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 from enum import Enum
 from typing import Any
 
@@ -173,6 +174,28 @@ class SupplierBase(SQLModel):
             "les publie pas. Les articles existants ne sont pas concernés."
         ),
     )
+    min_quantity: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description=(
+            "Import fichier : quantité minimale d'une ligne. En dessous, une "
+            "référence nouvelle n'est pas créée et un article existant est mis "
+            "à jour puis retiré de la vitrine (is_active=False). Une ligne sans "
+            "quantité n'est pas jugée. Vide = pas de seuil."
+        ),
+    )
+    min_price: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=14,
+        decimal_places=2,
+        description=(
+            "Import fichier : prix d'achat minimal d'une ligne, dans la devise "
+            "du fichier (même règle que la quantité minimale). Vide = pas de seuil."
+        ),
+    )
     sku_allowlist: list[str] | None = Field(
         default=None,
         sa_column=Column(JSON),
@@ -244,6 +267,8 @@ class SupplierUpdate(SQLModel):
     price_currency: str | None = None
     column_mapping: dict[str, str] | None = None
     import_as_draft: bool | None = None
+    min_quantity: Decimal | None = Field(default=None, ge=0)
+    min_price: Decimal | None = Field(default=None, ge=0)
     settings: dict[str, Any] | None = None
     contact_email: str | None = None
     contact_phone: str | None = None
@@ -266,6 +291,9 @@ class SupplierPublic(SupplierBase):
     #: Renseigné par la route : l'intégration ``adapter_key`` existe-t-elle et
     #: a-t-elle ses identifiants (kind=api) ? Toujours True sinon.
     configured: bool = True
+    #: Renseigné par la désactivation seulement : articles du fournisseur dont
+    #: le stock fournisseur a été remis à zéro (et masqués, selon le choix).
+    products_withdrawn: int | None = None
 
 
 class SuppliersPublic(BaseModel):

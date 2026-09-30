@@ -11,6 +11,7 @@ from app.api.routes.admin_grouped_departures import (
 )
 from app.api.routes.admin_inventory import router as admin_inventory_router
 from app.api.routes.admin_invoices import router as admin_invoices_router
+from app.api.routes.admin_modules import router as admin_modules_router
 from app.api.routes.admin_orders import router as admin_orders_router
 from app.api.routes.admin_payment_eligibility import (
     router as admin_payment_eligibility_router,
@@ -124,6 +125,7 @@ api_router.include_router(admin_carts_router)
 api_router.include_router(admin_categories_router)
 api_router.include_router(admin_supplier_orders_router)
 api_router.include_router(admin_suppliers_router)
+api_router.include_router(admin_modules_router)
 api_router.include_router(admin_spec_definitions_router)
 api_router.include_router(internal_storage_router)
 api_router.include_router(product_catalog_router)

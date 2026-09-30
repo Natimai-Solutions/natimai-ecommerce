@@ -152,7 +152,6 @@ const FULL_MODE_ONLY = new Set([
   '/customs-rates',
   '/currency-rates',
   '/logistics-routes',
-  '/suppliers',
   '/supplier-orders',
 ]);
 
@@ -217,6 +216,7 @@ const allNav: NavSection[] = [
     links: [
       { label: 'Accueil du site', icon: 'ph:house', to: '/homepage' },
       { label: 'Pages du site', icon: 'ph:article', to: '/pages' },
+      { label: 'Modules', icon: 'ph:toggle-right', to: '/modules' },
       { label: 'Paramètres', icon: 'ph:gear', to: '/system-settings' },
     ],
   },

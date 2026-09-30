@@ -30,6 +30,18 @@ def parse_cors(v: Any) -> list[str] | str:
     raise ValueError(v)
 
 
+def secret_is_set(value: str | None) -> bool:
+    """Whether an integration secret holds a real value.
+
+    Empty, or still the ``changeme-…`` / ``changethis`` placeholder of
+    ``.env.example``: not set. Without this, a copied example file made
+    Ingram and Icecat look configured and the crons called them with fake
+    credentials.
+    """
+    text = (value or "").strip().lower()
+    return bool(text) and not text.startswith(("changeme", "changethis"))
+
+
 class Settings(BaseSettings):
     """Represents settings."""
 

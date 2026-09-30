@@ -33,6 +33,8 @@ from app.features.system.models.system_setting import (
     SystemSettingPublic,
     SystemSettingUpdate,
 )
+from app.features.system.modules import SETTING_PREFIX as MODULE_PREFIX
+from app.features.system.modules import enabled_modules, invalidate_cache, spec_for
 from app.tasks.pricing_tasks import schedule_price_refresh
 
 # Keys exposed to any caller (no auth required).
@@ -55,10 +57,12 @@ class ShopConfigPublic(BaseModel):
     country_code: str
     tax_territory_code: str
     shop_name: str
+    #: Effective state of every switchable module (Admin → Modules).
+    modules: dict[str, bool] = {}
 
 
 @router.get("/system/config", response_model=ShopConfigPublic)
-async def get_shop_config() -> ShopConfigPublic:
+async def get_shop_config(session: SessionDep) -> ShopConfigPublic:
     """Territory and mode of the shop, for the storefront and the admin."""
     profile = settings.territory_profile
     return ShopConfigPublic(
@@ -69,6 +73,7 @@ async def get_shop_config() -> ShopConfigPublic:
         country_code=settings.SHOP_COUNTRY_CODE,
         tax_territory_code=settings.TAX_TERRITORY_CODE,
         shop_name=settings.SHOP_NAME,
+        modules=await enabled_modules(session),
     )
 
 
@@ -133,6 +138,16 @@ async def admin_upsert_setting(
                 message=str(exc),
                 details={"key": key, "value": data.value},
             ) from exc
+    if key.startswith(MODULE_PREFIX):
+        spec_for(key.removeprefix(MODULE_PREFIX))  # 404 on an unknown module
+        if data.value.strip().lower() not in {"true", "false"}:
+            raise AppError(
+                code="system_setting.invalid_value",
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                message="Un interrupteur de module vaut « true » ou « false »",
+                details={"key": key, "value": data.value},
+            )
+        data.value = data.value.strip().lower()
     stmt = select(SystemSetting).where(SystemSetting.key == key)
     result = await session.exec(stmt)
     row = result.first()
@@ -154,6 +169,8 @@ async def admin_upsert_setting(
     session.add(row)
     await session.commit()
     await session.refresh(row)
+    if key.startswith(MODULE_PREFIX):
+        invalidate_cache()
     if key in PRICING_SETTING_KEYS:
         await schedule_price_refresh(reason=f"system_setting:{key}")
     return SystemSettingPublic.model_validate(row)

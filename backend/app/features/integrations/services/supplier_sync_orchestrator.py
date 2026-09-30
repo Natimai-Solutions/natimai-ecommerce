@@ -20,7 +20,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -41,6 +41,7 @@ from app.features.product.models.product import (
     ProductUpdate,
 )
 from app.features.product.services.overrides import merge_locks, strip_locked
+from app.features.system.modules import module_enabled
 from app.services.suppliers.base import NormalizedProductData, SupplierAdapter
 from app.tasks.icecat_tasks import trigger_batch_enrichment
 
@@ -100,9 +101,49 @@ def _empty_stats() -> dict[str, int]:
         "ambiguous_products": 0,
         "skipped_products": 0,
         "filtered_products": 0,
+        "below_threshold_skipped": 0,
+        "below_threshold_deactivated": 0,
         "errors": 0,
         **{f"matched_by_{key}": 0 for key in MATCH_KEYS},
     }
+
+
+@dataclass(frozen=True, slots=True)
+class ImportThresholds:
+    """Minimum quantity / price of a file row (``Supplier.min_*``, R4 / S2).
+
+    ``None`` or 0 = no threshold. A row that does not carry the value (no
+    quantity column, empty price cell) is not judged on it: the file says
+    nothing, the shop does not guess.
+    """
+
+    min_quantity: Decimal | None = None
+    min_price: Decimal | None = None
+
+    @property
+    def active(self) -> bool:
+        return bool(self.min_quantity) or bool(self.min_price)
+
+    def verdict(self, item: NormalizedProductData) -> str | None:
+        """``below``, ``meets`` or ``None`` (nothing could be judged)."""
+        judged = False
+        if self.min_quantity and item.quantity is not None:
+            judged = True
+            if Decimal(str(item.quantity)) < self.min_quantity:
+                return "below"
+        if self.min_price and item.price is not None:
+            judged = True
+            if Decimal(str(item.price)) < self.min_price:
+                return "below"
+        return "meets" if judged else None
+
+    def describe(self) -> str:
+        parts = []
+        if self.min_quantity:
+            parts.append(f"quantité < {self.min_quantity.normalize():f}")
+        if self.min_price:
+            parts.append(f"prix < {self.min_price.normalize():f}")
+        return " ou ".join(parts)
 
 
 @dataclass(slots=True)
@@ -164,6 +205,8 @@ class SupplierSyncOrchestrator:
         #: File import option: rows created or adopted by this run are shown
         #: on the storefront without waiting for Icecat.
         self.publish_without_enrichment = False
+        #: File import only: the supplier's minimum quantity / price.
+        self.thresholds: ImportThresholds | None = None
 
     async def _resolve_origin_place_id(self, session: AsyncSession) -> uuid.UUID | None:
         """Resolve the supplier's origin ``Place`` id.
@@ -420,31 +463,14 @@ class SupplierSyncOrchestrator:
         transaction committed by the caller.  Avoids mid-operation session expiry
         that would trigger a SQLAlchemy implicit lazy-load error in async mode.
         """
-        from app.core.config import settings
-
-        filter_action = evaluate_product_filters(
-            supplier_name=self.adapter.name,
-            supplier_subcategory=item.subcategory,
-            supplier_category=item.category,
-            name=item.name,
-            rules=settings.SUPPLIER_PRODUCT_FILTER_RULES,
-            subcategory_allowlist=settings.SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST,
-        )
-
+        filter_action = self._filter_action(item)
         if filter_action == "skip":
             logger.debug(
-                "Skipping product %s (%s) — matched a 'skip' filter rule (subcategory=%s)",
+                "Skipping product %s (%s) — filtered out (subcategory=%s)",
                 item.supplier_sku,
                 self.adapter.name,
                 item.subcategory,
             )
-            return {"action": "filtered", "product_id": ""}
-
-        # The admin's allowlist: a reference outside it is neither created nor
-        # touched (the shop only follows what it chose to sell).
-        if not allowed_sku(
-            getattr(self.adapter, "sku_allowlist", None), item.supplier_sku
-        ):
             return {"action": "filtered", "product_id": ""}
 
         resolution = await self._resolve_existing_product(session=session, item=item)
@@ -467,6 +493,11 @@ class SupplierSyncOrchestrator:
                 ),
             }
         existing_product = resolution.product
+
+        threshold = self.thresholds.verdict(item) if self.thresholds else None
+        if threshold == "below" and existing_product is None:
+            # A new reference under the supplier's minimum: not created.
+            return {"action": "below_threshold", "product_id": ""}
 
         product_data_dict = self._to_product_data(item)
 
@@ -520,6 +551,19 @@ class SupplierSyncOrchestrator:
             )
             product_data_dict["is_active"] = False
 
+        # Supplier minimums (file import): an existing product under them keeps
+        # its refreshed quantity but leaves the storefront; back above them,
+        # it comes back (unless a filter rule keeps it off).
+        if threshold == "below":
+            product_data_dict["is_active"] = False
+        elif (
+            threshold == "meets"
+            and filter_action is None
+            and existing_product is not None
+            and not existing_product.is_active
+        ):
+            product_data_dict["is_active"] = True
+
         # Respect admin overrides: never overwrite fields the admin has locked.
         # Omitting them from the update dict preserves the persisted values.
         if existing_product is not None:
@@ -553,7 +597,33 @@ class SupplierSyncOrchestrator:
             "action": "adopted" if adopted else action,
             "product_id": str(product.id),
             "match_key": resolution.match_key or "",
+            "below_threshold": "1" if threshold == "below" else "",
         }
+
+    def _filter_action(
+        self, item: NormalizedProductData
+    ) -> Literal["skip", "deactivate"] | None:
+        """Filter rules and the admin's SKU allowlist, for a row (no I/O).
+
+        ``skip``: neither created nor touched; ``deactivate``: written but kept
+        off the storefront. Shared by the import and its dry run.
+        """
+        from app.core.config import settings
+
+        # The admin's allowlist: a reference outside it is neither created nor
+        # touched (the shop only follows what it chose to sell).
+        if not allowed_sku(
+            getattr(self.adapter, "sku_allowlist", None), item.supplier_sku
+        ):
+            return "skip"
+        return evaluate_product_filters(
+            supplier_name=self.adapter.name,
+            supplier_subcategory=item.subcategory,
+            supplier_category=item.category,
+            name=item.name,
+            rules=settings.SUPPLIER_PRODUCT_FILTER_RULES,
+            subcategory_allowlist=settings.SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST,
+        )
 
     async def preview_items(
         self,
@@ -574,6 +644,9 @@ class SupplierSyncOrchestrator:
             "adopted": 0,
             "ambiguous": 0,
             "skipped": 0,
+            "filtered": 0,
+            "deactivated": 0,
+            "below_threshold": 0,
             **{f"matched_by_{key}": 0 for key in MATCH_KEYS},
         }
         rows: list[dict[str, Any]] = []
@@ -588,10 +661,17 @@ class SupplierSyncOrchestrator:
                 "product_name": None,
                 "message": None,
             }
+            filter_action = (
+                self._filter_action(item) if item.supplier_sku and item.name else None
+            )
             if not item.supplier_sku or not item.name:
                 row["action"] = "skipped"
                 row["message"] = "référence ou désignation vide"
                 counts["skipped"] += 1
+            elif filter_action == "skip":
+                row["action"] = "filtered"
+                row["message"] = "écartée par un filtre ou la liste blanche"
+                counts["filtered"] += 1
             else:
                 resolution = await self._resolve_existing_product(session, item)
                 if resolution.ambiguous:
@@ -611,6 +691,23 @@ class SupplierSyncOrchestrator:
                         counts[f"matched_by_{resolution.match_key}"] += 1
                 else:
                     counts["new"] += 1
+                threshold = self.thresholds.verdict(item) if self.thresholds else None
+                if threshold == "below" and self.thresholds is not None:
+                    counts["below_threshold"] += 1
+                    if row["action"] == "new":
+                        counts["new"] -= 1
+                        row["action"] = "below_threshold"
+                        row["message"] = (
+                            f"sous le seuil ({self.thresholds.describe()}) : non créée"
+                        )
+                    elif row["action"] != "ambiguous":
+                        row["message"] = (
+                            f"sous le seuil ({self.thresholds.describe()}) : "
+                            "mise à jour puis retirée de la vitrine"
+                        )
+                elif filter_action == "deactivate" and row["action"] != "ambiguous":
+                    counts["deactivated"] += 1
+                    row["message"] = "importée désactivée (filtre de sous-catégorie)"
             if len(rows) < sample_size:
                 rows.append(row)
 
@@ -644,6 +741,11 @@ class SupplierSyncOrchestrator:
                 if action == "filtered":
                     stats["filtered_products"] += 1
                     continue
+                if action == "below_threshold":
+                    stats["below_threshold_skipped"] += 1
+                    continue
+                if result.get("below_threshold"):
+                    stats["below_threshold_deactivated"] += 1
                 if action == "ambiguous":
                     stats["ambiguous_products"] += 1
                     if errors is not None:
@@ -676,16 +778,25 @@ class SupplierSyncOrchestrator:
 
         return stats
 
-    async def _enqueue_enrichment(self, new_products: int) -> None:
+    async def _enqueue_enrichment(
+        self, session: AsyncSession, new_products: int
+    ) -> None:
         """Enqueue one batch Icecat enrichment job when products were created.
 
         One job avoids flooding the Icecat API with thousands of individual
         requests. The batch task's limit caps concurrent Icecat calls;
-        remaining products are picked up by the scheduled batch cron.
+        remaining products are picked up by the scheduled batch cron. Nothing
+        is enqueued while the Icecat module is off.
         """
         if new_products <= 0:
             return
         try:
+            if not await module_enabled(session, "icecat"):
+                logger.debug(
+                    "Icecat is off: no enrichment after the %s sync",
+                    self.adapter.name,
+                )
+                return
             await trigger_batch_enrichment(limit=50)
             logger.info(
                 "Enqueued batch Icecat enrichment for %d new %s products",
@@ -706,16 +817,19 @@ class SupplierSyncOrchestrator:
         *,
         errors: list[dict[str, str]] | None = None,
         publish_without_enrichment: bool = False,
+        thresholds: ImportThresholds | None = None,
     ) -> dict[str, int]:
         """Import an already-normalized list (file import): upsert + enrichment.
 
         With ``publish_without_enrichment``, created and adopted rows are shown
         on the storefront right away; Icecat enrichment still runs after.
+        ``thresholds`` applies the supplier's minimum quantity / price.
         """
         self.publish_without_enrichment = publish_without_enrichment
+        self.thresholds = thresholds if thresholds and thresholds.active else None
         stats = await self.sync_items(session, items, errors=errors)
         logger.info("%s file import completed. Stats: %s", self.adapter.name, stats)
-        await self._enqueue_enrichment(stats["new_products"])
+        await self._enqueue_enrichment(session, stats["new_products"])
         return stats
 
     async def sync_products_to_database(
@@ -726,6 +840,8 @@ class SupplierSyncOrchestrator:
         Commits incrementally (one product per commit) so a failure mid-run
         does not roll back already-imported products.
         """
+        # Minimums are a file-import notion: never carried into an API sync.
+        self.thresholds = None
         sync_categories = list(categories or self.adapter.default_categories)
         stats = _empty_stats()
 
@@ -751,5 +867,5 @@ class SupplierSyncOrchestrator:
                 stats["errors"] += 1
 
         logger.debug("%s product sync completed. Stats: %s", self.adapter.name, stats)
-        await self._enqueue_enrichment(stats["new_products"])
+        await self._enqueue_enrichment(session, stats["new_products"])
         return stats

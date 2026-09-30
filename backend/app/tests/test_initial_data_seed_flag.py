@@ -20,6 +20,7 @@ _ALWAYS = (
     "_seed_legal_identity_settings",
     "_seed_payment_instruction_settings",
     "_seed_payment_provider_switches",
+    "_seed_module_switches",
     "_seed_pricing_settings",
     "_seed_customs_free_countries_setting",
 )

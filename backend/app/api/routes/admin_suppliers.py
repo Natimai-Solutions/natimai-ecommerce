@@ -5,7 +5,8 @@
   POST   /admin/suppliers            — declare a supplier
   GET    /admin/suppliers/{code}
   PATCH  /admin/suppliers/{code}     — partial update (``code`` is immutable)
-  DELETE /admin/suppliers/{code}     — deactivate (products keep their link)
+  DELETE /admin/suppliers/{code}     — deactivate (products keep their link;
+                                       ?products=zero_stock|hide withdraws them)
   GET    /admin/suppliers/{code}/sku-allowlist — the references we follow
   PUT    /admin/suppliers/{code}/sku-allowlist — replace that list
 
@@ -17,8 +18,11 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from decimal import Decimal
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
+from sqlalchemy import update as sa_update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, func, select
 
@@ -237,12 +241,26 @@ async def put_sku_allowlist(
 
 @router.delete("/{code}", response_model=SupplierPublic)
 async def deactivate_supplier(
-    code: str, session: SessionDep, current_user: CurrentSuperUser
+    code: str,
+    session: SessionDep,
+    current_user: CurrentSuperUser,
+    products: Annotated[
+        Literal["keep", "zero_stock", "hide"],
+        Query(
+            description=(
+                "What happens to the supplier's products: keep (as they are), "
+                "zero_stock (supplier stock set to 0: no longer sold on it), "
+                "hide (zero_stock and taken off the storefront)"
+            )
+        ),
+    ] = "keep",
 ) -> SupplierPublic:
     """Deactivate a supplier (its products keep their ``supplier_name``).
 
     Nothing is deleted: the code stays reserved so the links from products,
-    mappings, sync logs and supplier orders keep resolving.
+    mappings, sync logs and supplier orders keep resolving. A product keeps
+    selling its last synced supplier stock unless ``products`` says otherwise:
+    nobody refreshes it any more.
     """
     actor_id = current_user.id
     supplier = await _load(session, code)
@@ -254,16 +272,30 @@ async def deactivate_supplier(
     supplier.sync_enabled = False
     supplier.updated_at = datetime.now(timezone.utc)
     session.add(supplier)
+    withdrawn: int | None = None
+    if products != "keep":
+        values: dict[str, Any] = {"supplier_quantity": Decimal("0")}
+        if products == "hide":
+            values["is_active"] = False
+        result = await session.exec(
+            sa_update(Product)
+            .where(col(Product.supplier_name) == code)
+            .values(**values)
+        )
+        withdrawn = int(result.rowcount or 0)
     await session.commit()
     await session.refresh(supplier)
     forget_adapter(code)
     logger.warning(
-        "Admin %s deactivated supplier %s (%d linked products)",
+        "Admin %s deactivated supplier %s (%d linked products, products=%s)",
         actor_id,
         code,
         linked,
+        products,
     )
-    return _public(supplier)
+    public = _public(supplier)
+    public.products_withdrawn = withdrawn
+    return public
 
 
 __all__ = ["router", "adapter_for_supplier"]

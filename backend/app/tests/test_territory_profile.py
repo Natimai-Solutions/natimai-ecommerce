@@ -142,5 +142,8 @@ def test_shop_config_endpoint_exposes_no_secret() -> None:
         "country_code",
         "tax_territory_code",
         "shop_name",
+        "modules",
     }
+    # Only booleans: the module switches, never a setting value.
+    assert all(isinstance(v, bool) for v in body["modules"].values())
     assert body["reference_currency"] == SimpleNamespace(**body).reference_currency

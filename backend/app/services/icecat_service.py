@@ -11,7 +11,7 @@ from typing import Any
 
 import aiohttp
 
-from app.core.config import settings
+from app.core.config import secret_is_set, settings
 from app.core.http_retry import (
     RETRYABLE_STATUSES,
     AsyncRateLimiter,
@@ -34,6 +34,13 @@ ICECAT_REQUESTS_PER_MINUTE = 60
 
 # Process-wide: one enrichment batch runs 50 lookups back to back.
 _RATE_LIMITER = AsyncRateLimiter(ICECAT_REQUESTS_PER_MINUTE)
+
+
+def icecat_credentials_present() -> bool:
+    """Both Icecat secrets hold a real value (not the example placeholder)."""
+    return secret_is_set(settings.ICECAT_USERNAME) and secret_is_set(
+        settings.ICECAT_API_KEY
+    )
 
 
 class IcecatService:

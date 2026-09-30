@@ -77,7 +77,7 @@
                   map-options
                   clearable
                   class="col"
-                  :disable="isEdit && !!product?.is_supplier_managed"
+                  :disable="isEdit && linkedManaged"
                   @update:model-value="onSupplierChange"
                 />
                 <q-input
@@ -89,6 +89,47 @@
                   class="col"
                 />
               </div>
+              <div
+                v-if="!isSimpleShop && isEdit && product && !product.has_variants"
+                class="row items-center q-mb-sm"
+                style="gap: 8px"
+              >
+                <q-btn
+                  v-if="!linkedManaged"
+                  outline
+                  dense
+                  no-caps
+                  icon="ph:link"
+                  label="Rattacher maintenant"
+                  :disable="!form.supplier_name || !form.supplier_sku.trim()"
+                  :loading="linking === 'attach'"
+                  data-testid="product-attach-supplier"
+                  @click="onAttach"
+                >
+                  <q-tooltip>
+                    Interroge le fournisseur sur cette référence et reprend coût et stock tout de
+                    suite ; vos textes restent verrouillés
+                  </q-tooltip>
+                </q-btn>
+                <q-btn
+                  v-if="linkedManaged || (managedAfterLink === null && product.supplier_name)"
+                  flat
+                  dense
+                  no-caps
+                  icon="ph:link-break"
+                  label="Détacher"
+                  :loading="linking === 'detach'"
+                  data-testid="product-detach-supplier"
+                  @click="onDetach"
+                >
+                  <q-tooltip>
+                    L'article redevient manuel : plus de synchronisation, stock fournisseur à zéro
+                  </q-tooltip>
+                </q-btn>
+              </div>
+              <AppNotice v-if="linkNotice" tone="success" dense class="q-mb-sm">
+                {{ linkNotice }}
+              </AppNotice>
               <q-input
                 v-if="!isSimpleShop && form.supplier_name && !product?.is_supplier_managed"
                 v-model="form.supplier_quantity"
@@ -414,12 +455,19 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { useQuasar } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import { categoryLabel, listCategories, type Category } from '@/api/categories';
 import { listTaxRates, type TaxRate } from '@/api/taxRates';
 import { listPlaces, type Place } from '@/api/logistics';
-import { listSuppliers, type Supplier } from '@/api/suppliers';
+import {
+  attachProductToSupplier,
+  detachProductFromSupplier,
+  listSuppliers,
+  type Supplier,
+} from '@/api/suppliers';
+import { extractApiError } from '@/api/errors';
 import { adjustInventory } from '@/api/inventory';
 import MarginPreviewPanel from '@/components/MarginPreviewPanel.vue';
 import MediaPicker from '@/components/MediaPicker.vue';
@@ -703,6 +751,67 @@ function fieldLabel(field: string): string {
 const lockedFields = ref<string[]>([]);
 const releasing = ref<string | null>(null);
 
+const $q = useQuasar();
+const linking = ref<'attach' | 'detach' | null>(null);
+const linkNotice = ref<string | null>(null);
+/** Supplier state after an attach / detach in this dialog (the prop is stale). */
+const managedAfterLink = ref<boolean | null>(null);
+const linkedManaged = computed<boolean>(() =>
+  managedAfterLink.value !== null ? managedAfterLink.value : !!props.product?.is_supplier_managed,
+);
+
+async function onAttach() {
+  if (!props.product) return;
+  linking.value = 'attach';
+  error.value = null;
+  linkNotice.value = null;
+  try {
+    const res = await attachProductToSupplier(props.product.id, {
+      supplier_name: form.supplier_name,
+      supplier_sku: form.supplier_sku.trim(),
+    });
+    linkNotice.value = res.message;
+    managedAfterLink.value = !!res.product.is_supplier_managed;
+    lockedFields.value = [...(res.product.overridden_fields ?? [])];
+    emit('saved');
+  } catch (err: unknown) {
+    error.value = extractApiError(err) ?? 'Rattachement impossible.';
+  } finally {
+    linking.value = null;
+  }
+}
+
+function onDetach() {
+  const product = props.product;
+  if (!product) return;
+  $q.dialog({
+    title: 'Détacher du fournisseur ?',
+    message:
+      "L'article redevient manuel : plus aucune synchronisation, son stock fournisseur passe à " +
+      'zéro. Vos champs verrouillés restent tels quels. Un prochain import contenant la même ' +
+      'référence créera un nouvel article.',
+    cancel: { flat: true, noCaps: true, label: 'Annuler' },
+    ok: { color: 'negative', unelevated: true, noCaps: true, label: 'Détacher' },
+  }).onOk(() => {
+    void (async () => {
+      linking.value = 'detach';
+      error.value = null;
+      linkNotice.value = null;
+      try {
+        await detachProductFromSupplier(product.id);
+        form.supplier_name = null;
+        managedAfterLink.value = false;
+        linkNotice.value = 'Article détaché : il est désormais géré à la main.';
+        emit('saved');
+      } catch (err: unknown) {
+        error.value = extractApiError(err) ?? 'Détachement impossible.';
+      } finally {
+        linking.value = null;
+      }
+    })();
+  });
+}
+
 async function onRelease(field: string) {
   if (!props.product) return;
   releasing.value = field;
@@ -881,6 +990,8 @@ watch(
     if (open) {
       isEdit.value = !!props.product;
       error.value = null;
+      linkNotice.value = null;
+      managedAfterLink.value = null;
       lockedFields.value = [...(props.product?.overridden_fields ?? [])];
       loadFromProduct(props.product);
       void loadGroupPrices(props.product);

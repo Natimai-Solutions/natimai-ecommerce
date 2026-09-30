@@ -9,6 +9,8 @@ export interface ShopConfig {
   country_code: string;
   tax_territory_code: string;
   shop_name: string;
+  /** État réel de chaque module activable (Admin → Modules). */
+  modules?: Record<string, boolean>;
 }
 
 export async function getShopConfig(): Promise<ShopConfig> {
