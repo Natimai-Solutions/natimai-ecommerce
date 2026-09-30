@@ -81,12 +81,59 @@
                     >-{{ formatMoney(quote.discount_amount ?? '0') }}</span
                   >
                 </div>
+                <div
+                  v-if="hasFee(quote.deposit_fee_amount)"
+                  class="row justify-between text-body2"
+                  data-testid="checkout-quote-deposit-fee"
+                >
+                  <span>Frais option acompte</span>
+                  <span>{{ formatMoney(quote.deposit_fee_amount) }}</span>
+                </div>
                 <q-separator class="q-my-sm" />
                 <div class="row justify-between text-weight-bold">
-                  <span>Total à payer</span>
+                  <span>{{
+                    quote.payment_plan === 'deposit' ? 'Total de la commande' : 'Total à payer'
+                  }}</span>
                   <span data-testid="checkout-quote-total">{{
                     formatMoney(quote.total_amount)
                   }}</span>
+                </div>
+                <template v-if="quote.payment_plan === 'deposit'">
+                  <div class="row justify-between text-body2 text-primary q-mt-xs">
+                    <span>Acompte à payer maintenant ({{ Number(quote.deposit_pct) }} %)</span>
+                    <span data-testid="checkout-quote-deposit">{{
+                      formatMoney(quote.deposit_amount)
+                    }}</span>
+                  </div>
+                  <div class="row justify-between text-body2 text-grey-8">
+                    <span>Solde à régler à la réception</span>
+                    <span>{{ formatMoney(quote.balance_amount) }}</span>
+                  </div>
+                </template>
+                <template v-if="hasFee(quote.store_credit_applied)">
+                  <div class="row justify-between text-body2 text-positive q-mt-xs">
+                    <span>Avoir utilisé</span>
+                    <span data-testid="checkout-quote-credit"
+                      >− {{ formatMoney(quote.store_credit_applied) }}</span
+                    >
+                  </div>
+                  <div class="row justify-between text-weight-bold">
+                    <span>Reste à payer maintenant</span>
+                    <span data-testid="checkout-quote-due">{{
+                      formatMoney(quote.amount_due_now)
+                    }}</span>
+                  </div>
+                </template>
+                <div
+                  v-if="departureStore.next"
+                  class="text-caption text-grey-8 q-mt-sm"
+                  data-testid="checkout-departure"
+                >
+                  <q-icon name="ph:calendar-check" size="14px" class="q-mr-xs" />
+                  Votre commande rejoint le départ groupé « {{ departureStore.next.name }} ».
+                  <template v-if="departureStore.deliveryLabel">
+                    {{ departureStore.deliveryLabel }}.
+                  </template>
                 </div>
               </template>
               <template v-else>
@@ -149,6 +196,15 @@
               <AppNotice v-if="errorMessage" tone="error" class="q-mb-md">
                 {{ errorMessage }}
               </AppNotice>
+              <AppNotice
+                v-if="quoteRequestId && !orderPlaced"
+                tone="info"
+                icon="ph:receipt"
+                class="q-mb-md"
+                data-testid="checkout-from-quote"
+              >
+                Commande depuis votre devis : les prix et la livraison du devis s'appliquent.
+              </AppNotice>
 
               <!-- Loading payment methods -->
               <div v-if="loadingMethods" class="text-center q-pa-lg">
@@ -188,6 +244,12 @@
                       class="text-weight-medium q-mt-xs"
                     >
                       Commande {{ placedOrderRef }}
+                    </div>
+                    <div v-if="placedDeparture" class="text-caption q-mt-xs">
+                      Rattachée au départ groupé « {{ placedDeparture.name }} ».
+                      <template v-if="departureStore.deliveryLabel">
+                        {{ departureStore.deliveryLabel }}.
+                      </template>
                     </div>
                   </AppNotice>
                   <div class="text-body2 q-mb-md" style="white-space: pre-line">
@@ -328,35 +390,99 @@
                     </q-list>
                   </template>
 
-                  <div class="text-subtitle2 text-weight-medium q-mb-sm">Moyen de paiement</div>
-                  <q-list bordered separator class="rounded-borders q-mb-md">
-                    <q-item
-                      v-for="m in methods"
-                      :key="m.id"
-                      v-ripple
-                      clickable
-                      :data-testid="`checkout-method-${m.provider_code}`"
-                      :active="selectedMethodId === m.id"
-                      active-class="bg-tile"
-                      @click="selectedMethodId = m.id"
+                  <!-- Deposit option (offered or imposed by the customer's price group) -->
+                  <template v-if="quote?.deposit_available">
+                    <div class="text-subtitle2 text-weight-medium q-mb-sm">Règlement</div>
+                    <AppNotice
+                      v-if="quote.deposit_required"
+                      tone="info"
+                      icon="ph:piggy-bank"
+                      class="q-mb-md"
+                      data-testid="checkout-deposit-required"
                     >
-                      <q-item-section avatar>
-                        <q-radio v-model="selectedMethodId" :val="m.id" />
-                      </q-item-section>
-                      <q-item-section avatar>
-                        <q-icon :name="methodIcon(m.provider_code)" color="primary" />
-                      </q-item-section>
-                      <q-item-section>
-                        <q-item-label>{{ m.name }}</q-item-label>
-                        <q-item-label v-if="m.description" caption>{{
-                          m.description
-                        }}</q-item-label>
-                      </q-item-section>
-                      <q-item-section v-if="hasFee(m.fee)" side>
-                        <q-item-label caption>+ {{ formatMoney(m.fee) }} de frais</q-item-label>
-                      </q-item-section>
-                    </q-item>
-                  </q-list>
+                      Un acompte de {{ Number(quote.deposit_pct) }} % est demandé à la commande ; le
+                      solde vous sera demandé à la réception de vos articles.
+                    </AppNotice>
+                    <q-list v-else bordered separator class="rounded-borders q-mb-md">
+                      <q-item
+                        v-for="p in planOptions"
+                        :key="p.value"
+                        v-ripple
+                        clickable
+                        :data-testid="`checkout-plan-${p.value}`"
+                        :active="paymentPlan === p.value"
+                        active-class="bg-tile"
+                        @click="paymentPlan = p.value"
+                      >
+                        <q-item-section avatar>
+                          <q-radio v-model="paymentPlan" :val="p.value" />
+                        </q-item-section>
+                        <q-item-section>
+                          <q-item-label>{{ p.label }}</q-item-label>
+                          <q-item-label caption>{{ p.caption }}</q-item-label>
+                        </q-item-section>
+                      </q-item>
+                    </q-list>
+                  </template>
+
+                  <!-- Store credit (« avoir ») -->
+                  <AppNotice
+                    v-if="quote && hasFee(quote.store_credit_available)"
+                    tone="info"
+                    icon="ph:wallet"
+                    class="q-mb-md"
+                    data-testid="checkout-store-credit"
+                  >
+                    Vous disposez d'un avoir de {{ formatMoney(quote.store_credit_available) }}.
+                    <template #action>
+                      <q-toggle
+                        v-model="useStoreCredit"
+                        label="L'utiliser sur cette commande"
+                        dense
+                      />
+                    </template>
+                  </AppNotice>
+
+                  <template v-if="!creditCoversEverything">
+                    <div class="text-subtitle2 text-weight-medium q-mb-sm">Moyen de paiement</div>
+                    <q-list bordered separator class="rounded-borders q-mb-md">
+                      <q-item
+                        v-for="m in methods"
+                        :key="m.id"
+                        v-ripple
+                        clickable
+                        :data-testid="`checkout-method-${m.provider_code}`"
+                        :active="selectedMethodId === m.id"
+                        active-class="bg-tile"
+                        @click="selectedMethodId = m.id"
+                      >
+                        <q-item-section avatar>
+                          <q-radio v-model="selectedMethodId" :val="m.id" />
+                        </q-item-section>
+                        <q-item-section avatar>
+                          <q-icon :name="methodIcon(m.provider_code)" color="primary" />
+                        </q-item-section>
+                        <q-item-section>
+                          <q-item-label>{{ m.name }}</q-item-label>
+                          <q-item-label v-if="m.description" caption>{{
+                            m.description
+                          }}</q-item-label>
+                        </q-item-section>
+                        <q-item-section v-if="hasFee(m.fee)" side>
+                          <q-item-label caption>+ {{ formatMoney(m.fee) }} de frais</q-item-label>
+                        </q-item-section>
+                      </q-item>
+                    </q-list>
+                  </template>
+                  <AppNotice
+                    v-else
+                    tone="success"
+                    class="q-mb-md"
+                    data-testid="checkout-credit-covers"
+                  >
+                    Votre avoir couvre la totalité du montant à régler maintenant : aucun paiement
+                    n'est nécessaire.
+                  </AppNotice>
 
                   <q-checkbox
                     v-model="cgvAccepted"
@@ -383,7 +509,7 @@
                     :disable="
                       initiating ||
                       !cgvAccepted ||
-                      !selectedMethodId ||
+                      (!selectedMethodId && !creditCoversEverything) ||
                       !selectedAddressId ||
                       (deliveryOptions.length > 0 && !selectedDeliveryType) ||
                       quoteLoading ||
@@ -410,9 +536,11 @@
 import StatusTag from 'src/components/StatusTag.vue';
 import AppNotice from 'src/components/AppNotice.vue';
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { countryLabel, formatXpf, orderRef } from '@app/utils';
 import { useCartStore } from 'src/stores/cart';
 import { useAuthStore } from 'src/stores/auth';
+import { useDepartureStore } from 'src/stores/departure';
 import {
   confirmDocumentUploaded,
   issueDocumentUploadUrl,
@@ -428,11 +556,18 @@ import {
   type CheckoutQuote,
 } from 'src/api/cart';
 import { listMyAddresses, type Address } from 'src/api/addresses';
-
-const PENDING_PAYMENT_KEY = 'payzen.pending_payment_id';
+import { PENDING_PAYMENT_KEY, loadPayzenSmartForm } from 'src/utils/payzen';
 
 const cartStore = useCartStore();
 const authStore = useAuthStore();
+const departureStore = useDepartureStore();
+const route = useRoute();
+// Ordering an issued quote (`?quote=<id>`): its prices and delivery fee apply.
+const quoteRequestId = computed(() => {
+  const raw = route.query.quote;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+});
 
 const loadingMethods = ref(true);
 const methods = ref<PaymentMethod[]>([]);
@@ -446,6 +581,14 @@ const instructions = ref<string | null>(null);
 // Reference of the order just created, shown on the confirmation so the
 // customer can quote it before the email arrives (M5).
 const placedOrderRef = ref<string | null>(null);
+// Departure the order was attached to (the checkout returns its id; the
+// store already holds the open one, so no extra request).
+const placedDeparture = computed(() =>
+  placedDepartureId.value && departureStore.next?.id === placedDepartureId.value
+    ? departureStore.next
+    : null,
+);
+const placedDepartureId = ref<string | null>(null);
 const errorMessage = ref<string | null>(null);
 // Payment is tied to a user account (POST /payments/initiate requires auth).
 const isAuthenticated = computed(() => authStore.isAuthenticated);
@@ -481,6 +624,46 @@ const customsDeclarationFee = ref('0');
 // une seule source de vérité pour le total, rechargée à chaque choix.
 const quote = ref<CheckoutQuote | null>(null);
 const quoteLoading = ref(false);
+// Acompte : « full » (tout maintenant) ou « deposit » (acompte + solde à la
+// réception), quand le groupe tarifaire du client le propose.
+const paymentPlan = ref<'full' | 'deposit'>('full');
+const planOptions = computed(() => {
+  const q = quote.value;
+  const pct = q ? Number(q.deposit_pct) : 0;
+  return [
+    {
+      value: 'full' as const,
+      label: 'Payer la totalité maintenant',
+      caption: 'Rien à régler ensuite.',
+    },
+    {
+      value: 'deposit' as const,
+      label: `Verser un acompte de ${pct} %`,
+      caption:
+        q && hasFee(q.deposit_fee_amount) && q.payment_plan === 'deposit'
+          ? `Solde à la réception de vos articles · frais de l'option : ${formatMoney(q.deposit_fee_amount)}`
+          : 'Solde à régler à la réception de vos articles.',
+    },
+  ];
+});
+watch(paymentPlan, () => {
+  if (!isAuthenticated.value) return;
+  void loadQuote();
+});
+// Store credit (« avoir ») : spent on the amount due now when the customer
+// asks; when it covers everything, no payment method is needed.
+const useStoreCredit = ref(false);
+const creditCoversEverything = computed(
+  () =>
+    !!quote.value &&
+    useStoreCredit.value &&
+    hasFee(quote.value.store_credit_applied) &&
+    Number.parseFloat(quote.value.amount_due_now) <= 0,
+);
+watch(useStoreCredit, () => {
+  if (!isAuthenticated.value) return;
+  void loadQuote();
+});
 // Montant sur lequel l'éligibilité des moyens de paiement est jugée : le
 // total hors frais de paiement (sinon le devis dépend du moyen, qui dépend
 // du devis).
@@ -525,11 +708,18 @@ async function loadQuote() {
       deliveryType: selectedDeliveryType.value,
       paymentMethodId: selectedMethodId.value,
       discountCode: discountCode.value,
+      paymentPlan: paymentPlan.value,
+      quoteRequestId: quoteRequestId.value,
+      useStoreCredit: useStoreCredit.value,
     });
     // A refused code is reported by the quote (the amounts stay valid
     // without it); it must not be sent to the checkout either.
     if (next.discount_error) discountCode.value = null;
     quote.value = next;
+    // The backend has the last word (an imposed deposit, or none offered).
+    if (next.payment_plan === 'deposit' || next.payment_plan === 'full') {
+      paymentPlan.value = next.payment_plan;
+    }
     const basis =
       Number.parseFloat(next.subtotal_amount) + Number.parseFloat(next.shipping_fee_amount);
     if (Number.isFinite(basis) && basis !== methodsBasis.value) {
@@ -628,10 +818,14 @@ onMounted(async () => {
   }
   // The storefront cart is client-side: mirror it into the backend cart so
   // the delivery options and the quote are computed on what is being bought.
-  try {
-    await syncCartToBackend();
-  } catch {
-    // The checkout re-syncs before ordering; the quote will then catch up.
+  // Ordering an issued quote: the backend cart was just loaded from the quote
+  // at the quoted prices (« Commander ce devis »), it must not be overwritten.
+  if (!quoteRequestId.value) {
+    try {
+      await syncCartToBackend();
+    } catch {
+      // The checkout re-syncs before ordering; the quote will then catch up.
+    }
   }
 
   // Load the user's addresses; pre-select a validated one if available, else the first.
@@ -690,8 +884,8 @@ watch(selectedMethodId, () => {
 });
 
 async function startPayment() {
-  const method = methods.value.find((m) => m.id === selectedMethodId.value);
-  if (!method) return;
+  const method = methods.value.find((m) => m.id === selectedMethodId.value) ?? null;
+  if (!method && !creditCoversEverything.value) return;
   if (!isAuthenticated.value) {
     errorMessage.value = 'Vous devez être connecté pour payer.';
     return;
@@ -708,8 +902,8 @@ async function startPayment() {
     const returnUrl = `${window.location.origin}/paiement/retour`;
 
     // 1. The storefront cart is client-side — mirror it into the backend cart
-    //    so the order can be created from it.
-    await syncCartToBackend();
+    //    so the order can be created from it (a quote rebuilds it server-side).
+    if (!quoteRequestId.value) await syncCartToBackend();
 
     // 2. Single call: create the order AND run the provider initiation in one
     //    transaction (empties the backend cart, publishes order.created). No
@@ -720,13 +914,17 @@ async function startPayment() {
       delivery_type: selectedDeliveryType.value,
       shipping_address: formatAddress(selectedAddress.value),
       shipping_address_id: selectedAddressId.value,
-      payment_method_id: method.id,
+      payment_method_id: creditCoversEverything.value ? null : (method?.id ?? null),
       return_url: returnUrl,
       cgv_accepted: cgvAccepted.value,
       discount_code: quote.value?.discount_code ?? null,
+      payment_plan: paymentPlan.value,
+      quote_request_id: quoteRequestId.value,
+      use_store_credit: useStoreCredit.value,
     });
     orderPlaced.value = true;
     placedOrderRef.value = orderRef(checkout.order_number, checkout.order_id);
+    placedDepartureId.value = checkout.grouped_departure_id ?? null;
 
     // 3. Clear the local cart now that the order exists.
     cartStore.clearCart();
@@ -754,6 +952,15 @@ async function startPayment() {
     if (checkout.instructions) {
       instructions.value = checkout.instructions;
       pendingPaymentId.value = checkout.payment_id;
+      return;
+    }
+
+    // Settled by the store credit alone: nothing to pay, the order is placed.
+    if (
+      Number.parseFloat(String(checkout.amount_due_now ?? '0')) <= 0 &&
+      hasFee(String(checkout.store_credit_applied ?? '0'))
+    ) {
+      instructions.value = `Votre commande est réglée par votre avoir (${formatMoney(String(checkout.store_credit_applied))}). Vous recevrez une confirmation par e-mail.`;
       return;
     }
 
@@ -847,40 +1054,5 @@ function extractError(err: unknown): string | null {
     }
   }
   return null;
-}
-
-interface SmartFormOptions {
-  serverUrl: string;
-  publicKey: string;
-  token: string;
-  returnUrl: string;
-}
-
-function loadPayzenSmartForm({
-  serverUrl,
-  publicKey,
-  token,
-  returnUrl,
-}: SmartFormOptions): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const existing = document.getElementById('kr-payzen-script');
-    if (existing) existing.remove();
-
-    const script = document.createElement('script');
-    script.id = 'kr-payzen-script';
-    script.src = `${serverUrl}/static/js/krypton-client/V4.0/ext/smartform.min.js`;
-    script.setAttribute('kr-public-key', publicKey);
-    script.setAttribute('kr-post-url-success', returnUrl);
-    script.setAttribute('kr-language', 'fr-FR');
-    script.onload = () => {
-      const container = document.getElementById('kr-smart-form-container');
-      if (container) {
-        container.innerHTML = `<div class="kr-smart-form" kr-form-token="${token}"></div>`;
-      }
-      resolve();
-    };
-    script.onerror = () => reject(new Error('Impossible de charger le script Payzen'));
-    document.head.appendChild(script);
-  });
 }
 </script>

@@ -61,6 +61,32 @@ class QuoteRequestBase(Base):
     handled_by_id: uuid.UUID | None = Field(
         default=None, foreign_key="users.id", nullable=True
     )
+    # Le devis émis (« DEV-AAAA-NNNNN ») : figé dans `quote_snapshot` (lignes
+    # au prix consenti, livraison, validité, vendeur), rendu en PDF à la
+    # demande, convertible en commande par le client jusqu'à `valid_until`.
+    quote_number: str | None = Field(
+        default=None, max_length=32, unique=True, index=True
+    )
+    quoted_at: datetime.datetime | None = Field(default=None)
+    valid_until: datetime.date | None = Field(default=None)
+    quote_snapshot: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
+    order_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="orders.id",
+        nullable=True,
+        description="Commande créée à partir du devis (statut won)",
+    )
+
+
+class QuoteCounter(SQLModel, table=True):
+    """Per-year quote counter (``DEV-AAAA-NNNNN``), same discipline as the
+    invoice one — declared here so the schema built from the metadata (tests)
+    carries it like the migration does."""
+
+    __tablename__ = "quote_counters"
+
+    fiscal_year: int = Field(primary_key=True)
+    last_value: int = Field(default=0)
 
 
 class QuoteRequestCreate(QuoteRequestBase, BaseCreate):

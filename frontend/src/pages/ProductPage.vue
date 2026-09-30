@@ -84,14 +84,17 @@
               Prix en livraison {{ selectedMode.customer_label.toLowerCase() }}. Le mode se choisit
               à la commande.
             </span>
-            <template v-if="!needsVariantChoice">
-              <span v-if="isOutOfStock" class="product__stock product__stock--order">
-                <span class="stock-dot stock-dot--order" aria-hidden="true" />Sur commande
-              </span>
-              <span v-else class="product__stock">
-                <span class="stock-dot" aria-hidden="true" />{{ stockQuantity }} en stock
-              </span>
-            </template>
+            <span
+              v-if="!needsVariantChoice"
+              class="product__stock"
+              :class="{ 'product__stock--order': availability.preorder || isOutOfStock }"
+            >
+              <span
+                class="stock-dot"
+                :class="{ 'stock-dot--order': availability.preorder || isOutOfStock }"
+                aria-hidden="true"
+              />{{ availability.label }}
+            </span>
             <router-link
               v-if="product.parent_product_id"
               :to="getProductRouteByIdAndName(product.parent_product_id, product.name)"
@@ -100,6 +103,31 @@
               Voir toutes les déclinaisons
             </router-link>
           </div>
+
+          <div
+            v-if="departureStore.next"
+            class="product__departure"
+            data-testid="product-departure"
+          >
+            <q-icon name="ph:calendar-check" size="18px" />
+            <span>
+              Départ groupé « {{ departureStore.next.name }} ». {{ departureStore.cutoffLabel }}.
+              <template v-if="departureStore.deliveryLabel">
+                {{ departureStore.deliveryLabel }}.
+              </template>
+            </span>
+          </div>
+
+          <div class="product__condition" data-testid="product-condition">
+            <span class="product__condition-label">État</span>
+            <span>{{ conditionLabel(product) }}</span>
+          </div>
+          <dl v-if="refurbDetails.length" class="product__refurb">
+            <div v-for="d in refurbDetails" :key="d.label" class="spec-group__row">
+              <dt>{{ d.label }}</dt>
+              <dd>{{ d.value }}</dd>
+            </div>
+          </dl>
 
           <div v-if="hasVariants && variants" class="variants" data-testid="variant-selectors">
             <div v-for="axis in variants.axes" :key="axis" class="variants__axis">
@@ -156,6 +184,16 @@
               Ajouté, voir le panier
             </router-link>
             <q-btn
+              v-else-if="isOutOfStock && !needsVariantChoice"
+              outline
+              color="primary"
+              icon="ph:bell"
+              label="Me prévenir"
+              class="product__add"
+              data-testid="product-notify-me"
+              @click="openAlert"
+            />
+            <q-btn
               v-else
               unelevated
               color="primary"
@@ -171,6 +209,9 @@
 
           <AppNotice v-if="cartError" tone="warning" dense class="q-mt-md">
             {{ cartError }}
+          </AppNotice>
+          <AppNotice v-if="alertNotice" tone="success" dense class="q-mt-md">
+            {{ alertNotice }}
           </AppNotice>
 
           <ProductOffers :offers="offers" class="product__offers" />
@@ -240,6 +281,14 @@
           Voir le panier
         </router-link>
         <q-btn
+          v-else-if="isOutOfStock && !needsVariantChoice"
+          outline
+          color="primary"
+          label="Me prévenir"
+          class="product__add"
+          @click="openAlert"
+        />
+        <q-btn
           v-else
           unelevated
           color="primary"
@@ -250,6 +299,52 @@
           @click="onAddToCart"
         />
       </div>
+
+      <!-- « Me prévenir » : un e-mail quand l'article redevient commandable -->
+      <q-dialog v-model="alertDialog">
+        <q-card flat class="alert-dialog">
+          <q-form @submit.prevent="submitAlert">
+            <q-card-section>
+              <h2 class="alert-dialog__title">Me prévenir quand il revient</h2>
+              <p class="alert-dialog__text">
+                Nous vous enverrons un e-mail dès que « {{ product.name }} » pourra de nouveau être
+                commandé.
+              </p>
+              <q-input
+                v-model="alertEmail"
+                type="email"
+                label="Votre e-mail"
+                outlined
+                stack-label
+                autofocus
+                autocomplete="email"
+                :hint="
+                  authStore.isAuthenticated
+                    ? 'Laissez vide pour utiliser l\'e-mail de votre compte'
+                    : undefined
+                "
+                :rules="[
+                  (v: string) =>
+                    (authStore.isAuthenticated && !v) || /.+@.+\..+/.test(v) || 'E-mail invalide',
+                ]"
+              />
+              <AppNotice v-if="alertError" tone="error" dense class="q-mt-sm">
+                {{ alertError }}
+              </AppNotice>
+            </q-card-section>
+            <q-card-actions align="right" class="q-px-md q-pb-md">
+              <q-btn v-close-popup flat label="Annuler" />
+              <q-btn
+                type="submit"
+                unelevated
+                color="primary"
+                label="Me prévenir"
+                :loading="alertSaving"
+              />
+            </q-card-actions>
+          </q-form>
+        </q-card>
+      </q-dialog>
     </template>
   </q-page>
 </template>
@@ -275,9 +370,13 @@ import {
 } from 'src/api/products';
 import ProductImage from 'src/components/ProductImage.vue';
 import ProductOffers from 'src/components/ProductOffers.vue';
+import { useAuthStore } from 'src/stores/auth';
 import { useCartStore } from 'src/stores/cart';
 import { useProductsStore } from 'src/stores/products';
 import { useCurrencyStore } from 'src/stores/currency';
+import { useDepartureStore } from 'src/stores/departure';
+import { subscribeStockAlert } from 'src/api/stockAlerts';
+import { conditionLabel, productAvailability, refurbishedDetails } from 'src/utils/availability';
 import { getProductRouteByIdAndName, slugifyProductName } from 'src/utils/productRoute';
 
 type ProductPublic = components['schemas']['ProductPublic'];
@@ -291,6 +390,8 @@ const productsStore = useProductsStore();
 
 /** Groupes de caractéristiques affichés avant « Afficher toutes ». */
 const SPEC_GROUPS_SHOWN = 3;
+
+const departureStore = useDepartureStore();
 
 const product = ref<ProductPublic | null>(null);
 const loading = ref(true);
@@ -340,6 +441,53 @@ const selectedVariant = computed<ProductPublic | null>(() => {
   );
 });
 
+const availability = computed(() =>
+  productAvailability(effectiveProduct.value ?? { supplier_quantity: 0 }),
+);
+
+// « Me prévenir » : an e-mail when the product is orderable again.
+const authStore = useAuthStore();
+const alertDialog = ref(false);
+const alertEmail = ref('');
+const alertSaving = ref(false);
+const alertError = ref<string | null>(null);
+const alertNotice = ref<string | null>(null);
+
+function openAlert() {
+  // Signed in: the account's e-mail is used server-side unless another is typed.
+  alertEmail.value = '';
+  alertError.value = null;
+  alertDialog.value = true;
+}
+
+async function submitAlert() {
+  if (!product.value) return;
+  alertSaving.value = true;
+  alertError.value = null;
+  try {
+    const alert = await subscribeStockAlert(product.value.id, alertEmail.value.trim() || null);
+    alertDialog.value = false;
+    alertNotice.value = `C'est noté : nous vous préviendrons à ${alert.email} dès que ce produit sera disponible.`;
+  } catch (err) {
+    alertError.value =
+      extractApiMessage(err) ?? "L'inscription à l'alerte a échoué. Veuillez réessayer.";
+  } finally {
+    alertSaving.value = false;
+  }
+}
+
+function extractApiMessage(err: unknown): string | null {
+  if (err && typeof err === 'object' && 'response' in err) {
+    const data = (err as { response?: { data?: unknown } }).response?.data;
+    if (typeof data === 'object' && data !== null) {
+      const errorObj = (data as { error?: { message?: unknown } }).error;
+      if (errorObj && typeof errorObj.message === 'string') return errorObj.message;
+    }
+  }
+  return null;
+}
+const refurbDetails = computed(() => (product.value ? refurbishedDetails(product.value) : []));
+
 /** Whether a value is still reachable given the other axes already chosen. */
 function isValueAvailable(axis: string, value: string): boolean {
   const list = variants.value?.variants ?? [];
@@ -363,10 +511,7 @@ const effectiveProduct = computed<ProductPublic | null>(
   () => selectedVariant.value ?? product.value,
 );
 
-const stockQuantity = computed(() =>
-  effectiveProduct.value ? sellableQuantity(effectiveProduct.value) : 0,
-);
-const isOutOfStock = computed(() => stockQuantity.value <= 0);
+const isOutOfStock = computed(() => !availability.value.orderable);
 const needsVariantChoice = computed(() => hasVariants.value && !selectedVariant.value);
 
 const selectedMode = computed(
@@ -519,6 +664,7 @@ async function loadProduct() {
   error.value = null;
   selectedImage.value = null;
   cartError.value = null;
+  alertNotice.value = null;
   quantity.value = 1;
   justAdded.value = false;
   showAllSpecs.value = false;
@@ -837,6 +983,56 @@ watch(
   &--order {
     color: var(--n-ink-3);
   }
+}
+
+.product__departure {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--n-ink-2);
+
+  .q-icon {
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+}
+
+.product__condition {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.product__condition-label {
+  color: var(--n-ink-3);
+}
+
+.product__refurb {
+  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.alert-dialog {
+  width: min(440px, 100vw - 32px);
+  border: 1px solid var(--n-line);
+}
+
+.alert-dialog__title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.alert-dialog__text {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: var(--n-ink-2);
 }
 
 .product__variants-link {

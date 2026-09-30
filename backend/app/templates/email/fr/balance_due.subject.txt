@@ -1,0 +1,1 @@
+Commande {{ order_ref or (order_id | short_ref) }} : votre solde de {{ balance_amount }} {{ currency }} est à régler

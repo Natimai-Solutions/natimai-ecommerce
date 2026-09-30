@@ -11,5 +11,6 @@
           <tr><td>Nombre d'articles</td><td>{{ item_count }}</td></tr>
         </table>
       </div>
+      {% if tracking_url %}<p><a href="{{ tracking_url }}">Suivre ma commande</a></p>{% endif %}
       <p>Merci pour votre commande,<br><strong>L'équipe {{ shop_name }}</strong></p>
 {% endblock %}

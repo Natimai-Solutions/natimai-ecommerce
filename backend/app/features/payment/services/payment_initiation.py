@@ -98,11 +98,14 @@ async def initiate_payment_for_method(
     return_url: str | None,
     metadata: dict[str, Any] | None,
     current_user: Any,
+    kind: str = "full",
 ) -> PaymentInitiationResult:
     """Create a payment for ``payment_method_id`` and run the provider initiation.
 
-    Raises ``AppError`` for unknown/inactive/ineligible methods or providers.
-    The returned payment is added to the session but **not** committed.
+    ``kind`` says which part of the order the payment settles (full, deposit
+    or balance). Raises ``AppError`` for unknown/inactive/ineligible methods
+    or providers. The returned payment is added to the session but **not**
+    committed.
     """
     # 1. Resolve provider (precise errors before the eligibility guard).
     try:
@@ -171,6 +174,7 @@ async def initiate_payment_for_method(
         commit=False,
     )
     payment.payment_method_id = payment_method_id
+    payment.kind = kind
 
     initiation_request = _build_initiation_request(
         payment_id=payment.id,

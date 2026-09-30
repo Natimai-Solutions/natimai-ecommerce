@@ -1,0 +1,16 @@
+Bonjour {{ full_name }},
+
+Bonne nouvelle : les articles de votre commande {{ order_ref or (order_id | short_ref) }} sont arrivés.
+
+Pour les récupérer, il vous reste à régler le solde :
+
+Total de la commande : {{ total_amount }} {{ currency }}
+Acompte déjà versé : {{ deposit_amount }} {{ currency }}
+Solde à régler : {{ balance_amount }} {{ currency }}
+
+Réglez votre solde en ligne depuis votre espace client :
+{{ pay_url }}
+
+Votre facture vous sera envoyée dès l'encaissement du solde.
+
+L'équipe {{ shop_name }}

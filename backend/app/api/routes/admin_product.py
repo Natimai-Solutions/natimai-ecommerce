@@ -29,6 +29,10 @@ from app.features.base.crud import RecordNotFoundError
 from app.features.integrations.models.supplier import Supplier
 from app.features.inventory.services.availability import publish_with_availability
 from app.features.product.crud.product import crud_product
+from app.features.product.models.price_history import (
+    ProductPriceEntry,
+    ProductPriceEntryPublic,
+)
 from app.features.product.models.product import (
     PricingMode,
     Product,
@@ -144,6 +148,61 @@ async def admin_create_product(
         session=session, data=create_data, user=current_user
     )
     return ProductPublic.model_validate(product)
+
+
+class PublishDraftsRequest(BaseModel):
+    """Drafts to publish (unknown ids are ignored, reported in ``missing``)."""
+
+    product_ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
+
+
+class PublishDraftsResponse(BaseModel):
+    published: int = 0
+    already_published: int = 0
+    missing: list[uuid.UUID] = Field(default_factory=list)
+
+
+@router.post("/publish-drafts", response_model=PublishDraftsResponse)
+async def admin_publish_drafts(
+    session: SessionDep,
+    current_user: CurrentSuperUser,
+    payload: PublishDraftsRequest,
+) -> PublishDraftsResponse:
+    """Take products out of draft. Publication then follows the usual gates
+    (active, enriched, priceable): nothing else is forced here."""
+    actor_id = current_user.id
+    ids = list(dict.fromkeys(payload.product_ids))
+    result = await session.exec(select(Product).where(col(Product.id).in_(ids)))
+    found = {p.id: p for p in result.all()}
+    response = PublishDraftsResponse(missing=[i for i in ids if i not in found])
+    for product in found.values():
+        if not product.is_draft:
+            response.already_published += 1
+            continue
+        product.is_draft = False
+        session.add(product)
+        response.published += 1
+    await session.commit()
+    logger.info("Admin %s published %d draft product(s)", actor_id, response.published)
+    return response
+
+
+@router.get("/{product_id}/price-history", response_model=list[ProductPriceEntryPublic])
+async def admin_product_price_history(
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+    product_id: uuid.UUID,
+    limit: int = 50,
+) -> list[ProductPriceEntryPublic]:
+    """The product's price journal, newest first: every change of the
+    storefront price with what caused it."""
+    result = await session.exec(
+        select(ProductPriceEntry)
+        .where(ProductPriceEntry.product_id == product_id)
+        .order_by(col(ProductPriceEntry.created_at).desc())
+        .limit(max(1, min(limit, 500)))
+    )
+    return [ProductPriceEntryPublic.model_validate(e) for e in result.all()]
 
 
 @router.put("/{product_id}", response_model=ProductPublic)

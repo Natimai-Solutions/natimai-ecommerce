@@ -11,5 +11,6 @@
           {% if estimated_delivery %}<tr><td>Livraison estimée</td><td>{{ estimated_delivery }}</td></tr>{% endif %}
         </table>
       </div>
+      {% if tracking_url %}<p><a href="{{ tracking_url }}">Suivre ma commande</a></p>{% endif %}
       <p>L'équipe {{ shop_name }}</p>
 {% endblock %}

@@ -28,6 +28,8 @@ class NotificationMessage:
     html: str | None = None
     subject: str | None = None
     metadata: dict[str, Any] | None = None
+    #: ``(filename, content, mimetype)`` — e.g. a quote PDF.
+    attachments: list[tuple[str, bytes, str]] | None = None
 
 
 @dataclass(slots=True)

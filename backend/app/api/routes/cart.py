@@ -2,14 +2,15 @@ import logging
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import Enum
 from time import perf_counter
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query, status
-from sqlmodel import col, select
+from fastapi import APIRouter, Query, Response, status
+from pydantic import BaseModel
+from sqlmodel import col, or_, select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.core.config import settings
@@ -41,6 +42,13 @@ from app.features.cart.models.quote_request import (
     QuoteRequestStatus,
     QuoteRequestSubmit,
 )
+from app.features.cart.services.quote import (
+    check_convertible,
+    quote_currency,
+    quote_pdf_response,
+    quoted_prices,
+)
+from app.features.departure.crud import crud_grouped_departure
 from app.features.discount.services.checkout_discount import (
     AppliedDiscount,
     DiscountRefused,
@@ -79,18 +87,35 @@ from app.features.payment.models.payment_status import (
     PaymentStatus,
     PaymentStatusCreate,
 )
+from app.features.payment.services import store_credit
+from app.features.payment.services.deposit import (
+    KIND_DEPOSIT,
+    KIND_FULL,
+    PLAN_DEPOSIT,
+    PLAN_FULL,
+    DepositPolicy,
+    choose_plan,
+    deposit_fee,
+    deposit_split,
+)
 from app.features.payment.services.payment_initiation import (
     PaymentInitiationResult,
     initiate_payment_for_method,
 )
 from app.features.place.crud import crud_place
 from app.features.place.models import Place
-from app.features.product.models.product import Product
+from app.features.product.models.price_group import PriceGroup
+from app.features.product.models.product import (
+    BACKORDER_MODES,
+    AvailabilityMode,
+    Product,
+)
 from app.features.product.services.pricing import (
     calculate_sale_price,
     product_applies_customs,
     resolve_default_price_group,
     resolve_effective_customs_rate_pct,
+    resolve_margin_rate_pct,
     resolve_tax_rate,
 )
 from app.features.product.services.publication import publication_blockers
@@ -185,12 +210,17 @@ def _plan_checkout_fulfillment_segments(
     supplier_segment: FulfillmentSegment = FulfillmentSegment.VIA_MAIN_WAREHOUSE,
     local_place_id: uuid.UUID | None = None,
     supplier_place_id: uuid.UUID | None = None,
+    backorder: bool = False,
 ) -> list[FulfillmentAllocation]:
-    """Split a line between local stock and the supplier (``supplier_segment``)."""
+    """Split a line between local stock and the supplier (``supplier_segment``).
+
+    ``backorder`` (pre-order modes): the supplier segment takes whatever the
+    local stock does not cover, even beyond the supplier's known quantity.
+    """
     requested_quantity = Decimal(quantity)
     total_available = local_available + supplier_available
 
-    if total_available < requested_quantity:
+    if total_available < requested_quantity and not backorder:
         raise AppError(
             code="cart.stock.insufficient",
             status_code=409,
@@ -1010,8 +1040,13 @@ def _snapshot_checkout_amounts(
     shipping_fee_amount: Decimal,
     payment_fee_amount: Decimal,
     discount_amount: Decimal = Decimal("0.00"),
+    deposit_fee_amount: Decimal = Decimal("0.00"),
 ) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal]:
-    """Subtotal (gross lines), fees, and the total net of the promo discount."""
+    """Subtotal (gross lines), fees, and the total net of the promo discount.
+
+    The deposit fee, when any, is part of the fees total and so of the total;
+    the promo discount comes off the lines only, never off the fees.
+    """
     subtotal_amount = sum(
         (item.unit_price * item.quantity for item in items),
         Decimal("0.00"),
@@ -1020,7 +1055,10 @@ def _snapshot_checkout_amounts(
 
     shipping_fee = quantize_amount(shipping_fee_amount, currency)
     payment_fee = quantize_amount(payment_fee_amount, currency)
-    total_fees_amount = quantize_amount(shipping_fee + payment_fee, currency)
+    total_fees_amount = quantize_amount(
+        shipping_fee + payment_fee + quantize_amount(deposit_fee_amount, currency),
+        currency,
+    )
     discount = min(quantize_amount(discount_amount, currency), subtotal_amount)
     total_amount = quantize_amount(
         subtotal_amount - discount + total_fees_amount, currency
@@ -1117,6 +1155,19 @@ async def _resolve_payment_fee(
     return quantize_amount(method.fee, currency)
 
 
+async def _resolve_customer_price_group(
+    session: SessionDep, current_user: Any
+) -> PriceGroup | None:
+    """The customer's own price group, else the default one: it decides the
+    deposit policy and the margin snapshotted on the lines."""
+    group_id = getattr(current_user, "price_group_id", None)
+    if group_id is not None:
+        group = await session.get(PriceGroup, group_id)
+        if group is not None and group.is_active:
+            return group
+    return await resolve_default_price_group(session)
+
+
 async def _get_or_create_order_pending_status(session: SessionDep) -> OrderStatus:
     """Get or create order pending status."""
     status_record = await crud_order_status.get_by_name(
@@ -1177,6 +1228,22 @@ async def _reserve_stock_for_checkout(
     # Same rule as the storefront display (inventory/services/availability).
     supplier_available = supplier_available_quantity(product)
 
+    # Pre-order modes (« sur commande » / continu): the line is accepted beyond
+    # the known stock and nothing is reserved at the supplier — the goods are
+    # bought when the grouped departure closes. ``on_demand`` still needs the
+    # supplier to show stock at the last refresh (spec: orderable while > 0).
+    mode = AvailabilityMode(
+        getattr(product, "availability_mode", None) or AvailabilityMode.STOCK
+    ).value
+    backorder = mode in BACKORDER_MODES
+    if mode == AvailabilityMode.ON_DEMAND and supplier_available <= 0:
+        raise AppError(
+            code="cart.stock.unavailable",
+            status_code=409,
+            message=f"Product {product.id} is not available from the supplier",
+            details={"product_id": str(product.id), "availability_mode": mode},
+        )
+
     supplier_place_id = getattr(product, "supplier_place_id", None)
     supplier_place = (
         await session.get(Place, supplier_place_id)
@@ -1192,6 +1259,7 @@ async def _reserve_stock_for_checkout(
         supplier_segment=_supplier_segment_for_origin(supplier_place),
         local_place_id=inventory.place_id if inventory is not None else None,
         supplier_place_id=supplier_place_id,
+        backorder=backorder,
     )
 
     for segment in segments:
@@ -1233,6 +1301,11 @@ async def _reserve_stock_for_checkout(
                 ),
                 user=current_user,
             )
+            continue
+
+        if backorder:
+            # No reservation: the supplier quantity is a snapshot the sync
+            # overwrites, and a release would only inflate it.
             continue
 
         product.supplier_quantity -= segment.quantity
@@ -1790,6 +1863,151 @@ async def create_quote_request(
     )
 
 
+# --- Issued quotes, customer side: list, PDF, order at the quoted prices ----
+
+
+class MyQuoteItem(BaseModel):
+    """An issued (or pending) quote as the customer sees it."""
+
+    id: uuid.UUID
+    quote_number: str | None
+    status: str
+    created_at: datetime | None
+    quoted_at: datetime | None
+    valid_until: date | None
+    currency: str | None
+    total_amount: str | None
+    order_id: uuid.UUID | None
+    #: Issued, in date, not converted, made of catalogue products.
+    can_order: bool
+
+
+def _my_quote_item(quote: QuoteRequest, *, user: User) -> MyQuoteItem:
+    snapshot = quote.quote_snapshot or {}
+    try:
+        check_convertible(quote, user=user)
+        can_order = True
+    except AppError:
+        can_order = False
+    return MyQuoteItem(
+        id=quote.id,
+        quote_number=quote.quote_number,
+        status=quote.status,
+        created_at=quote.created_at,
+        quoted_at=quote.quoted_at,
+        valid_until=quote.valid_until,
+        currency=str(snapshot.get("currency") or quote_currency(quote)),
+        total_amount=snapshot.get("total_amount"),
+        order_id=quote.order_id,
+        can_order=can_order,
+    )
+
+
+async def _my_quote_or_404(
+    session: SessionDep, quote_id: uuid.UUID, current_user: User
+) -> QuoteRequest:
+    """A quote of the customer (by account, or by e-mail for a request made
+    before signing up); a foreign one reads as missing."""
+    quote = await session.get(QuoteRequest, quote_id)
+    owned = quote is not None and (
+        quote.user_id == current_user.id
+        or (
+            quote.user_id is None
+            and quote.email.lower() == str(current_user.email).lower()
+        )
+    )
+    if quote is None or not owned:
+        raise AppError(
+            code="quote.not_found",
+            status_code=404,
+            message="Devis introuvable",
+            details={"quote_request_id": str(quote_id)},
+        )
+    return quote
+
+
+async def _load_convertible_quote(
+    session: SessionDep, quote_id: uuid.UUID, current_user: User
+) -> QuoteRequest:
+    quote = await _my_quote_or_404(session, quote_id, current_user)
+    check_convertible(quote, user=current_user)
+    return quote
+
+
+async def _install_quote_in_cart(
+    session: SessionDep,
+    *,
+    cart_id: uuid.UUID,
+    prices: dict[uuid.UUID, tuple[int, Decimal]],
+) -> list[CartItem]:
+    """Replace the cart content with the quote's lines (``quoted_prices``) at
+    the quoted prices. Commits (the cart CRUD does), so the caller reads what
+    it needs from the quote *before* calling."""
+    entries: list[tuple[Product, int]] = []
+    for product_id, (quantity, _price) in prices.items():
+        entries.append(
+            (await _get_active_product_or_404(session, product_id=product_id), quantity)
+        )
+    items = await crud_cart_item.replace_cart_items(
+        session, cart_id=cart_id, entries=entries
+    )
+    for item in items:
+        item.unit_price = prices[item.product_id][1]
+        session.add(item)
+    await session.commit()
+    for item in items:
+        await session.refresh(item)
+    return items
+
+
+@router.get("/quote-requests/me", response_model=list[MyQuoteItem])
+async def list_my_quotes(
+    session: SessionDep, current_user: CurrentUser
+) -> list[MyQuoteItem]:
+    """The customer's quote requests and issued quotes, newest first."""
+    rows = (
+        await session.exec(
+            select(QuoteRequest)
+            .where(
+                or_(
+                    col(QuoteRequest.user_id) == current_user.id,
+                    col(QuoteRequest.email) == str(current_user.email).lower(),
+                )
+            )
+            .order_by(col(QuoteRequest.created_at).desc())
+        )
+    ).all()
+    return [_my_quote_item(q, user=current_user) for q in rows]
+
+
+@router.get("/quote-requests/me/{quote_id}/pdf")
+async def download_my_quote_pdf(
+    quote_id: uuid.UUID, session: SessionDep, current_user: CurrentUser
+) -> Response:
+    """The PDF of one of the customer's issued quotes."""
+    return quote_pdf_response(await _my_quote_or_404(session, quote_id, current_user))
+
+
+@router.post("/quote-requests/me/{quote_id}/accept", response_model=CartDetailPublic)
+async def accept_my_quote(
+    quote_id: uuid.UUID, session: SessionDep, current_user: CurrentUser
+) -> CartDetailPublic:
+    """Load the quote into the cart at the quoted prices; the checkout then
+    orders it with ``quote_request_id`` (which rebuilds the cart the same way,
+    so nothing typed in between can change the amounts)."""
+    quote = await _load_convertible_quote(session, quote_id, current_user)
+    prices = quoted_prices(quote)  # before the cart commits expire the quote
+    cart = await crud_cart.get_or_create_active_cart(
+        session=session, user_id=current_user.id
+    )
+    cart_id = cart.id
+    items = await _install_quote_in_cart(session, cart_id=cart_id, prices=prices)
+    cart = await crud_cart.get_or_create_active_cart(
+        session=session, user_id=current_user.id
+    )
+    return _build_cart_detail(cart, items)
+
+
 @router.post(
     "/guest-quote-request",
     response_model=GuestQuoteRequestResponse,
@@ -1947,6 +2165,45 @@ class CheckoutQuote:
         """What the promo code takes off the lines (0 without one)."""
         return self.discount.amount if self.discount is not None else Decimal("0.00")
 
+    # Deposit terms (all zero / "full" when the customer pays everything now).
+    payment_plan: str = PLAN_FULL
+    deposit_policy: DepositPolicy = DepositPolicy()
+    deposit_fee_amount: Decimal = Decimal("0.00")
+    deposit_amount: Decimal = Decimal("0.00")
+    balance_amount: Decimal = Decimal("0.00")
+    # Store credit: the balance, and the share of the part due now it settles.
+    store_credit_available: Decimal = Decimal("0.00")
+    store_credit_applied: Decimal = Decimal("0.00")
+
+    def deposit_terms(self) -> dict[str, Any]:
+        """The ``DepositTerms`` fields of the quote / checkout responses."""
+        return {
+            "payment_plan": self.payment_plan,
+            "deposit_available": self.deposit_policy.available,
+            "deposit_required": self.deposit_policy.required,
+            "deposit_pct": self.deposit_policy.pct,
+            "deposit_fee_amount": self.deposit_fee_amount,
+            "deposit_amount": self.deposit_amount,
+            "balance_amount": self.balance_amount,
+            "store_credit_available": self.store_credit_available,
+            "store_credit_applied": self.store_credit_applied,
+            "amount_due_now": self.amount_due_now,
+        }
+
+    @property
+    def part_due_now(self) -> Decimal:
+        """The part settled at checkout: the deposit, or the total."""
+        return (
+            self.deposit_amount
+            if self.payment_plan == PLAN_DEPOSIT
+            else self.total_amount
+        )
+
+    @property
+    def amount_due_now(self) -> Decimal:
+        """What the payment initiated at checkout must carry, credit deducted."""
+        return self.part_due_now - self.store_credit_applied
+
     @property
     def customs_declaration_fee_total(self) -> Decimal:
         """Part of the shipping fee owed to the customs declaration."""
@@ -2000,6 +2257,11 @@ async def _quote_checkout(
     shipping_preference: CheckoutShippingPreference | None = None,
     shipping_fee_fallback: Decimal | None = None,
     discount: AppliedDiscount | None = None,
+    deposit_policy: DepositPolicy | None = None,
+    payment_plan: str | None = None,
+    fixed_shipping_fee: Decimal | None = None,
+    store_credit_available: Decimal = Decimal("0.00"),
+    use_store_credit: bool = False,
 ) -> CheckoutQuote:
     """Resolve the routes and the amounts of a checkout (no writes).
 
@@ -2008,8 +2270,12 @@ async def _quote_checkout(
     the debited amount if they diverge, so they cannot.
 
     Raises ``checkout.delivery_type.unavailable`` when the chosen delivery
-    mode does not serve the address' destination.
+    mode does not serve the address' destination, and
+    ``checkout.deposit.unavailable`` when a deposit is asked for outside the
+    customer's policy.
     """
+    policy = deposit_policy or DepositPolicy()
+    plan = choose_plan(policy, payment_plan)
     declared_value, total_weight_kg = _compute_checkout_declared_value_and_weight(
         items=items,
         products_by_id=products_by_id,
@@ -2088,6 +2354,10 @@ async def _quote_checkout(
         )
         shipping_fee_input = shipping_cost_summary.total_fee
         shipping_cost_breakdown = serialize_shipping_cost_summary(shipping_cost_summary)
+    # An issued quote names its own delivery fee: the routes are still
+    # resolved (tracking), their tariff is not billed.
+    if fixed_shipping_fee is not None:
+        shipping_fee_input = fixed_shipping_fee
 
     # The fee belongs to the payment method, never to the caller.
     resolved_payment_fee = await _resolve_payment_fee(
@@ -2095,6 +2365,19 @@ async def _quote_checkout(
         payment_method_id=payment_method_id,
         currency=currency,
     )
+    discount_amount = discount.amount if discount is not None else Decimal("0.00")
+    # The deposit fee is a share of what the order would cost without it
+    # (promo discount included: the fee follows what is actually billed).
+    deposit_fee_amount = Decimal("0.00")
+    if plan == PLAN_DEPOSIT:
+        base_total = _snapshot_checkout_amounts(
+            items=items,
+            currency=currency,
+            shipping_fee_amount=shipping_fee_input,
+            payment_fee_amount=resolved_payment_fee,
+            discount_amount=discount_amount,
+        )[4]
+        deposit_fee_amount = deposit_fee(policy, base_total, currency)
     (
         subtotal_amount,
         shipping_fee_amount,
@@ -2106,10 +2389,29 @@ async def _quote_checkout(
         currency=currency,
         shipping_fee_amount=shipping_fee_input,
         payment_fee_amount=resolved_payment_fee,
-        discount_amount=discount.amount if discount is not None else Decimal("0.00"),
+        discount_amount=discount_amount,
+        deposit_fee_amount=deposit_fee_amount,
+    )
+    deposit_amount = balance_amount = Decimal("0.00")
+    if plan == PLAN_DEPOSIT:
+        deposit_amount, balance_amount = deposit_split(policy, total_amount, currency)
+    # The credit settles the part due now, up to what the customer has; the
+    # rest of the credit stays on the account.
+    part_due_now = deposit_amount if plan == PLAN_DEPOSIT else total_amount
+    credit_applied = (
+        min(quantize_amount(store_credit_available, currency), part_due_now)
+        if use_store_credit
+        else Decimal("0.00")
     )
 
     return CheckoutQuote(
+        payment_plan=plan,
+        deposit_policy=policy,
+        deposit_fee_amount=deposit_fee_amount,
+        deposit_amount=deposit_amount,
+        balance_amount=balance_amount,
+        store_credit_available=quantize_amount(store_credit_available, currency),
+        store_credit_applied=credit_applied,
         currency=currency,
         declared_value=declared_value,
         total_weight_kg=total_weight_kg,
@@ -2179,11 +2481,21 @@ async def get_checkout_quote(
     payment_method_id: uuid.UUID | None = Query(
         default=None, description="Chosen payment method (its fee is added)"
     ),
-    # Annotated so a direct call (tests, other routes) gets a real None rather
-    # than the Query marker when the code is omitted.
+    # Annotated so a direct call (tests, other routes) gets real defaults
+    # rather than the Query markers for the parameters it omits.
     discount_code: Annotated[
         str | None, Query(max_length=50, description="Promo code to price")
     ] = None,
+    payment_plan: Annotated[
+        str | None, Query(description="« deposit » to quote a deposit at checkout")
+    ] = None,
+    quote_request_id: Annotated[
+        uuid.UUID | None,
+        Query(description="Issued quote being ordered (its delivery fee)"),
+    ] = None,
+    use_store_credit: Annotated[
+        bool, Query(description="Spend the store credit on the amount due now")
+    ] = False,
 ) -> CheckoutQuoteResponse:
     """The amounts ``POST /cart/checkout`` will bill for the current backend
     cart and these choices — same computation, so the recap is the debit.
@@ -2195,6 +2507,10 @@ async def get_checkout_quote(
     cart = await crud_cart.get_active_cart_by_user(session=session, user_id=user_id)
     currency = cart.currency if cart is not None else settings.REFERENCE_CURRENCY
     zero = quantize_amount(Decimal("0"), currency)
+    policy = DepositPolicy.of(
+        await _resolve_customer_price_group(session, current_user)
+    )
+    credit_available = await store_credit.balance(session, user_id)
     if cart is None:
         return CheckoutQuoteResponse(
             currency=currency,
@@ -2204,6 +2520,11 @@ async def get_checkout_quote(
             total_fees_amount=zero,
             total_amount=zero,
             delivery_type=delivery_type,
+            payment_plan=choose_plan(policy, payment_plan),
+            deposit_available=policy.available,
+            deposit_required=policy.required,
+            deposit_pct=policy.pct,
+            store_credit_available=credit_available,
         )
 
     items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart.id)
@@ -2211,6 +2532,13 @@ async def get_checkout_quote(
     for item in items:
         products_by_id[item.product_id] = await _get_active_product_or_404(
             session, product_id=item.product_id
+        )
+    fixed_shipping_fee: Decimal | None = None
+    # isinstance: called directly (tests) the FastAPI defaults are Query objects.
+    if isinstance(quote_request_id, uuid.UUID):
+        issued = await _load_convertible_quote(session, quote_request_id, current_user)
+        fixed_shipping_fee = Decimal(
+            str((issued.quote_snapshot or {}).get("shipping_fee_amount") or 0)
         )
 
     applied_discount, discount_error = await _resolve_checkout_discount(
@@ -2232,8 +2560,14 @@ async def get_checkout_quote(
         delivery_type=delivery_type,
         payment_method_id=payment_method_id,
         discount=applied_discount,
+        deposit_policy=policy,
+        payment_plan=payment_plan,
+        fixed_shipping_fee=fixed_shipping_fee,
+        store_credit_available=credit_available,
+        use_store_credit=use_store_credit is True,
     )
     return CheckoutQuoteResponse(
+        **quote.deposit_terms(),
         currency=quote.currency,
         subtotal_amount=quote.subtotal_amount,
         shipping_fee_amount=quote.shipping_fee_amount,
@@ -2373,6 +2707,27 @@ async def checkout_my_cart(
             details={"user_id": str(current_user.id)},
         )
 
+    # Ordering an issued quote: the cart is rebuilt from the quote, at the
+    # quoted prices, whatever the browser or the catalogue say.
+    issued_quote_id: uuid.UUID | None = None
+    fixed_shipping_fee: Decimal | None = None
+    if payload.quote_request_id is not None:
+        issued_quote = await _load_convertible_quote(
+            session, payload.quote_request_id, current_user
+        )
+        # Read everything now: the cart rebuild commits and expires the row.
+        issued_quote_id = issued_quote.id
+        fixed_shipping_fee = Decimal(
+            str((issued_quote.quote_snapshot or {}).get("shipping_fee_amount") or 0)
+        )
+        cart_id = cart.id
+        await _install_quote_in_cart(
+            session, cart_id=cart_id, prices=quoted_prices(issued_quote)
+        )
+        cart = await crud_cart.get_or_create_active_cart(
+            session=session, user_id=user_id
+        )
+
     items = await crud_cart_item.get_by_cart_id(session=session, cart_id=cart.id)
     if not items:
         raise AppError(
@@ -2397,12 +2752,14 @@ async def checkout_my_cart(
 
     # Server-authoritative amounts: a line whose price moved since it was
     # added stops the checkout (the cart is refreshed so the client sees why).
-    await _revalidate_checkout_prices(
-        session,
-        items=items,
-        products_by_id=products_by_id,
-        currency=cart.currency,
-    )
+    # A quote is the price the customer was promised: it is billed as is.
+    if issued_quote_id is None:
+        await _revalidate_checkout_prices(
+            session,
+            items=items,
+            products_by_id=products_by_id,
+            currency=cart.currency,
+        )
 
     applied_discount, _ = await _resolve_checkout_discount(
         session,
@@ -2413,6 +2770,7 @@ async def checkout_my_cart(
         currency=cart.currency,
         strict=True,
     )
+    price_group = await _resolve_customer_price_group(session, current_user)
     quote = await _quote_checkout(
         session,
         user_id=user_id,
@@ -2426,6 +2784,15 @@ async def checkout_my_cart(
         shipping_preference=payload.shipping_preference,
         shipping_fee_fallback=payload.shipping_fee_amount,
         discount=applied_discount,
+        deposit_policy=DepositPolicy.of(price_group),
+        payment_plan=payload.payment_plan,
+        fixed_shipping_fee=fixed_shipping_fee,
+        store_credit_available=(
+            await store_credit.balance(session, user_id)
+            if payload.use_store_credit
+            else Decimal("0.00")
+        ),
+        use_store_credit=payload.use_store_credit,
     )
     selected_routes = quote.selected_routes
     priced_routes = quote.priced_routes
@@ -2462,7 +2829,8 @@ async def checkout_my_cart(
     cgv_accepted_at = datetime.now(timezone.utc)
 
     try:
-        price_group = await resolve_default_price_group(session)
+        # Départ groupé ouvert le plus proche (None = boutique classique).
+        departure = await crud_grouped_departure.get_next_open(session)
 
         order_status = await _get_or_create_order_pending_status(session)
         # Human-readable reference allocated up-front (server-side only — the
@@ -2486,8 +2854,12 @@ async def checkout_my_cart(
                 shipping_cost_breakdown=shipping_cost_breakdown_payload,
                 notes=payload.notes,
                 delivery_type=payload.delivery_type,
+                grouped_departure_id=departure.id if departure else None,
                 cgv_accepted_at=cgv_accepted_at,
                 cgv_version=settings.CGV_VERSION,
+                payment_plan=quote.payment_plan,
+                deposit_amount=quote.deposit_amount,
+                deposit_fee_amount=quote.deposit_fee_amount,
             ),
             user=current_user,
         )
@@ -2559,10 +2931,10 @@ async def checkout_my_cart(
                     or settings.REFERENCE_CURRENCY,
                     fx_rate_used=getattr(item, "fx_rate_used", None),
                     customs_rate_pct_snapshot=resolved_customs_rate_pct,
-                    margin_rate_pct_snapshot=getattr(
-                        price_group,
-                        "margin_rate_pct",
-                        None,
+                    # The margin actually applied (product → category →
+                    # group), not the group's: real-margin reports rely on it.
+                    margin_rate_pct_snapshot=await resolve_margin_rate_pct(
+                        session, product, group=price_group
                     ),
                     price_group_id_snapshot=getattr(price_group, "id", None),
                 ),
@@ -2614,20 +2986,38 @@ async def checkout_my_cart(
                     error=str(tracking_exc),
                 )
 
+        payment_kind = KIND_DEPOSIT if quote.payment_plan == PLAN_DEPOSIT else KIND_FULL
         payment_init: PaymentInitiationResult | None = None
-        if payload.payment_method_id is not None:
+        credit_payment = None
+        if quote.store_credit_applied > 0:
+            # The avoir settles its share of the part due now as a payment of
+            # its own; its capture event drives the order once the part is
+            # fully covered (right away when nothing is left to charge).
+            credit_payment = await store_credit.apply_to_order(
+                session,
+                order=order,
+                user=current_user,
+                amount=quote.store_credit_applied,
+                kind=payment_kind,
+            )
+        if credit_payment is not None and quote.amount_due_now <= 0:
+            payment = credit_payment
+        elif payload.payment_method_id is not None:
             # Single-payment flow: create the payment AND run the provider
             # initiation (CB SmartForm / manual / document) in this same
             # transaction. No separate POST /payments/initiate is needed.
+            # On a deposit order only the deposit is charged now; the balance
+            # is a second payment asked for at reception.
             payment_init = await initiate_payment_for_method(
                 session,
                 payment_method_id=payload.payment_method_id,
-                amount=total_amount,
+                amount=quote.amount_due_now,
                 currency=cart.currency,
                 order_id=order.id,
                 return_url=payload.return_url,
                 metadata=None,
                 current_user=current_user,
+                kind=payment_kind,
             )
             payment = payment_init.payment
         else:
@@ -2637,7 +3027,7 @@ async def checkout_my_cart(
             payment = await crud_payment.create_draft(
                 session=session,
                 data=PaymentCreate(
-                    amount=total_amount,
+                    amount=quote.amount_due_now,
                     currency=cart.currency,
                     order_id=order.id,
                     user_id=current_user.id,
@@ -2645,11 +3035,21 @@ async def checkout_my_cart(
                 user=current_user,
             )
             payment.payment_status_id = payment_status.id
+            payment.kind = payment_kind
             session.add(payment)
 
         cart.is_checked_out = True
         cart.total_amount = total_amount
         session.add(cart)
+
+        if issued_quote_id is not None:
+            # The quote is won: it points at its order and cannot be ordered twice.
+            won_quote = await session.get(QuoteRequest, issued_quote_id)
+            if won_quote is not None:
+                won_quote.order_id = order.id
+                won_quote.status = QuoteRequestStatus.WON.value
+                won_quote.handled_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                session.add(won_quote)
 
         for item in items:
             item.is_active = False
@@ -2709,8 +3109,11 @@ async def checkout_my_cart(
         )
 
         return CheckoutResponse(
+            **quote.deposit_terms(),
             order_id=order.id,
             order_number=order.order_number,
+            # getattr: the mocked checkouts of the unit suite build a bare order.
+            grouped_departure_id=getattr(order, "grouped_departure_id", None),
             payment_id=payment.id,
             cart_id=cart.id,
             subtotal_amount=subtotal_amount,

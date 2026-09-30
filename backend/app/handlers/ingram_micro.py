@@ -28,6 +28,10 @@ from app.core.config import settings
 from app.features.integrations.services.supplier_order_service import (
     process_ingram_purchase_order,
 )
+from app.features.order.models.order import Order
+from app.features.payment.models.payment import Payment
+from app.features.payment.services.deposit import KIND_BALANCE
+from app.features.payment.services.store_credit import part_coverage
 from app.outbox.decorators import outbox_handler
 
 logger = logging.getLogger(__name__)
@@ -56,6 +60,37 @@ async def on_payment_captured_create_ingram_order(
             raw_order_id,
         )
         return
+
+    # An order attached to a grouped departure is bought with the departure
+    # (aggregated purchase order at close), never one PO per customer order.
+    order = await session.get(Order, order_id)
+    if order is not None and getattr(order, "grouped_departure_id", None):
+        logger.info(
+            "Order %s belongs to departure %s — no per-order Ingram PO",
+            order_id,
+            order.grouped_departure_id,
+        )
+        return
+
+    # The deposit is what buys the goods: the balance settles an order whose
+    # PO already went out (the service also short-circuits on SUBMITTED). A
+    # part still awaiting its money payment (store credit first) waits too.
+    raw_payment_id = payload.get("payment_id")
+    if raw_payment_id:
+        try:
+            payment = await session.get(Payment, uuid.UUID(str(raw_payment_id)))
+        except (TypeError, ValueError):
+            payment = None
+        if getattr(payment, "kind", None) == KIND_BALANCE:
+            logger.info("Order %s: balance captured — PO already placed", order_id)
+            return
+        if isinstance(payment, Payment) and order is not None:
+            covered, expected, _pending = await part_coverage(
+                session, payment=payment, order=order
+            )
+            if covered < expected:
+                logger.info("Order %s: part not fully paid yet — PO deferred", order_id)
+                return
 
     # reraise_on_api_error=True (default): an Ingram API failure propagates so the
     # outbox dispatcher retries the message with exponential backoff.

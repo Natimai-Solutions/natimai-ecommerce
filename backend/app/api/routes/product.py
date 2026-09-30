@@ -126,6 +126,8 @@ class ProductRouter(
                     # Icecat, and not published as it stands by the admin.
                     conditions.append(col(Product.is_active).is_(True))
                     conditions.append(not_(content_ready_condition()))
+                elif status == "draft":
+                    conditions.append(col(Product.is_draft).is_(True))
                 term = (search or "").strip()
                 if term:
                     pattern = f"%{term}%"

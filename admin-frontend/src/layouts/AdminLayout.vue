@@ -93,6 +93,7 @@ const allNav: NavSection[] = [
     label: 'Commandes',
     links: [
       { label: 'Commandes clients', icon: 'receipt_long', to: '/orders' },
+      { label: 'Départs groupés', icon: 'event_available', to: '/grouped-departures' },
       { label: 'Factures', icon: 'request_quote', to: '/invoices' },
       { label: 'Avoirs', icon: 'receipt', to: '/credit-notes' },
       { label: 'Demandes de devis', icon: 'request_page', to: '/quote-requests' },
@@ -122,7 +123,10 @@ const allNav: NavSection[] = [
   },
   {
     label: 'Système',
-    links: [{ label: 'Paramètres', icon: 'settings', to: '/system-settings' }],
+    links: [
+      { label: 'Paramètres', icon: 'settings', to: '/system-settings' },
+      { label: 'Pages du site', icon: 'article', to: '/pages' },
+    ],
   },
 ];
 

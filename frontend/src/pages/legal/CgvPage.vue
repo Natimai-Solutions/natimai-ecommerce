@@ -7,8 +7,9 @@
   éditables depuis le back-office et partagées avec les factures.
 -->
 <template>
-  <q-page class="legal-page q-pa-md">
-    <div class="legal-page__content">
+  <!-- A CGV page published from the back-office replaces this default text. -->
+  <DbContentPage slug="cgv" fallback-title="Conditions générales de vente">
+    <template #fallback>
       <h1 class="text-h4 text-weight-bold q-mb-xs">Conditions générales de vente</h1>
       <p class="text-caption text-grey-7 q-mb-lg">
         Version du <LegalValue :value="legalEntity.cgvVersionDate" />.
@@ -136,12 +137,13 @@
         À défaut, les tribunaux de Papeete sont compétents, sous réserve des
         règles d'ordre public applicables.
       </p>
-    </div>
-  </q-page>
+    </template>
+  </DbContentPage>
 </template>
 
 <script setup lang="ts">
 import { computed, onServerPrefetch } from 'vue';
+import DbContentPage from 'src/components/DbContentPage.vue';
 import LegalValue from 'src/components/LegalValue.vue';
 import { useLegalEntityStore } from 'src/stores/legalEntity';
 
@@ -154,10 +156,3 @@ void store.load();
 const legalEntity = computed(() => store.entity);
 </script>
 
-<style scoped lang="scss">
-.legal-page__content {
-  width: min(860px, 100%);
-  margin: 0 auto;
-  line-height: 1.65;
-}
-</style>

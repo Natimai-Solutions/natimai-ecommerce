@@ -3,6 +3,8 @@ from app.features.analytic.models.analytic_sale import AnalyticsSale
 from app.features.analytic.models.analytic_user import AnalyticsUser
 from app.features.cart.models.cart import Cart, CartItem
 from app.features.cart.models.quote_request import QuoteRequest
+from app.features.content.models import ContentPage
+from app.features.departure.models import DepartureReminder, GroupedDeparture
 from app.features.discount.models import Discount
 from app.features.integrations.models.supplier import Supplier
 from app.features.integrations.models.supplier_order import SupplierOrder
@@ -28,13 +30,16 @@ from app.features.payment.models.payment_method_eligibility import (
 from app.features.payment.models.payment_status import PaymentStatus
 from app.features.payment.models.payment_validation import PaymentValidation
 from app.features.payment.models.refund import Refund
+from app.features.payment.models.store_credit import StoreCreditEntry
 from app.features.place.models import Place, PlacePostalCode
 from app.features.product.models.brand import Brand
 from app.features.product.models.category import Category
 from app.features.product.models.price_group import PriceGroup
+from app.features.product.models.price_history import ProductPriceEntry
 from app.features.product.models.product import Product
 from app.features.product.models.product_view import ProductViewDaily
 from app.features.product.models.spec_definition import SpecDefinition
+from app.features.product.models.stock_alert import StockAlert
 from app.features.product.models.tax_rate import TaxRate
 from app.features.shipping.models.carrier import Carrier
 from app.features.shipping.models.delivery_task import DeliveryTask
@@ -87,6 +92,9 @@ __all__ = [
     "PaymentLog",
     "PaymentMethod",
     "PaymentStatus",
+    "StockAlert",
+    "ProductPriceEntry",
+    "StoreCreditEntry",
     "PaymentValidation",
     "Place",
     "PlacePostalCode",
@@ -119,6 +127,9 @@ __all__ = [
     "CreditNote",
     "CreditNoteCounter",
     "ProductViewDaily",
+    "ContentPage",
+    "DepartureReminder",
+    "GroupedDeparture",
     "Invoice",
     "InvoiceCounter",
 ]

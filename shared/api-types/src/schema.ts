@@ -873,6 +873,48 @@ export interface paths {
         patch: operations["admin-quote-requests-update_quote_request"];
         trace?: never;
     };
+    "/api/v1/admin/quote-requests/{quote_id}/issue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue Quote Request
+         * @description Émettre (ou ré-émettre) le devis : lignes au prix consenti, livraison,
+         *     validité, message ; numéro DEV alloué la première fois ; PDF envoyé au
+         *     client par e-mail quand ``send_email`` est vrai.
+         */
+        post: operations["admin-quote-requests-issue_quote_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/quote-requests/{quote_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Quote Pdf
+         * @description Le PDF du devis émis.
+         */
+        get: operations["admin-quote-requests-download_quote_pdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/orders": {
         parameters: {
             query?: never;
@@ -893,6 +935,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/orders/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Orders Csv
+         * @description Raw export of the filtered orders (one row per order).
+         */
+        get: operations["admin-order-export_orders_csv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/sku-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sku Summary
+         * @description Filtered orders aggregated by supplier × SKU (the purchase order).
+         */
+        get: operations["admin-order-sku_summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/sku-summary.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sku Summary Csv
+         * @description Same aggregation as ``/sku-summary``, as a downloadable CSV.
+         */
+        get: operations["admin-order-sku_summary_csv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/statuses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Order Statuses
+         * @description Every order status name, payment ones first then the fulfilment steps.
+         */
+        get: operations["admin-order-list_order_statuses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/{order_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change Order Status
+         * @description Move one order to a status by hand (the bulk path is the departure).
+         */
+        post: operations["admin-order-change_order_status"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/orders/{order_id}": {
         parameters: {
             query?: never;
@@ -907,6 +1049,293 @@ export interface paths {
         get: operations["admin-order-get_order_detail"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/{order_id}/request-balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Order Balance
+         * @description Send (or re-send) the balance request e-mail of a deposit order — the
+         *     automatic one goes out when the order is received.
+         */
+        post: operations["admin-order-request_order_balance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Departures
+         * @description All departures, nearest cutoff first, with their order count and total.
+         */
+        get: operations["admin-grouped-departures-list_departures"];
+        put?: never;
+        /**
+         * Create Departure
+         * @description Create a departure with its default reminders (J-7, J-2, last day).
+         */
+        post: operations["admin-grouped-departures-create_departure"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/{departure_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Departure
+         * @description Delete a departure that has no order attached (409 otherwise: move the
+         *     orders first, the attachment is part of the customer's promise).
+         */
+        delete: operations["admin-grouped-departures-delete_departure"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Departure
+         * @description Partial update: dates, publication, status, thresholds, notes.
+         *
+         *     A status change is pushed to the orders that follow the departure
+         *     (paid or already on the way) and each one e-mails its customer.
+         */
+        patch: operations["admin-grouped-departures-update_departure"];
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/assign-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assign Orders
+         * @description Attach / move / detach orders. Unknown order ids are ignored.
+         */
+        post: operations["admin-grouped-departures-assign_orders"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/{departure_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close Departure Endpoint
+         * @description Close the departure: live supplier stock check on every ordered
+         *     product, thresholds, next departure when recurring. The result lists what
+         *     is left to arbitrate (shortages, unpaid orders).
+         */
+        post: operations["admin-grouped-departures-close_departure_endpoint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/{departure_id}/supplier-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Supplier Order
+         * @description Record the real purchase order placed with a supplier (number, date,
+         *     amount). The first one moves the departure to « ordered » (and its
+         *     orders to « commandée au fournisseur »).
+         */
+        post: operations["admin-grouped-departures-add_supplier_order"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/{departure_id}/supplier-orders/{index}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Supplier Order
+         * @description Remove a recorded purchase order (typo, wrong supplier).
+         */
+        delete: operations["admin-grouped-departures-remove_supplier_order"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/{departure_id}/reception": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Reception
+         * @description Tally per product (expected from the orders, received, damaged, serial
+         *     numbers) and the orders served / partially served / not served.
+         */
+        get: operations["admin-grouped-departures-get_reception"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/{departure_id}/reception/{product_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Reception Line
+         * @description Record what came in for one product. The serial numbers are handed to
+         *     the order lines in order of order date; the report is returned.
+         */
+        put: operations["admin-grouped-departures-put_reception_line"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/{departure_id}/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dashboard
+         * @description Revenue, cash collected, goods cost, real shipment costs and margin.
+         */
+        get: operations["admin-grouped-departures-get_dashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/{departure_id}/reminders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Reminders
+         * @description Reminders of a departure, soonest first, with the text as it will post.
+         */
+        get: operations["admin-grouped-departures-list_reminders"];
+        put?: never;
+        /**
+         * Create Reminder
+         * @description Schedule a reminder N days before the cutoff (or the departure).
+         */
+        post: operations["admin-grouped-departures-create_reminder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/reminders/{reminder_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Reminder
+         * @description Drop a reminder (soft).
+         */
+        delete: operations["admin-grouped-departures-delete_reminder"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Reminder
+         * @description Edit a reminder that has not fired yet; it is rescheduled.
+         */
+        patch: operations["admin-grouped-departures-update_reminder"];
+        trace?: never;
+    };
+    "/api/v1/admin/grouped-departures/reminders/{reminder_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish Reminder Now
+         * @description Post the reminder right now, whatever its schedule.
+         */
+        post: operations["admin-grouped-departures-publish_reminder_now"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1526,6 +1955,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/products/publish-drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Publish Drafts
+         * @description Take products out of draft. Publication then follows the usual gates
+         *     (active, enriched, priceable): nothing else is forced here.
+         */
+        post: operations["admin-product-admin_publish_drafts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/products/{product_id}/price-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Product Price History
+         * @description The product's price journal, newest first: every change of the
+         *     storefront price with what caused it.
+         */
+        get: operations["admin-product-admin_product_price_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/products/{product_id}": {
         parameters: {
             query?: never;
@@ -1634,6 +2105,26 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/price-groups/{group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Price Group
+         * @description Partial update (deposit policy: share, fee, imposed or offered).
+         */
+        patch: operations["admin-price-groups-update_price_group"];
         trace?: never;
     };
     "/api/v1/admin/currency-rates": {
@@ -2132,6 +2623,33 @@ export interface paths {
          * @description Partial update; the adapter instance is rebuilt on the next use.
          */
         patch: operations["admin-suppliers-update_supplier"];
+        trace?: never;
+    };
+    "/api/v1/admin/suppliers/{code}/sku-allowlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sku Allowlist
+         * @description The references the shop follows at this supplier, against its catalogue.
+         */
+        get: operations["admin-suppliers-get_sku_allowlist"];
+        /**
+         * Put Sku Allowlist
+         * @description Replace the list (empty clears it: the whole catalogue is followed).
+         *
+         *     Managed products outside a non-empty list leave the storefront now; the
+         *     listed ones are created or refreshed by the next syncs.
+         */
+        put: operations["admin-suppliers-put_sku_allowlist"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/admin/spec-definitions": {
@@ -2720,6 +3238,68 @@ export interface paths {
          * @description Create a quote request from the active cart and notify support.
          */
         post: operations["cart-create_quote_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/quote-requests/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Quotes
+         * @description The customer's quote requests and issued quotes, newest first.
+         */
+        get: operations["cart-list_my_quotes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/quote-requests/me/{quote_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download My Quote Pdf
+         * @description The PDF of one of the customer's issued quotes.
+         */
+        get: operations["cart-download_my_quote_pdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/quote-requests/me/{quote_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept My Quote
+         * @description Load the quote into the cart at the quoted prices; the checkout then
+         *     orders it with ``quote_request_id`` (which rebuilds the cart the same way,
+         *     so nothing typed in between can change the amounts).
+         */
+        post: operations["cart-accept_my_quote"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3355,6 +3935,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orders/me/{order_id}/lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lines of my order, with serial numbers and warranty end
+         * @description Products of the order; serial numbers and warranty end once received.
+         */
+        get: operations["order-get_my_order_lines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orders/me/{order_id}/tracking": {
         parameters: {
             query?: never;
@@ -3367,6 +3967,28 @@ export interface paths {
          * @description Return aggregated tracking information for one of the authenticated user's orders.
          */
         get: operations["order-get_my_order_tracking"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orders/track/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Follow an order from the signed link in its e-mails (no account)
+         * @description The link in the order e-mails carries a signature of the order id:
+         *     it opens that one order's tracking, read-only, without signing in.
+         *     A wrong or missing signature reads like an unknown order.
+         */
+        get: operations["order-track_order_by_link"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4556,6 +5178,9 @@ export interface paths {
         /**
          * Admin Upsert Setting
          * @description Create or update a system setting.
+         *
+         *     A pricing parameter is checked (a number within its bounds) and, once
+         *     saved, re-prices the whole catalogue in the background.
          */
         put: operations["system-admin_upsert_setting"];
         post?: never;
@@ -4580,6 +5205,216 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pages/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Page
+         * @description A published page (no auth). The storefront sanitises the HTML.
+         */
+        get: operations["content-pages-get_public_page"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Pages
+         * @description Every page, published or not.
+         */
+        get: operations["content-pages-list_pages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/pages/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upsert Page
+         * @description Create or replace a page by slug (title, body, publication).
+         */
+        put: operations["content-pages-upsert_page"];
+        post?: never;
+        /**
+         * Delete Page
+         * @description Remove a page (a built-in legal page falls back to its default text).
+         */
+        delete: operations["content-pages-delete_page"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/grouped-departures/next": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Next Departure
+         * @description The departure new orders are attached to right now, or ``null``.
+         */
+        get: operations["grouped-departures-next_departure"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/grouped-departures/{departure_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Departure
+         * @description A published departure (any status): the customer follows their order's
+         *     departure until it is distributed.
+         */
+        get: operations["grouped-departures-get_departure"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/store-credit/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Store Credit
+         * @description The customer's credit balance and its history.
+         */
+        get: operations["store-credit-my_store_credit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/store-credit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * User Store Credit
+         * @description A customer's credit balance and ledger.
+         */
+        get: operations["store-credit-user_store_credit"];
+        put?: never;
+        /**
+         * Grant Store Credit
+         * @description Grant credit (positive amount) or take it back (negative), with a
+         *     reason; optionally tied to the order it compensates.
+         */
+        post: operations["store-credit-grant_store_credit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stock-alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Subscribe Stock Alert
+         * @description Ask to be told when the product is orderable again (idempotent).
+         */
+        post: operations["stock-alerts-subscribe_stock_alert"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stock-alerts/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Stock Alerts
+         * @description The customer's alerts (by account, or by the account's e-mail).
+         */
+        get: operations["stock-alerts-list_my_stock_alerts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stock-alerts/{alert_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Cancel My Stock Alert
+         * @description Cancel one of the customer's pending alerts.
+         */
+        delete: operations["stock-alerts-cancel_my_stock_alert"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6531,8 +7366,34 @@ export interface components {
             shipping_address?: string | null;
             /** Delivery Type */
             delivery_type?: string | null;
+            /** Grouped Departure Id */
+            grouped_departure_id?: string | null;
             /** Notes */
             notes?: string | null;
+            /**
+             * Payment Plan
+             * @default full
+             */
+            payment_plan: string;
+            /**
+             * Deposit Amount
+             * @default 0
+             */
+            deposit_amount: number;
+            /**
+             * Deposit Fee Amount
+             * @default 0
+             */
+            deposit_fee_amount: number;
+            /**
+             * Balance Amount
+             * @default 0
+             */
+            balance_amount: number;
+            /** Balance Requested At */
+            balance_requested_at?: string | null;
+            /** Balance Paid At */
+            balance_paid_at?: string | null;
             /** Lines */
             lines: components["schemas"]["AdminOrderLineItem"][];
             /** Payments */
@@ -6567,6 +7428,8 @@ export interface components {
              * Format: uuid
              */
             order_id: string;
+            /** Order Number */
+            order_number?: string | null;
             /** Created At */
             created_at?: string | null;
             /**
@@ -6582,6 +7445,10 @@ export interface components {
             status?: string | null;
             /** Total Amount */
             total_amount: number;
+            /** Currency */
+            currency?: string | null;
+            /** Grouped Departure Id */
+            grouped_departure_id?: string | null;
         };
         /**
          * AdminOrderPaymentItem
@@ -6603,6 +7470,11 @@ export interface components {
             currency: string;
             /** Status */
             status?: string | null;
+            /**
+             * Kind
+             * @default full
+             */
+            kind: string;
             /** Created At */
             created_at?: string | null;
             /**
@@ -6648,7 +7520,8 @@ export interface components {
         };
         /**
          * AdminQuoteRequestDetail
-         * @description Le détail, avec le panier figé au moment de la demande.
+         * @description Le détail, avec le panier figé au moment de la demande et, une fois
+         *     émis, le devis lui-même (numéro, validité, lignes consenties).
          */
         AdminQuoteRequestDetail: {
             /**
@@ -6676,6 +7549,8 @@ export interface components {
             subtotal_amount?: string | null;
             /** Handled At */
             handled_at?: string | null;
+            /** Quote Number */
+            quote_number?: string | null;
             /** Shipping Address */
             shipping_address?: string | null;
             /** Notes */
@@ -6686,6 +7561,18 @@ export interface components {
             items?: {
                 [key: string]: string | null;
             }[];
+            /** Quoted At */
+            quoted_at?: string | null;
+            /** Valid Until */
+            valid_until?: string | null;
+            /** Order Id */
+            order_id?: string | null;
+            /** Quote Snapshot */
+            quote_snapshot?: {
+                [key: string]: unknown;
+            } | null;
+            /** Proposed Lines */
+            proposed_lines?: components["schemas"]["QuoteLine-Output"][];
         };
         /**
          * AdminQuoteRequestListItem
@@ -6717,6 +7604,8 @@ export interface components {
             subtotal_amount?: string | null;
             /** Handled At */
             handled_at?: string | null;
+            /** Quote Number */
+            quote_number?: string | null;
         };
         /**
          * AdminReviewBody
@@ -6844,6 +7733,55 @@ export interface components {
             next_tracking_id?: string | null;
             /** Message */
             message: string;
+        };
+        /**
+         * AllowlistEntry
+         * @description One listed SKU and the product it currently matches, if any.
+         */
+        AllowlistEntry: {
+            /** Supplier Sku */
+            supplier_sku: string;
+            /** Product Id */
+            product_id?: string | null;
+            /** Product Name */
+            product_name?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
+        /**
+         * AllowlistView
+         * @description What the admin sees: the list, what is known, what will come.
+         */
+        AllowlistView: {
+            /** Supplier Name */
+            supplier_name: string;
+            /** Entries */
+            entries?: components["schemas"]["AllowlistEntry"][];
+            /**
+             * Known
+             * @default 0
+             */
+            known: number;
+            /** Unknown */
+            unknown?: string[];
+            /**
+             * Outside
+             * @default 0
+             */
+            outside: number;
+            /**
+             * Deactivated
+             * @default 0
+             */
+            deactivated: number;
+        };
+        /**
+         * AllowlistWrite
+         * @description The whole list (replaces the previous one; empty clears it).
+         */
+        AllowlistWrite: {
+            /** Skus */
+            skus?: string[];
         };
         /**
          * AnalyticsProductCreate
@@ -7375,6 +8313,24 @@ export interface components {
             count: number;
         };
         /**
+         * AssignOrdersRequest
+         * @description Attach orders to a departure, move them, or detach them (``null``).
+         */
+        AssignOrdersRequest: {
+            /** Order Ids */
+            order_ids: string[];
+            /** Departure Id */
+            departure_id?: string | null;
+        };
+        /**
+         * AssignOrdersResponse
+         * @description Represents assign orders response.
+         */
+        AssignOrdersResponse: {
+            /** Updated */
+            updated: number;
+        };
+        /**
          * AssignPriceGroupBody
          * @description Assign a price group directly to a user.
          */
@@ -7395,6 +8351,20 @@ export interface components {
             /** Expires In */
             expires_in: number;
         };
+        /**
+         * AvailabilityMode
+         * @description Whether a product can be ordered beyond the stock known at checkout.
+         *
+         *     * ``stock`` — historical behaviour: local + supplier stock must cover the
+         *       quantity and is reserved at checkout.
+         *     * ``on_demand`` — pre-order (« sur commande ») : orderable as long as the
+         *       supplier shows *some* stock at the last refresh, without reservation;
+         *       bought from the supplier when the grouped departure closes.
+         *     * ``continuous`` — always orderable (consolidated accessories), shipped
+         *       with the next departure; no stock check at all.
+         * @enum {string}
+         */
+        AvailabilityMode: "stock" | "on_demand" | "continuous" | "lot";
         /**
          * BatchEnrichmentRequest
          * @description Request model for batch enrichment
@@ -8004,6 +8974,63 @@ export interface components {
          *     as the checkout, so the recap the customer reads is the amount debited.
          */
         CheckoutQuoteResponse: {
+            /**
+             * Payment Plan
+             * @description full | deposit
+             * @default full
+             */
+            payment_plan: string;
+            /**
+             * Deposit Available
+             * @description The customer's group offers a deposit
+             * @default false
+             */
+            deposit_available: boolean;
+            /**
+             * Deposit Required
+             * @description The deposit is imposed by the group
+             * @default false
+             */
+            deposit_required: boolean;
+            /**
+             * Deposit Pct
+             * @description Share paid now (%)
+             */
+            deposit_pct?: string | null;
+            /**
+             * Deposit Fee Amount
+             * @description Fee of the deposit option (in total)
+             * @default 0.00
+             */
+            deposit_fee_amount: string;
+            /**
+             * Deposit Amount
+             * @description Charged now on a deposit order
+             * @default 0.00
+             */
+            deposit_amount: string;
+            /**
+             * Balance Amount
+             * @description Asked for at reception
+             * @default 0.00
+             */
+            balance_amount: string;
+            /**
+             * Store Credit Available
+             * @default 0.00
+             */
+            store_credit_available: string;
+            /**
+             * Store Credit Applied
+             * @default 0.00
+             */
+            store_credit_applied: string;
+            /**
+             * Amount Due Now
+             * @description Charged by the payment method now (0 = settled by credit)
+             * @default 0.00
+             */
+            amount_due_now: string;
             /** Currency */
             currency: string;
             /**
@@ -8133,6 +9160,22 @@ export interface components {
              * @description Promo code to apply (validated and priced server-side)
              */
             discount_code?: string | null;
+            /**
+             * Payment Plan
+             * @description « deposit » to pay a deposit now and the balance at reception, « full » (default) to pay everything now. Subject to the deposit policy of the customer's price group.
+             */
+            payment_plan?: string | null;
+            /**
+             * Quote Request Id
+             * @description Order an issued quote: the cart is rebuilt from its lines at the quoted prices and delivery fee, whatever the catalogue says now.
+             */
+            quote_request_id?: string | null;
+            /**
+             * Use Store Credit
+             * @description Spend the customer's store credit on the amount due now
+             * @default false
+             */
+            use_store_credit: boolean;
         };
         /**
          * CheckoutResponse
@@ -8140,12 +9183,71 @@ export interface components {
          */
         CheckoutResponse: {
             /**
+             * Payment Plan
+             * @description full | deposit
+             * @default full
+             */
+            payment_plan: string;
+            /**
+             * Deposit Available
+             * @description The customer's group offers a deposit
+             * @default false
+             */
+            deposit_available: boolean;
+            /**
+             * Deposit Required
+             * @description The deposit is imposed by the group
+             * @default false
+             */
+            deposit_required: boolean;
+            /**
+             * Deposit Pct
+             * @description Share paid now (%)
+             */
+            deposit_pct?: string | null;
+            /**
+             * Deposit Fee Amount
+             * @description Fee of the deposit option (in total)
+             * @default 0.00
+             */
+            deposit_fee_amount: string;
+            /**
+             * Deposit Amount
+             * @description Charged now on a deposit order
+             * @default 0.00
+             */
+            deposit_amount: string;
+            /**
+             * Balance Amount
+             * @description Asked for at reception
+             * @default 0.00
+             */
+            balance_amount: string;
+            /**
+             * Store Credit Available
+             * @default 0.00
+             */
+            store_credit_available: string;
+            /**
+             * Store Credit Applied
+             * @default 0.00
+             */
+            store_credit_applied: string;
+            /**
+             * Amount Due Now
+             * @description Charged by the payment method now (0 = settled by credit)
+             * @default 0.00
+             */
+            amount_due_now: string;
+            /**
              * Order Id
              * Format: uuid
              */
             order_id: string;
             /** Order Number */
             order_number?: string | null;
+            /** Grouped Departure Id */
+            grouped_departure_id?: string | null;
             /**
              * Payment Id
              * Format: uuid
@@ -8217,6 +9319,42 @@ export interface components {
          */
         CheckoutShippingPreference: "fastest" | "eco_friendly" | "cheapest";
         /**
+         * CloseRequest
+         * @description ``force`` closes even when a minimum threshold is not reached.
+         */
+        CloseRequest: {
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+        };
+        /**
+         * CloseResult
+         * @description What the admin has to arbitrate after a close.
+         */
+        CloseResult: {
+            /**
+             * Departure Id
+             * Format: uuid
+             */
+            departure_id: string;
+            /** Closed */
+            closed: boolean;
+            /** Orders Count */
+            orders_count: number;
+            /** Orders Total */
+            orders_total: string;
+            /** Threshold Reached */
+            threshold_reached: boolean;
+            /** Shortages */
+            shortages: components["schemas"]["Shortage"][];
+            /** Unpaid Order Ids */
+            unpaid_order_ids: string[];
+            /** Next Departure Id */
+            next_departure_id?: string | null;
+        };
+        /**
          * CommerceObservabilityMetrics
          * @description Represents commerce observability metrics.
          */
@@ -8256,6 +9394,83 @@ export interface components {
             name: string;
             /** Notes */
             notes?: string | null;
+        };
+        /**
+         * ContentPagePublic
+         * @description Admin view.
+         */
+        ContentPagePublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * Slug
+             * @description URL key, e.g. comment-ca-marche
+             */
+            slug: string;
+            /** Title */
+            title: string;
+            /**
+             * Body Html
+             * @description HTML from the admin editor
+             * @default
+             */
+            body_html: string;
+            /**
+             * Is Published
+             * @default false
+             */
+            is_published: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /**
+         * ContentPageSummary
+         * @description Storefront view: what the page shows, nothing more.
+         */
+        ContentPageSummary: {
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+            /** Body Html */
+            body_html: string;
+        };
+        /**
+         * ContentPageWrite
+         * @description Admin upsert payload (the slug is in the URL).
+         */
+        ContentPageWrite: {
+            /** Title */
+            title: string;
+            /**
+             * Body Html
+             * @default
+             */
+            body_html: string;
+            /**
+             * Is Published
+             * @default false
+             */
+            is_published: boolean;
         };
         /**
          * CreditNotePublic
@@ -8606,6 +9821,142 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * DepartureDashboard
+         * @description Money view of a departure (XPF).
+         */
+        DepartureDashboard: {
+            /**
+             * Departure Id
+             * Format: uuid
+             */
+            departure_id: string;
+            /** Orders Count */
+            orders_count: number;
+            /** Units */
+            units: number;
+            /** Revenue */
+            revenue: string;
+            /** Collected */
+            collected: string;
+            /** Goods Cost Estimated */
+            goods_cost_estimated: string;
+            /** Supplier Paid */
+            supplier_paid: string;
+            /** Unconverted Currencies */
+            unconverted_currencies: string[];
+            /** Goods Cost Source */
+            goods_cost_source: string;
+            /** Freight Cost */
+            freight_cost: string;
+            /** Customs Cost */
+            customs_cost: string;
+            /** Other Costs */
+            other_costs: string;
+            /** Gross Margin */
+            gross_margin: string;
+            /** Margin Rate Pct */
+            margin_rate_pct: string | null;
+        };
+        /**
+         * DepartureReminderPublic
+         * @description Admin view, with the message as it will be posted.
+         */
+        DepartureReminderPublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * Grouped Departure Id
+             * Format: uuid
+             */
+            grouped_departure_id: string;
+            /**
+             * Offset Days
+             * @description Days before the anchor date (0 = the day itself)
+             */
+            offset_days: number;
+            /**
+             * Anchor
+             * @description cutoff | departure
+             * @default cutoff
+             */
+            anchor: string;
+            /**
+             * Channel
+             * @default webhook
+             */
+            channel: string;
+            /**
+             * Message Template
+             * @description Text with {name}, {cutoff_date}, {days_left}…
+             */
+            message_template: string;
+            /** Image Url */
+            image_url?: string | null;
+            /**
+             * Status
+             * @default scheduled
+             */
+            status: string;
+            /**
+             * Scheduled At
+             * Format: date-time
+             * @description When it fires (anchor − offset, 09:00 local)
+             */
+            scheduled_at: string;
+            /** Sent At */
+            sent_at?: string | null;
+            /** Error */
+            error?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Rendered Text
+             * @default
+             */
+            rendered_text: string;
+        };
+        /**
+         * DepartureReminderWrite
+         * @description Admin create / update payload (the fire time is derived).
+         */
+        DepartureReminderWrite: {
+            /** Offset Days */
+            offset_days: number;
+            /**
+             * Anchor
+             * @default cutoff
+             */
+            anchor: string;
+            /**
+             * Channel
+             * @default webhook
+             */
+            channel: string;
+            /** Message Template */
+            message_template: string;
+            /** Image Url */
+            image_url?: string | null;
         };
         /**
          * DiscountCreate
@@ -9471,6 +10822,292 @@ export interface components {
             count: number;
         };
         /**
+         * GroupedDepartureCreate
+         * @description Represents grouped departure create.
+         */
+        GroupedDepartureCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Name
+             * @description Ex. « Départ d'octobre »
+             */
+            name: string;
+            /**
+             * Order Cutoff At
+             * Format: date-time
+             * @description Date limite de commande — la date affichée en vitrine
+             */
+            order_cutoff_at: string;
+            /**
+             * Estimated Delivery At
+             * @description Date de remise estimée au client
+             */
+            estimated_delivery_at?: string | null;
+            /**
+             * Departure At
+             * @description Départ physique du groupage, si différent de la clôture
+             */
+            departure_at?: string | null;
+            /**
+             * Status
+             * @description draft | open | closed | ordered | in_transit | at_customs | received | distributed
+             * @default open
+             */
+            status: string;
+            /**
+             * Is Published
+             * @description Visible en vitrine (bandeau, fiche produit, checkout)
+             * @default false
+             */
+            is_published: boolean;
+            /**
+             * Min Amount
+             * @description Seuil de montant en dessous duquel le départ est reporté
+             */
+            min_amount?: number | string | null;
+            /**
+             * Min Units
+             * @description Seuil de pièces en dessous duquel le départ est reporté
+             */
+            min_units?: number | null;
+            /**
+             * Recurrence Days
+             * @description À la clôture, crée le départ suivant N jours plus tard
+             */
+            recurrence_days?: number | null;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Supplier Orders
+             * @description Bons de commande passés
+             */
+            supplier_orders?: {
+                [key: string]: unknown;
+            }[] | null;
+            /**
+             * Consolidation Id
+             * @description Consolidation logistique portant le transport de ce départ
+             */
+            consolidation_id?: string | null;
+            /**
+             * Freight Cost
+             * @description Fret réel
+             */
+            freight_cost?: number | string | null;
+            /**
+             * Customs Cost
+             * @description Douane réelle
+             */
+            customs_cost?: number | string | null;
+            /**
+             * Other Costs
+             * @description Autres frais réels (assurance, transitaire…)
+             */
+            other_costs?: number | string | null;
+        };
+        /**
+         * GroupedDeparturePublic
+         * @description Admin view: every field plus the audit columns.
+         */
+        GroupedDeparturePublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * Name
+             * @description Ex. « Départ d'octobre »
+             */
+            name: string;
+            /**
+             * Order Cutoff At
+             * Format: date-time
+             * @description Date limite de commande — la date affichée en vitrine
+             */
+            order_cutoff_at: string;
+            /**
+             * Estimated Delivery At
+             * @description Date de remise estimée au client
+             */
+            estimated_delivery_at?: string | null;
+            /**
+             * Departure At
+             * @description Départ physique du groupage, si différent de la clôture
+             */
+            departure_at?: string | null;
+            /**
+             * Status
+             * @description draft | open | closed | ordered | in_transit | at_customs | received | distributed
+             * @default open
+             */
+            status: string;
+            /**
+             * Is Published
+             * @description Visible en vitrine (bandeau, fiche produit, checkout)
+             * @default false
+             */
+            is_published: boolean;
+            /**
+             * Min Amount
+             * @description Seuil de montant en dessous duquel le départ est reporté
+             */
+            min_amount?: string | null;
+            /**
+             * Min Units
+             * @description Seuil de pièces en dessous duquel le départ est reporté
+             */
+            min_units?: number | null;
+            /**
+             * Recurrence Days
+             * @description À la clôture, crée le départ suivant N jours plus tard
+             */
+            recurrence_days?: number | null;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Supplier Orders
+             * @description Bons de commande passés
+             */
+            supplier_orders?: {
+                [key: string]: unknown;
+            }[] | null;
+            /**
+             * Consolidation Id
+             * @description Consolidation logistique portant le transport de ce départ
+             */
+            consolidation_id?: string | null;
+            /**
+             * Freight Cost
+             * @description Fret réel
+             */
+            freight_cost?: string | null;
+            /**
+             * Customs Cost
+             * @description Douane réelle
+             */
+            customs_cost?: string | null;
+            /**
+             * Other Costs
+             * @description Autres frais réels (assurance, transitaire…)
+             */
+            other_costs?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Orders Count
+             * @default 0
+             */
+            orders_count: number;
+            /**
+             * Orders Total
+             * @default 0
+             */
+            orders_total: string;
+            /**
+             * Orders Updated
+             * @default 0
+             */
+            orders_updated: number;
+        };
+        /**
+         * GroupedDepartureSummary
+         * @description Storefront view (no auth): what a customer needs to know, nothing more.
+         */
+        GroupedDepartureSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Order Cutoff At
+             * Format: date-time
+             */
+            order_cutoff_at: string;
+            /** Estimated Delivery At */
+            estimated_delivery_at?: string | null;
+            /** Departure At */
+            departure_at?: string | null;
+            /** Status */
+            status: string;
+        };
+        /**
+         * GroupedDepartureUpdate
+         * @description Represents grouped departure update (partial).
+         */
+        GroupedDepartureUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Order Cutoff At */
+            order_cutoff_at?: string | null;
+            /** Estimated Delivery At */
+            estimated_delivery_at?: string | null;
+            /** Departure At */
+            departure_at?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Is Published */
+            is_published?: boolean | null;
+            /** Min Amount */
+            min_amount?: number | string | null;
+            /** Min Units */
+            min_units?: number | null;
+            /** Recurrence Days */
+            recurrence_days?: number | null;
+            /** Notes */
+            notes?: string | null;
+            /** Consolidation Id */
+            consolidation_id?: string | null;
+            /** Supplier Orders */
+            supplier_orders?: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Freight Cost */
+            freight_cost?: number | string | null;
+            /** Customs Cost */
+            customs_cost?: number | string | null;
+            /** Other Costs */
+            other_costs?: number | string | null;
+        };
+        /**
          * GroupsPublic
          * @description Paginated list of groups
          */
@@ -10106,6 +11743,32 @@ export interface components {
             task_id?: string | null;
         };
         /**
+         * MyOrderLine
+         * @description An order line as the customer sees it: product, serials, warranty.
+         */
+        MyOrderLine: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Product Name */
+            product_name: string;
+            /** Quantity */
+            quantity: number;
+            /** Unit Price */
+            unit_price: string;
+            /**
+             * Serial Numbers
+             * @default []
+             */
+            serial_numbers: string[];
+            /** Warranty Months */
+            warranty_months?: number | null;
+            /** Warranty Until */
+            warranty_until?: string | null;
+        };
+        /**
          * MyOrderPublic
          * @description Order summary for the customer, enriched with the human-readable status name.
          */
@@ -10214,6 +11877,11 @@ export interface components {
              */
             delivery_type?: string | null;
             /**
+             * Grouped Departure Id
+             * @description Départ groupé de rattachement
+             */
+            grouped_departure_id?: string | null;
+            /**
              * Cgv Accepted At
              * @description Horodatage UTC de l'acceptation des CGV au checkout
              */
@@ -10224,6 +11892,34 @@ export interface components {
              */
             cgv_version?: string | null;
             /**
+             * Payment Plan
+             * @description full | deposit
+             * @default full
+             */
+            payment_plan: string;
+            /**
+             * Deposit Amount
+             * @description Acompte versé à la commande (0 en plan full)
+             * @default 0.00
+             */
+            deposit_amount: string;
+            /**
+             * Deposit Fee Amount
+             * @description Frais de l'option acompte, inclus dans total_fees_amount
+             * @default 0.00
+             */
+            deposit_fee_amount: string;
+            /**
+             * Balance Requested At
+             * @description Envoi de la demande de solde au client
+             */
+            balance_requested_at?: string | null;
+            /**
+             * Balance Paid At
+             * @description Encaissement du solde
+             */
+            balance_paid_at?: string | null;
+            /**
              * Id
              * Format: uuid
              */
@@ -10232,6 +11928,45 @@ export interface components {
             order_number?: string | null;
             /** Order Status Name */
             order_status_name?: string | null;
+            /**
+             * Balance Amount
+             * @default 0.00
+             */
+            balance_amount: string;
+            /**
+             * Balance Due
+             * @default false
+             */
+            balance_due: boolean;
+        };
+        /**
+         * MyQuoteItem
+         * @description An issued (or pending) quote as the customer sees it.
+         */
+        MyQuoteItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Quote Number */
+            quote_number: string | null;
+            /** Status */
+            status: string;
+            /** Created At */
+            created_at: string | null;
+            /** Quoted At */
+            quoted_at: string | null;
+            /** Valid Until */
+            valid_until: string | null;
+            /** Currency */
+            currency: string | null;
+            /** Total Amount */
+            total_amount: string | null;
+            /** Order Id */
+            order_id: string | null;
+            /** Can Order */
+            can_order: boolean;
         };
         /**
          * NotificationCreate
@@ -10568,6 +12303,11 @@ export interface components {
              */
             delivery_type?: string | null;
             /**
+             * Grouped Departure Id
+             * @description Départ groupé de rattachement
+             */
+            grouped_departure_id?: string | null;
+            /**
              * Cgv Accepted At
              * @description Horodatage UTC de l'acceptation des CGV au checkout
              */
@@ -10577,6 +12317,56 @@ export interface components {
              * @description Version des CGV acceptée au checkout
              */
             cgv_version?: string | null;
+            /**
+             * Payment Plan
+             * @description full | deposit
+             * @default full
+             */
+            payment_plan: string;
+            /**
+             * Deposit Amount
+             * @description Acompte versé à la commande (0 en plan full)
+             * @default 0.00
+             */
+            deposit_amount: number | string;
+            /**
+             * Deposit Fee Amount
+             * @description Frais de l'option acompte, inclus dans total_fees_amount
+             * @default 0.00
+             */
+            deposit_fee_amount: number | string;
+            /**
+             * Balance Requested At
+             * @description Envoi de la demande de solde au client
+             */
+            balance_requested_at?: string | null;
+            /**
+             * Balance Paid At
+             * @description Encaissement du solde
+             */
+            balance_paid_at?: string | null;
+        };
+        /**
+         * OrderLineAllocation
+         * @description Represents order line allocation.
+         */
+        OrderLineAllocation: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Product Name */
+            product_name: string;
+            /** Quantity */
+            quantity: number;
+            /** Allocated */
+            allocated: number;
+            /**
+             * Serial Numbers
+             * @default []
+             */
+            serial_numbers: string[];
         };
         /**
          * OrderLineCreate
@@ -10669,6 +12459,11 @@ export interface components {
              * @description Snapshot de l'ID du groupe de prix appliqué
              */
             price_group_id_snapshot?: string | null;
+            /**
+             * Serial Numbers
+             * @description Numéros de série des exemplaires remis au client
+             */
+            serial_numbers?: string[] | null;
         };
         /**
          * OrderLinePublic
@@ -10761,6 +12556,11 @@ export interface components {
              * @description Snapshot de l'ID du groupe de prix appliqué
              */
             price_group_id_snapshot?: string | null;
+            /**
+             * Serial Numbers
+             * @description Numéros de série des exemplaires remis au client
+             */
+            serial_numbers?: string[] | null;
             /**
              * Id
              * Format: uuid
@@ -10915,6 +12715,11 @@ export interface components {
              */
             delivery_type?: string | null;
             /**
+             * Grouped Departure Id
+             * @description Départ groupé de rattachement
+             */
+            grouped_departure_id?: string | null;
+            /**
              * Cgv Accepted At
              * @description Horodatage UTC de l'acceptation des CGV au checkout
              */
@@ -10925,12 +12730,84 @@ export interface components {
              */
             cgv_version?: string | null;
             /**
+             * Payment Plan
+             * @description full | deposit
+             * @default full
+             */
+            payment_plan: string;
+            /**
+             * Deposit Amount
+             * @description Acompte versé à la commande (0 en plan full)
+             * @default 0.00
+             */
+            deposit_amount: string;
+            /**
+             * Deposit Fee Amount
+             * @description Frais de l'option acompte, inclus dans total_fees_amount
+             * @default 0.00
+             */
+            deposit_fee_amount: string;
+            /**
+             * Balance Requested At
+             * @description Envoi de la demande de solde au client
+             */
+            balance_requested_at?: string | null;
+            /**
+             * Balance Paid At
+             * @description Encaissement du solde
+             */
+            balance_paid_at?: string | null;
+            /**
              * Id
              * Format: uuid
              */
             id: string;
             /** Order Number */
             order_number?: string | null;
+        };
+        /**
+         * OrderReconciliation
+         * @description served: every unit is in; partial: some; unserved: nothing yet.
+         */
+        OrderReconciliation: {
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Order Number */
+            order_number: string | null;
+            /** Status */
+            status: string | null;
+            /** Fulfilment */
+            fulfilment: string;
+            /** Lines */
+            lines: components["schemas"]["OrderLineAllocation"][];
+        };
+        /**
+         * OrderStatusChangeRequest
+         * @description Represents order status change request.
+         */
+        OrderStatusChangeRequest: {
+            /** Status */
+            status: string;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
+         * OrderStatusChangeResponse
+         * @description Represents order status change response.
+         */
+        OrderStatusChangeResponse: {
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Status */
+            status: string;
+            /** Changed */
+            changed: boolean;
         };
         /**
          * OrderStatusCreate
@@ -11091,6 +12968,8 @@ export interface components {
             notes?: string | null;
             /** Delivery Type */
             delivery_type?: string | null;
+            /** Grouped Departure Id */
+            grouped_departure_id?: string | null;
         };
         /**
          * OrdersPublic
@@ -12595,10 +14474,59 @@ export interface components {
              */
             requires_validation: boolean;
             /**
+             * Deposit Pct
+             * @description Part du total versée à la commande (%) ; null = pas d'acompte
+             */
+            deposit_pct?: string | null;
+            /**
+             * Deposit Fee Pct
+             * @description Frais liés à l'option acompte, en % du total
+             * @default 0.00
+             */
+            deposit_fee_pct: string;
+            /**
+             * Deposit Fee Fixed
+             * @description Frais fixes liés à l'option acompte (devise de référence)
+             * @default 0.00
+             */
+            deposit_fee_fixed: string;
+            /**
+             * Deposit Required
+             * @description L'acompte est imposé (sinon au choix du client)
+             * @default false
+             */
+            deposit_required: boolean;
+            /**
              * Id
              * Format: uuid
              */
             id: string;
+        };
+        /**
+         * PriceGroupUpdate
+         * @description Represents price group update.
+         */
+        PriceGroupUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Code */
+            code?: string | null;
+            /** Label */
+            label?: string | null;
+            /** Margin Rate Pct */
+            margin_rate_pct?: number | string | null;
+            /** Default */
+            default?: boolean | null;
+            /** Requires Validation */
+            requires_validation?: boolean | null;
+            /** Deposit Pct */
+            deposit_pct?: number | string | null;
+            /** Deposit Fee Pct */
+            deposit_fee_pct?: number | string | null;
+            /** Deposit Fee Fixed */
+            deposit_fee_fixed?: number | string | null;
+            /** Deposit Required */
+            deposit_required?: boolean | null;
         };
         /**
          * PriceGroupsPublic
@@ -12626,6 +14554,12 @@ export interface components {
          * @enum {string}
          */
         PricingMode: "import" | "domestic" | "fixed";
+        /**
+         * ProductCondition
+         * @description New goods or a refurbished item (graded, with its own warranty).
+         * @enum {string}
+         */
+        ProductCondition: "new" | "refurbished";
         /**
          * ProductCreate
          * @description Represents product create.
@@ -12675,6 +14609,36 @@ export interface components {
              * @default import
              */
             pricing_mode: components["schemas"]["PricingMode"];
+            /**
+             * @description stock (must be covered and is reserved), on_demand (pre-order while the supplier shows stock, no reservation) or continuous (always orderable)
+             * @default stock
+             */
+            availability_mode: components["schemas"]["AvailabilityMode"];
+            /**
+             * @description new or refurbished — shown and filterable on the storefront
+             * @default new
+             */
+            condition: components["schemas"]["ProductCondition"];
+            /**
+             * Condition Grade
+             * @description Refurbished grade (A, B, C…)
+             */
+            condition_grade?: string | null;
+            /**
+             * Battery Health Pct
+             * @description Refurbished: battery health in %
+             */
+            battery_health_pct?: number | null;
+            /**
+             * Os Licence
+             * @description Refurbished: OS licence supplied
+             */
+            os_licence?: string | null;
+            /**
+             * Warranty Months
+             * @description Warranty duration in months
+             */
+            warranty_months?: number | null;
             /**
              * Margin Rate Pct
              * @description Margin override for this product. None → Category.default_margin_rate_pct → PriceGroup.margin_rate_pct.
@@ -12808,6 +14772,12 @@ export interface components {
              * @default false
              */
             is_supplier_managed: boolean;
+            /**
+             * Is Draft
+             * @description Brouillon : créé par une synchronisation ou un import chez un fournisseur réglé « nouveaux articles en brouillon », jamais montré en vitrine tant que l'admin ne l'a pas publié. Les syncs et l'enrichissement continuent de l'alimenter.
+             * @default false
+             */
+            is_draft: boolean;
             /**
              * Supplier Place Id
              * @description Origin place when supplier-sourced (drives the first leg)
@@ -13022,6 +14992,30 @@ export interface components {
             /** Cheapest Product Id */
             cheapest_product_id?: string | null;
         };
+        /** ProductPriceEntryPublic */
+        ProductPriceEntryPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Old Price */
+            old_price: string | null;
+            /** New Price */
+            new_price: string | null;
+            /** Reason */
+            reason: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /**
          * ProductPublic
          * @description Represents product public.
@@ -13071,6 +15065,36 @@ export interface components {
              * @default import
              */
             pricing_mode: components["schemas"]["PricingMode"];
+            /**
+             * @description stock (must be covered and is reserved), on_demand (pre-order while the supplier shows stock, no reservation) or continuous (always orderable)
+             * @default stock
+             */
+            availability_mode: components["schemas"]["AvailabilityMode"];
+            /**
+             * @description new or refurbished — shown and filterable on the storefront
+             * @default new
+             */
+            condition: components["schemas"]["ProductCondition"];
+            /**
+             * Condition Grade
+             * @description Refurbished grade (A, B, C…)
+             */
+            condition_grade?: string | null;
+            /**
+             * Battery Health Pct
+             * @description Refurbished: battery health in %
+             */
+            battery_health_pct?: number | null;
+            /**
+             * Os Licence
+             * @description Refurbished: OS licence supplied
+             */
+            os_licence?: string | null;
+            /**
+             * Warranty Months
+             * @description Warranty duration in months
+             */
+            warranty_months?: number | null;
             /**
              * Margin Rate Pct
              * @description Margin override for this product. None → Category.default_margin_rate_pct → PriceGroup.margin_rate_pct.
@@ -13161,6 +15185,12 @@ export interface components {
              * @default false
              */
             is_supplier_managed: boolean;
+            /**
+             * Is Draft
+             * @description Brouillon : créé par une synchronisation ou un import chez un fournisseur réglé « nouveaux articles en brouillon », jamais montré en vitrine tant que l'admin ne l'a pas publié. Les syncs et l'enrichissement continuent de l'alimenter.
+             * @default false
+             */
+            is_draft: boolean;
             /**
              * Supplier Place Id
              * @description Origin place when supplier-sourced (drives the first leg)
@@ -13358,6 +15388,8 @@ export interface components {
             };
             /** In Stock */
             in_stock?: boolean | null;
+            /** @description Only new or only refurbished items */
+            condition?: components["schemas"]["ProductCondition"] | null;
             /**
              * Limit
              * @default 24
@@ -13439,6 +15471,16 @@ export interface components {
             /** Base Price */
             base_price?: number | string | null;
             pricing_mode?: components["schemas"]["PricingMode"] | null;
+            availability_mode?: components["schemas"]["AvailabilityMode"] | null;
+            condition?: components["schemas"]["ProductCondition"] | null;
+            /** Condition Grade */
+            condition_grade?: string | null;
+            /** Battery Health Pct */
+            battery_health_pct?: number | null;
+            /** Os Licence */
+            os_licence?: string | null;
+            /** Warranty Months */
+            warranty_months?: number | null;
             /** Margin Rate Pct */
             margin_rate_pct?: number | string | null;
             /** Cost Amount */
@@ -13491,6 +15533,12 @@ export interface components {
             supplier_missing_since?: string | null;
             /** Is Supplier Managed */
             is_supplier_managed?: boolean | null;
+            /**
+             * Is Draft
+             * @description Brouillon : créé par une synchronisation ou un import chez un fournisseur réglé « nouveaux articles en brouillon », jamais montré en vitrine tant que l'admin ne l'a pas publié. Les syncs et l'enrichissement continuent de l'alimenter.
+             * @default false
+             */
+            is_draft: boolean;
             /** Supplier Place Id */
             supplier_place_id?: string | null;
             /** Overridden Fields */
@@ -13650,6 +15698,139 @@ export interface components {
             categories?: components["schemas"]["CategoryPublicationRow"][];
         };
         /**
+         * PublishDraftsRequest
+         * @description Drafts to publish (unknown ids are ignored, reported in ``missing``).
+         */
+        PublishDraftsRequest: {
+            /** Product Ids */
+            product_ids: string[];
+        };
+        /** PublishDraftsResponse */
+        PublishDraftsResponse: {
+            /**
+             * Published
+             * @default 0
+             */
+            published: number;
+            /**
+             * Already Published
+             * @default 0
+             */
+            already_published: number;
+            /** Missing */
+            missing?: string[];
+        };
+        /**
+         * QuoteIssueBody
+         * @description What the admin fills in to issue (or re-issue) the quote.
+         */
+        QuoteIssueBody: {
+            /** Lines */
+            lines: components["schemas"]["QuoteLine-Input"][];
+            /**
+             * Shipping Fee Amount
+             * @default 0.00
+             */
+            shipping_fee_amount: number | string;
+            /** Valid Until */
+            valid_until?: string | null;
+            /** Customer Message */
+            customer_message?: string | null;
+            /**
+             * Send Email
+             * @default true
+             */
+            send_email: boolean;
+        };
+        /**
+         * QuoteIssueResponse
+         * @description Le détail après émission, avec le sort de l'e-mail au client.
+         */
+        QuoteIssueResponse: {
+            /**
+             * Quote Request Id
+             * Format: uuid
+             */
+            quote_request_id: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Email */
+            email: string;
+            /** Full Name */
+            full_name?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Status */
+            status: string;
+            /** Is Registered Customer */
+            is_registered_customer: boolean;
+            /** Item Count */
+            item_count: number;
+            /** Currency */
+            currency?: string | null;
+            /** Subtotal Amount */
+            subtotal_amount?: string | null;
+            /** Handled At */
+            handled_at?: string | null;
+            /** Quote Number */
+            quote_number?: string | null;
+            /** Shipping Address */
+            shipping_address?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Admin Comment */
+            admin_comment?: string | null;
+            /** Items */
+            items?: {
+                [key: string]: string | null;
+            }[];
+            /** Quoted At */
+            quoted_at?: string | null;
+            /** Valid Until */
+            valid_until?: string | null;
+            /** Order Id */
+            order_id?: string | null;
+            /** Quote Snapshot */
+            quote_snapshot?: {
+                [key: string]: unknown;
+            } | null;
+            /** Proposed Lines */
+            proposed_lines?: components["schemas"]["QuoteLine-Output"][];
+            /**
+             * Email Sent
+             * @default false
+             */
+            email_sent: boolean;
+        };
+        /**
+         * QuoteLine
+         * @description A line of the quote as the admin grants it.
+         */
+        "QuoteLine-Input": {
+            /** Product Id */
+            product_id?: string | null;
+            /** Product Name */
+            product_name: string;
+            /** Quantity */
+            quantity: number;
+            /** Unit Price */
+            unit_price: number | string;
+        };
+        /**
+         * QuoteLine
+         * @description A line of the quote as the admin grants it.
+         */
+        "QuoteLine-Output": {
+            /** Product Id */
+            product_id?: string | null;
+            /** Product Name */
+            product_name: string;
+            /** Quantity */
+            quantity: number;
+            /** Unit Price */
+            unit_price: string;
+        };
+        /**
          * QuoteRequestResponse
          * @description Represents quote request response.
          */
@@ -13709,6 +15890,94 @@ export interface components {
             database: boolean;
             /** Redis */
             redis: boolean;
+        };
+        /**
+         * ReceiptLineView
+         * @description One product of the shipment: what was expected, what came in.
+         */
+        ReceiptLineView: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Product Name */
+            product_name: string;
+            /** Supplier Sku */
+            supplier_sku: string | null;
+            /** Expected Quantity */
+            expected_quantity: number;
+            /**
+             * Quantity Received
+             * @default 0
+             */
+            quantity_received: number;
+            /**
+             * Quantity Damaged
+             * @default 0
+             */
+            quantity_damaged: number;
+            /**
+             * Serial Numbers
+             * @default []
+             */
+            serial_numbers: string[];
+            /** Notes */
+            notes?: string | null;
+            /** Received At */
+            received_at?: string | null;
+        };
+        /**
+         * ReceiptLineWrite
+         * @description What the admin types when checking in a product of the shipment.
+         */
+        ReceiptLineWrite: {
+            /**
+             * Quantity Received
+             * @description Exemplaires reçus (tous états)
+             */
+            quantity_received: number;
+            /**
+             * Quantity Damaged
+             * @description Dont endommagés / non conformes
+             * @default 0
+             */
+            quantity_damaged: number;
+            /**
+             * Serial Numbers
+             * @description Numéros de série des exemplaires conformes
+             */
+            serial_numbers?: string[];
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Received At
+             * @description Date de réception (défaut : maintenant)
+             */
+            received_at?: string | null;
+        };
+        /**
+         * ReceiptReport
+         * @description The « Réception » section: tally per product + orders reconciliation.
+         */
+        ReceiptReport: {
+            /**
+             * Departure Id
+             * Format: uuid
+             */
+            departure_id: string;
+            /** Lines */
+            lines: components["schemas"]["ReceiptLineView"][];
+            /** Orders */
+            orders: components["schemas"]["OrderReconciliation"][];
+            /** Expected Units */
+            expected_units: number;
+            /** Received Units */
+            received_units: number;
+            /** Damaged Units */
+            damaged_units: number;
+            /** Missing Units */
+            missing_units: number;
         };
         /**
          * RefundPublic
@@ -13777,6 +16046,21 @@ export interface components {
              * Format: uuid
              */
             id: string;
+        };
+        /**
+         * RequestBalanceResponse
+         * @description Represents request balance response.
+         */
+        RequestBalanceResponse: {
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Balance Amount */
+            balance_amount: number;
+            /** Sent */
+            sent: boolean;
         };
         /**
          * ResetPasswordRequest
@@ -15241,12 +17525,68 @@ export interface components {
             shop_name: string;
         };
         /**
+         * Shortage
+         * @description A product the supplier can no longer serve in full at close time.
+         */
+        Shortage: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Product Name */
+            product_name: string;
+            /** Supplier Name */
+            supplier_name: string | null;
+            /** Supplier Sku */
+            supplier_sku: string | null;
+            /** Ordered Quantity */
+            ordered_quantity: number;
+            /** Available Quantity */
+            available_quantity: number;
+            /** Order Ids */
+            order_ids: string[];
+            /** Order Numbers */
+            order_numbers: (string | null)[];
+        };
+        /**
          * SignupTokenResponse
          * @description Single-use token proving the email was verified.
          */
         SignupTokenResponse: {
             /** Signup Token */
             signup_token: string;
+        };
+        /**
+         * SkuSummaryRow
+         * @description One supplier SKU aggregated over the filtered orders (= purchase order line).
+         */
+        SkuSummaryRow: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Supplier Name */
+            supplier_name?: string | null;
+            /** Supplier Sku */
+            supplier_sku?: string | null;
+            /** Vendor Part Number */
+            vendor_part_number?: string | null;
+            /** Product Name */
+            product_name: string;
+            /** Quantity */
+            quantity: number;
+            /** Orders Count */
+            orders_count: number;
+            /** Unit Cost */
+            unit_cost?: number | null;
+            /** Cost Currency */
+            cost_currency?: string | null;
+            /** Unit Weight Kg */
+            unit_weight_kg?: number | null;
+            /** Total Weight Kg */
+            total_weight_kg?: number | null;
         };
         /** SpecDefinitionCreate */
         SpecDefinitionCreate: {
@@ -15806,6 +18146,156 @@ export interface components {
             count: number;
         };
         /**
+         * StockAlertPublic
+         * @description Represents stock alert public.
+         */
+        StockAlertPublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** User Id */
+            user_id?: string | null;
+            /** Email */
+            email: string;
+            /**
+             * Status
+             * @default pending
+             */
+            status: string;
+            /** Notified At */
+            notified_at?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Product Name */
+            product_name?: string | null;
+        };
+        /**
+         * StockAlertSubscribe
+         * @description Storefront payload; the e-mail defaults to the account's when signed in.
+         */
+        StockAlertSubscribe: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Email */
+            email?: string | null;
+        };
+        /**
+         * StoreCreditBalance
+         * @description Balance and ledger of one customer.
+         */
+        StoreCreditBalance: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Currency */
+            currency: string;
+            /** Balance */
+            balance: string;
+            /** Entries */
+            entries?: components["schemas"]["StoreCreditEntryPublic"][];
+        };
+        /**
+         * StoreCreditEntryPublic
+         * @description Represents store credit entry public.
+         */
+        StoreCreditEntryPublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /**
+             * Amount
+             * @description Signé : positif pour un octroi, négatif pour une utilisation
+             */
+            amount: string;
+            /**
+             * Currency
+             * @default XPF
+             */
+            currency: string;
+            /**
+             * Kind
+             * @description grant | use | revoke
+             */
+            kind: string;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Order Id
+             * @description Commande d'origine (octroi) ou réglée (utilisation)
+             */
+            order_id?: string | null;
+            /**
+             * Payment Id
+             * @description Paiement « store_credit » créé par une utilisation
+             */
+            payment_id?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /**
+         * StoreCreditGrant
+         * @description Admin payload: grant (positive) or revoke (negative) credit.
+         */
+        StoreCreditGrant: {
+            /** Amount */
+            amount: number | string;
+            /** Reason */
+            reason: string;
+            /** Order Id */
+            order_id?: string | null;
+        };
+        /**
          * SupplierCreate
          * @description Création d'un fournisseur (le code est choisi une fois pour toutes).
          */
@@ -15866,6 +18356,17 @@ export interface components {
                 [key: string]: string;
             } | null;
             /**
+             * Import As Draft
+             * @description Les articles créés par une synchronisation ou un import de ce fournisseur arrivent en brouillon (Product.is_draft) : enrichis et rafraîchis, mais invisibles en vitrine tant que l'admin ne les publie pas. Les articles existants ne sont pas concernés.
+             * @default false
+             */
+            import_as_draft: boolean;
+            /**
+             * Sku Allowlist
+             * @description Liste blanche de références fournisseur (SKU). Vide ou absente : tout le catalogue synchronisé est suivi. Renseignée : seules ces références sont créées et rafraîchies (prix / stock) ; les articles gérés par ce fournisseur hors liste sont retirés de la vitrine. Modifiée par PUT /admin/suppliers/{code}/sku-allowlist.
+             */
+            sku_allowlist?: string[] | null;
+            /**
              * Settings
              * @description Configuration non secrète propre à l'intégration (ex. environment, country_code pour Ingram). Jamais d'identifiants.
              */
@@ -15892,6 +18393,30 @@ export interface components {
          * @enum {string}
          */
         SupplierKind: "manual" | "file" | "api";
+        /**
+         * SupplierOrderEntry
+         * @description A real purchase order recorded on a departure (typed by the admin).
+         */
+        SupplierOrderEntry: {
+            /** Supplier Name */
+            supplier_name: string;
+            /** Order Number */
+            order_number: string;
+            /**
+             * Ordered At
+             * Format: date-time
+             */
+            ordered_at: string;
+            /** Total Amount */
+            total_amount: number | string;
+            /**
+             * Currency
+             * @default XPF
+             */
+            currency: string;
+            /** Notes */
+            notes?: string | null;
+        };
         /**
          * SupplierOrderPublic
          * @description Public schema for supplier orders (admin endpoints).
@@ -16009,6 +18534,17 @@ export interface components {
                 [key: string]: string;
             } | null;
             /**
+             * Import As Draft
+             * @description Les articles créés par une synchronisation ou un import de ce fournisseur arrivent en brouillon (Product.is_draft) : enrichis et rafraîchis, mais invisibles en vitrine tant que l'admin ne les publie pas. Les articles existants ne sont pas concernés.
+             * @default false
+             */
+            import_as_draft: boolean;
+            /**
+             * Sku Allowlist
+             * @description Liste blanche de références fournisseur (SKU). Vide ou absente : tout le catalogue synchronisé est suivi. Renseignée : seules ces références sont créées et rafraîchies (prix / stock) ; les articles gérés par ce fournisseur hors liste sont retirés de la vitrine. Modifiée par PUT /admin/suppliers/{code}/sku-allowlist.
+             */
+            sku_allowlist?: string[] | null;
+            /**
              * Settings
              * @description Configuration non secrète propre à l'intégration (ex. environment, country_code pour Ingram). Jamais d'identifiants.
              */
@@ -16097,6 +18633,8 @@ export interface components {
             column_mapping?: {
                 [key: string]: string;
             } | null;
+            /** Import As Draft */
+            import_as_draft?: boolean | null;
             /** Settings */
             settings?: {
                 [key: string]: unknown;
@@ -16352,6 +18890,16 @@ export interface components {
              * @description Optional UPC code
              */
             upc?: string | null;
+        };
+        /**
+         * TrackedOrderResponse
+         * @description Everything the tracking page shows, for the holder of a signed link.
+         */
+        TrackedOrderResponse: {
+            order: components["schemas"]["MyOrderPublic"];
+            tracking: components["schemas"]["CustomerOrderTrackingResponse"];
+            /** Lines */
+            lines?: components["schemas"]["MyOrderLine"][];
         };
         /**
          * TrackingHistoryResponse
@@ -18613,11 +21161,87 @@ export interface operations {
             };
         };
     };
+    "admin-quote-requests-issue_quote_request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                quote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuoteIssueBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuoteIssueResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-quote-requests-download_quote_pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                quote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-order-list_orders": {
         parameters: {
             query?: {
                 skip?: number;
                 limit?: number;
+                /** @description Commandes rattachées à ce départ groupé */
+                departure_id?: string | null;
+                /** @description Commandes sans départ groupé */
+                unassigned?: boolean;
+                /** @description Nom du statut de commande (ex. Paid) */
+                status?: string | null;
+                /** @description Commandes créées à partir de cette date */
+                date_from?: string | null;
+                /** @description Commandes créées jusqu'à cette date */
+                date_to?: string | null;
             };
             header?: never;
             path?: never;
@@ -18632,6 +21256,181 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminOrderListItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-order-export_orders_csv": {
+        parameters: {
+            query?: {
+                /** @description Commandes rattachées à ce départ groupé */
+                departure_id?: string | null;
+                /** @description Commandes sans départ groupé */
+                unassigned?: boolean;
+                /** @description Nom du statut de commande (ex. Paid) */
+                status?: string | null;
+                /** @description Commandes créées à partir de cette date */
+                date_from?: string | null;
+                /** @description Commandes créées jusqu'à cette date */
+                date_to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-order-sku_summary": {
+        parameters: {
+            query?: {
+                /** @description Commandes rattachées à ce départ groupé */
+                departure_id?: string | null;
+                /** @description Commandes sans départ groupé */
+                unassigned?: boolean;
+                /** @description Nom du statut de commande (ex. Paid) */
+                status?: string | null;
+                /** @description Commandes créées à partir de cette date */
+                date_from?: string | null;
+                /** @description Commandes créées jusqu'à cette date */
+                date_to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkuSummaryRow"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-order-sku_summary_csv": {
+        parameters: {
+            query?: {
+                /** @description Commandes rattachées à ce départ groupé */
+                departure_id?: string | null;
+                /** @description Commandes sans départ groupé */
+                unassigned?: boolean;
+                /** @description Nom du statut de commande (ex. Paid) */
+                status?: string | null;
+                /** @description Commandes créées à partir de cette date */
+                date_from?: string | null;
+                /** @description Commandes créées jusqu'à cette date */
+                date_to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-order-list_order_statuses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+        };
+    };
+    "admin-order-change_order_status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderStatusChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderStatusChangeResponse"];
                 };
             };
             /** @description Validation Error */
@@ -18663,6 +21462,552 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminOrderDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-order-request_order_balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RequestBalanceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-list_departures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupedDeparturePublic"][];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-create_departure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupedDepartureCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupedDeparturePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-delete_departure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignOrdersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-update_departure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupedDepartureUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupedDeparturePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-assign_orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignOrdersRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignOrdersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-close_departure_endpoint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CloseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CloseResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-add_supplier_order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplierOrderEntry"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupedDeparturePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-remove_supplier_order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+                index: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupedDeparturePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-get_reception": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-put_reception_line": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptLineWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-get_dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartureDashboard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-list_reminders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartureReminderPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-create_reminder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DepartureReminderWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartureReminderPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-delete_reminder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reminder_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignOrdersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-update_reminder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reminder_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DepartureReminderWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartureReminderPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-grouped-departures-publish_reminder_now": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reminder_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartureReminderPublic"];
                 };
             };
             /** @description Validation Error */
@@ -19689,6 +23034,72 @@ export interface operations {
             };
         };
     };
+    "admin-product-admin_publish_drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishDraftsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishDraftsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-admin_product_price_history": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductPriceEntryPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-product-admin_update_product": {
         parameters: {
             query?: never;
@@ -19870,6 +23281,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PriceGroupsPublic"];
+                };
+            };
+        };
+    };
+    "admin-price-groups-update_price_group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceGroupUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceGroupPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -20750,6 +24196,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SupplierPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-get_sku_allowlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllowlistView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-put_sku_allowlist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AllowlistWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllowlistView"];
                 };
             };
             /** @description Validation Error */
@@ -21994,6 +25506,88 @@ export interface operations {
             };
         };
     };
+    "cart-list_my_quotes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyQuoteItem"][];
+                };
+            };
+        };
+    };
+    "cart-download_my_quote_pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                quote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "cart-accept_my_quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                quote_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CartDetailPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "cart-create_guest_quote_request": {
         parameters: {
             query?: never;
@@ -22038,6 +25632,12 @@ export interface operations {
                 payment_method_id?: string | null;
                 /** @description Promo code to price */
                 discount_code?: string | null;
+                /** @description « deposit » to quote a deposit at checkout */
+                payment_plan?: string | null;
+                /** @description Issued quote being ordered (its delivery fee) */
+                quote_request_id?: string | null;
+                /** @description Spend the store credit on the amount due now */
+                use_store_credit?: boolean;
             };
             header?: never;
             path?: never;
@@ -23507,6 +27107,37 @@ export interface operations {
             };
         };
     };
+    "order-get_my_order_lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyOrderLine"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "order-get_my_order_tracking": {
         parameters: {
             query?: never;
@@ -23525,6 +27156,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CustomerOrderTrackingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "order-track_order_by_link": {
+        parameters: {
+            query?: {
+                t?: string | null;
+            };
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackedOrderResponse"];
                 };
             };
             /** @description Validation Error */
@@ -26206,6 +29870,342 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DisplayRatesResponse"];
+                };
+            };
+        };
+    };
+    "content-pages-get_public_page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentPageSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "content-pages-list_pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentPagePublic"][];
+                };
+            };
+        };
+    };
+    "content-pages-upsert_page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContentPageWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentPagePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "content-pages-delete_page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentPageSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "grouped-departures-next_departure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupedDepartureSummary"] | null;
+                };
+            };
+        };
+    };
+    "grouped-departures-get_departure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                departure_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupedDepartureSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "store-credit-my_store_credit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoreCreditBalance"];
+                };
+            };
+        };
+    };
+    "store-credit-user_store_credit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoreCreditBalance"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "store-credit-grant_store_credit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StoreCreditGrant"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoreCreditBalance"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "stock-alerts-subscribe_stock_alert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StockAlertSubscribe"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockAlertPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "stock-alerts-list_my_stock_alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockAlertPublic"][];
+                };
+            };
+        };
+    };
+    "stock-alerts-cancel_my_stock_alert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alert_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

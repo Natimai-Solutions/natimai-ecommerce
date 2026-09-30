@@ -1,7 +1,7 @@
 import uuid
 from decimal import Decimal
 
-from sqlmodel import Field, SQLModel
+from sqlmodel import JSON, Column, Field, SQLModel
 
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
@@ -82,6 +82,11 @@ class OrderLineBase(Base):
     price_group_id_snapshot: uuid.UUID | None = Field(
         default=None,
         description="Snapshot de l'ID du groupe de prix appliqué",
+    )
+    serial_numbers: list[str] | None = Field(
+        default=None,
+        sa_column=Column(JSON),
+        description="Numéros de série des exemplaires remis au client",
     )
 
 

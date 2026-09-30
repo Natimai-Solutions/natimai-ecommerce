@@ -24,6 +24,7 @@ LOCK_EXEMPT_FIELDS = frozenset(
     {
         "is_active",
         "is_admin_active",
+        "is_draft",
         "overridden_fields",
         # Admin publication decision: neither the sync nor Icecat write it.
         "published_without_enrichment",

@@ -1,7 +1,7 @@
 import type { components } from '@app/api-types';
 import { api } from 'src/boot/api';
 
-type CartDetailPublic = components['schemas']['CartDetailPublic'];
+export type CartDetailPublic = components['schemas']['CartDetailPublic'];
 type CartItemAddRequest = components['schemas']['CartItemAddRequest'];
 type CartItemQuantityUpdateRequest = components['schemas']['CartItemQuantityUpdateRequest'];
 type CartReplaceRequest = components['schemas']['CartReplaceRequest'];
@@ -24,6 +24,12 @@ type CheckoutRequest = Omit<
   shipping_address_id?: string | null;
   /** Promo code validated server-side (the one the quote accepted). */
   discount_code?: string | null;
+  /** full | deposit (see DepositTerms). */
+  payment_plan?: string | null;
+  /** Order an issued quote at its prices and delivery fee. */
+  quote_request_id?: string | null;
+  /** Spend the customer's store credit on the amount due now. */
+  use_store_credit?: boolean;
 };
 type CheckoutResponse = components['schemas']['CheckoutResponse'] & {
   provider_code?: string | null;
@@ -140,7 +146,25 @@ export async function getLastLegOptions(
   return data;
 }
 
-export interface CheckoutQuote {
+/** Deposit part of a quote / checkout response (`DepositTerms`). */
+export interface DepositTerms {
+  /** full | deposit — the plan the backend settled on. */
+  payment_plan: string;
+  deposit_available: boolean;
+  deposit_required: boolean;
+  deposit_pct: string | null;
+  deposit_fee_amount: string;
+  /** Charged now on a deposit order. */
+  deposit_amount: string;
+  /** Asked for at reception. */
+  balance_amount: string;
+  /** Store credit (« avoir ») : the customer's balance, what this checkout spends, what is left to charge. */
+  store_credit_available: string;
+  store_credit_applied: string;
+  amount_due_now: string;
+}
+
+export interface CheckoutQuote extends DepositTerms {
   currency: string;
   subtotal_amount: string;
   /** Livraison (tronçon choisi) + frais de dédouanement. */
@@ -172,12 +196,18 @@ export async function getCheckoutQuote(params: {
   deliveryType?: string | null;
   paymentMethodId?: string | null;
   discountCode?: string | null;
+  paymentPlan?: string | null;
+  quoteRequestId?: string | null;
+  useStoreCredit?: boolean;
 }): Promise<CheckoutQuote> {
   const query: Record<string, string> = {};
   if (params.addressId) query.address_id = params.addressId;
   if (params.deliveryType) query.delivery_type = params.deliveryType;
   if (params.paymentMethodId) query.payment_method_id = params.paymentMethodId;
   if (params.discountCode) query.discount_code = params.discountCode;
+  if (params.paymentPlan) query.payment_plan = params.paymentPlan;
+  if (params.quoteRequestId) query.quote_request_id = params.quoteRequestId;
+  if (params.useStoreCredit) query.use_store_credit = 'true';
   const { data } = await api.get<CheckoutQuote>('/cart/me/checkout-quote', { params: query });
   return data;
 }

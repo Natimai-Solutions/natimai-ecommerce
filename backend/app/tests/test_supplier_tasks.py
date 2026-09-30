@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -27,6 +28,7 @@ class FakeAdapter:
         self.price_batch_size = price_batch_size
         self.price_currency = price_currency
         self.default_categories: list[str] = ["Cat"]
+        self.sku_allowlist: list[str] = []
 
     def is_sync_enabled(self) -> bool:
         return self._sync_enabled
@@ -256,3 +258,104 @@ async def test_inventory_tick_enqueues_every_enabled_api_supplier(
 
     # Interval 0 only disables the *catalog* schedule; unconfigured is skipped.
     assert result["enqueued"] == ["a", "c"]
+
+
+@pytest.mark.anyio
+async def test_sync_supplier_inventory_task_never_overwrites_admin_locked_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A refurbished lot's quantity (or a negotiated cost) typed in the admin is
+    locked; the price/stock sync must leave it alone, as the catalogue sync does."""
+    adapter = FakeAdapter(
+        name="ingram_micro", sync_enabled=True, configured=True, sync_interval_hours=6
+    )
+    update_mock = AsyncMock()
+    monkeypatch.setattr(
+        supplier_tasks, "resolve_adapter", AsyncMock(return_value=adapter)
+    )
+    monkeypatch.setattr(
+        crud_product,
+        "get_by_supplier_sku",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                id="prod-1",
+                is_admin_active=True,
+                overridden_fields=["supplier_quantity", "cost_amount"],
+            )
+        ),
+    )
+    monkeypatch.setattr(crud_product, "update", update_mock)
+    # No FX table behind the fake session: the threshold check falls back.
+    monkeypatch.setattr(
+        supplier_tasks,
+        "convert_to_reference_currency",
+        AsyncMock(return_value=(Decimal("1"), None)),
+    )
+
+    result = await supplier_tasks.sync_supplier_inventory_task(
+        _ctx={}, supplier_name=adapter.name, skus=["SKU-001"]
+    )
+
+    assert result["updated"] == 1
+    assert update_mock.await_args is not None
+    sent = update_mock.await_args.kwargs["data"].model_dump(exclude_unset=True)
+    assert "supplier_quantity" not in sent and "cost_amount" not in sent
+    assert sent["supplier_price"] == 100 and sent["supplier_missing_since"] is None
+
+
+@pytest.mark.anyio
+async def test_inventory_refresh_only_asks_for_the_allowlisted_references(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With a SKU allowlist, the price / stock sweep leaves the other
+    products of the supplier alone (no request, no update, no delisting)."""
+    adapter = FakeAdapter(
+        name="ingram_micro", sync_enabled=True, configured=True, sync_interval_hours=6
+    )
+    adapter.sku_allowlist = ["IM-2"]
+    asked: list[list[str]] = []
+
+    async def _fetch(skus: list[str]) -> dict[str, SimpleNamespace]:
+        asked.append(list(skus))
+        return {s: SimpleNamespace(price=100, quantity=5, currency="USD") for s in skus}
+
+    adapter.fetch_price_and_availability = _fetch  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        supplier_tasks, "resolve_adapter", AsyncMock(return_value=adapter)
+    )
+    monkeypatch.setattr(
+        crud_product,
+        "read_multi",
+        AsyncMock(
+            return_value={
+                "data": [
+                    SimpleNamespace(supplier_sku="IM-1"),
+                    SimpleNamespace(supplier_sku="IM-2"),
+                    SimpleNamespace(supplier_sku="IM-3"),
+                ]
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        crud_product,
+        "get_by_supplier_sku",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                id="prod-2", is_admin_active=True, overridden_fields=[]
+            )
+        ),
+    )
+    update_mock = AsyncMock()
+    monkeypatch.setattr(crud_product, "update", update_mock)
+    monkeypatch.setattr(
+        supplier_tasks,
+        "convert_to_reference_currency",
+        AsyncMock(return_value=(Decimal("1"), None)),
+    )
+
+    result = await supplier_tasks.sync_supplier_inventory_task(
+        _ctx={}, supplier_name=adapter.name, skus=None
+    )
+
+    assert asked == [["IM-2"]]
+    assert result["total_skus"] == 1 and result["updated"] == 1

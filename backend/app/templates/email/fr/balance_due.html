@@ -1,0 +1,20 @@
+{% extends "_layout.html" %}
+{% block title %}Solde à régler{% endblock %}
+{% block header_color %}#3949ab{% endblock %}
+{% block heading %}Vos articles sont arrivés{% endblock %}
+{% block content %}
+      <p>Bonjour {{ full_name }},</p>
+      <p>Bonne nouvelle : les articles de votre commande <strong>{{ order_ref or (order_id | short_ref) }}</strong> sont arrivés. Pour les récupérer, il vous reste à régler le solde.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Total de la commande</td><td>{{ total_amount }} {{ currency }}</td></tr>
+          <tr><td>Acompte déjà versé</td><td>{{ deposit_amount }} {{ currency }}</td></tr>
+          <tr><td><strong>Solde à régler</strong></td><td><strong>{{ balance_amount }} {{ currency }}</strong></td></tr>
+        </table>
+      </div>
+      <p style="text-align:center;margin:24px 0">
+        <a href="{{ pay_url }}" style="background:#3949ab;color:#fff;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold">Régler le solde</a>
+      </p>
+      <p>Votre facture vous sera envoyée dès l'encaissement du solde.</p>
+      <p>L'équipe {{ shop_name }}</p>
+{% endblock %}

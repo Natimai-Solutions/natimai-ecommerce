@@ -23,6 +23,17 @@ def test_payment_handlers_registered() -> None:
     assert "payment.webhook_received" in types
 
 
+@pytest.fixture(autouse=True)
+def _no_other_payments(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The part-coverage check lists the order's payments through the CRUD,
+    which an AsyncMock session cannot serve: one payment per order here."""
+    monkeypatch.setattr(
+        handlers.crud_payment,
+        "list_with_status_by_order_id",
+        AsyncMock(return_value=[]),
+    )
+
+
 def _make_order(status_id: Any = None, total_amount: Decimal | None = None) -> Any:
     return SimpleNamespace(
         id=uuid4(),

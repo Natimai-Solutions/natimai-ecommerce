@@ -176,6 +176,7 @@
     <CartDrawer />
 
     <q-page-container>
+      <NextDepartureBanner />
       <router-view />
     </q-page-container>
 
@@ -183,6 +184,7 @@
       <div class="app-footer__inner page-container">
         <span>© {{ currentYear }} Natimai Solutions. Tous droits réservés.</span>
         <nav class="app-footer__links" aria-label="Informations légales">
+          <router-link :to="{ name: 'how-it-works' }">Comment ça marche ?</router-link>
           <router-link :to="{ name: 'cgv' }">CGV</router-link>
           <router-link :to="{ name: 'mentions-legales' }">Mentions légales</router-link>
           <router-link :to="{ name: 'confidentialite' }">Confidentialité &amp; cookies</router-link>
@@ -200,12 +202,15 @@ import { useCartStore } from 'src/stores/cart';
 import { useAuthStore } from 'src/stores/auth';
 import { useCurrencyStore } from 'src/stores/currency';
 import { toggleTheme } from 'src/utils/theme';
+import { useDepartureStore } from 'src/stores/departure';
+import NextDepartureBanner from 'src/components/NextDepartureBanner.vue';
 
 const drawerOpen = ref(false);
 const cartStore = useCartStore();
 const authStore = useAuthStore();
 const currencyStore = useCurrencyStore();
 const route = useRoute();
+const departureStore = useDepartureStore();
 const router = useRouter();
 const cartCount = computed(() => cartStore.totalItems);
 const currentYear = new Date().getFullYear();
@@ -255,6 +260,7 @@ function onLogout() {
 onMounted(() => {
   void cartStore.loadCart();
   void currencyStore.loadRates();
+  void departureStore.load();
   window.addEventListener('keydown', onKeydown);
 });
 

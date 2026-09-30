@@ -1,0 +1,1 @@
+Votre devis {{ quote_number }} — {{ total_amount }} {{ currency }}, valable jusqu'au {{ valid_until }}
