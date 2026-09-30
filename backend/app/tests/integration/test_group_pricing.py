@@ -15,8 +15,10 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from pydantic import ValidationError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.routes.admin_price_groups import update_price_group
 from app.api.routes.admin_product import (
     GroupPriceInput,
     GroupPricesUpdate,
@@ -26,6 +28,7 @@ from app.api.routes.admin_product import (
 )
 from app.api.routes.cart import add_cart_item
 from app.api.routes.product_catalog import get_featured_products, search_products
+from app.core.errors import AppError
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
 from app.features.cart.models.cart import CartItemAddRequest
 from app.features.discount.models import Discount, DiscountTarget, DiscountType
@@ -34,7 +37,7 @@ from app.features.discount.services.checkout_discount import (
     resolve_coupon,
 )
 from app.features.product.models.category import Category
-from app.features.product.models.price_group import PriceGroup
+from app.features.product.models.price_group import PriceGroup, PriceGroupUpdate
 from app.features.product.models.product import (
     PricingMode,
     Product,
@@ -236,6 +239,53 @@ async def test_typed_prices_are_set_and_cleared(db_session: AsyncSession) -> Non
     assert {s.price_group_id: s.price for s in stored} == {
         ids["public"]: Decimal("4000.00")
     }
+
+
+@pytest.mark.asyncio
+async def test_a_free_or_duplicated_group_price_is_refused(
+    db_session: AsyncSession,
+) -> None:
+    ids = await _setup(db_session)
+    admin = cast(Any, User(email="a@t.local", is_superuser=True, hashed_password="x"))
+    # 0 would sell the article for free to that group.
+    with pytest.raises(ValidationError):
+        GroupPriceInput(price_group_id=ids["pro"], price=Decimal("0"))
+    # The same group twice in one grid: refused, nothing written.
+    with pytest.raises(AppError) as refused:
+        await set_group_prices(
+            ids["clavier"],
+            GroupPricesUpdate(
+                prices=[
+                    GroupPriceInput(price_group_id=ids["pro"], price=Decimal("100")),
+                    GroupPriceInput(price_group_id=ids["pro"], price=Decimal("120")),
+                ]
+            ),
+            cast(Any, db_session),
+            admin,
+        )
+    assert refused.value.code == "price_group.duplicate"
+
+
+@pytest.mark.asyncio
+async def test_the_default_group_never_carries_a_discount(
+    db_session: AsyncSession,
+) -> None:
+    ids = await _setup(db_session)
+    admin = cast(Any, SimpleNamespace(id=None, is_superuser=True))
+    # Promoting a discounted group to default would discount every visitor.
+    with pytest.raises(AppError) as refused:
+        await update_price_group(
+            ids["pro"], PriceGroupUpdate(default=True), cast(Any, db_session), admin
+        )
+    assert refused.value.code == "price_group.default_discount"
+    # Dropping the discount in the same call is fine.
+    updated = await update_price_group(
+        ids["pro"],
+        PriceGroupUpdate(default=True, discount_pct=Decimal("0")),
+        cast(Any, db_session),
+        admin,
+    )
+    assert updated.default is True and updated.discount_pct == 0
 
 
 # --- Promotions: the best price wins -----------------------------------------

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
@@ -37,6 +38,8 @@ from app.features.shipping.services.pricing import (
     resolve_billable_weight,
 )
 
+logger = logging.getLogger(__name__)
+
 _MONEY_QUANT = Decimal("0.01")
 _DEFAULT_MARGIN_RATE_PCT = Decimal("30.00")
 
@@ -51,7 +54,10 @@ async def resolve_default_tax_code(session: AsyncSession) -> str:
     the admin's choice (``tax_default_code``), else the environment."""
     try:
         return (await load_tax_codes(session)).default_code
-    except Exception:  # pragma: no cover - mocked sessions in unit tests
+    except Exception as exc:  # noqa: BLE001 - mocked sessions in unit tests
+        logger.warning(
+            "Tax settings unreadable, falling back to %s: %s", default_tax_code(), exc
+        )
         return default_tax_code()
 
 

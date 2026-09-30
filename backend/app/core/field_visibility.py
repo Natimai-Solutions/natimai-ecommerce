@@ -11,7 +11,7 @@ reveal hides a figure, it never leaks one.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from contextvars import ContextVar
 from typing import Any
 
@@ -36,20 +36,8 @@ def redact(data: Any, fields: Iterable[str]) -> Any:
     return data
 
 
-def redacting_serializer(
-    fields: frozenset[str],
-) -> Callable[[Any, Any], Any]:
-    """Body of a ``model_serializer(mode="wrap")`` hiding ``fields``."""
-
-    def serialize(self: Any, handler: Any) -> Any:
-        return redact(handler(self), fields)
-
-    return serialize
-
-
 __all__ = [
     "internal_fields_revealed",
     "redact",
-    "redacting_serializer",
     "reveal_internal_fields",
 ]

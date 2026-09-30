@@ -61,7 +61,9 @@ async def update_price_group(
             details={"group_id": str(group_id)},
         )
     changes = body.model_dump(exclude_unset=True)
-    if group.default and (changes.get("discount_pct") or 0) > 0:
+    will_be_default = changes.get("default", group.default)
+    discount = changes.get("discount_pct", group.discount_pct)
+    if will_be_default and (discount or 0) > 0:
         # The default group's prices *are* the reference prices.
         raise AppError(
             code="price_group.default_discount",

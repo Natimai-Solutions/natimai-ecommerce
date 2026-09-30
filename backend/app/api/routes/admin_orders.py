@@ -45,6 +45,7 @@ from app.features.payment.services.receipts import (
 from app.features.product.models.product import Product
 from app.features.product.models.tax_rate import TaxRate
 from app.features.product.services.margin import compute_margin, line_unit_cost
+from app.features.product.services.pricing import PricingContext
 from app.features.user.models.user import User
 from app.handlers.order import request_balance
 from app.utils.csv_export import csv_amount, csv_response
@@ -588,8 +589,16 @@ async def get_order_detail(
         )
         tax_pct_by_id = {r.id: Decimal(r.rate_pct) for r in tax_res.all()}
 
+    # Same commission as the product margin (grossed into the price).
+    try:
+        commission_pct: Decimal | None = (
+            await PricingContext.for_session(session)
+        ).payment_commission_pct
+    except Exception:  # noqa: BLE001 - a missing parameter never hides an order
+        commission_pct = None
+
     line_items: list[AdminOrderLineItem] = []
-    margin_totals = {"excl": Decimal("0"), "cost": Decimal("0")}
+    margin_totals = {"excl": Decimal("0"), "cost": Decimal("0"), "fees": Decimal("0")}
     lines_without_cost = 0
     for line in lines:
         total = line.unit_price * line.quantity - line.discount_amount
@@ -599,12 +608,14 @@ async def get_order_detail(
             price_incl_tax=total,
             tax_rate_pct=tax_pct,
             unit_cost=unit_cost * line.quantity if unit_cost is not None else None,
+            commission_pct=commission_pct,
         )
         if figures is None:
             lines_without_cost += 1
         else:
             margin_totals["excl"] += figures.price_excl_tax
             margin_totals["cost"] += figures.unit_cost
+            margin_totals["fees"] += figures.commission_amount
         line_items.append(
             AdminOrderLineItem(
                 product_id=line.product_id,
@@ -634,7 +645,9 @@ async def get_order_detail(
         )
     margin_summary: OrderMarginSummary | None = None
     if lines and lines_without_cost < len(lines):
-        goods_margin = margin_totals["excl"] - margin_totals["cost"]
+        goods_margin = (
+            margin_totals["excl"] - margin_totals["fees"] - margin_totals["cost"]
+        )
         margin_summary = OrderMarginSummary(
             goods_excl_tax=float(margin_totals["excl"]),
             goods_cost=float(margin_totals["cost"]),

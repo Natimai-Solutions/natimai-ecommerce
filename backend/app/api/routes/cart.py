@@ -105,13 +105,15 @@ from app.features.payment.services.payment_initiation import (
 )
 from app.features.place.crud import crud_place
 from app.features.place.models import Place
-from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import (
     BACKORDER_MODES,
     AvailabilityMode,
     Product,
 )
-from app.features.product.services.group_pricing import customer_price
+from app.features.product.services.group_pricing import (
+    customer_price,
+    resolve_customer_group,
+)
 from app.features.product.services.pricing import (
     PricingContext,
     calculate_sale_price,
@@ -1170,19 +1172,6 @@ async def _unit_cost_snapshot(
     except Exception as exc:  # noqa: BLE001 - a missing figure never blocks an order
         logger.warning("Unit cost not snapshotted for product %s: %s", product.id, exc)
         return None
-
-
-async def _resolve_customer_price_group(
-    session: SessionDep, current_user: Any
-) -> PriceGroup | None:
-    """The customer's own price group, else the default one: it decides the
-    deposit policy and the margin snapshotted on the lines."""
-    group_id = getattr(current_user, "price_group_id", None)
-    if group_id is not None:
-        group = await session.get(PriceGroup, group_id)
-        if group is not None and group.is_active:
-            return group
-    return await resolve_default_price_group(session)
 
 
 async def _get_or_create_order_pending_status(session: SessionDep) -> OrderStatus:
@@ -2564,9 +2553,7 @@ async def get_checkout_quote(
     cart = await crud_cart.get_active_cart_by_user(session=session, user_id=user_id)
     currency = cart.currency if cart is not None else settings.REFERENCE_CURRENCY
     zero = quantize_amount(Decimal("0"), currency)
-    policy = DepositPolicy.of(
-        await _resolve_customer_price_group(session, current_user)
-    )
+    policy = DepositPolicy.of(await resolve_customer_group(session, current_user))
     credit_available = await store_credit.balance(session, user_id)
     if cart is None:
         return CheckoutQuoteResponse(
@@ -2828,7 +2815,7 @@ async def checkout_my_cart(
         currency=cart.currency,
         strict=True,
     )
-    price_group = await _resolve_customer_price_group(session, current_user)
+    price_group = await resolve_customer_group(session, current_user)
     # The reference price's margin comes from the default group.
     reference_group = await resolve_default_price_group(session)
     quote = await _quote_checkout(

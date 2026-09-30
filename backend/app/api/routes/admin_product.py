@@ -365,7 +365,8 @@ async def preview_margin(
 class GroupPriceInput(BaseModel):
     price_group_id: uuid.UUID
     #: Tax-inclusive price for the group; None removes it (discount applies).
-    price: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2)
+    #: 0 is refused: it would sell the article for free to that group.
+    price: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=2)
 
 
 class GroupPricesUpdate(BaseModel):
@@ -404,6 +405,16 @@ async def set_group_prices(
             details={"product_id": str(product_id)},
         )
     group_ids = {g.id for g in await _active_groups(session)}
+    seen: set[uuid.UUID] = set()
+    for entry in payload.prices:
+        if entry.price_group_id in seen:
+            raise AppError(
+                code="price_group.duplicate",
+                status_code=400,
+                message="Un groupe apparaît deux fois dans la grille",
+                details={"price_group_id": str(entry.price_group_id)},
+            )
+        seen.add(entry.price_group_id)
     existing = {
         row.price_group_id: row
         for row in (
@@ -535,6 +546,8 @@ async def _refresh_parent_of(session: SessionDep, product: Product) -> None:
         return
     await refresh_parent_from_variants(session, parent)
     await session.commit()
+    # The commit expired the variant: reload it for the response.
+    await session.refresh(product)
 
 
 @router.delete("/{product_id}/overrides/{field}", response_model=ProductPublic)

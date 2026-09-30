@@ -20,13 +20,19 @@ from app.api.routes.admin_product import (
     admin_create_variant,
     admin_deactivate_variant,
     admin_list_variants,
+    admin_update_product,
 )
 from app.api.routes.cart import _get_active_product_or_404
 from app.api.routes.product_catalog import get_product_variants
 from app.core.errors import AppError
 from app.features.inventory.models.inventory import Inventory
 from app.features.product.crud.product import crud_product
-from app.features.product.models.product import PricingMode, Product, ProductCreate
+from app.features.product.models.product import (
+    PricingMode,
+    Product,
+    ProductCreate,
+    ProductUpdate,
+)
 from app.features.user.models.user import User
 from app.tasks.pricing_tasks import refresh_sale_prices
 
@@ -46,6 +52,18 @@ async def _admin(session: AsyncSession) -> User:
 async def _fresh(session: AsyncSession, user: User) -> User:
     await session.refresh(user)
     return user
+
+
+async def admin_update_variant_cost(
+    session: AsyncSession, admin: User, variant_id: uuid.UUID
+) -> None:
+    """Give a variant a purchase cost, so it carries a margin to roll up."""
+    await admin_update_product(
+        session=session,
+        current_user=await _fresh(session, admin),
+        product_id=variant_id,
+        payload=ProductUpdate(cost_amount=Decimal("1000")),
+    )
 
 
 @pytest.mark.asyncio
@@ -103,6 +121,22 @@ async def test_variants_are_sold_and_listed_through_their_parent(
     await db_session.refresh(parent_row)
     assert parent_row.has_variants is True
     assert parent_row.sale_price_cached == Decimal("2900.00")
+
+    # Editing the parent itself keeps the roll-up (price and margin of the
+    # cheapest variant), never its own — absent — cost.
+    await admin_update_variant_cost(db_session, admin, medium.id)
+    await admin_update_product(
+        session=db_session,
+        current_user=await _fresh(db_session, admin),
+        product_id=parent_id,
+        payload=ProductUpdate(description="Coton bio"),
+    )
+    parent_row = await db_session.get(Product, parent_id)
+    assert parent_row is not None
+    await db_session.refresh(parent_row)
+    assert parent_row.sale_price_cached == Decimal("2900.00")
+    assert parent_row.unit_cost_cached == Decimal("1000.00")
+    assert parent_row.margin_cached is not None and parent_row.margin_cached > 0
 
     # Warehouse stock on the M only: the parent shows as in stock through it.
     db_session.add(

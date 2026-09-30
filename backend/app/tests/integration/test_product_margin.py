@@ -42,6 +42,8 @@ from app.features.product.models.product import (
 )
 from app.features.product.models.tax_rate import TaxRate
 from app.features.product.services.margin import compute_margin
+from app.features.product.services.pricing_parameters import PAYMENT_COMMISSION_KEY
+from app.features.system.models.system_setting import SystemSetting
 from app.features.user.models.user import User
 
 TODAY = date.today()
@@ -257,6 +259,9 @@ async def test_an_order_shows_the_margin_of_its_lines(
     admin = await _admin(db_session)
     vat = await _vat(db_session)
     status = OrderStatus(name="Paid")
+    # A 2 % payment commission, grossed into the prices: the order's margin
+    # deducts it exactly as the product form does.
+    db_session.add(SystemSetting(key=PAYMENT_COMMISSION_KEY, value="2"))
     db_session.add(status)
     await db_session.flush()
     product = Product(
@@ -310,11 +315,11 @@ async def test_an_order_shows_the_margin_of_its_lines(
     keyboard = lines["Clavier"]
     assert keyboard.line_total_excl_tax == 10000.0
     assert keyboard.line_cost == 6000.0
-    assert keyboard.line_margin == 4000.0
-    assert keyboard.margin_pct == 40.0
+    assert keyboard.line_margin == 3768.0  # 10 000 − 2 % de 11 600 − 6 000
+    assert keyboard.margin_pct == 37.68
     assert lines["Tapis de souris"].line_margin is None
     assert detail.margin is not None
-    assert detail.margin.margin == 4000.0
+    assert detail.margin.margin == 3768.0
     assert detail.margin.complete is False
     assert detail.margin.lines_without_cost == 1
 

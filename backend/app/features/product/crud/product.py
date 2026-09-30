@@ -103,6 +103,15 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         """
         if record is None:
             return
+        if getattr(record, "has_variants", False):
+            # The parent is never sold: its price and margin are the cheapest
+            # variant's (« à partir de »), never computed from its own row.
+            from app.features.product.services.variants import (
+                refresh_parent_from_variants,
+            )
+
+            await refresh_parent_from_variants(session, record)
+            return
         previous = record.sale_price_cached
         try:
             context = await PricingContext.for_session(session)
