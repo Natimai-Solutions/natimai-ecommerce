@@ -49,6 +49,13 @@ class PaymentMethodBase(Base):
         decimal_places=2,
         description="Maximum transaction amount (NULL = no limit)",
     )
+    deposit_allowed: bool = Field(
+        default=True,
+        description=(
+            "Whether this method can pay the deposit of a deposit order "
+            "(the balance can always be paid by any eligible method)"
+        ),
+    )
 
 
 class PaymentMethodCreate(PaymentMethodBase, BaseCreate):
@@ -68,6 +75,7 @@ class PaymentMethodUpdate(PaymentMethodBase, BaseUpdate):
     requires_document_upload: bool | None = None
     sort_order: int | None = None
     max_amount: Decimal | None = None
+    deposit_allowed: bool | None = None
 
 
 class PaymentMethod(PaymentMethodBase, table=True):

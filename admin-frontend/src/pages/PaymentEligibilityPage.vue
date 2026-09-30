@@ -29,9 +29,10 @@
         </div>
         <p class="admin-hint">
           Le commutateur <strong>Activé</strong> coupe/rétablit une méthode
-          <strong>globalement</strong> (masquée pour tous les clients si désactivée). Les cases
-          cochent les groupes autorisés : <strong>aucune coche</strong> = méthode ouverte à
-          <strong>tous</strong> les groupes.
+          <strong>globalement</strong> (masquée pour tous les clients si désactivée).
+          <strong>Acompte</strong> décide si elle peut régler l'acompte d'une commande ; le solde
+          reste payable par tout moyen. Les cases cochent les groupes autorisés :
+          <strong>aucune coche</strong> = méthode ouverte à <strong>tous</strong> les groupes.
         </p>
 
         <q-markup-table flat bordered separator="cell">
@@ -39,6 +40,7 @@
             <tr>
               <th class="text-left">Méthode</th>
               <th class="text-center">Activé</th>
+              <th class="text-center">Acompte</th>
               <th v-for="g in groups" :key="g.id" class="text-center">
                 {{ g.label }}
                 <span v-if="g.default" class="text-subtle q-ml-xs">(défaut)</span>
@@ -58,6 +60,14 @@
                   color="positive"
                   :disable="updatingKey === activeKey(m.id)"
                   @update:model-value="(val) => toggleActive(m, val)"
+                />
+              </td>
+              <td class="text-center">
+                <q-toggle
+                  :model-value="m.deposit_allowed"
+                  :disable="updatingKey === depositKey(m.id)"
+                  :data-testid="`method-deposit-${m.provider_code}`"
+                  @update:model-value="(val) => toggleDeposit(m, val)"
                 />
               </td>
               <td v-for="g in groups" :key="g.id" class="text-center">
@@ -175,6 +185,7 @@ import {
   listPriceGroups,
   removeEligibility,
   setPaymentMethodActive,
+  setPaymentMethodDepositAllowed,
   updatePriceGroup,
   type PaymentMethod,
   type PriceGroup,
@@ -268,6 +279,23 @@ async function toggleActive(method: PaymentMethod, value: boolean) {
   try {
     await setPaymentMethodActive(method.id, value);
     method.is_admin_active = value;
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Mise à jour impossible.';
+  } finally {
+    updatingKey.value = null;
+  }
+}
+
+function depositKey(methodId: string): string {
+  return `deposit:${methodId}`;
+}
+
+async function toggleDeposit(method: PaymentMethod, value: boolean) {
+  updatingKey.value = depositKey(method.id);
+  error.value = null;
+  try {
+    await setPaymentMethodDepositAllowed(method.id, value);
+    method.deposit_allowed = value;
   } catch (err) {
     error.value = extractApiError(err) ?? 'Mise à jour impossible.';
   } finally {

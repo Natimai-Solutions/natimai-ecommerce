@@ -287,6 +287,8 @@ async def on_order_created(session: AsyncSession, payload: dict[str, Any]) -> No
         currency=payload.get("currency", ""),
         item_count=payload.get("item_count", ""),
         tracking_url=tracking_url_from_payload(payload.get("order_id")),
+        amount_due_now=payload.get("amount_due_now") or "",
+        payment_instructions=payload.get("payment_instructions") or "",
         shop_name=_shop_name(),
     )
 

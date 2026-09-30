@@ -688,6 +688,7 @@ function methodIcon(providerCode: string): string {
   if (providerCode === 'payzen') return 'ph:credit-card';
   if (providerCode === 'manual_transfer') return 'ph:bank';
   if (providerCode === 'manual_check') return 'ph:money';
+  if (providerCode === 'manual_cash') return 'ph:coins';
   if (providerCode.startsWith('po_') || providerCode === 'document') return 'ph:file-text';
   return 'ph:wallet';
 }
@@ -723,8 +724,21 @@ const planChoices = computed<ChoiceOption<'full' | 'deposit'>[]>(() =>
   })),
 );
 
+// A method the shop excluded from deposits is not offered when paying one.
+const usableMethods = computed(() =>
+  paymentPlan.value === 'deposit'
+    ? methods.value.filter((m) => m.deposit_allowed !== false)
+    : methods.value,
+);
+
+watch(usableMethods, (usable) => {
+  if (!usable.some((m) => m.id === selectedMethodId.value)) {
+    selectedMethodId.value = usable[0]?.id ?? null;
+  }
+});
+
 const methodChoices = computed<ChoiceOption[]>(() =>
-  methods.value.map((m) => ({
+  usableMethods.value.map((m) => ({
     value: m.id,
     title: m.name,
     caption: m.description,

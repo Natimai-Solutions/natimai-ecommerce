@@ -3066,6 +3066,12 @@ async def checkout_my_cart(
                 "total_amount": str(total_amount),
                 "currency": cart.currency,
                 "item_count": len(items),
+                # How to pay a manual method (cash at the office, cheque,
+                # transfer): repeated in the « commande reçue » e-mail.
+                "amount_due_now": str(quote.amount_due_now),
+                "payment_instructions": (
+                    payment_init.instructions if payment_init is not None else None
+                ),
             },
             correlation_id=order.id,
         )

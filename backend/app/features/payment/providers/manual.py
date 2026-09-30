@@ -83,3 +83,19 @@ class ManualTransferProvider(_ManualProviderBase):
         "mentionnant la référence de paiement. Votre commande sera validée "
         "dès réception du virement."
     )
+
+
+class ManualCashProvider(_ManualProviderBase):
+    """Cash paid at the shop's office, possibly in several instalments.
+
+    Proposed to every customer (some have no bank card): the order is placed
+    online, the customer comes to the office to pay all or part of it, and an
+    admin records each amount received (``payment_receipts``).
+    """
+
+    code = "manual_cash"
+    instructions = (
+        "Réglez votre commande en espèces à notre bureau, en une ou plusieurs "
+        "fois. Chaque versement vous est confirmé par e-mail ; la commande est "
+        "validée dès que le montant dû est atteint."
+    )

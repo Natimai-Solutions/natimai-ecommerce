@@ -14127,6 +14127,12 @@ export interface components {
              * @description Maximum transaction amount (NULL = no limit)
              */
             max_amount?: number | string | null;
+            /**
+             * Deposit Allowed
+             * @description Whether this method can pay the deposit of a deposit order (the balance can always be paid by any eligible method)
+             * @default true
+             */
+            deposit_allowed: boolean;
         };
         /**
          * PaymentMethodPublic
@@ -14197,6 +14203,12 @@ export interface components {
              */
             max_amount?: string | null;
             /**
+             * Deposit Allowed
+             * @description Whether this method can pay the deposit of a deposit order (the balance can always be paid by any eligible method)
+             * @default true
+             */
+            deposit_allowed: boolean;
+            /**
              * Id
              * Format: uuid
              */
@@ -14241,6 +14253,8 @@ export interface components {
             sort_order?: number | null;
             /** Max Amount */
             max_amount?: number | string | null;
+            /** Deposit Allowed */
+            deposit_allowed?: boolean | null;
         };
         /**
          * PaymentMethodsPublic

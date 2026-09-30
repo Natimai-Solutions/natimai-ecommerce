@@ -562,6 +562,7 @@
 </template>
 
 <script setup lang="ts">
+import { providerLabel } from '@/utils/payments';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -726,16 +727,6 @@ function formatDate(raw: string | null): string {
         hour: '2-digit',
         minute: '2-digit',
       });
-}
-
-function providerLabel(code: string | null): string {
-  if (!code) return '—';
-  if (code.startsWith('document') || code.startsWith('po_')) return 'Bon de commande';
-  if (code.includes('check') || code.includes('cheque')) return 'Chèque';
-  if (code.includes('transfer') || code.includes('virement')) return 'Virement';
-  if (code === 'payzen') return 'Carte bancaire';
-  if (code.startsWith('manual')) return 'Paiement manuel';
-  return code;
 }
 
 async function load() {

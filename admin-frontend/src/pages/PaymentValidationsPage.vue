@@ -248,6 +248,7 @@
 </template>
 
 <script setup lang="ts">
+import { providerLabel } from '@/utils/payments';
 import { onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -287,14 +288,6 @@ const columns: QTableColumn[] = [
 
 function formatMoney(amount: number): string {
   return Number.isFinite(amount) ? formatXpf(amount) : String(amount);
-}
-
-function providerLabel(code: string): string {
-  if (code.startsWith('document') || code.startsWith('po_')) return 'Bon de commande';
-  if (code.includes('check') || code.includes('cheque')) return 'Chèque';
-  if (code.includes('transfer') || code.includes('virement')) return 'Virement';
-  if (code.startsWith('manual')) return 'Paiement manuel';
-  return code;
 }
 
 async function load() {

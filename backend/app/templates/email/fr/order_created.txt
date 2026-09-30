@@ -6,7 +6,10 @@ Numéro de commande : {{ order_ref or (order_id | short_ref) }}
 Montant total      : {{ total_amount }} {{ currency }}
 Nombre d'articles  : {{ item_count }}
 
-Vous recevrez une confirmation dès que votre paiement aura été validé.
+{% if payment_instructions %}Pour régler votre commande{% if amount_due_now and amount_due_now != total_amount %} ({{ amount_due_now }} {{ currency }} maintenant){% endif %} :
+{{ payment_instructions }}
+
+{% endif %}Vous recevrez une confirmation dès que votre paiement aura été validé.
 {% if tracking_url %}Suivre ma commande : {{ tracking_url }}
 {% endif %}
 

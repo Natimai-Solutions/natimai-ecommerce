@@ -21,6 +21,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.errors import AppError
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.models.payment import Payment, PaymentCreate
+from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.providers import get_provider
 from app.features.payment.providers.base import (
     ApiPaymentProvider,
@@ -29,6 +30,7 @@ from app.features.payment.providers.base import (
     ManualPaymentProvider,
     UnknownPaymentProviderError,
 )
+from app.features.payment.services.deposit import KIND_DEPOSIT
 from app.features.payment.services.document_payment import (
     register_intent as register_document_intent,
 )
@@ -43,6 +45,7 @@ from app.features.payment.services.provider_dispatch import (
     initiate_api_payment,
     resolve_provider_code_for_payment_method,
 )
+from app.features.system.payment_instructions import load_payment_instructions
 from app.utils.money import decimal_to_minor_units
 
 
@@ -149,6 +152,21 @@ async def initiate_payment_for_method(
             details={"payment_method_id": str(payment_method_id)},
         )
 
+    # 2b. A method can be excluded from deposits (the balance stays open to
+    #     every eligible method).
+    if kind == KIND_DEPOSIT:
+        method = await session.get(PaymentMethod, payment_method_id)
+        if method is not None and not method.deposit_allowed:
+            raise AppError(
+                code="payment.method.deposit_not_allowed",
+                status_code=400,
+                message=(
+                    f"Le moyen de paiement « {method.name} » ne peut pas régler "
+                    "un acompte"
+                ),
+                details={"payment_method_id": str(payment_method_id)},
+            )
+
     # 3. Provider implementation.
     try:
         provider = get_provider(provider_code)
@@ -206,6 +224,10 @@ async def initiate_payment_for_method(
 
     elif isinstance(provider, ManualPaymentProvider):
         provider_result = await provider.register_intent(initiation_request)
+        # The shop's own wording (office address, IBAN…) replaces the default.
+        shop_instructions = await load_payment_instructions(session, provider_code)
+        if shop_instructions:
+            provider_result.instructions = shop_instructions
 
         payment.provider_code = provider_code
         payment.provider_reference = provider_result.provider_reference or str(

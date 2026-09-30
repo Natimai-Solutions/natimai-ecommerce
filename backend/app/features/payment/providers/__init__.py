@@ -15,6 +15,7 @@ from app.features.payment.providers.document_validated import (
     PublicPurchaseOrderProvider,
 )
 from app.features.payment.providers.manual import (
+    ManualCashProvider,
     ManualCheckProvider,
     ManualTransferProvider,
 )
@@ -22,6 +23,7 @@ from app.features.payment.providers.payzen import PayzenProvider
 
 SUPPORTED_PROVIDERS: dict[str, type[PaymentProvider]] = {
     PayzenProvider.code: PayzenProvider,
+    ManualCashProvider.code: ManualCashProvider,
     ManualCheckProvider.code: ManualCheckProvider,
     ManualTransferProvider.code: ManualTransferProvider,
     PublicPurchaseOrderProvider.code: PublicPurchaseOrderProvider,
@@ -55,6 +57,7 @@ __all__ = [
     "DocumentValidatedProvider",
     "InitiationRequest",
     "InitiationResult",
+    "ManualCashProvider",
     "ManualCheckProvider",
     "ManualPaymentProvider",
     "ManualTransferProvider",

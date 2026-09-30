@@ -70,6 +70,11 @@ async def test_payments_initiate_dispatches_manual_check(
         "app.features.payment.services.payment_initiation.check_payment_method_eligible",
         AsyncMock(return_value=True),
     )
+    # No shop-specific wording in these tests: the provider's text applies.
+    monkeypatch.setattr(
+        "app.features.payment.services.payment_initiation.load_payment_instructions",
+        AsyncMock(return_value=None),
+    )
     # Order revalidation is covered by test_payments_initiate_order_guard.py;
     # this test focuses on the manual-provider dispatch.
     monkeypatch.setattr(
@@ -148,6 +153,11 @@ async def test_payments_initiate_dispatches_manual_transfer(
     monkeypatch.setattr(
         "app.features.payment.services.payment_initiation.check_payment_method_eligible",
         AsyncMock(return_value=True),
+    )
+    # No shop-specific wording in these tests: the provider's text applies.
+    monkeypatch.setattr(
+        "app.features.payment.services.payment_initiation.load_payment_instructions",
+        AsyncMock(return_value=None),
     )
 
     request = PaymentsInitiateRequest(

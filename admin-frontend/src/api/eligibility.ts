@@ -8,6 +8,8 @@ export interface PaymentMethod {
   sort_order: number;
   /** Global admin on/off switch. When false the method is hidden for everyone. */
   is_admin_active: boolean;
+  /** Whether the method can pay a deposit (the balance stays open to all). */
+  deposit_allowed: boolean;
 }
 
 export interface PriceGroup {
@@ -82,4 +84,12 @@ export async function removeEligibility(methodId: string, groupId: string): Prom
 /** Global enable/disable of a payment method (admin). */
 export async function setPaymentMethodActive(methodId: string, isActive: boolean): Promise<void> {
   await api.put(`/payment_method/${methodId}`, { is_admin_active: isActive });
+}
+
+/** Allow or exclude a payment method for deposits (admin). */
+export async function setPaymentMethodDepositAllowed(
+  methodId: string,
+  allowed: boolean,
+): Promise<void> {
+  await api.put(`/payment_method/${methodId}`, { deposit_allowed: allowed });
 }

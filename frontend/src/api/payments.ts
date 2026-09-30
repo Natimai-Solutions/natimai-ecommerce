@@ -9,6 +9,8 @@ export interface PaymentMethod {
   requires_admin_validation: boolean;
   requires_document_upload: boolean;
   sort_order: number;
+  /** false = cannot pay a deposit (the balance stays open to every method). */
+  deposit_allowed?: boolean;
 }
 
 export interface PaymentMethodsResponse {
