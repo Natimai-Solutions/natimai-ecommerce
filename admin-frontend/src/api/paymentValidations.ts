@@ -15,6 +15,8 @@ export interface PendingPayment {
   order_number?: string | null;
   /** True for document-validated providers (purchase order / BC). */
   is_document: boolean;
+  /** Σ of the instalments already received on this payment. */
+  received_amount?: number;
 }
 
 export interface PaymentAttachment {
@@ -118,4 +120,73 @@ function resolveStorageUrl(url: string): string {
     // Relative/invalid URL — return as-is.
   }
   return url;
+}
+
+// --- Versements reçus sur un paiement manuel (espèces, chèque, virement) ---
+
+export type ReceiptMethod = 'cash' | 'check' | 'transfer' | 'card' | 'other';
+
+export const RECEIPT_METHOD_LABELS: Record<ReceiptMethod, string> = {
+  cash: 'Espèces',
+  check: 'Chèque',
+  transfer: 'Virement',
+  card: 'Carte (TPE)',
+  other: 'Autre',
+};
+
+export interface PaymentReceipt {
+  id: string;
+  payment_id: string;
+  order_id: string | null;
+  amount: string;
+  currency: string;
+  received_at: string;
+  method: ReceiptMethod;
+  reference: string | null;
+  note: string | null;
+  is_active: boolean;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
+}
+
+export interface ReceiptInput {
+  amount: number;
+  received_at?: string | null;
+  method?: ReceiptMethod | null;
+  reference?: string | null;
+  note?: string | null;
+}
+
+export interface ReceiptResult {
+  receipt: PaymentReceipt;
+  payment_id: string;
+  received_amount: string;
+  remaining_amount: string;
+  payment_settled: boolean;
+}
+
+/** Record an instalment; the one that reaches the amount settles the payment. */
+export async function recordReceipt(
+  paymentId: string,
+  input: ReceiptInput,
+): Promise<ReceiptResult> {
+  const { data } = await api.post<ReceiptResult>(`/admin/payments/${paymentId}/receipts`, input);
+  return data;
+}
+
+/** Cancel an instalment of a pending payment (bounced cheque, cash handed back). */
+export async function cancelReceipt(receiptId: string, reason: string): Promise<PaymentReceipt> {
+  const { data } = await api.post<PaymentReceipt>(`/admin/payments/receipts/${receiptId}/cancel`, {
+    reason,
+  });
+  return data;
+}
+
+/** Money handed over at the office for the part of the order now due. */
+export async function recordCounterPayment(
+  orderId: string,
+  input: ReceiptInput & { method: 'cash' | 'check' | 'transfer' },
+): Promise<ReceiptResult> {
+  const { data } = await api.post<ReceiptResult>(`/admin/orders/${orderId}/payments`, input);
+  return data;
 }

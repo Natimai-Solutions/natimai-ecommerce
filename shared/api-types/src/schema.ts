@@ -842,6 +842,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payments/{payment_id}/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Payment Receipts
+         * @description Every receipt of a payment, cancelled ones included, oldest first.
+         */
+        get: operations["admin-payment-list_payment_receipts"];
+        put?: never;
+        /**
+         * Create Payment Receipt
+         * @description Record an instalment; the one that reaches the amount settles the payment.
+         */
+        post: operations["admin-payment-create_payment_receipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payments/receipts/{receipt_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Payment Receipt
+         * @description Cancel an instalment of a still pending payment (bounced cheque…).
+         */
+        post: operations["admin-payment-cancel_payment_receipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/quote-requests": {
         parameters: {
             query?: never;
@@ -1069,6 +1113,27 @@ export interface paths {
         get: operations["admin-order-get_order_detail"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/{order_id}/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Order Counter Payment
+         * @description « Enregistrer un encaissement » : cash, cheque or transfer received for
+         *     the part now due, on the customer's pending manual payment or a new one.
+         */
+        post: operations["admin-order-record_order_counter_payment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7615,6 +7680,28 @@ export interface components {
             lines: components["schemas"]["AdminOrderLineItem"][];
             /** Payments */
             payments: components["schemas"]["AdminOrderPaymentItem"][];
+            /**
+             * Amount Paid
+             * @default 0
+             */
+            amount_paid: number;
+            /**
+             * Amount Due
+             * @default 0
+             */
+            amount_due: number;
+            /**
+             * Receipts
+             * @default []
+             */
+            receipts: components["schemas"]["PaymentReceiptPublic"][];
+            /** Next Part Kind */
+            next_part_kind?: string | null;
+            /**
+             * Next Part Due
+             * @default 0
+             */
+            next_part_due: number;
         };
         /**
          * AdminOrderLineItem
@@ -7699,6 +7786,16 @@ export interface components {
              * @default false
              */
             can_refund: boolean;
+            /**
+             * Received Amount
+             * @default 0
+             */
+            received_amount: number;
+            /**
+             * Accepts Receipts
+             * @default false
+             */
+            accepts_receipts: boolean;
         };
         /**
          * AdminPendingTrackingItem
@@ -9700,6 +9797,25 @@ export interface components {
              * @default false
              */
             is_published: boolean;
+        };
+        /**
+         * CounterPaymentCreate
+         * @description Money handed over at the office for the part of the order now due.
+         */
+        CounterPaymentCreate: {
+            /** Amount */
+            amount: number | string;
+            /**
+             * Method
+             * @description cash | check | transfer
+             */
+            method: string;
+            /** Received At */
+            received_at?: string | null;
+            /** Reference */
+            reference?: string | null;
+            /** Note */
+            note?: string | null;
         };
         /**
          * CreditNotePublic
@@ -12397,6 +12513,16 @@ export interface components {
             balance_due: boolean;
             /** Payment Method Name */
             payment_method_name?: string | null;
+            /**
+             * Amount Paid
+             * @default 0
+             */
+            amount_paid: string;
+            /**
+             * Amount Due
+             * @default 0
+             */
+            amount_due: string;
         };
         /**
          * MyOrderLine
@@ -14309,6 +14435,11 @@ export interface components {
              * @default false
              */
             is_document: boolean;
+            /**
+             * Received Amount
+             * @default 0
+             */
+            received_amount: number;
         };
         /**
          * PaymentPublic
@@ -14383,6 +14514,47 @@ export interface components {
             provider_data?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /**
+         * PaymentReceiptPublic
+         * @description A receipt as the admin sees it.
+         */
+        PaymentReceiptPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /** Order Id */
+            order_id: string | null;
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Method */
+            method: string;
+            /** Reference */
+            reference: string | null;
+            /** Note */
+            note: string | null;
+            /** Recorded By Id */
+            recorded_by_id: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Cancel Reason */
+            cancel_reason: string | null;
         };
         /**
          * PaymentRefundRequest
@@ -16616,6 +16788,33 @@ export interface components {
             /** Redis */
             redis: boolean;
         };
+        /** ReceiptCancel */
+        ReceiptCancel: {
+            /** Reason */
+            reason: string;
+        };
+        /**
+         * ReceiptCreate
+         * @description An amount received against a pending manual payment.
+         */
+        ReceiptCreate: {
+            /** Amount */
+            amount: number | string;
+            /**
+             * Received At
+             * @description When the money was received (default: now)
+             */
+            received_at?: string | null;
+            /**
+             * Method
+             * @description cash | check | transfer | card | other (default: the payment's)
+             */
+            method?: string | null;
+            /** Reference */
+            reference?: string | null;
+            /** Note */
+            note?: string | null;
+        };
         /**
          * ReceiptLineView
          * @description One product of the shipment: what was expected, what came in.
@@ -16703,6 +16902,24 @@ export interface components {
             damaged_units: number;
             /** Missing Units */
             missing_units: number;
+        };
+        /**
+         * ReceiptResult
+         * @description A recorded receipt and where its payment stands.
+         */
+        ReceiptResult: {
+            receipt: components["schemas"]["PaymentReceiptPublic"];
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /** Received Amount */
+            received_amount: string;
+            /** Remaining Amount */
+            remaining_amount: string;
+            /** Payment Settled */
+            payment_settled: boolean;
         };
         /**
          * RefundPublic
@@ -21805,6 +22022,107 @@ export interface operations {
             };
         };
     };
+    "admin-payment-list_payment_receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentReceiptPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-payment-create_payment_receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-payment-cancel_payment_receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                receipt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptCancel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentReceiptPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-quote-requests-list_quote_requests": {
         parameters: {
             query?: {
@@ -22207,6 +22525,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminOrderDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-order-record_order_counter_payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CounterPaymentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptResult"];
                 };
             };
             /** @description Validation Error */

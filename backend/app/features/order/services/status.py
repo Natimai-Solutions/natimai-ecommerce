@@ -30,6 +30,7 @@ EVENT_ORDER_STATUS_CHANGED = "order.status_changed"
 PAYMENT_STATUSES: tuple[str, ...] = (
     "Pending",
     "AwaitingPayment",
+    "PartiallyPaid",
     "Paid",
     "DepositPaid",
     "PaymentFailed",

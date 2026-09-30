@@ -27,6 +27,7 @@ from app.features.order.services.tracking_link import verify_order_tracking_toke
 from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.services.deposit import balance_amount, balance_due
+from app.features.payment.services.receipts import order_payment_summary
 from app.features.shipping.crud import (
     crud_shipping_route_tracking,
     crud_status_definition,
@@ -153,6 +154,9 @@ class MyOrderDetail(MyOrderPublic):
     """One order for its detail page: the summary plus how it was paid."""
 
     payment_method_name: str | None = None
+    #: Money already received (instalments included) and what is left to pay.
+    amount_paid: Decimal = Decimal("0")
+    amount_due: Decimal = Decimal("0")
 
 
 async def _payment_method_name(session: SessionDep, order_id: uuid.UUID) -> str | None:
@@ -185,6 +189,8 @@ async def get_my_order(
     item.balance_amount = balance_amount(order)
     item.balance_due = balance_due(order)
     item.payment_method_name = await _payment_method_name(session, order.id)
+    summary = await order_payment_summary(session, order=order)
+    item.amount_paid, item.amount_due = summary.paid, summary.due
     return item
 
 

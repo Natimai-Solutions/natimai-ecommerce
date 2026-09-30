@@ -19,6 +19,7 @@ const PAID: StatusFacet = { label: 'Payée', tone: 'ok', icon: 'ph:check-circle'
 const PAYMENT_FACETS: Record<string, StatusFacet> = {
   Pending: { label: 'Paiement en attente', tone: 'warn', icon: 'ph:clock' },
   AwaitingPayment: { label: 'En attente de paiement', tone: 'warn', icon: 'ph:clock' },
+  PartiallyPaid: { label: 'Partiellement payée', tone: 'warn', icon: 'ph:coins' },
   Paid: PAID,
   DepositPaid: { label: 'Acompte versé', tone: 'ok', icon: 'ph:piggy-bank' },
   PaymentFailed: { label: 'Paiement refusé', tone: 'danger', icon: 'ph:x-circle' },

@@ -1,0 +1,17 @@
+{% extends "_layout.html" %}
+{% block title %}Versement reçu{% endblock %}
+{% block heading %}Versement reçu{% endblock %}
+{% block content %}
+      <p>Bonjour {{ full_name }},</p>
+      <p>Nous avons bien reçu votre versement. Votre commande sera validée dès que le montant restant sera reçu.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Numéro de commande</td><td>{{ order_ref or (order_id | short_ref) }}</td></tr>
+          <tr><td>Versement reçu</td><td>{{ amount }} {{ currency }}</td></tr>
+          <tr><td>Total déjà versé</td><td>{{ received_amount }} {{ currency }}</td></tr>
+          <tr><td>Reste à régler</td><td><strong>{{ remaining_amount }} {{ currency }}</strong></td></tr>
+        </table>
+      </div>
+      {% if tracking_url %}<p><a href="{{ tracking_url }}">Suivre ma commande</a></p>{% endif %}
+      <p>Merci pour votre confiance,<br><strong>L'équipe {{ shop_name }}</strong></p>
+{% endblock %}

@@ -238,6 +238,21 @@
               <span class="font-mono">{{ money(order.total_amount) }}</span>
             </div>
 
+            <div v-if="partialPayment" class="summary__block" data-testid="order-partial">
+              <div class="app-kv app-kv--credit">
+                <span>Déjà réglé</span>
+                <span class="font-mono">{{ money(partialPayment.paid) }}</span>
+              </div>
+              <div class="app-kv">
+                <span>Reste à régler</span>
+                <span class="font-mono">{{ money(partialPayment.due) }}</span>
+              </div>
+              <p class="summary__note">
+                Vous réglez en plusieurs fois : la commande est validée dès que le montant restant
+                est reçu.
+              </p>
+            </div>
+
             <div
               v-if="order.payment_plan === 'deposit'"
               class="summary__block"
@@ -366,6 +381,16 @@ useMeta(() => ({ title: `Commande ${reference.value}` }));
 const paymentMethod = computed(() =>
   order.value && 'payment_method_name' in order.value ? order.value.payment_method_name : null,
 );
+
+// Paiement en plusieurs fois (espèces au bureau, chèques) : déjà réglé / reste.
+const partialPayment = computed(() => {
+  const current = order.value;
+  if (!current || !('amount_paid' in current) || current.order_status_name !== 'PartiallyPaid')
+    return null;
+  const paid = current.amount_paid ?? '0';
+  const due = current.amount_due ?? '0';
+  return Number(due) > 0 ? { paid, due } : null;
+});
 
 const deliveryLabel = computed(() => {
   const type = order.value?.delivery_type;

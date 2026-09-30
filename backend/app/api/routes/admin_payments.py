@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime
 from decimal import Decimal
 
 from fastapi import APIRouter
@@ -20,6 +21,10 @@ from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_attachment import (
     PaymentAttachmentPublic,
 )
+from app.features.payment.models.payment_receipt import (
+    PaymentReceipt,
+    PaymentReceiptPublic,
+)
 from app.features.payment.models.payment_validation import (
     PaymentValidation,
     PaymentValidationPublic,
@@ -36,11 +41,18 @@ from app.features.payment.services.document_payment import (
 from app.features.payment.services.manual_payment import (
     ManualValidationOutcome,
     PaymentNotManualError,
-    approve_manual_payment,
     reject_manual_payment,
 )
 from app.features.payment.services.pending_validation import (
     pending_validation_conditions,
+)
+from app.features.payment.services.receipts import (
+    ReceiptOutcome,
+    cancel_receipt,
+    received_amount,
+    received_by_payment,
+    record_receipt,
+    settle_remaining,
 )
 from app.features.payment.services.refund_service import refund_payment
 from app.features.user.models.user import User
@@ -88,6 +100,8 @@ class PaymentPendingValidationItem(BaseModel):
     order_id: uuid.UUID | None
     order_number: str | None = None
     is_document: bool = False
+    #: Σ of the instalments already received on this payment (R3-P2).
+    received_amount: float = 0
 
 
 class PaymentValidationResponse(BaseModel):
@@ -171,6 +185,8 @@ async def list_pending_validation(
         )
         numbers_by_order = dict(order_result.all())
 
+    received = await received_by_payment(session, [p.id for p in payments])
+
     items: list[PaymentPendingValidationItem] = []
     for p in payments:
         user = users_by_id.get(p.user_id)
@@ -187,6 +203,7 @@ async def list_pending_validation(
                 order_id=p.order_id,
                 order_number=numbers_by_order.get(p.order_id) if p.order_id else None,
                 is_document=p.provider_code in DOCUMENT_PROVIDER_CODES,
+                received_amount=float(received.get(p.id, 0)),
             )
         )
     return items
@@ -236,8 +253,21 @@ async def approve_payment(
                 },
             ) from e
     else:
+        if not (payment.provider_code or "").startswith("manual_"):
+            await session.rollback()
+            raise AppError(
+                code="payment.not_manual",
+                status_code=400,
+                message=f"Payment {payment.id} provider '{payment.provider_code}' is not manual",
+                details={
+                    "payment_id": str(payment_id),
+                    "provider_code": payment.provider_code,
+                },
+            )
         try:
-            outcome = await approve_manual_payment(
+            # What is left to receive becomes one receipt, which settles the
+            # payment: the history of every amount received stays complete.
+            outcome = await settle_remaining(
                 session,
                 payment=payment,
                 admin=admin,
@@ -300,6 +330,17 @@ async def reject_payment(
                 },
             ) from e
     else:
+        if await received_amount(session, payment_id=payment.id) > 0:
+            await session.rollback()
+            raise AppError(
+                code="payment.receipt.exists",
+                status_code=409,
+                message=(
+                    "Des versements ont déjà été reçus sur ce paiement : "
+                    "annulez-les d'abord (chèque impayé, somme rendue)"
+                ),
+                details={"payment_id": str(payment_id)},
+            )
         try:
             outcome = await reject_manual_payment(
                 session,
@@ -453,3 +494,121 @@ async def get_attachment_download_url(
         download_url=presigned.url,
         expires_in=presigned.expires_in,
     )
+
+
+# ---------------------------------------------------------------------------
+# Receipts: instalments received on a manual payment (R3-P2)
+# ---------------------------------------------------------------------------
+
+
+class ReceiptCreate(BaseModel):
+    """An amount received against a pending manual payment."""
+
+    amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
+    received_at: datetime | None = Field(
+        default=None, description="When the money was received (default: now)"
+    )
+    method: str | None = Field(
+        default=None,
+        description="cash | check | transfer | card | other (default: the payment's)",
+    )
+    reference: str | None = Field(default=None, max_length=100)
+    note: str | None = Field(default=None, max_length=500)
+
+
+class ReceiptCancel(BaseModel):
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class ReceiptResult(BaseModel):
+    """A recorded receipt and where its payment stands."""
+
+    receipt: PaymentReceiptPublic
+    payment_id: uuid.UUID
+    received_amount: Decimal
+    remaining_amount: Decimal
+    payment_settled: bool
+
+
+def receipt_result(outcome: ReceiptOutcome) -> ReceiptResult:
+    return ReceiptResult(
+        receipt=PaymentReceiptPublic.model_validate(
+            outcome.receipt, from_attributes=True
+        ),
+        payment_id=outcome.payment.id,
+        received_amount=outcome.received,
+        remaining_amount=outcome.remaining,
+        payment_settled=outcome.settled is not None,
+    )
+
+
+@router.get("/{payment_id}/receipts", response_model=list[PaymentReceiptPublic])
+async def list_payment_receipts(
+    payment_id: uuid.UUID,
+    session: SessionDep,
+    _admin: CurrentSuperUser,
+) -> list[PaymentReceiptPublic]:
+    """Every receipt of a payment, cancelled ones included, oldest first."""
+    await _get_payment_or_404(session, payment_id)
+    rows = await session.exec(
+        select(PaymentReceipt)
+        .where(col(PaymentReceipt.payment_id) == payment_id)
+        .order_by(col(PaymentReceipt.received_at))
+    )
+    return [
+        PaymentReceiptPublic.model_validate(r, from_attributes=True) for r in rows.all()
+    ]
+
+
+@router.post("/{payment_id}/receipts", response_model=ReceiptResult)
+async def create_payment_receipt(
+    payment_id: uuid.UUID,
+    body: ReceiptCreate,
+    session: SessionDep,
+    admin: CurrentSuperUser,
+) -> ReceiptResult:
+    """Record an instalment; the one that reaches the amount settles the payment."""
+    payment = await _get_payment_or_404(session, payment_id)
+    try:
+        outcome = await record_receipt(
+            session,
+            payment=payment,
+            admin=admin,
+            amount=body.amount,
+            received_at=body.received_at,
+            method=body.method,
+            reference=body.reference,
+            note=body.note,
+        )
+        result = receipt_result(outcome)
+        await session.commit()
+    except AppError:
+        await session.rollback()
+        raise
+    return result
+
+
+@router.post("/receipts/{receipt_id}/cancel", response_model=PaymentReceiptPublic)
+async def cancel_payment_receipt(
+    receipt_id: uuid.UUID,
+    body: ReceiptCancel,
+    session: SessionDep,
+    admin: CurrentSuperUser,
+) -> PaymentReceiptPublic:
+    """Cancel an instalment of a still pending payment (bounced cheque…)."""
+    receipt = await session.get(PaymentReceipt, receipt_id)
+    if receipt is None:
+        raise AppError(
+            code="payment.receipt.not_found",
+            status_code=404,
+            message="Versement introuvable",
+            details={"receipt_id": str(receipt_id)},
+        )
+    try:
+        await cancel_receipt(session, receipt=receipt, admin=admin, reason=body.reason)
+        public = PaymentReceiptPublic.model_validate(receipt, from_attributes=True)
+        await session.commit()
+    except AppError:
+        await session.rollback()
+        raise
+    return public

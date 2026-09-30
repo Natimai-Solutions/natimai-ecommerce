@@ -28,6 +28,7 @@ from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.models.payment_method_eligibility import (
     PaymentMethodEligibility,
 )
+from app.features.payment.models.payment_receipt import PaymentReceipt
 from app.features.payment.models.payment_status import PaymentStatus
 from app.features.payment.models.payment_validation import PaymentValidation
 from app.features.payment.models.refund import Refund
@@ -96,6 +97,7 @@ __all__ = [
     "StockAlert",
     "ProductPriceEntry",
     "StoreCreditEntry",
+    "PaymentReceipt",
     "PaymentValidation",
     "Place",
     "PlacePostalCode",

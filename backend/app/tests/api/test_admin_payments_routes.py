@@ -112,12 +112,14 @@ async def test_list_pending_validation_returns_manual_pending(
         result.all.return_value = rows
         return result
 
-    # Three queries: the payments, their users, then their order numbers.
+    # Four queries: the payments, their users, their order numbers, then the
+    # instalments already received.
     session.exec = AsyncMock(
         side_effect=[
             _result(payments),
             _result([]),
             _result([(payments[0].order_id, "CMD-2026-00042")]),
+            _result([(payments[1].id, Decimal("500"))]),
         ]
     )
 
@@ -130,36 +132,29 @@ async def test_list_pending_validation_returns_manual_pending(
     assert result[1].provider_code == "manual_transfer"
     assert result[0].order_number == "CMD-2026-00042"
     assert result[1].order_number is None
+    assert (result[0].received_amount, result[1].received_amount) == (0, 500)
 
 
 @pytest.mark.anyio
 async def test_approve_payment_persists_validation_and_publishes_event(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """« Approuver » a manual payment settles what is left to receive through
+    one receipt (the receipt and capture flow is covered end to end in
+    tests/integration/test_payment_receipts.py)."""
     session = AsyncMock()
     session.add = Mock()
     payment = _make_payment()
     admin = _make_admin()
 
     monkeypatch.setattr(crud_payment, "read", AsyncMock(return_value=payment))
-
     completed_status = _make_status(MANUAL_STATUS_COMPLETED)
-    monkeypatch.setattr(
-        crud_payment_status,
-        "get_by_name",
-        AsyncMock(return_value=completed_status),
-    )
-
+    payment.payment_status_id = completed_status.id
     validation = _make_validation_namespace("approve", payment.id)
-    monkeypatch.setattr(
-        "app.features.payment.services.manual_payment.crud_payment_validation.create_draft",
-        AsyncMock(return_value=validation),
+    settle = AsyncMock(
+        return_value=SimpleNamespace(payment=payment, validation=validation)
     )
-    publish_mock = AsyncMock()
-    monkeypatch.setattr(
-        "app.features.payment.services.manual_payment.outbox_registry.publish",
-        publish_mock,
-    )
+    monkeypatch.setattr("app.api.routes.admin_payments.settle_remaining", settle)
 
     response = await approve_payment(
         payment_id=payment.id,
@@ -171,10 +166,9 @@ async def test_approve_payment_persists_validation_and_publishes_event(
     assert response.payment_id == payment.id
     assert response.payment_status_id == completed_status.id
     assert response.validation.action == "approve"
-
-    publish_mock.assert_awaited_once()
-    kwargs = publish_mock.call_args.kwargs
-    assert kwargs["event_type"] == mp.EVENT_CAPTURED
+    settle.assert_awaited_once()
+    kwargs = settle.call_args.kwargs
+    assert (kwargs["reference"], kwargs["comment"]) == ("CHK-7", "ok")
 
     session.commit.assert_awaited_once()
     session.rollback.assert_not_awaited()
@@ -234,6 +228,11 @@ async def test_reject_payment_persists_validation_and_publishes_event(
     admin = _make_admin()
 
     monkeypatch.setattr(crud_payment, "read", AsyncMock(return_value=payment))
+    # No instalment received: the payment can be rejected.
+    monkeypatch.setattr(
+        "app.api.routes.admin_payments.received_amount",
+        AsyncMock(return_value=Decimal("0")),
+    )
 
     failed_status = _make_status(MANUAL_STATUS_FAILED)
     monkeypatch.setattr(

@@ -78,6 +78,9 @@ def _build_event_payload(
         "user_id": str(payment.user_id),
         "provider_code": payment.provider_code,
         "provider_reference": payment.provider_reference,
+        # The customer e-mail shows the amount received.
+        "total_amount": str(payment.amount),
+        "currency": payment.currency,
         "action": action,
         "admin_user_id": str(admin_user_id) if admin_user_id else None,
         "reason": reason,

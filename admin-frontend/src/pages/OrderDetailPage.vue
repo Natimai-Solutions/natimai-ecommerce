@@ -112,9 +112,27 @@
                   </td>
                   <td class="text-left font-mono">{{ p.provider_reference || '—' }}</td>
                   <td class="text-left">{{ p.status || '—' }}</td>
-                  <td class="text-right font-mono">{{ formatMoney(p.amount) }}</td>
+                  <td class="text-right">
+                    <div class="font-mono">{{ formatMoney(p.amount) }}</div>
+                    <div
+                      v-if="p.accepts_receipts && (p.received_amount ?? 0) > 0"
+                      class="text-caption text-warning"
+                    >
+                      reçu <span class="font-mono">{{ formatMoney(p.received_amount ?? 0) }}</span>
+                    </div>
+                  </td>
                   <td class="text-left">{{ formatDate(p.created_at) }}</td>
                   <td class="text-right">
+                    <q-btn
+                      v-if="p.accepts_receipts"
+                      flat
+                      dense
+                      no-caps
+                      icon="ph:hand-coins"
+                      label="Encaisser"
+                      data-testid="order-payment-receipt"
+                      @click="openPaymentReceipt(p)"
+                    />
                     <q-btn
                       v-if="canCapture(p)"
                       flat
@@ -142,6 +160,55 @@
                 </tr>
               </tbody>
             </q-markup-table>
+
+            <div v-if="order.receipts?.length" class="order-receipts">
+              <h3 class="admin-subtitle">Versements reçus</h3>
+              <q-markup-table flat bordered dense data-testid="order-receipts">
+                <thead>
+                  <tr>
+                    <th class="text-left">Reçu le</th>
+                    <th class="text-right">Montant</th>
+                    <th class="text-left">Mode</th>
+                    <th class="text-left">Référence</th>
+                    <th class="text-left">Note</th>
+                    <th class="text-right"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="r in order.receipts"
+                    :key="r.id"
+                    :class="{ 'receipt--cancelled': !r.is_active }"
+                  >
+                    <td class="text-left">{{ formatDate(r.received_at) }}</td>
+                    <td class="text-right font-mono">{{ formatMoney(Number(r.amount)) }}</td>
+                    <td class="text-left">{{ RECEIPT_METHOD_LABELS[r.method] ?? r.method }}</td>
+                    <td class="text-left font-mono">{{ r.reference || '—' }}</td>
+                    <td class="text-left">{{ r.note || '' }}</td>
+                    <td class="text-right">
+                      <StatusTag
+                        v-if="!r.is_active"
+                        tone="danger"
+                        icon="ph:x-circle"
+                        :label="`Annulé${r.cancel_reason ? ` : ${r.cancel_reason}` : ''}`"
+                      />
+                      <q-btn
+                        v-else-if="receiptCancellable(r)"
+                        flat
+                        dense
+                        no-caps
+                        color="negative"
+                        icon="ph:arrow-counter-clockwise"
+                        label="Annuler"
+                        @click="openCancelReceipt(r)"
+                      >
+                        <q-tooltip>Chèque impayé, somme rendue…</q-tooltip>
+                      </q-btn>
+                    </td>
+                  </tr>
+                </tbody>
+              </q-markup-table>
+            </div>
           </section>
 
           <!-- Transport (journey legs, carrier hand-over) -->
@@ -355,6 +422,43 @@
             </div>
           </div>
 
+          <!-- Encaissé / reste dû -->
+          <div class="app-panel" data-testid="order-money">
+            <h2 class="admin-subtitle">Encaissements</h2>
+            <div class="app-kv">
+              <span>Encaissé</span>
+              <span class="font-mono" data-testid="order-amount-paid">{{
+                formatMoney(order.amount_paid ?? 0)
+              }}</span>
+            </div>
+            <div class="app-kv app-kv--total">
+              <span>Reste dû</span>
+              <span class="font-mono" data-testid="order-amount-due">{{
+                formatMoney(order.amount_due ?? 0)
+              }}</span>
+            </div>
+            <q-btn
+              v-if="(order.next_part_due ?? 0) > 0"
+              color="primary"
+              unelevated
+              no-caps
+              icon="ph:hand-coins"
+              class="full-width q-mt-md"
+              label="Enregistrer un encaissement"
+              data-testid="order-counter-payment"
+              @click="openCounterPayment"
+            />
+            <p
+              v-if="(order.next_part_due ?? 0) > 0 && order.next_part_kind !== 'full'"
+              class="admin-hint q-mt-sm q-mb-none"
+            >
+              Part due maintenant :
+              {{ PAYMENT_KIND_LABELS[order.next_part_kind ?? 'full']?.toLowerCase() }}
+              (<span class="font-mono">{{ formatMoney(order.next_part_due ?? 0) }}</span
+              >).
+            </p>
+          </div>
+
           <!-- Status + grouped departure -->
           <div class="app-panel">
             <h2 class="admin-subtitle">Suivi</h2>
@@ -510,6 +614,54 @@
       </q-dialog>
 
       <!-- Refund dialog -->
+      <ReceiptDialog
+        v-model="receiptDialog"
+        :target="receiptTarget"
+        :remaining="receiptRemaining"
+        :default-method="receiptMethod"
+        :title="receiptTitle"
+        @done="onReceiptDone"
+      />
+
+      <q-dialog v-model="cancelReceiptDialog">
+        <q-card class="app-dialog app-dialog--narrow">
+          <q-card-section class="app-dialog__head">
+            <h2 class="app-dialog__title">Annuler le versement</h2>
+            <p class="app-dialog__text">
+              <span class="font-mono">{{
+                cancelTarget ? formatMoney(Number(cancelTarget.amount)) : ''
+              }}</span>
+              ne comptera plus dans ce qui a été encaissé. Le versement reste dans l'historique.
+            </p>
+          </q-card-section>
+          <q-card-section>
+            <AppNotice v-if="cancelError" tone="error" dense class="q-mb-sm">{{
+              cancelError
+            }}</AppNotice>
+            <q-input
+              v-model="cancelReason"
+              label="Motif (chèque impayé, somme rendue…)"
+              outlined
+              dense
+              autofocus
+              maxlength="500"
+            />
+          </q-card-section>
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Retour" v-close-popup />
+            <q-btn
+              color="negative"
+              unelevated
+              no-caps
+              label="Annuler le versement"
+              :disable="!cancelReason.trim()"
+              :loading="cancelling"
+              @click="submitCancelReceipt"
+            />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
+
       <q-dialog v-model="refundDialog">
         <q-card class="app-dialog">
           <q-card-section class="app-dialog__head">
@@ -639,7 +791,16 @@ async function sendBalanceRequest() {
     requestingBalance.value = false;
   }
 }
-import { capturePayment, refundPayment } from '@/api/paymentValidations';
+import {
+  cancelReceipt,
+  capturePayment,
+  RECEIPT_METHOD_LABELS,
+  refundPayment,
+  type PaymentReceipt,
+  type ReceiptMethod,
+  type ReceiptResult,
+} from '@/api/paymentValidations';
+import ReceiptDialog from '@/components/ReceiptDialog.vue';
 import {
   advanceTracking,
   deliverTracking,
@@ -727,6 +888,81 @@ function formatDate(raw: string | null): string {
         hour: '2-digit',
         minute: '2-digit',
       });
+}
+
+// --- Encaissements : versements, comptoir, annulation (R3-P2) ---
+const receiptDialog = ref(false);
+const receiptTarget = ref<{ paymentId: string } | { orderId: string } | null>(null);
+const receiptRemaining = ref(0);
+const receiptMethod = ref<ReceiptMethod>('cash');
+const receiptTitle = ref('Encaisser un versement');
+
+function methodForProvider(code: string | null): ReceiptMethod {
+  if (code === 'manual_check') return 'check';
+  if (code === 'manual_transfer') return 'transfer';
+  return 'cash';
+}
+
+function openPaymentReceipt(p: AdminOrderPaymentItem) {
+  receiptTarget.value = { paymentId: p.payment_id };
+  receiptRemaining.value = p.amount - (p.received_amount ?? 0);
+  receiptMethod.value = methodForProvider(p.provider_code);
+  receiptTitle.value = `Encaisser — ${providerLabel(p.provider_code)}`;
+  receiptDialog.value = true;
+}
+
+function openCounterPayment() {
+  if (!order.value) return;
+  receiptTarget.value = { orderId: order.value.order_id };
+  receiptRemaining.value = order.value.next_part_due ?? 0;
+  const pending = order.value.payments.find((p) => p.accepts_receipts);
+  receiptMethod.value = pending ? methodForProvider(pending.provider_code) : 'cash';
+  receiptTitle.value = 'Enregistrer un encaissement';
+  receiptDialog.value = true;
+}
+
+async function onReceiptDone(result: ReceiptResult) {
+  refundNotice.value = result.payment_settled
+    ? 'Encaissement enregistré : le paiement est validé.'
+    : `Versement enregistré — reste ${formatMoney(Number(result.remaining_amount))}.`;
+  await load();
+}
+
+function receiptCancellable(r: PaymentReceipt): boolean {
+  return (
+    r.is_active &&
+    (order.value?.payments.some((p) => p.payment_id === r.payment_id && p.accepts_receipts) ??
+      false)
+  );
+}
+
+const cancelReceiptDialog = ref(false);
+const cancelTarget = ref<PaymentReceipt | null>(null);
+const cancelReason = ref('');
+const cancelling = ref(false);
+const cancelError = ref<string | null>(null);
+
+function openCancelReceipt(r: PaymentReceipt) {
+  cancelTarget.value = r;
+  cancelReason.value = '';
+  cancelError.value = null;
+  cancelReceiptDialog.value = true;
+}
+
+async function submitCancelReceipt() {
+  if (!cancelTarget.value) return;
+  cancelling.value = true;
+  cancelError.value = null;
+  try {
+    await cancelReceipt(cancelTarget.value.id, cancelReason.value.trim());
+    cancelReceiptDialog.value = false;
+    refundNotice.value = 'Versement annulé.';
+    await load();
+  } catch (err) {
+    cancelError.value = extractApiError(err) ?? 'Annulation impossible.';
+  } finally {
+    cancelling.value = false;
+  }
 }
 
 async function load() {
@@ -974,5 +1210,19 @@ onMounted(load);
 // Tronçon en cours : repère discret dans le tableau de transport.
 .leg--current > td {
   background: var(--n-tile);
+}
+
+.receipt--cancelled td {
+  color: var(--n-ink-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--n-line-2);
+}
+
+.receipt--cancelled td:last-child {
+  text-decoration: none;
+}
+
+.order-receipts {
+  margin-top: 24px;
 }
 </style>

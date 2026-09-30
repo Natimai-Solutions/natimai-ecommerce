@@ -28,6 +28,14 @@ export async function loginCustomer(page: Page) {
  * (CMD-YYYY-NNNNN) shown on the confirmation.
  */
 export async function placeTransferOrder(page: Page): Promise<string> {
+  return placeManualOrder(page, 'manual_transfer')
+}
+
+/**
+ * Same with any manual method (`manual_cash`, `manual_check`,
+ * `manual_transfer`). Leaves the customer signed in on the storefront.
+ */
+export async function placeManualOrder(page: Page, providerCode: string): Promise<string> {
   await loginCustomer(page)
   await gotoHydrated(page, '/catalogue')
   await page.getByTestId('product-add-to-cart').first().click()
@@ -38,7 +46,7 @@ export async function placeTransferOrder(page: Page): Promise<string> {
   await page.locator('[data-testid^="checkout-address-"]').first().click()
   const deliveryOptions = page.locator('[data-testid^="checkout-delivery-"]')
   if ((await deliveryOptions.count()) > 0) await deliveryOptions.first().click()
-  await page.getByTestId('checkout-method-manual_transfer').click()
+  await page.getByTestId(`checkout-method-${providerCode}`).click()
   // The CGV label holds a link with @click.stop: click the box itself.
   await page.getByTestId('checkout-cgv').locator('.q-checkbox__inner').click()
   await page.getByTestId('checkout-submit').click()

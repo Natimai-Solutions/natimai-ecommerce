@@ -28,7 +28,9 @@
     <div v-else-if="rows.length === 0" class="app-empty">
       <q-icon name="ph:check-circle" size="28px" class="text-subtle" />
       <h3>Aucun paiement en attente</h3>
-      <p>Les chèques, virements et bons de commande à valider apparaîtront ici.</p>
+      <p>
+        Les paiements en espèces, chèques, virements et bons de commande à valider apparaîtront ici.
+      </p>
     </div>
 
     <q-table
@@ -48,8 +50,15 @@
         </q-td>
       </template>
       <template #body-cell-amount="props">
-        <q-td :props="props" class="font-mono text-weight-medium">
-          {{ formatMoney(props.row.amount) }}
+        <q-td :props="props">
+          <div class="font-mono text-weight-medium">{{ formatMoney(props.row.amount) }}</div>
+          <div
+            v-if="(props.row.received_amount ?? 0) > 0"
+            class="text-caption text-warning"
+            data-testid="payment-received"
+          >
+            déjà reçu <span class="font-mono">{{ formatMoney(props.row.received_amount) }}</span>
+          </div>
         </q-td>
       </template>
       <template #body-cell-reference="props">
@@ -95,9 +104,9 @@
             no-caps
             icon="ph:check"
             color="positive"
-            label="Approuver"
+            :label="props.row.is_document ? 'Approuver' : 'Encaisser'"
             data-testid="payment-approve"
-            @click="openApprove(props.row)"
+            @click="props.row.is_document ? openApprove(props.row) : openReceipt(props.row)"
           />
           <q-btn
             flat
@@ -112,7 +121,19 @@
       </template>
     </q-table>
 
-    <!-- Approve -->
+    <!-- Encaisser un paiement manuel (en une ou plusieurs fois) -->
+    <ReceiptDialog
+      v-model="receiptDialog"
+      :target="current ? { paymentId: current.payment_id } : null"
+      :remaining="current ? current.amount - (current.received_amount ?? 0) : 0"
+      :currency="current?.currency ?? 'XPF'"
+      :default-method="defaultReceiptMethod(current?.provider_code)"
+      :title="`Encaisser — ${providerLabel(current?.provider_code ?? '')}`"
+      confirm-testid="payment-approve-confirm"
+      @done="onReceipt"
+    />
+
+    <!-- Approve (bon de commande) -->
     <q-dialog v-model="approveDialog">
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
@@ -248,6 +269,7 @@
 </template>
 
 <script setup lang="ts">
+import ReceiptDialog from '@/components/ReceiptDialog.vue';
 import { providerLabel } from '@/utils/payments';
 import { onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
@@ -258,6 +280,8 @@ import { formatXpf } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import {
   approvePayment,
+  type ReceiptMethod,
+  type ReceiptResult,
   getAttachmentDownloadUrl,
   listPaymentAttachments,
   listPendingValidation,
@@ -316,6 +340,27 @@ function openApprove(p: PendingPayment) {
   approveForm.reference = '';
   approveForm.comment = '';
   approveDialog.value = true;
+}
+
+// --- Encaisser (paiements manuels) ---
+const receiptDialog = ref(false);
+
+function openReceipt(p: PendingPayment) {
+  current.value = p;
+  receiptDialog.value = true;
+}
+
+function defaultReceiptMethod(code: string | undefined): ReceiptMethod {
+  if (code === 'manual_check') return 'check';
+  if (code === 'manual_transfer') return 'transfer';
+  return 'cash';
+}
+
+async function onReceipt(result: ReceiptResult) {
+  notice.value = result.payment_settled
+    ? 'Paiement encaissé et validé.'
+    : `Versement enregistré — reste ${formatMoney(Number(result.remaining_amount))}.`;
+  await load();
 }
 
 async function submitApprove() {

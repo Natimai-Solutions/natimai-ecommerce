@@ -10,15 +10,17 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, Query, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy import select as sa_select
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.routes.admin_payments import ReceiptResult, receipt_result
 from app.core.datetimes import as_utc
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
@@ -29,9 +31,17 @@ from app.features.order.models.order_line import OrderLine
 from app.features.order.models.order_status import OrderStatus
 from app.features.order.services.status import ALL_ORDER_STATUSES, set_order_status
 from app.features.payment.models.payment import Payment
+from app.features.payment.models.payment_receipt import PaymentReceiptPublic
 from app.features.payment.models.payment_status import PaymentStatus
 from app.features.payment.providers import provider_supports_in_app_refund
+from app.features.payment.providers.manual import MANUAL_STATUS_AWAITING_VALIDATION
 from app.features.payment.services.deposit import PLAN_DEPOSIT, balance_amount
+from app.features.payment.services.receipts import (
+    next_part_due,
+    order_payment_summary,
+    received_by_payment,
+    record_counter_payment,
+)
 from app.features.product.models.product import Product
 from app.features.user.models.user import User
 from app.handlers.order import request_balance
@@ -99,6 +109,10 @@ class AdminOrderPaymentItem(BaseModel):
     # True when the admin UI may initiate a refund: the provider supports an
     # in-app refund (card / PayZen) and the payment is in a refundable state.
     can_refund: bool = False
+    #: Σ of the instalments received so far on a pending manual payment.
+    received_amount: float = 0.0
+    #: The admin can record instalments on it (pending manual payment).
+    accepts_receipts: bool = False
 
 
 class AdminOrderDetail(BaseModel):
@@ -131,6 +145,15 @@ class AdminOrderDetail(BaseModel):
     balance_paid_at: datetime | None = None
     lines: list[AdminOrderLineItem]
     payments: list[AdminOrderPaymentItem]
+    #: Money in (settled payments + instalments − refunds) and what is left.
+    amount_paid: float = 0.0
+    amount_due: float = 0.0
+    #: Every instalment received on the order's manual payments, oldest first.
+    receipts: list[PaymentReceiptPublic] = []
+    #: The part payable now (full / deposit / balance) and what is left of it:
+    #: the default amount of « Enregistrer un encaissement ».
+    next_part_kind: str | None = None
+    next_part_due: float = 0.0
 
 
 def _order_filters(
@@ -563,6 +586,9 @@ async def get_order_detail(
         pstatus_by_id = {s.id: s.name for s in pstatus_res.all()}
 
     payment_items = []
+    summary = await order_payment_summary(session, order=order)
+    part_kind, part_due = await next_part_due(session, order=order)
+    received = await received_by_payment(session, [p.id for p in payments])
     for p in payments:
         payment_status_name = (
             pstatus_by_id.get(p.payment_status_id) if p.payment_status_id else None
@@ -580,6 +606,11 @@ async def get_order_detail(
                 can_refund=(
                     provider_supports_in_app_refund(p.provider_code)
                     and payment_status_name in _REFUNDABLE_PAYMENT_STATUSES
+                ),
+                received_amount=float(received.get(p.id, 0)),
+                accepts_receipts=(
+                    (p.provider_code or "").startswith("manual_")
+                    and payment_status_name == MANUAL_STATUS_AWAITING_VALIDATION
                 ),
             )
         )
@@ -611,7 +642,61 @@ async def get_order_detail(
         balance_paid_at=order.balance_paid_at,
         lines=line_items,
         payments=payment_items,
+        amount_paid=float(summary.paid),
+        amount_due=float(summary.due),
+        next_part_kind=part_kind,
+        next_part_due=float(part_due),
+        receipts=[
+            PaymentReceiptPublic.model_validate(r, from_attributes=True)
+            for r in summary.receipts
+        ],
     )
+
+
+class CounterPaymentCreate(BaseModel):
+    """Money handed over at the office for the part of the order now due."""
+
+    amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
+    method: str = Field(description="cash | check | transfer")
+    received_at: datetime | None = None
+    reference: str | None = Field(default=None, max_length=100)
+    note: str | None = Field(default=None, max_length=500)
+
+
+@router.post("/{order_id}/payments", response_model=ReceiptResult)
+async def record_order_counter_payment(
+    order_id: uuid.UUID,
+    body: CounterPaymentCreate,
+    session: SessionDep,
+    admin: CurrentSuperUser,
+) -> ReceiptResult:
+    """« Enregistrer un encaissement » : cash, cheque or transfer received for
+    the part now due, on the customer's pending manual payment or a new one."""
+    order = await session.get(Order, order_id)
+    if order is None:
+        raise AppError(
+            code="order.not_found",
+            status_code=404,
+            message="Commande introuvable",
+            details={"order_id": str(order_id)},
+        )
+    try:
+        outcome = await record_counter_payment(
+            session,
+            order=order,
+            admin=admin,
+            amount=body.amount,
+            method=body.method,
+            received_at=body.received_at,
+            reference=body.reference,
+            note=body.note,
+        )
+        result = receipt_result(outcome)
+        await session.commit()
+    except AppError:
+        await session.rollback()
+        raise
+    return result
 
 
 class RequestBalanceResponse(BaseModel):

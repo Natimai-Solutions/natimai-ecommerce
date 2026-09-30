@@ -83,6 +83,9 @@ export interface OrderTracking {
 /** One order for its detail page (`MyOrderDetail`): adds the payment method. */
 export interface OrderDetail extends Order {
   payment_method_name: string | null;
+  /** Money already received (instalments included) and what is left to pay. */
+  amount_paid?: string;
+  amount_due?: string;
 }
 
 /** My orders, most recent first, one page at a time. */
