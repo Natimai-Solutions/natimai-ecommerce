@@ -1,18 +1,20 @@
 <template>
   <div v-if="store.next" class="departure-strip" data-testid="next-departure-banner">
-    <div class="departure-strip__inner page-container">
+    <router-link :to="{ name: 'how-it-works' }" class="departure-strip__inner page-container">
       <q-icon name="ph:calendar-check" size="18px" class="departure-strip__icon" />
       <p class="departure-strip__text">
-        <span class="departure-strip__name">Prochain départ groupé « {{ store.next.name }} »</span>
+        <span class="departure-strip__name">
+          <span class="gt-sm">Prochain départ groupé</span><span class="lt-md">Départ</span> «
+          {{ store.next.name }} »
+        </span>
         <span>{{ store.cutoffLabel }}</span>
         <span v-if="store.deliveryLabel" class="departure-strip__delivery">
           {{ store.deliveryLabel }}
         </span>
       </p>
-      <router-link :to="{ name: 'how-it-works' }" class="departure-strip__link">
-        Comment ça marche ?
-      </router-link>
-    </div>
+      <span class="departure-strip__link">Comment ça marche ?</span>
+      <q-icon name="ph:caret-right" size="16px" class="departure-strip__chevron" />
+    </router-link>
   </div>
 </template>
 
@@ -30,6 +32,7 @@ const store = useDepartureStore();
 
 .departure-strip__inner {
   min-height: 44px;
+  text-decoration: none;
   padding-top: 10px;
   padding-bottom: 10px;
   display: flex;
@@ -61,16 +64,32 @@ const store = useDepartureStore();
 .departure-strip__link {
   flex-shrink: 0;
   color: var(--n-ink);
+  text-decoration: underline;
   text-underline-offset: 3px;
+}
 
-  &:hover {
-    color: var(--n-accent);
-  }
+.departure-strip__inner:hover .departure-strip__link {
+  color: var(--n-accent);
+}
+
+.departure-strip__chevron {
+  display: none;
+  flex-shrink: 0;
+  color: var(--n-ink-3);
 }
 
 @media (max-width: 767px) {
-  .departure-strip__delivery {
+  .departure-strip__text {
+    font-size: 12px;
+  }
+
+  .departure-strip__delivery,
+  .departure-strip__link {
     display: none;
+  }
+
+  .departure-strip__chevron {
+    display: block;
   }
 }
 </style>
