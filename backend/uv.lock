@@ -263,7 +263,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.43.92" },
     { name = "clamd", specifier = ">=1.0.2" },
     { name = "email-validator", specifier = ">=2.1.0.post1,<3.0.0.0" },
-    { name = "fastapi", extras = ["standard-no-fastapi-cloud-cli"], specifier = ">=0.114.2,<1.0.0" },
+    { name = "fastapi", extras = ["standard-no-fastapi-cloud-cli"], specifier = ">=0.141.1,<1.0.0" },
     { name = "httpx", specifier = ">=0.25.1,<1.0.0" },
     { name = "jinja2", specifier = ">=3.1.4,<4.0.0" },
     { name = "openpyxl", specifier = ">=3.1.5" },
