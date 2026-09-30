@@ -5344,6 +5344,122 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Media
+         * @description Latest images first, optionally for one kind.
+         */
+        get: operations["media-list_media"];
+        put?: never;
+        /**
+         * Upload Media
+         * @description Upload an image: scanned, re-encoded to WebP widths, then stored.
+         */
+        post: operations["media-upload_media"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/media/{asset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Media
+         * @description Delete an unused image and its stored files.
+         */
+        delete: operations["media-delete_media"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Media
+         * @description Change the alternative text or the kind.
+         */
+        patch: operations["media-update_media"];
+        trace?: never;
+    };
+    "/api/v1/homepage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Homepage
+         * @description Published blocks whose dates include now: the first hero, then banners.
+         */
+        get: operations["homepage-get_homepage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/homepage-blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Blocks
+         * @description Every block, published or not, in display order.
+         */
+        get: operations["homepage-list_blocks"];
+        put?: never;
+        /**
+         * Create Block
+         * @description Add a hero or a banner.
+         */
+        post: operations["homepage-create_block"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/homepage-blocks/{block_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace Block
+         * @description Replace every field of a block.
+         */
+        put: operations["homepage-replace_block"];
+        post?: never;
+        /**
+         * Delete Block
+         * @description Remove a block (its image stays in the media library).
+         */
+        delete: operations["homepage-delete_block"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/grouped-departures/next": {
         parameters: {
             query?: never;
@@ -8471,6 +8587,18 @@ export interface components {
              */
             client_secret?: string | null;
         };
+        /** Body_media-upload_media */
+        "Body_media-upload_media": {
+            /** File */
+            file: string;
+            /**
+             * Kind
+             * @default other
+             */
+            kind: string;
+            /** Alt */
+            alt?: string | null;
+        };
         /** Body_suppliers-import_catalog_file */
         "Body_suppliers-import_catalog_file": {
             /** File */
@@ -11273,6 +11401,118 @@ export interface components {
             };
         };
         /**
+         * HomepageBlockPublic
+         * @description A block as the storefront and the admin see it.
+         */
+        HomepageBlockPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Title */
+            title: string;
+            /** Subtitle */
+            subtitle?: string | null;
+            /** Cta Label */
+            cta_label?: string | null;
+            /** Cta Link */
+            cta_link?: string | null;
+            /** Media Id */
+            media_id?: string | null;
+            /** Image Url */
+            image_url?: string | null;
+            /** Alt */
+            alt?: string | null;
+            /**
+             * Position
+             * @default 0
+             */
+            position: number;
+            /**
+             * Is Published
+             * @default false
+             */
+            is_published: boolean;
+            /** Starts At */
+            starts_at?: string | null;
+            /** Ends At */
+            ends_at?: string | null;
+            image?: components["schemas"]["HomepageImage"] | null;
+        };
+        /**
+         * HomepageBlockWrite
+         * @description Admin create / replace payload.
+         */
+        HomepageBlockWrite: {
+            /**
+             * Kind
+             * @default banner
+             */
+            kind: string;
+            /** Title */
+            title: string;
+            /** Subtitle */
+            subtitle?: string | null;
+            /** Cta Label */
+            cta_label?: string | null;
+            /** Cta Link */
+            cta_link?: string | null;
+            /** Media Id */
+            media_id?: string | null;
+            /** Image Url */
+            image_url?: string | null;
+            /** Alt */
+            alt?: string | null;
+            /**
+             * Position
+             * @default 0
+             */
+            position: number;
+            /**
+             * Is Published
+             * @default false
+             */
+            is_published: boolean;
+            /** Starts At */
+            starts_at?: string | null;
+            /** Ends At */
+            ends_at?: string | null;
+        };
+        /**
+         * HomepageImage
+         * @description An image ready for an ``<img>``: source, srcset and intrinsic size.
+         */
+        HomepageImage: {
+            /** Src */
+            src: string;
+            /** Srcset */
+            srcset?: string | null;
+            /** Width */
+            width?: number | null;
+            /** Height */
+            height?: number | null;
+            /**
+             * Alt
+             * @default
+             */
+            alt: string;
+        };
+        /**
+         * HomepagePublic
+         * @description Storefront homepage content: at most one hero, then the banners.
+         */
+        HomepagePublic: {
+            hero?: components["schemas"]["HomepageBlockPublic"] | null;
+            /**
+             * Banners
+             * @default []
+             */
+            banners: components["schemas"]["HomepageBlockPublic"][];
+        };
+        /**
          * InventoriesPublic
          * @description Represents inventories public.
          */
@@ -11776,6 +12016,60 @@ export interface components {
              * Format: date-time
              */
             timestamp: string;
+        };
+        /**
+         * MediaAssetPublic
+         * @description What the admin and the storefront need to show an image.
+         */
+        MediaAssetPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Alt */
+            alt?: string | null;
+            /** Original Filename */
+            original_filename?: string | null;
+            /** Width */
+            width: number;
+            /** Height */
+            height: number;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Url */
+            url: string;
+            /** Srcset */
+            srcset: string;
+            /**
+             * Variants
+             * @default []
+             */
+            variants: components["schemas"]["MediaVariantPublic"][];
+        };
+        /**
+         * MediaAssetUpdate
+         * @description Admin edit: the alternative text and the kind.
+         */
+        MediaAssetUpdate: {
+            /** Alt */
+            alt?: string | null;
+            /** Kind */
+            kind?: string | null;
+        };
+        /**
+         * MediaVariantPublic
+         * @description One served size of an image.
+         */
+        MediaVariantPublic: {
+            /** Width */
+            width: number;
+            /** Height */
+            height: number;
+            /** Url */
+            url: string;
         };
         /**
          * MergeBody
@@ -30390,6 +30684,273 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ContentPageSummary"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "media-list_media": {
+        parameters: {
+            query?: {
+                kind?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaAssetPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "media-upload_media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_media-upload_media"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaAssetPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "media-delete_media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "media-update_media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MediaAssetUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaAssetPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "homepage-get_homepage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepagePublic"];
+                };
+            };
+        };
+    };
+    "homepage-list_blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepageBlockPublic"][];
+                };
+            };
+        };
+    };
+    "homepage-create_block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HomepageBlockWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepageBlockPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "homepage-replace_block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                block_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HomepageBlockWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepageBlockPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "homepage-delete_block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                block_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

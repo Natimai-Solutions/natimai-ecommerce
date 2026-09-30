@@ -301,6 +301,13 @@ class Settings(BaseSettings):
     FILE_STORAGE_BACKEND: Literal["s3", "local"] = "local"
     FILE_STORAGE_LOCAL_ROOT: str = "/tmp/fastapi_ecommerce_storage"
     FILE_STORAGE_PRESIGNED_TTL_SECONDS: int = 300
+    # Images publiques (accueil, produits, catégories) téléversées depuis
+    # l'admin : ré-encodées en WebP et servies par GET /api/v1/media/…
+    # MEDIA_PUBLIC_BASE_URL = origine publique de l'API derrière le proxy
+    # (https://api.exemple.pf) ; vide, l'origine de la requête d'envoi sert,
+    # ce qui convient en développement.
+    MEDIA_PUBLIC_BASE_URL: str | None = None
+    MEDIA_MAX_UPLOAD_BYTES: int = 8 * 1024 * 1024
 
     # Payment attachment validation
     PAYMENT_ATTACHMENT_MAX_BYTES: int = 10 * 1024 * 1024  # 10 MB

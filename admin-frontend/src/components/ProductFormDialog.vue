@@ -305,7 +305,28 @@
           </div>
 
           <div class="text-subtitle2 q-mt-sm q-mb-xs">Affichage</div>
-          <q-input v-model="form.image_url" label="URL image" outlined dense bottom-slots />
+          <q-input
+            v-model="form.image_url"
+            label="Image"
+            hint="Choisissez une image de la médiathèque ou collez une URL"
+            outlined
+            dense
+            bottom-slots
+          >
+            <template v-if="form.image_url" #prepend>
+              <img :src="form.image_url" alt="" class="image-field__thumb" />
+            </template>
+            <template #append>
+              <q-btn
+                flat
+                dense
+                no-caps
+                icon="photo_library"
+                label="Médiathèque"
+                @click="mediaPickerOpen = true"
+              />
+            </template>
+          </q-input>
           <div class="row items-center" style="gap: 16px">
             <q-toggle v-model="form.is_featured" label="Produit en vedette" />
             <q-input
@@ -355,6 +376,11 @@
         </q-form>
       </q-card-section>
     </q-card>
+    <MediaPicker
+      v-model="mediaPickerOpen"
+      kind="product"
+      @select="(asset) => (form.image_url = asset.url)"
+    />
   </q-dialog>
 </template>
 
@@ -365,11 +391,13 @@ import { listTaxRates, type TaxRate } from '@/api/taxRates';
 import { listPlaces, type Place } from '@/api/logistics';
 import { listSuppliers, type Supplier } from '@/api/suppliers';
 import { adjustInventory } from '@/api/inventory';
+import MediaPicker from '@/components/MediaPicker.vue';
 import ProductVariantsPanel from '@/components/ProductVariantsPanel.vue';
 import { useProductsStore, type ProductPublic } from '@/stores/products';
 import { useShopConfigStore } from '@/stores/shopConfig';
 
 const props = defineProps<{ modelValue: boolean; product: ProductPublic | null }>();
+const mediaPickerOpen = ref(false);
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
   saved: [];
@@ -777,3 +805,12 @@ onMounted(() => {
   void loadLookups();
 });
 </script>
+
+<style scoped lang="scss">
+.image-field__thumb {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+</style>

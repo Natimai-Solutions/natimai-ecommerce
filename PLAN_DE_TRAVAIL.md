@@ -37,8 +37,8 @@ Section issue de la revue du 30/09/2026 (état du dépôt, documents de travail,
 
 | Priorité | Chantier | Effort | Section |
 |---|---|---|---|
-| **1** | **Refonte « Précision » — vitrine** : accueil, espace client, checkout, paiement, devis, pages légales | 8 à 12 j | R1 |
-| **1 bis** | **Page d'accueil + médias publics** (blocs pilotés par l'admin, téléversement d'images) | 5 à 7 j | R2 |
+| **1** ✅ | **Refonte « Précision » — vitrine** : accueil, espace client, checkout, paiement, devis, pages légales — **livrée le 30/09/2026** | 8 à 12 j | R1 |
+| **1 bis** ✅ | **Page d'accueil + médias publics** (blocs pilotés par l'admin, téléversement d'images) — **livrée le 30/09/2026** | 5 à 7 j | R2 |
 | 2 | Refonte « Précision » — **admin-frontend** (lot séparé, après la vitrine) | 8 à 12 j | R1-admin |
 | 3 | Paiements : espèces, versements partiels (`payment_receipts`), acompte pour tous les moyens, PSP Stripe + PayPal activables en base | 14 à 18 j | R3 |
 | 4 | Fournisseurs : seuil de quantité à l'import fichier, **mappage catégories fournisseur → boutique** (fichier et Ingram), mode simple avec Ingram / Icecat désactivés par défaut et réactivables, **modules activables en base**, rattachement immédiat d'un article manuel, flux fichier automatisé (Foxway, Picata) avec identifiants chiffrés | 15 à 20 j | R4 |
@@ -103,6 +103,14 @@ La refonte n'était documentée nulle part ; elle existe dans l'historique git s
 - **R1-C — Checkout et paiement** (`CheckoutPage`, `PaymentReturnPage`, `CartQuoteConfirmationPage`, `OAuthCallbackPage`) : recomposition en étapes lisibles, récapitulatif collant, `formatMoney(amount, currency)` à la place de `formatXpf` (cf. R7), et la correction du **bug de capture différée** : `Authorized` n'est pas terminal pour la page de retour ([payments.py](backend/app/api/routes/payments.py) l.87-89, [PaymentReturnPage.vue](frontend/src/pages/PaymentReturnPage.vue) l.139) → timeout après 2 min dès que `PAYZEN_MANUAL_VALIDATION=True`.
 - **R1-D — Pages légales et divers** : CGV / confidentialité / mentions en `DbContentPage` (contenu en base, cf. A-pages) plutôt qu'en `.vue` codé en dur (l.686) ; reliquats de gabarit Quasar à supprimer (`stores/example-store.ts`, `i18n/en-US`, `test.html` à la racine) ; `<html lang>` manquant dans `index.html`.
 
+**✅ Livré le 30/09/2026 (R1-A à R1-D, commits `2be3a00` et `8896f34`)**
+
+- **Accueil (R1-A)** : `/` affiche `IndexPage.vue` (route `home`) au lieu de rediriger vers le catalogue ; accroche, tuiles catégories (`Category.image_url`, actives et non fusionnées, illustrées d'abord ; rangée défilante sur mobile), « Nos coups de cœur » et « Les plus consultés ». Données dans le store `home` (transmis du rendu serveur au navigateur). Grille produits et squelettes rendus globaux (`app.scss`).
+- **Espace client (R1-B)** : `MyAccountPage.vue` devient une coquille (navigation latérale, onglets défilants sur mobile) et huit composants `components/account/*` : vue d'ensemble (« À faire » : solde demandé, paiement attendu ; dernières commandes ; raccourcis), commandes paginées (« Voir plus », facture et avoirs par commande, avoir client), devis, **favoris et alertes** (liste de favoris enfin exposée + bouton « Ajouter aux favoris » sur la fiche produit), adresses, **profil et sécurité** (nom, téléphone, e-mail en lecture seule, changement de mot de passe), préférences, groupe tarifaire. `?tab=` reste la clé d'URL. Backend : `GET/PATCH /users/me`, `POST /users/me/password` (mot de passe actuel exigé, limité en fréquence, **toutes les sessions révoquées**), `GET /orders/me/{id}` (avec `payment_method_name`), lignes de commande avec `image_url`, `manufacturer`, `product_available`. Suivi de commande recomposé (titre `CMD-…`, articles illustrés et liés, récapitulatif latéral, paiement, adresse, facture téléchargeable, étapes d'acheminement, rechargement quand l'id change). Corrections : `PaymentReview` et statuts inconnus jamais affichés bruts (`utils/orderStatus.ts`), texte « adresse à valider » retiré, langue masquée, options « écologiques » gardées seulement si déjà choisies, `getMyOrder` ne recharge plus toute la liste. e2e `customer-account.spec.ts`.
+- **Checkout et paiement (R1-C)** : étapes numérotées (adresse, livraison, règlement, paiement) avec le composant commun `ChoiceList`, récapitulatif collant, confirmation pleine largeur, libellé « Payer X » seulement pour la carte ; page de solde, retour de paiement, confirmation de devis et retour OAuth sur la même grammaire (`.app-result`). **Bug de capture différée corrigé** : `Authorized` est terminal pour le polling (`payments.py`) et affiché comme un succès. Montants « qui font foi » via `orderMoney(montant, devise de la commande)` au lieu de `formatXpf`.
+- **Divers (R1-D)** : typographie de lecture `.prose` ; mentions légales et confidentialité éditables comme les CGV (`DbContentPage`, texte actuel en repli) ; pages d'authentification (icônes Phosphor, message après changement de mot de passe) ; `<html lang="fr">` ; suppression de `stores/example-store.ts` et `test.html`. Socle : `utils/errors.ts` (extraction d'erreur unique), `utils/money.ts`, `utils/categories.ts`, classes `app-*` partagées ; le test d'icônes vérifie aussi les noms `ph:` directs.
+- **Restes R1 vitrine** : nom du client dans l'en-tête (non fait) ; export et suppression de compte RGPD (R8) ; décalage d'hydratation de `QPage` (`min-height` calculé 100 px côté serveur, 50 px côté client) **antérieur à la refonte**, présent aussi sur le catalogue ; `quasar dev -m ssr` crée `frontend/src-ssr/pnpm-lock.yaml` et `pnpm-workspace.yaml` (à ignorer dans `.gitignore` ou à comprendre) ; l'i18n (dossier `i18n/`) est gardée pour R7.
+
 **R1-admin — admin-frontend (priorité 2, après la vitrine)** : même socle (jetons `--n-*`, sombre/clair, Phosphor, `AppNotice` / `StatusTag` partagés via `shared/`), `AdminLayout` + tableau de bord (aujourd'hui 7 lignes sans KPI, cf. R8), puis les 37 pages par familles (catalogue, commandes, paiements, logistique, système). Estimation 8 à 12 j. À documenter dans le *Chantier admin-frontend*.
 
 ### R2 — Page d'accueil et médias publics (priorité 1 bis)
@@ -114,6 +122,13 @@ La refonte n'était documentée nulle part ; elle existe dans l'historique git s
 | H1 | **Service de médias publics** | table `media_assets` (clé, MIME, dimensions, variantes, auteur), `POST /admin/media` multipart (modèle [suppliers.py](backend/app/api/routes/suppliers.py) l.469) : liste blanche jpeg/png/webp, taille max 5 Mo, **Pillow** (ré-encodage webp, EXIF retiré, 2-3 tailles), scan ClamAV, clé `media/{kind}/{uuid}.webp` ; **route publique `GET /media/{key}`** (`Content-Type` réel, `Cache-Control: public, immutable`) sur le volume partagé `storage_data` (2 réplicas API) ou bucket S3 public derrière CDN ; `DELETE` si plus référencé | — | sélecteur d'images réutilisable (`MediaPicker.vue`) | 3 à 4 j |
 | H2 | **Blocs d'accueil** | table `homepage_blocks` (kind `hero` / `banner` / `tile`, `media_id` ou `image_url`, `alt`, `title`, `subtitle`, `cta_label`, `cta_link`, `position`, `is_active`, `starts_at` / `ends_at`), `GET /homepage` public (SSR-friendly, filtré par dates), CRUD admin sur le modèle `content_pages` / `crud_content_page` | `IndexPage.vue` (R1-A) avec `<img>` natif, `width`/`height` ou `aspect-ratio`, `srcset`, `loading="eager"` + `fetchpriority="high"` pour le hero ; `onServerPrefetch` + `onMounted` comme `DbContentPage.vue` | écran « Accueil » avec aperçu, ordre, dates | 1,5 à 2 j |
 | H3 | **Réutilisation** : image produit et catégorie via `MediaPicker` (les URL restent acceptées), bouton image dans l'éditeur de pages | résolution `media_id` → URL dans `CategoryPublic` / `ProductPublic` | — | `ProductFormDialog`, `CategoriesPage`, `PagesPage` | 1 j |
+
+**✅ Livré le 30/09/2026** :
+- **H1 médias publics** : table `media_assets` (migration `a7m3e9d1h5b2`), service `features/media/service.py` : plafond de taille (`MEDIA_MAX_UPLOAD_BYTES`, 8 Mo), scan antivirus, décodage Pillow limité à JPEG / PNG / WebP avec plafond de 40 Mpx, orientation EXIF appliquée puis **toutes les métadonnées supprimées** par le ré-encodage, variantes WebP 480 / 960 / 1600 px (jamais agrandies), original non conservé. Routes : `POST/GET/PATCH/DELETE /admin/media` (suppression refusée en 409 tant qu'un bloc d'accueil, un produit, une catégorie ou une page l'utilise) et **`GET /media/{id}/{largeur}.webp` public** (`Cache-Control: public, max-age=31536000, immutable`, seules les clés enregistrées sont servies). URL absolues construites depuis `MEDIA_PUBLIC_BASE_URL` (origine publique de l'API, **à renseigner en production**). Pillow déclaré dans `pyproject.toml` (déjà présent via WeasyPrint).
+- **H2 blocs d'accueil** : table `homepage_blocks` (`hero` / `banner`, titre, texte, bouton, lien — chemin du site ou `https://` seulement —, image de la médiathèque ou URL externe, ordre, publication, fenêtre de dates) ; `GET /homepage` public (premier hero publié + bannières dans leur fenêtre) ; CRUD `/admin/homepage-blocks`. Vitrine : hero avec image (`srcset`, `fetchpriority="high"`) sinon texte par défaut, bannières en 1 / 2 / 3 colonnes. Admin : écran **« Accueil du site »** (Système), statuts Brouillon / Programmé / En ligne / Expiré, ordre par flèches, dates.
+- **H3 réutilisation** : composant admin `MediaPicker` (envoi, filtre par usage, sélection, suppression) branché sur l'image produit (`ProductFormDialog`), l'image de catégorie (tuile d'accueil) et l'éditeur de pages (bouton « Image » qui insère `<img srcset>`).
+- Tests : 9 unitaires (formats, EXIF, largeurs, transparence, bombe de pixels) et 7 d'intégration (envoi → service → accueil → suppression bloquée puis permise).
+- **Restes R2** : le type de bloc `tile` n'a pas été créé (les tuiles catégories le couvrent) ; les images passent par l'API — derrière un CDN ou un bucket S3 public si le trafic le demande ; pas de recadrage dans l'admin (l'image est affichée en `object-fit: cover`).
 
 Contraintes : SSR (`frontend/public` est servi avec `maxAge` 30 j, donc noms versionnés pour tout statique), CSP à construire le jour où elle existe (aucune aujourd'hui), le composant `ProductImage.vue` (`mix-blend-mode: multiply`, `padding: 10 %`) ne convient pas à une photo de bannière → composant dédié.
 
@@ -1085,7 +1100,7 @@ Autres écarts relevés : commission paiement en % intégrée au prix (aujourd'h
 | Fiche produit + modes transport (CAF) | ✅ | ✅ `ProductPage.vue` (prix du mode par défaut ; sélecteur de mode retiré — choix au niveau commande) | — |
 | Panier | ✅ | ✅ `CartPage.vue` | — |
 | Demande de devis | ✅ | ✅ `CartQuoteConfirmationPage.vue` | ✅ `QuoteRequestsPage.vue` (A11) |
-| Produits mis en avant | ✅ | 🔲 `GET /product/featured` **plus consommé** depuis la fusion `8ead9e0` (29/09/2026, page d'accueil abandonnée) — voir *Feuille de route 30/09*, R1-A / R2 | ✅ toggle « Produit en vedette » dans `ProductFormDialog.vue` (A8) |
+| Produits mis en avant | ✅ | ✅ « Nos coups de cœur » sur l'accueil (reconstruit le 30/09/2026, R1-A) | ✅ toggle « Produit en vedette » dans `ProductFormDialog.vue` (A8) |
 | Pricing / TVA / devises (socle) | ✅ | — | ✅ écrans taux (A1) et devises (A2), 20/06/2026 |
 
 ### Avancement backend (22/05/2026)
@@ -1736,7 +1751,7 @@ Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/my
 
 | Feature | Backend | Vitrine (`frontend`) | Admin (`admin-frontend`) |
 |---------|---------|----------------------|--------------------------|
-| M1 — produits les plus vus | ✅ (10/09/2026) compteur journalier + `GET /product/popular` | 🔲 **accueil abandonnée** à la fusion `8ead9e0` (29/09/2026) : `/` redirige vers le catalogue, `IndexPage.vue` est un placeholder non routé, `getPopularProducts` / `getFeaturedProducts` ne sont plus appelés — à reconstruire (*Feuille de route 30/09*, R1-A / R2, commit de départ `99935bf`) | — |
+| M1 — produits les plus vus | ✅ (10/09/2026) compteur journalier + `GET /product/popular` | ✅ accueil reconstruite le 30/09/2026 : vedettes + « les plus consultés » + blocs admin (R1-A / R2) | — |
 | M3 — factures PDF (**WeasyPrint**) + export comptable | ✅ (25/08/2026) | ✅ téléchargement facture (compte) | ✅ écran factures + export CSV |
 | M5 — numéro de commande séquentiel | ✅ (25/08/2026) | ✅ affichage (compte) | ✅ affichage (factures) |
 | Z2 — avoir comptable | ✅ (N10 + e-mail d'envoi 10/09/2026) | ✅ téléchargement des avoirs (compte, par commande) | ✅ écran Avoirs + export CSV |
@@ -1747,7 +1762,7 @@ Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/my
 
 | ID | Fonctionnalité | Notes |
 |----|----------------|-------|
-| M1 ⏳ | Produits les plus vus | `POST /product/{id}/view` (page produit, côté client seulement) → `product_view_daily` ; `GET /product/popular?days&limit` ; **accueil vitrine à reconstruire** (cf. matrice ci-dessus) |
+| M1 ✅ | Produits les plus vus | `POST /product/{id}/view` (page produit, côté client seulement) → `product_view_daily` ; `GET /product/popular?days&limit` ; accueil vitrine (reconstruit le 30/09/2026) |
 | M2 | Déploiement Kubernetes | Helm chart à partir du `docker-compose.prod.yml` |
 | M3 ✅ | Factures + export comptable | **Livré 25/08/2026** (cf. PP-C). Modèle Invoice + numérotation + PDF **WeasyPrint** (avec ventilation TVA par taux via `OrderLine.tax_rate_id`) + export FEC/CSV Sage — cf. *Note technique — génération PDF des factures* ci-dessous |
 | M4 | Alerting actif | Job ARQ surveille dashboard → Slack/email sur seuils |
@@ -1826,7 +1841,7 @@ Les Phases 0–3 ont livré les **endpoints admin** mais l'`admin-frontend` ne c
 | A18 | **Commandes clients** (liste + statut) | `GET /admin/orders`, `GET /admin/orders/{id}` | 2 | ✅ livré — [OrdersPage.vue](admin-frontend/src/pages/OrdersPage.vue) + [OrderDetailPage.vue](admin-frontend/src/pages/OrderDetailPage.vue) (constaté le 30/09/2026) |
 | A19 | **Paiements** (liste + statut, au-delà de la validation A13) | *endpoint de liste générale des paiements à ajouter* | 2/3 | 🔲 à faire (écran + endpoint de liste) — seul écran du backlog encore ouvert au 30/09/2026 (R8) |
 | A20 | **Refonte « Précision » de l'admin** | — | — | 🔲 priorité 2, après la vitrine — *Feuille de route 30/09*, R1-admin |
-| A21 | **Accueil vitrine : blocs + médias** (écran « Accueil », `MediaPicker`) | `GET/PUT /admin/homepage-blocks`, `POST /admin/media` | — | 🔲 priorité 1 bis — R2 |
+| A21 | **Accueil vitrine : blocs + médias** (écran « Accueil du site », `MediaPicker`) | `/admin/homepage-blocks`, `/admin/media` | — | ✅ livré le 30/09/2026 — [HomepagePage.vue](admin-frontend/src/pages/HomepagePage.vue), [MediaPicker.vue](admin-frontend/src/components/MediaPicker.vue) |
 | A22 | **Réglages typés par catégorie** (remplace le tableau clé / valeur de `SystemSettingsPage.vue`) | registre R5 | — | 🔲 — R5 (C6) |
 
 ### Décision transverse — personnalisation préservée de la synchronisation

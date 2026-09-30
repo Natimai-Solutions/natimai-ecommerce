@@ -86,10 +86,11 @@
               <q-toggle v-model="form.is_published" class="col-12 col-sm-2" label="Publiée" />
             </div>
             <q-editor
+              ref="editorRef"
               v-model="form.body_html"
               min-height="50vh"
               :toolbar="toolbar"
-              :definitions="{}"
+              :definitions="editorDefinitions"
             />
           </q-card-section>
           <q-card-actions align="right">
@@ -99,12 +100,15 @@
         </q-form>
       </q-card>
     </q-dialog>
+    <MediaPicker v-model="mediaPickerOpen" kind="page" @select="insertImage" />
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
-import type { QTableColumn } from 'quasar';
+import type { QEditor, QTableColumn } from 'quasar';
+import MediaPicker from '@/components/MediaPicker.vue';
+import type { MediaAsset } from '@/api/media';
 import { formatDateTime } from '@app/utils';
 import { deletePage, listPages, savePage, type ContentPage } from '@/api/pages';
 import { extractApiError } from '@/api/errors';
@@ -132,9 +136,44 @@ const toolbar = [
   ['bold', 'italic', 'underline'],
   [{ label: 'Titre', icon: 'title', list: 'no-icons', options: ['h2', 'h3', 'p'] }],
   ['unordered', 'ordered'],
-  ['link', 'hr'],
+  ['link', 'image', 'hr'],
   ['undo', 'redo'],
 ];
+
+// --- Images dans l'éditeur (médiathèque) ---
+const editorRef = ref<QEditor | null>(null);
+const mediaPickerOpen = ref(false);
+const editorDefinitions = {
+  image: {
+    tip: 'Insérer une image de la médiathèque',
+    icon: 'image',
+    label: 'Image',
+    handler: () => {
+      // La position du curseur est gardée pour y insérer l'image au retour.
+      editorRef.value?.caret.savePosition();
+      mediaPickerOpen.value = true;
+    },
+  },
+};
+
+function escapeAttribute(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+function insertImage(asset: MediaAsset) {
+  const html =
+    `<img src="${escapeAttribute(asset.url)}" srcset="${escapeAttribute(asset.srcset)}" ` +
+    `sizes="(max-width: 767px) 100vw, 720px" width="${asset.width}" height="${asset.height}" ` +
+    `alt="${escapeAttribute(asset.alt ?? '')}" loading="lazy">`;
+  const editor = editorRef.value;
+  if (!editor) {
+    form.body_html += html;
+    return;
+  }
+  editor.focus();
+  editor.caret.restorePosition();
+  editor.runCmd('insertHTML', html);
+}
 
 async function load() {
   loading.value = true;

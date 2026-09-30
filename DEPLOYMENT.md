@@ -244,12 +244,14 @@ truth. All three are safe to leave at their defaults.
 | `SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS` | `2000` | A CSV / Excel catalog up to this many rows is imported inside the request. A larger file is stored (`FILE_STORAGE_BACKEND`), a sync log is opened and an ARQ job imports it; the admin screen polls the log. Simulations of a large file resolve only this many rows. |
 | `SUPPLIER_FILE_IMPORT_MAX_ROWS` | `250000` | Hard cap on a catalog file (worker memory). The upload itself is capped at 20 MB. |
 
-### 3.9 File storage (payment attachments, queued catalog imports)
+### 3.9 File storage (payment attachments, queued catalog imports, public media)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `FILE_STORAGE_BACKEND` | `local` | `s3` in production |
 | `FILE_STORAGE_LOCAL_ROOT` | `/tmp/fastapi_ecommerce_storage` | Dev only |
+| `MEDIA_PUBLIC_BASE_URL` | — | Public origin of the API (`https://api.example.pf`). Images uploaded from the admin (homepage, products, categories, pages) are re-encoded to WebP, stored under `media/…` in the same storage, and served by `GET /api/v1/media/{id}/{width}.webp` with a one-year immutable cache. Their absolute URLs are built from this origin; empty, the origin of the upload request is used (fine in development, wrong behind a proxy). |
+| `MEDIA_MAX_UPLOAD_BYTES` | `8388608` | Largest image accepted by `POST /admin/media` (8 MB). Keep it under Caddy's `request_body` limit (16 MB). |
 | `S3_ENDPOINT_URL` | — | S3 endpoint (when backend=s3) |
 | `S3_ACCESS_KEY_ID` | — | S3 access key |
 | `S3_SECRET_KEY_ID` | — | S3 secret key |
@@ -397,6 +399,7 @@ ICECAT_API_KEY=
 
 # --- Storage ---
 FILE_STORAGE_BACKEND=s3
+MEDIA_PUBLIC_BASE_URL=https://api.example.pf
 S3_ENDPOINT_URL=
 S3_ACCESS_KEY_ID=
 S3_SECRET_KEY_ID=

@@ -42,11 +42,13 @@ from app.api.routes.group_security import router as group_security_router
 from app.api.routes.group_upgrade import router as group_upgrade_router
 from app.api.routes.grouped_departures import router as grouped_departures_router
 from app.api.routes.health import router as health_router
+from app.api.routes.homepage import router as homepage_router
 from app.api.routes.icecat import router as icecat_router
 from app.api.routes.internal_storage import router as internal_storage_router
 from app.api.routes.inventory import router as inventory_router
 from app.api.routes.invoices_me import router as invoices_me_router
 from app.api.routes.login import router as login_router
+from app.api.routes.media import router as media_router
 from app.api.routes.oauth import router as oauth_router
 from app.api.routes.order import router as order_router
 from app.api.routes.order_line import router as order_line_router
@@ -143,6 +145,8 @@ api_router.include_router(group_upgrade_router)
 api_router.include_router(system_settings_router)
 api_router.include_router(currency_router)
 api_router.include_router(content_pages_router)
+api_router.include_router(media_router)
+api_router.include_router(homepage_router)
 api_router.include_router(grouped_departures_router)
 api_router.include_router(store_credit_router)
 api_router.include_router(stock_alerts_router)

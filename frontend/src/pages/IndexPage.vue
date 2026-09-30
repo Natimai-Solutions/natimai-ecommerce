@@ -1,23 +1,78 @@
 <template>
   <q-page class="home">
-    <section class="home-hero page-container" aria-labelledby="home-hero-title">
+    <section
+      class="home-hero page-container"
+      :class="{ 'home-hero--media': heroImage }"
+      aria-labelledby="home-hero-title"
+      data-testid="home-hero"
+    >
       <div class="home-hero__copy">
-        <h1 id="home-hero-title" class="home-hero__title">Le bon matériel, au prix affiché.</h1>
-        <p class="home-hero__lead">
-          Prix, disponibilité et délai figurent sur chaque fiche. Commandez en ligne ou demandez un
-          devis depuis votre panier.
-        </p>
+        <h1 id="home-hero-title" class="home-hero__title">
+          {{ home.hero?.title ?? 'Le bon matériel, au prix affiché.' }}
+        </h1>
+        <p v-if="heroLead" class="home-hero__lead">{{ heroLead }}</p>
         <div class="home-hero__actions">
           <q-btn
             unelevated
             color="primary"
-            label="Voir le catalogue"
+            :label="home.hero?.cta_label || 'Voir le catalogue'"
             icon-right="ph:arrow-right"
-            :to="{ name: 'catalogue' }"
+            v-bind="linkProps(home.hero?.cta_link || '/catalogue')"
             class="home-hero__cta"
           />
         </div>
       </div>
+      <div v-if="heroImage" class="home-hero__media">
+        <img
+          :src="heroImage.src"
+          :srcset="heroImage.srcset ?? undefined"
+          sizes="(max-width: 1023px) 100vw, 50vw"
+          :width="heroImage.width ?? undefined"
+          :height="heroImage.height ?? undefined"
+          :alt="heroImage.alt"
+          loading="eager"
+          fetchpriority="high"
+          decoding="async"
+        />
+      </div>
+    </section>
+
+    <section
+      v-if="home.banners.length"
+      class="home-section page-container"
+      aria-label="À la une"
+      data-testid="home-banners"
+    >
+      <ul class="banners" :class="`banners--${Math.min(home.banners.length, 3)}`">
+        <li v-for="banner in home.banners" :key="banner.id">
+          <component
+            :is="banner.cta_link ? (isInternal(banner.cta_link) ? 'router-link' : 'a') : 'div'"
+            v-bind="banner.cta_link ? linkAttrs(banner.cta_link) : {}"
+            class="banner"
+          >
+            <span v-if="banner.image" class="banner__media">
+              <img
+                :src="banner.image.src"
+                :srcset="banner.image.srcset ?? undefined"
+                sizes="(max-width: 767px) 100vw, 50vw"
+                :width="banner.image.width ?? undefined"
+                :height="banner.image.height ?? undefined"
+                :alt="banner.image.alt"
+                loading="lazy"
+                decoding="async"
+              />
+            </span>
+            <span class="banner__text">
+              <span class="banner__title">{{ banner.title }}</span>
+              <span v-if="banner.subtitle" class="banner__subtitle">{{ banner.subtitle }}</span>
+              <span v-if="banner.cta_link" class="banner__cta">
+                {{ banner.cta_label || 'Découvrir' }}
+                <q-icon name="ph:arrow-right" size="16px" />
+              </span>
+            </span>
+          </component>
+        </li>
+      </ul>
     </section>
 
     <AppNotice v-if="cartError" tone="error" class="page-container home__notice">
@@ -139,6 +194,28 @@ useMeta({
 });
 
 // Tant que rien n'est arrivé, des squelettes gardent la place des produits.
+const FALLBACK_LEAD =
+  'Prix, disponibilité et délai figurent sur chaque fiche. Commandez en ligne ou demandez un devis depuis votre panier.';
+
+const heroImage = computed(() => home.hero?.image ?? null);
+const heroLead = computed(() => (home.hero ? home.hero.subtitle : FALLBACK_LEAD));
+
+/** Lien d'un bloc : chemin du site (routeur) ou adresse https (nouvel onglet). */
+function isInternal(link: string): boolean {
+  return link.startsWith('/') && !link.startsWith('//');
+}
+
+function linkAttrs(link: string): Record<string, string> {
+  return isInternal(link)
+    ? { to: link }
+    : { href: link, target: '_blank', rel: 'noopener noreferrer' };
+}
+
+/** Mêmes liens pour un q-btn (to ou href). */
+function linkProps(link: string): Record<string, string> {
+  return linkAttrs(link);
+}
+
 const showSkeleton = computed(() => !home.loaded && !home.featured.length && !home.popular.length);
 
 async function onAddToCart(product: ProductPublic) {
@@ -172,6 +249,143 @@ onMounted(() => home.load());
 
 .home-hero__copy {
   max-width: 720px;
+}
+
+.home-hero--media {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 56px;
+  align-items: center;
+
+  @media (max-width: 1023px) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+  }
+}
+
+.home-hero__media {
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--n-tile);
+  aspect-ratio: 4 / 3;
+
+  img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+  }
+}
+
+.banners {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 20px;
+
+  &--2,
+  &--3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  &--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  @media (max-width: 767px) {
+    &--2,
+    &--3 {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}
+
+.banner {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--n-tile);
+  color: var(--n-ink);
+  text-decoration: none;
+  transition: background-color 0.2s ease;
+
+  .banners--1 & {
+    @media (min-width: 768px) {
+      flex-direction: row;
+      align-items: stretch;
+
+      .banner__media {
+        flex: 0 0 50%;
+        aspect-ratio: auto;
+        min-height: 280px;
+      }
+
+      .banner__text {
+        justify-content: center;
+        padding: 40px;
+      }
+    }
+  }
+}
+
+a.banner:hover {
+  background: var(--n-tile-hover);
+
+  .banner__media img {
+    transform: scale(1.02);
+  }
+
+  .banner__cta {
+    color: var(--n-accent);
+  }
+}
+
+.banner__media {
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+.banner__text {
+  flex-grow: 1;
+  padding: 22px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.banner__title {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+}
+
+.banner__subtitle {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--n-ink-2);
+}
+
+.banner__cta {
+  margin-top: auto;
+  padding-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.2s ease;
 }
 
 .home-hero__title {

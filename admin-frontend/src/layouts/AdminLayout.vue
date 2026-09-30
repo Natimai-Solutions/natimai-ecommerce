@@ -125,6 +125,7 @@ const allNav: NavSection[] = [
     label: 'Système',
     links: [
       { label: 'Paramètres', icon: 'settings', to: '/system-settings' },
+      { label: 'Accueil du site', icon: 'home', to: '/homepage' },
       { label: 'Pages du site', icon: 'article', to: '/pages' },
     ],
   },

@@ -114,7 +114,27 @@
               outlined
               dense
             />
-            <q-input v-model="editForm.image_url" label="URL de l'image" outlined dense />
+            <q-input
+              v-model="editForm.image_url"
+              label="Image de la tuile vitrine"
+              hint="Affichée sur l'accueil ; médiathèque ou URL"
+              outlined
+              dense
+            >
+              <template v-if="editForm.image_url" #prepend>
+                <img :src="editForm.image_url" alt="" class="image-field__thumb" />
+              </template>
+              <template #append>
+                <q-btn
+                  flat
+                  dense
+                  no-caps
+                  icon="photo_library"
+                  label="Médiathèque"
+                  @click="mediaPickerOpen = true"
+                />
+              </template>
+            </q-input>
             <q-input
               v-model="editForm.default_margin_rate_pct"
               label="Marge par défaut (%)"
@@ -181,10 +201,16 @@
         </q-form>
       </q-card>
     </q-dialog>
+    <MediaPicker
+      v-model="mediaPickerOpen"
+      kind="category"
+      @select="(asset) => (editForm.image_url = asset.url)"
+    />
   </q-page>
 </template>
 
 <script setup lang="ts">
+import MediaPicker from '@/components/MediaPicker.vue';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import {
@@ -341,4 +367,14 @@ async function submitMerge() {
 }
 
 onMounted(load);
+const mediaPickerOpen = ref(false);
 </script>
+
+<style scoped lang="scss">
+.image-field__thumb {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+</style>

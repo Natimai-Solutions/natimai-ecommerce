@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import type { components } from '@app/api-types';
 
+import { getHomepage, type HomepageBlock } from '@/api/homepage';
 import { getCategories, getFeaturedProducts, getPopularProducts } from '@/api/products';
 import { pickCategoryTiles } from '@/utils/categories';
 
@@ -23,17 +24,24 @@ export const useHomeStore = defineStore('home', () => {
   const featured = ref<ProductPublic[]>([]);
   const popular = ref<ProductPublic[]>([]);
   const categories = ref<CategoryPublic[]>([]);
+  // Hero et bannières saisis dans l'admin (Accueil du site).
+  const hero = ref<HomepageBlock | null>(null);
+  const banners = ref<HomepageBlock[]>([]);
   const loaded = ref(false);
   const loading = ref(false);
 
   async function load(): Promise<void> {
     if (loaded.value || loading.value) return;
     loading.value = true;
-    const [featuredResult, popularResult, categoriesResult] = await Promise.allSettled([
-      getFeaturedProducts(8),
-      getPopularProducts(8, 30),
-      getCategories(),
-    ]);
+    const [featuredResult, popularResult, categoriesResult, blocksResult] =
+      await Promise.allSettled([
+        getFeaturedProducts(8),
+        getPopularProducts(8, 30),
+        getCategories(),
+        getHomepage(),
+      ]);
+    hero.value = blocksResult.status === 'fulfilled' ? (blocksResult.value.hero ?? null) : null;
+    banners.value = blocksResult.status === 'fulfilled' ? (blocksResult.value.banners ?? []) : [];
     featured.value = featuredResult.status === 'fulfilled' ? featuredResult.value : [];
     const featuredIds = new Set(featured.value.map((p) => p.id));
     popular.value =
@@ -42,11 +50,11 @@ export const useHomeStore = defineStore('home', () => {
         : [];
     categories.value =
       categoriesResult.status === 'fulfilled' ? pickCategoryTiles(categoriesResult.value.data) : [];
-    loaded.value = [featuredResult, popularResult, categoriesResult].some(
+    loaded.value = [featuredResult, popularResult, categoriesResult, blocksResult].some(
       (r) => r.status === 'fulfilled',
     );
     loading.value = false;
   }
 
-  return { featured, popular, categories, loaded, loading, load };
+  return { featured, popular, categories, hero, banners, loaded, loading, load };
 });
