@@ -9,11 +9,11 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Response
 from fastapi import status as http_status
 from sqlmodel import select
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentSuperUser, SessionDep, module_required
 from app.core.errors import AppError
 from app.features.product.models.spec_definition import (
     SpecDefinition,
@@ -23,7 +23,11 @@ from app.features.product.models.spec_definition import (
     SpecDefinitionUpdate,
 )
 
-router = APIRouter(prefix="/admin/spec-definitions", tags=["admin-spec"])
+router = APIRouter(
+    prefix="/admin/spec-definitions",
+    tags=["admin-spec"],
+    dependencies=[Depends(module_required("specs"))],
+)
 
 
 async def _trigger_reproject(category_id: str | None = None) -> None:

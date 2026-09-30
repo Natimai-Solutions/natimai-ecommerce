@@ -10,6 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import engine
 from app.features.departure.services import publish_due_reminders
+from app.features.system.modules import module_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,8 @@ logger = logging.getLogger(__name__)
 async def publish_departure_reminders_task(_ctx: dict[str, Any]) -> dict[str, int]:
     """Cron entry point: one pass over the due reminders."""
     async with AsyncSession(engine) as session:
+        if not await module_enabled(session, "grouped_departures"):
+            return {}
         result = await publish_due_reminders(session)
     logger.info("Departure reminders: %s", result)
     return result

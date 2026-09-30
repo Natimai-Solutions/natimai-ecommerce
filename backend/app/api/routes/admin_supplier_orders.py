@@ -14,10 +14,10 @@ from __future__ import annotations
 import logging
 import uuid
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from sqlmodel import col, func, select
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentSuperUser, SessionDep, module_required
 from app.core.errors import AppError
 from app.features.integrations.models.supplier_order import (
     SupplierOrder,
@@ -31,7 +31,11 @@ from app.features.integrations.services.supplier_order_service import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/admin/supplier-orders", tags=["supplier"])
+router = APIRouter(
+    prefix="/admin/supplier-orders",
+    tags=["supplier"],
+    dependencies=[Depends(module_required("supplier_orders"))],
+)
 
 
 async def _load_supplier_order(

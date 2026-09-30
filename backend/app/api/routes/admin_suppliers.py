@@ -30,13 +30,13 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import update as sa_update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, func, select
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentSuperUser, SessionDep, module_required
 from app.core.errors import AppError
 from app.core.secrets_box import encrypt_json
 from app.features.integrations.models.supplier import (
@@ -87,7 +87,11 @@ from app.tasks.pricing_tasks import schedule_price_refresh
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/admin/suppliers", tags=["admin-suppliers"])
+router = APIRouter(
+    prefix="/admin/suppliers",
+    tags=["admin-suppliers"],
+    dependencies=[Depends(module_required("suppliers"))],
+)
 
 
 class ReapplyResult(BaseModel):

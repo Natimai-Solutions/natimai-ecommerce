@@ -74,7 +74,11 @@
         <q-skeleton v-else-if="loading" type="rect" height="120px" />
       </section>
 
-      <section class="app-section" aria-labelledby="departure-title">
+      <section
+        v-if="shopConfig.moduleOn('grouped_departures')"
+        class="app-section"
+        aria-labelledby="departure-title"
+      >
         <div class="app-section__head">
           <h2 id="departure-title" class="app-section__title">Prochain départ</h2>
           <router-link to="/grouped-departures" class="app-section__action text-link">
@@ -153,8 +157,8 @@ interface TodoItem {
   hint: string;
   icon: string;
   to: string;
-  /** Masqué en mode simple (fournisseurs, synchronisation). */
-  fullOnly?: boolean;
+  /** Module dont dépend la file (masquée quand il est éteint). */
+  module?: string;
 }
 
 const TODO: TodoItem[] = [
@@ -178,6 +182,7 @@ const TODO: TodoItem[] = [
     hint: 'Demandes ouvertes sans réponse finale',
     icon: 'ph:note-pencil',
     to: '/quote-requests',
+    module: 'quotes',
   },
   {
     key: 'group_upgrade_requests_pending',
@@ -185,6 +190,7 @@ const TODO: TodoItem[] = [
     hint: 'Clients qui demandent un tarif professionnel',
     icon: 'ph:user-plus',
     to: '/group-upgrade-requests',
+    module: 'price_groups',
   },
   {
     key: 'supplier_orders_draft',
@@ -192,7 +198,7 @@ const TODO: TodoItem[] = [
     hint: 'Brouillons pas encore envoyés',
     icon: 'ph:clipboard-text',
     to: '/supplier-orders',
-    fullOnly: true,
+    module: 'supplier_orders',
   },
   {
     key: 'product_drafts',
@@ -200,14 +206,14 @@ const TODO: TodoItem[] = [
     hint: 'Brouillons issus des fournisseurs',
     icon: 'ph:package',
     to: '/products',
-    fullOnly: true,
+    module: 'suppliers',
   },
 ];
 
 const todoItems = computed(() => {
   const todo = data.value?.todo;
   if (!todo) return [];
-  return TODO.filter((item) => !(item.fullOnly && shopConfig.isSimple)).map((item) => ({
+  return TODO.filter((item) => !item.module || shopConfig.moduleOn(item.module)).map((item) => ({
     ...item,
     count: todo[item.key] ?? 0,
   }));

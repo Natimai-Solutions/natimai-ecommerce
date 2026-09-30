@@ -29,12 +29,12 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlmodel import col, select
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentSuperUser, SessionDep, module_required
 from app.core.config import settings
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
@@ -426,7 +426,11 @@ async def assign_customs_rate_to_product(
     return ProductPublic.model_validate(product)
 
 
-@router.put("/categories/{category_id}/customs-rate", response_model=CategoryPublic)
+@router.put(
+    "/categories/{category_id}/customs-rate",
+    response_model=CategoryPublic,
+    dependencies=[Depends(module_required("customs"))],
+)
 async def assign_customs_rate_to_category(
     category_id: uuid.UUID,
     payload: CustomsRateAssignBody,

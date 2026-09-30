@@ -55,6 +55,9 @@ class ModuleSpec:
     group: str
     #: Value in ``SHOP_MODE=simple`` (``full`` turns every module on).
     simple_default: bool = False
+    #: What an **existing** simple shop showed before the switches existed
+    #: (the seed keeps it, so an upgrade hides nothing that was in use).
+    legacy_simple: bool = False
     #: Environment kill switch above the stored value (``None`` = none).
     env_gate: Callable[[], bool] | None = field(default=None, compare=False)
     #: Environment variable named by the admin screen when the gate is closed.
@@ -75,6 +78,36 @@ class ModuleSpec:
 
 MODULES: tuple[ModuleSpec, ...] = (
     ModuleSpec(
+        key="suppliers",
+        label="Fournisseurs et synchronisations",
+        description=(
+            "Déclarer des fournisseurs, synchroniser leurs catalogues et "
+            "rattacher des articles à leurs références. Éteint : écran "
+            "Fournisseurs et bloc Approvisionnement masqués, synchronisations "
+            "planifiées en pause."
+        ),
+        group="Approvisionnement",
+        simple_default=True,
+        legacy_simple=True,
+    ),
+    ModuleSpec(
+        key="file_import",
+        label="Import de catalogue (CSV / Excel)",
+        description="Importer le catalogue d'un fournisseur depuis un fichier.",
+        group="Approvisionnement",
+        simple_default=True,
+        legacy_simple=True,
+    ),
+    ModuleSpec(
+        key="supplier_orders",
+        label="Commandes fournisseurs",
+        description=(
+            "Commandes passées automatiquement aux fournisseurs à "
+            "l'encaissement, et leur suivi."
+        ),
+        group="Approvisionnement",
+    ),
+    ModuleSpec(
         key="icecat",
         label="Enrichissement Icecat",
         description=(
@@ -86,6 +119,84 @@ MODULES: tuple[ModuleSpec, ...] = (
         simple_default=False,
         env_gate=_icecat_env_allows,
         env_gate_name="ICECAT_ENABLED",
+    ),
+    ModuleSpec(
+        key="specs",
+        label="Caractéristiques filtrables",
+        description=(
+            "Caractéristiques techniques (processeur, mémoire…) comme filtres "
+            "du catalogue, et leur écran de réglage."
+        ),
+        group="Catalogue",
+    ),
+    ModuleSpec(
+        key="quotes",
+        label="Devis",
+        description=(
+            "Demandes de devis des clients, devis émis et commande au prix du "
+            "devis. Éteint : plus de nouvelle demande, onglet Devis masqué."
+        ),
+        group="Ventes",
+        legacy_simple=True,
+    ),
+    ModuleSpec(
+        key="deposits",
+        label="Acompte à la commande",
+        description=(
+            "Paiement d'un acompte à la commande et du solde à réception, "
+            "selon le groupe tarifaire. Éteint : tout est payé à la commande."
+        ),
+        group="Ventes",
+        legacy_simple=True,
+    ),
+    ModuleSpec(
+        key="abandoned_carts",
+        label="Relance des paniers abandonnés",
+        description="Suivi des paniers abandonnés et e-mail de relance.",
+        group="Ventes",
+        legacy_simple=True,
+    ),
+    ModuleSpec(
+        key="price_groups",
+        label="Groupes tarifaires côté client",
+        description=(
+            "Onglet « Groupe tarifaire » du compte client et demandes de "
+            "changement de groupe. Les groupes et leurs prix restent actifs."
+        ),
+        group="Tarifs",
+        legacy_simple=True,
+    ),
+    ModuleSpec(
+        key="customs",
+        label="Douane par catégorie",
+        description="Taux de douane par catégorie pour les articles importés.",
+        group="Tarifs",
+    ),
+    ModuleSpec(
+        key="currencies",
+        label="Devises et taux de change",
+        description="Écran des taux de change (prix fournisseurs en devises).",
+        group="Tarifs",
+    ),
+    ModuleSpec(
+        key="logistics_multileg",
+        label="Trajets et lieux",
+        description=(
+            "Logistique à plusieurs étapes : lieux, trajets, tronçons "
+            "d'acheminement. Éteint : écran masqué (la livraison continue)."
+        ),
+        group="Logistique",
+    ),
+    ModuleSpec(
+        key="grouped_departures",
+        label="Départs groupés",
+        description=(
+            "Départs groupés : commandes rattachées à un départ, bandeau du "
+            "prochain départ en vitrine, rappels. Éteint : plus de "
+            "rattachement ni de bandeau."
+        ),
+        group="Logistique",
+        legacy_simple=True,
     ),
 )
 
@@ -183,12 +294,22 @@ async def set_module(session: AsyncSession, key: str, enabled: bool) -> None:
     invalidate_cache()
 
 
-def seed_rows() -> list[SystemSetting]:
-    """One row per switch, at the value of the current ``SHOP_MODE`` preset."""
+def seed_rows(*, existing_shop: bool = False) -> list[SystemSetting]:
+    """One row per switch, at the value of the current ``SHOP_MODE`` preset.
+
+    ``existing_shop``: a simple shop that already took orders keeps what it
+    showed before the switches existed (:attr:`ModuleSpec.legacy_simple`).
+    """
+
+    def _value(spec: ModuleSpec) -> bool:
+        if existing_shop and settings.is_simple_shop:
+            return spec.legacy_simple
+        return spec.preset
+
     return [
         SystemSetting(
             key=spec.setting_key,
-            value="true" if spec.preset else "false",
+            value="true" if _value(spec) else "false",
             description=f"Module « {spec.label} » (true / false)",
         )
         for spec in MODULES

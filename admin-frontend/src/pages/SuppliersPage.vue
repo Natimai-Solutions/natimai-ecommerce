@@ -101,6 +101,7 @@
             flat
             round
             dense
+            v-if="shopConfig.moduleOn('file_import')"
             icon="ph:file-arrow-up"
             :disable="!props.row.is_active"
             @click="openImport(props.row)"
@@ -971,9 +972,11 @@ import {
 } from '@/api/suppliers';
 import { categoryLabel, listAdminCategories, type AdminCategory } from '@/api/categories';
 import CategoryPairsTable from '@/components/CategoryPairsTable.vue';
+import { useShopConfigStore } from '@/stores/shopConfig';
 import { listPlaces, type Place } from '@/api/logistics';
 import { extractApiError } from '@/api/errors';
 
+const shopConfig = useShopConfigStore();
 const rows = ref<Supplier[]>([]);
 const adapters = ref<AdapterDescriptor[]>([]);
 const places = ref<Place[]>([]);

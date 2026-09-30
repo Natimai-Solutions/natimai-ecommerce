@@ -14,11 +14,11 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel
 from sqlmodel import col, select
 
-from app.api.deps import CurrentSuperUser, CurrentUser, SessionDep
+from app.api.deps import CurrentSuperUser, CurrentUser, SessionDep, module_required
 from app.core.errors import AppError
 from app.features.base.models import Message
 from app.features.product.models.price_group import PriceGroup
@@ -33,7 +33,9 @@ from app.features.user.models.user import User
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["user"])
+router = APIRouter(
+    tags=["user"], dependencies=[Depends(module_required("price_groups"))]
+)
 
 EVENT_UPGRADE_APPROVED = "user.group_upgrade.approved"
 EVENT_UPGRADE_REJECTED = "user.group_upgrade.rejected"

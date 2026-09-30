@@ -8,12 +8,12 @@ from enum import Enum
 from time import perf_counter
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm.attributes import set_committed_value
 from sqlmodel import col, or_, select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep, module_required
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.observability import log_structured_event, observe_checkout_result
@@ -147,6 +147,7 @@ from app.features.shipping.services.origin import (
     get_main_warehouse,
     load_origin_context,
 )
+from app.features.system.modules import module_enabled
 from app.features.user.crud.address import crud_address
 from app.features.user.models.address import Address, AddressCreate
 from app.features.user.models.user import User
@@ -1344,6 +1345,13 @@ async def _reserve_stock_for_checkout(
 router = APIRouter(prefix="/cart", tags=["cart"])
 
 
+async def _deposit_policy(session: SessionDep, group: Any) -> DepositPolicy:
+    """The group's deposit policy — none while the deposits module is off."""
+    if not await module_enabled(session, "deposits"):
+        return DepositPolicy()
+    return DepositPolicy.of(group)
+
+
 def _build_cart_detail(cart: Cart, items: list[CartItem]) -> CartDetailPublic:
     """Build cart detail."""
     item_details = [
@@ -1790,6 +1798,7 @@ async def _send_quote_support_email(
 
 @router.post(
     "/quote-request",
+    dependencies=[Depends(module_required("quotes"))],
     response_model=QuoteRequestResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -2034,7 +2043,11 @@ async def download_my_quote_pdf(
     return quote_pdf_response(await _my_quote_or_404(session, quote_id, current_user))
 
 
-@router.post("/quote-requests/me/{quote_id}/accept", response_model=CartDetailPublic)
+@router.post(
+    "/quote-requests/me/{quote_id}/accept",
+    response_model=CartDetailPublic,
+    dependencies=[Depends(module_required("quotes"))],
+)
 async def accept_my_quote(
     quote_id: uuid.UUID, session: SessionDep, current_user: CurrentUser
 ) -> CartDetailPublic:
@@ -2056,6 +2069,7 @@ async def accept_my_quote(
 
 @router.post(
     "/guest-quote-request",
+    dependencies=[Depends(module_required("quotes"))],
     response_model=GuestQuoteRequestResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -2553,7 +2567,9 @@ async def get_checkout_quote(
     cart = await crud_cart.get_active_cart_by_user(session=session, user_id=user_id)
     currency = cart.currency if cart is not None else settings.REFERENCE_CURRENCY
     zero = quantize_amount(Decimal("0"), currency)
-    policy = DepositPolicy.of(await resolve_customer_group(session, current_user))
+    policy = await _deposit_policy(
+        session, await resolve_customer_group(session, current_user)
+    )
     credit_available = await store_credit.balance(session, user_id)
     if cart is None:
         return CheckoutQuoteResponse(
@@ -2831,7 +2847,7 @@ async def checkout_my_cart(
         shipping_preference=payload.shipping_preference,
         shipping_fee_fallback=payload.shipping_fee_amount,
         discount=applied_discount,
-        deposit_policy=DepositPolicy.of(price_group),
+        deposit_policy=await _deposit_policy(session, price_group),
         payment_plan=payload.payment_plan,
         fixed_shipping_fee=fixed_shipping_fee,
         store_credit_available=(
@@ -2876,8 +2892,13 @@ async def checkout_my_cart(
     cgv_accepted_at = datetime.now(timezone.utc)
 
     try:
-        # Départ groupé ouvert le plus proche (None = boutique classique).
-        departure = await crud_grouped_departure.get_next_open(session)
+        # Départ groupé ouvert le plus proche (None = boutique classique, ou
+        # module « Départs groupés » éteint).
+        departure = (
+            await crud_grouped_departure.get_next_open(session)
+            if await module_enabled(session, "grouped_departures")
+            else None
+        )
 
         order_status = await _get_or_create_order_pending_status(session)
         # Human-readable reference allocated up-front (server-side only — the

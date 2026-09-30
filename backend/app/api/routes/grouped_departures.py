@@ -17,13 +17,17 @@ from app.api.deps import SessionDep
 from app.core.errors import AppError
 from app.features.departure.crud import crud_grouped_departure
 from app.features.departure.models import GroupedDeparture, GroupedDepartureSummary
+from app.features.system.modules import module_enabled
 
 router = APIRouter(prefix="/grouped-departures", tags=["grouped-departures"])
 
 
 @router.get("/next", response_model=GroupedDepartureSummary | None)
 async def next_departure(session: SessionDep) -> GroupedDepartureSummary | None:
-    """The departure new orders are attached to right now, or ``null``."""
+    """The departure new orders are attached to right now, or ``null``
+    (always ``null`` while the grouped-departures module is off)."""
+    if not await module_enabled(session, "grouped_departures"):
+        return None
     departure = await crud_grouped_departure.get_next_open(session)
     return GroupedDepartureSummary.model_validate(departure) if departure else None
 

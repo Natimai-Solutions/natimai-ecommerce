@@ -21,7 +21,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, File, Form, Path, Query, UploadFile
 from pydantic import BaseModel, Field
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentSuperUser, SessionDep, module_required
 from app.core.config import settings
 from app.core.errors import AppError
 from app.features.attachment.storage.factory import get_file_storage
@@ -79,7 +79,11 @@ from app.tasks.supplier_tasks import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/suppliers", tags=["suppliers"])
+router = APIRouter(
+    prefix="/suppliers",
+    tags=["suppliers"],
+    dependencies=[Depends(module_required("suppliers"))],
+)
 
 #: Upload size cap for catalog files (bytes).
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -545,7 +549,11 @@ def _global_effect(code: str) -> Any:
     return _effect
 
 
-@router.post("/{supplier_name}/import-file/inspect", response_model=FileInspectResponse)
+@router.post(
+    "/{supplier_name}/import-file/inspect",
+    response_model=FileInspectResponse,
+    dependencies=[Depends(module_required("file_import"))],
+)
 async def inspect_catalog_file(
     supplier: SupplierDep,
     _current_user: CurrentSuperUser,
@@ -580,7 +588,11 @@ async def inspect_catalog_file(
     )
 
 
-@router.post("/{supplier_name}/import-file", response_model=FileImportResponse)
+@router.post(
+    "/{supplier_name}/import-file",
+    response_model=FileImportResponse,
+    dependencies=[Depends(module_required("file_import"))],
+)
 async def import_catalog_file(
     supplier: SupplierDep,
     session: SessionDep,

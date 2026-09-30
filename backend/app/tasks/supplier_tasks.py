@@ -38,6 +38,7 @@ from app.features.product.services.pricing import (
     CurrencyRateMissing,
     convert_to_reference_currency,
 )
+from app.features.system.modules import module_enabled
 from app.services.suppliers import api_suppliers, resolve_adapter
 from app.services.suppliers.base import SupplierAdapter
 from app.tasks.enqueue import enqueue_with_dedup
@@ -496,8 +497,13 @@ def _catalog_sync_due(
 async def _due_suppliers(
     session: AsyncSession, *, catalog: bool
 ) -> list[tuple[str, list[str]]]:
-    """Codes (and default categories) of the API suppliers to enqueue."""
+    """Codes (and default categories) of the API suppliers to enqueue.
+
+    None while the suppliers module is off (Admin → Modules).
+    """
     due: list[tuple[str, list[str]]] = []
+    if not await module_enabled(session, "suppliers"):
+        return due
     now = _now()
     for supplier, adapter in await api_suppliers(session):
         if not adapter.is_sync_enabled() or not adapter.is_configured():

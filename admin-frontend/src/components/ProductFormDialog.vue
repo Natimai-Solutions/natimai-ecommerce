@@ -63,8 +63,8 @@
 
           <div class="product-form__grid">
             <div>
-              <h3 v-if="!isSimpleShop" class="admin-subtitle">Approvisionnement</h3>
-              <div v-if="!isSimpleShop" class="row" style="gap: 8px">
+              <h3 v-if="suppliersOn" class="admin-subtitle">Approvisionnement</h3>
+              <div v-if="suppliersOn" class="row" style="gap: 8px">
                 <q-select
                   v-model="form.supplier_name"
                   :options="supplierOptions"
@@ -90,7 +90,7 @@
                 />
               </div>
               <div
-                v-if="!isSimpleShop && isEdit && product && !product.has_variants"
+                v-if="suppliersOn && isEdit && product && !product.has_variants"
                 class="row items-center q-mb-sm"
                 style="gap: 8px"
               >
@@ -131,7 +131,7 @@
                 {{ linkNotice }}
               </AppNotice>
               <q-input
-                v-if="!isSimpleShop && form.supplier_name && !product?.is_supplier_managed"
+                v-if="suppliersOn && form.supplier_name && !product?.is_supplier_managed"
                 v-model="form.supplier_quantity"
                 label="Stock disponible chez le fournisseur"
                 hint="Tenu à jour à la main (ou par import fichier) — 0 = indisponible"
@@ -487,6 +487,8 @@ const store = useProductsStore();
 const shopConfig = useShopConfigStore();
 /** SHOP_MODE=simple: own stock sold at a fixed price, no supplier, no customs. */
 const isSimpleShop = computed(() => shopConfig.isSimple);
+/** Supply block (supplier, reference, attach): the suppliers module. */
+const suppliersOn = computed(() => shopConfig.moduleOn('suppliers'));
 
 type PricingMode = 'import' | 'domestic' | 'fixed';
 type AvailabilityMode = 'stock' | 'on_demand' | 'continuous' | 'lot';

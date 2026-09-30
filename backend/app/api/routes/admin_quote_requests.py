@@ -17,11 +17,11 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel, Field
 from sqlmodel import col, or_, select
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentSuperUser, SessionDep, module_required
 from app.core.errors import AppError
 from app.features.cart.models.quote_request import (
     CLOSED_QUOTE_STATUSES,
@@ -37,7 +37,11 @@ from app.features.cart.services.quote import (
     send_quote_email,
 )
 
-router = APIRouter(prefix="/admin/quote-requests", tags=["admin-quote-requests"])
+router = APIRouter(
+    prefix="/admin/quote-requests",
+    tags=["admin-quote-requests"],
+    dependencies=[Depends(module_required("quotes"))],
+)
 
 
 class AdminQuoteRequestListItem(BaseModel):

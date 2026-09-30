@@ -31,13 +31,26 @@ def arq_queue(monkeypatch: pytest.MonkeyPatch) -> FakeArqRedis:
 
 
 @pytest.fixture(autouse=True)
-def _fresh_module_switches() -> Generator[None, None, None]:
-    """Module switches are cached per process: never carry one across tests."""
-    from app.features.system.modules import invalidate_cache
+def _fresh_module_switches(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> Generator[None, None, None]:
+    """Module switches are cached per process: never carry one across tests.
 
-    invalidate_cache()
+    Outside the integration suite the database is usually a stand-in (a mock
+    session, a namespace): every module reads as on there, as in a full shop.
+    The integration tests read the real switches.
+    """
+    from app.features.system import modules
+
+    modules.invalidate_cache()
+    if "/integration/" not in str(request.node.path).replace("\\", "/"):
+
+        async def _all_on(_session: object) -> dict[str, bool]:
+            return {spec.key: True for spec in modules.MODULES}
+
+        monkeypatch.setattr(modules, "stored_switches", _all_on)
     yield
-    invalidate_cache()
+    modules.invalidate_cache()
 
 
 @pytest_asyncio.fixture(scope="session")

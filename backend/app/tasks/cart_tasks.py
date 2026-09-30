@@ -16,6 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.core.db import engine
 from app.features.cart.services.abandonment import remind_abandoned_carts
+from app.features.system.modules import module_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,8 @@ async def remind_abandoned_carts_task(
     if int(settings.CART_ABANDONMENT_REMINDER_DELAY_HOURS) <= 0:
         return {"status": "disabled"}
     async with AsyncSession(engine) as session:
+        if not await module_enabled(session, "abandoned_carts"):
+            return {"status": "disabled"}
         stats = await remind_abandoned_carts(session)
     logger.info("Abandoned cart sweep: %s", stats)
     return {"status": "ok", **stats}

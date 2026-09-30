@@ -21,7 +21,7 @@
     <div v-if="ready" class="account__layout">
       <nav class="account-nav" aria-label="Sections du compte">
         <router-link
-          v-for="section in SECTIONS"
+          v-for="section in sections"
           :key="section.key"
           :to="{ name: 'account', query: section.key === 'overview' ? {} : { tab: section.key } }"
           class="account-nav__link"
@@ -57,6 +57,7 @@ import AccountQuotes from '@/components/account/AccountQuotes.vue';
 import AccountWishlist from '@/components/account/AccountWishlist.vue';
 import { getMyProfile, type MyProfile } from '@/api/profile';
 import { useAuthStore } from '@/stores/auth';
+import { useShopModulesStore } from '@/stores/shopModules';
 
 interface AccountSection {
   key: string;
@@ -90,9 +91,19 @@ const authStore = useAuthStore();
 const ready = ref(false);
 const profile = ref<MyProfile | null>(null);
 
+/** Tabs of a module switched off in the back-office are left out. */
+const SECTION_MODULES: Record<string, string> = { quotes: 'quotes', group: 'price_groups' };
+const shopModules = useShopModulesStore();
+const sections = computed<AccountSection[]>(() =>
+  SECTIONS.filter((s) => {
+    const module = SECTION_MODULES[s.key];
+    return !module || shopModules.isOn(module);
+  }),
+);
+
 const current = computed<AccountSection>(() => {
   const tab = route.query.tab;
-  return SECTIONS.find((s) => s.key === tab) ?? SECTIONS[0]!;
+  return sections.value.find((s) => s.key === tab) ?? sections.value[0]!;
 });
 
 const firstName = computed(() => (profile.value?.full_name ?? '').trim().split(/\s+/)[0] ?? '');
@@ -114,6 +125,7 @@ onMounted(async () => {
     return;
   }
   ready.value = true;
+  void shopModules.load();
   profile.value = await getMyProfile().catch(() => null);
 });
 </script>

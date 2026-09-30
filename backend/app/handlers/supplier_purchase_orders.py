@@ -31,6 +31,7 @@ from app.features.order.models.order import Order
 from app.features.payment.models.payment import Payment
 from app.features.payment.services.deposit import KIND_BALANCE
 from app.features.payment.services.store_credit import part_coverage
+from app.features.system.modules import module_enabled
 from app.outbox.decorators import outbox_handler
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,9 @@ async def on_payment_captured_create_supplier_orders(
     session: AsyncSession, payload: dict[str, Any]
 ) -> None:
     """Place the purchase orders of the order's suppliers that order automatically."""
+    if not await module_enabled(session, "supplier_orders"):
+        return
+
     raw_order_id = payload.get("order_id")
     if not raw_order_id:
         logger.debug(

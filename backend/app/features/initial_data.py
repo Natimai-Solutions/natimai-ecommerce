@@ -1041,7 +1041,10 @@ async def _seed_module_switches(session: AsyncSession) -> None:
     Premier démarrage seulement : un interrupteur existant n'est jamais
     réécrit (l'admin en est maître), seule sa description est rafraîchie.
     """
-    for row in module_seed_rows():
+    from app.features.order.models.order import Order
+
+    existing_shop = (await session.exec(select(Order.id).limit(1))).first() is not None
+    for row in module_seed_rows(existing_shop=existing_shop):
         existing = (
             await session.exec(
                 select(SystemSetting).where(SystemSetting.key == row.key)

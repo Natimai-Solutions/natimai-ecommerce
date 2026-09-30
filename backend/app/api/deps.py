@@ -1,4 +1,4 @@
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Annotated
 
 from fastapi import Depends
@@ -175,3 +175,20 @@ async def get_current_logistics_admin(
 
 
 CurrentLogisticsAdmin = Annotated[User, Depends(get_current_logistics_admin)]
+
+
+def module_required(key: str) -> Callable[..., Awaitable[None]]:
+    """Dependency: an explicit 404 while the module ``key`` is switched off.
+
+    Used at router level (``dependencies=[Depends(module_required("quotes"))]``)
+    for the admin routes of a switchable module (Admin → Modules).
+    """
+    from app.features.system.modules import require_module, spec_for
+
+    spec_for(key)  # fail at import time on a typo, not at the first request
+
+    async def _gate(session: SessionDep) -> None:
+        await require_module(session, key)
+
+    _gate.__name__ = f"module_required_{key}"
+    return _gate

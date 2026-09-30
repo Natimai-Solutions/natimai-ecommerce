@@ -7,6 +7,8 @@ import {
 } from 'vue-router';
 import routes from './routes';
 import { useAuthStore } from '@/stores/auth';
+import { useShopConfigStore } from '@/stores/shopConfig';
+import { moduleOfPath } from '@/utils/modules';
 
 export default defineRouter((/* { store, ssrContext } */) => {
   const createHistory = import.meta.env.QUASAR_SERVER
@@ -37,6 +39,13 @@ export default defineRouter((/* { store, ssrContext } */) => {
     }
     if (to.path === '/login' && auth.isAuthenticated) {
       return { path: '/' };
+    }
+    // A screen of a switched-off module: back to the dashboard.
+    const module = moduleOfPath(to.path);
+    if (module && auth.isAuthenticated) {
+      const shopConfig = useShopConfigStore();
+      await shopConfig.load();
+      if (!shopConfig.moduleOn(module)) return { path: '/' };
     }
     return true;
   });

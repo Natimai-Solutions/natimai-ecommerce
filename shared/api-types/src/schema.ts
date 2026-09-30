@@ -5990,7 +5990,8 @@ export interface paths {
         };
         /**
          * Next Departure
-         * @description The departure new orders are attached to right now, or ``null``.
+         * @description The departure new orders are attached to right now, or ``null``
+         *     (always ``null`` while the grouped-departures module is off).
          */
         get: operations["grouped-departures-next_departure"];
         put?: never;

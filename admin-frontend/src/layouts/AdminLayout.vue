@@ -100,9 +100,9 @@
 
         <router-link
           v-if="shopConfig.isSimple"
-          to="/system-settings"
+          to="/modules"
           class="admin-nav__mode"
-          title="Certains écrans (fournisseurs, douane, trajets) sont masqués"
+          title="Les écrans des modules éteints sont masqués : Système → Modules"
         >
           <q-icon name="ph:leaf" size="16px" />
           Mode simple
@@ -124,6 +124,7 @@ import { useRouter } from 'vue-router';
 import { getMe, type Me } from '@/api/me';
 import { useAuthStore } from '@/stores/auth';
 import { useShopConfigStore } from '@/stores/shopConfig';
+import { moduleOfPath } from '@/utils/modules';
 import { readThemePreference, setThemePreference, type ThemePreference } from '@/utils/theme';
 
 const $q = useQuasar();
@@ -141,19 +142,6 @@ interface NavSection {
   label: string;
   links: NavLink[];
 }
-
-/**
- * Écrans qui n'ont de sens qu'avec des fournisseurs, de la douane ou une
- * logistique multi-étapes. Masqués en mode simple ; les routes restent
- * accessibles par leur adresse.
- */
-const FULL_MODE_ONLY = new Set([
-  '/spec-definitions',
-  '/customs-rates',
-  '/currency-rates',
-  '/logistics-routes',
-  '/supplier-orders',
-]);
 
 const allNav: NavSection[] = [
   {
@@ -222,15 +210,17 @@ const allNav: NavSection[] = [
   },
 ];
 
+/** Screens of a switched-off module leave the menu (Admin → Modules). */
 const nav = computed<NavSection[]>(() =>
-  shopConfig.isSimple
-    ? allNav
-        .map((section) => ({
-          ...section,
-          links: section.links.filter((link) => !FULL_MODE_ONLY.has(link.to)),
-        }))
-        .filter((section) => section.links.length > 0)
-    : allNav,
+  allNav
+    .map((section) => ({
+      ...section,
+      links: section.links.filter((link) => {
+        const module = moduleOfPath(link.to);
+        return !module || shopConfig.moduleOn(module);
+      }),
+    }))
+    .filter((section) => section.links.length > 0),
 );
 
 const shopName = computed(() => shopConfig.config?.shop_name || 'Natimai');

@@ -4,14 +4,18 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentSuperUser, SessionDep, module_required
 from app.core.config import settings
 from app.features.cart.services.abandonment import open_carts_overview
 
-router = APIRouter(prefix="/admin/carts", tags=["admin-cart"])
+router = APIRouter(
+    prefix="/admin/carts",
+    tags=["admin-cart"],
+    dependencies=[Depends(module_required("abandoned_carts"))],
+)
 
 
 class AbandonedCartsResponse(BaseModel):
