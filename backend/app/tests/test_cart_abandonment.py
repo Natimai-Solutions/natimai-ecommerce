@@ -38,8 +38,8 @@ def test_sweep_selects_open_quiet_carts_never_reminded() -> None:
     )
     assert "carts.is_checked_out IS false" in sql
     assert "carts.abandonment_reminded_at IS NULL" in sql
-    assert "carts.last_activity_at <= '2026-09-09 12:00:00'" in sql
-    assert "carts.last_activity_at >= '2026-08-27 12:00:00'" in sql
+    assert "carts.last_activity_at <= '2026-09-09 12:00:00+00:00'" in sql
+    assert "carts.last_activity_at >= '2026-08-27 12:00:00+00:00'" in sql
     assert "EXISTS (SELECT * \nFROM cart_items" in sql
     assert "LIMIT 200" in sql
 

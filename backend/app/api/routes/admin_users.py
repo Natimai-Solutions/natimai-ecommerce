@@ -114,8 +114,8 @@ class InvitationResult(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _utcnow_naive() -> datetime.datetime:
-    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+def _utcnow() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc)
 
 
 def invitation_pending(user: User) -> bool:
@@ -288,7 +288,7 @@ async def create_user(
         # Prouvée seulement quand le lien est suivi (reset_password le pose).
         is_verified=False,
         hashed_password=unusable_password_hash(),
-        created_at=_utcnow_naive(),
+        created_at=_utcnow(),
         created_by_id=admin_id,
     )
     token = issue_invitation_token(user) if payload.send_invitation else None
@@ -394,7 +394,7 @@ async def update_user(
 
     for name, value in fields.items():
         setattr(user, name, value)
-    user.modify_at = _utcnow_naive()
+    user.modify_at = _utcnow()
     user.modify_by_id = current_user.id
     session.add(user)
 

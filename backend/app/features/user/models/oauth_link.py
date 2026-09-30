@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlmodel import Field, SQLModel, UniqueConstraint
 
@@ -23,7 +23,7 @@ class UserOAuthLink(SQLModel, table=True):
     provider: str = Field(max_length=50, index=True)
     provider_user_id: str = Field(max_length=255)
     email_at_link: str = Field(max_length=255)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class UserOAuthLinkPublic(SQLModel):

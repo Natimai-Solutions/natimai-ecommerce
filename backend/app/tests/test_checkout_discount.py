@@ -162,12 +162,18 @@ async def test_category_target_only_touches_its_lines() -> None:
         (None, 0, "unknown"),
         (_discount(is_active=False), 0, "unknown"),
         (
-            _discount(start_date=datetime.datetime.now() + datetime.timedelta(days=1)),
+            _discount(
+                start_date=datetime.datetime.now(datetime.timezone.utc)
+                + datetime.timedelta(days=1)
+            ),
             0,
             "not_started",
         ),
         (
-            _discount(end_date=datetime.datetime.now() - datetime.timedelta(days=1)),
+            _discount(
+                end_date=datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(days=1)
+            ),
             0,
             "expired",
         ),

@@ -77,7 +77,7 @@ class SupplierSyncLogCrud(
         sync_log = await self.read(session=session, id=sync_log_id)
         duration_seconds = None
         if sync_log.started_at:
-            # The column is naive in Postgres: a value read back has no tzinfo
+            # Defensive: a naive value (pre-timestamptz data) is UTC wall-clock,
             # while ``completed_at`` is UTC-aware. Read the stored one as UTC.
             started_at = sync_log.started_at
             if started_at.tzinfo is None:

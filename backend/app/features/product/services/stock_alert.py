@@ -128,7 +128,7 @@ async def notify_due_alerts(session: AsyncSession) -> dict[str, int]:
         )
     ).all()
     sent = failed = 0
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(timezone.utc)
     for alert, product in pending:
         if not product.is_active or not product_orderable(product):
             continue

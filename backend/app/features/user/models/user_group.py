@@ -25,7 +25,7 @@ class UserGroupBase(SQLModel):
         description="Group ID",
     )
     joined_at: datetime.datetime | None = Field(
-        default_factory=datetime.datetime.now,
+        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc),
         description="Timestamp when user joined the group",
     )
 

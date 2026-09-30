@@ -82,7 +82,7 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
             order_number=f"CMD-{uuid.uuid4().hex[:6]}",
             total_amount=Decimal(total),
             grouped_departure_id=departure.id,
-            created_at=datetime(2026, 9, day, 10, 0),
+            created_at=datetime(2026, 9, day, 10, 0, tzinfo=timezone.utc),
         )
 
     o1, o2, o3 = order(paid, "1000", 1), order(paid, "2000", 2), order(pending, "50", 3)

@@ -59,8 +59,8 @@ def _session(rows: list[Any]) -> Any:
     return session
 
 
-_YESTERDAY = datetime.datetime.now() - datetime.timedelta(days=1)
-_TOMORROW = datetime.datetime.now() + datetime.timedelta(days=1)
+_YESTERDAY = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)
+_TOMORROW = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
 
 
 # ---------------------------------------------------------------------------

@@ -208,8 +208,8 @@ async def refresh_access_token(
         )
 
     now = datetime.now(timezone.utc)
-    # expires_at is stored in a naive (tz-less) column but always holds UTC
-    # wall-clock — make it aware before comparing to the aware `now`.
+    # expires_at is timestamptz since sqlmodel 0.0.45; keep the guard for a
+    # naive value (always UTC wall-clock) before comparing to the aware `now`.
     session_expires_at = current_refresh_session.expires_at
     if session_expires_at.tzinfo is None:
         session_expires_at = session_expires_at.replace(tzinfo=timezone.utc)

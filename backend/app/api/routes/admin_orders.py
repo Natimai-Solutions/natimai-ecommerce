@@ -19,6 +19,7 @@ from sqlalchemy import select as sa_select
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.core.datetimes import as_utc
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.order.crud.order_crud import crud_order
@@ -157,9 +158,9 @@ def _order_filters(
             )
         )
     if date_from is not None:
-        statement = statement.where(col(Order.created_at) >= date_from)
+        statement = statement.where(col(Order.created_at) >= as_utc(date_from))
     if date_to is not None:
-        statement = statement.where(col(Order.created_at) <= date_to)
+        statement = statement.where(col(Order.created_at) <= as_utc(date_to))
     return statement
 
 

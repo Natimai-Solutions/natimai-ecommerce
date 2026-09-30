@@ -14,6 +14,7 @@ from sqlmodel import SQLModel, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.expression import SelectOfScalar
 
+from app.core.datetimes import as_utc
 from app.features.user.models.user import User
 from app.outbox.registry import outbox_registry
 
@@ -226,11 +227,17 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             Dictionary representation of the data
         """
         if hasattr(data, "model_dump"):
-            return data.model_dump(exclude_unset=True)
+            data_dict = data.model_dump(exclude_unset=True)
         elif isinstance(data, dict):
-            return dict(data)
+            data_dict = dict(data)
         else:
             return {}
+        # Les colonnes datetime sont des timestamptz : un datetime naïf reçu
+        # d'un client (charge utile sans fuseau) est de l'UTC horloge murale.
+        for key, value in data_dict.items():
+            if isinstance(value, datetime.datetime) and value.tzinfo is None:
+                data_dict[key] = as_utc(value)
+        return data_dict
 
     def _serialize_for_json(self, data: dict) -> dict:
         """

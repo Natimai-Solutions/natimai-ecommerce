@@ -54,7 +54,7 @@ def normalize_code(code: str | None) -> str:
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(timezone.utc)
 
 
 def eligible_lines(
@@ -153,9 +153,9 @@ async def resolve_coupon(
     if discount is None or not discount.is_active or not discount.is_admin_active:
         raise DiscountRefused("unknown", "Code promo inconnu")
     now = _now()
-    if discount.start_date and discount.start_date.replace(tzinfo=None) > now:
+    if discount.start_date and discount.start_date > now:
         raise DiscountRefused("not_started", "Ce code n'est pas encore valide")
-    if discount.end_date and discount.end_date.replace(tzinfo=None) < now:
+    if discount.end_date and discount.end_date < now:
         raise DiscountRefused("expired", "Ce code a expiré")
     if discount.max_uses is not None and discount.current_uses >= discount.max_uses:
         raise DiscountRefused("exhausted", "Ce code a atteint sa limite d'utilisation")

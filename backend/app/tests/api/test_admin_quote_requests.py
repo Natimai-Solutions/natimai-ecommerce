@@ -34,7 +34,7 @@ def anyio_backend() -> str:
 def _quote(**overrides: Any) -> Any:
     quote = SimpleNamespace(
         id=uuid.uuid4(),
-        created_at=datetime.datetime(2026, 8, 27, 10, 0),
+        created_at=datetime.datetime(2026, 8, 27, 10, 0, tzinfo=datetime.timezone.utc),
         email="client@example.pf",
         full_name="Alice Tama",
         phone="+689 40 00 00 00",
@@ -138,7 +138,7 @@ async def test_reopening_a_request_clears_the_handling_marks() -> None:
     demande rouverte ne doit pas rester comptée comme traitée."""
     quote = _quote(
         status=QuoteRequestStatus.LOST.value,
-        handled_at=datetime.datetime(2026, 8, 20),
+        handled_at=datetime.datetime(2026, 8, 20, tzinfo=datetime.timezone.utc),
         handled_by_id=uuid.uuid4(),
     )
 
