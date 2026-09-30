@@ -5,7 +5,7 @@
         <h1 class="auth-title">
           {{ invitation ? 'Activez votre compte' : 'Nouveau mot de passe' }}
         </h1>
-        <div v-if="invitation" class="text-body2 text-grey-8 q-mt-xs">
+        <div v-if="invitation" class="auth-lead q-mt-xs">
           Un compte a été créé pour vous. Choisissez votre mot de passe pour l'ouvrir.
         </div>
       </q-card-section>
@@ -44,7 +44,7 @@
             >
               <template #append>
                 <q-icon
-                  :name="showPassword ? 'visibility_off' : 'visibility'"
+                  :name="showPassword ? 'ph:eye-slash' : 'ph:eye'"
                   class="cursor-pointer"
                   @click="showPassword = !showPassword"
                 />
@@ -77,6 +77,7 @@
 </template>
 
 <script setup lang="ts">
+import { apiErrorMessage } from '@/utils/errors';
 import AppNotice from '@/components/AppNotice.vue';
 import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
@@ -104,14 +105,10 @@ async function onSubmit() {
     doneMessage.value = await resetPassword(token.value, password.value);
   } catch (err) {
     errorMessage.value =
-      extractError(err) ?? 'Lien invalide ou expiré. Demandez un nouveau lien de réinitialisation.';
+      apiErrorMessage(err) ??
+      'Lien invalide ou expiré. Demandez un nouveau lien de réinitialisation.';
   } finally {
     submitting.value = false;
   }
-}
-
-function extractError(err: unknown): string | null {
-  const data = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data;
-  return data?.error?.message ?? null;
 }
 </script>

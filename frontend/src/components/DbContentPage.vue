@@ -1,19 +1,20 @@
 <template>
-  <q-page class="legal-page q-pa-md">
-    <div class="legal-page__content">
+  <q-page class="legal-page page-container">
+    <article class="prose">
       <template v-if="page">
-        <h1 class="text-h4 text-weight-bold q-mb-lg">{{ page.title }}</h1>
+        <h1>{{ page.title }}</h1>
         <!-- eslint-disable-next-line vue/no-v-html -- sanitised by DOMPurify -->
         <div class="db-page-body" data-testid="db-page-body" v-html="safeHtml"></div>
       </template>
-      <div v-else-if="loading" class="text-center q-pa-lg">
-        <q-spinner color="primary" size="2em" />
+      <div v-else-if="loading" aria-busy="true">
+        <q-skeleton type="text" width="60%" height="48px" />
+        <q-skeleton v-for="n in 4" :key="n" type="text" />
       </div>
       <slot v-else name="fallback">
-        <h1 class="text-h4 text-weight-bold q-mb-lg">{{ fallbackTitle }}</h1>
-        <p class="text-grey-7">Cette page n'est pas encore rédigée.</p>
+        <h1>{{ fallbackTitle }}</h1>
+        <p class="text-muted">Cette page n'est pas encore rédigée.</p>
       </slot>
-    </div>
+    </article>
   </q-page>
 </template>
 
@@ -49,22 +50,3 @@ onMounted(() => {
   if (loading.value) void load();
 });
 </script>
-
-<style scoped lang="scss">
-.legal-page__content {
-  width: min(860px, 100%);
-  margin: 0 auto;
-  line-height: 1.65;
-}
-.db-page-body :deep(h2) {
-  font-size: 1.25rem;
-  margin: 1.5rem 0 0.5rem;
-}
-.db-page-body :deep(h3) {
-  font-size: 1.05rem;
-  margin: 1.25rem 0 0.4rem;
-}
-.db-page-body :deep(img) {
-  max-width: 100%;
-}
-</style>

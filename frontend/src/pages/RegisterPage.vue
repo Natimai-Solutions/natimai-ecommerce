@@ -3,7 +3,7 @@
     <q-card flat class="auth-card">
       <q-card-section>
         <h1 class="auth-title">Créer un compte</h1>
-        <div class="text-body2 text-grey-7">
+        <div class="auth-lead">
           Vérifiez votre email avec un code, puis choisissez un mot de passe.
         </div>
       </q-card-section>
@@ -15,7 +15,7 @@
 
         <q-stepper v-model="step" flat animated color="primary" header-nav>
           <!-- Step 1 — email -->
-          <q-step :name="1" title="Email" icon="mail" :done="step > 1">
+          <q-step :name="1" title="Email" icon="ph:envelope-simple" :done="step > 1">
             <q-form @submit.prevent="onSendOtp">
               <q-input
                 v-model="email"
@@ -38,12 +38,12 @@
             <template v-if="oauthEnabled">
               <div class="row items-center q-my-md">
                 <q-separator class="col" />
-                <span class="q-mx-sm text-caption text-grey-6">ou</span>
+                <span class="q-mx-sm auth-or">ou</span>
                 <q-separator class="col" />
               </div>
               <q-btn
                 outline
-                color="grey-8"
+                color="primary"
                 icon="img:https://www.google.com/favicon.ico"
                 label="Continuer avec Google"
                 class="full-width q-mb-sm"
@@ -51,8 +51,8 @@
               />
               <q-btn
                 outline
-                color="grey-8"
-                icon="window"
+                color="primary"
+                icon="ph:windows-logo"
                 label="Continuer avec Microsoft"
                 class="full-width"
                 @click="oauthSignup('microsoft')"
@@ -61,8 +61,8 @@
           </q-step>
 
           <!-- Step 2 — OTP code -->
-          <q-step :name="2" title="Code" icon="pin" :done="step > 2">
-            <div class="text-body2 text-grey-7 q-mb-sm">
+          <q-step :name="2" title="Code" icon="ph:password" :done="step > 2">
+            <div class="auth-lead q-mb-sm">
               Un code à 6 chiffres a été envoyé à <strong>{{ email }}</strong
               >.
             </div>
@@ -98,7 +98,7 @@
           </q-step>
 
           <!-- Step 3 — password -->
-          <q-step :name="3" title="Mot de passe" icon="lock">
+          <q-step :name="3" title="Mot de passe" icon="ph:lock-simple">
             <q-form @submit.prevent="onComplete">
               <q-input
                 v-model="fullName"
@@ -120,7 +120,7 @@
               >
                 <template #append>
                   <q-icon
-                    :name="showPassword ? 'visibility_off' : 'visibility'"
+                    :name="showPassword ? 'ph:eye-slash' : 'ph:eye'"
                     class="cursor-pointer"
                     @click="showPassword = !showPassword"
                   />
@@ -148,7 +148,7 @@
       </q-card-section>
 
       <q-card-section class="text-center q-pt-none">
-        <span class="text-body2 text-grey-7">Déjà un compte ?</span>
+        <span class="auth-lead">Déjà un compte ?</span>
         <q-btn flat dense no-caps color="primary" label="Se connecter" :to="{ name: 'login' }" />
       </q-card-section>
     </q-card>
