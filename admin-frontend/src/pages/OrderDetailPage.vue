@@ -7,6 +7,7 @@
     >
       <template v-if="order" #tags>
         <StatusTag
+          data-testid="order-status"
           :label="orderStatusLabel(order.status)"
           :tone="toneOf(orderStatusColor(order.status))"
           :icon="toneIcon(toneOf(orderStatusColor(order.status)))"
@@ -33,6 +34,7 @@
           no-caps
           icon="ph:arrow-clockwise"
           label="Actualiser"
+          data-testid="order-refresh"
           :loading="loading"
           @click="load"
         />

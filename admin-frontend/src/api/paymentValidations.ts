@@ -11,6 +11,8 @@ export interface PendingPayment {
   user_name: string | null;
   user_email: string | null;
   order_id: string | null;
+  /** Numéro lisible (CMD-…) de la commande, quand elle en a un. */
+  order_number?: string | null;
   /** True for document-validated providers (purchase order / BC). */
   is_document: boolean;
 }

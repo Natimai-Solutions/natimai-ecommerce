@@ -12,6 +12,7 @@ from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.errors import AppError
 from app.features.attachment.service import issue_download_url
 from app.features.base.crud import RecordNotFoundError
+from app.features.order.models.order import Order
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_attachment import crud_payment_attachment
 from app.features.payment.crud.payment_validation import crud_payment_validation
@@ -85,6 +86,7 @@ class PaymentPendingValidationItem(BaseModel):
     user_name: str | None = None
     user_email: str | None = None
     order_id: uuid.UUID | None
+    order_number: str | None = None
     is_document: bool = False
 
 
@@ -160,6 +162,15 @@ async def list_pending_validation(
         user_result = await session.exec(select(User).where(col(User.id).in_(user_ids)))
         users_by_id = {u.id: u for u in user_result.all()}
 
+    # And the order numbers (CMD-…) the admin recognises, in one more query.
+    order_ids = {p.order_id for p in payments if p.order_id is not None}
+    numbers_by_order: dict[uuid.UUID, str | None] = {}
+    if order_ids:
+        order_result = await session.exec(
+            select(Order.id, Order.order_number).where(col(Order.id).in_(order_ids))
+        )
+        numbers_by_order = dict(order_result.all())
+
     items: list[PaymentPendingValidationItem] = []
     for p in payments:
         user = users_by_id.get(p.user_id)
@@ -174,6 +185,7 @@ async def list_pending_validation(
                 user_name=user.full_name if user else None,
                 user_email=user.email if user else None,
                 order_id=p.order_id,
+                order_number=numbers_by_order.get(p.order_id) if p.order_id else None,
                 is_document=p.provider_code in DOCUMENT_PROVIDER_CODES,
             )
         )

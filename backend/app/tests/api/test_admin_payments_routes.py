@@ -106,9 +106,20 @@ async def test_list_pending_validation_returns_manual_pending(
 
     payments = [_make_payment(), _make_payment(provider_code="manual_transfer")]
     session = AsyncMock()
-    exec_result = Mock()
-    exec_result.all.return_value = payments
-    session.exec = AsyncMock(return_value=exec_result)
+
+    def _result(rows: list[Any]) -> Mock:
+        result = Mock()
+        result.all.return_value = rows
+        return result
+
+    # Three queries: the payments, their users, then their order numbers.
+    session.exec = AsyncMock(
+        side_effect=[
+            _result(payments),
+            _result([]),
+            _result([(payments[0].order_id, "CMD-2026-00042")]),
+        ]
+    )
 
     result = await list_pending_validation(
         session=session, _admin=cast(Any, _make_admin())
@@ -117,6 +128,8 @@ async def test_list_pending_validation_returns_manual_pending(
     assert len(result) == 2
     assert result[0].provider_code == "manual_check"
     assert result[1].provider_code == "manual_transfer"
+    assert result[0].order_number == "CMD-2026-00042"
+    assert result[1].order_number is None
 
 
 @pytest.mark.anyio

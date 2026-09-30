@@ -14288,6 +14288,8 @@ export interface components {
             user_email?: string | null;
             /** Order Id */
             order_id: string | null;
+            /** Order Number */
+            order_number?: string | null;
             /**
              * Is Document
              * @default false

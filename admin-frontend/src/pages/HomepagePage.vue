@@ -61,7 +61,11 @@
           />
         </div>
         <q-list v-else bordered separator class="rounded-borders">
-          <q-item v-for="(block, index) in group.blocks" :key="block.id">
+          <q-item
+            v-for="(block, index) in group.blocks"
+            :key="block.id"
+            data-testid="homepage-block"
+          >
             <q-item-section avatar>
               <img
                 v-if="block.image"
@@ -120,7 +124,15 @@
                 <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(block)">
                   <q-tooltip>Modifier</q-tooltip>
                 </q-btn>
-                <q-btn flat round dense icon="ph:trash" color="negative" @click="remove(block)">
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="ph:trash"
+                  color="negative"
+                  data-testid="homepage-delete"
+                  @click="remove(block)"
+                >
                   <q-tooltip>Supprimer</q-tooltip>
                 </q-btn>
               </div>
@@ -234,7 +246,12 @@
 
             <h3 class="admin-subtitle q-mt-md">Publication</h3>
             <div class="row q-col-gutter-sm items-center">
-              <q-toggle v-model="form.is_published" class="col-12 col-sm-4" label="Publié" />
+              <q-toggle
+                v-model="form.is_published"
+                class="col-12 col-sm-4"
+                label="Publié"
+                data-testid="homepage-published"
+              />
               <q-input
                 v-model="form.starts_at"
                 class="col-12 col-sm-4"

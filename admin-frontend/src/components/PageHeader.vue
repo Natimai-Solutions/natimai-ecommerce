@@ -6,7 +6,7 @@
         {{ back.label }}
       </router-link>
       <div class="page-header__title-row">
-        <h1 class="page-header__title">{{ title }}</h1>
+        <h1 class="page-header__title" data-testid="page-title">{{ title }}</h1>
         <slot name="tags" />
       </div>
       <p v-if="hint || $slots.hint" class="page-header__hint">

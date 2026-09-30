@@ -207,16 +207,19 @@ jobs:
           if-no-files-found: ignore
 
   e2e:
-    name: E2E — checkout journey (Playwright)
+    name: E2E — vitrine et admin (Playwright)
     runs-on: ubuntu-latest
-    # Le seul parcours qui doit toujours marcher : catalogue → panier →
-    # checkout → commande. Paiement par virement manuel, donc aucune
-    # passerelle réelle dans la boucle.
+    # Vitrine : catalogue → panier → checkout → commande, puis l'espace client.
+    # Admin : accès, tableau de bord, chaque écran du menu, validation d'un
+    # virement jusqu'à la commande payée, bannière d'accueil publiée sur la
+    # vitrine. Paiement par virement manuel : aucune passerelle réelle.
     env:
       # La vitrine tourne sur :3000 ; sans cette origine l'API rejette les
       # appels du NAVIGATEUR en CORS (curl passe, ce qui rend le symptôme
       # trompeur).
       FRONTEND_HOST: http://localhost:3000
+      # L'admin (:3001) appelle aussi l'API depuis le navigateur.
+      BACKEND_CORS_ORIGINS: http://localhost:3001
       VITE_API_URL: http://localhost:8000
       SECRET_KEY: ci-only-not-a-secret
       POSTGRES_PASSWORD: ci-only-password
@@ -242,18 +245,28 @@ jobs:
           FIRST_SUPERUSER=$FIRST_SUPERUSER
           FIRST_SUPERUSER_PASSWORD=$FIRST_SUPERUSER_PASSWORD
           FRONTEND_HOST=$FRONTEND_HOST
+          BACKEND_CORS_ORIGINS=$BACKEND_CORS_ORIGINS
           VITE_API_URL=$VITE_API_URL
+          # Toute la suite se connecte depuis la même IP (une douzaine de
+          # connexions en moins d'une minute) : la limite par IP, couverte par
+          # les tests backend, est relevée pour cette pile uniquement.
+          LOGIN_RATE_LIMIT_ATTEMPTS=1000
           CLAMAV_ENABLED=$CLAMAV_ENABLED
           EOF
 
       - name: Start the stack
-        run: docker compose -f docker-compose.yml up -d --wait postgres redis api frontend
+        run: docker compose -f docker-compose.yml up -d --wait postgres redis api frontend admin-frontend
 
       - name: Migrate & seed
         run: |
           docker compose -f docker-compose.yml run --rm migrate
           docker compose -f docker-compose.yml cp e2e/seed_e2e_data.py api:/app/e2e_seed.py
           docker compose -f docker-compose.yml exec -T api python /app/e2e_seed.py
+
+      # Après la migration : l'approbation d'un paiement passe par l'outbox
+      # (poller → worker ARQ) pour faire passer la commande à « payée ».
+      - name: Start the background jobs
+        run: docker compose -f docker-compose.yml up -d arq-worker outbox-poller
 
       - uses: pnpm/action-setup@v4
 
@@ -268,7 +281,7 @@ jobs:
       - name: Install the browser
         run: pnpm --filter e2e exec playwright install --with-deps chromium
 
-      - name: Run the journey
+      - name: Run the journeys
         run: pnpm --filter e2e test
 
       - name: Upload the report on failure

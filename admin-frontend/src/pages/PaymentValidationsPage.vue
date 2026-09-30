@@ -72,7 +72,8 @@
             :to="`/orders/${props.row.order_id}`"
             class="admin-link font-mono"
             :title="props.row.order_id"
-            >#{{ props.row.order_id.slice(0, 8) }}</router-link
+            data-testid="payment-order"
+            >{{ props.row.order_number ?? `#${props.row.order_id.slice(0, 8)}` }}</router-link
           >
           <span v-else class="text-subtle">—</span>
         </q-td>
@@ -95,6 +96,7 @@
             icon="ph:check"
             color="positive"
             label="Approuver"
+            data-testid="payment-approve"
             @click="openApprove(props.row)"
           />
           <q-btn
@@ -150,6 +152,7 @@
             no-caps
             label="Approuver"
             :loading="saving"
+            data-testid="payment-approve-confirm"
             @click="submitApprove"
           />
         </q-card-actions>

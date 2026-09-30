@@ -30,6 +30,7 @@
                 clickable
                 :active="theme === option.value"
                 active-class="admin-menu__active"
+                :data-testid="`theme-${option.value}`"
                 @click="chooseTheme(option.value)"
               >
                 <q-item-section avatar><q-icon :name="option.icon" size="18px" /></q-item-section>
@@ -89,6 +90,7 @@
               :to="link.to"
               class="admin-nav__link"
               active-class="admin-nav__link--active"
+              :data-testid="`nav-${link.to.slice(1)}`"
             >
               <q-icon :name="link.icon" size="18px" />
               <span>{{ link.label }}</span>

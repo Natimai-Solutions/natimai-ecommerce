@@ -15,6 +15,7 @@
               v-model="email"
               type="email"
               label="Adresse e-mail"
+              data-testid="admin-login-email"
               outlined
               autocomplete="username"
               :rules="[(v) => !!v || 'Adresse e-mail requise']"
@@ -24,6 +25,7 @@
               v-model="password"
               :type="showPassword ? 'text' : 'password'"
               label="Mot de passe"
+              data-testid="admin-login-password"
               outlined
               autocomplete="current-password"
               :rules="[(v) => !!v || 'Mot de passe requis']"
@@ -42,7 +44,9 @@
               </template>
             </q-input>
 
-            <AppNotice v-if="auth.loginError" tone="error" dense>{{ auth.loginError }}</AppNotice>
+            <AppNotice v-if="auth.loginError" tone="error" dense data-testid="admin-login-error">{{
+              auth.loginError
+            }}</AppNotice>
 
             <q-btn
               type="submit"
@@ -51,6 +55,7 @@
               no-caps
               label="Se connecter"
               class="full-width login-submit"
+              data-testid="admin-login-submit"
               :loading="auth.loggingIn"
             />
           </q-form>
