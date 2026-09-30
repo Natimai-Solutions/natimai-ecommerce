@@ -10778,6 +10778,12 @@ export interface components {
              * @default 0
              */
             current_uses: number;
+            /**
+             * Applies To Promoted
+             * @description Code promo : s'applique aussi aux articles concernés par une promotion en cours (faux = ces articles sont exclus du code)
+             * @default true
+             */
+            applies_to_promoted: boolean;
         };
         /**
          * DiscountPublic
@@ -10873,6 +10879,12 @@ export interface components {
              */
             current_uses: number;
             /**
+             * Applies To Promoted
+             * @description Code promo : s'applique aussi aux articles concernés par une promotion en cours (faux = ces articles sont exclus du code)
+             * @default true
+             */
+            applies_to_promoted: boolean;
+            /**
              * Id
              * Format: uuid
              */
@@ -10925,6 +10937,8 @@ export interface components {
             max_uses?: number | null;
             /** Current Uses */
             current_uses?: number | null;
+            /** Applies To Promoted */
+            applies_to_promoted?: boolean | null;
         };
         /**
          * DiscountsPublic
@@ -16742,6 +16756,12 @@ export interface components {
              * @default 0
              */
             variants_count: number;
+            /** Regular Price */
+            regular_price?: string | null;
+            /** Promotion Name */
+            promotion_name?: string | null;
+            /** Promotion Ends At */
+            promotion_ends_at?: string | null;
         };
         /**
          * ProductPublishRequest
@@ -17853,6 +17873,8 @@ export interface components {
             eta_days: number | null;
             /** Carbon Footprint Kg Co2E */
             carbon_footprint_kg_co2e: number | null;
+            /** Regular Price */
+            regular_price?: string | null;
         };
         /**
          * ShippingPathQuoteResponse

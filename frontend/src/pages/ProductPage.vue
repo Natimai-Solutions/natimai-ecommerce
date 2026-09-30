@@ -80,8 +80,21 @@
             </span>
             <span v-if="isQuote" class="product__price">Prix sur devis</span>
             <span v-else class="product__price">
-              <span class="font-mono">{{ displayPrice }}</span>
+              <span class="font-mono" :class="{ 'product__promo-price': regularPrice }">{{
+                displayPrice
+              }}</span>
               <span class="product__tax" data-testid="product-price-tax">TTC</span>
+            </span>
+            <span
+              v-if="regularPrice && !isQuote"
+              class="product__promo"
+              data-testid="product-promo"
+            >
+              <s class="font-mono">{{ regularPrice }}</s>
+              <span class="product__promo-badge">{{ promoLabel }}</span>
+              <span v-if="promotionEnds" class="product__price-note">
+                jusqu'au {{ promotionEnds }}
+              </span>
             </span>
             <span v-if="selectedMode?.customer_label" class="product__price-note">
               Prix en livraison {{ selectedMode.customer_label.toLowerCase() }}. Le mode se choisit
@@ -580,6 +593,29 @@ const isQuote = computed(() => !(priceValue.value > 0));
 // précédée de « À partir de ».
 const displayPrice = computed(() => currencyStore.format(priceValue.value));
 
+// Promotion (règle du meilleur prix) : le prix habituel du client, barré.
+const regularValue = computed(() => {
+  const raw = selectedMode.value
+    ? selectedMode.value.regular_price
+    : effectiveProduct.value?.regular_price;
+  const value = raw ? parseFloat(raw) : 0;
+  return value > priceValue.value ? value : null;
+});
+const regularPrice = computed(() =>
+  regularValue.value !== null ? currencyStore.format(regularValue.value) : null,
+);
+const promoLabel = computed(() => {
+  const name = effectiveProduct.value?.promotion_name;
+  const pct =
+    regularValue.value !== null ? Math.round((1 - priceValue.value / regularValue.value) * 100) : 0;
+  const off = pct > 0 ? `−${pct} %` : 'Promo';
+  return name ? `${off} · ${name}` : off;
+});
+const promotionEnds = computed(() => {
+  const raw = effectiveProduct.value?.promotion_ends_at;
+  return raw ? new Date(raw).toLocaleDateString('fr-FR') : null;
+});
+
 const categoryLabel = computed(() => {
   const id = product.value?.category_id;
   const cat = id ? productsStore.categories.find((c) => c.id === id) : undefined;
@@ -1010,6 +1046,28 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.product__promo {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  color: var(--n-ink-2);
+}
+
+.product__promo-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--n-on-accent);
+  background: var(--n-accent);
+}
+
+.product__promo-price {
+  color: var(--n-accent);
 }
 
 .product__tax {

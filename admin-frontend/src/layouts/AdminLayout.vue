@@ -178,6 +178,7 @@ const allNav: NavSection[] = [
       { label: 'Produits', icon: 'ph:package', to: '/products' },
       { label: 'Catégories', icon: 'ph:folders', to: '/categories' },
       { label: 'Caractéristiques', icon: 'ph:sliders-horizontal', to: '/spec-definitions' },
+      { label: 'Promotions', icon: 'ph:seal-percent', to: '/promotions' },
       { label: 'Codes promo', icon: 'ph:tag', to: '/discounts' },
     ],
   },

@@ -21,6 +21,8 @@ export interface ShippingModePricePublic {
   customer_label: string | null;
   freight: string;
   sale_price: string;
+  /** Prix habituel du client quand une promotion le baisse (barré). */
+  regular_price?: string | null;
   eta_days: number | null;
   carbon_footprint_kg_co2e: number | null;
 }

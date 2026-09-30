@@ -25,8 +25,14 @@
         <span v-if="isQuote" class="product-card__price">Prix sur devis</span>
         <span v-else class="product-card__price">
           <span v-if="product.has_variants" class="product-card__from">À partir de</span>
-          <span class="font-mono">{{ displayPrice }}</span>
+          <span class="font-mono" :class="{ 'product-card__promo-price': regularPrice }">{{
+            displayPrice
+          }}</span>
           <span class="product-card__tax">TTC</span>
+        </span>
+        <span v-if="regularPrice" class="product-card__promo" data-testid="product-card-promo">
+          <s class="font-mono">{{ regularPrice }}</s>
+          <span class="product-card__promo-badge">{{ promoBadge }}</span>
         </span>
 
         <span
@@ -113,6 +119,17 @@ const variantsCount = computed(() => props.product.variants_count ?? 0);
 const isQuote = computed(() => parseFloat(props.product.base_price) === 0);
 // A parent is listed at its cheapest variant, prefixed « À partir de ».
 const displayPrice = computed(() => currencyStore.format(parseFloat(props.product.base_price)));
+// Promotion : le prix habituel du client, barré, et la remise obtenue.
+const regularPrice = computed(() => {
+  const regular = props.product.regular_price;
+  return regular ? currencyStore.format(parseFloat(regular)) : null;
+});
+const promoBadge = computed(() => {
+  const regular = parseFloat(props.product.regular_price ?? '0');
+  const price = parseFloat(props.product.base_price);
+  if (!(regular > 0) || !(price < regular)) return 'Promo';
+  return `−${Math.round((1 - price / regular) * 100)} %`;
+});
 </script>
 
 <style scoped lang="scss">
@@ -186,6 +203,26 @@ const displayPrice = computed(() => currencyStore.format(parseFloat(props.produc
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.product-card__promo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--n-ink-2);
+}
+
+.product-card__promo-badge {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  color: var(--n-on-accent);
+  background: var(--n-accent);
+}
+
+.product-card__promo-price {
+  color: var(--n-accent);
 }
 
 .product-card__tax {

@@ -34,7 +34,10 @@ from app.features.product.models.product_spec import (
     SpecFacet,
     SpecFacetValue,
 )
-from app.features.product.services.group_pricing import pricing_for_user
+from app.features.product.services.group_pricing import (
+    GroupPricing,
+    pricing_for_user,
+)
 from app.features.product.services.identity import product_identity_key
 from app.features.product.services.key_specs import compute_key_specs
 from app.features.product.services.popularity import (
@@ -48,6 +51,7 @@ from app.features.product.services.popularity import (
 from app.features.product.services.pricing import (
     CurrencyRateMissing,
     PricingContext,
+    ShippingModePrice,
     calculate_price_by_mode,
     resolve_default_price_group,
     resolve_pricing_mode,
@@ -83,6 +87,8 @@ class ShippingModePricePublic(SQLModel):
     sale_price: Decimal
     eta_days: int | None
     carbon_footprint_kg_co2e: float | None
+    #: The customer's usual price for the mode when a promotion lowers it.
+    regular_price: Decimal | None = None
 
 
 class ProductShippingModesResponse(SQLModel):
@@ -91,6 +97,28 @@ class ProductShippingModesResponse(SQLModel):
     product_id: uuid.UUID
     shipping_modes: list[ShippingModePricePublic]
     default_mode: str | None
+
+
+def _mode_price(
+    mode: ShippingModePrice, product: Product, group_pricing: GroupPricing
+) -> ShippingModePricePublic:
+    """One mode's price for the customer: group price or promotion."""
+    quote = group_pricing.quote(
+        product.id,
+        mode.sale_price,
+        parent_id=product.parent_product_id,
+        category_id=product.category_id,
+    )
+    return ShippingModePricePublic(
+        route_id=mode.route_id,
+        service_level=mode.service_level,
+        customer_label=mode.customer_label,
+        freight=mode.freight,
+        sale_price=quote.price,
+        eta_days=mode.eta_days,
+        carbon_footprint_kg_co2e=mode.carbon_footprint_kg_co2e,
+        regular_price=quote.regular if quote.promotion is not None else None,
+    )
 
 
 @router.get("/{product_id}/shipping-modes", response_model=ProductShippingModesResponse)
@@ -188,23 +216,7 @@ async def get_product_shipping_modes(
 
     return ProductShippingModesResponse(
         product_id=product_id,
-        shipping_modes=[
-            ShippingModePricePublic(
-                route_id=m.route_id,
-                service_level=m.service_level,
-                customer_label=m.customer_label,
-                freight=m.freight,
-                sale_price=group_pricing.price(
-                    product.id,
-                    m.sale_price,
-                    parent_id=product.parent_product_id,
-                    category_id=product.category_id,
-                ),
-                eta_days=m.eta_days,
-                carbon_footprint_kg_co2e=m.carbon_footprint_kg_co2e,
-            )
-            for m in mode_prices
-        ],
+        shipping_modes=[_mode_price(m, product, group_pricing) for m in mode_prices],
         default_mode=default_mode,
     )
 

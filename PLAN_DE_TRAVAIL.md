@@ -187,6 +187,23 @@ Total R3 : 14 à 18 j (P1-P5 : 7 à 9 j ; P6 + P7 : 8 à 11 j). Dépendance : P5
 - ✅ **Confidentialité (faille corrigée)** : les API publiques renvoyaient le coût d'achat, le prix fournisseur et les taux de marge / douane des articles, et le coût des lignes à leur client ; ces champs ne sont plus sérialisés que pour une requête de super-administrateur.
 - ✅ Correctif : le contexte de prix gardait des lignes `TaxRate` de l'ORM, expirées après un commit (MissingGreenlet dans les écritures en série).
 - ✅ **Prix par groupe de clients** (décision du 30/09/2026 : remise en % sur le prix de référence) : le prix de référence est celui du groupe par défaut (Particulier) ; chaque autre groupe paie ce prix moins sa **remise** (`price_groups.discount_pct`, page admin « Groupes tarifaires »), sur tous les articles — Ingram, CSV, coût + marge ou prix fixé ; un **prix TTC saisi pour un groupe sur un article** (`product_group_prices`, grille « Prix par groupe » du formulaire article, avec la marge de chaque groupe) passe avant. Le client connecté voit et paie son prix partout (liste, fiche, recherche, variantes, offres, modes de transport, panier, commande) ; visiteur = prix de référence ; recherche et tri restent sur la référence. Auparavant le groupe du client ne changeait **aucun** prix (tout était calculé avec le groupe par défaut) ; la marge mémorisée sur la ligne de commande est désormais celle du prix de référence. Le groupe par défaut ne peut pas avoir de remise ; sa marge (repli des prix calculés) se règle sur la même page.
+- ✅ **Promotions datées — décision du 30/09/2026 : « le meilleur prix gagne »** (principe Magento / Adobe Commerce). Une promotion (page admin « Promotions » : un article ou une catégorie, un % ou un montant, dates de début et de fin) baisse le prix de référence pour tous les clients ; **elle ne se cumule pas** avec la remise ou le prix saisi d'un groupe : chaque client paie le **plus bas** des deux. La vitrine affiche le prix habituel du client barré, le pourcentage obtenu et la date de fin (liste, fiche, modes de transport), le panier et la commande facturent le meilleur prix. Les promotions reposent sur les remises de type « promotion » (déjà dans le modèle, jamais appliquées jusque-là). Codes promo : option « s'applique aussi aux articles en promotion » (`discounts.applies_to_promoted`, vraie par défaut) ; décochée, les articles concernés par une promotion en cours sont exclus du code.
+
+#### Politique de prix — autres possibilités, non retenues pour l'instant
+À implémenter un jour si le besoin se présente (aucune n'est engagée) :
+1. **Cumul promotion + remise de groupe**, réglable par promotion (« cumulable avec les remises de groupe ») : la promotion s'applique alors sur le prix du groupe (−10 % Pro puis −20 % = −28 %).
+2. **Promotions réservées à certains groupes** (ex. soldes Particulier uniquement, promo « Administration » en fin d'exercice), ou exclusion de certains groupes.
+3. **Priorités et arrêt des règles** (Magento « discard subsequent rules », PrestaShop priorités) : plusieurs promotions ordonnées, la première qui s'applique arrête les suivantes, au lieu du « meilleur prix ».
+4. **Prix promo fixe** (« 9 900 F au lieu de… ») en plus du % et du montant, et **prix spécifiques par groupe datés** (PrestaShop « prix spécifiques » avec dates, par groupe / client / pays).
+5. **Prix dégressifs par quantité** (Magento « tier price », PrestaShop « à partir de N unités »), éventuellement par groupe.
+6. **Prix par client** (un client donné, contrats négociés) en plus des groupes.
+7. **Promotions « panier »** automatiques sans code : X achetés = Y offert, lot / bundle, livraison offerte dès un montant, remise dès un montant de panier (« cart rules » PrestaShop / Magento).
+8. **Promotion sur tout le catalogue** ou sur un fabricant / une marque, et exclusions d'articles d'une promotion de catégorie.
+9. **Quota de promotion** (N premières unités, stock dédié) et affichage d'un compte à rebours.
+10. **Prix barré de référence réglementaire** (en métropole : prix le plus bas des 30 derniers jours, directive Omnibus) à partir du journal des prix existant.
+11. **Recherche et tri sur le prix du client** (aujourd'hui sur le prix de référence) : prix matérialisés par groupe ou calcul à la volée.
+12. **Arrondi commercial** des prix remisés et promotionnels (à 10 / 100 F, prix psychologiques en …90).
+
 - 🔲 Reste : arrondi commercial des prix calculés (à 10 / 100 F) ; prix par groupe saisissables sur les variantes (elles suivent la remise du groupe) ; un prix saisi pour un groupe vaut pour tous les modes de transport d'un article importé.
 
 ### R4 — Fournisseurs (priorité 4)

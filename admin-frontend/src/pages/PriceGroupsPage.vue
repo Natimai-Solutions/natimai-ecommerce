@@ -51,7 +51,7 @@
               type="number"
               min="0"
               max="99.99"
-              step="0.5"
+              step="any"
               suffix="%"
               outlined
               dense
@@ -65,7 +65,7 @@
               v-model="edit(g).margin_rate_pct"
               type="number"
               min="0"
-              step="0.5"
+              step="any"
               suffix="%"
               outlined
               dense

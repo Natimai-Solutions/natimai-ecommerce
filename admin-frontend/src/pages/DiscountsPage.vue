@@ -206,6 +206,15 @@
                 class="col-6"
               />
             </div>
+            <q-toggle
+              v-model="form.applies_to_promoted"
+              label="S'applique aussi aux articles en promotion"
+              data-testid="coupon-applies-to-promoted"
+            />
+            <div class="text-caption text-muted">
+              Désactivé : les articles concernés par une promotion en cours sont exclus du code (non
+              cumulable).
+            </div>
             <q-input v-model="form.description" label="Description interne" outlined dense />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
@@ -273,7 +282,8 @@ function valueLabel(d: Discount): string {
   const min = d.min_order_amount
     ? ` dès ${Number(d.min_order_amount).toLocaleString('fr-FR')} ${currency.value}`
     : '';
-  return `${base} · ${scope}${min}`;
+  const stack = d.applies_to_promoted === false ? ' · hors promotions' : '';
+  return `${base} · ${scope}${min}${stack}`;
 }
 
 function stateOf(d: Discount): { label: string; color: string } {
@@ -348,6 +358,7 @@ const form = reactive<{
   start_date: string;
   end_date: string;
   description: string;
+  applies_to_promoted: boolean;
 }>({
   name: '',
   code: '',
@@ -362,6 +373,7 @@ const form = reactive<{
   start_date: '',
   end_date: '',
   description: '',
+  applies_to_promoted: true,
 });
 
 function resetForm(source?: Discount) {
@@ -378,6 +390,7 @@ function resetForm(source?: Discount) {
   form.start_date = source?.start_date ? source.start_date.slice(0, 10) : '';
   form.end_date = source?.end_date ? source.end_date.slice(0, 10) : '';
   form.description = source?.description ?? '';
+  form.applies_to_promoted = source?.applies_to_promoted ?? true;
 }
 
 function openCreate() {
@@ -410,6 +423,7 @@ function buildPayload(): DiscountCreate {
     category_id: form.target === 'category' ? form.category_id || null : null,
     start_date: form.start_date ? `${form.start_date}T00:00:00` : null,
     end_date: form.end_date ? `${form.end_date}T23:59:59` : null,
+    applies_to_promoted: form.applies_to_promoted,
   };
 }
 
