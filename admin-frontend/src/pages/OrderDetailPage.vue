@@ -18,13 +18,25 @@
         <div class="col-12 col-md-6">
           <q-card flat bordered>
             <q-card-section>
-              <div class="row items-center q-mb-sm">
+              <div class="row items-center q-mb-sm q-gutter-sm">
                 <div class="text-subtitle1 col">Informations</div>
                 <q-chip
                   dense
                   :color="orderStatusColor(order.status)"
                   text-color="white"
                   :label="orderStatusLabel(order.status)"
+                />
+                <q-select
+                  :model-value="order.status"
+                  :options="statusOptions"
+                  label="Changer le statut"
+                  dense
+                  outlined
+                  emit-value
+                  map-options
+                  style="min-width: 230px"
+                  :loading="statusSaving"
+                  @update:model-value="changeStatus"
                 />
               </div>
               <q-list dense>
@@ -52,6 +64,21 @@
                   <q-item-section>Notes</q-item-section>
                   <q-item-section side class="text-right">{{ order.notes }}</q-item-section>
                 </q-item>
+                <q-item class="q-px-none">
+                  <q-item-section>Départ groupé</q-item-section>
+                  <q-item-section side style="min-width: 260px">
+                    <q-select
+                      :model-value="order.grouped_departure_id"
+                      :options="departureOptions"
+                      dense
+                      outlined
+                      emit-value
+                      map-options
+                      :loading="departureSaving"
+                      @update:model-value="setDeparture"
+                    />
+                  </q-item-section>
+                </q-item>
               </q-list>
             </q-card-section>
           </q-card>
@@ -61,7 +88,31 @@
         <div class="col-12 col-md-6">
           <q-card flat bordered>
             <q-card-section>
-              <div class="text-subtitle1 q-mb-sm">Montants</div>
+              <div class="row items-center q-mb-sm">
+                <div class="text-subtitle1 col">Montants</div>
+                <q-btn
+                  flat
+                  dense
+                  no-caps
+                  icon="savings"
+                  color="primary"
+                  label="Avoir-crédit"
+                  @click="openCredit"
+                >
+                  <q-tooltip
+                    >Accorder (ou reprendre) un avoir au client, utilisable sur sa prochaine
+                    commande</q-tooltip
+                  >
+                </q-btn>
+              </div>
+              <q-banner
+                v-if="storeCredit && Number(storeCredit.balance) > 0"
+                class="bg-green-1 text-green-9 q-mb-sm"
+                dense
+                rounded
+              >
+                Avoir disponible du client : {{ formatMoney(Number(storeCredit.balance)) }}
+              </q-banner>
               <q-list dense>
                 <q-item class="q-px-none">
                   <q-item-section>Sous-total</q-item-section>
@@ -81,11 +132,54 @@
                     >-{{ formatMoney(order.discount_amount ?? 0) }}</q-item-section
                   >
                 </q-item>
+                <q-item v-if="order.deposit_fee_amount > 0" class="q-px-none">
+                  <q-item-section>Frais option acompte</q-item-section>
+                  <q-item-section side>{{ formatMoney(order.deposit_fee_amount) }}</q-item-section>
+                </q-item>
                 <q-separator class="q-my-xs" />
                 <q-item class="q-px-none text-weight-bold">
                   <q-item-section>Total</q-item-section>
                   <q-item-section side>{{ formatMoney(order.total_amount) }}</q-item-section>
                 </q-item>
+                <template v-if="order.payment_plan === 'deposit'">
+                  <q-item class="q-px-none">
+                    <q-item-section>Acompte à la commande</q-item-section>
+                    <q-item-section side>{{ formatMoney(order.deposit_amount) }}</q-item-section>
+                  </q-item>
+                  <q-item class="q-px-none">
+                    <q-item-section>
+                      Solde
+                      <q-item-label caption>
+                        <template v-if="order.balance_paid_at"
+                          >réglé le {{ formatDate(order.balance_paid_at) }}</template
+                        >
+                        <template v-else-if="order.balance_requested_at"
+                          >demandé le {{ formatDate(order.balance_requested_at) }}</template
+                        >
+                        <template v-else>demandé automatiquement à la réception</template>
+                      </q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                      <div class="row items-center q-gutter-xs">
+                        <span>{{ formatMoney(order.balance_amount) }}</span>
+                        <q-btn
+                          v-if="!order.balance_paid_at"
+                          flat
+                          dense
+                          no-caps
+                          size="sm"
+                          color="primary"
+                          icon="mail"
+                          :label="
+                            order.balance_requested_at ? 'Renvoyer la demande' : 'Demander le solde'
+                          "
+                          :loading="requestingBalance"
+                          @click="sendBalanceRequest"
+                        />
+                      </div>
+                    </q-item-section>
+                  </q-item>
+                </template>
               </q-list>
             </q-card-section>
           </q-card>
@@ -301,7 +395,15 @@
             </thead>
             <tbody>
               <tr v-for="p in order.payments" :key="p.payment_id">
-                <td class="text-left">{{ providerLabel(p.provider_code) }}</td>
+                <td class="text-left">
+                  {{ providerLabel(p.provider_code) }}
+                  <q-badge
+                    v-if="p.kind !== 'full'"
+                    color="teal"
+                    class="q-ml-xs"
+                    :label="PAYMENT_KIND_LABELS[p.kind] ?? p.kind"
+                  />
+                </td>
                 <td class="text-left">{{ p.provider_reference || '—' }}</td>
                 <td class="text-left">{{ p.status || '—' }}</td>
                 <td class="text-right">{{ formatMoney(p.amount) }}</td>
@@ -337,6 +439,56 @@
           </q-markup-table>
         </q-card-section>
       </q-card>
+
+      <!-- Store credit dialog -->
+      <q-dialog v-model="creditDialog">
+        <q-card style="min-width: 420px">
+          <q-card-section class="text-h6">Avoir-crédit client</q-card-section>
+          <q-form @submit.prevent="submitCredit">
+            <q-card-section class="q-pt-none q-gutter-sm">
+              <q-banner v-if="creditError" class="bg-red-1 text-red-9" dense rounded>{{
+                creditError
+              }}</q-banner>
+              <div class="text-caption text-grey-7">
+                Solde actuel : {{ storeCredit ? formatMoney(Number(storeCredit.balance)) : '—' }}.
+                Un montant négatif reprend de l'avoir.
+              </div>
+              <q-input
+                v-model="creditAmount"
+                type="number"
+                step="1"
+                label="Montant (XPF) *"
+                outlined
+                dense
+                autofocus
+              />
+              <q-input
+                v-model="creditReason"
+                label="Motif *"
+                outlined
+                dense
+                :rules="[(v: string) => !!v.trim() || 'Requis']"
+              />
+              <q-list v-if="storeCredit?.entries.length" dense bordered class="q-mt-sm">
+                <q-item v-for="e in storeCredit.entries.slice(0, 5)" :key="e.id">
+                  <q-item-section>
+                    <q-item-label
+                      >{{ STORE_CREDIT_KIND_LABELS[e.kind] ?? e.kind }} ·
+                      {{ e.reason }}</q-item-label
+                    >
+                    <q-item-label caption>{{ formatDate(e.created_at) }}</q-item-label>
+                  </q-item-section>
+                  <q-item-section side>{{ formatMoney(Number(e.amount)) }}</q-item-section>
+                </q-item>
+              </q-list>
+            </q-card-section>
+            <q-card-actions align="right">
+              <q-btn flat label="Annuler" v-close-popup />
+              <q-btn type="submit" color="primary" label="Enregistrer" :loading="creditSaving" />
+            </q-card-actions>
+          </q-form>
+        </q-card>
+      </q-dialog>
 
       <!-- Refund dialog -->
       <q-dialog v-model="refundDialog">
@@ -387,11 +539,73 @@ import { useRoute } from 'vue-router';
 import { formatXpf } from '@app/utils';
 import {
   getOrder,
+  listOrderStatuses,
   orderStatusColor,
   orderStatusLabel,
+  PAYMENT_KIND_LABELS,
+  requestBalance,
+  setOrderStatus,
   type AdminOrderDetail,
   type AdminOrderPaymentItem,
 } from 'src/api/orders';
+
+// --- Deposit order: ask for (or re-send) the balance ---
+const requestingBalance = ref(false);
+
+// --- Store credit (« avoir-crédit ») of the customer ---
+const storeCredit = ref<StoreCreditBalance | null>(null);
+const creditDialog = ref(false);
+const creditAmount = ref('');
+const creditReason = ref('');
+const creditSaving = ref(false);
+const creditError = ref<string | null>(null);
+
+async function loadStoreCredit() {
+  if (!order.value) return;
+  storeCredit.value = await getUserStoreCredit(order.value.user_id).catch(() => null);
+}
+
+function openCredit() {
+  creditAmount.value = '';
+  creditReason.value = '';
+  creditError.value = null;
+  creditDialog.value = true;
+}
+
+async function submitCredit() {
+  if (!order.value) return;
+  creditSaving.value = true;
+  creditError.value = null;
+  try {
+    storeCredit.value = await grantStoreCredit(order.value.user_id, {
+      amount: String(Number(creditAmount.value) || 0),
+      reason: creditReason.value.trim(),
+      order_id: order.value.order_id,
+    });
+    creditDialog.value = false;
+    refundNotice.value = `Avoir enregistré. Solde du client : ${formatMoney(Number(storeCredit.value.balance))}.`;
+  } catch (err) {
+    creditError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+  } finally {
+    creditSaving.value = false;
+  }
+}
+async function sendBalanceRequest() {
+  if (!order.value) return;
+  requestingBalance.value = true;
+  error.value = null;
+  try {
+    const result = await requestBalance(order.value.order_id);
+    order.value.balance_requested_at = new Date().toISOString();
+    refundNotice.value = result.sent
+      ? `Demande de solde (${formatMoney(result.balance_amount)}) envoyée au client.`
+      : "Demande enregistrée, mais l'e-mail n'a pas pu partir (notifications désactivées ?).";
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Demande de solde impossible.';
+  } finally {
+    requestingBalance.value = false;
+  }
+}
 import { capturePayment, refundPayment } from 'src/api/paymentValidations';
 import {
   advanceTracking,
@@ -403,11 +617,64 @@ import {
   type JourneyLeg,
 } from 'src/api/shipping';
 import { extractApiError } from 'src/api/errors';
+import { assignOrders, listDepartures, type Departure } from 'src/api/departures';
+import {
+  getUserStoreCredit,
+  grantStoreCredit,
+  STORE_CREDIT_KIND_LABELS,
+  type StoreCreditBalance,
+} from 'src/api/storeCredit';
+
+// --- Order status (one order by hand; the departure handles the bulk case) ---
+const statusNames = ref<string[]>([]);
+const statusSaving = ref(false);
+const statusOptions = computed(() =>
+  statusNames.value.map((s) => ({ label: orderStatusLabel(s), value: s })),
+);
+
+async function changeStatus(status: string) {
+  if (!order.value || status === order.value.status) return;
+  statusSaving.value = true;
+  error.value = null;
+  try {
+    await setOrderStatus(order.value.order_id, status);
+    order.value.status = status;
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Changement de statut impossible.';
+  } finally {
+    statusSaving.value = false;
+  }
+}
 
 const route = useRoute();
 const orderId = computed(() => String(route.params.id ?? ''));
 
 const order = ref<AdminOrderDetail | null>(null);
+
+// --- Grouped departure (attach / move / detach from the order itself) ---
+const departures = ref<Departure[]>([]);
+const departureSaving = ref(false);
+const departureOptions = computed(() => [
+  { label: '— Aucun (commande classique)', value: null },
+  ...departures.value.map((d) => ({
+    label: `${d.name} (${formatDate(d.order_cutoff_at)})`,
+    value: d.id,
+  })),
+]);
+
+async function setDeparture(departureId: string | null) {
+  if (!order.value) return;
+  departureSaving.value = true;
+  error.value = null;
+  try {
+    await assignOrders([order.value.order_id], departureId);
+    order.value.grouped_departure_id = departureId;
+  } catch (err) {
+    error.value = extractApiError(err) ?? 'Rattachement impossible.';
+  } finally {
+    departureSaving.value = false;
+  }
+}
 const loading = ref(false);
 const error = ref<string | null>(null);
 
@@ -444,6 +711,9 @@ async function load() {
   error.value = null;
   try {
     order.value = await getOrder(orderId.value);
+    await loadStoreCredit();
+    departures.value = await listDepartures().catch(() => []);
+    statusNames.value = await listOrderStatuses().catch(() => []);
   } catch (err) {
     error.value = extractApiError(err) ?? 'Chargement impossible.';
   } finally {

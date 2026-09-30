@@ -6,5 +6,7 @@ Bonne nouvelle : votre commande {{ order_ref or (order_id | short_ref) }} est en
 {% endif %}{% if estimated_delivery %}Livraison estimée : {{ estimated_delivery }}
 {% endif %}
 Vous pouvez suivre l'avancement de votre livraison dans votre espace client.
+{% if tracking_url %}Suivre ma commande : {{ tracking_url }}
+{% endif %}
 
 L'équipe {{ shop_name }}

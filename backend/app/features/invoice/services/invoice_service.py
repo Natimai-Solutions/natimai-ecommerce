@@ -280,8 +280,12 @@ async def build_invoice_snapshot(
             order.subtotal_amount,
         )
 
+    deposit_fee = Decimal(getattr(order, "deposit_fee_amount", None) or 0)
     fees_incl = quantize_amount(
-        order.shipping_fee_amount + order.payment_fee_amount + subtotal_drift,
+        order.shipping_fee_amount
+        + order.payment_fee_amount
+        + deposit_fee
+        + subtotal_drift,
         currency,
     )
     fees_key = str(fees_rate_pct)
@@ -338,8 +342,21 @@ async def build_invoice_snapshot(
             "payment_incl_tax": str(
                 quantize_amount(order.payment_fee_amount, currency)
             ),
+            "deposit_incl_tax": str(quantize_amount(deposit_fee, currency)),
             "tax_rate_pct": str(fees_rate_pct),
         },
+        # A deposit order is invoiced once, at the balance: the document shows
+        # the deposit already received and the balance that settled it.
+        "deposit": (
+            {
+                "amount": str(quantize_amount(order.deposit_amount, currency)),
+                "balance": str(
+                    quantize_amount(order.total_amount - order.deposit_amount, currency)
+                ),
+            }
+            if getattr(order, "payment_plan", "full") == "deposit"
+            else None
+        ),
         "tax_breakdown": tax_breakdown,
         "totals": {
             "excl_tax": str(total_excl),

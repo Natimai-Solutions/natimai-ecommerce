@@ -1,0 +1,24 @@
+{% extends "_layout.html" %}
+{% block title %}Votre devis {{ quote_number }}{% endblock %}
+{% block header_color %}#3949ab{% endblock %}
+{% block heading %}Votre devis {{ quote_number }}{% endblock %}
+{% block content %}
+      <p>Bonjour {{ full_name }},</p>
+      <p>Veuillez trouver ci-joint votre devis <strong>{{ quote_number }}</strong>.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Montant total TTC</td><td>{{ total_amount }} {{ currency }}</td></tr>
+          <tr><td>Valable jusqu'au</td><td>{{ valid_until }}</td></tr>
+        </table>
+      </div>
+      {% if customer_message %}<p style="white-space:pre-line">{{ customer_message }}</p>{% endif %}
+      {% if has_account %}
+      <p>Pour l'accepter, cliquez sur « Commander ce devis » dans votre espace client : les prix du devis s'appliquent à votre commande.</p>
+      <p style="text-align:center;margin:24px 0">
+        <a href="{{ accept_url }}" style="background:#3949ab;color:#fff;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold">Voir mes devis</a>
+      </p>
+      {% else %}
+      <p>Pour l'accepter, répondez simplement à ce message : nous vous guiderons pour finaliser la commande.</p>
+      {% endif %}
+      <p>L'équipe {{ shop_name }}</p>
+{% endblock %}

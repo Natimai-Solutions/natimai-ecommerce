@@ -6,6 +6,7 @@
         <div class="text-caption text-grey-7">Commande #{{ shortId }}</div>
       </div>
       <q-btn
+        v-if="!linkToken"
         flat
         color="primary"
         icon="arrow_back"
@@ -15,13 +16,24 @@
       />
     </div>
 
+    <AppNotice
+      v-if="linkToken && !loading"
+      tone="info"
+      icon="ph:link"
+      class="q-mb-md"
+      data-testid="tracking-link-notice"
+    >
+      Vous suivez cette commande depuis le lien reçu par e-mail. Gardez-le : il permet à quiconque
+      le détient de consulter l'avancement de cette commande.
+    </AppNotice>
+
     <div v-if="loading" class="text-center q-pa-xl">
       <q-spinner color="primary" size="2.5em" />
     </div>
 
     <AppNotice v-else-if="errorMessage" tone="error">
       {{ errorMessage }}
-      <template #action>
+      <template v-if="!linkToken" #action>
         <q-btn flat label="Mes commandes" :to="{ name: 'account', query: { tab: 'orders' } }" />
       </template>
     </AppNotice>
@@ -43,6 +55,97 @@
       </q-card>
 
       <!-- Cost recap (subtotal / last-leg delivery / total) -->
+      <q-card v-if="departure" flat bordered class="q-mb-md" data-testid="order-departure">
+        <q-card-section>
+          <div class="row items-center q-gutter-sm">
+            <div class="col text-subtitle1 text-weight-medium">
+              <q-icon name="ph:calendar-check" class="q-mr-xs" />
+              Départ groupé « {{ departure.name }} »
+            </div>
+            <StatusTag tone="neutral" :label="departureStatusLabel(departure.status)" />
+          </div>
+          <div class="text-body2 q-mt-xs">
+            Clôture des commandes le {{ formatDate(departure.order_cutoff_at) }}
+            <template v-if="departure.estimated_delivery_at">
+              · Livraison estimée le {{ formatDate(departure.estimated_delivery_at) }}
+            </template>
+          </div>
+        </q-card-section>
+      </q-card>
+
+      <!-- Deposit order: what was paid, what is left, pay the balance -->
+      <q-card
+        v-if="order && order.payment_plan === 'deposit'"
+        flat
+        bordered
+        class="q-mb-md"
+        data-testid="order-deposit"
+      >
+        <q-card-section>
+          <div class="text-subtitle1 text-weight-medium q-mb-sm">
+            <q-icon name="ph:piggy-bank" class="q-mr-xs" />Commande avec acompte
+          </div>
+          <div class="row justify-between q-mb-xs">
+            <span>Acompte versé</span><span>{{ money(order.deposit_amount) }}</span>
+          </div>
+          <div class="row justify-between q-mb-xs">
+            <span>Solde</span>
+            <span class="row items-center q-gutter-x-sm">
+              <StatusTag v-if="order.balance_paid_at" tone="ok" label="Réglé" />
+              <StatusTag v-else-if="order.balance_due" tone="warn" label="À régler" />
+              <span>{{ money(order.balance_amount) }}</span>
+            </span>
+          </div>
+          <template v-if="!order.balance_paid_at">
+            <div v-if="order.balance_due" class="text-body2 q-mt-sm">
+              Vos articles sont arrivés : réglez le solde pour les récupérer.
+            </div>
+            <div v-else class="text-caption text-grey-8 q-mt-sm">
+              Le solde vous sera demandé à la réception de vos articles ; vous pouvez aussi le
+              régler dès maintenant.
+            </div>
+            <q-btn
+              v-if="balancePayable && !linkToken"
+              color="primary"
+              icon="payments"
+              :label="`Régler le solde (${money(order.balance_amount)})`"
+              class="q-mt-sm"
+              no-caps
+              :to="{ name: 'order-balance', params: { id: order.id } }"
+              data-testid="order-pay-balance"
+            />
+            <div v-else-if="balancePayable" class="text-caption text-grey-8 q-mt-sm">
+              Pour régler le solde, connectez-vous à votre espace client.
+            </div>
+          </template>
+        </q-card-section>
+      </q-card>
+
+      <!-- Products, serial numbers and warranty -->
+      <q-card v-if="lines.length" flat bordered class="q-mb-md" data-testid="order-lines">
+        <q-card-section>
+          <div class="text-subtitle1 text-weight-medium q-mb-sm">Articles</div>
+          <q-list dense separator>
+            <q-item v-for="line in lines" :key="line.product_id" class="q-px-none">
+              <q-item-section>
+                <q-item-label>{{ line.quantity }} × {{ line.product_name }}</q-item-label>
+                <q-item-label v-if="line.serial_numbers.length" caption>
+                  N° de série : {{ line.serial_numbers.join(', ') }}
+                </q-item-label>
+                <q-item-label v-if="line.warranty_until" caption>
+                  Garantie {{ line.warranty_months }} mois, jusqu'au
+                  {{ formatDate(line.warranty_until) }}
+                </q-item-label>
+                <q-item-label v-else-if="line.warranty_months" caption>
+                  Garantie {{ line.warranty_months }} mois à compter de la remise
+                </q-item-label>
+              </q-item-section>
+              <q-item-section side>{{ money(line.unit_price) }}</q-item-section>
+            </q-item>
+          </q-list>
+        </q-card-section>
+      </q-card>
+
       <q-card v-if="order" flat bordered class="q-mb-md">
         <q-card-section>
           <div class="text-subtitle1 text-weight-medium q-mb-sm">Récapitulatif</div>
@@ -174,27 +277,41 @@ import { toneOf } from 'src/utils/statusTone';
 import AppNotice from 'src/components/AppNotice.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { formatXpf } from '@app/utils';
+import { departureStatusLabel, formatXpf } from '@app/utils';
 import { useAuthStore } from 'src/stores/auth';
 import {
   getMyOrder,
+  getMyOrderLines,
   getMyOrderTracking,
+  trackOrderByLink,
   type Order,
+  type OrderLine,
   type OrderTracking,
   type OrderTrackingSegment,
 } from 'src/api/orders';
+import { getDeparture, type Departure } from 'src/api/departures';
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 
 const orderId = computed(() => String(route.params.id ?? ''));
+// Signed link from the e-mails (`/suivi/:id?t=…`): read-only, no account.
+const linkToken = computed(() => {
+  const raw = route.query.t;
+  const t = Array.isArray(raw) ? raw[0] : raw;
+  return typeof t === 'string' && t.length > 0 ? t : null;
+});
 const shortId = computed(() => orderId.value.slice(0, 8));
 
 const loading = ref(true);
 const errorMessage = ref<string | null>(null);
 const tracking = ref<OrderTracking | null>(null);
 const order = ref<Order | null>(null);
+// Grouped departure the order is attached to (best-effort, like the order).
+const departure = ref<Departure | null>(null);
+// Products with their serial numbers and warranty end (best-effort too).
+const lines = ref<OrderLine[]>([]);
 
 const DELIVERY_LABELS: Record<string, string> = {
   pickup: 'Retrait en magasin',
@@ -210,6 +327,25 @@ function money(raw: string): string {
   const n = Number.parseFloat(raw);
   return Number.isFinite(n) ? formatXpf(n) : raw;
 }
+
+// The balance can be settled once the deposit is in (any status past the
+// first payment), not only when it has been asked for.
+const UNPAID_STATUSES = new Set([
+  'Pending',
+  'AwaitingPayment',
+  'PaymentFailed',
+  'Cancelled',
+  'Refunded',
+]);
+const balancePayable = computed(() => {
+  const o = order.value;
+  return (
+    !!o &&
+    o.payment_plan === 'deposit' &&
+    !o.balance_paid_at &&
+    !UNPAID_STATUSES.has(o.order_status_name ?? '')
+  );
+});
 function hasFee(raw: string): boolean {
   return Number.parseFloat(raw) > 0;
 }
@@ -331,22 +467,44 @@ function extractError(err: unknown): string | null {
   return null;
 }
 
+async function loadFromLink(token: string) {
+  loading.value = true;
+  errorMessage.value = null;
+  try {
+    const tracked = await trackOrderByLink(orderId.value, token);
+    tracking.value = tracked.tracking;
+    order.value = tracked.order;
+    lines.value = tracked.lines;
+    const departureId = tracked.order.grouped_departure_id;
+    departure.value = departureId ? await getDeparture(departureId).catch(() => null) : null;
+  } catch (err) {
+    errorMessage.value =
+      extractError(err) ?? 'Ce lien de suivi est invalide ou la commande est introuvable.';
+  } finally {
+    loading.value = false;
+  }
+}
+
 async function load() {
   loading.value = true;
   errorMessage.value = null;
   try {
     // Tracking drives the page; the order (for the cost recap) is best-effort.
-    const [trackingResult, orderResult] = await Promise.allSettled([
+    const [trackingResult, orderResult, linesResult] = await Promise.allSettled([
       getMyOrderTracking(orderId.value),
       getMyOrder(orderId.value),
+      getMyOrderLines(orderId.value),
     ]);
     if (trackingResult.status === 'fulfilled') {
       tracking.value = trackingResult.value;
     } else {
       throw trackingResult.reason;
     }
+    lines.value = linesResult.status === 'fulfilled' ? linesResult.value : [];
     if (orderResult.status === 'fulfilled') {
       order.value = orderResult.value;
+      const departureId = orderResult.value?.grouped_departure_id;
+      departure.value = departureId ? await getDeparture(departureId).catch(() => null) : null;
     }
   } catch (err) {
     errorMessage.value = extractError(err) ?? 'Impossible de charger le suivi de cette commande.';
@@ -356,6 +514,11 @@ async function load() {
 }
 
 onMounted(async () => {
+  const token = linkToken.value;
+  if (token) {
+    await loadFromLink(token);
+    return;
+  }
   if (!authStore.isAuthenticated) {
     await router.replace({
       name: 'login',

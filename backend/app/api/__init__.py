@@ -5,6 +5,9 @@ from app.api.routes.admin_carts import router as admin_carts_router
 from app.api.routes.admin_categories import router as admin_categories_router
 from app.api.routes.admin_credit_notes import router as admin_credit_notes_router
 from app.api.routes.admin_currency_rates import router as admin_currency_rates_router
+from app.api.routes.admin_grouped_departures import (
+    router as admin_grouped_departures_router,
+)
 from app.api.routes.admin_inventory import router as admin_inventory_router
 from app.api.routes.admin_invoices import router as admin_invoices_router
 from app.api.routes.admin_orders import router as admin_orders_router
@@ -31,11 +34,13 @@ from app.api.routes.analytics_user import router as analytics_user_router
 from app.api.routes.brand import router as brand_router
 from app.api.routes.cart import router as cart_router
 from app.api.routes.category import router as category_router
+from app.api.routes.content_pages import router as content_pages_router
 from app.api.routes.currency import router as currency_router
 from app.api.routes.discount import router as discount_router
 from app.api.routes.group import router as group_router
 from app.api.routes.group_security import router as group_security_router
 from app.api.routes.group_upgrade import router as group_upgrade_router
+from app.api.routes.grouped_departures import router as grouped_departures_router
 from app.api.routes.health import router as health_router
 from app.api.routes.icecat import router as icecat_router
 from app.api.routes.internal_storage import router as internal_storage_router
@@ -61,7 +66,9 @@ from app.api.routes.product import (
 from app.api.routes.product_catalog import router as product_catalog_router
 from app.api.routes.shipping import shipping_router
 from app.api.routes.signup import router as signup_router
+from app.api.routes.stock_alerts import router as stock_alerts_router
 from app.api.routes.stock_movement import router as stock_movement_router
+from app.api.routes.store_credit import router as store_credit_router
 from app.api.routes.suppliers import router as suppliers_router
 from app.api.routes.system_settings import router as system_settings_router
 from app.api.routes.user_notification import (
@@ -89,6 +96,7 @@ api_router.include_router(payments_router)
 api_router.include_router(admin_payments_router)
 api_router.include_router(admin_quote_requests_router)
 api_router.include_router(admin_orders_router)
+api_router.include_router(admin_grouped_departures_router)
 api_router.include_router(admin_invoices_router)
 api_router.include_router(admin_credit_notes_router)
 api_router.include_router(admin_shipping_router)
@@ -132,6 +140,10 @@ api_router.include_router(user_preferences_router)
 api_router.include_router(group_upgrade_router)
 api_router.include_router(system_settings_router)
 api_router.include_router(currency_router)
+api_router.include_router(content_pages_router)
+api_router.include_router(grouped_departures_router)
+api_router.include_router(store_credit_router)
+api_router.include_router(stock_alerts_router)
 api_router.include_router(utils_router, prefix="/utils")
 api_router.include_router(webhooks_router)
 api_router.include_router(health_router)

@@ -31,6 +31,7 @@ export const useProductsStore = defineStore('products', () => {
     price_min: null,
     price_max: null,
     in_stock: null,
+    condition: null,
     specs: {},
     // Défaut du backend : un même article vendu par plusieurs fournisseurs
     // n'apparaît qu'une fois, à sa meilleure offre.

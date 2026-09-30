@@ -120,6 +120,15 @@ class OrderBase(Base):
         max_length=50,
         description="Mode de livraison du dernier tronçon choisi au checkout",
     )
+    # Départ groupé (vague) auquel la commande est rattachée : posé au checkout
+    # sur le départ ouvert le plus proche, déplaçable par l'admin. Null = hors
+    # départ (boutique classique).
+    grouped_departure_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="grouped_departures.id",
+        index=True,
+        description="Départ groupé de rattachement",
+    )
     # Preuve d'acceptation des CGV. La case cochée dans le front n'engage rien :
     # sans trace serveur, l'acceptation n'est pas opposable et un appel direct
     # à l'API la contourne. Horodatage + version des CGV figés au checkout.
@@ -131,6 +140,32 @@ class OrderBase(Base):
         default=None,
         max_length=50,
         description="Version des CGV acceptée au checkout",
+    )
+    # Acompte : « full » = tout payé à la commande ; « deposit » = acompte à la
+    # commande (deposit_amount, frais deposit_fee_amount inclus dans le total)
+    # puis solde demandé à la réception des marchandises.
+    payment_plan: str = Field(
+        default="full", max_length=20, description="full | deposit"
+    )
+    deposit_amount: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Acompte versé à la commande (0 en plan full)",
+    )
+    deposit_fee_amount: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Frais de l'option acompte, inclus dans total_fees_amount",
+    )
+    balance_requested_at: datetime | None = Field(
+        default=None, description="Envoi de la demande de solde au client"
+    )
+    balance_paid_at: datetime | None = Field(
+        default=None, description="Encaissement du solde"
     )
 
 
@@ -156,6 +191,7 @@ class OrderUpdate(BaseUpdate):
     shipping_cost_breakdown: dict[str, Any] | None = None
     notes: str | None = None
     delivery_type: str | None = None
+    grouped_departure_id: uuid.UUID | None = None
     # cgv_accepted_at / cgv_version sont volontairement absents : la preuve
     # d'acceptation est figée au checkout et ne doit pas être modifiable via
     # la route de mise à jour générique.

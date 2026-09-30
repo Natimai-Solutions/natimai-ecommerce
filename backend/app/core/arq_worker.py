@@ -12,6 +12,10 @@ from app.tasks.cart_tasks import (
     get_cart_abandonment_cron_jobs,
     remind_abandoned_carts_task,
 )
+from app.tasks.departure_tasks import (
+    get_departure_cron_jobs,
+    publish_departure_reminders_task,
+)
 from app.tasks.icecat_tasks import (
     batch_enrich_products_task,
     enrich_product_with_icecat_task,
@@ -27,6 +31,10 @@ from app.tasks.pricing_tasks import (
     get_pricing_cron_jobs,
     refresh_sale_prices_task,
     scheduled_sale_price_refresh_task,
+)
+from app.tasks.stock_alert_tasks import (
+    get_stock_alert_cron_jobs,
+    notify_stock_alerts_task,
 )
 from app.tasks.supplier_file_import_tasks import import_supplier_file_task
 from app.tasks.supplier_tasks import (
@@ -113,6 +121,10 @@ class WorkerSettings:
         # Prix vitrine matérialisés (rafraîchis quand un taux ou une marge change)
         refresh_sale_prices_task,
         scheduled_sale_price_refresh_task,
+        # Rappels réseaux sociaux des départs groupés
+        publish_departure_reminders_task,
+        # Alertes « me prévenir »
+        notify_stock_alerts_task,
         # ... tes autres handlers
     ]
 
@@ -126,6 +138,8 @@ class WorkerSettings:
         + get_stock_reservation_cron_jobs()
         + get_pricing_cron_jobs()
         + get_cart_abandonment_cron_jobs()
+        + get_departure_cron_jobs()
+        + get_stock_alert_cron_jobs()
     )
 
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)

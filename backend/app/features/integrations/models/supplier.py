@@ -64,6 +64,13 @@ FILE_MAPPING_TARGETS: tuple[str, ...] = (
     "spec_url",
     "upc",
     "ean",
+    # Refurbished lots
+    "condition",
+    "condition_grade",
+    "battery_health_pct",
+    "os_licence",
+    "warranty_months",
+    "availability_mode",
 )
 FILE_MAPPING_REQUIRED: tuple[str, ...] = ("supplier_sku", "name")
 
@@ -157,6 +164,26 @@ class SupplierBase(SQLModel):
             "fichier}. Champs internes possibles : FILE_MAPPING_TARGETS."
         ),
     )
+    import_as_draft: bool = Field(
+        default=False,
+        description=(
+            "Les articles créés par une synchronisation ou un import de ce "
+            "fournisseur arrivent en brouillon (Product.is_draft) : enrichis "
+            "et rafraîchis, mais invisibles en vitrine tant que l'admin ne "
+            "les publie pas. Les articles existants ne sont pas concernés."
+        ),
+    )
+    sku_allowlist: list[str] | None = Field(
+        default=None,
+        sa_column=Column(JSON),
+        description=(
+            "Liste blanche de références fournisseur (SKU). Vide ou absente : "
+            "tout le catalogue synchronisé est suivi. Renseignée : seules ces "
+            "références sont créées et rafraîchies (prix / stock) ; les "
+            "articles gérés par ce fournisseur hors liste sont retirés de la "
+            "vitrine. Modifiée par PUT /admin/suppliers/{code}/sku-allowlist."
+        ),
+    )
     settings: dict[str, Any] | None = Field(
         default=None,
         sa_column=Column(JSON),
@@ -216,6 +243,7 @@ class SupplierUpdate(SQLModel):
     default_categories: list[str] | None = None
     price_currency: str | None = None
     column_mapping: dict[str, str] | None = None
+    import_as_draft: bool | None = None
     settings: dict[str, Any] | None = None
     contact_email: str | None = None
     contact_phone: str | None = None

@@ -58,6 +58,14 @@ class NormalizedProductData:
     spec_url: str | None = None
     upc: str | None = None
     ean: str | None = None
+    # Refurbished lots (file suppliers): left None when the source has no
+    # such column, so the persisted value is never reset.
+    condition: str | None = None
+    condition_grade: str | None = None
+    battery_health_pct: int | None = None
+    os_licence: str | None = None
+    warranty_months: int | None = None
+    availability_mode: str | None = None
     # Anything that does not map onto a first-class field yet.
     extra: dict[str, Any] = field(default_factory=dict)
 
@@ -105,6 +113,10 @@ class SupplierConfig:
     price_currency: str | None = None
     column_mapping: dict[str, str] | None = None
     settings: dict[str, Any] = field(default_factory=dict)
+    #: SKUs the admin chose to follow (empty = the whole synced catalog).
+    sku_allowlist: list[str] = field(default_factory=list)
+    #: New products land as drafts, published by the admin.
+    import_as_draft: bool = False
 
     @classmethod
     def from_row(cls, supplier: Any) -> SupplierConfig:
@@ -125,6 +137,8 @@ class SupplierConfig:
             price_currency=getattr(supplier, "price_currency", None),
             column_mapping=getattr(supplier, "column_mapping", None),
             settings=dict(getattr(supplier, "settings", None) or {}),
+            sku_allowlist=list(getattr(supplier, "sku_allowlist", None) or []),
+            import_as_draft=bool(getattr(supplier, "import_as_draft", False)),
         )
 
 
@@ -201,6 +215,16 @@ class SupplierAdapter(ABC):
     def default_categories(self) -> list[str]:
         """Categories synced by default when the caller passes none."""
         return list(self.config.default_categories)
+
+    @property
+    def sku_allowlist(self) -> list[str]:
+        """SKUs the admin chose to follow; empty means the whole catalog."""
+        return list(self.config.sku_allowlist)
+
+    @property
+    def import_as_draft(self) -> bool:
+        """New products of this supplier wait for the admin's publication."""
+        return bool(self.config.import_as_draft)
 
     # -- configuration ----------------------------------------------------
 

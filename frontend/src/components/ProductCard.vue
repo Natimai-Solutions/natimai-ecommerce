@@ -5,7 +5,15 @@
     </router-link>
 
     <div class="product-card__info">
-      <span class="product-card__brand">{{ brand }}</span>
+      <span class="product-card__brand">
+        {{ brand
+        }}<template v-if="refurbished">
+          <span v-if="brand" aria-hidden="true"> · </span>
+          <span class="product-card__condition" data-testid="product-condition">{{
+            conditionLabel(product)
+          }}</span>
+        </template>
+      </span>
       <router-link :to="productRoute" class="product-card__name">{{ product.name }}</router-link>
       <span v-if="product.vendor_part_number" class="product-card__ref font-mono">
         {{ product.vendor_part_number }}
@@ -20,11 +28,20 @@
           <span class="font-mono">{{ displayPrice }}</span>
         </span>
 
-        <span v-if="isOutOfStock" class="product-card__stock product-card__stock--order">
-          <span class="stock-dot stock-dot--order" aria-hidden="true" />Sur commande
+        <span
+          class="product-card__stock"
+          :class="{
+            'product-card__stock--order': availability.preorder || !availability.orderable,
+          }"
+        >
+          <span
+            class="stock-dot"
+            :class="{ 'stock-dot--order': availability.preorder || !availability.orderable }"
+            aria-hidden="true"
+          />{{ availability.label }}
         </span>
-        <span v-else class="product-card__stock">
-          <span class="stock-dot" aria-hidden="true" />{{ stockQuantity }} en stock
+        <span v-if="departureStore.deliveryLabel" class="product-card__offers">
+          {{ departureStore.deliveryLabel }}
         </span>
 
         <span v-if="variantsCount > 1" class="product-card__offers">
@@ -50,9 +67,11 @@
         type="button"
         class="product-card__add"
         data-testid="product-add-to-cart"
-        :disabled="isOutOfStock"
+        :disabled="!availability.orderable"
         :aria-label="
-          isOutOfStock ? 'Indisponible pour le moment' : `Ajouter ${product.name} au panier`
+          availability.orderable
+            ? `Ajouter ${product.name} au panier`
+            : 'Indisponible pour le moment'
         "
         @click="emit('add-to-cart', product)"
       >
@@ -65,10 +84,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { components } from '@app/api-types';
-import { sellableQuantity } from 'src/api/products';
 import ProductImage from 'src/components/ProductImage.vue';
 import { getProductRoute } from 'src/utils/productRoute';
 import { useCurrencyStore } from 'src/stores/currency';
+import { useDepartureStore } from 'src/stores/departure';
+import { conditionLabel, isRefurbished, productAvailability } from 'src/utils/availability';
 
 // `offers_count` is served by the backend (search grouping of the same item
 // sold by several suppliers) but the generated schema may lag — read it loosely.
@@ -84,8 +104,9 @@ const productRoute = computed(() => getProductRoute(props.product));
 const imageUrl = computed(() => props.product.image_url ?? props.product.supplier_image_url);
 const brand = computed(() => props.product.manufacturer ?? props.product.supplier_name ?? '');
 
-const stockQuantity = computed(() => sellableQuantity(props.product));
-const isOutOfStock = computed(() => stockQuantity.value <= 0);
+const departureStore = useDepartureStore();
+const availability = computed(() => productAvailability(props.product));
+const refurbished = computed(() => isRefurbished(props.product));
 const variantsCount = computed(() => props.product.variants_count ?? 0);
 
 const isQuote = computed(() => parseFloat(props.product.base_price) === 0);
@@ -179,6 +200,10 @@ const displayPrice = computed(() => currencyStore.format(parseFloat(props.produc
   font-weight: 400;
   letter-spacing: 0;
   color: var(--n-ink-3);
+}
+
+.product-card__condition {
+  color: var(--n-ink);
 }
 
 .product-card__stock {

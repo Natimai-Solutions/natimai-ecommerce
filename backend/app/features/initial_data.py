@@ -6,6 +6,13 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.features.content.crud import crud_content_page
+from app.features.content.models import ContentPageCreate
+from app.features.departure.services import SOCIAL_WEBHOOK_SETTING_KEY
+from app.features.order.services.status import (
+    ALL_ORDER_STATUSES,
+    get_or_create_order_status,
+)
 from app.features.payment.crud.payment_method import crud_payment_method
 from app.features.payment.crud.payment_status import crud_payment_status
 from app.features.payment.models.payment_method import (
@@ -27,6 +34,7 @@ from app.features.place.models import Place, PlacePostalCode
 from app.features.product.models.currency_rate import CurrencyRate, CurrencyRateSource
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.tax_rate import TaxRate
+from app.features.product.services.pricing_parameters import PRICING_SETTINGS
 from app.features.shipping.models.carrier import Carrier
 from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.models.status import StatusDefinition, StatusTransition
@@ -596,6 +604,66 @@ async def _seed_shop_country(session: AsyncSession) -> None:
     await session.commit()
 
 
+# Default « Comment ça marche » page: explains the grouped-departure model
+# (why the customer pays up front). Seeded once, never overwritten: the owner
+# rewrites it in the back-office.
+HOW_IT_WORKS_HTML = """<h2>Des commandes groupées, un prix rendu tout compris</h2>
+<p>Nous ne stockons pas les produits à l'avance : vos commandes sont regroupées par <strong>départ</strong>. Chaque départ a une date limite de commande, affichée sur le site. À cette date, nous passons une seule commande à nos fournisseurs, les colis voyagent ensemble, sont dédouanés ensemble, puis remis à chacun.</p>
+<h3>1. Vous commandez et payez</h3>
+<p>Le prix affiché est le prix final en XPF, fret, douane et taxes compris : rien à payer à l'arrivée. Votre paiement à la commande est ce qui rend ce modèle possible sans stock, et donc sans surcoût.</p>
+<h3>2. Le départ est clôturé</h3>
+<p>À la date limite, la commande fournisseur est passée. Si un article n'est plus disponible, nous vous proposons le report sur le départ suivant, un article équivalent ou le remboursement.</p>
+<h3>3. Transport, douane, réception</h3>
+<p>Vous êtes prévenu(e) par e-mail à chaque étape : commandée au fournisseur, en transit, en douane, reçue et contrôlée, puis disponible. Comptez 3 à 5 semaines entre la clôture et la remise.</p>
+<h3>4. Remise</h3>
+<p>Retrait sur place ou livraison, selon le mode choisi à la commande. Les produits reconditionnés sont signalés comme tels, avec leur grade et leur garantie.</p>
+"""
+
+
+async def _seed_social_webhook_setting(session: AsyncSession) -> None:
+    """Empty ``social_webhook_url`` so the reminders tab has a row to edit."""
+    existing = (
+        await session.exec(
+            select(SystemSetting).where(SystemSetting.key == SOCIAL_WEBHOOK_SETTING_KEY)
+        )
+    ).first()
+    if existing is not None:
+        return
+    session.add(
+        SystemSetting(
+            key=SOCIAL_WEBHOOK_SETTING_KEY,
+            value="",
+            description=(
+                "URL https d'un webhook (Make, Zapier, Buffer…) recevant les rappels "
+                "des départs groupés : {text, link, image_url, departure}"
+            ),
+        )
+    )
+
+
+async def _seed_content_pages(session: AsyncSession) -> None:
+    """Seed the « Comment ça marche » page once (idempotent, never overwrites)."""
+    if await crud_content_page.get_by_slug(session, "comment-ca-marche") is not None:
+        return
+    await crud_content_page.create_draft(
+        session,
+        data=ContentPageCreate(
+            slug="comment-ca-marche",
+            title="Comment ça marche ?",
+            body_html=HOW_IT_WORKS_HTML,
+            is_published=True,
+        ),
+        user=None,
+    )
+
+
+async def _seed_order_statuses(session: AsyncSession) -> None:
+    """Every order status by name (idempotent), so the admin select and the
+    departure propagation never depend on a status being created on the fly."""
+    for name in ALL_ORDER_STATUSES:
+        await get_or_create_order_status(session, name)
+
+
 async def _seed_shipping_statuses(session: AsyncSession) -> None:
     """Seed the logistics status catalog + allowed transitions (idempotent).
 
@@ -742,6 +810,28 @@ async def _seed_security_groups(session: AsyncSession) -> None:
             )
 
 
+async def _seed_pricing_settings(session: AsyncSession) -> None:
+    """Créer les paramètres de prix éditables (commission de paiement…) à
+    leur valeur par défaut, description rafraîchie, valeur saisie jamais
+    réécrite — même règle que l'identité légale."""
+    for spec in PRICING_SETTINGS:
+        result = await session.exec(
+            select(SystemSetting).where(SystemSetting.key == spec.key)
+        )
+        existing = result.first()
+        if existing is not None:
+            if existing.description != spec.description:
+                existing.description = spec.description
+                session.add(existing)
+            continue
+        session.add(
+            SystemSetting(
+                key=spec.key, value=str(spec.default), description=spec.description
+            )
+        )
+    await session.commit()
+
+
 async def _seed_legal_identity_settings(session: AsyncSession) -> None:
     """Créer les clés d'identité légale, vides, pour qu'elles soient éditables.
 
@@ -858,6 +948,10 @@ async def initial_data(session: AsyncSession) -> None:
     # (its origin warehouse is filled in only when the corridor was seeded).
     await _seed_suppliers(session)
     await _seed_shipping_statuses(session)
+    await _seed_order_statuses(session)
+    await _seed_content_pages(session)
+    await _seed_social_webhook_setting(session)
     await _seed_security_groups(session)
     await _seed_legal_identity_settings(session)
+    await _seed_pricing_settings(session)
     await _seed_customs_free_countries_setting(session)

@@ -223,6 +223,15 @@
           <td class="num">{{ fees.payment_incl_tax | amount(currency) }}</td>
         </tr>
         {% endif %}
+        {% if fees.deposit_incl_tax and fees.deposit_incl_tax != '0.00' and fees.deposit_incl_tax != '0' %}
+        <tr>
+          <td>Frais option acompte</td>
+          <td class="num">1</td>
+          <td class="num">{{ fees.deposit_incl_tax | amount(currency) }}</td>
+          <td class="num">{{ fees.tax_rate_pct }} %</td>
+          <td class="num">{{ fees.deposit_incl_tax | amount(currency) }}</td>
+        </tr>
+        {% endif %}
       </tbody>
     </table>
 
@@ -260,6 +269,16 @@
             <td>Total TTC</td>
             <td class="num">{{ totals.incl_tax | amount(currency) }}</td>
           </tr>
+          {% if deposit %}
+          <tr>
+            <td>Acompte déjà versé</td>
+            <td class="num">{{ deposit.amount | amount(currency) }}</td>
+          </tr>
+          <tr>
+            <td>Solde encaissé</td>
+            <td class="num">{{ deposit.balance | amount(currency) }}</td>
+          </tr>
+          {% endif %}
         </tbody>
       </table>
     </div>

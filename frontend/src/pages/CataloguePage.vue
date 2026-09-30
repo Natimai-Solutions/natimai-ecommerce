@@ -44,6 +44,25 @@
         </div>
 
         <div class="filters__body">
+          <div class="filters__group">
+            <fieldset class="filters__fieldset" data-testid="catalogue-condition">
+              <legend class="filters__legend">État</legend>
+              <label
+                v-for="opt in conditionOptions"
+                :key="String(opt.value)"
+                class="filters__option"
+              >
+                <input
+                  type="radio"
+                  name="condition"
+                  :checked="selectedCondition === opt.value"
+                  @change="onConditionChange(opt.value)"
+                />
+                <span class="filters__option-label">{{ opt.label }}</span>
+              </label>
+            </fieldset>
+          </div>
+
           <div v-if="manufacturerOptions.length > 0" class="filters__group">
             <fieldset class="filters__fieldset">
               <legend class="filters__legend">Fabricant</legend>
@@ -306,6 +325,13 @@ useMeta(() => ({
 const searchQuery = ref<string>('');
 const selectedManufacturer = ref<string | null>(null);
 const selectedCategory = ref<string | null>(null);
+// null = new and refurbished together.
+const selectedCondition = ref<'new' | 'refurbished' | null>(null);
+const conditionOptions: { label: string; value: 'new' | 'refurbished' | null }[] = [
+  { label: 'Neuf et reconditionné', value: null },
+  { label: 'Neuf', value: 'new' },
+  { label: 'Reconditionné', value: 'refurbished' },
+];
 // Spec filters: enum key → selected value_text[]; numeric key → minimum value.
 const enumSelections = ref<Record<string, string[]>>({});
 const numericMin = ref<Record<string, number | null>>({});
@@ -394,6 +420,13 @@ const activeFilters = computed<ActiveFilter[]>(() => {
       },
     });
   }
+  if (selectedCondition.value) {
+    list.push({
+      key: 'cond',
+      label: selectedCondition.value === 'new' ? 'Neuf' : 'Reconditionné',
+      remove: () => void onConditionChange(null),
+    });
+  }
   if (selectedManufacturer.value) {
     list.push({
       key: 'mfr',
@@ -451,6 +484,11 @@ async function onPageChange(page: number) {
   window.scrollTo({ top: 0 });
 }
 
+async function onConditionChange(val: 'new' | 'refurbished' | null) {
+  await store.applyFilters({ condition: val });
+  syncQueryParams();
+}
+
 async function onManufacturerChange(val: string | null) {
   selectedManufacturer.value = val;
   await store.applyFilters({ manufacturer: val });
@@ -500,6 +538,7 @@ async function resetFilters() {
   searchQuery.value = '';
   selectedManufacturer.value = null;
   selectedCategory.value = null;
+  selectedCondition.value = null;
   enumSelections.value = {};
   numericMin.value = {};
   priceMin.value = '';
@@ -511,6 +550,7 @@ async function resetFilters() {
     manufacturer: null,
     category_id: null,
     in_stock: null,
+    condition: null,
     price_min: null,
     price_max: null,
     specs: {},
@@ -523,6 +563,7 @@ function stateQuery(): Record<string, string> {
   if (searchQuery.value) query['q'] = searchQuery.value;
   if (selectedManufacturer.value) query['mfr'] = selectedManufacturer.value;
   if (selectedCategory.value) query['cat'] = selectedCategory.value;
+  if (selectedCondition.value) query['cond'] = selectedCondition.value;
   return query;
 }
 
@@ -547,6 +588,8 @@ function initFromQuery(query: LocationQuery = route.query) {
   searchQuery.value = typeof q === 'string' ? q : '';
   selectedManufacturer.value = typeof mfr === 'string' ? mfr : null;
   selectedCategory.value = typeof cat === 'string' ? cat : null;
+  const cond = query['cond'];
+  selectedCondition.value = cond === 'new' || cond === 'refurbished' ? cond : null;
 }
 
 async function loadCatalogueData() {
@@ -557,6 +600,7 @@ async function loadCatalogueData() {
     q: searchQuery.value || null,
     manufacturer: selectedManufacturer.value,
     category_id: selectedCategory.value,
+    condition: selectedCondition.value,
     specs: buildSpecs(),
   });
 }
@@ -568,9 +612,10 @@ watch(
   (query) => {
     if (route.name !== 'catalogue') return;
     const current = stateQuery();
+    const keys = ['q', 'mfr', 'cat', 'cond'];
     const same =
-      ['q', 'mfr', 'cat'].every((k) => (query[k] ?? undefined) === current[k]) &&
-      Object.keys(query).every((k) => ['q', 'mfr', 'cat'].includes(k));
+      keys.every((k) => (query[k] ?? undefined) === current[k]) &&
+      Object.keys(query).every((k) => keys.includes(k));
     if (same) return;
     const categoryChanged = (query['cat'] ?? null) !== selectedCategory.value;
     if (categoryChanged) {

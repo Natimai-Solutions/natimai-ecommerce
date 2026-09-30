@@ -23,6 +23,10 @@ export interface Supplier {
   default_categories: string[] | null;
   price_currency: string | null;
   column_mapping: Record<string, string> | null;
+  /** Références suivies chez ce fournisseur (null / vide = tout le catalogue synchronisé). */
+  sku_allowlist: string[] | null;
+  /** Les nouveaux articles de ce fournisseur arrivent en brouillon (publiés par l'admin). */
+  import_as_draft: boolean;
   settings: Record<string, unknown> | null;
   contact_email: string | null;
   contact_phone: string | null;
@@ -46,6 +50,7 @@ export interface SupplierCreate {
   default_categories?: string[] | null;
   price_currency?: string | null;
   column_mapping?: Record<string, string> | null;
+  import_as_draft?: boolean;
   settings?: Record<string, unknown> | null;
   contact_email?: string | null;
   contact_phone?: string | null;
@@ -208,6 +213,40 @@ export async function updateSupplier(code: string, payload: SupplierUpdate): Pro
 
 export async function deactivateSupplier(code: string): Promise<Supplier> {
   const { data } = await api.delete<Supplier>(`/admin/suppliers/${code}`);
+  return data;
+}
+
+/** Une référence de la liste blanche et l'article qu'elle désigne, s'il existe déjà. */
+export interface AllowlistEntry {
+  supplier_sku: string;
+  product_id: string | null;
+  product_name: string | null;
+  is_active: boolean | null;
+}
+
+export interface AllowlistView {
+  supplier_name: string;
+  entries: AllowlistEntry[];
+  /** Références déjà au catalogue. */
+  known: number;
+  /** Références que la prochaine synchronisation catalogue créera. */
+  unknown: string[];
+  /** Articles gérés par ce fournisseur hors liste (retirés de la vitrine). */
+  outside: number;
+  /** Articles retirés de la vitrine par le dernier enregistrement. */
+  deactivated: number;
+}
+
+export async function getSkuAllowlist(code: string): Promise<AllowlistView> {
+  const { data } = await api.get<AllowlistView>(`/admin/suppliers/${code}/sku-allowlist`);
+  return data;
+}
+
+/** Remplace la liste (vide = tout le catalogue) ; les articles hors liste quittent la vitrine. */
+export async function saveSkuAllowlist(code: string, skus: string[]): Promise<AllowlistView> {
+  const { data } = await api.put<AllowlistView>(`/admin/suppliers/${code}/sku-allowlist`, {
+    skus,
+  });
   return data;
 }
 

@@ -109,6 +109,55 @@
             bottom-slots
           />
 
+          <div class="text-subtitle2 q-mt-sm q-mb-xs">État</div>
+          <q-option-group v-model="form.condition" :options="conditionOptions" inline dense />
+          <div v-if="form.condition === 'refurbished'" class="row q-col-gutter-sm q-mb-sm">
+            <q-input
+              v-model="form.condition_grade"
+              class="col-6 col-sm-3"
+              label="Grade"
+              hint="A, B, C…"
+              outlined
+              dense
+              maxlength="5"
+            />
+            <q-input
+              v-model="form.battery_health_pct"
+              class="col-6 col-sm-3"
+              type="number"
+              min="0"
+              max="100"
+              label="Batterie (%)"
+              outlined
+              dense
+            />
+            <q-input
+              v-model="form.os_licence"
+              class="col-12 col-sm-3"
+              label="Licence OS"
+              outlined
+              dense
+            />
+            <q-input
+              v-model="form.warranty_months"
+              class="col-6 col-sm-3"
+              type="number"
+              min="0"
+              label="Garantie (mois)"
+              outlined
+              dense
+            />
+          </div>
+
+          <div class="text-subtitle2 q-mt-sm q-mb-xs">Disponibilité</div>
+          <q-option-group
+            v-model="form.availability_mode"
+            :options="availabilityModeOptions"
+            inline
+            dense
+          />
+          <div class="text-caption text-grey-7 q-mb-sm">{{ availabilityModeHint }}</div>
+
           <div class="text-subtitle2 q-mt-sm q-mb-xs">Prix &amp; taxes</div>
           <q-option-group v-model="form.pricing_mode" :options="pricingModeOptions" inline dense />
           <div class="text-caption text-grey-7 q-mb-sm">{{ pricingModeHint }}</div>
@@ -332,6 +381,8 @@ const shopConfig = useShopConfigStore();
 const isSimpleShop = computed(() => shopConfig.isSimple);
 
 type PricingMode = 'import' | 'domestic' | 'fixed';
+type AvailabilityMode = 'stock' | 'on_demand' | 'continuous' | 'lot';
+type ProductCondition = 'new' | 'refurbished';
 
 interface FormState {
   name: string;
@@ -343,6 +394,12 @@ interface FormState {
   /** Stock entrepôt — pas un champ produit : enregistré par un ajustement d'inventaire. */
   local_quantity: string;
   pricing_mode: PricingMode;
+  availability_mode: AvailabilityMode;
+  condition: ProductCondition;
+  condition_grade: string;
+  battery_health_pct: string;
+  os_licence: string;
+  warranty_months: string;
   margin_rate_pct: string;
   cost_amount: string;
   cost_currency: string;
@@ -383,6 +440,12 @@ function emptyForm(): FormState {
     supplier_quantity: '0',
     local_quantity: '0',
     pricing_mode: isSimpleShop.value ? 'fixed' : 'import',
+    availability_mode: 'stock',
+    condition: 'new',
+    condition_grade: '',
+    battery_health_pct: '',
+    os_licence: '',
+    warranty_months: '',
     margin_rate_pct: '',
     cost_amount: '0.00',
     cost_currency: shopConfig.currency,
@@ -437,6 +500,27 @@ const PRICING_MODE_HINTS: Record<PricingMode, string> = {
 };
 const pricingModeHint = computed(() => PRICING_MODE_HINTS[form.pricing_mode]);
 
+const availabilityModeOptions: { label: string; value: AvailabilityMode }[] = [
+  { label: 'Selon le stock', value: 'stock' },
+  { label: 'Sur commande', value: 'on_demand' },
+  { label: 'Toujours commandable', value: 'continuous' },
+  { label: 'Lot (quantité fixe)', value: 'lot' },
+];
+const conditionOptions: { label: string; value: ProductCondition }[] = [
+  { label: 'Neuf', value: 'new' },
+  { label: 'Reconditionné', value: 'refurbished' },
+];
+const AVAILABILITY_MODE_HINTS: Record<AvailabilityMode, string> = {
+  stock:
+    'Commandable seulement si le stock (local + fournisseur) couvre la quantité ; réservé au checkout.',
+  on_demand:
+    'Précommande : commandable tant que le fournisseur affiche du stock, sans réservation — acheté à la clôture du départ groupé.',
+  continuous:
+    'Toujours commandable, même sans stock connu ; expédié avec le prochain départ groupé.',
+  lot: 'Lot reconditionné : le « stock fournisseur » est la taille du lot, décrémentée à chaque commande ; à zéro le lot est épuisé. Saisi ici, il n’est pas écrasé par la synchronisation.',
+};
+const availabilityModeHint = computed(() => AVAILABILITY_MODE_HINTS[form.availability_mode]);
+
 /**
  * The warehouse stock is what the checkout serves first; for a product with
  * no supplier it is the only sellable stock. Saved through the audited
@@ -477,6 +561,12 @@ const FIELD_LABELS: Record<string, string> = {
   supplier_sku: 'Référence fournisseur',
   supplier_quantity: 'Stock fournisseur',
   pricing_mode: 'Mode de prix',
+  availability_mode: 'Disponibilité',
+  condition: 'État',
+  condition_grade: 'Grade',
+  battery_health_pct: 'Batterie (%)',
+  os_licence: 'Licence OS',
+  warranty_months: 'Garantie (mois)',
   margin_rate_pct: 'Marge',
   cost_amount: 'Coût',
   cost_currency: 'Devise du coût',
@@ -545,6 +635,16 @@ function loadFromProduct(p: ProductPublic | null) {
     base.local_quantity = formatQty(rec.local_quantity);
     const mode = str(rec.pricing_mode);
     base.pricing_mode = mode === 'domestic' || mode === 'fixed' ? mode : 'import';
+    const availability = str(rec.availability_mode);
+    base.availability_mode =
+      availability === 'on_demand' || availability === 'continuous' || availability === 'lot'
+        ? availability
+        : 'stock';
+    base.condition = str(rec.condition) === 'refurbished' ? 'refurbished' : 'new';
+    base.condition_grade = str(rec.condition_grade);
+    base.battery_health_pct = str(rec.battery_health_pct);
+    base.os_licence = str(rec.os_licence);
+    base.warranty_months = str(rec.warranty_months);
     base.margin_rate_pct = str(rec.margin_rate_pct);
     base.cost_amount = str(rec.cost_amount) || '0.00';
     base.cost_currency = str(rec.cost_currency) || shopConfig.currency;
