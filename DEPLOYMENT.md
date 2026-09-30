@@ -125,12 +125,27 @@ Optional. Required only to enable "Continue with Google / Microsoft".
 | `GOOGLE_CLIENT_SECRET` | — | Google OAuth client secret |
 | `MICROSOFT_CLIENT_ID` | — | Microsoft (Entra) app id |
 | `MICROSOFT_CLIENT_SECRET` | — | Microsoft app secret |
-| `MICROSOFT_TENANT_ID` | `common` | Microsoft tenant (`common` for multi‑tenant) |
+| `MICROSOFT_TENANT_ID` | `common` | Microsoft tenant. `common`: personal accounts only (see the linking rules below); the shop's tenant id or domain to also accept its own work accounts |
 | `OAUTH_REDIRECT_BASE_URL` | — | Public **backend** URL used to build the provider `redirect_uri`, e.g. `https://api.example.com` |
 | `FRONTEND_OAUTH_REDIRECT_URL` | — | **Storefront** URL the backend redirects to after login. Must point at the callback route: `https://shop.example.com/oauth/callback` |
 
 If a provider's id/secret are missing, its `/auth/{provider}/login` endpoint
 returns `503 oauth.provider.not_configured`. See section 7 to enable end‑to‑end.
+
+**Account linking rules** (fix of 30/09/2026 against account takeover, « nOAuth »):
+
+- An e-mail is used — to create an account or to link an existing one — only
+  when the provider vouches for it: Google's `email_verified`; for Microsoft, a
+  personal account (outlook.com, hotmail…), the shop's own tenant when
+  `MICROSOFT_TENANT_ID` is a tenant id or domain, or the optional `xms_edov`
+  claim. Otherwise the sign-in is refused (`oauth_error=email_not_verified`).
+- With `MICROSOFT_TENANT_ID=common` (or `organizations`), a work account from
+  **another** organisation cannot sign in: its directory can put any address in
+  `mail`. Set the shop's tenant id to accept your own staff's work accounts, or
+  add the `xms_edov` optional claim to the app registration.
+- Administrator accounts (`is_superuser`) never sign in through OAuth, even with
+  a link created earlier: they use their password (`superuser_oauth_disabled`,
+  `account_exists`).
 
 ### 3.5 Payment — PayZen / Lyra · Phase 2
 

@@ -39,6 +39,12 @@ const OAUTH_ERROR_LABELS: Record<string, string> = {
   missing_user_info: 'Profil incomplet renvoyé par le fournisseur.',
   missing_code_or_state: 'Réponse de connexion incomplète.',
   server_error: 'Une erreur interne est survenue pendant la connexion.',
+  email_not_verified:
+    "Votre fournisseur d'identité ne garantit pas cette adresse e-mail. Connectez-vous avec votre mot de passe ou créez un compte.",
+  account_exists:
+    'Un compte existe déjà avec cette adresse. Connectez-vous avec votre mot de passe.',
+  superuser_oauth_disabled:
+    'Les comptes administrateur se connectent uniquement avec leur mot de passe.',
 };
 
 onMounted(async () => {
