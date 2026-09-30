@@ -75,6 +75,9 @@
           </div>
 
           <div class="product__price-block">
+            <span v-if="needsVariantChoice && !isQuote" class="product__price-note">
+              À partir de
+            </span>
             <span v-if="isQuote" class="product__price">Prix sur devis</span>
             <span v-else class="product__price font-mono">{{ displayPrice }}</span>
             <span v-if="selectedMode?.customer_label" class="product__price-note">
@@ -118,13 +121,10 @@
                 </button>
               </div>
             </div>
-            <p v-if="selectedVariant" class="variants__hint">
-              {{ selectedVariant.name }}
-              <span v-if="selectedVariant.supplier_sku" class="font-mono">
-                Réf. {{ selectedVariant.supplier_sku }}
-              </span>
+            <p v-if="selectedVariant?.supplier_sku" class="variants__hint font-mono">
+              Réf. {{ selectedVariant.supplier_sku }}
             </p>
-            <p v-else class="variants__hint">
+            <p v-else-if="!selectedVariant" class="variants__hint">
               Choisissez une déclinaison pour voir son prix et sa disponibilité.
             </p>
           </div>
@@ -221,6 +221,7 @@
       <!-- Barre d'achat mobile, toujours à portée de pouce -->
       <div class="lt-md product__mobile-bar">
         <div class="product__mobile-price">
+          <span v-if="needsVariantChoice && !isQuote" class="product__price-note">À partir de</span>
           <span v-if="isQuote">Prix sur devis</span>
           <span v-else class="font-mono">{{ displayPrice }}</span>
         </div>
@@ -364,11 +365,9 @@ const priceValue = computed(() => {
 /** Prix nul : l'article est vendu sur devis. */
 const isQuote = computed(() => !(priceValue.value > 0));
 
-const displayPrice = computed(() => {
-  const formatted = currencyStore.format(priceValue.value);
-  // Tant qu'aucune déclinaison n'est choisie, le parent affiche la moins chère.
-  return needsVariantChoice.value ? `À partir de ${formatted}` : formatted;
-});
+// Tant qu'aucune déclinaison n'est choisie, le parent affiche la moins chère,
+// précédée de « À partir de ».
+const displayPrice = computed(() => currencyStore.format(priceValue.value));
 
 const categoryLabel = computed(() => {
   const id = product.value?.category_id;
@@ -1107,7 +1106,14 @@ watch(
 
 .product__mobile-price {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
   font-size: 18px;
   font-weight: 600;
+
+  .product__price-note {
+    font-size: 12px;
+    font-weight: 400;
+  }
 }
 </style>

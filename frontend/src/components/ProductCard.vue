@@ -15,7 +15,10 @@
     <div class="product-card__buy">
       <div class="product-card__meta">
         <span v-if="isQuote" class="product-card__price">Prix sur devis</span>
-        <span v-else class="product-card__price font-mono">{{ displayPrice }}</span>
+        <span v-else class="product-card__price">
+          <span v-if="product.has_variants" class="product-card__from">À partir de</span>
+          <span class="font-mono">{{ displayPrice }}</span>
+        </span>
 
         <span v-if="isOutOfStock" class="product-card__stock product-card__stock--order">
           <span class="stock-dot stock-dot--order" aria-hidden="true" />Sur commande
@@ -86,11 +89,8 @@ const isOutOfStock = computed(() => stockQuantity.value <= 0);
 const variantsCount = computed(() => props.product.variants_count ?? 0);
 
 const isQuote = computed(() => parseFloat(props.product.base_price) === 0);
-const displayPrice = computed(() => {
-  const formatted = currencyStore.format(parseFloat(props.product.base_price));
-  // A parent is listed at its cheapest variant.
-  return props.product.has_variants ? `À partir de ${formatted}` : formatted;
-});
+// A parent is listed at its cheapest variant, prefixed « À partir de ».
+const displayPrice = computed(() => currencyStore.format(parseFloat(props.product.base_price)));
 </script>
 
 <style scoped lang="scss">
@@ -171,6 +171,14 @@ const displayPrice = computed(() => {
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--n-ink);
+}
+
+.product-card__from {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--n-ink-3);
 }
 
 .product-card__stock {
