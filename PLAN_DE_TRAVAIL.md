@@ -23,6 +23,177 @@ Ce plan couvre **tout le monorepo**, pas seulement le backend. Trois surfaces so
 
 > 🔍 **État au 25/08/2026 (audit de production complet — sécurité, tests/CI, infra, complétude)** : Phases 0–4 **vérifiées livrées** conformes au plan (le code est même en avance : desserte par île, stock/inventaire, devis invité). Le reste à faire avant mise en production est consolidé dans la section **« Chantier pré-production — audit du 25/08/2026 »** (bloquants sécurité S1-S4, légal L1-L3, facturation, exploitation I1-I8, qualité Q1-Q4, fonctionnel F). La fiscalité douanière fine (TDL, positions tarifaires, défauts `customs_rate_pct`) est traitée dans la décision transverse **fret import & assiette douane (CAF)**, sous-section *Vérification implémentation & écarts fiscalité*.
 
+> 🧭 **État au 30/09/2026 (revue complète : dépôt, documents, refonte graphique, questions du propriétaire)** : `main` vert, aucune PR ouverte, aucun gros chantier fonctionnel ouvert. **Priorité 1 : la refonte graphique « Précision » (vitrine, puis admin) et une vraie page d'accueil** — la refonte, livrée en quatre lots le 29/09, n'était documentée nulle part. L'ordre de travail, les décisions du propriétaire et le backlog chiffré sont dans la section **« Feuille de route au 30/09/2026 »** ci-dessous ; les lignes périmées des phases (matrices, backlog admin, dettes) ont été corrigées le même jour.
+
+---
+
+## Feuille de route au 30/09/2026 — revue complète, priorités et backlog chiffré
+
+Section issue de la revue du 30/09/2026 (état du dépôt, documents de travail, refonte graphique, et réponses aux questions du propriétaire). Elle **prime sur les matrices des phases** pour l'ordre de travail ; les lignes périmées des phases ont été corrigées le même jour et renvoient ici. Estimations en jours (j) pour une personne qui connaît la base.
+
+**État du dépôt** : `main` vert en CI (run 136), aucune PR ouverte, dernier commit `45dd837` (sqlmodel 0.0.47, datetimes UTC). Aucun gros chantier fonctionnel n'est ouvert dans le plan : ce qui reste est (1) la refonte graphique, (2) des valeurs à saisir et des validations externes, (3) l'exploitation avant production, (4) le backlog ci-dessous.
+
+### Ordre de travail décidé par le propriétaire (30/09/2026)
+
+| Priorité | Chantier | Effort | Section |
+|---|---|---|---|
+| **1** | **Refonte « Précision » — vitrine** : accueil, espace client, checkout, paiement, devis, pages légales | 8 à 12 j | R1 |
+| **1 bis** | **Page d'accueil + médias publics** (blocs pilotés par l'admin, téléversement d'images) | 5 à 7 j | R2 |
+| 2 | Refonte « Précision » — **admin-frontend** (lot séparé, après la vitrine) | 8 à 12 j | R1-admin |
+| 3 | Paiements : espèces, versements partiels (`payment_receipts`), acompte pour tous les moyens, PSP Stripe + PayPal activables en base | 14 à 18 j | R3 |
+| 4 | Fournisseurs : seuil de quantité à l'import fichier, flux fichier automatisé (Foxway, Picata) avec identifiants chiffrés, correctifs Ingram/Icecat | 6 à 9 j | R4 |
+| 5 | Configuration en base (version complète) | 12 à 16 j | R5 |
+| 6 | Bloquants production (sécurité, sauvegardes, images, sandbox PayZen, juridique, comptable) | 5 à 8 j + validations externes | R6 |
+| 7 | Version publique : multilingue FR + EN et devises (périmètre minimal) | 20 à 30 j | R7 |
+| 8 | Ajouts à forte valeur et confort | à arbitrer | R8 |
+
+### Décisions du propriétaire (30/09/2026)
+
+| Question | Décision |
+|---|---|
+| Périmètre de la refonte « toutes les pages » | **Vitrine d'abord, puis l'admin** en lot séparé |
+| Images de la page d'accueil | **Blocs pilotés par l'admin + téléversement d'images** (service de médias publics réutilisable pour produits et catégories) |
+| Identifiants des fournisseurs sans API | **Chiffrés en base** (Fernet, clé dans l'environnement, écriture seule). Exception assumée à la règle « jamais d'identifiants en base » (décision du 05/09), limitée aux fournisseurs `file_feed` |
+| Prestataire de paiement | **Stripe et PayPal**, chacun **activable / désactivable en base**, PayZen compris |
+| Espèces | **Proposées dans tous les cas** (pas seulement au retrait) : localement, des clients n'ont pas de carte ; ils commandent puis passent au bureau régler ou verser un acompte |
+| Acompte | **Doit pouvoir être défini pour tous les moyens de paiement**, manuels compris |
+| Versements partiels | **Table `payment_receipts`** (un reçu par versement) |
+| Multilingue / devises | **Périmètre minimal FR + EN**, contenu monolingue par déploiement, devise pivot configurable avec conversion d'affichage |
+| Configuration en base | **Version complète** (registre typé, cache, ~45 réglages, crons en ticks, écran admin par catégorie) |
+
+---
+
+### R1 — Refonte graphique « Précision » (priorité 1)
+
+La refonte n'était documentée nulle part ; elle existe dans l'historique git sous quatre commits du 29/09/2026, tous limités à `frontend/` : `28625e9` (lot 1, fondations), `74c4451` (lot 2, en-tête / catalogue), `49a10e6` (lot 3, fiche produit), `f11835a` (lot 4, panier, et « Checkout, Mon compte, Suivi : titres et gouttières **sans recomposition** »). Support de conception : les skills « Taste » de `.agents/skills` (ajoutés le 28/09, `skills-lock.json`).
+
+**Fondations livrées (lot 1)** : palette zinc, encre `#18181b`, accent orange `#C2410C`, mode sombre persistant en cookie (SSR), polices Geist / Geist Mono auto-hébergées, icônes Phosphor via `iconMapFn`, rayon 8 px, focus visible, `AppNotice` (remplace 35 `q-banner`), `StatusTag`. Jetons : [quasar.variables.scss](frontend/src/css/quasar.variables.scss), variables `--n-*` dans [app.scss](frontend/src/css/app.scss) (dont une règle transitoire qui ramène `.text-grey-*` sur l'échelle zinc — « les pages passent progressivement aux classes sémantiques »).
+
+**État par page (mesuré : `var(--n-*)` vs classes Quasar héritées)**
+
+| Page | État | Reste |
+|---|---|---|
+| `MainLayout.vue`, `CataloguePage.vue`, `ProductPage.vue`, `CartPage.vue`, composants (`ProductCard`, `CartDrawer`, `ProductImage`, `ProductOffers`, `NextDepartureBanner`), `ErrorNotFound.vue` | ✅ refondus | — |
+| `LoginPage`, `RegisterPage`, `ForgotPasswordPage`, `ResetPasswordPage` | ⏳ partiel (classes `.auth-*`, 1 à 6 couleurs héritées) | finir |
+| **`MyAccountPage.vue`** (1 532 lignes), **`OrderTrackingPage.vue`**, **`BalancePaymentPage.vue`** | 🔲 non recomposés (0 variable, 7 à 8 couleurs héritées) | lot R1-B |
+| **`CheckoutPage.vue`** (1 058 lignes), `PaymentReturnPage.vue`, `OAuthCallbackPage.vue`, `CartQuoteConfirmationPage.vue` | 🔲 non recomposés | lot R1-C |
+| `pages/legal/*` (CGV, confidentialité, mentions) | 🔲 volontairement non touchées au lot 4 | lot R1-D |
+| `IndexPage.vue` | 🔲 placeholder de 14 lignes, **non routé** (`/` redirige vers le catalogue) | R2 |
+| `admin-frontend` (37 pages, thème Quasar par défaut, 162 `q-banner`) | 🔲 hors refonte à ce jour | R1-admin |
+
+**Lots vitrine**
+
+- **R1-A — Accueil** (avec R2) : route `/` → `IndexPage.vue` (aujourd'hui `redirect` dans [routes.ts](frontend/src/router/routes.ts)), logo de l'en-tête pointant dessus, hero + blocs admin + « coups de cœur » (`GET /product/featured`) + « les plus consultés » (`GET /product/popular`) — `getFeaturedProducts` / `getPopularProducts` existent dans [products.ts](frontend/src/api/products.ts) et ne sont appelés nulle part —, tuiles catégories avec `Category.image_url` (déjà éditable dans l'admin, jamais affiché en vitrine), `useMeta` + `og:image`. La page d'accueil écrite au commit `99935bf` puis abandonnée à la fusion `8ead9e0` sert de point de départ.
+- **R1-B — Espace client** (`MyAccountPage`, `OrderTrackingPage`, `BalancePaymentPage`) : recomposition (navigation latérale ou onglets refondus, résumé en tête, `StatusTag` partout, suppression des `text-grey-*` et des `color="green|orange|…"`), **et** corrections fonctionnelles relevées :
+  - titre du suivi = `order_number` (`CMD-…`) et non l'UUID tronqué ([OrderTrackingPage.vue](frontend/src/pages/OrderTrackingPage.vue) l.6) ;
+  - statut `PaymentReview` absent de `PAYMENT_BADGE` / `ORDER_STATUS_LABELS` ([MyAccountPage.vue](frontend/src/pages/MyAccountPage.vue) l.1418-1467) → affiché brut en anglais ;
+  - texte « une adresse doit être validée par notre équipe avant de pouvoir être utilisée au paiement » (l.168) **faux** depuis la décision du 02/07 (validation indicative) ;
+  - préférence « Langue : English » sans effet (i18n vide, cf. R7) : masquer ou brancher ;
+  - options « Écologique / Le plus écologique » proposées sans offre documentée ;
+  - `getMyOrder` recharge **toute la liste** pour trouver une commande ([orders.ts](frontend/src/api/orders.ts) l.89-92) ;
+  - liste des commandes **sans pagination ni filtre** ; détail sans adresse de livraison, ni moyen de paiement, ni lien / image produit, ni facture téléchargeable depuis le suivi ;
+  - **pas d'onglet Profil** (nom, e-mail, téléphone, changement de mot de passe connecté, suppression de compte RGPD) : le backend n'a **aucun endpoint `/users/me`** (seulement préférences, adresses, commandes, factures, devis, avoir, alertes, upgrade, wishlist) → ajout backend `GET/PATCH /users/me` + `POST /users/me/password` + export / suppression (cf. R8) ;
+  - l'en-tête n'affiche pas le nom du client ;
+  - wishlist (`/user_wishlist/me`), avis et notifications internes existent au backend, pas en vitrine → exposer la wishlist dans ce lot, avis et notifications en R8 ;
+  - e2e : aucun test de l'espace client alors que des `data-testid` sont posés (`account-*`, `order-*`, `balance-*`) → un spec Playwright « compte » (connexion, liste, suivi, facture PDF, solde).
+- **R1-C — Checkout et paiement** (`CheckoutPage`, `PaymentReturnPage`, `CartQuoteConfirmationPage`, `OAuthCallbackPage`) : recomposition en étapes lisibles, récapitulatif collant, `formatMoney(amount, currency)` à la place de `formatXpf` (cf. R7), et la correction du **bug de capture différée** : `Authorized` n'est pas terminal pour la page de retour ([payments.py](backend/app/api/routes/payments.py) l.87-89, [PaymentReturnPage.vue](frontend/src/pages/PaymentReturnPage.vue) l.139) → timeout après 2 min dès que `PAYZEN_MANUAL_VALIDATION=True`.
+- **R1-D — Pages légales et divers** : CGV / confidentialité / mentions en `DbContentPage` (contenu en base, cf. A-pages) plutôt qu'en `.vue` codé en dur (l.686) ; reliquats de gabarit Quasar à supprimer (`stores/example-store.ts`, `i18n/en-US`, `test.html` à la racine) ; `<html lang>` manquant dans `index.html`.
+
+**R1-admin — admin-frontend (priorité 2, après la vitrine)** : même socle (jetons `--n-*`, sombre/clair, Phosphor, `AppNotice` / `StatusTag` partagés via `shared/`), `AdminLayout` + tableau de bord (aujourd'hui 7 lignes sans KPI, cf. R8), puis les 37 pages par familles (catalogue, commandes, paiements, logistique, système). Estimation 8 à 12 j. À documenter dans le *Chantier admin-frontend*.
+
+### R2 — Page d'accueil et médias publics (priorité 1 bis)
+
+**Constat** : aucun téléversement d'image n'existe dans l'admin. Produits (`image_url`, `supplier_image_url`), catégories (`Category.image_url`) et rappels de départ sont des **URL**. Le stockage de fichiers ([attachment/storage](backend/app/features/attachment/storage/)) est **privé** : URL signées 300 s, `Content-Disposition: attachment`, MIME codé en dur pour les pièces de paiement, pas de Pillow, pas de route `/media`. L'éditeur de pages (`PagesPage.vue`) n'a pas de bouton image. Décision du propriétaire : **blocs admin + téléversement**.
+
+| # | Livrable | Backend | Vitrine | Admin | Effort |
+|---|---|---|---|---|---|
+| H1 | **Service de médias publics** | table `media_assets` (clé, MIME, dimensions, variantes, auteur), `POST /admin/media` multipart (modèle [suppliers.py](backend/app/api/routes/suppliers.py) l.469) : liste blanche jpeg/png/webp, taille max 5 Mo, **Pillow** (ré-encodage webp, EXIF retiré, 2-3 tailles), scan ClamAV, clé `media/{kind}/{uuid}.webp` ; **route publique `GET /media/{key}`** (`Content-Type` réel, `Cache-Control: public, immutable`) sur le volume partagé `storage_data` (2 réplicas API) ou bucket S3 public derrière CDN ; `DELETE` si plus référencé | — | sélecteur d'images réutilisable (`MediaPicker.vue`) | 3 à 4 j |
+| H2 | **Blocs d'accueil** | table `homepage_blocks` (kind `hero` / `banner` / `tile`, `media_id` ou `image_url`, `alt`, `title`, `subtitle`, `cta_label`, `cta_link`, `position`, `is_active`, `starts_at` / `ends_at`), `GET /homepage` public (SSR-friendly, filtré par dates), CRUD admin sur le modèle `content_pages` / `crud_content_page` | `IndexPage.vue` (R1-A) avec `<img>` natif, `width`/`height` ou `aspect-ratio`, `srcset`, `loading="eager"` + `fetchpriority="high"` pour le hero ; `onServerPrefetch` + `onMounted` comme `DbContentPage.vue` | écran « Accueil » avec aperçu, ordre, dates | 1,5 à 2 j |
+| H3 | **Réutilisation** : image produit et catégorie via `MediaPicker` (les URL restent acceptées), bouton image dans l'éditeur de pages | résolution `media_id` → URL dans `CategoryPublic` / `ProductPublic` | — | `ProductFormDialog`, `CategoriesPage`, `PagesPage` | 1 j |
+
+Contraintes : SSR (`frontend/public` est servi avec `maxAge` 30 j, donc noms versionnés pour tout statique), CSP à construire le jour où elle existe (aucune aujourd'hui), le composant `ProductImage.vue` (`mix-blend-mode: multiply`, `padding: 10 %`) ne convient pas à une photo de bannière → composant dédié.
+
+### R3 — Paiements : espèces, versements partiels, acompte généralisé, PSP (priorité 3)
+
+**Existant** : moyens de paiement en table `payment_methods` reliés par `provider_code` à une classe Python ([providers/__init__.py](backend/app/features/payment/providers/__init__.py) : `payzen`, `manual_check`, `manual_transfer`, `po_public`) ; plusieurs paiements par commande, `Payment.kind ∈ full | deposit | balance`, couverture d'une part par plusieurs paiements (`part_coverage`, `PARTIAL`) introduite par l'avoir-crédit ; validation admin qui encaisse **tout** le montant, sans champ montant ni date ([manual_payment.py](backend/app/features/payment/services/manual_payment.py) l.131-184) ; un encaissement plus court bascule la commande en `PaymentReview`. Aucun IBAN nulle part (instructions codées en dur dans [manual.py](backend/app/features/payment/providers/manual.py), jamais envoyées par e-mail).
+
+| # | Livrable | Détail | Effort |
+|---|---|---|---|
+| P1 | **Espèces** | `ManualCashProvider(_ManualProviderBase)`, code `manual_cash` (le préfixe `manual_` est testé par `approve_manual_payment` l.140 et `list_pending_validation`), enregistrement dans `SUPPORTED_PROVIDERS`, seed « Espèces » (`requires_admin_validation=True`), libellés dans `PaymentValidationsPage.vue` l.258 et `OrderDetailPage.vue` l.699, tests copiés de `test_manual_payment_providers.py`. **Proposé dans tous les cas** (décision) ; `max_amount` disponible pour plafonner. Instructions « règlement au bureau » + IBAN / coordonnées en base (cf. R5) envoyés dans l'e-mail de commande | 0,5 à 1 j |
+| P2 | **Versements partiels — `payment_receipts`** | table `payment_receipts` (`payment_id`, `amount`, `received_at`, `reference` (n° de chèque), `method` (espèces / chèque / virement), `recorded_by_id`, `note`) ; `POST /admin/payments/{id}/receipts` ; le paiement passe `Completed` quand Σ reçus ≥ montant (sinon reste `AwaitingValidation`, la part est `PARTIAL` : ni facture, ni BC, ni `PaymentReview`) ; `POST /admin/orders/{id}/payments` pour enregistrer un encaissement au comptoir **sans intention préalable du client** ; `AdminOrderDetail` expose `amount_paid` / `amount_due` (calculés via `settled_by_kind`) ; statut de commande `PartiallyPaid` (à ajouter à `PAYMENT_STATUSES` et `DEPARTURE_FOLLOWER_STATUSES`) ; e-mail « Versement reçu, reste X » au lieu de « Paiement validé » tant que `PARTIAL` ([handlers/order.py](backend/app/handlers/order.py) l.305) ; `fully_refunded` jugé sur le net encaissé de la commande ([refund_service.py](backend/app/features/payment/services/refund_service.py) l.133, [handlers/payment.py](backend/app/handlers/payment.py) l.433) ; action « chèque impayé » qui annule un reçu ; UI admin : dialogue d'approbation avec montant (pré-rempli au reste) + date + référence, bloc « Encaissé / Reste dû » et historique des reçus sur `OrderDetailPage.vue` | 3 à 4 j |
+| P3 | **Acompte pour tous les moyens de paiement** | vérifier et garantir que le sélecteur « Payer intégralement / Verser un acompte » du checkout et `POST /payments/orders/{id}/balance` fonctionnent avec **chaque** moyen (CB, chèque, virement, espèces, BC), y compris un acompte en espèces au bureau (P2) et un solde réglé par un autre moyen que l'acompte ; `PaymentMethod.deposit_allowed` (bool, défaut vrai) pour exclure un moyen au besoin ; facture d'acompte : option (a) maintenue, **à valider par le comptable** | 1 j |
+| P4 | **Chantier commun PSP** (prérequis Stripe / PayPal, corrige aussi PayZen) | contrat `parse_webhook_notification` **asynchrone** sur `(raw_body, headers)` ; `WebhookResult.payment_status` normalisé (`completed` / `authorized` / `failed` / `refunded`) + `amount_minor`, `transaction_id`, `event_id` ; `InitiationResult.client_secret` + `render_mode` (`embedded_payzen` / `stripe_elements` / `redirect`) ; clé d'idempotence ; pipeline webhook générique extrait de `payzen_ipn` (déduplication par `event_id`, état terminal contradictoire, contrôle du montant, outbox) appelé par `POST /payments/webhooks/{provider_code}` — aujourd'hui **501** pour tout fournisseur autre que PayZen ([payments.py](backend/app/api/routes/payments.py) l.1101) ; correspondance des statuts déplacée dans le fournisseur (dupliquée aujourd'hui l.59-64 / l.201-221 et [crud/payment.py](backend/app/features/payment/crud/payment.py) l.221-232, qui **écrase `payment.amount`**) ; `capture_service` sur une référence fournie par le fournisseur (plus `trans_uuid`) ; flag de capture différée par fournisseur (plus `PAYZEN_MANUAL_VALIDATION`) ; transition remboursement `pending → completed / failed` par webhook ; front : `redirect_url` branché (`window.location.assign`) dans `CheckoutPage` et `BalancePaymentPage`, loader par fournisseur, clé localStorage renommée, `Authorized` = succès sur la page de retour (bug R1-C) ; CSP avec domaines PayZen / Stripe / PayPal ; `PaymentMethod.currencies` (éligibilité par devise, l.1400) ; brancher `cancelOrRefund` PayZen (l.1385) | 2 à 3 j |
+| P5 | **Activation en base** (décision) | l'activation par moyen existe déjà (`payment_methods.is_active` / `is_admin_active`, CRUD superadmin) ; ajouter un **interrupteur par fournisseur** dans le registre de configuration (R5) : `payment_provider.{payzen,stripe,paypal}.enabled` ; `get_provider` refuse un fournisseur désactivé, `list_payment_methods` masque les moyens dont le fournisseur est éteint, l'admin affiche « fournisseur désactivé » et « identifiants présents / absents » ; PayZen désactivable comme les autres | 0,5 j |
+| P6 | **Stripe** (Payment Intents + webhook signé sur corps brut, `capture_method` manuel / automatique, `POST /v1/refunds`, mode redirection Checkout recommandé, Stripe Elements en option) | valable pour un déploiement **FR / EUR** seulement (Stripe n'accepte pas de marchand établi en PF, l.1945) ; XPF est « zero-decimal » chez Stripe, cohérent avec [money.py](backend/app/utils/money.py) ; `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` en env ; tests calqués sur `test_payment_providers.py`, `test_payzen_signature.py`, `api/test_payzen_ipn_*.py` (adapter `test_only_payzen_supports_in_app_refund` et le test du 501) | 3 à 4 j |
+| P7 | **PayPal** (Orders API v2, `intent=CAPTURE\|AUTHORIZE`, étape serveur `POST /payments/{id}/confirm` après approbation — modèle absent aujourd'hui —, `authorization_id` / `capture_id` en `provider_data`, webhook vérifié par `verify-webhook-signature`, boutons SDK ou redirection `approve`) | **XPF non supporté** → facturation en EUR (parité fixe 1 000 XPF = 8,38 €) ou USD : taux et montant EUR en `provider_data`, contrôle de montant adapté, remboursement partiel converti, question comptable (facture XPF / encaissement EUR) ; montants décimaux PayPal jamais passés à `parse_minor_units` ; durée d'autorisation 3 j honorée / 29 j | 5 à 7 j |
+
+Total R3 : 14 à 18 j (P1-P5 : 7 à 9 j ; P6 + P7 : 8 à 11 j). Dépendance : P5 sur R5 (registre) — en attendant, un `Literal` env par fournisseur suffit.
+
+### R4 — Fournisseurs (priorité 4)
+
+**Réponses de la revue** :
+- **Désactiver Ingram** : bouton « Désactiver » dans Admin → Fournisseurs (`DELETE /admin/suppliers/ingram_micro` → `is_active=False`, `sync_enabled=False`) **et** vider `INGRAM_CLIENT_ID / SECRET / CUSTOMER_NUMBER` : les valeurs `changeme-…` du `.env.example` comptent comme « configuré » (`credentials_present()`, [ingram_micro.py](backend/app/services/suppliers/ingram_micro.py) l.567-576). Les articles déjà synchronisés gardent une `supplier_quantity` figée **vendable** ([availability.py](backend/app/features/inventory/services/availability.py) l.35-51) : à désactiver ou remettre à zéro.
+- **Désactiver Icecat** : `ICECAT_ENABLED=false` **et** identifiants vides ; l'enrichissement enfilé après un import ne teste pas le flag ([supplier_sync_orchestrator.py](backend/app/features/integrations/services/supplier_sync_orchestrator.py) l.679-700, [icecat_tasks.py](backend/app/tasks/icecat_tasks.py) l.246-419). Un article synchronisé reste masqué tant qu'il n'est pas enrichi sauf `published_without_enrichment` (case cochée par défaut à l'import fichier ; `POST /admin/products/publish` pour les articles API). `SHOP_MODE=simple` n'est **pas** le bon levier (il masque la page Fournisseurs).
+- **Ajouter une API fournisseur** : la base est générique (contrat `SupplierAdapter`, registre `ADAPTERS`, orchestrateur, tâches, re-vérification au checkout, écran admin avec `settings_keys`, `FakeAdapter` de test) ; un fournisseur = un fichier de 150 à 400 lignes + enregistrement + secrets en config. Seuls la **commande fournisseur automatique**, `INGRAM_SHIP_TO_*` et le webhook de statut sont câblés Ingram (déjà noté l.492).
+
+| # | Livrable | Détail | Effort |
+|---|---|---|---|
+| S1 | **Correctifs désactivation** | `_enqueue_enrichment` et `batch_enrich_products_task` respectent `ICECAT_ENABLED` ; [checkout_availability.py](backend/app/features/integrations/services/checkout_availability.py) l.90 teste `is_sync_enabled()` / `is_active` en plus de `is_configured()` ; `.env.example` avec identifiants **vides** plutôt que `changeme-…` ; action admin « désactiver les articles d'un fournisseur » | 0,5 à 1 j |
+| S2 | **Quantité minimale à l'import fichier** | aujourd'hui `SUPPLIER_SYNC_MIN_QUANTITY` / `MIN_PRICE` sont **globaux** et ne s'appliquent qu'à la synchro d'inventaire des fournisseurs API ([supplier_tasks.py](backend/app/tasks/supplier_tasks.py) l.376) ; l'import CSV / Excel les ignore ([file_import.py](backend/app/services/suppliers/file_import.py) `rows_to_products` sans filtre). Ajouter `min_quantity` / `min_price` sur `Supplier` (migration, `SupplierUpdate`, `SupplierConfig.from_row`), surcharge optionnelle dans `POST /import-file` et la tâche de fond, filtrage avant `import_items` (ligne nouvelle sous le seuil → ignorée + compteur ; article existant sous le seuil → quantité mise à jour **et** `is_active=False`), compteur dans la simulation, champ « Quantité minimale » dans le formulaire fournisseur et le dialogue d'import ; décider le cas d'une ligne sans colonne quantité. ⚠️ Piège : `SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST` par défaut = ordinateurs → tout autre article est créé **désactivé** ; mettre `[]` pour un fichier de smartphones (à porter sur la ligne fournisseur en R5) | 1 à 1,5 j |
+| S3 | **Flux fichier automatisé** (Foxway, Picata) | adapter générique `services/suppliers/file_feed.py` (`adapter_key="file_feed"`, fournisseurs en `kind=api` pour hériter des ticks et de `sync_interval_hours`), `settings_keys` = `feed_url`, `login_url`, `auth_mode` (aucune / basic / formulaire + cookies), `file_format`, `sheet_name` ; `fetch_catalog` = téléchargement `httpx` avec `request_with_retry`, `read_tabular_file`, `rows_to_products` avec `config.column_mapping`, pages ; **identifiants chiffrés** : colonne `suppliers.credentials_encrypted` (Fernet, dépendance `cryptography` à ajouter, clé `SUPPLIER_SECRETS_KEY` en env), API en écriture seule (`has_credentials`), champs mot de passe dans l'admin, `is_configured()` devient une méthode d'instance ; `supports_live_availability = False` testé par `checkout_availability` (sinon un flux qui renvoie `{}` met le stock à 0) ; seuils S2 appliqués ; sécurité : https obligatoire, IP privées bloquées (SSRF), taille max, statut de dernière récupération + alerte ; limites : portail exigeant JavaScript ou captcha → hors périmètre (Playwright non installé), `.xls` refusé. Vérifier d'abord si Foxway / Picata offrent lien direct, SFTP ou API | 3 à 5 j |
+| S4 | **Commande fournisseur généralisée** | méthode optionnelle `create_purchase_order` sur le contrat, `supplier_order_service` et le handler `payment.captured` indépendants du fournisseur, `INGRAM_SHIP_TO_*` remplacé par l'entrepôt principal (`Place`) — reprend le « Reste à faire » fournisseurs | 2 j |
+
+### R5 — Configuration en base, version complète (priorité 5)
+
+Inventaire de [config.py](backend/app/core/config.py) : **148 réglages**. À garder en env : 81 d'infrastructure et secrets techniques, 11 identifiants d'intégration (Ingram, Icecat, PayZen — règle du 05/09, exception S3 pour les `file_feed`), 7 structurels (`TERRITORY_PROFILE`, `SHOP_MODE`, `REFERENCE_CURRENCY`, `SHOP_COUNTRY_CODE`, `TAX_TERRITORY_CODE`, `SEED_FRENCH_POLYNESIA_LOGISTICS`, `PAYZEN_CURRENCY`). **À migrer : ~45** — 22 paramètres de synchro fournisseur / Icecat (dont une partie sur la ligne `Supplier`), 16 métier modifiables (`INSURANCE_RATE_PCT`, `CGV_VERSION`, `STOCK_RESERVATION_TTL_HOURS`, `CART_ABANDONMENT_*`, `SHOP_NAME`, `INVOICE_FEES_TAX_CODE`, `DEFAULT_TAX_CODE`, `INVOICE_LEGAL_FOOTER`, `EMAIL_SUPPORT / CONTACT`, IBAN et instructions de paiement manuel), 11 flags (`INGRAM_SYNC_ENABLED`, `INGRAM_ORDER_CREATION_ENABLED`, `CHECKOUT_SUPPLIER_AVAILABILITY_CHECK`, `ICECAT_ENABLED`, `ICECAT_USE_OPEN`, `PAYMENT_NOTIFICATIONS_*`, `ENABLE_GROUP_PERMISSIONS`, capture différée par fournisseur, activation des PSP P5).
+
+**Existant** : `system_settings` clé / valeur texte (≤ 1 000 caractères, sans type ni auteur), `PUT /admin/system-settings/{key}` qui accepte **n'importe quelle clé**, trois mini-registres lus à chaque appel sans cache (`pricing_parameters.py`, `legal_identity.py`, clés isolées `customs_free_countries`, `social_webhook_url` — quasi-secret en clair), aucune couche de cache applicatif (`RedisCache` ouvre une connexion par requête ; `rate_limit.py` a le bon modèle de client partagé), crons figés au démarrage du worker ([arq_worker.py](backend/app/core/arq_worker.py) l.135-143 : Icecat, réservation, paniers abandonnés) et singletons capturés à l'import (`icecat_service`, `MAX_ROWS`, `_VALID_CURRENCIES`). Précédent à généraliser : la ligne `Supplier` (cache d'adaptateur invalidé par `updated_at`, ticks qui relisent la table).
+
+| # | Étape | Effort |
+|---|---|---|
+| C1 | `core/runtime_settings.py` : registre `SettingSpec` (type via `TypeAdapter`, `env_fallback`, `category`, `description`, `public`, bornes, `on_change`, `restart_required`), résolution **base → env → défaut**, validation à l'écriture (400) et à la lecture (retour au défaut), snapshot par processus avec TTL 30-60 s + invalidation locale + compteur Redis `settings:version` ; absorbe `PRICING_SETTINGS` et `LEGAL_SETTINGS` ; fixture de reset pour les 133 `monkeypatch.setattr(settings, …)` | 2 à 3 j |
+| C2 | API durcie : liste blanche des clés, `source: db\|env\|default`, hooks (`schedule_price_refresh`), `updated_by_id` + journal, migration (`value` en `Text`), amorçage générique qui ne réécrit jamais une valeur saisie | 1 à 1,5 j |
+| C3 | Migration des ~40 appels (`pricing.py`, `cart.py`, `invoice_service.py`, `checkout_availability.py`, `handlers/ingram_micro.py`, `notifications.py`, `abandonment.py`, `admin_carts.py`…) ; injection en paramètre dans les fonctions synchrones (`meets_sync_thresholds`, `calculate_sale_price`, `PricingContext`) | 2 j |
+| C4 | Paramètres propres à un fournisseur sur la ligne `Supplier` (`settings_schema` Pydantic par adaptateur à la place de `settings_keys`, seuils S2, filtres, liste blanche de sous-catégories, ship-to, création de BC) | 2 à 3 j |
+| C5 | Crons convertis en ticks (Icecat, réservation, paniers abandonnés) ; suppression des singletons capturés à l'import | 1 j |
+| C6 | Écran admin typé et groupé par catégorie (remplace le tableau clé / valeur de `SystemSettingsPage.vue`), badges « source » et « redémarrage requis » ; formulaire fournisseur | 2 à 3 j |
+| C7 | Tests (registre, cache, invalidation ; adaptation des tests qui insèrent des `SystemSetting`) ; `DEPLOYMENT.md` §3.7 et `.env.example` (variables devenues « amorçage seulement ») | 1,5 à 2,5 j |
+
+Nettoyages au passage : `INVOICE_SELLER_*` et `INGRAM_SYNC_INTERVAL_HOURS` ne servent plus qu'à l'amorçage (à retirer plutôt qu'à migrer) ; le `deposit_enabled` global mentionné l.809 **n'existe pas** dans le code (l'acompte est piloté par `PriceGroup` seul, l.723). Risques : priorité base > env silencieuse (d'où `source`), fenêtre d'incohérence entre réplicas jusqu'au TTL (lecture sans cache sur le chemin du checkout pour `CGV_VERSION` et `INSURANCE_RATE_PCT`), recalcul des prix matérialisés, `Literal` strict conservé pour les fournisseurs de notifications (N13).
+
+### R6 — Bloquants avant production (priorité 6, chiffrage de la revue du 30/09)
+
+Reprend et précise le « Reste à faire (non couvert le 02/09/2026) » et PP-*. Ordre conseillé :
+
+1. 🔴 **OAuth — liaison automatique par e-mail** ([oauth.py](backend/app/api/routes/oauth.py) l.279-280) : un compte existant, **superuser compris**, est lié dès que l'e-mail du fournisseur correspond ; tenant Microsoft `common` avec e-mail lu dans `mail` / `userPrincipalName` (classe « nOAuth »), `email_verified` Google non vérifié. Exiger `email_verified`, refuser la liaison automatique sur un superuser, restreindre le tenant — ou laisser l'OAuth désactivé en prod. 0,5 j.
+2. **Protéger l'admin** : 2FA TOTP pour les superusers, ou au minimum restriction IP / basic-auth sur `admin.{$DOMAIN}` ([Caddyfile](infra/caddy/Caddyfile) l.75) ; journal d'audit des actions admin (inexistant). 2 à 3 j.
+3. **Sauvegardes réelles** : cron, copie hors site, restauration testée, `ALERT_WEBHOOK_URL` renseigné (`.env` et cron). Sur le serveur.
+4. **Sandbox PayZen** : paiement, capture différée, remboursement, IPN `AUTHORISED` (jamais testés).
+5. **Juridique et facturation** : relecture des CGV / mentions / confidentialité, formulaire de rétractation, `INVOICE_SELLER_*` → `legal_*` complets, validation du comptable (facture d'acompte, TVA d'import F7, code taxe des frais). Externe.
+6. **Durcir les images** : `USER` non-root (backend et runner SSR), `uv sync --frozen --no-dev` (le groupe dev part en prod ; `pytest-asyncio` / `pytest-mock` sont en dépendances runtime), retirer `build-essential`, `uv` 0.4.15 figé, lockfile dans le runner SSR (`npm install --omit=dev` sans lockfile), **aligner CI et prod** (Python 3.12 en CI contre 3.14 en image ; Node 22 contre 24). 1 j.
+7. **Stockage S3 imposé en prod** pour `FILE_STORAGE_BACKEND` (garde au démarrage comme ClamAV). 0,5 j.
+8. **Données catalogue** : taux de douane par catégorie, frais par déclaration, assurance, `publication-report` à zéro (PP-F).
+
+### R7 — Version publique : multilingue FR + EN et devises, périmètre minimal (priorité 7)
+
+**Constat** : `vue-i18n` installé et chargé dans les deux fronts, **0 appel de traduction** ; ~510 chaînes françaises en dur dans la vitrine (25 fichiers), ~1 010 dans l'admin (34 fichiers) ; dictionnaire `shared/utils/src/i18n/fr.ts` orphelin ; `date.ts` figé sur `Pacific/Tahiti` / `fr-PF`, ~15 `toLocale*('fr-FR')` ; préférence `locale` stockée (`user_preference.locale`) mais lue par personne ; e-mails résolus par dossier `templates/email/<lang>/` avec repli `fr` (mécanisme prêt, 21 appels `render_email` sans `lang=`, seul `fr/` existe), PDF avec `lang=` sans repli ; 363 `AppError` à code stable (63 messages en français) ; contenu monolingue (`Product`, `Category`, `ContentPage`, `SpecDefinition.label_fr`, `ICECAT_LANGUAGE`) ; CGV codées en dur avec « Polynésie française » ; `TerritoryProfile` (PF, FR) sans locale, fuseau ni langues. Devises : pivot configurable, taux datés, conversion d'affichage, **mais** `formatXpf` sur 16 écrans « argent faisant foi » (une commande de 19,90 € s'affiche « 20 F » en profil FR), `'XPF'` en défaut dans ~10 modèles, `_VALID_CURRENCIES` codé, décimales divergentes front / backend, `default_display_currency` lu par aucun front, aucune contrainte moyen de paiement × devise.
+
+| # | Chantier | Effort |
+|---|---|---|
+| L1 | Interface vitrine FR + EN : extraction, locale par préférence → cookie → `Accept-Language` (SSR), `<html lang>`, pack Quasar, `date.ts` / `currency.ts` paramétrés, un seul `extractError` partagé traduisant par `code`, pages légales en `DbContentPage` | 6 à 9 j |
+| L2 | Interface admin FR + EN | 7 à 10 j |
+| L3 | Backend : `Order.locale` figé au checkout, `lang` passé aux e-mails et PDF, `templates/email/en` (57 fichiers) et `invoice/en` (3) avec repli, filtres Jinja localisés (Babel) pour montants et dates, textes Python de `handlers/order.py` l.61-71 dans les templates, 63 messages `AppError` en anglais, amorçage dépendant du profil, `label_fr` → `label`, `CONTENT_LANGUAGE` relié à `ICECAT_LANGUAGE` | 6 à 9 j |
+| L4 | Nettoyage devises : `formatMoney(amount, currency)` partout, défauts `XPF` → devise de référence, décimales alignées (exposer les décimales dans `/currency/display-rates`), `default_display_currency` lu, `_VALID_CURRENCIES` depuis `CurrencyRate`, `kr-language` PayZen dérivé de la locale | 2 à 3 j |
+| L5 | `TerritoryProfile` enrichi (`default_locale`, `timezone`, `available_locales`), exposé par `/system/config`, déclarable en YAML / env sans toucher au code | 1 à 2 j |
+
+Hors périmètre, documenté comme feuille de route : contenu multilingue en base (12 à 18 j) et paiement réel dans la devise du client avec factures, avoirs et export dans la devise payée (15 à 25 j, l.1400).
+
+### R8 — Ajouts à forte valeur et confort (priorité 8, à arbitrer)
+
+**Forte valeur** : scans de sécurité en CI (Trivy sur les images, `pip-audit`, `pnpm audit`, CodeQL, gitleaks) et `docker build` des trois images sur PR ; vérification de dérive de `shared/api-types` ; Sentry sur la vitrine et l'admin, logs JSON unifiés (retirer les `logging.basicConfig` au niveau module et les `print` du lifespan), endpoint `/metrics` (latence, erreurs, file ARQ, âge de l'outbox), `SENTRY_TRACES_SAMPLE_RATE` 0.1, uptime externe ; CSP (Caddy et API) ; rate limiting sur alertes stock, devis, checkout + captcha (Turnstile) sur les formulaires publics ; SEO (`sitemap.xml`, `robots.txt` servis par le SSR, JSON-LD Product / Offer / Breadcrumb, `useMeta` sur toutes les pages) ; **tableau de bord admin avec KPI** (CA, commandes, panier moyen, conversion, stocks bas — routes `analytics_*` existantes, `admin-frontend/src/pages/IndexPage.vue` fait 7 lignes) ; **RGPD en libre-service** (export JSON, suppression / anonymisation du compte, la page confidentialité annonce ces droits) ; **panier invité serveur** avec fusion à la connexion (débloque les relances pour les visiteurs) ; tests : e2e inscription / OTP / login / reset / CB sandbox / parcours admin, premiers tests unitaires de l'admin-frontend, mesurer `app/tasks/*` (exclu de la coverage avec `ingram_micro.py`, `icecat_service.py`) ; déploiement reproductible (images GHCR réellement consommées avec `VITE_API_URL` par environnement, rollback par tag, staging) ; **A19** liste générale des paiements.
+
+**Confort** : avis (avec modération) et notifications internes en vitrine ; newsletter double opt-in ; analytics sans cookie (Plausible / Matomo) ; vouchers, cartes cadeaux, cross-sell, comparateur, fidélité ; auto-capture à l'expédition, void d'autorisation, alerte d'expiration des autorisations ; DX : Makefile / justfile, `.pre-commit-config.yaml` (ruff, eslint, prettier), `.editorconfig`, seed « démo » avec catalogue d'exemple, README des fronts (encore les README Quasar génériques), réhabiliter ou supprimer `infra/k8s` (marqué obsolète) ; dette : garde de longueur sur `SECRET_KEY`, comparaison en temps constant du bearer Ingram ([webhooks.py](backend/app/api/routes/webhooks.py) l.94), docstrings OAuth périmées (« tokens appended as query params »), bornes hautes Python, httpx2.
+
 ---
 
 ## Décision transverse : tarification par groupe utilisateur
@@ -489,6 +660,8 @@ adapté.
 
 ### Reste à faire
 
+> Chiffré et complété le 30/09/2026 dans *Feuille de route 30/09*, **R4** (seuil de quantité à l'import fichier S2, flux fichier automatisé S3, correctifs de désactivation S1, commande fournisseur généralisée S4).
+
 - Adresse « ship-to » des bons de commande Ingram : toujours `INGRAM_SHIP_TO_*` ; à déplacer vers l'entrepôt principal (`Place`) quand la commande fournisseur sera généralisée aux autres fournisseurs (`supplier_order_service` reste spécifique Ingram).
 - Stratification du rafraîchissement des prix (voir *Rafraîchissement stratifié*) : le tick inventaire enfile tous les fournisseurs à la même cadence.
 - ✅ Import fichier volumineux (10/09/2026) : au-delà de `SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS` (2 000 lignes) le fichier est déposé dans le stockage et importé par le job ARQ `import_supplier_file_task` ; l'admin suit le journal de synchronisation (`GET /suppliers/{code}/import-file/{sync_log_id}`). Plafond `SUPPLIER_FILE_IMPORT_MAX_ROWS` (250 000).
@@ -806,7 +979,7 @@ Autres écarts relevés : commission paiement en % intégrée au prix (aujourd'h
 **Verdict : faisable sans refonte, mais pas un simple paramètre.** Le modèle accepte déjà plusieurs paiements par commande (`Payment.order_id` non unique ; l'IPN PayZen identifie le paiement par `payment.id`, [payment_initiation.py](backend/app/features/payment/services/payment_initiation.py)) et le montant initié est libre. Le groupe tarifaire (`PriceGroup` : PARTICULIER par défaut, PROFESSIONNEL, REVENDEUR, PUBLIC) fait office de type de client, et l'éligibilité des moyens de paiement est déjà par groupe ([eligibility.py](backend/app/features/payment/services/eligibility.py)). Mais la logique métier suppose « un paiement = le total » : un acompte de 30 % encaissé aujourd'hui donne une commande bloquée en `PaymentReview`, aucune facture, un stock réservé mais non confirmé, un **BC Ingram quand même envoyé**, un e-mail « Paiement validé » et une alerte admin. Il n'existe ni lien de paiement ni page vitrine « payer une commande existante ».
 
 **Conception** :
-- **Politique par type de client** sur `PriceGroup` : `deposit_pct` (null = pas d'acompte), `deposit_fee_pct`, `deposit_fee_fixed`, `deposit_mode ∈ optional | required` ; interrupteur global `deposit_enabled` dans `system_settings` ; écran admin « Groupes tarifaires » (aujourd'hui GET seulement). Exemple : PARTICULIER 50 % + 2 %, PROFESSIONNEL / PUBLIC 30 % + frais fixe, REVENDEUR sans acompte.
+- **Politique par type de client** sur `PriceGroup` : `deposit_pct` (null = pas d'acompte), `deposit_fee_pct`, `deposit_fee_fixed`, `deposit_mode ∈ optional | required` ; ~~interrupteur global `deposit_enabled` dans `system_settings`~~ *(non construit : l'acompte est piloté par `PriceGroup` seul, cf. Lot D l.723 — constaté le 30/09/2026)* ; écran admin « Groupes tarifaires » (aujourd'hui GET seulement). Exemple : PARTICULIER 50 % + 2 %, PROFESSIONNEL / PUBLIC 30 % + frais fixe, REVENDEUR sans acompte.
 - **Commande** : `payment_plan ∈ full | deposit`, `deposit_amount`, `deposit_fee_amount` (inclus dans `total_fees_amount` et `total_amount`), `price_group_id` snapshoté — le checkout utilise aujourd'hui le groupe **par défaut** et non celui du client (`resolve_default_price_group` dans [cart.py](backend/app/api/routes/cart.py)) : première règle de checkout qui dépend vraiment du groupe, à corriger. `amount_paid` calculé (Σ paiements `Completed` − Σ remboursements) plutôt que stocké. Un champ `Order.payment_state` séparé du statut logistique est recommandé plutôt que de nouveaux statuts (`Paid` est utilisé dans les gardes, le balayage stock ne regarde que `Pending`).
 - **Paiement** : `kind ∈ full | deposit | balance`, `expected_amount`, `link_token` + `link_expires_at` (empreinte SHA-256, comme [password_reset.py](backend/app/api/routes/password_reset.py)).
 - **Checkout** (`_quote_checkout` / `checkout_my_cart`) : résolution du groupe → politique ; `deposit_fee = total × fee_pct + fee_fixed`, `total += deposit_fee`, `deposit_amount = round(total × pct)`, paiement initié pour `deposit_amount` ; `CheckoutQuoteResponse` expose acompte / solde / frais ; vitrine : sélecteur « Payer intégralement / Verser un acompte » et lignes « Acompte à payer maintenant / Solde à régler à la réception ».
@@ -885,7 +1058,7 @@ Autres écarts relevés : commission paiement en % intégrée au prix (aujourd'h
 ### Avancement vitrine — mode de livraison & devise (22/06/2026)
 
 - ✅ **Sélecteur de mode de livraison retiré** de `ProductPage.vue` + `ProductDetailsDialog.vue`. Le prix affiché est celui du **mode par défaut** (résolu côté backend : préférence utilisateur `preferred_shipping_mode` → défaut). Motif : le fret import variable est nul pour les produits sans poids/dimensions Icecat → le choix par produit ne changeait pas le prix et prêtait à confusion. **Décision** : le mode de livraison est un choix **par commande** (défaut préf utilisateur → rapide).
-- 🔲 **Sélecteur de mode au checkout** : reporté à la phase logistique. Le checkout vitrine actuel paie le total panier sans étape shipping (ne câble pas `checkout_my_cart`, qui sait pourtant calculer le shipping selon `shipping_preference`). À câbler quand l'étape commande+shipping sera intégrée au checkout.
+- ✅ **Sélecteur de mode au checkout** *(périmé le 30/09/2026 : remplacé par `delivery_type` au checkout, livré le 05/09/2026)*. Historique : reporté à la phase logistique. Le checkout vitrine actuel paie le total panier sans étape shipping (ne câble pas `checkout_my_cart`, qui sait pourtant calculer le shipping selon `shipping_preference`). À câbler quand l'étape commande+shipping sera intégrée au checkout.
 - ✅ **Option « Devise d'affichage » masquée** dans les préférences (`MyAccountPage.vue`) tant que l'affichage multi-devises (conversion XPF→devise + endpoint taux public) n'est pas livré — **Phase 4**. La préférence `currency_pref` reste stockée, simplement non exposée.
 
 ### Avancement vitrine — filtres specs (20/06/2026)
@@ -899,12 +1072,12 @@ Autres écarts relevés : commission paiement en % intégrée au prix (aujourd'h
 | Feature | Backend | Vitrine (`frontend`) | Admin (`admin-frontend`) |
 |---------|---------|----------------------|--------------------------|
 | Catalogue + recherche FTS | ✅ | ✅ `CataloguePage.vue` | — |
-| Specs filtrables (facettes) | ✅ | ✅ `CataloguePage.vue` (catégorie + filtres specs enum/num.) | 🔲 édition specs (API en P3, UI à faire) |
+| Specs filtrables (facettes) | ✅ | ✅ `CataloguePage.vue` (catégorie + filtres specs enum/num.) | ✅ édition specs (A3, 20/06/2026) |
 | Fiche produit + modes transport (CAF) | ✅ | ✅ `ProductPage.vue` (prix du mode par défaut ; sélecteur de mode retiré — choix au niveau commande) | — |
 | Panier | ✅ | ✅ `CartPage.vue` | — |
-| Demande de devis | ✅ | ✅ `CartQuoteConfirmationPage.vue` | 🔲 consultation des `QuoteRequest` |
-| Produits mis en avant | ✅ | ✅ `GET /product/featured` consommé | 🔲 toggle featured dans `ProductsPage.vue` |
-| Pricing / TVA / devises (socle) | ✅ | — | 🔲 écrans config (taux → P2, devises → P4) |
+| Demande de devis | ✅ | ✅ `CartQuoteConfirmationPage.vue` | ✅ `QuoteRequestsPage.vue` (A11) |
+| Produits mis en avant | ✅ | 🔲 `GET /product/featured` **plus consommé** depuis la fusion `8ead9e0` (29/09/2026, page d'accueil abandonnée) — voir *Feuille de route 30/09*, R1-A / R2 | ✅ toggle « Produit en vedette » dans `ProductFormDialog.vue` (A8) |
+| Pricing / TVA / devises (socle) | ✅ | — | ✅ écrans taux (A1) et devises (A2), 20/06/2026 |
 
 ### Avancement backend (22/05/2026)
 
@@ -1029,13 +1202,13 @@ Autres écarts relevés : commission paiement en % intégrée au prix (aujourd'h
 |---------|---------|----------------------|--------------------------|
 | Inscription / login + OAuth Google/MS | ✅ | ✅ `LoginPage.vue` + `OAuthCallbackPage.vue` | ✅ `LoginPage.vue` (admin) |
 | Profil + préférences utilisateur | ✅ `/users/me/preferences` | ✅ `MyAccountPage.vue` (onglet Préférences) | — |
-| Adresses self-service + validation | ✅ | ✅ `MyAccountPage.vue` (onglet Adresses, CRUD) | 🔲 validation des adresses |
-| Demande d'upgrade de groupe | ✅ | 🔲 formulaire upgrade (justificatif) | 🔲 écran validation des demandes |
-| TVA / TGC — admin CRUD | ✅ `/admin/tax-rates` | — | 🔲 écran taux |
+| Adresses self-service + validation | ✅ | ✅ `MyAccountPage.vue` (onglet Adresses, CRUD) | ✅ `AddressesPage.vue` (02/07/2026) — validation **indicative, non bloquante** au checkout ; le texte de l'onglet Adresses dit encore le contraire (à corriger, R1-B) |
+| Demande d'upgrade de groupe | ✅ | ✅ onglet « Groupe tarifaire » de `MyAccountPage.vue` | ✅ A6 (20/06/2026) |
+| TVA / TGC — admin CRUD | ✅ `/admin/tax-rates` | — | ✅ A1 (20/06/2026) |
 | Paiement CB (Payzen) | ✅ | ✅ `CheckoutPage.vue` + `PaymentReturnPage.vue` | — |
 | Emails commande / paiement | ✅ | — (transactionnel) | — |
-| Commande auto Ingram (SUPPLIER_DIRECT) | ✅ | — | 🔲 écran `supplier-orders` + retry |
-| Taxonomie / catégories internes | ✅ | ⏳ dropdown catégorie | 🔲 fusion / renommage catégories |
+| Commande auto Ingram (SUPPLIER_DIRECT) | ✅ | — | ✅ A4 (20/06/2026) |
+| Taxonomie / catégories internes | ✅ | ✅ sélecteur catégorie (`CataloguePage.vue`) | ✅ A12 / A17 (04/09/2026) |
 
 ### Avancement vitrine (19/06/2026)
 
@@ -1043,8 +1216,8 @@ Autres écarts relevés : commission paiement en % intégrée au prix (aujourd'h
   - ✅ Onglet **Préférences** : `GET/PUT /users/me/preferences` — toggles notifications (email, suivi expédition) + selects niveau de service import, préférence livraison, langue, devise. Bannières succès/erreur (Quasar `Notify` non activé dans ce projet).
   - ✅ Onglet **Adresses** : CRUD `/users/me/addresses` (liste cartes + badge `is_validated`, dialog création/édition, confirmation suppression).
   - Modules API : [frontend/src/api/account.ts](frontend/src/api/account.ts) · [frontend/src/api/addresses.ts](frontend/src/api/addresses.ts). Typecheck (`vue-tsc`) + lint verts.
-- 🔲 **Reste vitrine P2** : formulaire **demande d'upgrade de groupe** (nécessite un endpoint public de liste des `PriceGroup` + lecture du groupe courant — ajouts backend à prévoir).
-- 🔲 **Reste vitrine P3** : page **suivi de commande** (`OrderTrackingPage.vue` → `GET /orders/me/{id}/tracking`).
+- ✅ **Reste vitrine P2** *(périmé le 30/09/2026 : livré, onglet « Groupe tarifaire »)* : formulaire **demande d'upgrade de groupe**.
+- ✅ **Reste vitrine P3** *(périmé le 30/09/2026 : livré, `OrderTrackingPage.vue`)* : page **suivi de commande**.
 
 ### Périmètre fonctionnel
 
@@ -1335,9 +1508,9 @@ D'après le screenshot d'une ligne `po_public` :
      - `GET/PUT /admin/system-settings[/{key}]` (superuser) → upsert complet.
    - Fichiers : [app/features/system/models/system_setting.py](backend/app/features/system/models/system_setting.py) · [app/api/routes/system_settings.py](backend/app/api/routes/system_settings.py)
 
-### Travaux admin-frontend (à faire)
+### Travaux admin-frontend ✅ (périmé le 30/09/2026 : écrans A3, A5, A7 livrés le 20/06/2026)
 
-> Les endpoints sont livrés (✅ backend) mais aucun écran ne les pilote encore (`admin-frontend` = `LoginPage` + `ProductsPage` seulement). Modèle de découpage à répliquer pour les autres phases :
+> *(Texte historique.)* Les endpoints sont livrés (✅ backend) mais aucun écran ne les pilote encore (`admin-frontend` = `LoginPage` + `ProductsPage` seulement). Modèle de découpage à répliquer pour les autres phases :
 >
 > - **Écran « Catalogue de specs »** (`/admin/spec-definitions`) : table CRUD (`key`, `label_fr`, `type`, `unit`, `categories`, `aliases`), toggle `is_active` (soft-delete), action « re-projeter » (déclenche `reproject_product_specs`). ← *ton exemple*
 > - Écran « Éligibilité paiement » : matrice méthode × groupe + `max_amount` (`/admin/payment-methods/{id}/groups`).
@@ -1554,7 +1727,7 @@ Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/my
 
 | Feature | Backend | Vitrine (`frontend`) | Admin (`admin-frontend`) |
 |---------|---------|----------------------|--------------------------|
-| M1 — produits les plus vus | ✅ (10/09/2026) compteur journalier + `GET /product/popular` | ✅ accueil : vedettes + « les plus consultés » | — |
+| M1 — produits les plus vus | ✅ (10/09/2026) compteur journalier + `GET /product/popular` | 🔲 **accueil abandonnée** à la fusion `8ead9e0` (29/09/2026) : `/` redirige vers le catalogue, `IndexPage.vue` est un placeholder non routé, `getPopularProducts` / `getFeaturedProducts` ne sont plus appelés — à reconstruire (*Feuille de route 30/09*, R1-A / R2, commit de départ `99935bf`) | — |
 | M3 — factures PDF (**WeasyPrint**) + export comptable | ✅ (25/08/2026) | ✅ téléchargement facture (compte) | ✅ écran factures + export CSV |
 | M5 — numéro de commande séquentiel | ✅ (25/08/2026) | ✅ affichage (compte) | ✅ affichage (factures) |
 | Z2 — avoir comptable | ✅ (N10 + e-mail d'envoi 10/09/2026) | ✅ téléchargement des avoirs (compte, par commande) | ✅ écran Avoirs + export CSV |
@@ -1565,7 +1738,7 @@ Six chantiers demandés par le propriétaire, tous livrés + vérifiés (ruff/my
 
 | ID | Fonctionnalité | Notes |
 |----|----------------|-------|
-| M1 ✅ | Produits les plus vus | `POST /product/{id}/view` (page produit, côté client seulement) → `product_view_daily` ; `GET /product/popular?days&limit` ; accueil vitrine |
+| M1 ⏳ | Produits les plus vus | `POST /product/{id}/view` (page produit, côté client seulement) → `product_view_daily` ; `GET /product/popular?days&limit` ; **accueil vitrine à reconstruire** (cf. matrice ci-dessus) |
 | M2 | Déploiement Kubernetes | Helm chart à partir du `docker-compose.prod.yml` |
 | M3 ✅ | Factures + export comptable | **Livré 25/08/2026** (cf. PP-C). Modèle Invoice + numérotation + PDF **WeasyPrint** (avec ventilation TVA par taux via `OrderLine.tax_rate_id`) + export FEC/CSV Sage — cf. *Note technique — génération PDF des factures* ci-dessous |
 | M4 | Alerting actif | Job ARQ surveille dashboard → Slack/email sur seuils |
@@ -1631,18 +1804,21 @@ Les Phases 0–3 ont livré les **endpoints admin** mais l'`admin-frontend` ne c
 | A5 | **System settings** | `GET /admin/system-settings`, `PUT .../{key}` | 3 | ✅ livré (20/06/2026) |
 | A6 | **Demandes d'upgrade de groupe** | `GET /admin/group-upgrade-requests`, `POST .../{id}/approve\|reject` | 2 | ✅ livré (20/06/2026) |
 | A7 | **Éligibilité paiement** | `GET/POST/DELETE /admin/payment-methods/{id}/groups`, `GET /payment_method`, `GET /admin/price-groups` *(nouveau)* | 3 | ✅ livré (20/06/2026) |
-| A8 | Toggle « mis en avant » sur `ProductsPage` | `POST/DELETE /product/{id}/feature` | 1 | 🔲 à faire |
+| A8 | Toggle « mis en avant » sur `ProductsPage` | `POST/DELETE /product/{id}/feature` | 1 | ✅ livré — case « Produit en vedette » dans [ProductFormDialog.vue](admin-frontend/src/components/ProductFormDialog.vue) (constaté le 30/09/2026) |
 | A9 | Affectation directe de groupe à un user | `POST /admin/users/{id}/assign-price-group` + recherche user | 2 | ✅ livré (04/09/2026) via l'écran A15 (le PATCH porte aussi `price_group_id`) |
-| A10 | **Validation des adresses** | *manque un endpoint listant les adresses à valider* (`POST /admin/addresses/{id}/validate` existe déjà) | 2 | ⛔ **décision requise** : (1) **désactiver la validation** (les adresses self-service deviennent utilisables directement) — la mention « doit être validée » est aujourd'hui dans `MyAccountPage.vue` mais n'était **pas** une exigence explicite du plan ; ou (2) **ajouter l'écran admin** (nécessite un endpoint `GET /admin/addresses?validated=false`) |
-| A11 | Consultation des `QuoteRequest` | *manque un endpoint admin de listing des devis* | 1 | ⛔ bloqué (ajout backend requis) |
+| A10 | **Validation des adresses** | *manque un endpoint listant les adresses à valider* (`POST /admin/addresses/{id}/validate` existe déjà) | 2 | ✅ tranché le 02/07/2026 : validation **indicative** (non bloquante) + écran [AddressesPage.vue](admin-frontend/src/pages/AddressesPage.vue). Reste : la mention « doit être validée » dans `MyAccountPage.vue` (R1-B) |
+| A11 | Consultation des `QuoteRequest` | `GET /admin/quote-requests` | 1 | ✅ livré — [QuoteRequestsPage.vue](admin-frontend/src/pages/QuoteRequestsPage.vue) (constaté le 30/09/2026) |
 | A12 | Fusion / renommage de catégories | `POST /admin/categories/{id}/merge` ; renommage vitrine via `display_name` (le `name` reste la clé de sync) | 2 | ✅ livré (04/09/2026) — écran Catégories (A17) |
 | A13 | **Validation des paiements** | `GET /admin/payments/pending-validation`, `.../approve\|reject`, `.../attachments[/{id}/download]` | 3 | ✅ livré (23/06/2026) |
 | A14 | **Édition produit** (titre, description, images…) avec **champs d'override** préservés de la sync | `PUT /admin/products/{id}` (verrouille les champs édités), `DELETE /admin/products/{id}/overrides/{field}` (libère un verrou) ; sync **et** enrichissement Icecat respectent `overridden_fields` | 2/3 | ✅ livré (04/09/2026) — verrous visibles et libérables dans `ProductFormDialog` |
 | A15 | **Liste des utilisateurs** (compte + groupe) + **création de compte** avec email d'invitation | `GET/POST /admin/users`, `PATCH /admin/users/{id}`, `POST .../{id}/resend-invitation` ([admin_users.py](backend/app/api/routes/admin_users.py)). Inclut A9 (affectation de groupe). | 2 | ✅ livré (04/09/2026) |
-| A16 | **Logistique : regroupement / consolidation / suivi d'expédition** | `POST /admin/shipping/consolidation/...`, ship/deliver, `pending-grouping` (Phase 4) | 4 | 🔲 **Phase 4** — distinct d'A4 : A4 = PO fournisseur (Ingram), A16 = expéditions/consolidation. Endpoints à livrer en P4. |
+| A16 | **Logistique : regroupement / consolidation / suivi d'expédition** | `POST /admin/shipping/consolidation/...`, ship/deliver, `pending-grouping` (Phase 4) | 4 | ✅ livré (05/09/2026) — [ShippingPage.vue](admin-frontend/src/pages/ShippingPage.vue) + transporteurs / routes. Distinct d'A4 (PO fournisseur). |
 | A17 | **Catégories** : liste + **titre / description / image vitrine personnalisés** (préservés de l'enrichissement) ; fusion/renommage (A12) | `GET/PATCH /admin/categories`, `Category.display_name` + `CategoryPublic.title` ([admin_categories.py](backend/app/api/routes/admin_categories.py)) | 2/3 | ✅ livré (04/09/2026) — [CategoriesPage](admin-frontend/src/pages/CategoriesPage.vue) |
-| A18 | **Commandes clients** (liste + statut) | `GET /order/...` (scoping admin à relire ; `GET /order/status/{id}` existe pour superuser) | 2 | 🔲 à faire (écran ; endpoint de liste admin à confirmer) |
-| A19 | **Paiements** (liste + statut, au-delà de la validation A13) | *endpoint de liste générale des paiements à confirmer/ajouter* | 2/3 | 🔲 à faire (écran + endpoint de liste) |
+| A18 | **Commandes clients** (liste + statut) | `GET /admin/orders`, `GET /admin/orders/{id}` | 2 | ✅ livré — [OrdersPage.vue](admin-frontend/src/pages/OrdersPage.vue) + [OrderDetailPage.vue](admin-frontend/src/pages/OrderDetailPage.vue) (constaté le 30/09/2026) |
+| A19 | **Paiements** (liste + statut, au-delà de la validation A13) | *endpoint de liste générale des paiements à ajouter* | 2/3 | 🔲 à faire (écran + endpoint de liste) — seul écran du backlog encore ouvert au 30/09/2026 (R8) |
+| A20 | **Refonte « Précision » de l'admin** | — | — | 🔲 priorité 2, après la vitrine — *Feuille de route 30/09*, R1-admin |
+| A21 | **Accueil vitrine : blocs + médias** (écran « Accueil », `MediaPicker`) | `GET/PUT /admin/homepage-blocks`, `POST /admin/media` | — | 🔲 priorité 1 bis — R2 |
+| A22 | **Réglages typés par catégorie** (remplace le tableau clé / valeur de `SystemSettingsPage.vue`) | registre R5 | — | 🔲 — R5 (C6) |
 
 ### Décision transverse — personnalisation préservée de la synchronisation
 
@@ -1661,7 +1837,7 @@ Les **produits** (sync Ingram `SupplierSyncOrchestrator.upsert_product` + enrich
 - ✅ **Backend** : `GET /admin/price-groups` (superuser, lecture seule) ajouté dans [admin_payment_eligibility.py](backend/app/api/routes/admin_payment_eligibility.py) — débloque A7 (et préparera A9). Test : [test_admin_price_groups.py](backend/app/tests/api/test_admin_price_groups.py).
 - ✅ **Écrans A1→A7** livrés (cf. tableau). Modules API dédiés sous `admin-frontend/src/api/`.
 - ✅ **A13 — Validation des paiements** *(23/06/2026)* : `PaymentValidationsPage.vue` (route `/payment-validations`, section nav « Paiements ») — liste des paiements manuels (chèque/virement) et bons de commande en attente (`GET /admin/payments/pending-validation`), **approbation** (référence + commentaire) / **rejet** (motif requis), et pour les BC consultation + **téléchargement des pièces** (`/attachments` + `/attachments/{id}/download`, avec rewrite de l'URL presignée locale sur `VITE_API_URL` + état antivirus). API : [admin-frontend/src/api/paymentValidations.ts](admin-frontend/src/api/paymentValidations.ts).
-- 🔲 **Restent** : A8 (featured), A9 (assign group — fusionné dans A15), A10 (adresses — **décision** désactiver/écran), A11–A12 (devis, fusion catégories — backend requis), et les nouveaux **A14 produit (override), A15 users + création de compte, A16 logistique (P4), A17 catégories (override + image), A18 commandes clients, A19 paiements**. La plupart nécessitent des **ajouts backend** (champs override, endpoints de liste users/orders/payments, endpoint adresses à valider).
+- ~~🔲 **Restent** : A8 (featured), A9 (assign group — fusionné dans A15), A10 (adresses — **décision** désactiver/écran), A11–A12 (devis, fusion catégories — backend requis), et les nouveaux **A14 produit (override), A15 users + création de compte, A16 logistique (P4), A17 catégories (override + image), A18 commandes clients, A19 paiements**.~~ *(Mis à jour le 30/09/2026 : tout est livré sauf **A19**, cf. tableau ; nouveaux A20-A22.)*
 
 ### Avancement (04/09/2026) — A15 utilisateurs
 
@@ -1850,6 +2026,8 @@ ci-dessous ont été **livrés le 02/09/2026**, un commit par sujet.
 
 ### Reste à faire (non couvert le 02/09/2026)
 
+> Toujours ouvert au 30/09/2026 ; ordre conseillé, chiffrage et compléments (OAuth, images, S3, CI/prod) dans *Feuille de route 30/09*, **R6**.
+
 - 🔲 **Sauvegardes non branchées** : le script existe, le cron et un restore réel restent à faire **sur le serveur**.
 - 🔲 **`ALERT_WEBHOOK_URL` vide** : sans lui, perte d'un event outbox, health-check en erreur et échec de sauvegarde ne notifient personne. Devenu plus important avec N11, qui alerte sur identité légale incomplète.
 - 🔲 **Pas de 2FA back-office** et `ENABLE_GROUP_PERMISSIONS=False` (tout utilisateur authentifié passe les contrôles ; seul `is_superuser` protège l'admin).
@@ -1941,7 +2119,7 @@ Le feature **`discount`** existe déjà ([models.py](backend/app/features/discou
 - ✅ **Écran admin** « Codes promo » (création, conditions, suivi d'usage, activation).
 - Cohérence avec **groupes de prix** (cumul ou exclusivité ?) et **devise** (remise en XPF).
 
-### PayPal (intégration standard) 🔲
+### PayPal (intégration standard) 🔲 — décision du 30/09/2026 : **Stripe et PayPal**, activables en base (*Feuille de route 30/09*, R3 : P4 chantier commun, P5 activation, P6 Stripe, P7 PayPal)
 Stripe **indisponible en PF** → cible **PayPal** comme moyen CB alternatif. À intégrer dans l'**abstraction provider existante** (comme PayZen / manual) :
 - Provider `PayPalProvider` (init paiement, capture, **refund** — à brancher sur le chantier remboursement), webhooks de statut.
 - Config (client id/secret, sandbox/prod), éligibilité (cf. **contrainte devise × moyen de paiement** — PayPal facture en EUR/USD, pas XPF → à traiter sérieusement, pas seulement présentationnel).
@@ -2027,7 +2205,7 @@ bundle CA embarqué. Plus sain sur le fond (une révocation prend effet
 immédiatement), mais l'image `python:3.12-slim` devra avoir `ca-certificates` à
 jour, sans quoi **toutes** les connexions TLS sortantes tomberont.
 
-### Trois majeures JS bloquées en amont 🔲 (relevé le 28/08/2026)
+### Trois majeures JS bloquées en amont 🔲 (relevé le 28/08/2026) — `@quasar/app-vite` 3 ✅ (30/09/2026)
 
 **`typescript` 6 → 7** — la 6 est en place, la 7 est bloquée par l'outillage et
 non par notre code :
@@ -2043,7 +2221,7 @@ Error: typescript-eslint does not support TS 7.0.
 builds tombent. **Déclencheur :** ces deux paquets annoncent la prise en charge
 de TS 7.
 
-**`@quasar/app-vite` 2 → 3** — la v3 supprime l'alias `#q-app`, que la v2
+**`@quasar/app-vite` 2 → 3** ✅ **fait le 30/09/2026** (commit `85ff0bf`, vitrine et admin ; `#q-app`, alias `@/`, `import.meta.env.QUASAR_*`, SSR réécrit, `frontend/src-ssr/package.json`). Texte historique : la v3 supprime l'alias `#q-app`, que la v2
 injecte dans la configuration du bundler (`lib/quasar-config-file.js:317`), et
 retire l'export `./wrappers`. Le build s'arrête net :
 
@@ -2107,9 +2285,7 @@ alors qu'arq exige `<6`. Poser des bornes hautes partout protège des surprises
 mais fige aussi les mises à jour — **c'est un choix de politique à trancher**,
 pas une correction évidente.
 
-**④ Python 3.14.** L'image est passée en 3.13 (possible depuis le retrait de
-passlib) ; la 3.14 existe et Dependabot la proposera. Saut d'une version
-supplémentaire, non testé — à traiter comme une montée à part entière.
+**④ Python 3.14.** ✅ **Fait le 30/09/2026** (commit `7d13bf3` : image `python:3.14-slim`, uvloop 0.22.1). ⚠️ Reste un écart : la **CI teste en Python 3.12** ([ci.yml](.github/workflows/ci.yml) l.66) et en **Node 22** contre `node:24` dans les Dockerfiles — à aligner (R6, point 6). Texte historique : l'image est passée en 3.13 ; la 3.14 existe et Dependabot la proposera.
 
 ### Autres points différés
 
