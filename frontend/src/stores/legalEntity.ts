@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
-import { getPublicSettings } from 'src/api/systemSettings';
-import { LEGAL_FIELD_KEYS, resolveLegalEntity, type LegalEntity } from 'src/config/legalEntity';
+import { getPublicSettings } from '@/api/systemSettings';
+import { LEGAL_FIELD_KEYS, resolveLegalEntity, type LegalEntity } from '@/config/legalEntity';
 
 /**
  * Identité légale de l'éditeur, servie par le backend.

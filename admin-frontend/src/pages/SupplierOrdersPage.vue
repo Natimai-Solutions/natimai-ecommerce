@@ -96,8 +96,8 @@ import {
   retrySupplierOrder,
   type SupplierOrder,
   type SupplierOrderStatus,
-} from 'src/api/supplierOrders';
-import { extractApiError } from 'src/api/errors';
+} from '@/api/supplierOrders';
+import { extractApiError } from '@/api/errors';
 
 const rows = ref<SupplierOrder[]>([]);
 const loading = ref(false);

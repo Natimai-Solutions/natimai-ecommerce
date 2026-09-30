@@ -1,4 +1,4 @@
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 
 /** Invoice metadata as returned by `GET /invoices/me` (`InvoicePublic`). */
 export interface Invoice {

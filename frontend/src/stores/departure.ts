@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { departureCutoffLabel, departureDeliveryLabel } from '@app/utils';
-import { getNextDeparture, type Departure } from 'src/api/departures';
+import { getNextDeparture, type Departure } from '@/api/departures';
 
 /**
  * Next grouped departure (« prochain départ groupé »). Loaded once by the

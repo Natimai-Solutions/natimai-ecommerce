@@ -1,19 +1,19 @@
 import { watch } from 'vue';
-import { defineBoot } from '#q-app/wrappers';
+import { defineBoot } from '#q-app';
 import { Cookies } from 'quasar';
 
 import '@fontsource-variable/geist';
 import '@fontsource-variable/geist-mono';
 import '@phosphor-icons/web/light';
 
-import { phosphorIconMapFn } from 'src/icons/phosphor';
+import { phosphorIconMapFn } from '@/icons/phosphor';
 import {
   THEME_COOKIE,
   THEME_HINT_COOKIE,
   THEME_COOKIE_OPTIONS,
   parseThemePreference,
   toDarkValue,
-} from 'src/utils/theme';
+} from '@/utils/theme';
 
 /**
  * Fondations visuelles : polices Geist auto-hébergées, icônes Phosphor et
@@ -28,10 +28,11 @@ export default defineBoot(({ app, ssrContext }) => {
   const $q = app.config.globalProperties.$q;
   $q.iconMapFn = phosphorIconMapFn;
 
-  const cookies = process.env.SERVER && ssrContext ? Cookies.parseSSR(ssrContext) : Cookies;
+  const cookies =
+    import.meta.env.QUASAR_SERVER && ssrContext ? Cookies.parseSSR(ssrContext) : Cookies;
   const preference = parseThemePreference(cookies.get(THEME_COOKIE));
 
-  if (process.env.SERVER) {
+  if (import.meta.env.QUASAR_SERVER) {
     $q.dark.set(
       preference === 'auto' ? cookies.get(THEME_HINT_COOKIE) === 'dark' : toDarkValue(preference),
     );

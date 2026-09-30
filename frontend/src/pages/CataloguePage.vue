@@ -291,12 +291,12 @@
 import { computed, onMounted, onServerPrefetch, ref, watch } from 'vue';
 import { useMeta } from 'quasar';
 import { useRoute, useRouter, type LocationQuery } from 'vue-router';
-import { useProductsStore } from 'src/stores/products';
-import { useCartStore } from 'src/stores/cart';
-import { useCurrencyStore } from 'src/stores/currency';
-import { useUiStore } from 'src/stores/ui';
-import AppNotice from 'src/components/AppNotice.vue';
-import ProductCard from 'src/components/ProductCard.vue';
+import { useProductsStore } from '@/stores/products';
+import { useCartStore } from '@/stores/cart';
+import { useCurrencyStore } from '@/stores/currency';
+import { useUiStore } from '@/stores/ui';
+import AppNotice from '@/components/AppNotice.vue';
+import ProductCard from '@/components/ProductCard.vue';
 import type { components } from '@app/api-types';
 
 type ProductPublic = components['schemas']['ProductPublic'];

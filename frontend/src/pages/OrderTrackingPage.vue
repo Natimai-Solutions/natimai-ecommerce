@@ -272,13 +272,13 @@
 </template>
 
 <script setup lang="ts">
-import StatusTag from 'src/components/StatusTag.vue';
-import { toneOf } from 'src/utils/statusTone';
-import AppNotice from 'src/components/AppNotice.vue';
+import StatusTag from '@/components/StatusTag.vue';
+import { toneOf } from '@/utils/statusTone';
+import AppNotice from '@/components/AppNotice.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { departureStatusLabel, formatXpf } from '@app/utils';
-import { useAuthStore } from 'src/stores/auth';
+import { useAuthStore } from '@/stores/auth';
 import {
   getMyOrder,
   getMyOrderLines,
@@ -288,8 +288,8 @@ import {
   type OrderLine,
   type OrderTracking,
   type OrderTrackingSegment,
-} from 'src/api/orders';
-import { getDeparture, type Departure } from 'src/api/departures';
+} from '@/api/orders';
+import { getDeparture, type Departure } from '@/api/departures';
 
 const route = useRoute();
 const router = useRouter();

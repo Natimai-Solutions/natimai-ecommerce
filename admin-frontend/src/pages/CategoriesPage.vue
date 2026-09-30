@@ -192,8 +192,8 @@ import {
   mergeCategory,
   updateAdminCategory,
   type AdminCategory,
-} from 'src/api/categories';
-import { extractApiError } from 'src/api/errors';
+} from '@/api/categories';
+import { extractApiError } from '@/api/errors';
 
 const rows = ref<AdminCategory[]>([]);
 const loading = ref(false);

@@ -1,4 +1,4 @@
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 
 /** One ledger entry of the customer's store credit (`StoreCreditEntryPublic`). */
 export interface StoreCreditEntry {

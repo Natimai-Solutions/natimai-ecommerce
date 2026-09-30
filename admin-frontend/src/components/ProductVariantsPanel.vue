@@ -182,11 +182,11 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue';
-import { createVariant, deactivateVariant, listVariants, updateVariant } from 'src/api/variants';
-import { adjustInventory } from 'src/api/inventory';
-import { extractApiError } from 'src/api/errors';
-import type { ProductPublic } from 'src/stores/products';
-import { useShopConfigStore } from 'src/stores/shopConfig';
+import { createVariant, deactivateVariant, listVariants, updateVariant } from '@/api/variants';
+import { adjustInventory } from '@/api/inventory';
+import { extractApiError } from '@/api/errors';
+import type { ProductPublic } from '@/stores/products';
+import { useShopConfigStore } from '@/stores/shopConfig';
 
 const props = defineProps<{ productId: string }>();
 const emit = defineEmits<{ changed: [] }>();

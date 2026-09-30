@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { getShopConfig, type ShopConfig } from 'src/api/shopConfig';
+import { getShopConfig, type ShopConfig } from '@/api/shopConfig';
 
 /**
  * Deployment-level facts every admin screen may need: the reference

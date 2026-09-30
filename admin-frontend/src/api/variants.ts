@@ -1,5 +1,5 @@
-import { api } from 'src/boot/api';
-import type { ProductPublic } from 'src/stores/products';
+import { api } from '@/boot/api';
+import type { ProductPublic } from '@/stores/products';
 
 export interface VariantCreate {
   options: Record<string, string>;

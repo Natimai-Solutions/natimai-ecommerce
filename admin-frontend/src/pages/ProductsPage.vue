@@ -324,9 +324,9 @@ import {
   type ActiveFilter,
   type PriceHistoryEntry,
   type ProductPublic,
-} from 'src/stores/products';
-import { listPlaces, type Place } from 'src/api/logistics';
-import ProductFormDialog from 'src/components/ProductFormDialog.vue';
+} from '@/stores/products';
+import { listPlaces, type Place } from '@/api/logistics';
+import ProductFormDialog from '@/components/ProductFormDialog.vue';
 
 const store = useProductsStore();
 

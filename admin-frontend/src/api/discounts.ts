@@ -1,4 +1,4 @@
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 
 export type DiscountType = 'coupon' | 'promotion';
 export type DiscountTarget = 'product' | 'category' | 'order';

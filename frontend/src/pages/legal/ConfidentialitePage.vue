@@ -141,8 +141,8 @@
 
 <script setup lang="ts">
 import { computed, onServerPrefetch } from 'vue';
-import LegalValue from 'src/components/LegalValue.vue';
-import { useLegalEntityStore } from 'src/stores/legalEntity';
+import LegalValue from '@/components/LegalValue.vue';
+import { useLegalEntityStore } from '@/stores/legalEntity';
 
 const store = useLegalEntityStore();
 // Chargé côté serveur pendant le rendu SSR : la page arrive complète, sans

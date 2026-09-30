@@ -219,9 +219,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
-import { createUser, listUsers, resendInvitation, updateUser, type AdminUser } from 'src/api/users';
-import { listPriceGroups, type PriceGroup } from 'src/api/eligibility';
-import { extractApiError } from 'src/api/errors';
+import { createUser, listUsers, resendInvitation, updateUser, type AdminUser } from '@/api/users';
+import { listPriceGroups, type PriceGroup } from '@/api/eligibility';
+import { extractApiError } from '@/api/errors';
 
 const PAGE_SIZE = 50;
 

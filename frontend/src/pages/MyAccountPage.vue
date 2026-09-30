@@ -682,15 +682,15 @@
 </template>
 
 <script setup lang="ts">
-import StatusTag from 'src/components/StatusTag.vue';
-import { toneOf } from 'src/utils/statusTone';
-import AppNotice from 'src/components/AppNotice.vue';
+import StatusTag from '@/components/StatusTag.vue';
+import { toneOf } from '@/utils/statusTone';
+import AppNotice from '@/components/AppNotice.vue';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { countryLabel, countryOptions, formatXpf, type CountryOption } from '@app/utils';
-import { useAuthStore } from 'src/stores/auth';
-import { useCurrencyStore } from 'src/stores/currency';
-import { getMyPreferences, updateMyPreferences, type UserPreferences } from 'src/api/account';
+import { useAuthStore } from '@/stores/auth';
+import { useCurrencyStore } from '@/stores/currency';
+import { getMyPreferences, updateMyPreferences, type UserPreferences } from '@/api/account';
 import {
   createMyAddress,
   deleteMyAddress,
@@ -704,24 +704,24 @@ import {
   type AddressType,
   type PlaceSummary,
   type PlaceTreeNode,
-} from 'src/api/addresses';
-import { listMyOrders, type Order } from 'src/api/orders';
-import { downloadInvoicePdf, listMyInvoices, type Invoice } from 'src/api/invoices';
-import { downloadCreditNotePdf, listMyCreditNotes, type CreditNote } from 'src/api/creditNotes';
+} from '@/api/addresses';
+import { listMyOrders, type Order } from '@/api/orders';
+import { downloadInvoicePdf, listMyInvoices, type Invoice } from '@/api/invoices';
+import { downloadCreditNotePdf, listMyCreditNotes, type CreditNote } from '@/api/creditNotes';
 import {
   acceptMyQuote,
   downloadMyQuotePdf,
   listMyQuotes,
   QUOTE_STATUS_LABELS,
   type MyQuote,
-} from 'src/api/quotes';
-import { useCartStore } from 'src/stores/cart';
+} from '@/api/quotes';
+import { useCartStore } from '@/stores/cart';
 import {
   getMyStoreCredit,
   STORE_CREDIT_KIND_LABELS,
   type StoreCreditBalance,
-} from 'src/api/storeCredit';
-import { cancelStockAlert, listMyStockAlerts, type StockAlert } from 'src/api/stockAlerts';
+} from '@/api/storeCredit';
+import { cancelStockAlert, listMyStockAlerts, type StockAlert } from '@/api/stockAlerts';
 import {
   getUpgradeOptions,
   listMyUpgradeRequests,
@@ -729,7 +729,7 @@ import {
   type GroupUpgradeRequest,
   type UpgradeGroupOptions,
   type UpgradeRequestStatus,
-} from 'src/api/groupUpgrade';
+} from '@/api/groupUpgrade';
 
 const route = useRoute();
 const router = useRouter();

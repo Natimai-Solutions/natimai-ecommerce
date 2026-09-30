@@ -160,8 +160,8 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
-import { createTaxRate, listTaxRates, updateTaxRate, type TaxRate } from 'src/api/taxRates';
-import { extractApiError } from 'src/api/errors';
+import { createTaxRate, listTaxRates, updateTaxRate, type TaxRate } from '@/api/taxRates';
+import { extractApiError } from '@/api/errors';
 
 const rows = ref<TaxRate[]>([]);
 const loading = ref(false);

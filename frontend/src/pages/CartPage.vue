@@ -155,13 +155,13 @@
 </template>
 
 <script setup lang="ts">
-import AppNotice from 'src/components/AppNotice.vue';
+import AppNotice from '@/components/AppNotice.vue';
 import { onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { useCartStore } from 'src/stores/cart';
-import { useCurrencyStore } from 'src/stores/currency';
-import ProductImage from 'src/components/ProductImage.vue';
-import { getProductRoute } from 'src/utils/productRoute';
+import { useCartStore } from '@/stores/cart';
+import { useCurrencyStore } from '@/stores/currency';
+import ProductImage from '@/components/ProductImage.vue';
+import { getProductRoute } from '@/utils/productRoute';
 
 const cartStore = useCartStore();
 const currencyStore = useCurrencyStore();

@@ -1,4 +1,4 @@
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 
 /** Méthode d'approvisionnement d'un fournisseur (voir backend `SupplierKind`). */
 export type SupplierKind = 'manual' | 'file' | 'api';

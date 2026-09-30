@@ -75,8 +75,8 @@ import {
   downloadInvoicesCsv,
   listInvoices,
   type Invoice,
-} from 'src/api/invoices';
-import { extractApiError } from 'src/api/errors';
+} from '@/api/invoices';
+import { extractApiError } from '@/api/errors';
 
 const rows = ref<Invoice[]>([]);
 const loading = ref(false);

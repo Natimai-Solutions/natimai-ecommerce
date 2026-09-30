@@ -360,14 +360,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { categoryLabel, listCategories, type Category } from 'src/api/categories';
-import { listTaxRates, type TaxRate } from 'src/api/taxRates';
-import { listPlaces, type Place } from 'src/api/logistics';
-import { listSuppliers, type Supplier } from 'src/api/suppliers';
-import { adjustInventory } from 'src/api/inventory';
-import ProductVariantsPanel from 'src/components/ProductVariantsPanel.vue';
-import { useProductsStore, type ProductPublic } from 'src/stores/products';
-import { useShopConfigStore } from 'src/stores/shopConfig';
+import { categoryLabel, listCategories, type Category } from '@/api/categories';
+import { listTaxRates, type TaxRate } from '@/api/taxRates';
+import { listPlaces, type Place } from '@/api/logistics';
+import { listSuppliers, type Supplier } from '@/api/suppliers';
+import { adjustInventory } from '@/api/inventory';
+import ProductVariantsPanel from '@/components/ProductVariantsPanel.vue';
+import { useProductsStore, type ProductPublic } from '@/stores/products';
+import { useShopConfigStore } from '@/stores/shopConfig';
 
 const props = defineProps<{ modelValue: boolean; product: ProductPublic | null }>();
 const emit = defineEmits<{

@@ -19,8 +19,10 @@ COPY shared/utils/package.json      ./shared/utils/
 COPY shared/   ./shared/
 COPY frontend/ ./frontend/
 
-# Install only frontend + workspace deps (skips admin's postinstall)
-RUN pnpm install --frozen-lockfile --filter "frontend..."
+# Install only frontend + workspace deps (skips admin's postinstall).
+# frontend/src-ssr is a workspace package of its own (Express server deps):
+# app-vite 3 would otherwise run its own unlocked install there at build time.
+RUN pnpm install --frozen-lockfile --filter "frontend..." --filter "frontend-ssr-server"
 
 # Public API origin baked into the Vite build (the browser calls this URL).
 # MUST be provided for any non-local build — e.g. https://api.example.com —
@@ -31,9 +33,8 @@ ENV VITE_API_URL=$VITE_API_URL
 # Build SSR (run from workspace root with explicit filter)
 RUN pnpm --filter frontend run build
 
-# Strip workspace:* deps from the generated SSR package.json
-# (their code is already bundled into the JS via ssr.noExternal)
-RUN node -e "const fs=require('fs');const p='/workspace/frontend/dist/ssr/package.json';const pkg=JSON.parse(fs.readFileSync(p,'utf8'));for(const k of Object.keys(pkg.dependencies||{})){if(String(pkg.dependencies[k]).startsWith('workspace:'))delete pkg.dependencies[k];}fs.writeFileSync(p,JSON.stringify(pkg,null,2));"
+# The generated dist/ssr/package.json no longer lists the bundled @app/*
+# workspace packages: see ssr.extendSSRPackageJson in quasar.config.ts.
 
 # ── Production stage ────────────────────────────────────────────────────────────
 FROM node:24-alpine AS runner

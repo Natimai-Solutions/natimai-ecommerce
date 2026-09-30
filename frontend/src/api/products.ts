@@ -1,5 +1,5 @@
 import type { components } from '@app/api-types';
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 
 type ProductSearchRequest = components['schemas']['ProductSearchRequest'];
 type ProductSearchResponse = components['schemas']['ProductSearchResponse'];
@@ -12,7 +12,7 @@ export type CategoryPublic = components['schemas']['CategoryPublic'] & {
 };
 type ProductPublic = components['schemas']['ProductPublic'];
 
-export { sellableQuantity } from 'src/utils/availability';
+export { sellableQuantity } from '@/utils/availability';
 type CategorySpecFacetsResponse = components['schemas']['CategorySpecFacetsResponse'];
 
 export interface ShippingModePricePublic {

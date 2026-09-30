@@ -1,7 +1,7 @@
 // Configuration for your app
 // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file
 
-import { defineConfig } from '#q-app/wrappers';
+import { defineConfig } from '#q-app';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -51,12 +51,16 @@ export default defineConfig((ctx) => {
       // rebuildCache: true, // rebuilds Vite/linter/etc cache on startup
 
       // publicPath: '/',
-      // analyze: true,
-      // env: {},
-      // rawDefine: {}
+
+      // app-vite 3 n'expose au code client que les variables préfixées QCLI_ par
+      // défaut ; on conserve le préfixe VITE_ (VITE_API_URL…) attendu par les
+      // Dockerfiles, docker-compose et la CI.
+      env: {
+        clientPrefix: 'VITE_',
+      },
+      // define: {},
       // ignorePublicFolder: true,
       // minify: false,
-      // polyfillModulePreload: true,
       // distDir
 
       extendViteConf(viteConf) {
@@ -168,7 +172,15 @@ export default defineConfig((ctx) => {
         'render', // keep this as last one
       ],
 
-      // extendPackageJson (json) {},
+      // Les paquets du workspace (@app/*) sont bundlés dans le JS SSR via
+      // ssr.noExternal ; app-vite 3 les épinglerait pourtant dans le
+      // package.json généré, et `npm install` dans l'image de production
+      // échouerait à les résoudre. On les retire.
+      extendSSRPackageJson(pkgJson) {
+        for (const name of Object.keys(pkgJson.dependencies ?? {})) {
+          if (name.startsWith('@app/')) delete pkgJson.dependencies[name];
+        }
+      },
       // extendSSRWebserverConf (esbuildConf) {},
 
       // manualStoreSerialization: true,

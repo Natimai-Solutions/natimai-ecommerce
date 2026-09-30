@@ -76,8 +76,8 @@ import {
   listAbandonedCarts,
   type AbandonedCart,
   type AbandonedCartsResponse,
-} from 'src/api/abandonedCarts';
-import { extractApiError } from 'src/api/errors';
+} from '@/api/abandonedCarts';
+import { extractApiError } from '@/api/errors';
 
 const response = ref<AbandonedCartsResponse | null>(null);
 const loading = ref(false);

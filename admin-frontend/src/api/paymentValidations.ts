@@ -1,4 +1,4 @@
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 
 /** A payment awaiting manual/document validation (chèque, virement, BC). */
 export interface PendingPayment {

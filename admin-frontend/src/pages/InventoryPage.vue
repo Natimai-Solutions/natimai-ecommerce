@@ -130,8 +130,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
-import { adjustInventory, listInventory, type InventoryItem } from 'src/api/inventory';
-import { extractApiError } from 'src/api/errors';
+import { adjustInventory, listInventory, type InventoryItem } from '@/api/inventory';
+import { extractApiError } from '@/api/errors';
 
 const rows = ref<InventoryItem[]>([]);
 const loading = ref(false);

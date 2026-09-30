@@ -81,8 +81,8 @@ import {
   downloadCreditNotesCsv,
   listCreditNotes,
   type CreditNote,
-} from 'src/api/creditNotes';
-import { extractApiError } from 'src/api/errors';
+} from '@/api/creditNotes';
+import { extractApiError } from '@/api/errors';
 
 const rows = ref<CreditNote[]>([]);
 const loading = ref(false);

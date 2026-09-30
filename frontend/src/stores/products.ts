@@ -6,7 +6,7 @@ import {
   getCategories,
   getCategorySpecFacets,
   type CategoryPublic,
-} from 'src/api/products';
+} from '@/api/products';
 
 type ProductPublic = components['schemas']['ProductPublic'];
 type ProductSearchRequest = components['schemas']['ProductSearchRequest'];

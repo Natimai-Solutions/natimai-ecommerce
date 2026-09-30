@@ -1,4 +1,4 @@
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 
 /** `GET /system/config` — territory profile and mode of this deployment (no secrets). */
 export interface ShopConfig {

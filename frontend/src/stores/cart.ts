@@ -6,9 +6,9 @@ import {
   createGuestQuoteRequest,
   replaceMyCartItems,
   type GuestQuoteRequestResponse,
-} from 'src/api/cart';
-import { useAuthStore } from 'src/stores/auth';
-import { getProductById } from 'src/api/products';
+} from '@/api/cart';
+import { useAuthStore } from '@/stores/auth';
+import { getProductById } from '@/api/products';
 
 type ProductPublic = components['schemas']['ProductPublic'];
 

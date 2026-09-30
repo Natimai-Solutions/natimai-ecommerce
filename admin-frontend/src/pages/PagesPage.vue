@@ -106,8 +106,8 @@
 import { onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import { formatDateTime } from '@app/utils';
-import { deletePage, listPages, savePage, type ContentPage } from 'src/api/pages';
-import { extractApiError } from 'src/api/errors';
+import { deletePage, listPages, savePage, type ContentPage } from '@/api/pages';
+import { extractApiError } from '@/api/errors';
 
 const pages = ref<ContentPage[]>([]);
 const loading = ref(false);

@@ -84,11 +84,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { components } from '@app/api-types';
-import ProductImage from 'src/components/ProductImage.vue';
-import { getProductRoute } from 'src/utils/productRoute';
-import { useCurrencyStore } from 'src/stores/currency';
-import { useDepartureStore } from 'src/stores/departure';
-import { conditionLabel, isRefurbished, productAvailability } from 'src/utils/availability';
+import ProductImage from '@/components/ProductImage.vue';
+import { getProductRoute } from '@/utils/productRoute';
+import { useCurrencyStore } from '@/stores/currency';
+import { useDepartureStore } from '@/stores/departure';
+import { conditionLabel, isRefurbished, productAvailability } from '@/utils/availability';
 
 // `offers_count` is served by the backend (search grouping of the same item
 // sold by several suppliers) but the generated schema may lag — read it loosely.

@@ -798,7 +798,7 @@ import {
   type ReceiptLine,
   type ReceiptReport,
   type Reminder,
-} from 'src/api/departures';
+} from '@/api/departures';
 import {
   downloadOrdersCsv,
   downloadSkuSummaryCsv,
@@ -809,10 +809,10 @@ import {
   type AdminOrderListItem,
   type OrderFilters,
   type SkuSummaryRow,
-} from 'src/api/orders';
-import { extractApiError } from 'src/api/errors';
-import { listSystemSettings, updateSystemSetting } from 'src/api/systemSettings';
-import { setOrderStatus } from 'src/api/orders';
+} from '@/api/orders';
+import { extractApiError } from '@/api/errors';
+import { listSystemSettings, updateSystemSetting } from '@/api/systemSettings';
+import { setOrderStatus } from '@/api/orders';
 
 const departures = ref<Departure[]>([]);
 const loading = ref(false);

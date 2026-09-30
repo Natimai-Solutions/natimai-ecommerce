@@ -34,9 +34,9 @@ import {
   sellableQuantity,
   type ProductOfferPublic,
   type ProductOffersResponse,
-} from 'src/api/products';
-import { useCurrencyStore } from 'src/stores/currency';
-import { getProductRouteByIdAndName } from 'src/utils/productRoute';
+} from '@/api/products';
+import { useCurrencyStore } from '@/stores/currency';
+import { getProductRouteByIdAndName } from '@/utils/productRoute';
 
 const props = defineProps<{ offers: ProductOffersResponse | null }>();
 const emit = defineEmits<{ navigate: [] }>();

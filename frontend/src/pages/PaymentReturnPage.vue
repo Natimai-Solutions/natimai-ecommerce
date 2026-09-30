@@ -51,7 +51,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { getMyPaymentStatus } from 'src/api/payments';
+import { getMyPaymentStatus } from '@/api/payments';
 
 const PENDING_PAYMENT_KEY = 'payzen.pending_payment_id';
 const POLL_INTERVAL_MS = 2000;

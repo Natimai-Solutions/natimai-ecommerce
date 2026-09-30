@@ -6,7 +6,7 @@
 </template>
 
 <script setup lang="ts">
-import type { StatusTone } from 'src/utils/statusTone';
+import type { StatusTone } from '@/utils/statusTone';
 
 /**
  * Étiquette d'état : pilule neutre, seule l'icône porte la couleur de l'état

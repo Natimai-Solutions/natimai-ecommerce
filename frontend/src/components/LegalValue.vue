@@ -15,7 +15,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { isLegalPlaceholder } from 'src/config/legalEntity';
+import { isLegalPlaceholder } from '@/config/legalEntity';
 
 const props = defineProps<{ value: string }>();
 

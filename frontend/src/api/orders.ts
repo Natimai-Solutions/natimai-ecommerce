@@ -1,4 +1,4 @@
-import { api } from 'src/boot/api';
+import { api } from '@/boot/api';
 
 /** Order summary as returned by `GET /orders/me` (`OrderPublic`). */
 export interface Order {

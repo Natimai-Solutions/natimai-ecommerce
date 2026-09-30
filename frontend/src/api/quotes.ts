@@ -1,5 +1,5 @@
-import { api } from 'src/boot/api';
-import type { CartDetailPublic } from 'src/api/cart';
+import { api } from '@/boot/api';
+import type { CartDetailPublic } from '@/api/cart';
 
 /** A quote request / issued quote of the customer (`MyQuoteItem`). */
 export interface MyQuote {
