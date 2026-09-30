@@ -50,6 +50,11 @@
           Aucun moyen de paiement n'est disponible pour votre compte. Contactez notre équipe.
         </AppNotice>
 
+        <!-- PayPal : le client part approuver le paiement chez PayPal -->
+        <AppNotice v-else-if="redirecting" tone="info" data-testid="checkout-redirecting">
+          Commande enregistrée — redirection vers PayPal…
+        </AppNotice>
+
         <!-- Confirmation : paiement manuel, bon de commande ou avoir -->
         <section v-else-if="instructions" class="confirmation">
           <div class="app-panel confirmation__head">
@@ -459,6 +464,8 @@ const cgvAccepted = ref(false);
 const orderPlaced = ref(false);
 const formToken = ref<string | null>(null);
 const instructions = ref<string | null>(null);
+// PayPal : départ vers la page d'approbation après création de la commande.
+const redirecting = ref(false);
 // Reference of the order just created, shown on the confirmation so the
 // customer can quote it before the email arrives (M5).
 const placedOrderRef = ref<string | null>(null);
@@ -686,6 +693,7 @@ function hasFee(fee: string): boolean {
 
 function methodIcon(providerCode: string): string {
   if (providerCode === 'payzen') return 'ph:credit-card';
+  if (providerCode === 'paypal') return 'ph:paypal-logo';
   if (providerCode === 'manual_transfer') return 'ph:bank';
   if (providerCode === 'manual_check') return 'ph:money';
   if (providerCode === 'manual_cash') return 'ph:coins';
@@ -769,9 +777,11 @@ const submitLabel = computed(() => {
   return `Payer ${formatMoney(due)}`;
 });
 
-/** Carte : le paiement se fait tout de suite, sur le formulaire de la banque. */
+/** Carte ou PayPal : le paiement se fait tout de suite, chez le prestataire. */
 const paysByCard = computed(
-  () => !creditCoversEverything.value && selectedMethod.value?.provider_code === 'payzen',
+  () =>
+    !creditCoversEverything.value &&
+    ['payzen', 'paypal'].includes(selectedMethod.value?.provider_code ?? ''),
 );
 
 onMounted(async () => {
@@ -907,6 +917,15 @@ async function startPayment() {
         token: checkout.form_token,
         returnUrl: `${returnUrl}?payment=${encodeURIComponent(checkout.payment_id)}`,
       });
+      return;
+    }
+
+    // PayPal: the customer approves on PayPal's page and comes back to
+    // /paiement/retour?payment=…&provider=paypal, where the shop captures it.
+    if (checkout.redirect_url) {
+      localStorage.setItem(PENDING_PAYMENT_KEY, checkout.payment_id);
+      redirecting.value = true;
+      window.location.assign(checkout.redirect_url);
       return;
     }
 

@@ -170,6 +170,11 @@ async function pay() {
       });
       return;
     }
+    if (result.redirect_url) {
+      localStorage.setItem(PENDING_PAYMENT_KEY, result.payment_id);
+      window.location.assign(result.redirect_url);
+      return;
+    }
     if (result.instructions) {
       instructions.value = result.instructions;
       return;

@@ -639,6 +639,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/payments/me/{payment_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm My Payment
+         * @description Finish a payment the customer approved on the provider's page.
+         *
+         *     PayPal sends the customer back to the shop with the order approved but
+         *     not paid: the shop captures (or authorizes) it server-side. Idempotent —
+         *     a payment already decided is returned as is, and the provider's webhook
+         *     for the same capture is recognised as a duplicate.
+         */
+        post: operations["payment-confirm_my_payment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payments/webhooks/{provider_code}": {
         parameters: {
             query?: never;
@@ -650,7 +675,12 @@ export interface paths {
         put?: never;
         /**
          * Process Provider Webhook
-         * @description Execute process provider webhook.
+         * @description Receive a provider notification.
+         *
+         *     PayZen keeps its historical IPN; the other providers authenticate and
+         *     normalize their notification (``parse_webhook``) and go through the
+         *     generic pipeline. A switched-off provider still receives the
+         *     notifications of the payments it already started.
          */
         post: operations["payment-process_provider_webhook"];
         delete?: never;
@@ -880,6 +910,46 @@ export interface paths {
          * @description Cancel an instalment of a still pending payment (bounced cheque…).
          */
         post: operations["admin-payment-cancel_payment_receipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payment-providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Payment Providers
+         * @description PayZen, PayPal and Stripe: switch, credentials, availability.
+         */
+        get: operations["admin-payment-list_payment_providers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payment-providers/{provider_code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Payment Provider
+         * @description Switch a provider on or off; its payment methods follow at once.
+         */
+        put: operations["admin-payment-update_payment_provider"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -14441,6 +14511,26 @@ export interface components {
              */
             received_amount: number;
         };
+        /** PaymentProviderPublic */
+        PaymentProviderPublic: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Credentials Present */
+            credentials_present: boolean;
+            /** Implemented */
+            implemented: boolean;
+            /** Available */
+            available: boolean;
+        };
+        /** PaymentProviderUpdate */
+        PaymentProviderUpdate: {
+            /** Enabled */
+            enabled: boolean;
+        };
         /**
          * PaymentPublic
          * @description Represents payment public.
@@ -21721,6 +21811,37 @@ export interface operations {
             };
         };
     };
+    "payment-confirm_my_payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "payment-process_provider_webhook": {
         parameters: {
             query?: never;
@@ -22110,6 +22231,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaymentReceiptPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-payment-list_payment_providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentProviderPublic"][];
+                };
+            };
+        };
+    };
+    "admin-payment-update_payment_provider": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentProviderUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentProviderPublic"][];
                 };
             };
             /** @description Validation Error */

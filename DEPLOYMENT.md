@@ -169,6 +169,43 @@ returns `503 oauth.provider.not_configured`. See section 7 to enable end‑to‑
 The `api_password` and `public_key` actually used follow `PAYZEN_MODE`
 (`*_TEST` vs `*_PROD`).
 
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PAYZEN_API_REFUND_ENABLED` | `false` | `true` → a card refund from the admin goes through PayZen's `Transaction/CancelOrRefund` API. `false` → the refund is recorded as *pending*, to finalise in the PayZen back office. Validate in the sandbox first. |
+
+#### Switching providers on and off (R3-P5)
+
+Card / wallet providers (PayZen, PayPal, later Stripe) have an on/off switch in
+the admin (**Paiements → Règles de paiement → Prestataires de paiement**),
+stored in `system_settings` (`payment_provider_<code>_enabled`). A provider is
+offered at checkout only when it is **switched on and its credentials are
+present** in the environment; PayZen is on by default, PayPal and Stripe off.
+Switching a provider off hides its payment methods and refuses new payments;
+the notifications of payments it already started are still processed.
+
+### 3.5bis Payment — PayPal (R3-P7)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PAYPAL_MODE` | `sandbox` | `live` in production |
+| `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET` | — | REST app credentials (developer.paypal.com → Apps & Credentials) |
+| `PAYPAL_WEBHOOK_ID` | — | Id of the webhook declared on the app; **required**, notifications are verified with PayPal's `verify-webhook-signature` API and refused without it |
+| `PAYPAL_CURRENCY` | `EUR` | Currency charged. XPF orders are converted at the fixed parity **1 000 XPF = 8,38 EUR**; the charged amount is stored on the payment and every notification is checked against it |
+| `PAYPAL_INTENT` | `CAPTURE` | `AUTHORIZE` → the payment is only authorised (status `Authorized`) and captured from the admin, like `PAYZEN_MANUAL_VALIDATION` (PayPal authorisations last 29 days, honoured 3) |
+
+Flow: the checkout redirects the customer to PayPal; PayPal sends them back to
+`/paiement/retour?payment=<id>&provider=paypal`, where the storefront calls
+`POST /api/v1/payments/me/{id}/confirm` and the shop captures the order
+server-side. Declare the webhook
+`https://<api-domain>/api/v1/payments/webhooks/paypal` with the events
+`PAYMENT.CAPTURE.COMPLETED`, `PAYMENT.CAPTURE.DENIED`,
+`PAYMENT.CAPTURE.REFUNDED`, `PAYMENT.CAPTURE.REVERSED`,
+`PAYMENT.AUTHORIZATION.CREATED` and `PAYMENT.AUTHORIZATION.VOIDED`: it
+completes the payment when the customer never comes back to the shop.
+Notifications are applied once (`payment_webhook_events`), a decided payment
+never flips to another outcome, and a wrong amount leaves the payment for
+manual review. Refunds from the admin go through PayPal's API, in euros.
+
 ### 3.6 Supplier orders — Ingram Micro · Phase 2 (item 8)
 
 Catalog sync:
@@ -397,6 +434,11 @@ PAYZEN_API_PASSWORD_PROD=
 PAYZEN_PUBLIC_KEY_PROD=
 PAYZEN_API_ENDPOINT=https://api.osb.pf
 PAYZEN_STATIC_URL=https://static.osb.pf
+# PayPal (optional — switched on from the admin once filled)
+PAYPAL_MODE=live
+PAYPAL_CLIENT_ID=
+PAYPAL_CLIENT_SECRET=
+PAYPAL_WEBHOOK_ID=
 
 # --- Ingram Micro (catalog + auto PO) ---
 INGRAM_ENVIRONMENT=production

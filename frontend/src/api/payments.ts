@@ -76,6 +76,15 @@ export async function getMyPaymentStatus(paymentId: string): Promise<PaymentStat
   return response.data;
 }
 
+/**
+ * Finish a payment the customer approved on the provider's page (PayPal): the
+ * shop captures it server-side. Idempotent.
+ */
+export async function confirmMyPayment(paymentId: string): Promise<PaymentStatusResponse> {
+  const response = await api.post<PaymentStatusResponse>(`/payments/me/${paymentId}/confirm`);
+  return response.data;
+}
+
 // ---------------------------------------------------------------------------
 // Document-validated payments (Bon de commande): presigned upload flow
 // ---------------------------------------------------------------------------
