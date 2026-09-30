@@ -1,0 +1,1 @@
+Versement reçu pour la commande {{ order_ref or (order_id | short_ref) }}

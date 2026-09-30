@@ -1,24 +1,16 @@
 <template>
   <div>
     <div class="row items-center q-mb-xs">
-      <div class="text-subtitle2 col">Variantes</div>
-      <q-btn
-        flat
-        dense
-        no-caps
-        icon="add"
-        color="primary"
-        label="Ajouter une variante"
-        @click="openCreate"
-      />
+      <h3 class="admin-subtitle col q-mb-none">Variantes</h3>
+      <q-btn flat dense no-caps icon="ph:plus" label="Ajouter une variante" @click="openCreate" />
     </div>
-    <div class="text-caption text-grey-7 q-mb-sm">
+    <p class="admin-hint q-mb-sm">
       Chaque variante (taille, couleur…) est un article à part entière : référence, prix, coût,
       stock, image. La fiche parente est l'entrée boutique et affiche le prix le plus bas ; elle
       n'est jamais vendue telle quelle.
-    </div>
+    </p>
 
-    <q-banner v-if="error" class="bg-red-1 text-red-9 q-mb-sm" dense rounded>{{ error }}</q-banner>
+    <AppNotice v-if="error" tone="error" dense class="q-mb-sm">{{ error }}</AppNotice>
 
     <q-markup-table v-if="variants.length" dense flat bordered class="q-mb-sm">
       <thead>
@@ -32,30 +24,30 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="v in variants" :key="v.id" :class="{ 'text-grey-6': !v.is_active }">
+        <tr v-for="v in variants" :key="v.id" :class="{ 'text-subtle': !v.is_active }">
           <td v-for="axis in axes" :key="axis">{{ v.variant_options?.[axis] ?? '—' }}</td>
-          <td>{{ v.supplier_sku || v.vendor_part_number || '—' }}</td>
-          <td class="text-right">{{ money(v.sale_price_cached ?? v.base_price) }}</td>
+          <td class="font-mono">{{ v.supplier_sku || v.vendor_part_number || '—' }}</td>
+          <td class="text-right font-mono">{{ money(v.sale_price_cached ?? v.base_price) }}</td>
           <td class="text-right">
-            {{ qty(v.available_quantity) }}
-            <span class="text-caption text-grey-7">
+            <span class="font-mono">{{ qty(v.available_quantity) }}</span>
+            <span class="text-caption text-muted">
               (entrepôt {{ qty(v.local_quantity) }} · fourn. {{ qty(v.supplier_quantity) }})
             </span>
           </td>
           <td class="text-center">
-            <q-icon
-              :name="v.is_active ? 'check_circle' : 'cancel'"
-              :color="v.is_active ? 'positive' : 'grey-5'"
-            />
+            <StatusTag v-if="v.is_active" label="Active" tone="ok" icon="ph:check-circle" />
+            <StatusTag v-else label="Inactive" tone="neutral" icon="ph:minus-circle" />
           </td>
           <td class="text-right no-wrap">
-            <q-btn flat dense round icon="edit" size="sm" color="primary" @click="openEdit(v)" />
+            <q-btn flat dense round icon="ph:pencil-simple" size="sm" @click="openEdit(v)">
+              <q-tooltip>Modifier</q-tooltip>
+            </q-btn>
             <q-btn
               v-if="v.is_active"
               flat
               dense
               round
-              icon="delete"
+              icon="ph:trash"
               size="sm"
               color="negative"
               :loading="busyId === v.id"
@@ -67,32 +59,34 @@
         </tr>
       </tbody>
     </q-markup-table>
-    <div v-else-if="!loading" class="text-caption text-grey-6 q-mb-sm">
+    <div v-else-if="!loading" class="text-caption text-subtle q-mb-sm">
       Aucune variante : l'article se vend tel quel.
     </div>
 
     <q-dialog v-model="dialog">
-      <q-card style="min-width: 460px; max-width: 90vw">
-        <q-card-section class="text-h6">
-          {{ editing ? 'Modifier la variante' : 'Nouvelle variante' }}
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">
+            {{ editing ? 'Modifier la variante' : 'Nouvelle variante' }}
+          </h2>
         </q-card-section>
         <q-form @submit.prevent="submit">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
 
-            <div class="text-caption text-grey-7">Options (ex. Taille = M, Couleur = Noir)</div>
+            <div class="text-caption text-muted">Options (ex. Taille = M, Couleur = Noir)</div>
             <div v-for="(row, i) in optionRows" :key="i" class="row q-col-gutter-xs items-center">
               <q-input v-model="row.name" label="Option" outlined dense class="col-5" />
               <q-input v-model="row.value" label="Valeur" outlined dense class="col-5" />
-              <q-btn flat dense round icon="close" class="col-1" @click="optionRows.splice(i, 1)" />
+              <q-btn flat dense round icon="ph:x" class="col-1" @click="optionRows.splice(i, 1)">
+                <q-tooltip>Retirer l'option</q-tooltip>
+              </q-btn>
             </div>
             <q-btn
               flat
               dense
               no-caps
-              icon="add"
+              icon="ph:plus"
               label="Ajouter une option"
               @click="optionRows.push({ name: '', value: '' })"
             />
@@ -165,11 +159,13 @@
               />
             </div>
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
+              unelevated
+              no-caps
               :label="editing ? 'Enregistrer' : 'Créer'"
               :loading="saving"
             />
@@ -182,6 +178,8 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
 import { createVariant, deactivateVariant, listVariants, updateVariant } from '@/api/variants';
 import { adjustInventory } from '@/api/inventory';
 import { extractApiError } from '@/api/errors';

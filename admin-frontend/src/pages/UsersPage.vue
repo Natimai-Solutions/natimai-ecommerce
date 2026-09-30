@@ -1,17 +1,30 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="text-h6 col">Utilisateurs</div>
-      <q-btn
-        color="primary"
-        icon="person_add"
-        label="Créer un compte"
-        no-caps
-        @click="openCreate"
-      />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader
+      title="Utilisateurs"
+      hint="Comptes clients et administrateurs, invitations et groupes de prix."
+    >
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+        <q-btn
+          color="primary"
+          unelevated
+          no-caps
+          icon="ph:user-plus"
+          label="Créer un compte"
+          @click="openCreate"
+        />
+      </template>
+    </PageHeader>
 
-    <div class="row q-col-gutter-md q-mb-md items-end">
+    <div class="admin-toolbar">
       <q-input
         v-model="search"
         label="Rechercher (email, nom)"
@@ -19,10 +32,10 @@
         dense
         clearable
         debounce="300"
-        class="col-12 col-md-4"
+        style="min-width: 280px"
         @update:model-value="onFilterChange"
       >
-        <template #prepend><q-icon name="search" /></template>
+        <template #prepend><q-icon name="ph:magnifying-glass" /></template>
       </q-input>
       <q-select
         v-model="groupFilter"
@@ -32,7 +45,7 @@
         dense
         emit-value
         map-options
-        class="col-12 col-md-3"
+        style="min-width: 220px"
         @update:model-value="onFilterChange"
       />
       <q-select
@@ -43,18 +56,15 @@
         dense
         emit-value
         map-options
-        class="col-12 col-md-3"
+        style="min-width: 220px"
         @update:model-value="onFilterChange"
       />
-      <div class="col-auto">
-        <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
-      </div>
     </div>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
-    <q-banner v-if="notice" class="bg-green-1 text-green-9 q-mb-md" dense rounded>
-      {{ notice }}
-    </q-banner>
+    <div v-if="error || notice" class="admin-notices">
+      <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
+      <AppNotice v-if="notice" tone="success" dense>{{ notice }}</AppNotice>
+    </div>
 
     <q-table
       :rows="rows"
@@ -70,11 +80,11 @@
         <q-td :props="props">
           <div class="text-body2">
             {{ props.row.email }}
-            <q-icon v-if="props.row.is_superuser" name="shield" color="primary" size="xs">
+            <q-icon v-if="props.row.is_superuser" name="ph:shield-check" size="xs">
               <q-tooltip>Administrateur</q-tooltip>
             </q-icon>
           </div>
-          <div class="text-caption text-grey-7">
+          <div class="text-caption text-muted">
             {{ [props.row.full_name, props.row.phone].filter(Boolean).join(' · ') || '—' }}
           </div>
         </q-td>
@@ -84,11 +94,10 @@
       </template>
       <template #body-cell-status="props">
         <q-td :props="props">
-          <q-chip
-            dense
-            :color="statusOf(props.row).color"
-            text-color="white"
+          <StatusTag
             :label="statusOf(props.row).label"
+            :tone="statusOf(props.row).tone"
+            :icon="statusOf(props.row).icon"
           />
         </q-td>
       </template>
@@ -100,15 +109,15 @@
       </template>
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
-          <q-btn flat dense icon="edit" color="primary" @click="openEdit(props.row)">
+          <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
             <q-tooltip>Modifier (nom, téléphone, groupe)</q-tooltip>
           </q-btn>
           <q-btn
             v-if="props.row.invitation_pending && props.row.is_active"
             flat
+            round
             dense
-            icon="forward_to_inbox"
-            color="secondary"
+            icon="ph:paper-plane-tilt"
             :loading="busyIds.has(props.row.id)"
             @click="onResend(props.row)"
           >
@@ -116,9 +125,10 @@
           </q-btn>
           <q-btn
             flat
+            round
             dense
-            :icon="props.row.is_active ? 'person_off' : 'person'"
-            :color="props.row.is_active ? 'negative' : 'positive'"
+            :icon="props.row.is_active ? 'ph:user-minus' : 'ph:user-check'"
+            :color="props.row.is_active ? 'negative' : undefined"
             :loading="busyIds.has(props.row.id)"
             @click="onToggleActive(props.row)"
           >
@@ -126,10 +136,13 @@
           </q-btn>
         </q-td>
       </template>
+      <template #no-data>
+        <span class="text-subtle">{{ loading ? 'Chargement…' : 'Aucun compte.' }}</span>
+      </template>
     </q-table>
 
     <div class="row items-center q-mt-md">
-      <div class="text-caption text-grey-7 col">{{ count }} compte(s)</div>
+      <div class="text-caption text-muted col">{{ count }} compte(s)</div>
       <q-pagination
         v-if="totalPages > 1"
         v-model="page"
@@ -142,17 +155,17 @@
 
     <!-- Création -->
     <q-dialog v-model="createDialog">
-      <q-card style="min-width: 420px">
-        <q-card-section class="text-h6">Créer un compte</q-card-section>
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">Créer un compte</h2>
+          <p class="app-dialog__text">
+            Aucun mot de passe à saisir : la personne reçoit un lien pour choisir le sien (valable
+            72 h).
+          </p>
+        </q-card-section>
         <q-form @submit.prevent="submitCreate">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
-            <div class="text-caption text-grey-7">
-              Aucun mot de passe à saisir : la personne reçoit un lien pour choisir le sien (valable
-              72 h).
-            </div>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="form.email"
               label="Email *"
@@ -176,9 +189,16 @@
             <q-toggle v-model="form.is_superuser" label="Administrateur (accès au back-office)" />
             <q-toggle v-model="form.send_invitation" label="Envoyer l'invitation maintenant" />
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" label="Créer" :loading="saving" />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn
+              type="submit"
+              color="primary"
+              unelevated
+              no-caps
+              label="Créer"
+              :loading="saving"
+            />
           </q-card-actions>
         </q-form>
       </q-card>
@@ -186,13 +206,13 @@
 
     <!-- Modification -->
     <q-dialog v-model="editDialog">
-      <q-card style="min-width: 420px">
-        <q-card-section class="text-h6">Modifier {{ editing?.email }}</q-card-section>
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">Modifier {{ editing?.email }}</h2>
+        </q-card-section>
         <q-form @submit.prevent="submitEdit">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input v-model="editForm.full_name" label="Nom complet" outlined dense />
             <q-input v-model="editForm.phone" label="Téléphone" outlined dense />
             <q-select
@@ -206,9 +226,16 @@
               clearable
             />
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" label="Enregistrer" :loading="saving" />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn
+              type="submit"
+              color="primary"
+              unelevated
+              no-caps
+              label="Enregistrer"
+              :loading="saving"
+            />
           </q-card-actions>
         </q-form>
       </q-card>
@@ -219,6 +246,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import type { StatusTone } from '@app/ui/statusTone';
+import PageHeader from '@/components/PageHeader.vue';
 import { createUser, listUsers, resendInvitation, updateUser, type AdminUser } from '@/api/users';
 import { listPriceGroups, type PriceGroup } from '@/api/eligibility';
 import { extractApiError } from '@/api/errors';
@@ -269,19 +300,19 @@ function formatDate(value: string | null): string {
   return new Date(value).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-function statusOf(user: AdminUser): { label: string; color: string } {
-  if (!user.is_active) return { label: 'Désactivé', color: 'grey-6' };
+function statusOf(user: AdminUser): { label: string; tone: StatusTone; icon: string } {
+  if (!user.is_active) return { label: 'Désactivé', tone: 'neutral', icon: 'ph:minus-circle' };
   if (user.locked_until && new Date(user.locked_until) > new Date()) {
-    return { label: 'Verrouillé', color: 'orange' };
+    return { label: 'Verrouillé', tone: 'warn', icon: 'ph:lock' };
   }
   if (user.invitation_pending) {
     const expired =
       !user.invitation_expires_at || new Date(user.invitation_expires_at) < new Date();
     return expired
-      ? { label: 'Invitation expirée', color: 'deep-orange' }
-      : { label: 'Invitation en attente', color: 'blue' };
+      ? { label: 'Invitation expirée', tone: 'warn', icon: 'ph:warning-circle' }
+      : { label: 'Invitation en attente', tone: 'neutral', icon: 'ph:envelope-simple' };
   }
-  return { label: 'Actif', color: 'green' };
+  return { label: 'Actif', tone: 'ok', icon: 'ph:check-circle' };
 }
 
 function onFilterChange() {

@@ -1,18 +1,36 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="text-h6 col">Taux TVA / TGC</div>
-      <q-btn color="primary" icon="add" label="Nouveau taux" no-caps @click="openCreate" />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader
+      title="Taux TVA / TGC"
+      hint="Taux de taxe appliqués par territoire. Un taux est immuable : on le clôture et on en crée un nouveau."
+    >
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+        <q-btn
+          color="primary"
+          unelevated
+          no-caps
+          icon="ph:plus"
+          label="Nouveau taux"
+          @click="openCreate"
+        />
+      </template>
+    </PageHeader>
 
-    <div class="row q-col-gutter-md q-mb-md items-end">
+    <div class="admin-toolbar">
       <q-input
         v-model="territory"
         label="Territoire (ex: PF)"
         outlined
         dense
         clearable
-        class="col-12 col-sm-3"
         @update:model-value="load"
       />
       <q-select
@@ -23,15 +41,11 @@
         dense
         emit-value
         map-options
-        class="col-12 col-sm-3"
         @update:model-value="load"
       />
-      <div class="col-auto">
-        <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
-      </div>
     </div>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
+    <AppNotice v-if="error" tone="error" dense class="q-mb-md">{{ error }}</AppNotice>
 
     <q-table
       :rows="rows"
@@ -43,39 +57,39 @@
       :rows-per-page-options="[0]"
       hide-pagination
     >
+      <template #body-cell-code="props">
+        <q-td :props="props" class="font-mono">{{ props.row.code }}</q-td>
+      </template>
       <template #body-cell-rate="props">
-        <q-td :props="props">{{ props.row.rate_pct }} %</q-td>
+        <q-td :props="props" class="font-mono">{{ props.row.rate_pct }} %</q-td>
       </template>
       <template #body-cell-valid_until="props">
         <q-td :props="props">
-          <q-chip
-            v-if="!props.row.valid_until"
-            dense
-            color="green"
-            text-color="white"
-            label="Actif"
-          />
+          <StatusTag v-if="!props.row.valid_until" label="Actif" tone="ok" icon="ph:check-circle" />
           <span v-else>{{ props.row.valid_until }}</span>
         </q-td>
       </template>
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
-          <q-btn flat dense icon="edit" color="primary" @click="openEdit(props.row)">
+          <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
             <q-tooltip>Modifier (libellé / clôture)</q-tooltip>
           </q-btn>
         </q-td>
+      </template>
+      <template #no-data>
+        <div class="full-width text-center text-subtle q-pa-md">Aucun taux.</div>
       </template>
     </q-table>
 
     <!-- Create dialog -->
     <q-dialog v-model="createDialog">
-      <q-card style="min-width: 380px">
-        <q-card-section class="text-h6">Nouveau taux</q-card-section>
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">Nouveau taux</h2>
+        </q-card-section>
         <q-form @submit.prevent="submitCreate">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="form.code"
               label="Code (ex: TGC_NORMAL) *"
@@ -116,9 +130,16 @@
               dense
             />
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" label="Créer" :loading="saving" />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn
+              type="submit"
+              color="primary"
+              unelevated
+              no-caps
+              label="Créer"
+              :loading="saving"
+            />
           </q-card-actions>
         </q-form>
       </q-card>
@@ -126,17 +147,17 @@
 
     <!-- Edit dialog (label + valid_until only) -->
     <q-dialog v-model="editDialog">
-      <q-card style="min-width: 360px">
-        <q-card-section class="text-h6">Modifier {{ editing?.code }}</q-card-section>
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">Modifier {{ editing?.code }}</h2>
+          <p class="app-dialog__text">
+            Le taux ({{ editing?.rate_pct }} %) est immuable. Pour le changer, créez un nouveau taux
+            et clôturez celui-ci.
+          </p>
+        </q-card-section>
         <q-form @submit.prevent="submitEdit">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
-            <div class="text-caption text-grey-7">
-              Le taux ({{ editing?.rate_pct }} %) est immuable. Pour le changer, créez un nouveau
-              taux et clôturez celui-ci.
-            </div>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input v-model="editForm.label" label="Libellé" outlined dense />
             <q-input
               v-model="editForm.valid_until"
@@ -147,9 +168,16 @@
               clearable
             />
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" label="Enregistrer" :loading="saving" />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn
+              type="submit"
+              color="primary"
+              unelevated
+              no-caps
+              label="Enregistrer"
+              :loading="saving"
+            />
           </q-card-actions>
         </q-form>
       </q-card>
@@ -160,6 +188,9 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import { createTaxRate, listTaxRates, updateTaxRate, type TaxRate } from '@/api/taxRates';
 import { extractApiError } from '@/api/errors';
 

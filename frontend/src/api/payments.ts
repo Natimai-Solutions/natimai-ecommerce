@@ -9,6 +9,8 @@ export interface PaymentMethod {
   requires_admin_validation: boolean;
   requires_document_upload: boolean;
   sort_order: number;
+  /** false = cannot pay a deposit (the balance stays open to every method). */
+  deposit_allowed?: boolean;
 }
 
 export interface PaymentMethodsResponse {
@@ -71,6 +73,15 @@ export async function initiatePayment(
 
 export async function getMyPaymentStatus(paymentId: string): Promise<PaymentStatusResponse> {
   const response = await api.get<PaymentStatusResponse>(`/payments/me/${paymentId}`);
+  return response.data;
+}
+
+/**
+ * Finish a payment the customer approved on the provider's page (PayPal): the
+ * shop captures it server-side. Idempotent.
+ */
+export async function confirmMyPayment(paymentId: string): Promise<PaymentStatusResponse> {
+  const response = await api.post<PaymentStatusResponse>(`/payments/me/${paymentId}/confirm`);
   return response.data;
 }
 

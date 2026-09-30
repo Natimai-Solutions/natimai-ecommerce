@@ -80,15 +80,28 @@ export interface OrderTracking {
   consolidations: OrderConsolidation[];
 }
 
-export async function listMyOrders(): Promise<Order[]> {
-  const { data } = await api.get<Order[]>('/orders/me');
+/** One order for its detail page (`MyOrderDetail`): adds the payment method. */
+export interface OrderDetail extends Order {
+  payment_method_name: string | null;
+  /** Money already received (instalments included) and what is left to pay. */
+  amount_paid?: string;
+  amount_due?: string;
+}
+
+/** My orders, most recent first, one page at a time. */
+export async function listMyOrders(
+  options: { skip?: number; limit?: number } = {},
+): Promise<Order[]> {
+  const { data } = await api.get<Order[]>('/orders/me', {
+    params: { skip: options.skip ?? 0, limit: options.limit ?? 100 },
+  });
   return data;
 }
 
-/** Fetch a single order of the current user (resolved from the orders list). */
-export async function getMyOrder(orderId: string): Promise<Order | null> {
-  const orders = await listMyOrders();
-  return orders.find((o) => o.id === orderId) ?? null;
+/** A single order of the current user (`GET /orders/me/{id}`). */
+export async function getMyOrder(orderId: string): Promise<OrderDetail> {
+  const { data } = await api.get<OrderDetail>(`/orders/me/${orderId}`);
+  return data;
 }
 
 export async function getMyOrderTracking(orderId: string): Promise<OrderTracking> {
@@ -107,6 +120,11 @@ export interface OrderLine {
   warranty_months: number | null;
   /** Warranty end, counted from the day the goods were received. */
   warranty_until: string | null;
+  /** Picture and brand, for the order screens. */
+  image_url: string | null;
+  manufacturer: string | null;
+  /** The product page still exists (active product): the line can link to it. */
+  product_available: boolean;
 }
 
 export async function getMyOrderLines(orderId: string): Promise<OrderLine[]> {

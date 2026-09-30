@@ -3,7 +3,7 @@
     <q-card flat class="auth-card">
       <q-card-section>
         <h1 class="auth-title">Mot de passe oublié</h1>
-        <div class="text-body2 text-grey-7 q-mt-xs">
+        <div class="auth-lead q-mt-xs">
           Indiquez votre adresse email : si un compte y est associé, vous recevrez un lien pour
           choisir un nouveau mot de passe.
         </div>
@@ -15,7 +15,7 @@
           affiche donc simplement sa réponse, sans laisser entendre qu'un
           compte a été trouvé.
         -->
-        <AppNotice v-if="sentMessage" tone="success" icon="mark_email_read" class="q-mb-md">
+        <AppNotice v-if="sentMessage" tone="success" icon="ph:envelope-simple-open" class="q-mb-md">
           {{ sentMessage }}
         </AppNotice>
 
@@ -54,7 +54,8 @@
 </template>
 
 <script setup lang="ts">
-import AppNotice from '@/components/AppNotice.vue';
+import { apiErrorMessage } from '@/utils/errors';
+import AppNotice from '@app/ui/AppNotice.vue';
 import { ref } from 'vue';
 import { requestPasswordReset } from '@/api/passwordReset';
 
@@ -69,14 +70,9 @@ async function onSubmit() {
   try {
     sentMessage.value = await requestPasswordReset(email.value.trim().toLowerCase());
   } catch (err) {
-    errorMessage.value = extractError(err) ?? 'Envoi impossible. Veuillez réessayer.';
+    errorMessage.value = apiErrorMessage(err) ?? 'Envoi impossible. Veuillez réessayer.';
   } finally {
     submitting.value = false;
   }
-}
-
-function extractError(err: unknown): string | null {
-  const data = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data;
-  return data?.error?.message ?? null;
 }
 </script>

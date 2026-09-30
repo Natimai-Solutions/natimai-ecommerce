@@ -301,6 +301,13 @@ class Settings(BaseSettings):
     FILE_STORAGE_BACKEND: Literal["s3", "local"] = "local"
     FILE_STORAGE_LOCAL_ROOT: str = "/tmp/fastapi_ecommerce_storage"
     FILE_STORAGE_PRESIGNED_TTL_SECONDS: int = 300
+    # Images publiques (accueil, produits, catégories) téléversées depuis
+    # l'admin : ré-encodées en WebP et servies par GET /api/v1/media/…
+    # MEDIA_PUBLIC_BASE_URL = origine publique de l'API derrière le proxy
+    # (https://api.exemple.pf) ; vide, l'origine de la requête d'envoi sert,
+    # ce qui convient en développement.
+    MEDIA_PUBLIC_BASE_URL: str | None = None
+    MEDIA_MAX_UPLOAD_BYTES: int = 8 * 1024 * 1024
 
     # Payment attachment validation
     PAYMENT_ATTACHMENT_MAX_BYTES: int = 10 * 1024 * 1024  # 10 MB
@@ -405,6 +412,24 @@ class Settings(BaseSettings):
     # shipment — via POST /admin/payments/{id}/capture or the ship action.
     # PayZen authorisations expire (~7 days): capture before then or re-authorise.
     PAYZEN_MANUAL_VALIDATION: bool = False
+    # PayZen « CancelOrRefund » API for in-app card refunds. Off by default: a
+    # refund is then recorded as pending, to finalise in the PayZen back office
+    # (the historical behaviour). Turn on once validated in the sandbox.
+    PAYZEN_API_REFUND_ENABLED: bool = False
+
+    # PayPal (Orders API v2) — R3-P7. Credentials stay in the environment; the
+    # provider is switched on from the admin (payment_provider_paypal_enabled).
+    PAYPAL_CLIENT_ID: str | None = None
+    PAYPAL_CLIENT_SECRET: str | None = None
+    PAYPAL_MODE: Literal["sandbox", "live"] = "sandbox"
+    # Id of the webhook declared in the PayPal dashboard (signature check).
+    PAYPAL_WEBHOOK_ID: str | None = None
+    # PayPal does not handle XPF: an XPF order is charged in this currency,
+    # converted at the fixed parity (1 000 XPF = 8,38 EUR) or the active rate.
+    PAYPAL_CURRENCY: str = "EUR"
+    # CAPTURE debits at approval; AUTHORIZE reserves (deferred capture, 3 days
+    # honoured, 29 days valid) and the admin captures later.
+    PAYPAL_INTENT: Literal["CAPTURE", "AUTHORIZE"] = "CAPTURE"
     # --- Territoire et mode de la boutique --------------------------------
     # TERRITORY_PROFILE picks the currency, the tax territory and its seeded
     # rates, the country and the starter data (see app/core/territory.py):

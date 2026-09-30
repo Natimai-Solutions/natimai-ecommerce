@@ -1,133 +1,151 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="text-h6 col">Départs groupés</div>
-      <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
-      <q-btn color="primary" icon="add" label="Nouveau départ" no-caps @click="openCreate" />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader title="Départs groupés">
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+        <q-btn
+          color="primary"
+          unelevated
+          no-caps
+          icon="ph:plus"
+          label="Nouveau départ"
+          @click="openCreate"
+        />
+      </template>
+    </PageHeader>
 
-    <div class="text-caption text-grey-7 q-mb-md">
+    <p class="admin-hint">
       Un départ = une date limite de commande affichée en vitrine, les commandes qui s'y rattachent
       (automatiquement au checkout, déplaçables ici) et le bon de commande fournisseur agrégé par
       SKU. Un seul départ « ouvert » et publié à la fois.
+    </p>
+
+    <div v-if="error || notice" class="admin-notices">
+      <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
+      <AppNotice v-if="notice" tone="success" dense>{{ notice }}</AppNotice>
     </div>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
-    <q-banner v-if="notice" class="bg-green-1 text-green-9 q-mb-md" dense rounded>{{
-      notice
-    }}</q-banner>
-
-    <q-table
-      :rows="departures"
-      :columns="columns"
-      row-key="id"
-      :loading="loading"
-      flat
-      bordered
-      :rows-per-page-options="[0]"
-      hide-pagination
-      :selected="selected ? [selected] : []"
-      @row-click="(_evt: Event, row: Departure) => select(row)"
-    >
-      <template #body-cell-status="props">
-        <q-td :props="props">
-          <q-chip
-            dense
-            size="sm"
-            :color="props.row.status === 'open' ? 'green' : 'grey-7'"
-            text-color="white"
-            :label="departureStatusLabel(props.row.status)"
-          />
-          <q-icon v-if="props.row.is_published" name="visibility" color="primary" class="q-ml-xs">
-            <q-tooltip>Publié en vitrine</q-tooltip>
-          </q-icon>
-        </q-td>
-      </template>
-      <template #body-cell-orders="props">
-        <q-td :props="props">
-          {{ props.row.orders_count }} · {{ formatMoney(Number(props.row.orders_total)) }}
-        </q-td>
-      </template>
-      <template #body-cell-actions="props">
-        <q-td :props="props" align="right">
-          <q-btn
-            v-if="nextDepartureStatus(props.row.status)"
-            flat
-            dense
-            no-caps
-            icon="skip_next"
-            color="primary"
-            :label="departureStatusLabel(nextDepartureStatus(props.row.status) ?? '')"
-            @click.stop="advance(props.row)"
-          >
-            <q-tooltip>Passer à l'étape suivante</q-tooltip>
-          </q-btn>
-          <q-btn flat dense icon="edit" color="primary" @click.stop="openEdit(props.row)" />
-          <q-btn
-            flat
-            dense
-            icon="delete"
-            color="grey-8"
-            :disable="props.row.orders_count > 0"
-            @click.stop="remove(props.row)"
-          >
-            <q-tooltip>
-              {{
-                props.row.orders_count > 0
-                  ? 'Déplacez les commandes rattachées avant de supprimer'
-                  : 'Supprimer'
-              }}
-            </q-tooltip>
-          </q-btn>
-        </q-td>
-      </template>
-      <template #no-data>
-        <div class="full-width text-center text-grey-6 q-pa-md">
-          Aucun départ groupé : la boutique fonctionne en mode classique.
-        </div>
-      </template>
-    </q-table>
+    <section class="app-section">
+      <q-table
+        :rows="departures"
+        :columns="columns"
+        row-key="id"
+        :loading="loading"
+        flat
+        bordered
+        :rows-per-page-options="[0]"
+        hide-pagination
+        :selected="selected ? [selected] : []"
+        @row-click="(_evt: Event, row: Departure) => select(row)"
+      >
+        <template #body-cell-status="props">
+          <q-td :props="props">
+            <StatusTag
+              :label="departureStatusLabel(props.row.status)"
+              :tone="departureTone(props.row.status)"
+              :icon="toneIcon(departureTone(props.row.status))"
+            />
+            <q-icon v-if="props.row.is_published" name="ph:eye" class="text-muted q-ml-sm">
+              <q-tooltip>Publié en vitrine</q-tooltip>
+            </q-icon>
+          </q-td>
+        </template>
+        <template #body-cell-orders="props">
+          <q-td :props="props" class="font-mono">
+            {{ props.row.orders_count }} · {{ formatMoney(Number(props.row.orders_total)) }}
+          </q-td>
+        </template>
+        <template #body-cell-actions="props">
+          <q-td :props="props" align="right">
+            <q-btn
+              v-if="nextDepartureStatus(props.row.status)"
+              flat
+              dense
+              no-caps
+              icon="ph:skip-forward"
+              :label="departureStatusLabel(nextDepartureStatus(props.row.status) ?? '')"
+              @click.stop="advance(props.row)"
+            >
+              <q-tooltip>Passer à l'étape suivante</q-tooltip>
+            </q-btn>
+            <q-btn flat round dense icon="ph:pencil-simple" @click.stop="openEdit(props.row)">
+              <q-tooltip>Modifier</q-tooltip>
+            </q-btn>
+            <q-btn
+              flat
+              round
+              dense
+              color="negative"
+              icon="ph:trash"
+              :disable="props.row.orders_count > 0"
+              @click.stop="remove(props.row)"
+            >
+              <q-tooltip>
+                {{
+                  props.row.orders_count > 0
+                    ? 'Déplacez les commandes rattachées avant de supprimer'
+                    : 'Supprimer'
+                }}
+              </q-tooltip>
+            </q-btn>
+          </q-td>
+        </template>
+        <template #no-data>
+          <div class="full-width text-center text-subtle q-pa-md">
+            Aucun départ groupé : la boutique fonctionne en mode classique.
+          </div>
+        </template>
+      </q-table>
+    </section>
 
     <!-- Orders of the selected departure -->
-    <q-card v-if="selected" flat bordered class="q-mt-md">
-      <q-card-section class="row items-center q-gutter-sm">
-        <div class="text-subtitle1 col">
+    <section v-if="selected" class="app-section" aria-labelledby="departure-detail-title">
+      <div class="app-section__head">
+        <h2 id="departure-detail-title" class="app-section__title">
           Commandes du départ « {{ selected.name }} »
-          <span class="text-caption text-grey-7">— {{ cutoffLabel(selected) }}</span>
+        </h2>
+        <p class="app-section__hint">{{ cutoffLabel(selected) }}</p>
+        <div class="app-section__action detail-actions">
+          <q-btn
+            flat
+            no-caps
+            icon="ph:download-simple"
+            label="Commandes (CSV)"
+            @click="downloadOrdersCsv(filters)"
+          />
+          <q-btn
+            flat
+            no-caps
+            icon="ph:download-simple"
+            label="Bon de commande par SKU (CSV)"
+            @click="downloadSkuSummaryCsv(filters)"
+          />
+          <q-btn
+            v-if="selected.status === 'open' || selected.status === 'draft'"
+            color="primary"
+            unelevated
+            no-caps
+            icon="ph:lock"
+            label="Clôturer le départ"
+            :loading="closing"
+            @click="closeSelected(false)"
+          >
+            <q-tooltip>
+              Vérifie le stock fournisseur de chaque article commandé, les seuils, et crée le départ
+              suivant si récurrent
+            </q-tooltip>
+          </q-btn>
         </div>
-        <q-btn
-          v-if="selected.status === 'open' || selected.status === 'draft'"
-          color="primary"
-          no-caps
-          icon="lock"
-          label="Clôturer le départ"
-          :loading="closing"
-          @click="closeSelected(false)"
-        >
-          <q-tooltip>
-            Vérifie le stock fournisseur de chaque article commandé, les seuils, et crée le départ
-            suivant si récurrent
-          </q-tooltip>
-        </q-btn>
-        <q-btn
-          flat
-          dense
-          no-caps
-          icon="download"
-          label="Commandes (CSV)"
-          @click="downloadOrdersCsv(filters)"
-        />
-        <q-btn
-          flat
-          dense
-          no-caps
-          icon="download"
-          label="Bon de commande par SKU (CSV)"
-          @click="downloadSkuSummaryCsv(filters)"
-        />
-      </q-card-section>
+      </div>
 
-      <q-card-section class="q-pt-none">
+      <div class="detail-block">
         <q-table
           v-model:selected="selectedOrders"
           :rows="orders"
@@ -136,12 +154,13 @@
           selection="multiple"
           :loading="ordersLoading"
           flat
+          bordered
           dense
           :rows-per-page-options="[0]"
           hide-pagination
         >
           <template #top>
-            <div class="row items-center q-gutter-sm full-width">
+            <div class="admin-toolbar full-width q-mb-none">
               <q-select
                 v-model="moveTarget"
                 :options="moveOptions"
@@ -153,7 +172,7 @@
                 style="min-width: 260px"
               />
               <q-btn
-                color="primary"
+                outline
                 no-caps
                 label="Déplacer"
                 :disable="selectedOrders.length === 0 || moveTarget === undefined"
@@ -162,36 +181,43 @@
               <q-toggle v-model="showUnassigned" label="Voir les commandes sans départ" dense />
             </div>
           </template>
+          <template #body-cell-number="props">
+            <q-td :props="props">
+              <router-link
+                :to="`/orders/${props.row.order_id}`"
+                class="admin-link font-mono"
+                :title="props.row.order_id"
+                >{{ props.value }}</router-link
+              >
+            </q-td>
+          </template>
           <template #body-cell-status="props">
             <q-td :props="props">
-              <q-chip
-                dense
-                size="sm"
-                :color="orderStatusColor(props.row.status)"
-                text-color="white"
+              <StatusTag
                 :label="orderStatusLabel(props.row.status)"
+                :tone="toneOf(orderStatusColor(props.row.status))"
+                :icon="toneIcon(toneOf(orderStatusColor(props.row.status)))"
               />
             </q-td>
+          </template>
+          <template #body-cell-total="props">
+            <q-td :props="props" class="font-mono">{{ props.value }}</q-td>
           </template>
           <template #body-cell-actions="props">
             <q-td :props="props" align="right">
-              <q-btn
-                flat
-                dense
-                icon="visibility"
-                color="primary"
-                :to="`/orders/${props.row.order_id}`"
-              />
+              <q-btn flat round dense icon="ph:arrow-right" :to="`/orders/${props.row.order_id}`">
+                <q-tooltip>Ouvrir la commande</q-tooltip>
+              </q-btn>
             </q-td>
           </template>
           <template #no-data>
-            <div class="full-width text-center text-grey-6 q-pa-md">Aucune commande.</div>
+            <div class="full-width text-center text-subtle q-pa-md">Aucune commande.</div>
           </template>
         </q-table>
-      </q-card-section>
+      </div>
 
-      <q-card-section v-if="!showUnassigned">
-        <div class="text-subtitle2 q-mb-sm">Bon de commande fournisseur (agrégé par SKU)</div>
+      <div v-if="!showUnassigned" class="detail-block">
+        <h3 class="admin-subtitle">Bon de commande fournisseur (agrégé par SKU)</h3>
         <q-table
           :rows="sku"
           :columns="skuColumns"
@@ -204,49 +230,65 @@
           hide-pagination
         >
           <template #no-data>
-            <div class="full-width text-center text-grey-6 q-pa-md">Aucune ligne.</div>
+            <div class="full-width text-center text-subtle q-pa-md">Aucune ligne.</div>
           </template>
         </q-table>
-      </q-card-section>
+      </div>
 
       <!-- Real purchase orders placed with the suppliers -->
-      <q-card-section v-if="!showUnassigned">
-        <div class="row items-center q-mb-sm q-gutter-sm">
-          <div class="text-subtitle2 col">Bons de commande passés aux fournisseurs</div>
-          <q-btn flat dense no-caps icon="add" label="Enregistrer un BC" @click="poDialog = true" />
+      <div v-if="!showUnassigned" class="detail-block">
+        <div class="detail-head">
+          <h3 class="admin-subtitle">Bons de commande passés aux fournisseurs</h3>
+          <q-btn
+            flat
+            dense
+            no-caps
+            icon="ph:plus"
+            label="Enregistrer un BC"
+            @click="poDialog = true"
+          />
         </div>
-        <q-list v-if="selected.supplier_orders?.length" dense bordered separator>
+        <q-list
+          v-if="selected.supplier_orders?.length"
+          dense
+          bordered
+          separator
+          class="rounded-borders"
+        >
           <q-item v-for="(po, i) in selected.supplier_orders" :key="i">
             <q-item-section>
               <q-item-label>
-                {{ po.supplier_name }} — n° {{ po.order_number }}
-                <span class="text-grey-7">· {{ formatDate(po.ordered_at) }}</span>
+                {{ po.supplier_name }} — n° <span class="font-mono">{{ po.order_number }}</span>
+                <span class="text-muted">· {{ formatDate(po.ordered_at) }}</span>
               </q-item-label>
               <q-item-label caption>
-                {{ po.total_amount }} {{ po.currency
-                }}<template v-if="po.notes"> · {{ po.notes }}</template>
+                <span class="font-mono">{{ po.total_amount }} {{ po.currency }}</span
+                ><template v-if="po.notes"> · {{ po.notes }}</template>
               </q-item-label>
             </q-item-section>
             <q-item-section side>
-              <q-btn flat dense icon="delete" color="grey-8" @click="removePo(i)" />
+              <q-btn flat round dense color="negative" icon="ph:trash" @click="removePo(i)">
+                <q-tooltip>Supprimer</q-tooltip>
+              </q-btn>
             </q-item-section>
           </q-item>
         </q-list>
-        <div v-else class="text-caption text-grey-6">
+        <p v-else class="text-caption text-subtle q-mb-none">
           Aucun bon de commande enregistré. Le premier BC passe le départ en « commandé » et
           prévient les clients.
-        </div>
-      </q-card-section>
+        </p>
+      </div>
 
       <!-- Goods receipt: tally per product, orders reconciliation -->
-      <q-card-section v-if="!showUnassigned">
-        <div class="row items-center q-mb-sm q-gutter-sm">
-          <div class="text-subtitle2 col">Réception — pointage par SKU</div>
-          <span v-if="reception" class="text-caption text-grey-7">
-            attendu {{ reception.expected_units }} · reçu {{ reception.received_units }} · endommagé
-            {{ reception.damaged_units }} ·
-            <span :class="reception.missing_units ? 'text-orange-9' : 'text-positive'"
-              >manquant {{ reception.missing_units }}</span
+      <div v-if="!showUnassigned" class="detail-block">
+        <div class="detail-head">
+          <h3 class="admin-subtitle">Réception — pointage par SKU</h3>
+          <span v-if="reception" class="text-caption text-muted">
+            attendu <span class="font-mono">{{ reception.expected_units }}</span> · reçu
+            <span class="font-mono">{{ reception.received_units }}</span> · endommagé
+            <span class="font-mono">{{ reception.damaged_units }}</span> ·
+            <span :class="reception.missing_units ? 'text-warning' : 'text-positive'"
+              >manquant <span class="font-mono">{{ reception.missing_units }}</span></span
             >
           </span>
         </div>
@@ -298,7 +340,11 @@
             </q-td>
           </template>
           <template #body-cell-missing="props">
-            <q-td :props="props" :class="missingOf(props.row) ? 'text-orange-9' : 'text-positive'">
+            <q-td
+              :props="props"
+              class="font-mono"
+              :class="missingOf(props.row) ? 'text-warning' : 'text-positive'"
+            >
               {{ missingOf(props.row) }}
             </q-td>
           </template>
@@ -306,9 +352,9 @@
             <q-td :props="props" align="right">
               <q-btn
                 flat
+                round
                 dense
-                icon="save"
-                color="primary"
+                icon="ph:floppy-disk"
                 :loading="savingReceipt === props.row.product_id"
                 @click="saveReceipt(props.row)"
               >
@@ -320,67 +366,57 @@
             </q-td>
           </template>
           <template #no-data>
-            <div class="full-width text-center text-grey-6 q-pa-md">
+            <div class="full-width text-center text-subtle q-pa-md">
               Aucun article attendu (aucune commande payée).
             </div>
           </template>
         </q-table>
-        <div v-if="reception?.orders.length" class="q-mt-sm">
-          <div class="text-caption text-grey-7 q-mb-xs">
+        <div v-if="reception?.orders.length" class="q-mt-md">
+          <div class="text-caption text-muted q-mb-xs">
             Rapprochement des commandes (servies par ordre d'arrivée)
           </div>
-          <q-btn
-            v-for="o in reception.orders"
-            :key="o.order_id"
-            unelevated
-            rounded
-            dense
-            no-caps
-            size="sm"
-            class="q-mr-xs q-mb-xs"
-            :color="fulfilmentColor(o.fulfilment)"
-            :label="`${o.order_number ?? o.order_id.slice(0, 8)} · ${fulfilmentLabel(o.fulfilment)}`"
-            :to="`/orders/${o.order_id}`"
-          >
-            <q-tooltip>
-              <div v-for="ln in o.lines" :key="ln.product_id">
-                {{ ln.product_name }} : {{ ln.allocated }}/{{ ln.quantity }}
-                <template v-if="ln.serial_numbers.length">
-                  ({{ ln.serial_numbers.join(', ') }})</template
-                >
-              </div>
-            </q-tooltip>
-          </q-btn>
-        </div>
-      </q-card-section>
-
-      <!-- Margin dashboard -->
-      <q-card-section v-if="!showUnassigned && board">
-        <div class="text-subtitle2 q-mb-sm">Tableau de bord du départ</div>
-        <div class="row q-col-gutter-sm q-mb-sm">
-          <div v-for="tile in tiles" :key="tile.label" class="col-6 col-md">
-            <q-card flat bordered class="q-pa-sm">
-              <div class="text-caption text-grey-7">{{ tile.label }}</div>
-              <div class="text-subtitle1 text-weight-medium" :class="tile.cls">
-                {{ tile.value }}
-              </div>
-              <div v-if="tile.hint" class="text-caption text-grey-6">{{ tile.hint }}</div>
-            </q-card>
+          <div class="fulfilment-list">
+            <router-link
+              v-for="o in reception.orders"
+              :key="o.order_id"
+              :to="`/orders/${o.order_id}`"
+              class="fulfilment-link"
+            >
+              <StatusTag
+                :label="`${o.order_number ?? o.order_id.slice(0, 8)} · ${fulfilmentLabel(o.fulfilment)}`"
+                :tone="toneOf(fulfilmentColor(o.fulfilment))"
+                :icon="toneIcon(toneOf(fulfilmentColor(o.fulfilment)))"
+              />
+              <q-tooltip>
+                <div v-for="ln in o.lines" :key="ln.product_id">
+                  {{ ln.product_name }} : {{ ln.allocated }}/{{ ln.quantity }}
+                  <template v-if="ln.serial_numbers.length">
+                    ({{ ln.serial_numbers.join(', ') }})</template
+                  >
+                </div>
+              </q-tooltip>
+            </router-link>
           </div>
         </div>
-        <q-banner
-          v-if="board.unconverted_currencies.length"
-          class="bg-orange-1 text-orange-10 q-mb-sm"
-          dense
-          rounded
-        >
+      </div>
+
+      <!-- Margin dashboard -->
+      <div v-if="!showUnassigned && board" class="detail-block">
+        <h3 class="admin-subtitle">Tableau de bord du départ</h3>
+        <div class="kpi-grid">
+          <div v-for="tile in tiles" :key="tile.label" class="kpi">
+            <span class="kpi__label">{{ tile.label }}</span>
+            <span class="kpi__value font-mono" :class="tile.cls">{{ tile.value }}</span>
+            <span v-if="tile.hint" class="kpi__hint">{{ tile.hint }}</span>
+          </div>
+        </div>
+        <AppNotice v-if="board.unconverted_currencies.length" tone="warning" dense class="q-mt-md">
           Bons de commande en {{ board.unconverted_currencies.join(', ') }} ignorés : aucun taux de
           change actif.
-        </q-banner>
-        <div class="row q-col-gutter-sm items-center">
+        </AppNotice>
+        <div class="admin-toolbar q-mt-md q-mb-none">
           <q-input
             v-model="costs.freight_cost"
-            class="col"
             type="number"
             step="1"
             min="0"
@@ -390,7 +426,6 @@
           />
           <q-input
             v-model="costs.customs_cost"
-            class="col"
             type="number"
             step="1"
             min="0"
@@ -400,7 +435,6 @@
           />
           <q-input
             v-model="costs.other_costs"
-            class="col"
             type="number"
             step="1"
             min="0"
@@ -410,19 +444,27 @@
           />
           <q-btn
             color="primary"
+            unelevated
             no-caps
             label="Enregistrer les coûts"
             :loading="saving"
             @click="saveCosts"
           />
         </div>
-      </q-card-section>
+      </div>
 
       <!-- Social reminders -->
-      <q-card-section v-if="!showUnassigned">
-        <div class="row items-center q-mb-sm q-gutter-sm">
-          <div class="text-subtitle2 col">Rappels réseaux sociaux</div>
-          <q-btn flat dense no-caps icon="add" label="Ajouter un rappel" @click="openReminder()" />
+      <div v-if="!showUnassigned" class="detail-block">
+        <div class="detail-head">
+          <h3 class="admin-subtitle">Rappels réseaux sociaux</h3>
+          <q-btn
+            flat
+            dense
+            no-caps
+            icon="ph:plus"
+            label="Ajouter un rappel"
+            @click="openReminder()"
+          />
         </div>
         <q-input
           v-model="webhookUrl"
@@ -430,10 +472,10 @@
           hint="https uniquement. Réglage global, commun à tous les départs."
           outlined
           dense
-          class="q-mb-sm"
+          class="q-mb-md"
           @blur="saveWebhook"
         >
-          <template #append><q-icon name="webhook" /></template>
+          <template #append><q-icon name="ph:webhooks-logo" /></template>
         </q-input>
         <q-table
           :rows="reminders"
@@ -448,12 +490,10 @@
         >
           <template #body-cell-status="props">
             <q-td :props="props">
-              <q-chip
-                dense
-                size="sm"
-                :color="reminderColor(props.row.status)"
-                text-color="white"
+              <StatusTag
                 :label="reminderLabel(props.row.status)"
+                :tone="toneOf(reminderColor(props.row.status))"
+                :icon="toneIcon(toneOf(reminderColor(props.row.status)))"
               />
               <span v-if="props.row.error" class="text-caption text-negative q-ml-xs">
                 {{ props.row.error }}
@@ -462,61 +502,72 @@
           </template>
           <template #body-cell-actions="props">
             <q-td :props="props" align="right">
-              <q-btn flat dense icon="send" color="primary" @click="publishNow(props.row)">
+              <q-btn flat round dense icon="ph:paper-plane-tilt" @click="publishNow(props.row)">
                 <q-tooltip>Publier maintenant</q-tooltip>
               </q-btn>
               <q-btn
                 v-if="props.row.status !== 'sent'"
                 flat
+                round
                 dense
-                icon="edit"
-                color="primary"
+                icon="ph:pencil-simple"
                 @click="openReminder(props.row)"
-              />
-              <q-btn flat dense icon="delete" color="grey-8" @click="removeReminder(props.row)" />
+              >
+                <q-tooltip>Modifier</q-tooltip>
+              </q-btn>
+              <q-btn
+                flat
+                round
+                dense
+                color="negative"
+                icon="ph:trash"
+                @click="removeReminder(props.row)"
+              >
+                <q-tooltip>Supprimer</q-tooltip>
+              </q-btn>
             </q-td>
           </template>
           <template #no-data>
-            <div class="full-width text-center text-grey-6 q-pa-md">Aucun rappel.</div>
+            <div class="full-width text-center text-subtle q-pa-md">Aucun rappel.</div>
           </template>
         </q-table>
-      </q-card-section>
-    </q-card>
+      </div>
+    </section>
 
     <!-- Close result: what is left to arbitrate -->
     <q-dialog v-model="closeDialog">
-      <q-card style="min-width: 560px; max-width: 90vw">
-        <q-card-section class="text-h6">
-          {{ closeResult?.closed ? 'Départ clôturé' : 'Départ non clôturé' }}
-        </q-card-section>
-        <q-card-section v-if="closeResult" class="q-pt-none">
-          <div class="q-mb-sm">
+      <q-card class="app-dialog app-dialog--wide">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">
+            {{ closeResult?.closed ? 'Départ clôturé' : 'Départ non clôturé' }}
+          </h2>
+          <p v-if="closeResult" class="app-dialog__text">
             {{ closeResult.orders_count }} commande(s) payée(s) ·
-            {{ formatMoney(Number(closeResult.orders_total)) }}
+            <span class="font-mono">{{ formatMoney(Number(closeResult.orders_total)) }}</span>
+          </p>
+        </q-card-section>
+        <q-card-section v-if="closeResult">
+          <div
+            v-if="!closeResult.threshold_reached || closeResult.unpaid_order_ids.length"
+            class="admin-notices"
+          >
+            <AppNotice v-if="!closeResult.threshold_reached" tone="warning" dense>
+              Seuil minimum non atteint : le départ reste ouvert. Reportez la clôture ou forcez-la.
+            </AppNotice>
+            <AppNotice v-if="closeResult.unpaid_order_ids.length" tone="info" dense>
+              {{ closeResult.unpaid_order_ids.length }} commande(s) non payée(s) restent rattachées
+              : à exclure ou à déplacer vers le départ suivant depuis la liste des commandes.
+            </AppNotice>
           </div>
-          <q-banner
-            v-if="!closeResult.threshold_reached"
-            class="bg-orange-1 text-orange-10 q-mb-sm"
-            dense
-            rounded
-          >
-            Seuil minimum non atteint : le départ reste ouvert. Reportez la clôture ou forcez-la.
-          </q-banner>
-          <q-banner
-            v-if="closeResult.unpaid_order_ids.length"
-            class="bg-grey-2 q-mb-sm"
-            dense
-            rounded
-          >
-            {{ closeResult.unpaid_order_ids.length }} commande(s) non payée(s) restent rattachées :
-            à exclure ou à déplacer vers le départ suivant depuis la liste des commandes.
-          </q-banner>
           <template v-if="closeResult.shortages.length">
-            <div class="text-subtitle2 q-mb-xs">Ruptures chez le fournisseur — à arbitrer</div>
-            <q-list dense bordered separator>
+            <h3 class="admin-subtitle">Ruptures chez le fournisseur — à arbitrer</h3>
+            <q-list dense bordered separator class="rounded-borders">
               <q-item v-for="s in closeResult.shortages" :key="s.product_id">
                 <q-item-section>
-                  <q-item-label>{{ s.product_name }} ({{ s.supplier_sku }})</q-item-label>
+                  <q-item-label
+                    >{{ s.product_name }} (<span class="font-mono">{{ s.supplier_sku }}</span
+                    >)</q-item-label
+                  >
                   <q-item-label caption>
                     {{ s.ordered_quantity }} commandé(s), {{ s.available_quantity }} disponible(s) —
                     commandes {{ s.order_numbers.filter(Boolean).join(', ') || s.order_ids.length }}
@@ -527,7 +578,6 @@
                     flat
                     dense
                     no-caps
-                    color="orange-9"
                     label="Marquer en rupture"
                     @click="markBackordered(s.order_ids)"
                   >
@@ -540,29 +590,32 @@
             </q-list>
           </template>
           <div v-else class="text-positive">Stock fournisseur suffisant sur toutes les lignes.</div>
-          <div v-if="closeResult.next_departure_id" class="text-caption text-grey-7 q-mt-sm">
+          <div v-if="closeResult.next_departure_id" class="text-caption text-muted q-mt-sm">
             Départ suivant créé et publié (récurrence).
           </div>
         </q-card-section>
-        <q-card-actions align="right">
+        <q-card-actions align="right" class="app-dialog__actions">
           <q-btn
             v-if="closeResult && !closeResult.closed"
             flat
-            color="orange-9"
+            no-caps
+            color="negative"
             label="Forcer la clôture"
             @click="closeSelected(true)"
           />
-          <q-btn flat label="Fermer" v-close-popup />
+          <q-btn flat no-caps label="Fermer" v-close-popup />
         </q-card-actions>
       </q-card>
     </q-dialog>
 
     <!-- Supplier purchase order -->
     <q-dialog v-model="poDialog">
-      <q-card style="min-width: 460px">
-        <q-card-section class="text-h6">Bon de commande fournisseur</q-card-section>
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">Bon de commande fournisseur</h2>
+        </q-card-section>
         <q-form @submit.prevent="submitPo">
-          <q-card-section class="q-pt-none q-gutter-sm">
+          <q-card-section class="q-gutter-sm">
             <q-input
               v-model="poForm.supplier_name"
               label="Fournisseur *"
@@ -600,9 +653,16 @@
             </div>
             <q-input v-model="poForm.notes" label="Notes" outlined dense />
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" label="Enregistrer" :loading="saving" />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn
+              type="submit"
+              color="primary"
+              unelevated
+              no-caps
+              label="Enregistrer"
+              :loading="saving"
+            />
           </q-card-actions>
         </q-form>
       </q-card>
@@ -610,12 +670,14 @@
 
     <!-- Reminder -->
     <q-dialog v-model="reminderDialog">
-      <q-card style="min-width: 520px">
-        <q-card-section class="text-h6">{{
-          reminderEditId ? 'Modifier le rappel' : 'Nouveau rappel'
-        }}</q-card-section>
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">
+            {{ reminderEditId ? 'Modifier le rappel' : 'Nouveau rappel' }}
+          </h2>
+        </q-card-section>
         <q-form @submit.prevent="submitReminder">
-          <q-card-section class="q-pt-none q-gutter-sm">
+          <q-card-section class="q-gutter-sm">
             <div class="row q-col-gutter-sm">
               <q-input
                 v-model.number="reminderForm.offset_days"
@@ -658,9 +720,16 @@
               clearable
             />
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" label="Enregistrer" :loading="saving" />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn
+              type="submit"
+              color="primary"
+              unelevated
+              no-caps
+              label="Enregistrer"
+              :loading="saving"
+            />
           </q-card-actions>
         </q-form>
       </q-card>
@@ -668,15 +737,15 @@
 
     <!-- Create / edit -->
     <q-dialog v-model="dialog">
-      <q-card style="min-width: 520px">
-        <q-card-section class="text-h6">{{
-          editId ? 'Modifier le départ' : 'Nouveau départ groupé'
-        }}</q-card-section>
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">
+            {{ editId ? 'Modifier le départ' : 'Nouveau départ groupé' }}
+          </h2>
+        </q-card-section>
         <q-form @submit.prevent="submit">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="form.name"
               label="Nom *"
@@ -751,9 +820,16 @@
             </div>
             <q-input v-model="form.notes" type="textarea" label="Notes" outlined dense autogrow />
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" label="Enregistrer" :loading="saving" />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn
+              type="submit"
+              color="primary"
+              unelevated
+              no-caps
+              label="Enregistrer"
+              :loading="saving"
+            />
           </q-card-actions>
         </q-form>
       </q-card>
@@ -764,6 +840,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import { toneIcon, toneOf, type StatusTone } from '@app/ui/statusTone';
 import {
   DEPARTURE_STATUSES,
   departureCutoffLabel,
@@ -773,6 +852,7 @@ import {
   formatXpf,
   nextDepartureStatus,
 } from '@app/utils';
+import PageHeader from '@/components/PageHeader.vue';
 import {
   addSupplierOrder,
   assignOrders,
@@ -821,6 +901,7 @@ const notice = ref<string | null>(null);
 
 const formatMoney = (n: number) => (Number.isFinite(n) ? formatXpf(n) : String(n));
 const cutoffLabel = (d: Departure) => departureCutoffLabel(d);
+const departureTone = (status: string): StatusTone => (status === 'open' ? 'ok' : 'neutral');
 
 const columns: QTableColumn[] = [
   { name: 'name', label: 'Départ', field: 'name', align: 'left' },
@@ -912,22 +993,24 @@ const orderColumns: QTableColumn[] = [
 
 const skuColumns: QTableColumn[] = [
   { name: 'supplier', label: 'Fournisseur', field: 'supplier_name', align: 'left' },
-  { name: 'sku', label: 'SKU', field: 'supplier_sku', align: 'left' },
+  { name: 'sku', label: 'SKU', field: 'supplier_sku', align: 'left', classes: 'font-mono' },
   { name: 'product', label: 'Produit', field: 'product_name', align: 'left' },
-  { name: 'qty', label: 'Qté', field: 'quantity', align: 'right' },
-  { name: 'orders', label: 'Cmdes', field: 'orders_count', align: 'right' },
+  { name: 'qty', label: 'Qté', field: 'quantity', align: 'right', classes: 'font-mono' },
+  { name: 'orders', label: 'Cmdes', field: 'orders_count', align: 'right', classes: 'font-mono' },
   {
     name: 'cost',
     label: 'Coût unit.',
     field: (r: SkuSummaryRow) =>
       r.unit_cost === null ? '—' : `${r.unit_cost} ${r.cost_currency ?? ''}`,
     align: 'right',
+    classes: 'font-mono',
   },
   {
     name: 'weight',
     label: 'Poids total (kg)',
     field: (r: SkuSummaryRow) => r.total_weight_kg ?? '—',
     align: 'right',
+    classes: 'font-mono',
   },
 ];
 
@@ -957,7 +1040,13 @@ const receiptColumns: QTableColumn[] = [
     field: (r: ReceiptLine) => `${r.supplier_sku ?? '—'} · ${r.product_name}`,
     align: 'left',
   },
-  { name: 'expected', label: 'Attendu', field: 'expected_quantity', align: 'right' },
+  {
+    name: 'expected',
+    label: 'Attendu',
+    field: 'expected_quantity',
+    align: 'right',
+    classes: 'font-mono',
+  },
   { name: 'received', label: 'Reçu', field: 'quantity_received', align: 'right' },
   { name: 'damaged', label: 'Endommagé', field: 'quantity_damaged', align: 'right' },
   { name: 'missing', label: 'Manquant', field: 'expected_quantity', align: 'right' },
@@ -1513,3 +1602,80 @@ onMounted(() => {
   void loadWebhook();
 });
 </script>
+
+<style scoped lang="scss">
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-block + .detail-block {
+  margin-top: 32px;
+}
+
+.detail-head {
+  margin-bottom: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+
+  .admin-subtitle {
+    margin: 0;
+  }
+}
+
+.fulfilment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fulfilment-link {
+  text-decoration: none;
+  border-radius: 999px;
+
+  &:hover :deep(.status-tag) {
+    border-color: var(--n-ink-3);
+  }
+}
+
+// Tuiles de chiffres : même grammaire que les KPI du tableau de bord.
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  border-top: 1px solid var(--n-line);
+  border-left: 1px solid var(--n-line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.kpi {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-right: 1px solid var(--n-line);
+  border-bottom: 1px solid var(--n-line);
+  background: var(--n-surface);
+}
+
+.kpi__label {
+  font-size: 12.5px;
+  color: var(--n-ink-3);
+}
+
+.kpi__value {
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.kpi__hint {
+  font-size: 12.5px;
+  color: var(--n-ink-3);
+}
+</style>

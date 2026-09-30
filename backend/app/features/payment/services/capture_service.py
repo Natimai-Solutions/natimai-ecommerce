@@ -34,12 +34,6 @@ class CaptureOutcome:
     message: str | None
 
 
-def _provider_trans_uuid(payment: Payment) -> str | None:
-    data = payment.provider_data or {}
-    raw = data.get("trans_uuid") or data.get("trans_id")
-    return str(raw) if raw else None
-
-
 async def capture_payment(
     session: AsyncSession, *, payment: Payment, admin: User
 ) -> CaptureOutcome:
@@ -53,7 +47,7 @@ async def capture_payment(
     provider_code = payment.provider_code
     current_status_id = payment.payment_status_id
     admin_id = admin.id
-    trans_uuid = _provider_trans_uuid(payment)
+    provider_data = dict(payment.provider_data or {})
 
     authorized = await crud_payment_status.get_by_name(
         session, name=PAYMENT_STATUS_AUTHORIZED
@@ -65,14 +59,6 @@ async def capture_payment(
             message="Le paiement n'est pas en attente de capture (statut « Authorized »).",
             details={"payment_id": str(payment_id)},
         )
-    if not trans_uuid:
-        raise AppError(
-            code="capture.no_transaction",
-            status_code=400,
-            message="Transaction du prestataire introuvable pour la capture.",
-            details={"payment_id": str(payment_id)},
-        )
-
     try:
         provider = get_provider(provider_code)
     except PaymentProviderError as exc:
@@ -82,6 +68,15 @@ async def capture_payment(
             message=f"Fournisseur de paiement inconnu : {provider_code}",
             details={"provider_code": provider_code},
         ) from exc
+
+    trans_uuid = provider.capture_reference(provider_data)
+    if not trans_uuid:
+        raise AppError(
+            code="capture.no_transaction",
+            status_code=400,
+            message="Transaction du prestataire introuvable pour la capture.",
+            details={"payment_id": str(payment_id)},
+        )
 
     result = await provider.capture(
         payment_reference=trans_uuid, amount=amount, currency=currency
@@ -98,7 +93,11 @@ async def capture_payment(
     )
     if captured is not None:
         payment.payment_status_id = captured.id
-        session.add(payment)
+    if result.provider_reference:
+        # The provider's id of the capture: what a later refund points at.
+        provider_data["capture_id"] = result.provider_reference
+        payment.provider_data = provider_data
+    session.add(payment)
 
     await outbox_registry.publish(
         session=session,

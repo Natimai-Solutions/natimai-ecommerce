@@ -1,7 +1,22 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-col-gutter-sm q-mb-md">
-      <div class="text-h6 col">Demandes de devis</div>
+  <q-page class="admin-page">
+    <PageHeader
+      title="Demandes de devis"
+      hint="Demandes envoyées depuis le panier : chiffrez le devis, émettez-le et suivez-le."
+    >
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+      </template>
+    </PageHeader>
+
+    <div class="admin-toolbar">
       <q-input
         v-model="search"
         dense
@@ -12,26 +27,28 @@
         style="min-width: 240px"
         @update:model-value="load"
       >
-        <template #prepend><q-icon name="search" /></template>
+        <template #prepend><q-icon name="ph:magnifying-glass" /></template>
       </q-input>
       <q-toggle v-model="openOnly" label="À traiter uniquement" @update:model-value="load" />
-      <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
     </div>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
+    <AppNotice v-if="error" tone="error" class="q-mb-md">{{ error }}</AppNotice>
 
     <div v-if="loading" class="text-center q-pa-lg">
-      <q-spinner color="primary" size="2em" />
+      <q-spinner size="2em" />
     </div>
 
-    <q-banner v-else-if="rows.length === 0" class="bg-blue-1 text-blue-10" rounded>
-      <template #avatar><q-icon name="info" /></template>
-      {{
-        search || openOnly
-          ? 'Aucune demande pour ces critères.'
-          : 'Aucune demande de devis pour le moment.'
-      }}
-    </q-banner>
+    <div v-else-if="rows.length === 0" class="app-empty">
+      <q-icon name="ph:chat-text" size="28px" class="text-subtle" />
+      <h3>Aucune demande de devis</h3>
+      <p>
+        {{
+          search || openOnly
+            ? 'Aucune demande pour ces critères.'
+            : 'Aucune demande de devis pour le moment.'
+        }}
+      </p>
+    </div>
 
     <q-table
       v-else
@@ -46,31 +63,32 @@
       <template #body-cell-client="props">
         <q-td :props="props">
           <div>{{ props.row.full_name || props.row.email }}</div>
-          <div class="text-caption text-grey-6">
+          <div class="text-caption text-subtle">
             {{ props.row.full_name ? props.row.email : '' }}
             <span v-if="props.row.phone"> — {{ props.row.phone }}</span>
           </div>
         </q-td>
       </template>
+      <template #body-cell-number="props">
+        <q-td :props="props" class="font-mono">{{ props.value }}</q-td>
+      </template>
       <template #body-cell-origin="props">
         <q-td :props="props">
-          <q-chip
-            dense
-            size="sm"
-            :color="props.row.is_registered_customer ? 'primary' : 'grey-6'"
-            text-color="white"
+          <StatusTag
+            :icon="props.row.is_registered_customer ? 'ph:user-check' : 'ph:user'"
             :label="props.row.is_registered_customer ? 'Client' : 'Visiteur'"
           />
         </q-td>
       </template>
+      <template #body-cell-total="props">
+        <q-td :props="props" class="font-mono">{{ props.value }}</q-td>
+      </template>
       <template #body-cell-status="props">
         <q-td :props="props">
-          <q-chip
-            dense
-            size="sm"
-            :color="quoteStatusColor(props.row.status)"
-            text-color="white"
+          <StatusTag
             :label="quoteStatusLabel(props.row.status)"
+            :tone="toneOf(quoteStatusColor(props.row.status))"
+            :icon="toneIcon(toneOf(quoteStatusColor(props.row.status)))"
           />
         </q-td>
       </template>
@@ -80,8 +98,7 @@
             flat
             dense
             no-caps
-            icon="visibility"
-            color="primary"
+            icon="ph:arrow-right"
             label="Détail"
             :loading="openingId === props.row.quote_request_id"
             @click="openDetail(props.row.quote_request_id)"
@@ -92,51 +109,46 @@
 
     <!-- Détail + suivi -->
     <q-dialog v-model="dialog">
-      <q-card style="min-width: 560px; max-width: 760px">
-        <q-card-section class="row items-center">
-          <div class="text-h6 col">Demande de {{ detail?.full_name || detail?.email }}</div>
-          <q-chip
-            v-if="detail"
-            dense
-            size="sm"
-            :color="quoteStatusColor(detail.status)"
-            text-color="white"
-            :label="quoteStatusLabel(detail.status)"
-          />
-        </q-card-section>
-
-        <q-card-section v-if="detail" class="q-pt-none">
-          <div class="text-caption text-grey-7 q-mb-sm">
+      <q-card class="app-dialog app-dialog--wide">
+        <q-card-section class="app-dialog__head">
+          <div class="quote-head">
+            <h2 class="app-dialog__title">Demande de {{ detail?.full_name || detail?.email }}</h2>
+            <StatusTag
+              v-if="detail"
+              :label="quoteStatusLabel(detail.status)"
+              :tone="toneOf(quoteStatusColor(detail.status))"
+              :icon="toneIcon(toneOf(quoteStatusColor(detail.status)))"
+            />
+          </div>
+          <p v-if="detail" class="app-dialog__text">
             Reçue le {{ formatDate(detail.created_at) }} —
             {{ detail.is_registered_customer ? 'client identifié' : 'visiteur non connecté' }}
             <span v-if="detail.phone"> — {{ detail.phone }}</span>
-          </div>
+          </p>
+        </q-card-section>
 
-          <q-banner
-            v-if="detail.status === 'email_failed'"
-            class="bg-red-1 text-red-9 q-mb-md"
-            dense
-            rounded
-          >
-            <template #avatar><q-icon name="report_problem" /></template>
+        <q-card-section v-if="detail">
+          <AppNotice v-if="detail.status === 'email_failed'" tone="error" dense class="q-mb-md">
             L'email vers le support n'a pas pu être transmis : cette demande n'a été vue que par cet
             écran.
-          </q-banner>
+          </AppNotice>
 
-          <div v-if="detail.shipping_address" class="q-mb-sm">
-            <div class="text-caption text-grey-7">Adresse de livraison</div>
-            <div>{{ detail.shipping_address }}</div>
-          </div>
+          <dl v-if="detail.shipping_address || detail.notes" class="admin-dl q-mb-md">
+            <template v-if="detail.shipping_address">
+              <dt>Adresse de livraison</dt>
+              <dd>{{ detail.shipping_address }}</dd>
+            </template>
+            <template v-if="detail.notes">
+              <dt>Message du client</dt>
+              <dd style="white-space: pre-line">{{ detail.notes }}</dd>
+            </template>
+          </dl>
 
-          <div v-if="detail.notes" class="q-mb-md">
-            <div class="text-caption text-grey-7">Message du client</div>
-            <div style="white-space: pre-line">{{ detail.notes }}</div>
-          </div>
-
-          <div class="text-caption text-grey-7 q-mb-xs">
-            Panier au moment de la demande ({{ detail.item_count }} article(s))
-          </div>
-          <q-markup-table flat bordered dense class="q-mb-md">
+          <h3 class="admin-subtitle">
+            Panier au moment de la demande
+            <span class="text-muted text-weight-regular">({{ detail.item_count }} article(s))</span>
+          </h3>
+          <q-markup-table flat bordered dense class="q-mb-sm">
             <thead>
               <tr>
                 <th class="text-left">Produit</th>
@@ -148,41 +160,44 @@
             <tbody>
               <tr v-for="(item, index) in detail.items" :key="index">
                 <td class="text-left">{{ item.product_name ?? '—' }}</td>
-                <td class="text-right">{{ item.quantity ?? '—' }}</td>
-                <td class="text-right">{{ item.unit_price ?? '—' }}</td>
-                <td class="text-right">{{ item.line_total ?? '—' }}</td>
+                <td class="text-right font-mono">{{ item.quantity ?? '—' }}</td>
+                <td class="text-right font-mono">{{ item.unit_price ?? '—' }}</td>
+                <td class="text-right font-mono">{{ item.line_total ?? '—' }}</td>
               </tr>
             </tbody>
           </q-markup-table>
-          <div v-if="detail.subtotal_amount" class="text-right text-weight-medium q-mb-md">
-            Sous-total : {{ detail.subtotal_amount }} {{ detail.currency }}
+          <div v-if="detail.subtotal_amount" class="app-kv q-mb-md">
+            <span>Sous-total</span>
+            <span class="font-mono">{{ detail.subtotal_amount }} {{ detail.currency }}</span>
           </div>
 
-          <q-separator class="q-my-md" />
+          <q-separator class="q-my-lg" />
 
           <!-- Le devis : lignes au prix consenti, livraison, validité, PDF -->
-          <div class="row items-center q-mb-xs q-gutter-sm">
-            <div class="text-subtitle2 col">
+          <div class="quote-head q-mb-sm">
+            <h3 class="admin-subtitle q-mb-none">
               Devis
-              <span v-if="detail.quote_number" class="text-primary">{{ detail.quote_number }}</span>
-              <span v-if="detail.quoted_at" class="text-caption text-grey-7">
+              <span v-if="detail.quote_number" class="font-mono">{{ detail.quote_number }}</span>
+              <span v-if="detail.quoted_at" class="text-caption text-muted text-weight-regular">
                 — émis le {{ formatDate(detail.quoted_at) }}
               </span>
-            </div>
+            </h3>
             <q-btn
               v-if="detail.quote_number"
               flat
               dense
               no-caps
-              icon="picture_as_pdf"
+              icon="ph:file-pdf"
               label="PDF"
               @click="downloadQuotePdf(detail.quote_request_id, detail.quote_number)"
             />
           </div>
-          <q-banner v-if="detail.order_id" class="bg-green-1 text-green-9 q-mb-sm" dense rounded>
+          <AppNotice v-if="detail.order_id" tone="success" dense class="q-mb-sm">
             Devis commandé par le client :
-            <router-link :to="`/orders/${detail.order_id}`">voir la commande</router-link>.
-          </q-banner>
+            <router-link :to="`/orders/${detail.order_id}`" class="admin-link"
+              >voir la commande</router-link
+            >.
+          </AppNotice>
           <template v-else>
             <q-markup-table flat bordered dense class="q-mb-sm">
               <thead>
@@ -198,7 +213,7 @@
                 <tr v-for="(line, index) in issueLines" :key="index">
                   <td>
                     <q-input v-model="line.product_name" dense outlined />
-                    <div v-if="!line.product_id" class="text-caption text-orange-9">
+                    <div v-if="!line.product_id" class="text-caption text-warning">
                       Hors catalogue : non commandable en ligne
                     </div>
                   </td>
@@ -222,15 +237,11 @@
                       style="width: 120px"
                     />
                   </td>
-                  <td class="text-right">{{ lineTotal(line) }}</td>
+                  <td class="text-right font-mono">{{ lineTotal(line) }}</td>
                   <td>
-                    <q-btn
-                      flat
-                      dense
-                      icon="close"
-                      color="grey-7"
-                      @click="issueLines.splice(index, 1)"
-                    />
+                    <q-btn flat round dense icon="ph:x" @click="issueLines.splice(index, 1)">
+                      <q-tooltip>Retirer la ligne</q-tooltip>
+                    </q-btn>
                   </td>
                 </tr>
               </tbody>
@@ -239,7 +250,7 @@
               flat
               dense
               no-caps
-              icon="add"
+              icon="ph:plus"
               label="Ligne libre"
               class="q-mb-sm"
               @click="
@@ -272,7 +283,7 @@
                 hint="Défaut : 30 jours"
               />
               <div class="col-4 text-right text-weight-medium q-pt-sm">
-                Total : {{ issueTotal }} {{ detail.currency ?? '' }}
+                Total : <span class="font-mono">{{ issueTotal }} {{ detail.currency ?? '' }}</span>
               </div>
             </div>
             <q-input
@@ -293,8 +304,9 @@
               <q-space />
               <q-btn
                 color="primary"
+                unelevated
                 no-caps
-                icon="send"
+                icon="ph:paper-plane-tilt"
                 :label="detail.quote_number ? 'Ré-émettre le devis' : 'Émettre le devis'"
                 :loading="issuing"
                 :disable="issueLines.length === 0"
@@ -303,8 +315,9 @@
             </div>
           </template>
 
-          <q-separator class="q-my-md" />
+          <q-separator class="q-my-lg" />
 
+          <h3 class="admin-subtitle">Suivi</h3>
           <q-select
             v-model="editStatus"
             :options="QUOTE_STATUS_OPTIONS"
@@ -323,17 +336,24 @@
             autogrow
             label="Suivi interne (non visible du client)"
           />
-          <q-banner v-if="issueNotice" class="bg-green-1 text-green-9 q-mt-sm" dense rounded>
+          <AppNotice v-if="issueNotice" tone="success" dense class="q-mt-sm">
             {{ issueNotice }}
-          </q-banner>
-          <q-banner v-if="saveError" class="bg-red-1 text-red-9 q-mt-sm" dense rounded>
+          </AppNotice>
+          <AppNotice v-if="saveError" tone="error" dense class="q-mt-sm">
             {{ saveError }}
-          </q-banner>
+          </AppNotice>
         </q-card-section>
 
-        <q-card-actions align="right">
-          <q-btn flat label="Fermer" @click="dialog = false" />
-          <q-btn color="primary" no-caps label="Enregistrer" :loading="saving" @click="save" />
+        <q-card-actions align="right" class="app-dialog__actions">
+          <q-btn flat no-caps label="Fermer" @click="dialog = false" />
+          <q-btn
+            color="primary"
+            unelevated
+            no-caps
+            label="Enregistrer"
+            :loading="saving"
+            @click="save"
+          />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -343,6 +363,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import { toneIcon, toneOf } from '@app/ui/statusTone';
+import PageHeader from '@/components/PageHeader.vue';
 import {
   downloadQuotePdf,
   getQuoteRequest,
@@ -539,3 +563,13 @@ async function save() {
 
 onMounted(load);
 </script>
+
+<style scoped lang="scss">
+.quote-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+</style>

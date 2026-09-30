@@ -5,6 +5,7 @@ from app.api.routes.admin_carts import router as admin_carts_router
 from app.api.routes.admin_categories import router as admin_categories_router
 from app.api.routes.admin_credit_notes import router as admin_credit_notes_router
 from app.api.routes.admin_currency_rates import router as admin_currency_rates_router
+from app.api.routes.admin_dashboard import router as admin_dashboard_router
 from app.api.routes.admin_grouped_departures import (
     router as admin_grouped_departures_router,
 )
@@ -13,6 +14,12 @@ from app.api.routes.admin_invoices import router as admin_invoices_router
 from app.api.routes.admin_orders import router as admin_orders_router
 from app.api.routes.admin_payment_eligibility import (
     router as admin_payment_eligibility_router,
+)
+from app.api.routes.admin_payment_methods import (
+    router as admin_payment_methods_router,
+)
+from app.api.routes.admin_payment_providers import (
+    router as admin_payment_providers_router,
 )
 from app.api.routes.admin_payments import router as admin_payments_router
 from app.api.routes.admin_price_groups import router as admin_price_groups_router
@@ -42,11 +49,13 @@ from app.api.routes.group_security import router as group_security_router
 from app.api.routes.group_upgrade import router as group_upgrade_router
 from app.api.routes.grouped_departures import router as grouped_departures_router
 from app.api.routes.health import router as health_router
+from app.api.routes.homepage import router as homepage_router
 from app.api.routes.icecat import router as icecat_router
 from app.api.routes.internal_storage import router as internal_storage_router
 from app.api.routes.inventory import router as inventory_router
 from app.api.routes.invoices_me import router as invoices_me_router
 from app.api.routes.login import router as login_router
+from app.api.routes.media import router as media_router
 from app.api.routes.oauth import router as oauth_router
 from app.api.routes.order import router as order_router
 from app.api.routes.order_line import router as order_line_router
@@ -79,6 +88,7 @@ from app.api.routes.user_review import (
     router as user_review_router,
 )
 from app.api.routes.user_wishlist import router as user_wishlist_router
+from app.api.routes.users_me import router as users_me_router
 from app.api.routes.utils import router as utils_router
 from app.api.routes.webhooks import router as webhooks_router
 
@@ -93,7 +103,10 @@ api_router.include_router(place_router)
 api_router.include_router(payment_router)
 api_router.include_router(payment_method_router)
 api_router.include_router(payments_router)
+api_router.include_router(admin_dashboard_router)
 api_router.include_router(admin_payments_router)
+api_router.include_router(admin_payment_providers_router)
+api_router.include_router(admin_payment_methods_router)
 api_router.include_router(admin_quote_requests_router)
 api_router.include_router(admin_orders_router)
 api_router.include_router(admin_grouped_departures_router)
@@ -137,10 +150,13 @@ api_router.include_router(user_review_router)
 api_router.include_router(user_notification_router)
 api_router.include_router(user_wishlist_router)
 api_router.include_router(user_preferences_router)
+api_router.include_router(users_me_router)
 api_router.include_router(group_upgrade_router)
 api_router.include_router(system_settings_router)
 api_router.include_router(currency_router)
 api_router.include_router(content_pages_router)
+api_router.include_router(media_router)
+api_router.include_router(homepage_router)
 api_router.include_router(grouped_departures_router)
 api_router.include_router(store_credit_router)
 api_router.include_router(stock_alerts_router)

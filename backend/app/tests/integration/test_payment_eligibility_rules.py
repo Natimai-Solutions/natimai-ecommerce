@@ -21,6 +21,7 @@ from app.api.routes.admin_payment_eligibility import (
     list_eligible_groups,
     remove_eligible_group,
 )
+from app.core.config import settings
 from app.core.errors import AppError
 from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.models.payment_method_eligibility import (
@@ -33,6 +34,15 @@ from app.features.payment.services.eligibility import (
 )
 from app.features.product.models.price_group import PriceGroup
 from app.features.user.models.user import User
+
+
+@pytest.fixture(autouse=True)
+def _payzen_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The card provider has credentials here (an unconfigured provider is
+    hidden from the checkout, see provider_settings)."""
+    monkeypatch.setattr(settings, "PAYZEN_SITE_ID", "12345678")
+    monkeypatch.setattr(settings, "PAYZEN_API_PASSWORD_TEST", "testpassword_x")
+    monkeypatch.setattr(settings, "PAYZEN_MODE", "TEST")
 
 
 async def _seed(session: AsyncSession) -> dict[str, uuid.UUID]:

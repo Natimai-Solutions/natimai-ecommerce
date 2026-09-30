@@ -1,140 +1,177 @@
 <template>
-  <q-page padding>
-    <div class="text-h6 q-mb-md">Trajets &amp; Lieux</div>
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
-    <q-banner v-if="notice" class="bg-green-1 text-green-9 q-mb-md" rounded dense>{{
-      notice
-    }}</q-banner>
+  <q-page class="admin-page">
+    <PageHeader
+      title="Trajets et lieux"
+      hint="Lieux logistiques et tronçons tarifés qui composent les trajets de livraison."
+    >
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+      </template>
+    </PageHeader>
+
+    <div v-if="error || notice" class="admin-notices">
+      <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
+      <AppNotice v-if="notice" tone="success" dense>{{ notice }}</AppNotice>
+    </div>
 
     <!-- Lieux -->
-    <div class="row items-center q-mb-sm">
-      <div class="text-subtitle1 text-weight-medium col">Lieux</div>
-      <q-btn color="primary" icon="add" label="Nouveau lieu" no-caps @click="openPlaceCreate" />
-    </div>
-    <div class="text-caption text-grey-7 q-mb-sm">
-      Entrepôts, ports, aéroports, îles… utilisés comme origine / destination des tronçons.
-    </div>
-    <q-table
-      :rows="places"
-      :columns="placeColumns"
-      row-key="id"
-      flat
-      bordered
-      :rows-per-page-options="[0]"
-      hide-pagination
-      :loading="loading"
-    >
-      <template #body-cell-parent="props">
-        <q-td :props="props">
-          <span v-if="props.row.parent_id">{{ placeName(props.row.parent_id) }}</span>
-          <span v-else>—</span>
-        </q-td>
-      </template>
-      <template #body-cell-warehouse="props">
-        <q-td :props="props">
-          <q-icon v-if="props.row.is_main_warehouse" name="star" color="amber-8" size="sm">
-            <q-tooltip>Entrepôt principal</q-tooltip>
-          </q-icon>
-          <q-icon v-else-if="props.row.is_warehouse" name="check" color="positive" />
-          <span v-else>—</span>
-        </q-td>
-      </template>
-      <template #body-cell-customs="props">
-        <q-td :props="props">
-          <q-icon v-if="props.row.customs_clearance" name="check" color="positive" />
-          <span v-else>—</span>
-        </q-td>
-      </template>
-      <template #body-cell-origin="props">
-        <q-td :props="props">{{ originSummary(props.row) }}</q-td>
-      </template>
-      <template #body-cell-actions="props">
-        <q-td :props="props" align="right">
-          <q-btn
-            v-if="props.row.is_warehouse && !props.row.is_main_warehouse"
-            flat
-            dense
-            icon="star_outline"
-            color="amber-8"
-            @click="makeMainWarehouse(props.row)"
-          >
-            <q-tooltip max-width="300px">
-              Définir comme entrepôt principal : les articles fournisseur y convergent et le dernier
-              tronçon vers le client en part. L'ancien est déflaggé.
-            </q-tooltip>
-          </q-btn>
-          <q-btn flat dense icon="edit" color="primary" @click="openPlaceEdit(props.row)">
-            <q-tooltip>Modifier</q-tooltip>
-          </q-btn>
-        </q-td>
-      </template>
-      <template #no-data>
-        <div class="full-width text-center text-grey-6 q-pa-md">Aucun lieu.</div>
-      </template>
-    </q-table>
+    <section class="app-section" aria-labelledby="places-title">
+      <div class="app-section__head">
+        <h2 id="places-title" class="app-section__title">Lieux</h2>
+        <p class="app-section__hint">
+          Entrepôts, ports, aéroports, îles… utilisés comme origine / destination des tronçons.
+        </p>
+        <q-btn
+          class="app-section__action"
+          color="primary"
+          unelevated
+          no-caps
+          icon="ph:plus"
+          label="Nouveau lieu"
+          @click="openPlaceCreate"
+        />
+      </div>
+      <q-table
+        :rows="places"
+        :columns="placeColumns"
+        row-key="id"
+        flat
+        bordered
+        :rows-per-page-options="[0]"
+        hide-pagination
+        :loading="loading"
+      >
+        <template #body-cell-parent="props">
+          <q-td :props="props">
+            <span v-if="props.row.parent_id">{{ placeName(props.row.parent_id) }}</span>
+            <span v-else>—</span>
+          </q-td>
+        </template>
+        <template #body-cell-code="props">
+          <q-td :props="props" class="font-mono">{{ props.row.code ?? '' }}</q-td>
+        </template>
+        <template #body-cell-warehouse="props">
+          <q-td :props="props">
+            <StatusTag
+              v-if="props.row.is_main_warehouse"
+              label="Principal"
+              tone="ok"
+              icon="ph:star"
+            />
+            <q-icon v-else-if="props.row.is_warehouse" name="ph:check" class="text-positive" />
+            <span v-else>—</span>
+          </q-td>
+        </template>
+        <template #body-cell-customs="props">
+          <q-td :props="props">
+            <q-icon v-if="props.row.customs_clearance" name="ph:check" class="text-positive" />
+            <span v-else>—</span>
+          </q-td>
+        </template>
+        <template #body-cell-origin="props">
+          <q-td :props="props">{{ originSummary(props.row) }}</q-td>
+        </template>
+        <template #body-cell-actions="props">
+          <q-td :props="props" align="right">
+            <q-btn
+              v-if="props.row.is_warehouse && !props.row.is_main_warehouse"
+              flat
+              round
+              dense
+              icon="ph:star"
+              @click="makeMainWarehouse(props.row)"
+            >
+              <q-tooltip max-width="300px">
+                Définir comme entrepôt principal : les articles fournisseur y convergent et le
+                dernier tronçon vers le client en part. L'ancien est déflaggé.
+              </q-tooltip>
+            </q-btn>
+            <q-btn flat round dense icon="ph:pencil-simple" @click="openPlaceEdit(props.row)">
+              <q-tooltip>Modifier</q-tooltip>
+            </q-btn>
+          </q-td>
+        </template>
+        <template #no-data>
+          <div class="full-width text-center text-subtle q-pa-md">Aucun lieu.</div>
+        </template>
+      </q-table>
+    </section>
 
     <!-- Trajets -->
-    <div class="row items-center q-mt-lg q-mb-sm">
-      <div class="text-subtitle1 text-weight-medium col">Trajets (tronçons)</div>
-      <q-btn
-        color="primary"
-        icon="add"
-        label="Nouveau trajet"
-        no-caps
-        :disable="places.length < 2"
-        @click="openRouteCreate"
-      />
-    </div>
-    <div class="text-caption text-grey-7 q-mb-sm">
-      Tronçon réutilisable d'un lieu à un autre (fournisseur → entrepôt, entrepôt → client…).
-    </div>
-    <q-table
-      :rows="routes"
-      :columns="routeColumns"
-      row-key="id"
-      flat
-      bordered
-      :rows-per-page-options="[0]"
-      hide-pagination
-      :loading="loading"
-    >
-      <template #body-cell-path="props">
-        <q-td :props="props">
-          {{ placeName(props.row.from_place_id) }} → {{ placeName(props.row.to_place_id) }}
-        </q-td>
-      </template>
-      <template #body-cell-tariff="props">
-        <q-td :props="props">{{ tariffSummary(props.row) }}</q-td>
-      </template>
-      <template #body-cell-to_customer="props">
-        <q-td :props="props">
-          <q-icon v-if="props.row.is_to_customer" name="check" color="positive" />
-          <span v-else>—</span>
-        </q-td>
-      </template>
-      <template #body-cell-actions="props">
-        <q-td :props="props" align="right">
-          <q-btn flat dense icon="edit" color="primary" @click="openRouteEdit(props.row)">
-            <q-tooltip>Modifier</q-tooltip>
-          </q-btn>
-        </q-td>
-      </template>
-      <template #no-data>
-        <div class="full-width text-center text-grey-6 q-pa-md">Aucun trajet.</div>
-      </template>
-    </q-table>
+    <section class="app-section" aria-labelledby="routes-title">
+      <div class="app-section__head">
+        <h2 id="routes-title" class="app-section__title">Trajets (tronçons)</h2>
+        <p class="app-section__hint">
+          Tronçon réutilisable d'un lieu à un autre (fournisseur → entrepôt, entrepôt → client…).
+        </p>
+        <q-btn
+          class="app-section__action"
+          color="primary"
+          unelevated
+          no-caps
+          icon="ph:plus"
+          label="Nouveau trajet"
+          :disable="places.length < 2"
+          @click="openRouteCreate"
+        />
+      </div>
+      <q-table
+        :rows="routes"
+        :columns="routeColumns"
+        row-key="id"
+        flat
+        bordered
+        :rows-per-page-options="[0]"
+        hide-pagination
+        :loading="loading"
+      >
+        <template #body-cell-path="props">
+          <q-td :props="props">
+            {{ placeName(props.row.from_place_id) }}
+            <q-icon name="ph:arrow-right" size="14px" class="text-subtle" />
+            {{ placeName(props.row.to_place_id) }}
+          </q-td>
+        </template>
+        <template #body-cell-tariff="props">
+          <q-td :props="props" class="font-mono">{{ tariffSummary(props.row) }}</q-td>
+        </template>
+        <template #body-cell-to_customer="props">
+          <q-td :props="props">
+            <q-icon v-if="props.row.is_to_customer" name="ph:check" class="text-positive" />
+            <span v-else>—</span>
+          </q-td>
+        </template>
+        <template #body-cell-actions="props">
+          <q-td :props="props" align="right">
+            <q-btn flat round dense icon="ph:pencil-simple" @click="openRouteEdit(props.row)">
+              <q-tooltip>Modifier</q-tooltip>
+            </q-btn>
+          </q-td>
+        </template>
+        <template #no-data>
+          <div class="full-width text-center text-subtle q-pa-md">Aucun trajet.</div>
+        </template>
+      </q-table>
+    </section>
 
     <!-- Place dialog -->
     <q-dialog v-model="placeDialog">
-      <q-card style="min-width: 400px">
-        <q-card-section class="text-h6">{{
-          placeEditId ? 'Modifier le lieu' : 'Nouveau lieu'
-        }}</q-card-section>
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">
+            {{ placeEditId ? 'Modifier le lieu' : 'Nouveau lieu' }}
+          </h2>
+        </q-card-section>
         <q-form @submit.prevent="submitPlace">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="placeForm.name"
               label="Nom *"
@@ -234,11 +271,13 @@
               />
             </template>
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
+              unelevated
+              no-caps
               :label="placeEditId ? 'Enregistrer' : 'Créer'"
               :loading="saving"
             />
@@ -249,15 +288,15 @@
 
     <!-- Route dialog -->
     <q-dialog v-model="routeDialog">
-      <q-card style="min-width: 460px">
-        <q-card-section class="text-h6">{{
-          routeEditId ? 'Modifier le trajet' : 'Nouveau trajet'
-        }}</q-card-section>
+      <q-card class="app-dialog app-dialog--wide">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">
+            {{ routeEditId ? 'Modifier le trajet' : 'Nouveau trajet' }}
+          </h2>
+        </q-card-section>
         <q-form @submit.prevent="submitRoute">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="routeForm.name"
               label="Nom du trajet *"
@@ -356,8 +395,10 @@
                 class="col"
               />
             </div>
-            <div class="text-subtitle2 q-mt-xs">Grille par tranches de poids (optionnel)</div>
-            <div class="text-caption text-grey-7">
+            <h3 class="admin-subtitle q-mt-sm q-mb-none">
+              Grille par tranches de poids (optionnel)
+            </h3>
+            <div class="text-caption text-muted">
               Remplace « prix/kg × poids » : le prix de la première tranche dont le plafond couvre
               le poids taxable. Laissez le plafond vide pour une dernière tranche « et au-delà » ;
               sinon, l'excédent au-dessus de la dernière tranche est facturé au prix/kg. Le forfait
@@ -390,7 +431,14 @@
                 bottom-slots
                 class="col"
               />
-              <q-btn flat dense round icon="delete" @click="routeBands.splice(index, 1)">
+              <q-btn
+                flat
+                dense
+                round
+                color="negative"
+                icon="ph:trash"
+                @click="routeBands.splice(index, 1)"
+              >
                 <q-tooltip>Retirer la tranche</q-tooltip>
               </q-btn>
             </div>
@@ -398,7 +446,7 @@
               flat
               dense
               no-caps
-              icon="add"
+              icon="ph:plus"
               label="Ajouter une tranche"
               @click="routeBands.push({ max_kg: '', price: '' })"
             />
@@ -449,11 +497,13 @@
               hint="Îles, communes ou archipels desservis — une zone parente couvre toutes ses zones enfants. Vide = desservi partout (héritage)."
             />
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
+              unelevated
+              no-caps
               :label="routeEditId ? 'Enregistrer' : 'Créer'"
               :loading="saving"
             />
@@ -467,6 +517,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import { countryOptions, type CountryOption } from '@app/utils';
+import PageHeader from '@/components/PageHeader.vue';
 import {
   createPlace,
   createRoute,
@@ -484,7 +538,6 @@ import {
 } from '@/api/logistics';
 import type { WeightBand } from '@/api/logistics';
 import { extractApiError } from '@/api/errors';
-import { countryOptions, type CountryOption } from '@app/utils';
 
 const places = ref<Place[]>([]);
 const routes = ref<ShippingRoute[]>([]);

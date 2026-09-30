@@ -4,3 +4,6 @@
 interface ImportMetaEnv {
   readonly VITE_API_URL: string;
 }
+
+// Feuille de style d'icônes sans déclaration de types (import pour effet de bord).
+declare module '@phosphor-icons/web/light';

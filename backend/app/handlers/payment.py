@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -43,6 +44,13 @@ ORDER_STATUS_PAYMENT_FAILED = "PaymentFailed"
 ORDER_STATUS_AWAITING_PAYMENT = "AwaitingPayment"
 ORDER_STATUS_REFUNDED = "Refunded"
 ORDER_STATUS_PARTIALLY_REFUNDED = "PartiallyRefunded"
+#: Some money received on a manual payment, not yet the whole part (R3-P2).
+ORDER_STATUS_PARTIALLY_PAID = "PartiallyPaid"
+#: Order statuses a receipt may move: before the part is paid. A receipt on the
+#: balance of a deposit order never touches its fulfilment status.
+_BEFORE_PAYMENT_ORDER_STATUSES: frozenset[str] = frozenset(
+    {"Pending", "AwaitingPayment", "PartiallyPaid", "PaymentFailed"}
+)
 # Terminal-for-automation status: money was taken but the amounts disagree, so a
 # human must decide. Never set by the nominal flow — see
 # ``_handle_captured_amount_mismatch``.
@@ -68,6 +76,8 @@ __all__ = [
     "on_payment_awaiting_validation",
     "on_payment_captured",
     "on_payment_captured_issue_invoice",
+    "on_payment_partially_received",
+    "on_payment_receipt_cancelled",
     "on_payment_refunded",
     "on_payment_rejected",
     "on_payment_document_required",
@@ -355,6 +365,65 @@ async def on_payment_captured(session: AsyncSession, payload: dict[str, Any]) ->
                 order_id,
                 confirmed,
             )
+
+
+async def _receipt_status_sync(
+    session: AsyncSession, *, payload: dict[str, Any], target_status_name: str
+) -> None:
+    """Move the order to ``target_status_name`` after a receipt, unless the
+    receipt is on a balance or the order already left the payment stage."""
+    if (payload.get("kind") or KIND_FULL) == KIND_BALANCE:
+        return
+    order_id = _parse_order_id(payload)
+    if order_id is None:
+        return
+    order = await session.get(Order, order_id)
+    if order is None:
+        return
+    current = await session.get(OrderStatus, order.order_status_id)
+    if current is not None and current.name not in _BEFORE_PAYMENT_ORDER_STATUSES:
+        return
+    await _sync_order_status(
+        session, payload=payload, target_status_name=target_status_name
+    )
+
+
+@outbox_handler("payment.partially_received")
+async def on_payment_partially_received(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    """An instalment was received: the order is « partiellement payée »."""
+    logger.info(
+        "Payment partially received: payment_id=%s order_id=%s received=%s left=%s",
+        payload.get("payment_id"),
+        payload.get("order_id"),
+        payload.get("received_amount"),
+        payload.get("remaining_amount"),
+    )
+    await _receipt_status_sync(
+        session, payload=payload, target_status_name=ORDER_STATUS_PARTIALLY_PAID
+    )
+
+
+@outbox_handler("payment.receipt_cancelled")
+async def on_payment_receipt_cancelled(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    """A receipt was cancelled (bounced cheque…): back to « partiellement
+    payée », or to « en attente de paiement » when nothing is left."""
+    try:
+        received = Decimal(str(payload.get("received_amount") or "0"))
+    except ArithmeticError:
+        received = Decimal("0")
+    await _receipt_status_sync(
+        session,
+        payload=payload,
+        target_status_name=(
+            ORDER_STATUS_PARTIALLY_PAID
+            if received > 0
+            else ORDER_STATUS_AWAITING_PAYMENT
+        ),
+    )
 
 
 @outbox_handler("payment.captured")

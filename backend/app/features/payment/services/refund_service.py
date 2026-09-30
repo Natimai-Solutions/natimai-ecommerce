@@ -12,13 +12,17 @@ Exposed flow (``refund_payment``):
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 
+from sqlalchemy import func
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.errors import AppError
+from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_status import crud_payment_status
 from app.features.payment.crud.refund import crud_refund
 from app.features.payment.models.payment import Payment
@@ -26,6 +30,7 @@ from app.features.payment.models.payment_validation import PaymentValidation
 from app.features.payment.models.refund import Refund
 from app.features.payment.providers import get_provider
 from app.features.payment.providers.base import PaymentProviderError
+from app.features.payment.services.store_credit import SETTLED_PAYMENT_STATUSES
 from app.features.user.models.user import User
 from app.outbox.registry import outbox_registry
 
@@ -41,6 +46,24 @@ class RefundOutcome:
     refund: Refund
     fully_refunded: bool
     message: str | None
+
+
+async def _order_net_collected(session: AsyncSession, order_id: uuid.UUID) -> Decimal:
+    """Σ of the order's settled payments − Σ of its completed refunds."""
+    rows = await crud_payment.list_with_status_by_order_id(session, order_id=order_id)
+    collected = sum(
+        (Decimal(p.amount) for p, s in rows if s in SETTLED_PAYMENT_STATUSES),
+        Decimal(0),
+    )
+    refunded = (
+        await session.exec(
+            select(func.coalesce(func.sum(Refund.amount), 0)).where(
+                col(Refund.order_id) == order_id,
+                col(Refund.status) == "completed",
+            )
+        )
+    ).one()
+    return collected - Decimal(refunded)
 
 
 async def refund_payment(
@@ -60,6 +83,7 @@ async def refund_payment(
     currency = payment.currency
     provider_code = payment.provider_code
     provider_reference = payment.provider_reference
+    provider_data = dict(payment.provider_data or {})
     admin_id = admin.id
 
     already_refunded = await crud_refund.get_total_refunded(
@@ -93,12 +117,24 @@ async def refund_payment(
             details={"provider_code": provider_code},
         ) from exc
 
-    result = await provider.refund(
-        payment_reference=provider_reference or str(order_id or payment_id),
-        amount=refund_amount,
-        currency=currency,
-        reason=reason,
-    )
+    try:
+        result = await provider.refund(
+            payment_reference=provider.refund_reference(
+                provider_data=provider_data,
+                provider_reference=provider_reference,
+                fallback=str(order_id or payment_id),
+            ),
+            amount=refund_amount,
+            currency=currency,
+            reason=reason,
+        )
+    except PaymentProviderError as exc:
+        raise AppError(
+            code="refund.provider_failed",
+            status_code=502,
+            message=f"Le prestataire n'a pas pu rembourser : {exc}",
+            details={"payment_id": str(payment_id)},
+        ) from exc
     completed = result.status == "completed"
     now = datetime.now(timezone.utc)
 
@@ -131,8 +167,15 @@ async def refund_payment(
     )
 
     fully_refunded = False
+    order_fully_refunded = False
     if completed:
         fully_refunded = (already_refunded + refund_amount) >= payment_total
+        order_fully_refunded = fully_refunded
+        if order_id is not None:
+            # An order settled by several payments (deposit + balance, avoir +
+            # cash…) is only « remboursée » when nothing it collected is left.
+            await session.flush()
+            order_fully_refunded = await _order_net_collected(session, order_id) <= 0
         status_name = (
             PAYMENT_STATUS_REFUNDED
             if fully_refunded
@@ -157,7 +200,10 @@ async def refund_payment(
                 "amount": str(refund_amount),
                 "currency": currency,
                 "reason": reason,
-                "fully_refunded": fully_refunded,
+                # Order-level: drives the order status, the stock release and
+                # the wording of the customer e-mail.
+                "fully_refunded": order_fully_refunded,
+                "payment_fully_refunded": fully_refunded,
                 "provider_code": provider_code,
             },
             correlation_id=payment_id,

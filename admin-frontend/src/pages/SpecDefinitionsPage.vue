@@ -1,16 +1,22 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="text-h6 col">Catalogue de specs</div>
-      <q-btn color="primary" icon="add" label="Nouvelle spec" no-caps @click="openCreate" />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader
+      title="Caractéristiques"
+      hint="Définitions canoniques projetées depuis Icecat. Modifier les alias puis re-projeter côté backend pour réindexer."
+    >
+      <template #actions>
+        <q-btn
+          color="primary"
+          unelevated
+          no-caps
+          icon="ph:plus"
+          label="Nouvelle caractéristique"
+          @click="openCreate"
+        />
+      </template>
+    </PageHeader>
 
-    <div class="text-caption text-grey-7 q-mb-md">
-      Définitions canoniques projetées depuis Icecat. Modifier les alias puis re-projeter côté
-      backend pour réindexer.
-    </div>
-
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
+    <AppNotice v-if="error" tone="error" dense class="q-mb-md">{{ error }}</AppNotice>
 
     <q-table
       :rows="rows"
@@ -24,42 +30,32 @@
     >
       <template #body-cell-categories="props">
         <q-td :props="props">
-          <q-chip
-            v-for="c in props.row.categories"
-            :key="c"
-            dense
-            outline
-            color="primary"
-            :label="c"
-          />
-          <span v-if="props.row.categories.length === 0" class="text-grey-5">—</span>
+          <q-chip v-for="c in props.row.categories" :key="c" dense :label="c" />
+          <span v-if="props.row.categories.length === 0" class="text-subtle">—</span>
         </q-td>
       </template>
       <template #body-cell-aliases="props">
         <q-td :props="props">
-          <span class="text-grey-7">{{ props.row.aliases.length }} alias</span>
+          <span class="text-muted">{{ props.row.aliases.length }} alias</span>
         </q-td>
       </template>
       <template #body-cell-is_active="props">
         <q-td :props="props" align="center">
-          <q-chip
-            dense
-            :color="props.row.is_active ? 'green' : 'grey-5'"
-            text-color="white"
-            :label="props.row.is_active ? 'actif' : 'inactif'"
-          />
+          <StatusTag v-if="props.row.is_active" label="Actif" tone="ok" icon="ph:check-circle" />
+          <StatusTag v-else label="Inactif" tone="neutral" icon="ph:minus-circle" />
         </q-td>
       </template>
       <template #body-cell-actions="props">
-        <q-td :props="props" align="right">
-          <q-btn flat dense icon="edit" color="primary" @click="openEdit(props.row)">
+        <q-td :props="props" align="right" class="no-wrap">
+          <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
             <q-tooltip>Modifier</q-tooltip>
           </q-btn>
           <q-btn
             v-if="props.row.is_active"
             flat
+            round
             dense
-            icon="delete"
+            icon="ph:trash"
             color="negative"
             @click="confirmDelete(props.row)"
           >
@@ -67,19 +63,22 @@
           </q-btn>
         </q-td>
       </template>
+      <template #no-data>
+        <div class="full-width text-center text-subtle q-pa-md">Aucune caractéristique.</div>
+      </template>
     </q-table>
 
     <!-- Create / edit dialog -->
     <q-dialog v-model="dialog">
-      <q-card style="min-width: 420px; max-width: 560px">
-        <q-card-section class="text-h6">{{
-          editingKey ? `Modifier ${editingKey}` : 'Nouvelle spec'
-        }}</q-card-section>
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">
+            {{ editingKey ? `Modifier ${editingKey}` : 'Nouvelle caractéristique' }}
+          </h2>
+        </q-card-section>
         <q-form @submit.prevent="submit">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="form.key"
               label="Clé canonique (ex: memory_gb) *"
@@ -128,11 +127,13 @@
             />
             <q-toggle v-if="editingKey" v-model="form.is_active" label="Actif" />
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
+              unelevated
+              no-caps
               :label="editingKey ? 'Enregistrer' : 'Créer'"
               :loading="saving"
             />
@@ -143,15 +144,18 @@
 
     <!-- Delete confirm -->
     <q-dialog v-model="deleteDialog">
-      <q-card>
-        <q-card-section class="row items-center">
-          <q-icon name="warning" color="negative" size="md" class="q-mr-sm" />
-          <span>Désactiver la spec « {{ toDelete?.key }} » ?</span>
+      <q-card class="app-dialog app-dialog--narrow">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">Désactiver la caractéristique ?</h2>
+          <p class="app-dialog__text">
+            Clé <span class="font-mono">{{ toDelete?.key }}</span>
+          </p>
         </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Annuler" v-close-popup />
+        <q-card-actions align="right" class="app-dialog__actions">
+          <q-btn flat no-caps label="Annuler" v-close-popup />
           <q-btn
             flat
+            no-caps
             label="Désactiver"
             color="negative"
             :loading="deleting"
@@ -166,6 +170,9 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import {
   createSpecDefinition,
   deleteSpecDefinition,
@@ -189,7 +196,7 @@ const typeOptions = [
 ];
 
 const columns: QTableColumn[] = [
-  { name: 'key', label: 'Clé', field: 'key', align: 'left' },
+  { name: 'key', label: 'Clé', field: 'key', align: 'left', classes: 'font-mono' },
   { name: 'label_fr', label: 'Libellé', field: 'label_fr', align: 'left' },
   { name: 'type', label: 'Type', field: 'type', align: 'left' },
   { name: 'unit', label: 'Unité', field: (r) => r.unit ?? '—', align: 'left' },

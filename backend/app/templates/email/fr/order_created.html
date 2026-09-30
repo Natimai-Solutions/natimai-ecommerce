@@ -11,6 +11,10 @@
           <tr><td>Nombre d'articles</td><td>{{ item_count }}</td></tr>
         </table>
       </div>
+      {% if payment_instructions %}
+      <p><strong>Pour régler votre commande</strong>{% if amount_due_now and amount_due_now != total_amount %} ({{ amount_due_now }} {{ currency }} maintenant){% endif %} :</p>
+      <p style="white-space: pre-line">{{ payment_instructions }}</p>
+      {% endif %}
       {% if tracking_url %}<p><a href="{{ tracking_url }}">Suivre ma commande</a></p>{% endif %}
       <p>Merci pour votre commande,<br><strong>L'équipe {{ shop_name }}</strong></p>
 {% endblock %}

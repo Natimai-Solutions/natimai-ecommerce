@@ -48,6 +48,7 @@ BALANCE_TRIGGER_STATUS = "Received"
 EVENT_ORDER_CREATED = "order.created"
 EVENT_PAYMENT_CAPTURED = "payment.captured"
 EVENT_PAYMENT_REJECTED = "payment.rejected"
+EVENT_PAYMENT_PARTIALLY_RECEIVED = "payment.partially_received"
 EVENT_PAYMENT_REFUNDED = "payment.refunded"
 EVENT_INVOICE_ISSUED = "invoice.issued"
 EVENT_CREDIT_NOTE_ISSUED = "credit_note.issued"
@@ -287,6 +288,8 @@ async def on_order_created(session: AsyncSession, payload: dict[str, Any]) -> No
         currency=payload.get("currency", ""),
         item_count=payload.get("item_count", ""),
         tracking_url=tracking_url_from_payload(payload.get("order_id")),
+        amount_due_now=payload.get("amount_due_now") or "",
+        payment_instructions=payload.get("payment_instructions") or "",
         shop_name=_shop_name(),
     )
 
@@ -344,6 +347,36 @@ async def on_payment_captured_customer(
         text=email.text,
         html=email.html,
         event_type=EVENT_PAYMENT_CAPTURED,
+        payload=payload,
+    )
+
+
+@outbox_handler(EVENT_PAYMENT_PARTIALLY_RECEIVED)
+async def on_payment_partially_received_customer(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    """Send « Versement reçu, reste X » after an instalment (R3-P2)."""
+    user = await _resolve_user_from_payload(session, payload)
+    full_name = (user.full_name or user.email or "") if user else ""
+    email = render_email(
+        "payment_received_partial",
+        full_name=full_name or "client",
+        order_id=payload.get("order_id", ""),
+        order_ref=await _resolve_order_ref(session, payload),
+        amount=payload.get("amount", ""),
+        received_amount=payload.get("received_amount", ""),
+        remaining_amount=payload.get("remaining_amount", ""),
+        currency=payload.get("currency", ""),
+        tracking_url=tracking_url_from_payload(payload.get("order_id")),
+        shop_name=_shop_name(),
+    )
+    await _send_order_email(
+        session,
+        user_id_raw=payload.get("user_id"),
+        subject=email.subject,
+        text=email.text,
+        html=email.html,
+        event_type=EVENT_PAYMENT_PARTIALLY_RECEIVED,
         payload=payload,
     )
 

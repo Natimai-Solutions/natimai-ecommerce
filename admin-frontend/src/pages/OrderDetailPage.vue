@@ -1,349 +1,523 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <q-btn flat dense round icon="arrow_back" class="q-mr-sm" to="/orders" />
-      <div class="text-h6 col">Commande #{{ orderId.slice(0, 8) }}</div>
-      <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader
+      :title="order?.order_number ?? `Commande #${orderId.slice(0, 8)}`"
+      :back="{ to: '/orders', label: 'Commandes' }"
+      :hint="order ? `Passée le ${formatDate(order.created_at)}` : undefined"
+    >
+      <template v-if="order" #tags>
+        <StatusTag
+          data-testid="order-status"
+          :label="orderStatusLabel(order.status)"
+          :tone="toneOf(orderStatusColor(order.status))"
+          :icon="toneIcon(toneOf(orderStatusColor(order.status)))"
+        />
+        <template v-if="order.payment_plan === 'deposit'">
+          <StatusTag
+            v-if="order.balance_paid_at"
+            tone="ok"
+            icon="ph:hand-coins"
+            label="Solde réglé"
+          />
+          <StatusTag
+            v-else-if="order.balance_requested_at"
+            tone="warn"
+            icon="ph:hand-coins"
+            label="Solde demandé"
+          />
+          <StatusTag v-else tone="neutral" icon="ph:hand-coins" label="Acompte" />
+        </template>
+      </template>
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          data-testid="order-refresh"
+          :loading="loading"
+          @click="load"
+        />
+      </template>
+    </PageHeader>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
+    <AppNotice v-if="error" tone="error" class="q-mb-md">{{ error }}</AppNotice>
 
     <div v-if="loading" class="text-center q-pa-lg">
-      <q-spinner color="primary" size="2em" />
+      <q-spinner size="2em" />
     </div>
 
     <template v-else-if="order">
-      <div class="row q-col-gutter-md">
-        <!-- Header / client -->
-        <div class="col-12 col-md-6">
-          <q-card flat bordered>
-            <q-card-section>
-              <div class="row items-center q-mb-sm q-gutter-sm">
-                <div class="text-subtitle1 col">Informations</div>
-                <q-chip
-                  dense
-                  :color="orderStatusColor(order.status)"
-                  text-color="white"
-                  :label="orderStatusLabel(order.status)"
-                />
-                <q-select
-                  :model-value="order.status"
-                  :options="statusOptions"
-                  label="Changer le statut"
-                  dense
-                  outlined
-                  emit-value
-                  map-options
-                  style="min-width: 230px"
-                  :loading="statusSaving"
-                  @update:model-value="changeStatus"
-                />
-              </div>
-              <q-list dense>
-                <q-item class="q-px-none">
-                  <q-item-section>Client</q-item-section>
-                  <q-item-section side class="text-right">
-                    {{ order.user_name || order.user_email || order.user_id.slice(0, 8) }}
-                  </q-item-section>
-                </q-item>
-                <q-item v-if="order.user_email" class="q-px-none">
-                  <q-item-section>Email</q-item-section>
-                  <q-item-section side>{{ order.user_email }}</q-item-section>
-                </q-item>
-                <q-item class="q-px-none">
-                  <q-item-section>Date</q-item-section>
-                  <q-item-section side>{{ formatDate(order.created_at) }}</q-item-section>
-                </q-item>
-                <q-item class="q-px-none">
-                  <q-item-section>Adresse de livraison</q-item-section>
-                  <q-item-section side class="text-right">
-                    {{ order.shipping_address || '—' }}
-                  </q-item-section>
-                </q-item>
-                <q-item v-if="order.notes" class="q-px-none">
-                  <q-item-section>Notes</q-item-section>
-                  <q-item-section side class="text-right">{{ order.notes }}</q-item-section>
-                </q-item>
-                <q-item class="q-px-none">
-                  <q-item-section>Départ groupé</q-item-section>
-                  <q-item-section side style="min-width: 260px">
-                    <q-select
-                      :model-value="order.grouped_departure_id"
-                      :options="departureOptions"
+      <div class="order-layout">
+        <!-- Contenu principal : articles, paiements, transport -->
+        <div class="order-main">
+          <!-- Lines -->
+          <section class="app-section" aria-labelledby="order-lines-title">
+            <div class="app-section__head">
+              <h2 id="order-lines-title" class="app-section__title">Articles</h2>
+            </div>
+            <q-markup-table flat bordered dense>
+              <thead>
+                <tr>
+                  <th class="text-left">Produit</th>
+                  <th class="text-right">Qté</th>
+                  <th class="text-right">PU</th>
+                  <th class="text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="line in order.lines" :key="line.product_id">
+                  <td class="text-left">{{ line.product_name || line.product_id.slice(0, 8) }}</td>
+                  <td class="text-right font-mono">{{ line.quantity }}</td>
+                  <td class="text-right font-mono">{{ formatMoney(line.unit_price) }}</td>
+                  <td class="text-right font-mono">{{ formatMoney(line.line_total) }}</td>
+                </tr>
+                <tr v-if="order.lines.length === 0">
+                  <td colspan="4" class="text-center text-subtle">Aucun article.</td>
+                </tr>
+              </tbody>
+            </q-markup-table>
+          </section>
+
+          <!-- Payments -->
+          <section class="app-section" aria-labelledby="order-payments-title">
+            <div class="app-section__head">
+              <h2 id="order-payments-title" class="app-section__title">Paiements</h2>
+            </div>
+            <AppNotice v-if="refundNotice" tone="success" dense class="q-mb-sm">
+              {{ refundNotice }}
+            </AppNotice>
+            <q-markup-table flat bordered dense>
+              <thead>
+                <tr>
+                  <th class="text-left">Type</th>
+                  <th class="text-left">Référence</th>
+                  <th class="text-left">Statut</th>
+                  <th class="text-right">Montant</th>
+                  <th class="text-left">Date</th>
+                  <th class="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="p in order.payments" :key="p.payment_id">
+                  <td class="text-left">
+                    {{ providerLabel(p.provider_code) }}
+                    <q-chip
+                      v-if="p.kind !== 'full'"
                       dense
-                      outlined
-                      emit-value
-                      map-options
-                      :loading="departureSaving"
-                      @update:model-value="setDeparture"
+                      size="sm"
+                      class="q-ml-xs"
+                      :label="PAYMENT_KIND_LABELS[p.kind] ?? p.kind"
                     />
-                  </q-item-section>
-                </q-item>
-              </q-list>
-            </q-card-section>
-          </q-card>
-        </div>
+                  </td>
+                  <td class="text-left font-mono">{{ p.provider_reference || '—' }}</td>
+                  <td class="text-left">{{ p.status || '—' }}</td>
+                  <td class="text-right">
+                    <div class="font-mono">{{ formatMoney(p.amount) }}</div>
+                    <div
+                      v-if="p.accepts_receipts && (p.received_amount ?? 0) > 0"
+                      class="text-caption text-warning"
+                    >
+                      reçu <span class="font-mono">{{ formatMoney(p.received_amount ?? 0) }}</span>
+                    </div>
+                  </td>
+                  <td class="text-left">{{ formatDate(p.created_at) }}</td>
+                  <td class="text-right">
+                    <q-btn
+                      v-if="p.accepts_receipts"
+                      flat
+                      dense
+                      no-caps
+                      icon="ph:hand-coins"
+                      label="Encaisser"
+                      data-testid="order-payment-receipt"
+                      @click="openPaymentReceipt(p)"
+                    />
+                    <q-btn
+                      v-if="canCapture(p)"
+                      flat
+                      dense
+                      no-caps
+                      icon="ph:money"
+                      label="Capturer"
+                      :loading="capturingId === p.payment_id"
+                      @click="captureRow(p)"
+                    />
+                    <q-btn
+                      v-if="canRefund(p)"
+                      flat
+                      dense
+                      no-caps
+                      color="negative"
+                      icon="ph:arrow-u-up-left"
+                      label="Rembourser"
+                      @click="openRefund(p)"
+                    />
+                  </td>
+                </tr>
+                <tr v-if="order.payments.length === 0">
+                  <td colspan="6" class="text-center text-subtle">Aucun paiement.</td>
+                </tr>
+              </tbody>
+            </q-markup-table>
 
-        <!-- Amounts -->
-        <div class="col-12 col-md-6">
-          <q-card flat bordered>
-            <q-card-section>
-              <div class="row items-center q-mb-sm">
-                <div class="text-subtitle1 col">Montants</div>
-                <q-btn
-                  flat
-                  dense
-                  no-caps
-                  icon="savings"
-                  color="primary"
-                  label="Avoir-crédit"
-                  @click="openCredit"
-                >
-                  <q-tooltip
-                    >Accorder (ou reprendre) un avoir au client, utilisable sur sa prochaine
-                    commande</q-tooltip
+            <div v-if="order.receipts?.length" class="order-receipts">
+              <h3 class="admin-subtitle">Versements reçus</h3>
+              <q-markup-table flat bordered dense data-testid="order-receipts">
+                <thead>
+                  <tr>
+                    <th class="text-left">Reçu le</th>
+                    <th class="text-right">Montant</th>
+                    <th class="text-left">Mode</th>
+                    <th class="text-left">Référence</th>
+                    <th class="text-left">Note</th>
+                    <th class="text-right"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="r in order.receipts"
+                    :key="r.id"
+                    :class="{ 'receipt--cancelled': !r.is_active }"
                   >
-                </q-btn>
-              </div>
-              <q-banner
-                v-if="storeCredit && Number(storeCredit.balance) > 0"
-                class="bg-green-1 text-green-9 q-mb-sm"
+                    <td class="text-left">{{ formatDate(r.received_at) }}</td>
+                    <td class="text-right font-mono">{{ formatMoney(Number(r.amount)) }}</td>
+                    <td class="text-left">{{ RECEIPT_METHOD_LABELS[r.method] ?? r.method }}</td>
+                    <td class="text-left font-mono">{{ r.reference || '—' }}</td>
+                    <td class="text-left">{{ r.note || '' }}</td>
+                    <td class="text-right">
+                      <StatusTag
+                        v-if="!r.is_active"
+                        tone="danger"
+                        icon="ph:x-circle"
+                        :label="`Annulé${r.cancel_reason ? ` : ${r.cancel_reason}` : ''}`"
+                      />
+                      <q-btn
+                        v-else-if="receiptCancellable(r)"
+                        flat
+                        dense
+                        no-caps
+                        color="negative"
+                        icon="ph:arrow-counter-clockwise"
+                        label="Annuler"
+                        @click="openCancelReceipt(r)"
+                      >
+                        <q-tooltip>Chèque impayé, somme rendue…</q-tooltip>
+                      </q-btn>
+                    </td>
+                  </tr>
+                </tbody>
+              </q-markup-table>
+            </div>
+          </section>
+
+          <!-- Transport (journey legs, carrier hand-over) -->
+          <section class="app-section" aria-labelledby="order-transport-title">
+            <div class="app-section__head">
+              <h2 id="order-transport-title" class="app-section__title">Transport</h2>
+              <p v-if="order.delivery_type" class="app-section__hint">
+                Mode choisi par le client : {{ prettifyMode(order.delivery_type) }}
+              </p>
+              <q-btn
+                flat
                 dense
-                rounded
-              >
-                Avoir disponible du client : {{ formatMoney(Number(storeCredit.balance)) }}
-              </q-banner>
-              <q-list dense>
-                <q-item class="q-px-none">
-                  <q-item-section>Sous-total</q-item-section>
-                  <q-item-section side>{{ formatMoney(order.subtotal_amount) }}</q-item-section>
-                </q-item>
-                <q-item class="q-px-none">
-                  <q-item-section>Frais de port</q-item-section>
-                  <q-item-section side>{{ formatMoney(order.shipping_fee_amount) }}</q-item-section>
-                </q-item>
-                <q-item class="q-px-none">
-                  <q-item-section>Frais de paiement</q-item-section>
-                  <q-item-section side>{{ formatMoney(order.payment_fee_amount) }}</q-item-section>
-                </q-item>
-                <q-item v-if="order.discount_code" class="q-px-none text-positive">
-                  <q-item-section>Remise {{ order.discount_code }}</q-item-section>
-                  <q-item-section side
-                    >-{{ formatMoney(order.discount_amount ?? 0) }}</q-item-section
-                  >
-                </q-item>
-                <q-item v-if="order.deposit_fee_amount > 0" class="q-px-none">
-                  <q-item-section>Frais option acompte</q-item-section>
-                  <q-item-section side>{{ formatMoney(order.deposit_fee_amount) }}</q-item-section>
-                </q-item>
-                <q-separator class="q-my-xs" />
-                <q-item class="q-px-none text-weight-bold">
-                  <q-item-section>Total</q-item-section>
-                  <q-item-section side>{{ formatMoney(order.total_amount) }}</q-item-section>
-                </q-item>
-                <template v-if="order.payment_plan === 'deposit'">
-                  <q-item class="q-px-none">
-                    <q-item-section>Acompte à la commande</q-item-section>
-                    <q-item-section side>{{ formatMoney(order.deposit_amount) }}</q-item-section>
-                  </q-item>
-                  <q-item class="q-px-none">
-                    <q-item-section>
-                      Solde
-                      <q-item-label caption>
-                        <template v-if="order.balance_paid_at"
-                          >réglé le {{ formatDate(order.balance_paid_at) }}</template
-                        >
-                        <template v-else-if="order.balance_requested_at"
-                          >demandé le {{ formatDate(order.balance_requested_at) }}</template
-                        >
-                        <template v-else>demandé automatiquement à la réception</template>
-                      </q-item-label>
-                    </q-item-section>
-                    <q-item-section side>
-                      <div class="row items-center q-gutter-xs">
-                        <span>{{ formatMoney(order.balance_amount) }}</span>
-                        <q-btn
-                          v-if="!order.balance_paid_at"
-                          flat
-                          dense
-                          no-caps
-                          size="sm"
-                          color="primary"
-                          icon="mail"
-                          :label="
-                            order.balance_requested_at ? 'Renvoyer la demande' : 'Demander le solde'
-                          "
-                          :loading="requestingBalance"
-                          @click="sendBalanceRequest"
-                        />
-                      </div>
-                    </q-item-section>
-                  </q-item>
-                </template>
-              </q-list>
-            </q-card-section>
-          </q-card>
+                no-caps
+                icon="ph:package"
+                label="Page Logistique"
+                to="/shipping"
+                class="app-section__action"
+              />
+            </div>
+            <div v-if="journeyNotice || journeyError" class="admin-notices">
+              <AppNotice v-if="journeyNotice" tone="success" dense>{{ journeyNotice }}</AppNotice>
+              <AppNotice v-if="journeyError" tone="error" dense>{{ journeyError }}</AppNotice>
+            </div>
+            <q-markup-table flat bordered dense>
+              <thead>
+                <tr>
+                  <th class="text-left">#</th>
+                  <th class="text-left">Tronçon</th>
+                  <th class="text-left">Statut</th>
+                  <th class="text-left">Transporteur</th>
+                  <th class="text-left">N° de suivi</th>
+                  <th class="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="leg in journey"
+                  :key="leg.tracking_id"
+                  :class="{ 'leg--current': leg.is_current }"
+                >
+                  <td class="text-left font-mono">{{ leg.sequence_order }}</td>
+                  <td class="text-left">
+                    <div>{{ leg.route_name || '—' }}</div>
+                    <div class="text-caption text-muted">
+                      {{ leg.from_place || '?' }} → {{ leg.to_place || '?' }}
+                      <span v-if="leg.mode">({{ leg.mode }})</span>
+                    </div>
+                  </td>
+                  <td class="text-left">
+                    <StatusTag
+                      :tone="leg.is_terminal ? 'ok' : 'neutral'"
+                      :icon="
+                        leg.is_terminal
+                          ? 'ph:check-circle'
+                          : leg.is_current
+                            ? 'ph:truck'
+                            : 'ph:circle'
+                      "
+                      :label="leg.status_name || leg.status_code || '—'"
+                    />
+                  </td>
+                  <td class="text-left">
+                    {{ leg.carrier_name || (leg.tracking_ref ? 'Suivi interne' : '—') }}
+                  </td>
+                  <td class="text-left font-mono">
+                    <a
+                      v-if="leg.tracking_url"
+                      :href="leg.tracking_url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="admin-link"
+                      >{{ leg.tracking_ref }}</a
+                    >
+                    <span v-else>{{ leg.tracking_ref || '—' }}</span>
+                  </td>
+                  <td class="text-right">
+                    <q-btn
+                      flat
+                      dense
+                      no-caps
+                      icon="ph:truck"
+                      label="Remettre au transporteur"
+                      :disable="leg.is_terminal || leg.status_code === 'shipped'"
+                      @click="openShip(leg)"
+                    >
+                      <q-tooltip max-width="320px">
+                        Enregistre le transporteur et le n° de suivi, marque le tronçon expédié et
+                        notifie le client.
+                      </q-tooltip>
+                    </q-btn>
+                    <q-btn
+                      v-if="!leg.is_final_leg"
+                      flat
+                      dense
+                      no-caps
+                      icon="ph:skip-forward"
+                      label="Tronçon suivant"
+                      :disable="leg.is_terminal"
+                      @click="advanceLeg(leg)"
+                    />
+                    <q-btn
+                      v-else
+                      flat
+                      dense
+                      no-caps
+                      icon="ph:check-circle"
+                      color="positive"
+                      label="Livrer"
+                      :disable="leg.is_terminal"
+                      @click="deliverLeg(leg)"
+                    />
+                  </td>
+                </tr>
+                <tr v-if="journey.length === 0">
+                  <td colspan="6" class="text-center text-subtle">
+                    {{ journeyLoading ? 'Chargement…' : 'Aucun tronçon de transport.' }}
+                  </td>
+                </tr>
+              </tbody>
+            </q-markup-table>
+          </section>
         </div>
-      </div>
 
-      <!-- Lines -->
-      <q-card flat bordered class="q-mt-md">
-        <q-card-section>
-          <div class="text-subtitle1 q-mb-sm">Articles</div>
-          <q-markup-table flat dense>
-            <thead>
-              <tr>
-                <th class="text-left">Produit</th>
-                <th class="text-right">Qté</th>
-                <th class="text-right">PU</th>
-                <th class="text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="line in order.lines" :key="line.product_id">
-                <td class="text-left">{{ line.product_name || line.product_id.slice(0, 8) }}</td>
-                <td class="text-right">{{ line.quantity }}</td>
-                <td class="text-right">{{ formatMoney(line.unit_price) }}</td>
-                <td class="text-right">{{ formatMoney(line.line_total) }}</td>
-              </tr>
-              <tr v-if="order.lines.length === 0">
-                <td colspan="4" class="text-center text-grey-6">Aucun article.</td>
-              </tr>
-            </tbody>
-          </q-markup-table>
-        </q-card-section>
-      </q-card>
-
-      <!-- Transport (journey legs, carrier hand-over) -->
-      <q-card flat bordered class="q-mt-md">
-        <q-card-section>
-          <div class="row items-center q-mb-sm">
-            <div class="text-subtitle1 col">Transport</div>
-            <q-btn
-              flat
-              dense
-              no-caps
-              icon="inventory_2"
-              label="Page Logistique"
-              color="grey-8"
-              to="/shipping"
-            />
-          </div>
-          <q-banner v-if="journeyNotice" class="bg-green-1 text-green-9 q-mb-sm" rounded dense>
-            {{ journeyNotice }}
-          </q-banner>
-          <q-banner v-if="journeyError" class="bg-red-1 text-red-9 q-mb-sm" rounded dense>
-            {{ journeyError }}
-          </q-banner>
-          <div v-if="order.delivery_type" class="text-caption text-grey-7 q-mb-sm">
-            Mode choisi par le client : {{ prettifyMode(order.delivery_type) }}
-          </div>
-          <q-markup-table flat dense>
-            <thead>
-              <tr>
-                <th class="text-left">#</th>
-                <th class="text-left">Tronçon</th>
-                <th class="text-left">Statut</th>
-                <th class="text-left">Transporteur</th>
-                <th class="text-left">N° de suivi</th>
-                <th class="text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="leg in journey"
-                :key="leg.tracking_id"
-                :class="{ 'bg-blue-1': leg.is_current }"
+        <!-- Colonne latérale : récapitulatif, suivi, client -->
+        <aside class="order-side">
+          <!-- Amounts -->
+          <div class="app-panel">
+            <div class="order-panel__head">
+              <h2 class="admin-subtitle q-mb-none">Récapitulatif</h2>
+              <q-btn
+                flat
+                dense
+                no-caps
+                icon="ph:piggy-bank"
+                label="Avoir-crédit"
+                @click="openCredit"
               >
-                <td class="text-left">{{ leg.sequence_order }}</td>
-                <td class="text-left">
-                  <div>{{ leg.route_name || '—' }}</div>
-                  <div class="text-caption text-grey-7">
-                    {{ leg.from_place || '?' }} → {{ leg.to_place || '?' }}
-                    <span v-if="leg.mode">({{ leg.mode }})</span>
-                  </div>
-                </td>
-                <td class="text-left">
-                  <q-chip
-                    dense
-                    size="sm"
-                    :color="leg.is_terminal ? 'green' : leg.is_current ? 'primary' : 'grey-7'"
-                    text-color="white"
-                    :label="leg.status_name || leg.status_code || '—'"
-                  />
-                </td>
-                <td class="text-left">
-                  {{ leg.carrier_name || (leg.tracking_ref ? 'Suivi interne' : '—') }}
-                </td>
-                <td class="text-left">
-                  <a
-                    v-if="leg.tracking_url"
-                    :href="leg.tracking_url"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    >{{ leg.tracking_ref }}</a
-                  >
-                  <span v-else>{{ leg.tracking_ref || '—' }}</span>
-                </td>
-                <td class="text-right">
-                  <q-btn
-                    flat
-                    dense
-                    no-caps
-                    icon="local_shipping"
-                    color="primary"
-                    label="Remettre au transporteur"
-                    :disable="leg.is_terminal || leg.status_code === 'shipped'"
-                    @click="openShip(leg)"
-                  >
-                    <q-tooltip max-width="320px">
-                      Enregistre le transporteur et le n° de suivi, marque le tronçon expédié et
-                      notifie le client.
-                    </q-tooltip>
-                  </q-btn>
-                  <q-btn
-                    v-if="!leg.is_final_leg"
-                    flat
-                    dense
-                    no-caps
-                    icon="skip_next"
-                    color="indigo"
-                    label="Tronçon suivant"
-                    :disable="leg.is_terminal"
-                    @click="advanceLeg(leg)"
-                  />
-                  <q-btn
-                    v-else
-                    flat
-                    dense
-                    no-caps
-                    icon="task_alt"
-                    color="positive"
-                    label="Livrer"
-                    :disable="leg.is_terminal"
-                    @click="deliverLeg(leg)"
-                  />
-                </td>
-              </tr>
-              <tr v-if="journey.length === 0">
-                <td colspan="6" class="text-center text-grey-6">
-                  {{ journeyLoading ? 'Chargement…' : 'Aucun tronçon de transport.' }}
-                </td>
-              </tr>
-            </tbody>
-          </q-markup-table>
-        </q-card-section>
-      </q-card>
+                <q-tooltip
+                  >Accorder (ou reprendre) un avoir au client, utilisable sur sa prochaine
+                  commande</q-tooltip
+                >
+              </q-btn>
+            </div>
+            <AppNotice
+              v-if="storeCredit && Number(storeCredit.balance) > 0"
+              tone="success"
+              dense
+              class="q-mb-md"
+            >
+              Avoir disponible du client :
+              <span class="font-mono">{{ formatMoney(Number(storeCredit.balance)) }}</span>
+            </AppNotice>
+            <div class="app-kv">
+              <span>Sous-total</span>
+              <span class="font-mono">{{ formatMoney(order.subtotal_amount) }}</span>
+            </div>
+            <div class="app-kv">
+              <span>Frais de port</span>
+              <span class="font-mono">{{ formatMoney(order.shipping_fee_amount) }}</span>
+            </div>
+            <div class="app-kv">
+              <span>Frais de paiement</span>
+              <span class="font-mono">{{ formatMoney(order.payment_fee_amount) }}</span>
+            </div>
+            <div v-if="order.discount_code" class="app-kv app-kv--credit">
+              <span
+                >Remise <span class="font-mono">{{ order.discount_code }}</span></span
+              >
+              <span class="font-mono">-{{ formatMoney(order.discount_amount ?? 0) }}</span>
+            </div>
+            <div v-if="order.deposit_fee_amount > 0" class="app-kv">
+              <span>Frais option acompte</span>
+              <span class="font-mono">{{ formatMoney(order.deposit_fee_amount) }}</span>
+            </div>
+            <div class="app-kv app-kv--total">
+              <span>Total</span>
+              <span class="font-mono">{{ formatMoney(order.total_amount) }}</span>
+            </div>
+            <div v-if="order.payment_plan === 'deposit'" class="order-deposit">
+              <div class="app-kv">
+                <span>Acompte à la commande</span>
+                <span class="font-mono">{{ formatMoney(order.deposit_amount) }}</span>
+              </div>
+              <div class="app-kv">
+                <span>
+                  Solde
+                  <span class="order-deposit__caption">
+                    <template v-if="order.balance_paid_at"
+                      >réglé le {{ formatDate(order.balance_paid_at) }}</template
+                    >
+                    <template v-else-if="order.balance_requested_at"
+                      >demandé le {{ formatDate(order.balance_requested_at) }}</template
+                    >
+                    <template v-else>demandé automatiquement à la réception</template>
+                  </span>
+                </span>
+                <span class="font-mono">{{ formatMoney(order.balance_amount) }}</span>
+              </div>
+              <q-btn
+                v-if="!order.balance_paid_at"
+                flat
+                dense
+                no-caps
+                size="sm"
+                icon="ph:envelope-simple"
+                class="q-mt-sm"
+                :label="order.balance_requested_at ? 'Renvoyer la demande' : 'Demander le solde'"
+                :loading="requestingBalance"
+                @click="sendBalanceRequest"
+              />
+            </div>
+          </div>
+
+          <!-- Encaissé / reste dû -->
+          <div class="app-panel" data-testid="order-money">
+            <h2 class="admin-subtitle">Encaissements</h2>
+            <div class="app-kv">
+              <span>Encaissé</span>
+              <span class="font-mono" data-testid="order-amount-paid">{{
+                formatMoney(order.amount_paid ?? 0)
+              }}</span>
+            </div>
+            <div class="app-kv app-kv--total">
+              <span>Reste dû</span>
+              <span class="font-mono" data-testid="order-amount-due">{{
+                formatMoney(order.amount_due ?? 0)
+              }}</span>
+            </div>
+            <q-btn
+              v-if="(order.next_part_due ?? 0) > 0"
+              color="primary"
+              unelevated
+              no-caps
+              icon="ph:hand-coins"
+              class="full-width q-mt-md"
+              label="Enregistrer un encaissement"
+              data-testid="order-counter-payment"
+              @click="openCounterPayment"
+            />
+            <p
+              v-if="(order.next_part_due ?? 0) > 0 && order.next_part_kind !== 'full'"
+              class="admin-hint q-mt-sm q-mb-none"
+            >
+              Part due maintenant :
+              {{ PAYMENT_KIND_LABELS[order.next_part_kind ?? 'full']?.toLowerCase() }}
+              (<span class="font-mono">{{ formatMoney(order.next_part_due ?? 0) }}</span
+              >).
+            </p>
+          </div>
+
+          <!-- Status + grouped departure -->
+          <div class="app-panel">
+            <h2 class="admin-subtitle">Suivi</h2>
+            <div class="order-panel__fields">
+              <q-select
+                :model-value="order.status"
+                :options="statusOptions"
+                label="Changer le statut"
+                dense
+                outlined
+                emit-value
+                map-options
+                :loading="statusSaving"
+                @update:model-value="changeStatus"
+              />
+              <q-select
+                :model-value="order.grouped_departure_id"
+                :options="departureOptions"
+                label="Départ groupé"
+                dense
+                outlined
+                emit-value
+                map-options
+                :loading="departureSaving"
+                @update:model-value="setDeparture"
+              />
+            </div>
+          </div>
+
+          <!-- Client -->
+          <div class="app-panel">
+            <h2 class="admin-subtitle">Client</h2>
+            <dl class="admin-dl">
+              <dt>Client</dt>
+              <dd>{{ order.user_name || order.user_email || order.user_id.slice(0, 8) }}</dd>
+              <template v-if="order.user_email">
+                <dt>Email</dt>
+                <dd class="order-panel__wrap">{{ order.user_email }}</dd>
+              </template>
+              <dt>Livraison</dt>
+              <dd class="order-panel__wrap">{{ order.shipping_address || '—' }}</dd>
+              <template v-if="order.notes">
+                <dt>Notes</dt>
+                <dd class="order-panel__wrap">{{ order.notes }}</dd>
+              </template>
+            </dl>
+          </div>
+        </aside>
+      </div>
 
       <!-- Ship dialog (carrier + tracking ref) -->
       <q-dialog v-model="shipDialog">
-        <q-card style="min-width: 360px">
-          <q-card-section class="text-h6">Remise au transporteur</q-card-section>
+        <q-card class="app-dialog">
+          <q-card-section class="app-dialog__head">
+            <h2 class="app-dialog__title">Remise au transporteur</h2>
+          </q-card-section>
           <q-form @submit.prevent="submitShip">
-            <q-card-section class="q-pt-none q-gutter-sm">
-              <q-banner v-if="shipError" class="bg-red-1 text-red-9" dense rounded>{{
-                shipError
-              }}</q-banner>
+            <q-card-section class="q-gutter-sm">
+              <AppNotice v-if="shipError" tone="error" dense>{{ shipError }}</AppNotice>
               <q-select
                 v-model="shipCarrierId"
                 :options="carrierOptions"
@@ -362,11 +536,13 @@
                 autofocus
               />
             </q-card-section>
-            <q-card-actions align="right">
-              <q-btn flat label="Annuler" v-close-popup />
+            <q-card-actions align="right" class="app-dialog__actions">
+              <q-btn flat no-caps label="Annuler" v-close-popup />
               <q-btn
                 type="submit"
                 color="primary"
+                unelevated
+                no-caps
                 label="Remettre au transporteur"
                 :loading="shipping"
               />
@@ -375,84 +551,22 @@
         </q-card>
       </q-dialog>
 
-      <!-- Payments -->
-      <q-card flat bordered class="q-mt-md">
-        <q-card-section>
-          <div class="text-subtitle1 q-mb-sm">Paiements</div>
-          <q-banner v-if="refundNotice" class="bg-green-1 text-green-9 q-mb-sm" rounded dense>
-            {{ refundNotice }}
-          </q-banner>
-          <q-markup-table flat dense>
-            <thead>
-              <tr>
-                <th class="text-left">Type</th>
-                <th class="text-left">Référence</th>
-                <th class="text-left">Statut</th>
-                <th class="text-right">Montant</th>
-                <th class="text-left">Date</th>
-                <th class="text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="p in order.payments" :key="p.payment_id">
-                <td class="text-left">
-                  {{ providerLabel(p.provider_code) }}
-                  <q-badge
-                    v-if="p.kind !== 'full'"
-                    color="teal"
-                    class="q-ml-xs"
-                    :label="PAYMENT_KIND_LABELS[p.kind] ?? p.kind"
-                  />
-                </td>
-                <td class="text-left">{{ p.provider_reference || '—' }}</td>
-                <td class="text-left">{{ p.status || '—' }}</td>
-                <td class="text-right">{{ formatMoney(p.amount) }}</td>
-                <td class="text-left">{{ formatDate(p.created_at) }}</td>
-                <td class="text-right">
-                  <q-btn
-                    v-if="canCapture(p)"
-                    flat
-                    dense
-                    no-caps
-                    color="primary"
-                    icon="payments"
-                    label="Capturer"
-                    :loading="capturingId === p.payment_id"
-                    @click="captureRow(p)"
-                  />
-                  <q-btn
-                    v-if="canRefund(p)"
-                    flat
-                    dense
-                    no-caps
-                    color="negative"
-                    icon="undo"
-                    label="Rembourser"
-                    @click="openRefund(p)"
-                  />
-                </td>
-              </tr>
-              <tr v-if="order.payments.length === 0">
-                <td colspan="6" class="text-center text-grey-6">Aucun paiement.</td>
-              </tr>
-            </tbody>
-          </q-markup-table>
-        </q-card-section>
-      </q-card>
-
       <!-- Store credit dialog -->
       <q-dialog v-model="creditDialog">
-        <q-card style="min-width: 420px">
-          <q-card-section class="text-h6">Avoir-crédit client</q-card-section>
+        <q-card class="app-dialog">
+          <q-card-section class="app-dialog__head">
+            <h2 class="app-dialog__title">Avoir-crédit client</h2>
+            <p class="app-dialog__text">
+              Solde actuel :
+              <span class="font-mono">{{
+                storeCredit ? formatMoney(Number(storeCredit.balance)) : '—'
+              }}</span
+              >. Un montant négatif reprend de l'avoir.
+            </p>
+          </q-card-section>
           <q-form @submit.prevent="submitCredit">
-            <q-card-section class="q-pt-none q-gutter-sm">
-              <q-banner v-if="creditError" class="bg-red-1 text-red-9" dense rounded>{{
-                creditError
-              }}</q-banner>
-              <div class="text-caption text-grey-7">
-                Solde actuel : {{ storeCredit ? formatMoney(Number(storeCredit.balance)) : '—' }}.
-                Un montant négatif reprend de l'avoir.
-              </div>
+            <q-card-section class="q-gutter-sm">
+              <AppNotice v-if="creditError" tone="error" dense>{{ creditError }}</AppNotice>
               <q-input
                 v-model="creditAmount"
                 type="number"
@@ -478,32 +592,91 @@
                     >
                     <q-item-label caption>{{ formatDate(e.created_at) }}</q-item-label>
                   </q-item-section>
-                  <q-item-section side>{{ formatMoney(Number(e.amount)) }}</q-item-section>
+                  <q-item-section side class="font-mono">{{
+                    formatMoney(Number(e.amount))
+                  }}</q-item-section>
                 </q-item>
               </q-list>
             </q-card-section>
-            <q-card-actions align="right">
-              <q-btn flat label="Annuler" v-close-popup />
-              <q-btn type="submit" color="primary" label="Enregistrer" :loading="creditSaving" />
+            <q-card-actions align="right" class="app-dialog__actions">
+              <q-btn flat no-caps label="Annuler" v-close-popup />
+              <q-btn
+                type="submit"
+                color="primary"
+                unelevated
+                no-caps
+                label="Enregistrer"
+                :loading="creditSaving"
+              />
             </q-card-actions>
           </q-form>
         </q-card>
       </q-dialog>
 
       <!-- Refund dialog -->
+      <ReceiptDialog
+        v-model="receiptDialog"
+        :target="receiptTarget"
+        :remaining="receiptRemaining"
+        :default-method="receiptMethod"
+        :title="receiptTitle"
+        @done="onReceiptDone"
+      />
+
+      <q-dialog v-model="cancelReceiptDialog">
+        <q-card class="app-dialog app-dialog--narrow">
+          <q-card-section class="app-dialog__head">
+            <h2 class="app-dialog__title">Annuler le versement</h2>
+            <p class="app-dialog__text">
+              <span class="font-mono">{{
+                cancelTarget ? formatMoney(Number(cancelTarget.amount)) : ''
+              }}</span>
+              ne comptera plus dans ce qui a été encaissé. Le versement reste dans l'historique.
+            </p>
+          </q-card-section>
+          <q-card-section>
+            <AppNotice v-if="cancelError" tone="error" dense class="q-mb-sm">{{
+              cancelError
+            }}</AppNotice>
+            <q-input
+              v-model="cancelReason"
+              label="Motif (chèque impayé, somme rendue…)"
+              outlined
+              dense
+              autofocus
+              maxlength="500"
+            />
+          </q-card-section>
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Retour" v-close-popup />
+            <q-btn
+              color="negative"
+              unelevated
+              no-caps
+              label="Annuler le versement"
+              :disable="!cancelReason.trim()"
+              :loading="cancelling"
+              @click="submitCancelReceipt"
+            />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
+
       <q-dialog v-model="refundDialog">
-        <q-card style="min-width: 380px">
-          <q-card-section class="text-h6">Rembourser le paiement</q-card-section>
+        <q-card class="app-dialog">
+          <q-card-section class="app-dialog__head">
+            <h2 class="app-dialog__title">Rembourser le paiement</h2>
+            <p class="app-dialog__text">
+              Montant du paiement :
+              <span class="font-mono">{{
+                refundTarget ? formatMoney(refundTarget.amount) : ''
+              }}</span
+              >. Laissez le montant vide pour un remboursement total.
+            </p>
+          </q-card-section>
           <q-form @submit.prevent="submitRefund">
-            <q-card-section class="q-pt-none q-gutter-sm">
-              <q-banner v-if="refundError" class="bg-red-1 text-red-9" dense rounded>{{
-                refundError
-              }}</q-banner>
-              <div class="text-caption text-grey-7">
-                Montant du paiement :
-                {{ refundTarget ? formatMoney(refundTarget.amount) : '' }}. Laissez le montant vide
-                pour un remboursement total.
-              </div>
+            <q-card-section class="q-gutter-sm">
+              <AppNotice v-if="refundError" tone="error" dense>{{ refundError }}</AppNotice>
               <q-input
                 v-model.number="refundAmount"
                 label="Montant à rembourser (optionnel)"
@@ -522,9 +695,16 @@
                 dense
               />
             </q-card-section>
-            <q-card-actions align="right">
-              <q-btn flat label="Annuler" v-close-popup />
-              <q-btn type="submit" color="negative" label="Rembourser" :loading="refunding" />
+            <q-card-actions align="right" class="app-dialog__actions">
+              <q-btn flat no-caps label="Annuler" v-close-popup />
+              <q-btn
+                type="submit"
+                color="negative"
+                unelevated
+                no-caps
+                label="Rembourser"
+                :loading="refunding"
+              />
             </q-card-actions>
           </q-form>
         </q-card>
@@ -534,9 +714,14 @@
 </template>
 
 <script setup lang="ts">
+import { providerLabel } from '@/utils/payments';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import { toneIcon, toneOf } from '@app/ui/statusTone';
 import { formatXpf } from '@app/utils';
+import PageHeader from '@/components/PageHeader.vue';
 import {
   getOrder,
   listOrderStatuses,
@@ -606,7 +791,16 @@ async function sendBalanceRequest() {
     requestingBalance.value = false;
   }
 }
-import { capturePayment, refundPayment } from '@/api/paymentValidations';
+import {
+  cancelReceipt,
+  capturePayment,
+  RECEIPT_METHOD_LABELS,
+  refundPayment,
+  type PaymentReceipt,
+  type ReceiptMethod,
+  type ReceiptResult,
+} from '@/api/paymentValidations';
+import ReceiptDialog from '@/components/ReceiptDialog.vue';
 import {
   advanceTracking,
   deliverTracking,
@@ -696,14 +890,79 @@ function formatDate(raw: string | null): string {
       });
 }
 
-function providerLabel(code: string | null): string {
-  if (!code) return '—';
-  if (code.startsWith('document') || code.startsWith('po_')) return 'Bon de commande';
-  if (code.includes('check') || code.includes('cheque')) return 'Chèque';
-  if (code.includes('transfer') || code.includes('virement')) return 'Virement';
-  if (code === 'payzen') return 'Carte bancaire';
-  if (code.startsWith('manual')) return 'Paiement manuel';
-  return code;
+// --- Encaissements : versements, comptoir, annulation (R3-P2) ---
+const receiptDialog = ref(false);
+const receiptTarget = ref<{ paymentId: string } | { orderId: string } | null>(null);
+const receiptRemaining = ref(0);
+const receiptMethod = ref<ReceiptMethod>('cash');
+const receiptTitle = ref('Encaisser un versement');
+
+function methodForProvider(code: string | null): ReceiptMethod {
+  if (code === 'manual_check') return 'check';
+  if (code === 'manual_transfer') return 'transfer';
+  return 'cash';
+}
+
+function openPaymentReceipt(p: AdminOrderPaymentItem) {
+  receiptTarget.value = { paymentId: p.payment_id };
+  receiptRemaining.value = p.amount - (p.received_amount ?? 0);
+  receiptMethod.value = methodForProvider(p.provider_code);
+  receiptTitle.value = `Encaisser — ${providerLabel(p.provider_code)}`;
+  receiptDialog.value = true;
+}
+
+function openCounterPayment() {
+  if (!order.value) return;
+  receiptTarget.value = { orderId: order.value.order_id };
+  receiptRemaining.value = order.value.next_part_due ?? 0;
+  const pending = order.value.payments.find((p) => p.accepts_receipts);
+  receiptMethod.value = pending ? methodForProvider(pending.provider_code) : 'cash';
+  receiptTitle.value = 'Enregistrer un encaissement';
+  receiptDialog.value = true;
+}
+
+async function onReceiptDone(result: ReceiptResult) {
+  refundNotice.value = result.payment_settled
+    ? 'Encaissement enregistré : le paiement est validé.'
+    : `Versement enregistré — reste ${formatMoney(Number(result.remaining_amount))}.`;
+  await load();
+}
+
+function receiptCancellable(r: PaymentReceipt): boolean {
+  return (
+    r.is_active &&
+    (order.value?.payments.some((p) => p.payment_id === r.payment_id && p.accepts_receipts) ??
+      false)
+  );
+}
+
+const cancelReceiptDialog = ref(false);
+const cancelTarget = ref<PaymentReceipt | null>(null);
+const cancelReason = ref('');
+const cancelling = ref(false);
+const cancelError = ref<string | null>(null);
+
+function openCancelReceipt(r: PaymentReceipt) {
+  cancelTarget.value = r;
+  cancelReason.value = '';
+  cancelError.value = null;
+  cancelReceiptDialog.value = true;
+}
+
+async function submitCancelReceipt() {
+  if (!cancelTarget.value) return;
+  cancelling.value = true;
+  cancelError.value = null;
+  try {
+    await cancelReceipt(cancelTarget.value.id, cancelReason.value.trim());
+    cancelReceiptDialog.value = false;
+    refundNotice.value = 'Versement annulé.';
+    await load();
+  } catch (err) {
+    cancelError.value = extractApiError(err) ?? 'Annulation impossible.';
+  } finally {
+    cancelling.value = false;
+  }
 }
 
 async function load() {
@@ -893,3 +1152,77 @@ async function captureRow(p: AdminOrderPaymentItem) {
 
 onMounted(load);
 </script>
+
+<style scoped lang="scss">
+// Fiche commande : contenu principal à gauche, récapitulatif et client à droite.
+.order-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 40px;
+  align-items: start;
+
+  @media (max-width: 1199px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.order-main {
+  min-width: 0;
+}
+
+.order-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.order-panel__head {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.order-panel__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.order-panel__wrap {
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.order-deposit {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--n-line);
+}
+
+.order-deposit__caption {
+  display: block;
+  font-size: 12px;
+  color: var(--n-ink-3);
+}
+
+// Tronçon en cours : repère discret dans le tableau de transport.
+.leg--current > td {
+  background: var(--n-tile);
+}
+
+.receipt--cancelled td {
+  color: var(--n-ink-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--n-line-2);
+}
+
+.receipt--cancelled td:last-child {
+  text-decoration: none;
+}
+
+.order-receipts {
+  margin-top: 24px;
+}
+</style>

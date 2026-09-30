@@ -1,22 +1,37 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="text-h6 col">Transporteurs</div>
-      <q-toggle v-model="showRetired" label="Afficher les retirés" class="q-mr-md" />
-      <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
-      <q-btn color="primary" icon="add" label="Nouveau transporteur" no-caps @click="openCreate" />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader title="Transporteurs">
+      <template #actions>
+        <q-toggle v-model="showRetired" label="Afficher les retirés" />
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+        <q-btn
+          color="primary"
+          unelevated
+          no-caps
+          icon="ph:plus"
+          label="Nouveau transporteur"
+          @click="openCreate"
+        />
+      </template>
+    </PageHeader>
 
-    <div class="text-caption text-grey-7 q-mb-md">
+    <p class="admin-hint">
       DHL, Chronopost, Colissimo, coursier local… Aucune intégration d'API : le numéro de suivi est
       saisi à la remise au transporteur. Le gabarit d'URL (avec <code v-pre>{ref}</code>) sert à
       construire le lien « Suivre le colis » affiché au client.
-    </div>
+    </p>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
-    <q-banner v-if="notice" class="bg-green-1 text-green-9 q-mb-md" dense rounded>{{
-      notice
-    }}</q-banner>
+    <div v-if="error || notice" class="admin-notices">
+      <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
+      <AppNotice v-if="notice" tone="success" dense>{{ notice }}</AppNotice>
+    </div>
 
     <q-table
       :rows="rows"
@@ -28,60 +43,58 @@
       :rows-per-page-options="[0]"
       hide-pagination
     >
+      <template #body-cell-code="props">
+        <q-td :props="props" class="font-mono">{{ props.row.code }}</q-td>
+      </template>
       <template #body-cell-template="props">
         <q-td :props="props">
-          <span v-if="props.row.tracking_url_template" class="text-caption">{{
+          <span v-if="props.row.tracking_url_template" class="text-caption font-mono">{{
             props.row.tracking_url_template
           }}</span>
-          <span v-else class="text-grey-6">— (pas de lien de suivi)</span>
+          <span v-else class="text-subtle">— (pas de lien de suivi)</span>
         </q-td>
       </template>
       <template #body-cell-active="props">
         <q-td :props="props">
-          <q-chip
-            dense
-            size="sm"
-            :color="props.row.is_active ? 'green' : 'grey-6'"
-            text-color="white"
-            :label="props.row.is_active ? 'Actif' : 'Retiré'"
-          />
+          <StatusTag v-if="props.row.is_active" tone="ok" icon="ph:check-circle" label="Actif" />
+          <StatusTag v-else tone="neutral" icon="ph:minus-circle" label="Retiré" />
         </q-td>
       </template>
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
-          <q-btn flat dense icon="edit" color="primary" @click="openEdit(props.row)">
+          <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
             <q-tooltip>Modifier</q-tooltip>
           </q-btn>
           <q-btn
             v-if="props.row.is_active"
             flat
+            round
             dense
-            icon="visibility_off"
-            color="grey-8"
+            icon="ph:eye-slash"
             @click="retire(props.row)"
           >
             <q-tooltip>Retirer du sélecteur (les expéditions passées gardent leur suivi)</q-tooltip>
           </q-btn>
-          <q-btn v-else flat dense icon="visibility" color="positive" @click="restore(props.row)">
+          <q-btn v-else flat round dense icon="ph:eye" @click="restore(props.row)">
             <q-tooltip>Réactiver</q-tooltip>
           </q-btn>
         </q-td>
       </template>
       <template #no-data>
-        <div class="full-width text-center text-grey-6 q-pa-md">Aucun transporteur.</div>
+        <div class="full-width text-center text-subtle q-pa-md">Aucun transporteur.</div>
       </template>
     </q-table>
 
     <q-dialog v-model="dialog">
-      <q-card style="min-width: 460px">
-        <q-card-section class="text-h6">{{
-          editId ? 'Modifier le transporteur' : 'Nouveau transporteur'
-        }}</q-card-section>
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">
+            {{ editId ? 'Modifier le transporteur' : 'Nouveau transporteur' }}
+          </h2>
+        </q-card-section>
         <q-form @submit.prevent="submit">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="form.name"
               label="Nom *"
@@ -107,9 +120,16 @@
               clearable
             />
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" label="Enregistrer" :loading="saving" />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn
+              type="submit"
+              color="primary"
+              unelevated
+              no-caps
+              label="Enregistrer"
+              :loading="saving"
+            />
           </q-card-actions>
         </q-form>
       </q-card>
@@ -120,6 +140,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import {
   createCarrier,
   listCarriers,

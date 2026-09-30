@@ -639,6 +639,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/payments/me/{payment_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm My Payment
+         * @description Finish a payment the customer approved on the provider's page.
+         *
+         *     PayPal sends the customer back to the shop with the order approved but
+         *     not paid: the shop captures (or authorizes) it server-side. Idempotent —
+         *     a payment already decided is returned as is, and the provider's webhook
+         *     for the same capture is recognised as a duplicate.
+         */
+        post: operations["payment-confirm_my_payment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payments/webhooks/{provider_code}": {
         parameters: {
             query?: never;
@@ -650,9 +675,34 @@ export interface paths {
         put?: never;
         /**
          * Process Provider Webhook
-         * @description Execute process provider webhook.
+         * @description Receive a provider notification.
+         *
+         *     PayZen keeps its historical IPN; the other providers authenticate and
+         *     normalize their notification (``parse_webhook``) and go through the
+         *     generic pipeline. A switched-off provider still receives the
+         *     notifications of the payments it already started.
          */
         post: operations["payment-process_provider_webhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admin Dashboard
+         * @description Work queue counters, recent activity and the next grouped departure.
+         */
+        get: operations["admin-dashboard-get_admin_dashboard"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -820,6 +870,158 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payments/{payment_id}/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Payment Receipts
+         * @description Every receipt of a payment, cancelled ones included, oldest first.
+         */
+        get: operations["admin-payment-list_payment_receipts"];
+        put?: never;
+        /**
+         * Create Payment Receipt
+         * @description Record an instalment; the one that reaches the amount settles the payment.
+         */
+        post: operations["admin-payment-create_payment_receipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payments/receipts/{receipt_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Payment Receipt
+         * @description Cancel an instalment of a still pending payment (bounced cheque…).
+         */
+        post: operations["admin-payment-cancel_payment_receipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payment-providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Payment Providers
+         * @description PayZen, PayPal and Stripe: switch, credentials, availability.
+         */
+        get: operations["admin-payment-list_payment_providers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payment-providers/{provider_code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Payment Provider
+         * @description Switch a provider on or off; its payment methods follow at once.
+         */
+        put: operations["admin-payment-update_payment_provider"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payment-methods/types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Payment Method Types
+         * @description The types a method can be created on.
+         */
+        get: operations["admin-payment-list_payment_method_types"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payment-methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Admin Payment Methods
+         * @description Every method, switched on or off, in checkout order.
+         */
+        get: operations["admin-payment-list_admin_payment_methods"];
+        put?: never;
+        /**
+         * Create Payment Method
+         * @description A new method on an existing type (« Virement Banque de Tahiti »).
+         */
+        post: operations["admin-payment-create_payment_method"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payment-methods/{payment_method_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Payment Method
+         * @description Delete a method no payment used; a used one is switched off instead.
+         */
+        delete: operations["admin-payment-delete_payment_method"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Payment Method
+         * @description Edit a method (its type stays: create another method to change it).
+         */
+        patch: operations["admin-payment-update_payment_method"];
         trace?: never;
     };
     "/api/v1/admin/quote-requests": {
@@ -1049,6 +1251,27 @@ export interface paths {
         get: operations["admin-order-get_order_detail"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/{order_id}/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Order Counter Payment
+         * @description « Enregistrer un encaissement » : cash, cheque or transfer received for
+         *     the part now due, on the customer's pending manual payment or a new one.
+         */
+        post: operations["admin-order-record_order_counter_payment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3935,6 +4158,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orders/me/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One of my orders
+         * @description A single order of the authenticated user, with its status name and the
+         *     payment method used. Replaces reloading the whole list to find one.
+         */
+        get: operations["order-get_my_order"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orders/me/{order_id}/lines": {
         parameters: {
             query?: never;
@@ -4977,6 +5221,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My profile
+         * @description Identity of the signed-in customer.
+         */
+        get: operations["user-get_my_profile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit my profile
+         * @description Update the name and phone number. Fields left out are unchanged.
+         */
+        patch: operations["user-update_my_profile"];
+        trace?: never;
+    };
+    "/api/v1/users/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change my password
+         * @description Replace the password after checking the current one.
+         *
+         *     Every open session is closed afterwards, the current one included: the
+         *     customer signs in again with the new password. An account created through
+         *     Google / Microsoft has no password it knows of; « mot de passe oublié »
+         *     sets one.
+         */
+        post: operations["user-change_my_password"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/me/upgrade-group": {
         parameters: {
             query?: never;
@@ -5269,6 +5562,122 @@ export interface paths {
          * @description Remove a page (a built-in legal page falls back to its default text).
          */
         delete: operations["content-pages-delete_page"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Media
+         * @description Latest images first, optionally for one kind.
+         */
+        get: operations["media-list_media"];
+        put?: never;
+        /**
+         * Upload Media
+         * @description Upload an image: scanned, re-encoded to WebP widths, then stored.
+         */
+        post: operations["media-upload_media"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/media/{asset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Media
+         * @description Delete an unused image and its stored files.
+         */
+        delete: operations["media-delete_media"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Media
+         * @description Change the alternative text or the kind.
+         */
+        patch: operations["media-update_media"];
+        trace?: never;
+    };
+    "/api/v1/homepage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Homepage
+         * @description Published blocks whose dates include now: the first hero, then banners.
+         */
+        get: operations["homepage-get_homepage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/homepage-blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Blocks
+         * @description Every block, published or not, in display order.
+         */
+        get: operations["homepage-list_blocks"];
+        put?: never;
+        /**
+         * Create Block
+         * @description Add a hero or a banner.
+         */
+        post: operations["homepage-create_block"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/homepage-blocks/{block_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace Block
+         * @description Replace every field of a block.
+         */
+        put: operations["homepage-replace_block"];
+        post?: never;
+        /**
+         * Delete Block
+         * @description Remove a block (its image stays in the media library).
+         */
+        delete: operations["homepage-delete_block"];
         options?: never;
         head?: never;
         patch?: never;
@@ -7243,6 +7652,15 @@ export interface components {
             tracking_ref?: string | null;
         };
         /**
+         * AdminDashboard
+         * @description Admin home page payload.
+         */
+        AdminDashboard: {
+            todo: components["schemas"]["DashboardTodo"];
+            activity: components["schemas"]["DashboardActivity"];
+            next_departure?: components["schemas"]["DashboardDeparture"] | null;
+        };
+        /**
          * AdminInventoryItem
          * @description A product with its local stock and (read-only) supplier availability.
          */
@@ -7332,6 +7750,8 @@ export interface components {
              * Format: uuid
              */
             order_id: string;
+            /** Order Number */
+            order_number?: string | null;
             /** Created At */
             created_at?: string | null;
             /**
@@ -7398,6 +7818,28 @@ export interface components {
             lines: components["schemas"]["AdminOrderLineItem"][];
             /** Payments */
             payments: components["schemas"]["AdminOrderPaymentItem"][];
+            /**
+             * Amount Paid
+             * @default 0
+             */
+            amount_paid: number;
+            /**
+             * Amount Due
+             * @default 0
+             */
+            amount_due: number;
+            /**
+             * Receipts
+             * @default []
+             */
+            receipts: components["schemas"]["PaymentReceiptPublic"][];
+            /** Next Part Kind */
+            next_part_kind?: string | null;
+            /**
+             * Next Part Due
+             * @default 0
+             */
+            next_part_due: number;
         };
         /**
          * AdminOrderLineItem
@@ -7482,6 +7924,90 @@ export interface components {
              * @default false
              */
             can_refund: boolean;
+            /**
+             * Received Amount
+             * @default 0
+             */
+            received_amount: number;
+            /**
+             * Accepts Receipts
+             * @default false
+             */
+            accepts_receipts: boolean;
+        };
+        /** AdminPaymentMethod */
+        AdminPaymentMethod: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string | null;
+            /** Provider Code */
+            provider_code: string;
+            /** Type Label */
+            type_label: string;
+            /** Family */
+            family: string;
+            /** Supports Instructions */
+            supports_instructions: boolean;
+            /** Fee */
+            fee: string;
+            /** Max Amount */
+            max_amount: string | null;
+            /** Sort Order */
+            sort_order: number;
+            /** Is Admin Active */
+            is_admin_active: boolean;
+            /** Deposit Allowed */
+            deposit_allowed: boolean;
+            /** Instructions */
+            instructions: string | null;
+            /** Payments Count */
+            payments_count: number;
+        };
+        /** AdminPaymentMethodCreate */
+        AdminPaymentMethodCreate: {
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            /** Fee */
+            fee?: number | string | null;
+            /** Max Amount */
+            max_amount?: number | string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Is Admin Active */
+            is_admin_active?: boolean | null;
+            /** Deposit Allowed */
+            deposit_allowed?: boolean | null;
+            /** Instructions */
+            instructions?: string | null;
+            /** Provider Code */
+            provider_code: string;
+        };
+        /** AdminPaymentMethodWrite */
+        AdminPaymentMethodWrite: {
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Fee */
+            fee?: number | string | null;
+            /** Max Amount */
+            max_amount?: number | string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Is Admin Active */
+            is_admin_active?: boolean | null;
+            /** Deposit Allowed */
+            deposit_allowed?: boolean | null;
+            /** Instructions */
+            instructions?: string | null;
         };
         /**
          * AdminPendingTrackingItem
@@ -8400,6 +8926,18 @@ export interface components {
              * Format: password
              */
             client_secret?: string | null;
+        };
+        /** Body_media-upload_media */
+        "Body_media-upload_media": {
+            /** File */
+            file: string;
+            /**
+             * Kind
+             * @default other
+             */
+            kind: string;
+            /** Alt */
+            alt?: string | null;
         };
         /** Body_suppliers-import_catalog_file */
         "Body_suppliers-import_catalog_file": {
@@ -9473,6 +10011,25 @@ export interface components {
             is_published: boolean;
         };
         /**
+         * CounterPaymentCreate
+         * @description Money handed over at the office for the part of the order now due.
+         */
+        CounterPaymentCreate: {
+            /** Amount */
+            amount: number | string;
+            /**
+             * Method
+             * @description cash | check | transfer
+             */
+            method: string;
+            /** Received At */
+            received_at?: string | null;
+            /** Reference */
+            reference?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /**
          * CreditNotePublic
          * @description Credit note metadata exposed by the API (the PDF has its own endpoint).
          */
@@ -9639,6 +10196,94 @@ export interface components {
         CustomsRateAssignBody: {
             /** Customs Rate Pct */
             customs_rate_pct?: number | string | null;
+        };
+        /**
+         * DashboardActivity
+         * @description Orders and revenue (reference currency) over recent windows.
+         */
+        DashboardActivity: {
+            /** Currency */
+            currency: string;
+            /**
+             * Orders Today
+             * @default 0
+             */
+            orders_today: number;
+            /**
+             * Orders 7D
+             * @default 0
+             */
+            orders_7d: number;
+            /**
+             * Revenue 7D
+             * @default 0
+             */
+            revenue_7d: string;
+            /**
+             * Revenue 30D
+             * @default 0
+             */
+            revenue_30d: string;
+        };
+        /**
+         * DashboardDeparture
+         * @description The next grouped departure: the open one, else the next draft.
+         */
+        DashboardDeparture: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Label */
+            label: string;
+            /** Status */
+            status: string;
+            /** Cutoff At */
+            cutoff_at?: string | null;
+            /** Departure At */
+            departure_at?: string | null;
+            /**
+             * Orders Count
+             * @default 0
+             */
+            orders_count: number;
+        };
+        /**
+         * DashboardTodo
+         * @description Work queue: how many items wait for an admin action, per screen.
+         */
+        DashboardTodo: {
+            /**
+             * Payments To Validate
+             * @default 0
+             */
+            payments_to_validate: number;
+            /**
+             * Quote Requests Open
+             * @default 0
+             */
+            quote_requests_open: number;
+            /**
+             * Group Upgrade Requests Pending
+             * @default 0
+             */
+            group_upgrade_requests_pending: number;
+            /**
+             * Orders To Process
+             * @default 0
+             */
+            orders_to_process: number;
+            /**
+             * Supplier Orders Draft
+             * @default 0
+             */
+            supplier_orders_draft: number;
+            /**
+             * Product Drafts
+             * @default 0
+             */
+            product_drafts: number;
         };
         /**
          * DeliveryTaskCreate
@@ -11203,6 +11848,118 @@ export interface components {
             };
         };
         /**
+         * HomepageBlockPublic
+         * @description A block as the storefront and the admin see it.
+         */
+        HomepageBlockPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Title */
+            title: string;
+            /** Subtitle */
+            subtitle?: string | null;
+            /** Cta Label */
+            cta_label?: string | null;
+            /** Cta Link */
+            cta_link?: string | null;
+            /** Media Id */
+            media_id?: string | null;
+            /** Image Url */
+            image_url?: string | null;
+            /** Alt */
+            alt?: string | null;
+            /**
+             * Position
+             * @default 0
+             */
+            position: number;
+            /**
+             * Is Published
+             * @default false
+             */
+            is_published: boolean;
+            /** Starts At */
+            starts_at?: string | null;
+            /** Ends At */
+            ends_at?: string | null;
+            image?: components["schemas"]["HomepageImage"] | null;
+        };
+        /**
+         * HomepageBlockWrite
+         * @description Admin create / replace payload.
+         */
+        HomepageBlockWrite: {
+            /**
+             * Kind
+             * @default banner
+             */
+            kind: string;
+            /** Title */
+            title: string;
+            /** Subtitle */
+            subtitle?: string | null;
+            /** Cta Label */
+            cta_label?: string | null;
+            /** Cta Link */
+            cta_link?: string | null;
+            /** Media Id */
+            media_id?: string | null;
+            /** Image Url */
+            image_url?: string | null;
+            /** Alt */
+            alt?: string | null;
+            /**
+             * Position
+             * @default 0
+             */
+            position: number;
+            /**
+             * Is Published
+             * @default false
+             */
+            is_published: boolean;
+            /** Starts At */
+            starts_at?: string | null;
+            /** Ends At */
+            ends_at?: string | null;
+        };
+        /**
+         * HomepageImage
+         * @description An image ready for an ``<img>``: source, srcset and intrinsic size.
+         */
+        HomepageImage: {
+            /** Src */
+            src: string;
+            /** Srcset */
+            srcset?: string | null;
+            /** Width */
+            width?: number | null;
+            /** Height */
+            height?: number | null;
+            /**
+             * Alt
+             * @default
+             */
+            alt: string;
+        };
+        /**
+         * HomepagePublic
+         * @description Storefront homepage content: at most one hero, then the banners.
+         */
+        HomepagePublic: {
+            hero?: components["schemas"]["HomepageBlockPublic"] | null;
+            /**
+             * Banners
+             * @default []
+             */
+            banners: components["schemas"]["HomepageBlockPublic"][];
+        };
+        /**
          * InventoriesPublic
          * @description Represents inventories public.
          */
@@ -11708,6 +12465,60 @@ export interface components {
             timestamp: string;
         };
         /**
+         * MediaAssetPublic
+         * @description What the admin and the storefront need to show an image.
+         */
+        MediaAssetPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Alt */
+            alt?: string | null;
+            /** Original Filename */
+            original_filename?: string | null;
+            /** Width */
+            width: number;
+            /** Height */
+            height: number;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Url */
+            url: string;
+            /** Srcset */
+            srcset: string;
+            /**
+             * Variants
+             * @default []
+             */
+            variants: components["schemas"]["MediaVariantPublic"][];
+        };
+        /**
+         * MediaAssetUpdate
+         * @description Admin edit: the alternative text and the kind.
+         */
+        MediaAssetUpdate: {
+            /** Alt */
+            alt?: string | null;
+            /** Kind */
+            kind?: string | null;
+        };
+        /**
+         * MediaVariantPublic
+         * @description One served size of an image.
+         */
+        MediaVariantPublic: {
+            /** Width */
+            width: number;
+            /** Height */
+            height: number;
+            /** Url */
+            url: string;
+        };
+        /**
          * MergeBody
          * @description Cible d'une fusion.
          */
@@ -11743,6 +12554,189 @@ export interface components {
             task_id?: string | null;
         };
         /**
+         * MyOrderDetail
+         * @description One order for its detail page: the summary plus how it was paid.
+         */
+        MyOrderDetail: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * User Id
+             * Format: uuid
+             * @description ID de l'utilisateur qui a passé la commande
+             */
+            user_id: string;
+            /**
+             * Order Status Id
+             * Format: uuid
+             * @description ID du statut de la commande
+             */
+            order_status_id: string;
+            /**
+             * Total Amount
+             * @description Montant total de la commande
+             * @default 0.00
+             */
+            total_amount: string;
+            /**
+             * Subtotal Amount
+             * @description Sous-total des lignes au checkout
+             * @default 0.00
+             */
+            subtotal_amount: string;
+            /**
+             * Shipping Fee Amount
+             * @description Frais de livraison figes au checkout
+             * @default 0.00
+             */
+            shipping_fee_amount: string;
+            /**
+             * Payment Fee Amount
+             * @description Frais de paiement figes au checkout
+             * @default 0.00
+             */
+            payment_fee_amount: string;
+            /**
+             * Total Fees Amount
+             * @description Total des frais figes au checkout
+             * @default 0.00
+             */
+            total_fees_amount: string;
+            /**
+             * Discount Id
+             * @description Remise appliquée au checkout (code promo)
+             */
+            discount_id?: string | null;
+            /**
+             * Discount Code
+             * @description Code promo tel que saisi (figé, même si la remise change)
+             */
+            discount_code?: string | null;
+            /**
+             * Discount Amount
+             * @description Remise totale déduite des articles au checkout
+             * @default 0.00
+             */
+            discount_amount: string;
+            /**
+             * Currency
+             * @description Devise de facturation figée au checkout (null pour les commandes antérieures — on retombe alors sur la devise du paiement)
+             */
+            currency?: string | null;
+            /**
+             * Shipping Address
+             * @description Adresse de livraison
+             */
+            shipping_address?: string | null;
+            /**
+             * Shipping Cost Breakdown
+             * @description Snapshot detaille des couts de livraison par troncon au checkout (routes selectionnees, forfait/poids/valeur, ETA, empreinte carbone)
+             */
+            shipping_cost_breakdown?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Notes
+             * @description Notes sur la commande
+             */
+            notes?: string | null;
+            /**
+             * Delivery Type
+             * @description Mode de livraison du dernier tronçon choisi au checkout
+             */
+            delivery_type?: string | null;
+            /**
+             * Grouped Departure Id
+             * @description Départ groupé de rattachement
+             */
+            grouped_departure_id?: string | null;
+            /**
+             * Cgv Accepted At
+             * @description Horodatage UTC de l'acceptation des CGV au checkout
+             */
+            cgv_accepted_at?: string | null;
+            /**
+             * Cgv Version
+             * @description Version des CGV acceptée au checkout
+             */
+            cgv_version?: string | null;
+            /**
+             * Payment Plan
+             * @description full | deposit
+             * @default full
+             */
+            payment_plan: string;
+            /**
+             * Deposit Amount
+             * @description Acompte versé à la commande (0 en plan full)
+             * @default 0.00
+             */
+            deposit_amount: string;
+            /**
+             * Deposit Fee Amount
+             * @description Frais de l'option acompte, inclus dans total_fees_amount
+             * @default 0.00
+             */
+            deposit_fee_amount: string;
+            /**
+             * Balance Requested At
+             * @description Envoi de la demande de solde au client
+             */
+            balance_requested_at?: string | null;
+            /**
+             * Balance Paid At
+             * @description Encaissement du solde
+             */
+            balance_paid_at?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Order Number */
+            order_number?: string | null;
+            /** Order Status Name */
+            order_status_name?: string | null;
+            /**
+             * Balance Amount
+             * @default 0.00
+             */
+            balance_amount: string;
+            /**
+             * Balance Due
+             * @default false
+             */
+            balance_due: boolean;
+            /** Payment Method Name */
+            payment_method_name?: string | null;
+            /**
+             * Amount Paid
+             * @default 0
+             */
+            amount_paid: string;
+            /**
+             * Amount Due
+             * @default 0
+             */
+            amount_due: string;
+        };
+        /**
          * MyOrderLine
          * @description An order line as the customer sees it: product, serials, warranty.
          */
@@ -11767,6 +12761,15 @@ export interface components {
             warranty_months?: number | null;
             /** Warranty Until */
             warranty_until?: string | null;
+            /** Image Url */
+            image_url?: string | null;
+            /** Manufacturer */
+            manufacturer?: string | null;
+            /**
+             * Product Available
+             * @default false
+             */
+            product_available: boolean;
         };
         /**
          * MyOrderPublic
@@ -11938,6 +12941,50 @@ export interface components {
              * @default false
              */
             balance_due: boolean;
+        };
+        /**
+         * MyPasswordChange
+         * @description Change the password while signed in: the current one is required.
+         */
+        MyPasswordChange: {
+            /** Current Password */
+            current_password: string;
+            /** New Password */
+            new_password: string;
+        };
+        /**
+         * MyProfilePublic
+         * @description What the customer sees of their own account.
+         */
+        MyProfilePublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Email */
+            email: string;
+            /** Full Name */
+            full_name?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /**
+             * Is Verified
+             * @default false
+             */
+            is_verified: boolean;
+            /** Created At */
+            created_at?: string | null;
+        };
+        /**
+         * MyProfileUpdate
+         * @description Editable identity fields. An empty string clears the field.
+         */
+        MyProfileUpdate: {
+            /** Full Name */
+            full_name?: string | null;
+            /** Phone */
+            phone?: string | null;
         };
         /**
          * MyQuoteItem
@@ -13418,6 +14465,17 @@ export interface components {
              * @description Maximum transaction amount (NULL = no limit)
              */
             max_amount?: number | string | null;
+            /**
+             * Deposit Allowed
+             * @description Whether this method can pay the deposit of a deposit order (the balance can always be paid by any eligible method)
+             * @default true
+             */
+            deposit_allowed: boolean;
+            /**
+             * Instructions
+             * @description Instructions shown and e-mailed to the customer for this method (IBAN, office address…). NULL = the instructions of its type
+             */
+            instructions?: string | null;
         };
         /**
          * PaymentMethodPublic
@@ -13488,10 +14546,34 @@ export interface components {
              */
             max_amount?: string | null;
             /**
+             * Deposit Allowed
+             * @description Whether this method can pay the deposit of a deposit order (the balance can always be paid by any eligible method)
+             * @default true
+             */
+            deposit_allowed: boolean;
+            /**
+             * Instructions
+             * @description Instructions shown and e-mailed to the customer for this method (IBAN, office address…). NULL = the instructions of its type
+             */
+            instructions?: string | null;
+            /**
              * Id
              * Format: uuid
              */
             id?: string;
+        };
+        /** PaymentMethodTypePublic */
+        PaymentMethodTypePublic: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+            /** Family */
+            family: string;
+            /** Supports Instructions */
+            supports_instructions: boolean;
+            /** Fallback Instructions */
+            fallback_instructions: string | null;
         };
         /**
          * PaymentMethodUpdate
@@ -13532,6 +14614,10 @@ export interface components {
             sort_order?: number | null;
             /** Max Amount */
             max_amount?: number | string | null;
+            /** Deposit Allowed */
+            deposit_allowed?: boolean | null;
+            /** Instructions */
+            instructions?: string | null;
         };
         /**
          * PaymentMethodsPublic
@@ -13579,11 +14665,38 @@ export interface components {
             user_email?: string | null;
             /** Order Id */
             order_id: string | null;
+            /** Order Number */
+            order_number?: string | null;
             /**
              * Is Document
              * @default false
              */
             is_document: boolean;
+            /**
+             * Received Amount
+             * @default 0
+             */
+            received_amount: number;
+        };
+        /** PaymentProviderPublic */
+        PaymentProviderPublic: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Credentials Present */
+            credentials_present: boolean;
+            /** Implemented */
+            implemented: boolean;
+            /** Available */
+            available: boolean;
+        };
+        /** PaymentProviderUpdate */
+        PaymentProviderUpdate: {
+            /** Enabled */
+            enabled: boolean;
         };
         /**
          * PaymentPublic
@@ -13658,6 +14771,47 @@ export interface components {
             provider_data?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /**
+         * PaymentReceiptPublic
+         * @description A receipt as the admin sees it.
+         */
+        PaymentReceiptPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /** Order Id */
+            order_id: string | null;
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Method */
+            method: string;
+            /** Reference */
+            reference: string | null;
+            /** Note */
+            note: string | null;
+            /** Recorded By Id */
+            recorded_by_id: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Cancel Reason */
+            cancel_reason: string | null;
         };
         /**
          * PaymentRefundRequest
@@ -15891,6 +17045,33 @@ export interface components {
             /** Redis */
             redis: boolean;
         };
+        /** ReceiptCancel */
+        ReceiptCancel: {
+            /** Reason */
+            reason: string;
+        };
+        /**
+         * ReceiptCreate
+         * @description An amount received against a pending manual payment.
+         */
+        ReceiptCreate: {
+            /** Amount */
+            amount: number | string;
+            /**
+             * Received At
+             * @description When the money was received (default: now)
+             */
+            received_at?: string | null;
+            /**
+             * Method
+             * @description cash | check | transfer | card | other (default: the payment's)
+             */
+            method?: string | null;
+            /** Reference */
+            reference?: string | null;
+            /** Note */
+            note?: string | null;
+        };
         /**
          * ReceiptLineView
          * @description One product of the shipment: what was expected, what came in.
@@ -15978,6 +17159,24 @@ export interface components {
             damaged_units: number;
             /** Missing Units */
             missing_units: number;
+        };
+        /**
+         * ReceiptResult
+         * @description A recorded receipt and where its payment stands.
+         */
+        ReceiptResult: {
+            receipt: components["schemas"]["PaymentReceiptPublic"];
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /** Received Amount */
+            received_amount: string;
+            /** Remaining Amount */
+            remaining_amount: string;
+            /** Payment Settled */
+            payment_settled: boolean;
         };
         /**
          * RefundPublic
@@ -20779,6 +21978,37 @@ export interface operations {
             };
         };
     };
+    "payment-confirm_my_payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "payment-process_provider_webhook": {
         parameters: {
             query?: never;
@@ -20806,6 +22036,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-dashboard-get_admin_dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDashboard"];
                 };
             };
         };
@@ -21047,6 +22297,299 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AttachmentDownloadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-payment-list_payment_receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentReceiptPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-payment-create_payment_receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-payment-cancel_payment_receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                receipt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptCancel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentReceiptPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-payment-list_payment_providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentProviderPublic"][];
+                };
+            };
+        };
+    };
+    "admin-payment-update_payment_provider": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentProviderUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentProviderPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-payment-list_payment_method_types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentMethodTypePublic"][];
+                };
+            };
+        };
+    };
+    "admin-payment-list_admin_payment_methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPaymentMethod"][];
+                };
+            };
+        };
+    };
+    "admin-payment-create_payment_method": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminPaymentMethodCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPaymentMethod"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-payment-delete_payment_method": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_method_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-payment-update_payment_method": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_method_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminPaymentMethodWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPaymentMethod"];
                 };
             };
             /** @description Validation Error */
@@ -21462,6 +23005,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminOrderDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-order-record_order_counter_payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CounterPaymentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptResult"];
                 };
             };
             /** @description Validation Error */
@@ -27107,6 +28685,37 @@ export interface operations {
             };
         };
     };
+    "order-get_my_order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyOrderDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "order-get_my_order_lines": {
         parameters: {
             query?: never;
@@ -29517,6 +31126,90 @@ export interface operations {
             };
         };
     };
+    "user-get_my_profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyProfilePublic"];
+                };
+            };
+        };
+    };
+    "user-update_my_profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MyProfileUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyProfilePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "user-change_my_password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MyPasswordChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "user-list_my_upgrade_requests": {
         parameters: {
             query?: never;
@@ -29979,6 +31672,273 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ContentPageSummary"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "media-list_media": {
+        parameters: {
+            query?: {
+                kind?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaAssetPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "media-upload_media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_media-upload_media"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaAssetPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "media-delete_media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "media-update_media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MediaAssetUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaAssetPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "homepage-get_homepage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepagePublic"];
+                };
+            };
+        };
+    };
+    "homepage-list_blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepageBlockPublic"][];
+                };
+            };
+        };
+    };
+    "homepage-create_block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HomepageBlockWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepageBlockPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "homepage-replace_block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                block_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HomepageBlockWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HomepageBlockPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "homepage-delete_block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                block_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -21,6 +21,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.errors import AppError
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.models.payment import Payment, PaymentCreate
+from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.providers import get_provider
 from app.features.payment.providers.base import (
     ApiPaymentProvider,
@@ -29,6 +30,7 @@ from app.features.payment.providers.base import (
     ManualPaymentProvider,
     UnknownPaymentProviderError,
 )
+from app.features.payment.services.deposit import KIND_DEPOSIT
 from app.features.payment.services.document_payment import (
     register_intent as register_document_intent,
 )
@@ -36,6 +38,7 @@ from app.features.payment.services.eligibility import check_payment_method_eligi
 from app.features.payment.services.manual_payment import (
     register_intent as register_manual_intent,
 )
+from app.features.payment.services.payment_method_types import shop_instructions
 from app.features.payment.services.provider_dispatch import (
     PaymentMethodInactiveError,
     PaymentMethodNotFoundError,
@@ -43,6 +46,7 @@ from app.features.payment.services.provider_dispatch import (
     initiate_api_payment,
     resolve_provider_code_for_payment_method,
 )
+from app.features.payment.services.provider_settings import provider_available
 from app.utils.money import decimal_to_minor_units
 
 
@@ -134,6 +138,15 @@ async def initiate_payment_for_method(
             details={"payment_method_id": str(payment_method_id)},
         ) from e
 
+    # 1b. A provider switched off (or without credentials) takes no new payment.
+    if not await provider_available(session, provider_code):
+        raise AppError(
+            code="payment.provider.disabled",
+            status_code=400,
+            message="Ce moyen de paiement est momentanément indisponible",
+            details={"provider_code": provider_code},
+        )
+
     # 2. Group eligibility + max_amount check.
     eligible = await check_payment_method_eligible(
         session,
@@ -148,6 +161,21 @@ async def initiate_payment_for_method(
             message="This payment method is not available for your account or order amount",
             details={"payment_method_id": str(payment_method_id)},
         )
+
+    # 2b. A method can be excluded from deposits (the balance stays open to
+    #     every eligible method).
+    if kind == KIND_DEPOSIT:
+        method = await session.get(PaymentMethod, payment_method_id)
+        if method is not None and not method.deposit_allowed:
+            raise AppError(
+                code="payment.method.deposit_not_allowed",
+                status_code=400,
+                message=(
+                    f"Le moyen de paiement « {method.name} » ne peut pas régler "
+                    "un acompte"
+                ),
+                details={"payment_method_id": str(payment_method_id)},
+            )
 
     # 3. Provider implementation.
     try:
@@ -206,6 +234,15 @@ async def initiate_payment_for_method(
 
     elif isinstance(provider, ManualPaymentProvider):
         provider_result = await provider.register_intent(initiation_request)
+        # The shop's own wording (office address, IBAN…) replaces the default:
+        # the method's own first, then its type's.
+        custom = await shop_instructions(
+            session,
+            method=await session.get(PaymentMethod, payment_method_id),
+            provider_code=provider_code,
+        )
+        if custom:
+            provider_result.instructions = custom
 
         payment.provider_code = provider_code
         payment.provider_reference = provider_result.provider_reference or str(
@@ -221,6 +258,13 @@ async def initiate_payment_for_method(
 
     elif isinstance(provider, DocumentValidatedProvider):
         provider_result = await provider.register_intent(initiation_request)
+        custom = await shop_instructions(
+            session,
+            method=await session.get(PaymentMethod, payment_method_id),
+            provider_code=provider_code,
+        )
+        if custom:
+            provider_result.instructions = custom
 
         payment.provider_code = provider_code
         payment.provider_reference = provider_result.provider_reference or str(

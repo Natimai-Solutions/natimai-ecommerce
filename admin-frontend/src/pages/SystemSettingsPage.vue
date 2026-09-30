@@ -1,11 +1,19 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="text-h6 col">Paramètres système</div>
-      <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader title="Paramètres" hint="Réglages techniques de la plateforme, clé par clé.">
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+      </template>
+    </PageHeader>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
+    <AppNotice v-if="error" tone="error" dense class="q-mb-md">{{ error }}</AppNotice>
 
     <q-table
       :rows="rows"
@@ -17,23 +25,29 @@
       :rows-per-page-options="[0]"
       hide-pagination
     >
+      <template #body-cell-key="props">
+        <q-td :props="props" class="font-mono">{{ props.row.key }}</q-td>
+      </template>
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
-          <q-btn flat dense icon="edit" color="primary" @click="openEdit(props.row)">
+          <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
             <q-tooltip>Modifier</q-tooltip>
           </q-btn>
         </q-td>
       </template>
+      <template #no-data>
+        <span class="text-subtle">{{ loading ? 'Chargement…' : 'Aucun paramètre.' }}</span>
+      </template>
     </q-table>
 
     <q-dialog v-model="editDialog">
-      <q-card style="min-width: 380px">
-        <q-card-section class="text-h6">{{ editing?.key }}</q-card-section>
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title font-mono">{{ editing?.key }}</h2>
+        </q-card-section>
         <q-form @submit.prevent="submitEdit">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input v-model="editForm.value" label="Valeur *" outlined dense :rules="req" />
             <q-input
               v-model="editForm.description"
@@ -44,9 +58,16 @@
               autogrow
             />
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" label="Enregistrer" :loading="saving" />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn
+              type="submit"
+              color="primary"
+              unelevated
+              no-caps
+              label="Enregistrer"
+              :loading="saving"
+            />
           </q-card-actions>
         </q-form>
       </q-card>
@@ -57,6 +78,8 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import { listSystemSettings, updateSystemSetting, type SystemSetting } from '@/api/systemSettings';
 import { extractApiError } from '@/api/errors';
 

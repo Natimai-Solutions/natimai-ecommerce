@@ -175,6 +175,58 @@ async def capture_payzen_transaction(trans_uuid: str) -> dict[str, Any]:
         ) from e
 
 
+async def refund_payzen_transaction(
+    trans_uuid: str, *, amount_minor: int, currency: str
+) -> dict[str, Any]:
+    """Refund (or cancel, when not yet settled) a PayZen card transaction.
+
+    Calls REST V4 ``Transaction/CancelOrRefund``; used only when
+    ``PAYZEN_API_REFUND_ENABLED`` is on. Returns the PayZen ``answer``.
+    ⚠️ To verify against the PayZen sandbox before production use.
+    """
+    api_url = (
+        f"{settings.PAYZEN_API_ENDPOINT}/api-payment/V4/Transaction/CancelOrRefund"
+    )
+    headers = {
+        "Authorization": f"Basic {_payzen_basic_auth()}",
+        "Content-Type": "application/json",
+    }
+    body = {"uuid": trans_uuid, "amount": amount_minor, "currency": currency}
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                api_url, json=body, headers=headers, timeout=30.0
+            )
+            result = response.json()
+            if result.get("status") == "ERROR":
+                err = result.get("answer", {})
+                logger.error(
+                    "PayZen refund error [%s]: %s",
+                    err.get("errorCode"),
+                    err.get("errorMessage"),
+                )
+                raise AppError(
+                    code="payment.provider.gateway_error",
+                    status_code=502,
+                    message=err.get("errorMessage") or "PayZen refund failed",
+                    details={
+                        "provider_code": "payzen",
+                        "error_code": str(err.get("errorCode") or ""),
+                    },
+                )
+            response.raise_for_status()
+            answer: dict[str, Any] = result.get("answer", {})
+            return answer
+    except (httpx.RequestError, httpx.HTTPStatusError) as e:
+        logger.error("PayZen refund transport error: %s", e)
+        raise AppError(
+            code="internal.unavailable",
+            status_code=503,
+            message="Communication error with PayZen during refund",
+            details={"service": "payzen"},
+        ) from e
+
+
 async def create_payzen_form_token(
     *,
     amount: int,

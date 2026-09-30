@@ -1,19 +1,21 @@
 <template>
-  <div class="fullscreen bg-blue text-white text-center q-pa-md flex flex-center">
-    <div>
-      <div style="font-size: 30vh">404</div>
-
-      <div class="text-h2" style="opacity: 0.4">Oops. Nothing here...</div>
-
-      <q-btn
-        class="q-mt-xl"
-        color="white"
-        text-color="blue"
-        unelevated
-        to="/"
-        label="Go Home"
-        no-caps
-      />
+  <main class="not-found">
+    <div class="app-result">
+      <q-icon name="ph:compass" size="44px" class="app-result__icon" />
+      <h1>Page introuvable</h1>
+      <p>Cette adresse ne correspond à aucun écran de l'administration.</p>
+      <div class="app-result__actions">
+        <q-btn color="primary" unelevated no-caps label="Tableau de bord" to="/" />
+      </div>
     </div>
-  </div>
+  </main>
 </template>
+
+<style scoped>
+.not-found {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--n-bg);
+}
+</style>

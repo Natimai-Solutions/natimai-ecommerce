@@ -1,0 +1,13 @@
+Bonjour {{ full_name }},
+
+Nous avons bien reçu votre versement pour la commande {{ order_ref or (order_id | short_ref) }}.
+
+Versement reçu      : {{ amount }} {{ currency }}
+Total déjà versé    : {{ received_amount }} {{ currency }}
+Reste à régler      : {{ remaining_amount }} {{ currency }}
+
+Votre commande sera validée dès que le montant restant sera reçu.
+{% if tracking_url %}Suivre ma commande : {{ tracking_url }}
+{% endif %}
+Merci pour votre confiance,
+L'équipe {{ shop_name }}

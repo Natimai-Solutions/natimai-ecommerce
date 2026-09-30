@@ -1,56 +1,52 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="col">
-        <div class="text-h6">Douane par catégorie</div>
-        <div class="text-caption text-grey-7">
-          Taux effectif de l'ensemble des droits et taxes à l'import, appliqué sur la valeur CAF
-          (voir DEPLOYMENT.md §15). Un produit dont le taux ne se résout ni sur lui-même ni sur sa
-          catégorie est masqué de la vitrine.
-        </div>
-      </div>
-      <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader title="Douane par catégorie">
+      <template #hint>
+        Taux effectif de l'ensemble des droits et taxes à l'import, appliqué sur la valeur CAF (voir
+        DEPLOYMENT.md §15). Un produit dont le taux ne se résout ni sur lui-même ni sur sa catégorie
+        est masqué de la vitrine.
+      </template>
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+      </template>
+    </PageHeader>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
+    <AppNotice v-if="error" tone="error" dense class="q-mb-md">{{ error }}</AppNotice>
 
-    <div v-if="report" class="row q-col-gutter-md q-mb-md">
-      <div class="col-12 col-sm-4">
-        <q-card flat bordered>
-          <q-card-section>
-            <div class="text-caption text-grey-7">Publiables</div>
-            <div class="text-h5">{{ report.publishable_count }} / {{ report.enriched_count }}</div>
-            <div class="text-caption text-grey-7">produits enrichis</div>
-          </q-card-section>
-        </q-card>
+    <div v-if="report" class="customs-kpis">
+      <div class="app-panel customs-kpi">
+        <span class="customs-kpi__label">Publiables</span>
+        <span class="customs-kpi__value font-mono"
+          >{{ report.publishable_count }} / {{ report.enriched_count }}</span
+        >
+        <span class="customs-kpi__hint">produits enrichis</span>
       </div>
-      <div class="col-12 col-sm-4">
-        <q-card flat bordered>
-          <q-card-section>
-            <div class="text-caption text-grey-7">Sans taux de douane</div>
-            <div
-              class="text-h5"
-              :class="report.blocked_customs_rate_unresolved ? 'text-negative' : 'text-positive'"
-            >
-              {{ report.blocked_customs_rate_unresolved }}
-            </div>
-            <div class="text-caption text-grey-7">à traiter ci-dessous</div>
-          </q-card-section>
-        </q-card>
+      <div class="app-panel customs-kpi">
+        <span class="customs-kpi__label">Sans taux de douane</span>
+        <span
+          class="customs-kpi__value font-mono"
+          :class="report.blocked_customs_rate_unresolved ? 'text-negative' : 'text-positive'"
+        >
+          {{ report.blocked_customs_rate_unresolved }}
+        </span>
+        <span class="customs-kpi__hint">à traiter ci-dessous</span>
       </div>
-      <div class="col-12 col-sm-4">
-        <q-card flat bordered>
-          <q-card-section>
-            <div class="text-caption text-grey-7">Sans poids</div>
-            <div
-              class="text-h5"
-              :class="report.blocked_weight_missing ? 'text-negative' : 'text-positive'"
-            >
-              {{ report.blocked_weight_missing }}
-            </div>
-            <div class="text-caption text-grey-7">fret incalculable — fiche produit</div>
-          </q-card-section>
-        </q-card>
+      <div class="app-panel customs-kpi">
+        <span class="customs-kpi__label">Sans poids</span>
+        <span
+          class="customs-kpi__value font-mono"
+          :class="report.blocked_weight_missing ? 'text-negative' : 'text-positive'"
+        >
+          {{ report.blocked_weight_missing }}
+        </span>
+        <span class="customs-kpi__hint">fret incalculable — fiche produit</span>
       </div>
     </div>
 
@@ -67,24 +63,26 @@
       <template #body-cell-category_name="props">
         <q-td :props="props">
           <span v-if="props.row.category_name">{{ props.row.category_name }}</span>
-          <span v-else class="text-grey-6 text-italic">Sans catégorie</span>
+          <span v-else class="text-subtle text-italic">Sans catégorie</span>
         </q-td>
       </template>
       <template #body-cell-rate="props">
         <q-td :props="props">
-          <span v-if="props.row.default_customs_rate_pct"
+          <span v-if="props.row.default_customs_rate_pct" class="font-mono"
             >{{ props.row.default_customs_rate_pct }} %</span
           >
-          <q-chip v-else dense color="negative" text-color="white" label="Non défini" />
+          <StatusTag v-else label="Non défini" tone="danger" icon="ph:warning-circle" />
         </q-td>
+      </template>
+      <template #body-cell-product_count="props">
+        <q-td :props="props" class="font-mono">{{ props.row.product_count }}</q-td>
       </template>
       <template #body-cell-blocked="props">
         <q-td :props="props">
-          <q-chip
-            dense
-            :color="props.row.blocked_count ? 'negative' : 'green'"
-            text-color="white"
+          <StatusTag
             :label="String(props.row.blocked_count)"
+            :tone="props.row.blocked_count ? 'danger' : 'ok'"
+            :icon="props.row.blocked_count ? 'ph:eye-slash' : 'ph:check-circle'"
           />
         </q-td>
       </template>
@@ -93,9 +91,9 @@
           <q-btn
             v-if="props.row.category_id"
             flat
+            round
             dense
-            icon="edit"
-            color="primary"
+            icon="ph:pencil-simple"
             @click="openEdit(props.row)"
           >
             <q-tooltip>Définir le taux de douane</q-tooltip>
@@ -105,18 +103,19 @@
           </q-tooltip>
         </q-td>
       </template>
+      <template #no-data>
+        <div class="full-width text-center text-subtle q-pa-md">Aucune catégorie.</div>
+      </template>
     </q-table>
 
     <q-dialog v-model="editDialog">
-      <q-card style="min-width: 380px">
-        <q-card-section class="text-h6">
-          {{ editing?.category_name ?? 'Catégorie' }}
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">{{ editing?.category_name ?? 'Catégorie' }}</h2>
         </q-card-section>
         <q-form @submit.prevent="submitEdit">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="editRate"
               label="Taux de douane (%)"
@@ -126,31 +125,39 @@
               outlined
               dense
             />
-            <div class="text-caption text-grey-7">
+            <p class="admin-hint q-mb-none">
               Saisir le <strong>taux effectif</strong> : l'ensemble des droits et taxes à l'import
               (droits de douane, TDL et les autres prélèvements de la position tarifaire) ramené à
               un seul pourcentage de la valeur CAF — pas le seul droit de douane. Le dériver du
-              <a href="https://simulateur-douane-polynesie.com/" target="_blank" rel="noopener"
+              <a
+                href="https://simulateur-douane-polynesie.com/"
+                target="_blank"
+                rel="noopener"
+                class="admin-link"
                 >simulateur des douanes PF</a
               >
               en simulant une valeur représentative, origine UE pour le corridor France → Papeete.
-            </div>
-            <q-banner dense class="bg-orange-1 text-grey-9" rounded>
-              <template #avatar><q-icon name="warning" color="orange-8" /></template>
-              <span class="text-caption">
-                <strong>Retirer la TVA du total du simulateur.</strong> Elle est déjà appliquée
-                séparément via le taux TVA/TGC du produit : l'inclure ici la compterait deux fois
-                sur chaque prix.
-              </span>
-            </q-banner>
-            <div class="text-caption text-grey-7">
+            </p>
+            <AppNotice tone="warning" dense>
+              <strong>Retirer la TVA du total du simulateur.</strong> Elle est déjà appliquée
+              séparément via le taux TVA/TGC du produit : l'inclure ici la compterait deux fois sur
+              chaque prix.
+            </AppNotice>
+            <p class="admin-hint q-mb-none">
               Procédure complète, règle en cas de positions multiples et tableau de suivi :
               <code>DEPLOYMENT.md</code> §15.
-            </div>
+            </p>
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
-            <q-btn color="primary" label="Enregistrer" type="submit" :loading="saving" />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn
+              color="primary"
+              unelevated
+              no-caps
+              label="Enregistrer"
+              type="submit"
+              :loading="saving"
+            />
           </q-card-actions>
         </q-form>
       </q-card>
@@ -161,6 +168,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import {
   getPublicationReport,
   setCategoryCustomsRate,
@@ -224,3 +234,31 @@ async function submitEdit() {
 
 onMounted(load);
 </script>
+
+<style scoped lang="scss">
+.customs-kpis {
+  margin-bottom: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.customs-kpi {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.customs-kpi__label,
+.customs-kpi__hint {
+  font-size: 13px;
+  color: var(--n-ink-3);
+}
+
+.customs-kpi__value {
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+</style>

@@ -1,21 +1,36 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="text-h6 col">Pages du site</div>
-      <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
-      <q-btn color="primary" icon="add" label="Nouvelle page" no-caps @click="openCreate" />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader title="Pages du site">
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+        <q-btn
+          color="primary"
+          unelevated
+          no-caps
+          icon="ph:plus"
+          label="Nouvelle page"
+          @click="openCreate"
+        />
+      </template>
+    </PageHeader>
 
-    <div class="text-caption text-grey-7 q-mb-md">
+    <p class="admin-hint">
       « comment-ca-marche » explique le principe des départs groupés (lien dans le bandeau et le
       pied de page). Une page « cgv » publiée remplace le texte par défaut des CGV ; supprimez-la
       pour y revenir. Une page en brouillon n'est pas visible sur le site.
-    </div>
+    </p>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
-    <q-banner v-if="notice" class="bg-green-1 text-green-9 q-mb-md" dense rounded>{{
-      notice
-    }}</q-banner>
+    <div v-if="error || notice" class="admin-notices">
+      <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
+      <AppNotice v-if="notice" tone="success" dense>{{ notice }}</AppNotice>
+    </div>
 
     <q-table
       :rows="pages"
@@ -27,43 +42,46 @@
       :rows-per-page-options="[0]"
       hide-pagination
     >
+      <template #body-cell-slug="props">
+        <q-td :props="props" class="font-mono">{{ props.row.slug }}</q-td>
+      </template>
       <template #body-cell-published="props">
         <q-td :props="props">
-          <q-chip
-            dense
-            size="sm"
-            :color="props.row.is_published ? 'green' : 'grey-6'"
-            text-color="white"
+          <StatusTag
+            :tone="props.row.is_published ? 'ok' : 'neutral'"
+            :icon="props.row.is_published ? 'ph:check-circle' : 'ph:pencil-simple-line'"
             :label="props.row.is_published ? 'Publiée' : 'Brouillon'"
           />
         </q-td>
       </template>
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
-          <q-btn flat dense icon="edit" color="primary" @click="openEdit(props.row)" />
-          <q-btn flat dense icon="delete" color="grey-8" @click="remove(props.row)">
+          <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
+            <q-tooltip>Modifier</q-tooltip>
+          </q-btn>
+          <q-btn flat round dense icon="ph:trash" color="negative" @click="remove(props.row)">
             <q-tooltip>Supprimer (une page légale revient à son texte par défaut)</q-tooltip>
           </q-btn>
         </q-td>
       </template>
       <template #no-data>
-        <div class="full-width text-center text-grey-6 q-pa-md">Aucune page.</div>
+        <div class="full-width text-center text-subtle q-pa-md">Aucune page.</div>
       </template>
     </q-table>
 
     <q-dialog v-model="dialog" maximized>
       <q-card>
-        <q-card-section class="row items-center">
-          <div class="text-h6 col">
+        <q-card-section class="app-dialog__head row items-center no-wrap q-gutter-x-sm">
+          <h2 class="app-dialog__title col">
             {{ editing ? `Modifier « ${form.slug} »` : 'Nouvelle page' }}
-          </div>
-          <q-btn flat round dense icon="close" v-close-popup />
+          </h2>
+          <q-btn flat round dense icon="ph:x" v-close-popup>
+            <q-tooltip>Fermer</q-tooltip>
+          </q-btn>
         </q-card-section>
         <q-form @submit.prevent="submit">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <div class="row q-col-gutter-sm">
               <q-input
                 v-model="form.slug"
@@ -86,26 +104,40 @@
               <q-toggle v-model="form.is_published" class="col-12 col-sm-2" label="Publiée" />
             </div>
             <q-editor
+              ref="editorRef"
               v-model="form.body_html"
               min-height="50vh"
               :toolbar="toolbar"
-              :definitions="{}"
+              :definitions="editorDefinitions"
             />
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" label="Enregistrer" :loading="saving" />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn
+              type="submit"
+              color="primary"
+              unelevated
+              no-caps
+              label="Enregistrer"
+              :loading="saving"
+            />
           </q-card-actions>
         </q-form>
       </q-card>
     </q-dialog>
+    <MediaPicker v-model="mediaPickerOpen" kind="page" @select="insertImage" />
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
-import type { QTableColumn } from 'quasar';
+import type { QEditor, QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
 import { formatDateTime } from '@app/utils';
+import PageHeader from '@/components/PageHeader.vue';
+import MediaPicker from '@/components/MediaPicker.vue';
+import type { MediaAsset } from '@/api/media';
 import { deletePage, listPages, savePage, type ContentPage } from '@/api/pages';
 import { extractApiError } from '@/api/errors';
 
@@ -132,9 +164,44 @@ const toolbar = [
   ['bold', 'italic', 'underline'],
   [{ label: 'Titre', icon: 'title', list: 'no-icons', options: ['h2', 'h3', 'p'] }],
   ['unordered', 'ordered'],
-  ['link', 'hr'],
+  ['link', 'image', 'hr'],
   ['undo', 'redo'],
 ];
+
+// --- Images dans l'éditeur (médiathèque) ---
+const editorRef = ref<QEditor | null>(null);
+const mediaPickerOpen = ref(false);
+const editorDefinitions = {
+  image: {
+    tip: 'Insérer une image de la médiathèque',
+    icon: 'image',
+    label: 'Image',
+    handler: () => {
+      // La position du curseur est gardée pour y insérer l'image au retour.
+      editorRef.value?.caret.savePosition();
+      mediaPickerOpen.value = true;
+    },
+  },
+};
+
+function escapeAttribute(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+function insertImage(asset: MediaAsset) {
+  const html =
+    `<img src="${escapeAttribute(asset.url)}" srcset="${escapeAttribute(asset.srcset)}" ` +
+    `sizes="(max-width: 767px) 100vw, 720px" width="${asset.width}" height="${asset.height}" ` +
+    `alt="${escapeAttribute(asset.alt ?? '')}" loading="lazy">`;
+  const editor = editorRef.value;
+  if (!editor) {
+    form.body_html += html;
+    return;
+  }
+  editor.focus();
+  editor.caret.restorePosition();
+  editor.runCmd('insertHTML', html);
+}
 
 async function load() {
   loading.value = true;

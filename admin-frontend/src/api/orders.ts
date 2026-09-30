@@ -1,3 +1,4 @@
+import type { PaymentReceipt } from '@/api/paymentValidations';
 import { api } from '@/boot/api';
 
 export interface AdminOrderListItem {
@@ -59,6 +60,10 @@ export interface AdminOrderPaymentItem {
   created_at: string | null;
   /** Backend-computed: provider supports an in-app refund and the payment is refundable. */
   can_refund: boolean;
+  /** Σ of the instalments received so far (pending manual payment). */
+  received_amount?: number;
+  /** A pending manual payment: the admin can record instalments on it. */
+  accepts_receipts?: boolean;
 }
 
 export const PAYMENT_KIND_LABELS: Record<string, string> = {
@@ -69,6 +74,7 @@ export const PAYMENT_KIND_LABELS: Record<string, string> = {
 
 export interface AdminOrderDetail {
   order_id: string;
+  order_number: string | null;
   created_at: string | null;
   user_id: string;
   user_name: string | null;
@@ -95,6 +101,14 @@ export interface AdminOrderDetail {
   balance_paid_at: string | null;
   lines: AdminOrderLineItem[];
   payments: AdminOrderPaymentItem[];
+  /** Money in (settled payments + instalments − refunds) and what is left. */
+  amount_paid?: number;
+  amount_due?: number;
+  /** Every instalment received on the order's manual payments. */
+  receipts?: PaymentReceipt[];
+  /** The part payable now and what is left of it (counter payment default). */
+  next_part_kind?: string | null;
+  next_part_due?: number;
 }
 
 /** Send (or re-send) the balance request e-mail of a deposit order. */
@@ -157,6 +171,7 @@ export async function getOrder(orderId: string): Promise<AdminOrderDetail> {
 const ORDER_STATUS_LABELS: Record<string, string> = {
   Pending: 'En attente',
   AwaitingPayment: 'En attente de paiement',
+  PartiallyPaid: 'Partiellement payée',
   Paid: 'Payée',
   DepositPaid: 'Acompte versé',
   PaymentFailed: 'Paiement refusé',
@@ -186,7 +201,8 @@ export function orderStatusColor(name: string | null): string {
   if (name === 'Paid' || name === 'Delivered' || name === 'ReadyForPickup') return 'green';
   if (name === 'DepositPaid') return 'teal';
   if (name === 'PaymentFailed' || name === 'Cancelled') return 'negative';
-  if (name === 'Backordered' || name === 'PaymentReview') return 'orange';
+  if (name === 'Backordered' || name === 'PaymentReview' || name === 'PartiallyPaid')
+    return 'orange';
   if (
     ['OrderedFromSupplier', 'InTransit', 'AtCustoms', 'Received', 'Shipped', 'Processing'].includes(
       name ?? '',

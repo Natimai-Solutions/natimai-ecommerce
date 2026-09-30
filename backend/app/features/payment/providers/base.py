@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
@@ -57,6 +58,44 @@ class WebhookResult:
     provider_reference: str | None
     payment_status: str | None
     payload: dict[str, Any]
+
+
+#: Outcomes a provider notification can report, whatever the provider
+#: (PayZen « PAID », PayPal « PAYMENT.CAPTURE.COMPLETED »…).
+OUTCOME_COMPLETED = "completed"
+OUTCOME_AUTHORIZED = "authorized"
+OUTCOME_FAILED = "failed"
+OUTCOME_REFUNDED = "refunded"
+PROVIDER_OUTCOMES: tuple[str, ...] = (
+    OUTCOME_COMPLETED,
+    OUTCOME_AUTHORIZED,
+    OUTCOME_FAILED,
+    OUTCOME_REFUNDED,
+)
+
+
+@dataclass(slots=True)
+class ProviderOutcome:
+    """A provider notification (webhook) or confirmation, normalized.
+
+    ``status`` is one of :data:`PROVIDER_OUTCOMES`, or None for an event that
+    does not change the payment (order created, approval pending…).
+    ``payment_reference`` finds our payment: its id, or the provider reference
+    stored at initiation. ``amount_minor`` / ``currency`` are what the provider
+    charged, checked against what was asked. ``event_id`` deduplicates
+    deliveries; ``extra`` goes into ``provider_data`` (capture id…).
+    """
+
+    provider_code: str
+    status: str | None
+    payment_reference: str | None = None
+    event_id: str | None = None
+    event_type: str | None = None
+    transaction_id: str | None = None
+    amount_minor: int | None = None
+    currency: str | None = None
+    payload: dict[str, Any] = field(default_factory=dict)
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -116,6 +155,25 @@ class PaymentProvider(ABC):
     # to True on a future provider to surface the refund button automatically.
     supports_in_app_refund: bool = False
 
+    def capture_reference(self, provider_data: Mapping[str, Any] | None) -> str | None:
+        """The provider's reference of an authorised payment to capture.
+
+        Default: the PayZen transaction uuid recorded from the notification.
+        """
+        data = provider_data or {}
+        raw = data.get("trans_uuid") or data.get("trans_id")
+        return str(raw) if raw else None
+
+    def refund_reference(
+        self,
+        *,
+        provider_data: Mapping[str, Any] | None,
+        provider_reference: str | None,
+        fallback: str,
+    ) -> str:
+        """The provider's reference of a captured payment to refund."""
+        return provider_reference or fallback
+
     async def capture(
         self,
         *,
@@ -168,6 +226,29 @@ class ApiPaymentProvider(PaymentProvider, ABC):
     def parse_webhook_notification(self, payload: dict[str, Any]) -> WebhookResult:
         """Parse a provider webhook payload into a normalized result."""
         ...
+
+    #: Notifications handled by the generic pipeline (POST /payments/webhooks/
+    #: {code}); PayZen keeps its historical IPN route.
+    generic_webhooks: bool = False
+
+    async def parse_webhook(
+        self, raw_body: bytes, headers: Mapping[str, str]
+    ) -> ProviderOutcome:
+        """Authenticate a raw notification (signature) and normalize it.
+
+        Raises :class:`PaymentProviderError` when the notification cannot be
+        trusted.
+        """
+        raise PaymentProviderError(
+            f"Provider '{self.code}' has no generic webhook support"
+        )
+
+    async def confirm_payment(
+        self, *, provider_reference: str, provider_data: Mapping[str, Any] | None
+    ) -> ProviderOutcome:
+        """Server-side step after the customer approved the payment on the
+        provider's page (PayPal: capture or authorize the order)."""
+        raise PaymentProviderError(f"Provider '{self.code}' has no confirmation step")
 
 
 class ManualPaymentProvider(PaymentProvider, ABC):

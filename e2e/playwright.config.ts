@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
+import { ADMIN_URL, STOREFRONT_URL } from './support/env'
+
 /**
  * End-to-end configuration (Q4).
  *
@@ -8,7 +10,6 @@ import { defineConfig, devices } from '@playwright/test'
  * `docker compose up` is the same command CI and a developer would use. See
  * e2e/README.md for the two commands that bring it up.
  */
-const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
 
 export default defineConfig({
   testDir: './tests',
@@ -23,12 +24,25 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 15_000 },
   use: {
-    baseURL: BASE_URL,
+    baseURL: STOREFRONT_URL,
     // SSR hydration means the first interaction can lag; keep traces and
     // screenshots of failures so a CI red is diagnosable without a rerun.
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     actionTimeout: 15_000,
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  // Two apps, two base URLs. The admin journeys that need a storefront step
+  // (a customer order, the homepage) open a second page on STOREFRONT_URL.
+  projects: [
+    {
+      name: 'storefront',
+      testIgnore: /admin\//,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'admin',
+      testMatch: /admin\/.*\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], baseURL: ADMIN_URL },
+    },
+  ],
 })

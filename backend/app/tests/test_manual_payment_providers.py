@@ -32,6 +32,7 @@ def _make_initiation_request(order_id: str = "order-123") -> InitiationRequest:
 
 
 def test_registry_contains_manual_providers() -> None:
+    assert "manual_cash" in SUPPORTED_PROVIDERS
     assert "manual_check" in SUPPORTED_PROVIDERS
     assert "manual_transfer" in SUPPORTED_PROVIDERS
     assert SUPPORTED_PROVIDERS["manual_check"] is ManualCheckProvider

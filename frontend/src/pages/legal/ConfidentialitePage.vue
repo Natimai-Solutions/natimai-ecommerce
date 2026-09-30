@@ -15,19 +15,20 @@
   devient obligatoire.
 -->
 <template>
-  <q-page class="legal-page q-pa-md">
-    <div class="legal-page__content">
-      <h1 class="text-h4 text-weight-bold q-mb-md">Politique de confidentialité</h1>
+  <!-- Une page publiée depuis l'admin (« Pages du site », slug confidentialite) remplace ce texte. -->
+  <DbContentPage slug="confidentialite" fallback-title="Politique de confidentialité">
+    <template #fallback>
+      <h1>Politique de confidentialité</h1>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Responsable de traitement</h2>
+      <h2>Responsable de traitement</h2>
       <p>
         Le responsable du traitement des données collectées sur ce site est
-        <strong>{{ legalEntity.tradingName }}</strong>,
-        <LegalValue :value="legalEntity.headOfficeAddress" />. Contact&nbsp;:
+        <strong>{{ legalEntity.tradingName }}</strong
+        >, <LegalValue :value="legalEntity.headOfficeAddress" />. Contact&nbsp;:
         <LegalValue :value="legalEntity.contactEmail" />.
       </p>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Données collectées et finalités</h2>
+      <h2>Données collectées et finalités</h2>
       <p>Nous collectons uniquement les données nécessaires aux finalités suivantes&nbsp;:</p>
       <ul>
         <li>
@@ -39,30 +40,31 @@
           historique)&nbsp;: traitement des commandes, facturation, garanties et SAV.
         </li>
         <li>
-          <strong>Paiement</strong>&nbsp;: le paiement par carte est traité par notre
-          prestataire PayZen&nbsp;/&nbsp;Lyra&nbsp;; <strong>aucun numéro de carte n'est stocké
-          sur nos serveurs</strong>. Nous conservons les références de transaction et les
-          justificatifs (virement, chèque, bon de commande) nécessaires à la comptabilité.
+          <strong>Paiement</strong>&nbsp;: le paiement par carte est traité par notre prestataire
+          PayZen&nbsp;/&nbsp;Lyra&nbsp;;
+          <strong>aucun numéro de carte n'est stocké sur nos serveurs</strong>. Nous conservons les
+          références de transaction et les justificatifs (virement, chèque, bon de commande)
+          nécessaires à la comptabilité.
         </li>
         <li>
-          <strong>Journaux techniques</strong> (adresse IP, horodatage)&nbsp;: sécurité du
-          service, prévention de la fraude et des abus (limitation des tentatives de
-          connexion).
+          <strong>Journaux techniques</strong> (adresse IP, horodatage)&nbsp;: sécurité du service,
+          prévention de la fraude et des abus (limitation des tentatives de connexion).
         </li>
       </ul>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Destinataires et sous-traitants</h2>
+      <h2>Destinataires et sous-traitants</h2>
       <p>
-        Les données sont destinées aux services internes du Vendeur et, pour les seules
-        opérations qui les concernent, à nos prestataires&nbsp;: hébergeur
-        (<LegalValue :value="legalEntity.hostName" />), prestataire de paiement (PayZen&nbsp;/&nbsp;Lyra),
-        service d'envoi d'emails transactionnels (Mailgun), fournisseurs et transporteurs pour
-        la préparation et l'acheminement des commandes. Certains de ces prestataires sont situés
-        hors de Polynésie française&nbsp;; les transferts sont limités aux données nécessaires à
-        l'exécution de leur mission.
+        Les données sont destinées aux services internes du Vendeur et, pour les seules opérations
+        qui les concernent, à nos prestataires&nbsp;: hébergeur (<LegalValue
+          :value="legalEntity.hostName"
+        />), prestataire de paiement (PayZen&nbsp;/&nbsp;Lyra), service d'envoi d'emails
+        transactionnels (Mailgun), fournisseurs et transporteurs pour la préparation et
+        l'acheminement des commandes. Certains de ces prestataires sont situés hors de Polynésie
+        française&nbsp;; les transferts sont limités aux données nécessaires à l'exécution de leur
+        mission.
       </p>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Durées de conservation</h2>
+      <h2>Durées de conservation</h2>
       <ul>
         <li>Compte client&nbsp;: pendant la durée de vie du compte, puis archivage limité.</li>
         <li>
@@ -75,33 +77,35 @@
         </li>
       </ul>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Vos droits</h2>
+      <h2>Vos droits</h2>
       <p>
         Conformément à la loi Informatique et Libertés applicable en Polynésie française, vous
-        disposez de droits d'accès, de rectification, d'effacement, de limitation et
-        d'opposition sur vos données. Vous pouvez les exercer en écrivant à
-        <LegalValue :value="legalEntity.contactEmail" />, en justifiant de votre identité.
-        Vous disposez
-        également du droit d'introduire une réclamation auprès de la CNIL
-        (<a href="https://www.cnil.fr" target="_blank" rel="noopener">www.cnil.fr</a>).
+        disposez de droits d'accès, de rectification, d'effacement, de limitation et d'opposition
+        sur vos données. Vous pouvez les exercer en écrivant à
+        <LegalValue :value="legalEntity.contactEmail" />, en justifiant de votre identité. Vous
+        disposez également du droit d'introduire une réclamation auprès de la CNIL (<a
+          href="https://www.cnil.fr"
+          target="_blank"
+          rel="noopener"
+          >www.cnil.fr</a
+        >).
       </p>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Sécurité</h2>
+      <h2>Sécurité</h2>
       <p>
-        Les mots de passe sont stockés sous forme hachée, les échanges avec le site sont
-        chiffrés (HTTPS) et l'accès aux données est limité aux personnes habilitées. Les
-        documents transmis (bons de commande, justificatifs) font l'objet d'une analyse
-        antivirus avant traitement.
+        Les mots de passe sont stockés sous forme hachée, les échanges avec le site sont chiffrés
+        (HTTPS) et l'accès aux données est limité aux personnes habilitées. Les documents transmis
+        (bons de commande, justificatifs) font l'objet d'une analyse antivirus avant traitement.
       </p>
 
-      <h2 class="text-h6 q-mt-lg q-mb-sm">Cookies et stockage local</h2>
+      <h2>Cookies et stockage local</h2>
       <p>
-        Le site n'utilise <strong>aucun cookie publicitaire ni de mesure d'audience</strong>.
-        Seuls des cookies et stockages strictement nécessaires au fonctionnement du service sont
-        utilisés. Ils sont à ce titre exemptés de recueil de consentement&nbsp;:
+        Le site n'utilise <strong>aucun cookie publicitaire ni de mesure d'audience</strong>. Seuls
+        des cookies et stockages strictement nécessaires au fonctionnement du service sont utilisés.
+        Ils sont à ce titre exemptés de recueil de consentement&nbsp;:
       </p>
-      <div class="legal-page__table-wrapper">
-        <table class="legal-page__table">
+      <div class="prose__table">
+        <table>
           <thead>
             <tr>
               <th>Nom</th>
@@ -127,19 +131,20 @@
         </table>
       </div>
       <p>
-        Si des cookies soumis à consentement (mesure d'audience, publicité) devaient être
-        introduits à l'avenir, un dispositif de recueil de consentement préalable serait mis en
-        place avant leur dépôt.
+        Si des cookies soumis à consentement (mesure d'audience, publicité) devaient être introduits
+        à l'avenir, un dispositif de recueil de consentement préalable serait mis en place avant
+        leur dépôt.
       </p>
 
-      <p class="text-caption text-grey-7 q-mt-lg">
+      <p class="prose__meta">
         Dernière mise à jour&nbsp;: <LegalValue :value="legalEntity.privacyUpdatedDate" />.
       </p>
-    </div>
-  </q-page>
+    </template>
+  </DbContentPage>
 </template>
 
 <script setup lang="ts">
+import DbContentPage from '@/components/DbContentPage.vue';
 import { computed, onServerPrefetch } from 'vue';
 import LegalValue from '@/components/LegalValue.vue';
 import { useLegalEntityStore } from '@/stores/legalEntity';
@@ -152,31 +157,3 @@ void store.load();
 
 const legalEntity = computed(() => store.entity);
 </script>
-
-<style scoped lang="scss">
-.legal-page__content {
-  width: min(860px, 100%);
-  margin: 0 auto;
-  line-height: 1.65;
-}
-
-.legal-page__table-wrapper {
-  overflow-x: auto;
-}
-
-.legal-page__table {
-  border-collapse: collapse;
-  width: 100%;
-
-  th,
-  td {
-    border: 1px solid var(--n-line);
-    padding: 8px 12px;
-    text-align: left;
-  }
-
-  th {
-    background: var(--n-tile);
-  }
-}
-</style>

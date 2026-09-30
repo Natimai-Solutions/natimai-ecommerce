@@ -30,6 +30,9 @@ from app.features.payment.providers.manual import (
     MANUAL_STATUS_COMPLETED,
     MANUAL_STATUS_FAILED,
 )
+from app.features.payment.services.provider_settings import (
+    seed_rows as payment_provider_seed_rows,
+)
 from app.features.place.models import Place, PlacePostalCode
 from app.features.product.models.currency_rate import CurrencyRate, CurrencyRateSource
 from app.features.product.models.price_group import PriceGroup
@@ -44,6 +47,7 @@ from app.features.shipping.services.origin import (
 )
 from app.features.system.legal_identity import LEGAL_SETTINGS, seed_value_for
 from app.features.system.models.system_setting import SystemSetting
+from app.features.system.payment_instructions import PAYMENT_INSTRUCTION_SETTINGS
 from app.features.user.models.group import Group
 from app.features.user.models.group_security import GroupSecurity
 
@@ -94,6 +98,30 @@ async def _seed_manual_payment_methods(session: AsyncSession) -> None:
             "provider_code": "payzen",
             "sort_order": 10,
             "requires_admin_validation": False,
+            "requires_document_upload": False,
+        },
+        {
+            # Hidden at checkout until PayPal is switched on (Paiements →
+            # Prestataires) and its credentials are in the environment.
+            "name": "PayPal",
+            "description": (
+                "Paiement avec votre compte PayPal (débité en euros à la "
+                "parité fixe 1 000 XPF = 8,38 EUR)."
+            ),
+            "provider_code": "paypal",
+            "sort_order": 20,
+            "requires_admin_validation": False,
+            "requires_document_upload": False,
+        },
+        {
+            "name": "Espèces",
+            "description": (
+                "Règlement en espèces à notre bureau, en une ou plusieurs fois ; "
+                "la commande est validée dès que le montant dû est reçu."
+            ),
+            "provider_code": "manual_cash",
+            "sort_order": 70,
+            "requires_admin_validation": True,
             "requires_document_upload": False,
         },
         {
@@ -879,6 +907,44 @@ async def _seed_legal_identity_settings(session: AsyncSession) -> None:
         )
 
 
+async def _seed_payment_instruction_settings(session: AsyncSession) -> None:
+    """Créer, vides, les clés d'instructions des paiements manuels.
+
+    Vides, elles gardent le texte par défaut du moyen de paiement ; créées,
+    elles apparaissent dans l'écran Paramètres où le propriétaire saisit
+    l'adresse du bureau, l'ordre des chèques ou l'IBAN. Ne réécrit jamais une
+    valeur saisie (même règle que l'identité légale).
+    """
+    for spec in PAYMENT_INSTRUCTION_SETTINGS:
+        existing = (
+            await session.exec(
+                select(SystemSetting).where(SystemSetting.key == spec.key)
+            )
+        ).first()
+        if existing is not None:
+            if existing.description != spec.description:
+                existing.description = spec.description
+                session.add(existing)
+            continue
+        session.add(SystemSetting(key=spec.key, value="", description=spec.description))
+
+
+async def _seed_payment_provider_switches(session: AsyncSession) -> None:
+    """Créer les interrupteurs des prestataires (PayZen, PayPal, Stripe) à
+    leur valeur par défaut ; ne réécrit jamais un choix déjà fait."""
+    for row in payment_provider_seed_rows():
+        existing = (
+            await session.exec(
+                select(SystemSetting).where(SystemSetting.key == row.key)
+            )
+        ).first()
+        if existing is None:
+            session.add(row)
+        elif existing.description != row.description:
+            existing.description = row.description
+            session.add(existing)
+
+
 async def _seed_suppliers(session: AsyncSession) -> None:
     """Seed the historical distributor as a ``suppliers`` row (idempotent).
 
@@ -964,5 +1030,7 @@ async def initial_data(session: AsyncSession) -> None:
     await _seed_social_webhook_setting(session)
     await _seed_security_groups(session)
     await _seed_legal_identity_settings(session)
+    await _seed_payment_instruction_settings(session)
+    await _seed_payment_provider_switches(session)
     await _seed_pricing_settings(session)
     await _seed_customs_free_countries_setting(session)

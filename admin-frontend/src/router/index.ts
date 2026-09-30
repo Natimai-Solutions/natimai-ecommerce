@@ -36,7 +36,7 @@ export default defineRouter((/* { store, ssrContext } */) => {
       return { path: '/login', query: { redirect: to.fullPath } };
     }
     if (to.path === '/login' && auth.isAuthenticated) {
-      return { path: '/products' };
+      return { path: '/' };
     }
     return true;
   });

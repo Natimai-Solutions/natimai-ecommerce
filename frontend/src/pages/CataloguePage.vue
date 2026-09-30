@@ -295,7 +295,7 @@ import { useProductsStore } from '@/stores/products';
 import { useCartStore } from '@/stores/cart';
 import { useCurrencyStore } from '@/stores/currency';
 import { useUiStore } from '@/stores/ui';
-import AppNotice from '@/components/AppNotice.vue';
+import AppNotice from '@app/ui/AppNotice.vue';
 import ProductCard from '@/components/ProductCard.vue';
 import type { components } from '@app/api-types';
 
@@ -957,37 +957,6 @@ onMounted(async () => {
   &:hover {
     color: var(--n-accent);
   }
-}
-
-.product-grid {
-  margin-top: 8px;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  column-gap: 20px;
-  row-gap: 48px;
-
-  @media (max-width: 1279px) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  @media (max-width: 767px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 12px;
-    row-gap: 32px;
-  }
-}
-
-.skeleton-card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.skeleton-card__media {
-  aspect-ratio: 1;
-  height: auto;
-  margin-bottom: 8px;
-  border-radius: 8px;
 }
 
 .catalogue__empty {

@@ -24,7 +24,7 @@ const missing = computed(() => isLegalPlaceholder(props.value));
 
 <style scoped lang="scss">
 .legal-value--missing {
-  color: #b00020;
+  color: var(--n-danger);
   font-weight: 600;
   text-decoration: underline wavy;
 }

@@ -1,65 +1,81 @@
 <template>
-  <q-page padding>
-    <div class="row q-col-gutter-md q-mb-md items-end">
-      <div class="col-12 col-md-5">
-        <q-input
-          v-model="searchInput"
-          label="Rechercher (nom, SKU, MPN)"
-          outlined
-          dense
-          clearable
-          debounce="300"
-          @update:model-value="onSearchChange"
-        >
-          <template #prepend>
-            <q-icon name="search" />
-          </template>
-        </q-input>
-      </div>
-      <div class="col-12 col-md-4">
-        <q-select
-          v-model="activeFilter"
-          :options="filterOptions"
-          label="Statut"
-          outlined
-          dense
-          emit-value
-          map-options
-          @update:model-value="onFilterChange"
-        />
-      </div>
-      <div class="col-12 col-md-3 text-right">
-        <q-btn
-          unelevated
-          color="primary"
-          icon="add"
-          label="Nouveau"
-          class="q-mr-sm"
-          @click="openCreate"
-        />
+  <q-page class="admin-page">
+    <PageHeader
+      title="Produits"
+      hint="Articles du catalogue, manuels ou synchronisés depuis un fournisseur."
+    >
+      <template #actions>
         <q-btn
           flat
-          icon="refresh"
+          no-caps
+          icon="ph:arrow-clockwise"
           label="Actualiser"
           :loading="store.loading"
           @click="store.fetchPage()"
         />
-      </div>
+        <q-btn
+          color="primary"
+          unelevated
+          no-caps
+          icon="ph:plus"
+          label="Nouveau produit"
+          @click="openCreate"
+        />
+      </template>
+    </PageHeader>
+
+    <div class="admin-toolbar">
+      <q-input
+        v-model="searchInput"
+        label="Rechercher (nom, SKU, MPN)"
+        outlined
+        dense
+        clearable
+        debounce="300"
+        style="min-width: 320px"
+        @update:model-value="onSearchChange"
+      >
+        <template #prepend>
+          <q-icon name="ph:magnifying-glass" />
+        </template>
+      </q-input>
+      <q-select
+        v-model="activeFilter"
+        :options="filterOptions"
+        label="Statut"
+        outlined
+        dense
+        emit-value
+        map-options
+        style="min-width: 260px"
+        @update:model-value="onFilterChange"
+      />
     </div>
 
-    <q-banner v-if="store.error" class="bg-negative text-white q-mb-md" dense>
-      {{ store.error }}
-    </q-banner>
-    <q-banner v-if="notice" class="bg-green-1 text-green-9 q-mb-md" dense rounded>
-      {{ notice }}
-    </q-banner>
+    <div v-if="store.error || notice" class="admin-notices">
+      <AppNotice v-if="store.error" tone="error" dense>{{ store.error }}</AppNotice>
+      <AppNotice v-if="notice" tone="success" dense>{{ notice }}</AppNotice>
+    </div>
 
-    <div v-if="selected.length" class="row items-center q-gutter-sm q-mb-sm">
+    <div v-if="selected.length" class="admin-toolbar">
       <span class="text-body2">{{ selected.length }} article(s) sélectionné(s)</span>
       <q-btn
-        unelevated
+        v-if="selectedDrafts.length"
         color="primary"
-        icon="visibility"
+        unelevated
+        no-caps
+        icon="ph:upload-simple"
+        :label="`Publier ${selectedDrafts.length} brouillon(s)`"
+        :loading="publishing"
+        data-testid="publish-selected"
+        @click="publish(selectedDrafts.map((p) => p.id))"
+      />
+      <q-btn
+        :unelevated="!selectedDrafts.length"
+        :outline="!!selectedDrafts.length"
+        color="primary"
+        no-caps
+        icon="ph:eye"
         label="Publier tel quel"
         :loading="publishing"
         @click="publishSelected(true)"
@@ -71,23 +87,11 @@
       </q-btn>
       <q-btn
         flat
-        color="grey-8"
-        icon="visibility_off"
+        no-caps
+        icon="ph:eye-slash"
         label="Remettre en attente"
         :loading="publishing"
         @click="publishSelected(false)"
-      />
-    </div>
-
-    <div v-if="selectedDrafts.length" class="q-mb-sm">
-      <q-btn
-        color="primary"
-        icon="publish"
-        :label="`Publier ${selectedDrafts.length} brouillon(s)`"
-        no-caps
-        :loading="publishing"
-        data-testid="publish-selected"
-        @click="publish(selectedDrafts.map((p) => p.id))"
       />
     </div>
 
@@ -109,13 +113,13 @@
             :src="props.row.image_url || props.row.supplier_image_url || placeholderImg"
             :ratio="1"
             width="48px"
-            spinner-color="primary"
             no-spinner
             fit="contain"
+            class="product-thumb"
           >
             <template #error>
-              <div class="absolute-full flex flex-center bg-grey-3">
-                <q-icon name="image_not_supported" color="grey-6" />
+              <div class="absolute-full flex flex-center product-thumb__fallback">
+                <q-icon name="ph:image-broken" class="text-subtle" />
               </div>
             </template>
           </q-img>
@@ -125,39 +129,36 @@
       <template #body-cell-name="props">
         <q-td :props="props">
           <div class="text-body2 ellipsis" :title="props.row.name">
-            <q-badge
+            <StatusTag
               v-if="props.row.is_draft"
-              color="orange-8"
               label="Brouillon"
+              tone="warn"
+              icon="ph:pencil-simple"
               class="q-mr-xs"
               data-testid="product-draft-badge"
             />
             {{ props.row.name }}
           </div>
-          <div class="text-caption text-grey-7">
+          <div class="text-caption text-muted">
             <q-chip
               v-if="props.row.has_variants"
               dense
               size="sm"
-              color="teal-2"
-              text-color="teal-10"
+              icon="ph:stack"
               :label="`${props.row.variants_count ?? 0} variante(s)`"
             />
             <q-chip
               v-else-if="props.row.parent_product_id"
               dense
               size="sm"
-              color="grey-3"
-              text-color="grey-8"
               :label="variantLabel(props.row)"
             />
             {{ props.row.manufacturer || '—' }}
             <q-icon
               v-if="props.row.overridden_fields?.length"
-              name="lock"
-              color="orange-8"
+              name="ph:lock"
               size="xs"
-              class="q-ml-xs"
+              class="q-ml-xs text-warning"
             >
               <q-tooltip>
                 {{ props.row.overridden_fields.length }} champ(s) verrouillé(s) contre la
@@ -191,24 +192,23 @@
 
       <template #body-cell-storefront="props">
         <q-td :props="props" align="center">
-          <q-chip
-            v-if="isVisible(props.row)"
-            dense
-            size="sm"
-            :color="props.row.published_without_enrichment ? 'orange-2' : 'green-2'"
-            :text-color="props.row.published_without_enrichment ? 'orange-10' : 'green-10'"
-            :label="props.row.published_without_enrichment ? 'Publié tel quel' : 'Visible'"
-          >
+          <span v-if="isVisible(props.row)">
+            <StatusTag
+              :label="props.row.published_without_enrichment ? 'Publié tel quel' : 'Visible'"
+              :tone="props.row.published_without_enrichment ? 'warn' : 'ok'"
+              icon="ph:eye"
+            />
             <q-tooltip v-if="props.row.published_without_enrichment">
               Affiché sans enrichissement Icecat, sur décision admin
             </q-tooltip>
-          </q-chip>
-          <q-chip v-else dense size="sm" color="grey-3" text-color="grey-8" label="Masqué">
+          </span>
+          <span v-else>
+            <StatusTag label="Masqué" tone="neutral" icon="ph:eye-slash" />
             <q-tooltip>
               Ligne fournisseur en attente d'enrichissement Icecat : invisible en boutique.
               Sélectionnez-la et « Publier tel quel » pour l'afficher.
             </q-tooltip>
-          </q-chip>
+          </span>
         </q-td>
       </template>
 
@@ -224,14 +224,13 @@
       </template>
 
       <template #body-cell-actions="props">
-        <q-td :props="props" align="right">
+        <q-td :props="props" align="right" class="no-wrap">
           <q-btn
             v-if="props.row.is_draft"
             flat
             dense
             round
-            icon="publish"
-            color="orange-8"
+            icon="ph:upload-simple"
             :loading="publishing"
             data-testid="product-publish"
             @click="publish([props.row.id])"
@@ -242,39 +241,40 @@
             flat
             dense
             round
-            icon="history"
-            color="grey-8"
+            icon="ph:clock-counter-clockwise"
             data-testid="product-price-history"
             @click="openHistory(props.row)"
           >
             <q-tooltip>Journal des prix</q-tooltip>
           </q-btn>
-          <q-btn flat dense round icon="edit" color="primary" @click="openEdit(props.row)">
+          <q-btn flat dense round icon="ph:pencil-simple" @click="openEdit(props.row)">
             <q-tooltip>Modifier</q-tooltip>
           </q-btn>
         </q-td>
+      </template>
+
+      <template #no-data>
+        <div class="full-width text-center text-subtle q-pa-md">Aucun produit.</div>
       </template>
     </q-table>
 
     <!-- Journal des prix -->
     <q-dialog v-model="historyOpen">
-      <q-card style="min-width: 560px; max-width: 92vw">
-        <q-card-section class="text-h6">
-          Journal des prix — {{ historyProduct?.name }}
-        </q-card-section>
-        <q-card-section class="q-pt-none">
-          <div class="text-caption text-grey-7 q-mb-sm">
+      <q-card class="app-dialog app-dialog--wide">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">Journal des prix — {{ historyProduct?.name }}</h2>
+          <p class="app-dialog__text">
             Chaque changement du prix de vente affiché en vitrine, avec sa cause : édition ou
             synchronisation de l'article, taux de change ou de taxe, marge de catégorie, paramètre
             de prix, recalcul nocturne.
-          </div>
-          <q-banner v-if="historyError" class="bg-red-1 text-red-9" dense rounded>{{
-            historyError
-          }}</q-banner>
+          </p>
+        </q-card-section>
+        <q-card-section>
+          <AppNotice v-if="historyError" tone="error" dense>{{ historyError }}</AppNotice>
           <div v-else-if="historyLoading" class="text-center q-pa-md">
-            <q-spinner color="primary" size="2em" />
+            <q-spinner size="2em" />
           </div>
-          <div v-else-if="!history.length" class="text-grey-6 q-pa-md text-center">
+          <div v-else-if="!history.length" class="text-subtle q-pa-md text-center">
             Aucun changement de prix enregistré.
           </div>
           <q-markup-table v-else dense flat bordered>
@@ -289,15 +289,15 @@
             <tbody>
               <tr v-for="e in history" :key="e.id">
                 <td>{{ formatDateTime(e.created_at) }}</td>
-                <td class="text-right">{{ e.old_price ?? '—' }}</td>
-                <td class="text-right">{{ e.new_price ?? '—' }}</td>
+                <td class="text-right font-mono">{{ e.old_price ?? '—' }}</td>
+                <td class="text-right font-mono">{{ e.new_price ?? '—' }}</td>
                 <td>{{ reasonLabel(e.reason) }}</td>
               </tr>
             </tbody>
           </q-markup-table>
         </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Fermer" v-close-popup />
+        <q-card-actions align="right" class="app-dialog__actions">
+          <q-btn flat no-caps label="Fermer" v-close-popup />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -319,6 +319,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import {
   useProductsStore,
   type ActiveFilter,
@@ -473,6 +476,7 @@ const columns: QTableColumn[] = [
     label: 'SKU',
     field: (row) => row.supplier_sku || row.vendor_part_number || '—',
     align: 'left',
+    classes: 'font-mono',
   },
   { name: 'name', label: 'Nom', field: 'name', align: 'left', style: 'max-width: 480px' },
   {
@@ -511,3 +515,13 @@ async function loadPlaces() {
   }
 }
 </script>
+
+<style scoped lang="scss">
+.product-thumb {
+  border-radius: 6px;
+}
+
+.product-thumb__fallback {
+  background: var(--n-tile);
+}
+</style>

@@ -1,7 +1,22 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md q-gutter-sm">
-      <div class="text-h6 col">Commandes clients</div>
+  <q-page class="admin-page">
+    <PageHeader
+      title="Commandes"
+      hint="Commandes passées sur la boutique, les plus récentes d'abord."
+    >
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+      </template>
+    </PageHeader>
+
+    <div class="admin-toolbar">
       <q-select
         v-model="departureFilter"
         :options="departureOptions"
@@ -11,22 +26,22 @@
         emit-value
         map-options
         clearable
-        style="min-width: 240px"
+        style="min-width: 260px"
         @update:model-value="load"
       />
-      <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
     </div>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
+    <AppNotice v-if="error" tone="error" class="q-mb-md">{{ error }}</AppNotice>
 
-    <div v-if="loading" class="text-center q-pa-lg">
-      <q-spinner color="primary" size="2em" />
+    <div v-if="loading && rows.length === 0" class="text-center q-pa-lg">
+      <q-spinner size="2em" />
     </div>
 
-    <q-banner v-else-if="rows.length === 0" class="bg-blue-1 text-blue-10" rounded>
-      <template #avatar><q-icon name="info" /></template>
-      Aucune commande.
-    </q-banner>
+    <div v-else-if="rows.length === 0" class="app-empty">
+      <q-icon name="ph:receipt" size="28px" class="text-subtle" />
+      <h3>Aucune commande</h3>
+      <p v-if="departureFilter">Aucune commande pour ce filtre.</p>
+    </div>
 
     <q-table
       v-else
@@ -40,9 +55,12 @@
     >
       <template #body-cell-order="props">
         <q-td :props="props">
-          <span :title="props.row.order_id">{{
-            props.row.order_number ?? `#${props.row.order_id.slice(0, 8)}`
-          }}</span>
+          <router-link
+            :to="`/orders/${props.row.order_id}`"
+            class="admin-link font-mono"
+            :title="props.row.order_id"
+            >{{ props.row.order_number ?? `#${props.row.order_id.slice(0, 8)}` }}</router-link
+          >
         </q-td>
       </template>
       <template #body-cell-client="props">
@@ -50,24 +68,22 @@
           <div>
             {{ props.row.user_name || props.row.user_email || props.row.user_id.slice(0, 8) }}
           </div>
-          <div v-if="props.row.user_name && props.row.user_email" class="text-caption text-grey-6">
+          <div v-if="props.row.user_name && props.row.user_email" class="text-caption text-subtle">
             {{ props.row.user_email }}
           </div>
         </q-td>
       </template>
       <template #body-cell-status="props">
         <q-td :props="props">
-          <q-chip
-            dense
-            size="sm"
-            :color="orderStatusColor(props.row.status)"
-            text-color="white"
+          <StatusTag
             :label="orderStatusLabel(props.row.status)"
+            :tone="toneOf(orderStatusColor(props.row.status))"
+            :icon="toneIcon(toneOf(orderStatusColor(props.row.status)))"
           />
         </q-td>
       </template>
       <template #body-cell-total="props">
-        <q-td :props="props" class="text-weight-medium">
+        <q-td :props="props" class="font-mono text-weight-medium">
           {{ formatMoney(props.row.total_amount) }}
         </q-td>
       </template>
@@ -77,9 +93,8 @@
             flat
             dense
             no-caps
-            icon="visibility"
-            color="primary"
-            label="Détail"
+            icon="ph:arrow-right"
+            label="Ouvrir"
             :to="`/orders/${props.row.order_id}`"
           />
         </q-td>
@@ -91,7 +106,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import { toneIcon, toneOf } from '@app/ui/statusTone';
 import { formatXpf } from '@app/utils';
+import PageHeader from '@/components/PageHeader.vue';
 import {
   listOrders,
   orderStatusColor,
@@ -138,7 +157,7 @@ const columns: QTableColumn[] = [
   },
   { name: 'client', label: 'Client', field: 'user_id', align: 'left' },
   { name: 'status', label: 'Statut', field: 'status', align: 'left' },
-  { name: 'total', label: 'Total', field: 'total_amount', align: 'left' },
+  { name: 'total', label: 'Total', field: 'total_amount', align: 'right' },
   { name: 'actions', label: '', field: 'order_id', align: 'right' },
 ];
 

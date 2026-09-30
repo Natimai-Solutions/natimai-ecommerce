@@ -10,7 +10,7 @@ const routes: RouteRecordRaw[] = [
     path: '/',
     component: () => import('@/layouts/AdminLayout.vue'),
     children: [
-      { path: '', redirect: '/products' },
+      { path: '', component: () => import('@/pages/IndexPage.vue') },
       { path: 'products', component: () => import('@/pages/ProductsPage.vue') },
       { path: 'categories', component: () => import('@/pages/CategoriesPage.vue') },
       { path: 'orders', component: () => import('@/pages/OrdersPage.vue') },
@@ -38,6 +38,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'suppliers', component: () => import('@/pages/SuppliersPage.vue') },
       { path: 'system-settings', component: () => import('@/pages/SystemSettingsPage.vue') },
       { path: 'pages', component: () => import('@/pages/PagesPage.vue') },
+      { path: 'homepage', component: () => import('@/pages/HomepagePage.vue') },
       {
         path: 'group-upgrade-requests',
         component: () => import('@/pages/GroupUpgradeRequestsPage.vue'),

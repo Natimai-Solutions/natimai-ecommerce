@@ -1,543 +1,426 @@
 <template>
-  <q-page class="checkout-page page-container app-page">
-    <div class="row q-mb-md items-center">
-      <div class="col">
-        <h1 class="page-title">Paiement sécurisé</h1>
-      </div>
-      <div class="col-auto">
-        <q-btn
-          flat
-          color="primary"
-          icon="arrow_back"
-          label="Retour au panier"
-          :to="{ name: 'cart' }"
-        />
-      </div>
-    </div>
+  <q-page class="checkout page-container app-page">
+    <router-link v-if="!orderPlaced" :to="{ name: 'cart' }" class="checkout__back">
+      <q-icon name="ph:arrow-left" size="16px" /> Panier
+    </router-link>
+    <h1 class="page-title checkout__title">
+      {{ orderPlaced ? 'Commande enregistrée' : 'Finaliser la commande' }}
+    </h1>
 
-    <!-- Cart empty guard (not while a payment is already in progress) -->
-    <AppNotice v-if="cartEmpty && !orderPlaced" tone="warning" class="q-mb-md">
+    <AppNotice v-if="cartEmpty && !orderPlaced" tone="warning">
       Votre panier est vide.
       <template #action>
         <q-btn flat label="Voir le catalogue" :to="{ name: 'catalogue' }" />
       </template>
     </AppNotice>
 
-    <template v-else>
-      <div class="row q-col-gutter-lg">
-        <!-- Order summary (hidden once the order is placed and the cart cleared) -->
-        <div v-if="!orderPlaced" class="col-12 col-md-5 col-lg-4">
-          <q-card flat bordered>
-            <q-card-section>
-              <div class="text-subtitle1 text-weight-medium q-mb-sm">Récapitulatif</div>
-              <q-list dense>
-                <q-item
-                  v-for="{ item, product } in cartStore.detailedItems"
-                  :key="item.id"
-                  class="q-px-none"
-                >
-                  <q-item-section>
-                    <q-item-label>{{ product?.name ?? item.product_id }}</q-item-label>
-                    <q-item-label caption>Qté {{ item.quantity }}</q-item-label>
-                  </q-item-section>
-                  <q-item-section side>
-                    <q-item-label>{{ formatMoney(item.line_total) }}</q-item-label>
-                  </q-item-section>
-                </q-item>
-              </q-list>
-              <q-separator class="q-my-sm" />
-              <!-- Le devis vient du backend (même calcul que la commande) : le
-                   total affiché est le montant débité, frais compris. -->
-              <template v-if="quote">
-                <div class="row justify-between text-body2">
-                  <span>Articles</span>
-                  <span>{{ formatMoney(quote.subtotal_amount) }}</span>
-                </div>
-                <div v-if="selectedDeliveryType" class="row justify-between text-body2">
-                  <span>Livraison</span>
-                  <span data-testid="checkout-quote-shipping">{{
-                    shippingOnlyAmount(quote) > 0
-                      ? formatMoney(String(shippingOnlyAmount(quote)))
-                      : 'Offerte'
-                  }}</span>
-                </div>
-                <div
-                  v-if="hasFee(quote.customs_declaration_fee)"
-                  class="row justify-between text-caption text-grey-8"
-                >
-                  <span>Frais de dédouanement<br />(une fois par expédition)</span>
-                  <span>{{ formatMoney(quote.customs_declaration_fee) }}</span>
-                </div>
-                <div v-if="hasFee(quote.payment_fee_amount)" class="row justify-between text-body2">
-                  <span>Frais de paiement</span>
-                  <span>{{ formatMoney(quote.payment_fee_amount) }}</span>
-                </div>
-                <div
-                  v-if="quote.discount_code && hasFee(quote.discount_amount ?? '0')"
-                  class="row justify-between text-body2 text-positive"
-                >
-                  <span>Remise {{ quote.discount_code }}</span>
-                  <span data-testid="checkout-quote-discount"
-                    >-{{ formatMoney(quote.discount_amount ?? '0') }}</span
-                  >
-                </div>
-                <div
-                  v-if="hasFee(quote.deposit_fee_amount)"
-                  class="row justify-between text-body2"
-                  data-testid="checkout-quote-deposit-fee"
-                >
-                  <span>Frais option acompte</span>
-                  <span>{{ formatMoney(quote.deposit_fee_amount) }}</span>
-                </div>
-                <q-separator class="q-my-sm" />
-                <div class="row justify-between text-weight-bold">
-                  <span>{{
-                    quote.payment_plan === 'deposit' ? 'Total de la commande' : 'Total à payer'
-                  }}</span>
-                  <span data-testid="checkout-quote-total">{{
-                    formatMoney(quote.total_amount)
-                  }}</span>
-                </div>
-                <template v-if="quote.payment_plan === 'deposit'">
-                  <div class="row justify-between text-body2 text-primary q-mt-xs">
-                    <span>Acompte à payer maintenant ({{ Number(quote.deposit_pct) }} %)</span>
-                    <span data-testid="checkout-quote-deposit">{{
-                      formatMoney(quote.deposit_amount)
-                    }}</span>
-                  </div>
-                  <div class="row justify-between text-body2 text-grey-8">
-                    <span>Solde à régler à la réception</span>
-                    <span>{{ formatMoney(quote.balance_amount) }}</span>
-                  </div>
-                </template>
-                <template v-if="hasFee(quote.store_credit_applied)">
-                  <div class="row justify-between text-body2 text-positive q-mt-xs">
-                    <span>Avoir utilisé</span>
-                    <span data-testid="checkout-quote-credit"
-                      >− {{ formatMoney(quote.store_credit_applied) }}</span
-                    >
-                  </div>
-                  <div class="row justify-between text-weight-bold">
-                    <span>Reste à payer maintenant</span>
-                    <span data-testid="checkout-quote-due">{{
-                      formatMoney(quote.amount_due_now)
-                    }}</span>
-                  </div>
-                </template>
-                <div
-                  v-if="departureStore.next"
-                  class="text-caption text-grey-8 q-mt-sm"
-                  data-testid="checkout-departure"
-                >
-                  <q-icon name="ph:calendar-check" size="14px" class="q-mr-xs" />
-                  Votre commande rejoint le départ groupé « {{ departureStore.next.name }} ».
-                  <template v-if="departureStore.deliveryLabel">
-                    {{ departureStore.deliveryLabel }}.
-                  </template>
-                </div>
-              </template>
-              <template v-else>
-                <div class="row justify-between text-weight-bold">
-                  <span>Articles</span>
-                  <span>{{ formatMoney(String(cartStore.totalAmount)) }}</span>
-                </div>
-                <div v-if="isAuthenticated" class="text-caption text-grey-7 q-mt-xs">
-                  <q-spinner size="1em" class="q-mr-xs" />Calcul des frais de livraison…
-                </div>
-              </template>
-              <q-separator class="q-my-sm" />
-              <!-- Code promo : validé et chiffré par le backend dans le même devis. -->
-              <q-form class="row items-start no-wrap" @submit.prevent="applyDiscountCode">
-                <q-input
-                  v-model="discountInput"
-                  label="Code promo"
-                  dense
-                  outlined
-                  class="col"
-                  :disable="!isAuthenticated || quoteLoading"
-                  :error="!!quote?.discount_error"
-                  :error-message="quote?.discount_error ?? undefined"
-                  :hint="appliedDiscountHint"
-                  data-testid="checkout-discount-input"
-                >
-                  <template #append>
-                    <q-btn
-                      v-if="discountCode"
-                      flat
-                      dense
-                      round
-                      icon="close"
-                      aria-label="Retirer le code"
-                      @click="clearDiscountCode"
-                    />
-                  </template>
-                </q-input>
-                <q-btn
-                  type="submit"
-                  flat
-                  color="primary"
-                  label="Appliquer"
-                  class="q-ml-sm q-mt-xs"
-                  :disable="!isAuthenticated || !discountInput.trim()"
-                  :loading="quoteLoading"
-                />
-              </q-form>
-            </q-card-section>
-          </q-card>
+    <div v-else class="checkout__layout" :class="{ 'checkout__layout--done': orderPlaced }">
+      <div class="checkout__main">
+        <AppNotice v-if="errorMessage" tone="error" class="checkout__notice">
+          {{ errorMessage }}
+        </AppNotice>
+        <AppNotice
+          v-if="quoteRequestId && !orderPlaced"
+          tone="info"
+          icon="ph:receipt"
+          class="checkout__notice"
+          data-testid="checkout-from-quote"
+        >
+          Commande depuis votre devis : les prix et la livraison du devis s'appliquent.
+        </AppNotice>
+
+        <!-- Paiement lié au compte : connexion requise -->
+        <div v-if="!isAuthenticated" class="app-empty">
+          <q-icon name="ph:lock-simple" size="36px" class="text-subtle" />
+          <h3>Connectez-vous pour commander</h3>
+          <p>Votre commande, son suivi et sa facture sont rattachés à votre compte.</p>
+          <q-btn
+            unelevated
+            color="primary"
+            label="Se connecter"
+            :to="{ name: 'login', query: { redirect: '/checkout' } }"
+          />
         </div>
 
-        <!-- Payment -->
-        <div :class="orderPlaced ? 'col-12' : 'col-12 col-md-7 col-lg-8'">
-          <q-card flat bordered>
-            <q-card-section>
-              <div class="text-subtitle1 text-weight-medium q-mb-md">Paiement</div>
+        <div v-else-if="loadingMethods && !methods.length" aria-busy="true">
+          <q-skeleton v-for="n in 3" :key="n" height="60px" class="checkout__skeleton" />
+        </div>
 
-              <!-- Error banner -->
-              <AppNotice v-if="errorMessage" tone="error" class="q-mb-md">
-                {{ errorMessage }}
-              </AppNotice>
-              <AppNotice
-                v-if="quoteRequestId && !orderPlaced"
-                tone="info"
-                icon="ph:receipt"
-                class="q-mb-md"
-                data-testid="checkout-from-quote"
+        <AppNotice v-else-if="methods.length === 0 && !orderPlaced" tone="warning">
+          Aucun moyen de paiement n'est disponible pour votre compte. Contactez notre équipe.
+        </AppNotice>
+
+        <!-- PayPal : le client part approuver le paiement chez PayPal -->
+        <AppNotice v-else-if="redirecting" tone="info" data-testid="checkout-redirecting">
+          Commande enregistrée — redirection vers PayPal…
+        </AppNotice>
+
+        <!-- Confirmation : paiement manuel, bon de commande ou avoir -->
+        <section v-else-if="instructions" class="confirmation">
+          <div class="app-panel confirmation__head">
+            <q-icon name="ph:check-circle" size="28px" class="confirmation__icon" />
+            <div>
+              <p data-testid="checkout-order-ref" class="confirmation__ref">
+                Commande <span class="font-mono">{{ placedOrderRef }}</span>
+              </p>
+              <p class="confirmation__text">
+                Votre demande de paiement est enregistrée. Un e-mail de confirmation suit.
+              </p>
+              <p v-if="placedDeparture" class="confirmation__text">
+                Rattachée au départ groupé « {{ placedDeparture.name }} ».
+                <template v-if="departureStore.deliveryLabel">
+                  {{ departureStore.deliveryLabel }}.
+                </template>
+              </p>
+            </div>
+          </div>
+
+          <div class="app-section confirmation__instructions">
+            <div class="app-section__head">
+              <h2 class="app-section__title">Pour régler</h2>
+            </div>
+            <p class="confirmation__body" data-testid="checkout-instructions">{{ instructions }}</p>
+          </div>
+
+          <div v-if="needsUpload && !uploadDone" class="app-section">
+            <div class="app-section__head">
+              <h2 class="app-section__title">Bon de commande</h2>
+              <p class="app-section__hint">
+                Joignez-le pour que notre équipe puisse valider la commande.
+              </p>
+            </div>
+            <AppNotice v-if="uploadError" dense tone="error" class="q-mb-sm">
+              {{ uploadError }}
+            </AppNotice>
+            <div class="app-form">
+              <q-file
+                v-model="selectedFile"
+                outlined
+                label="Bon de commande (PDF, JPG, PNG)"
+                accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
+                :max-file-size="20 * 1024 * 1024"
               >
-                Commande depuis votre devis : les prix et la livraison du devis s'appliquent.
-              </AppNotice>
-
-              <!-- Loading payment methods -->
-              <div v-if="loadingMethods" class="text-center q-pa-lg">
-                <q-spinner color="primary" size="2em" />
-                <div class="text-caption q-mt-sm">Chargement des moyens de paiement…</div>
-              </div>
-
-              <!-- Authentication required: payment is tied to a user account -->
-              <template v-else-if="!isAuthenticated">
-                <AppNotice tone="info" icon="lock" class="q-mb-md">
-                  Vous devez être connecté pour finaliser votre paiement.
-                </AppNotice>
+                <template #prepend><q-icon name="ph:paperclip" /></template>
+              </q-file>
+              <div class="app-form__actions">
                 <q-btn
+                  unelevated
                   color="primary"
-                  icon="login"
-                  label="Se connecter"
-                  size="lg"
-                  class="full-width"
-                  :to="{ name: 'login', query: { redirect: '/checkout' } }"
+                  label="Envoyer le bon de commande"
+                  :loading="uploading"
+                  :disable="uploading || !selectedFile"
+                  @click="uploadDocument"
                 />
-              </template>
+              </div>
+            </div>
+          </div>
+          <AppNotice v-else-if="uploadDone" tone="success" icon="ph:check-circle" class="q-mb-md">
+            Bon de commande reçu. Il sera vérifié par notre équipe avant validation.
+          </AppNotice>
 
-              <!-- No method available -->
-              <AppNotice v-else-if="methods.length === 0" tone="warning" icon="info">
-                Aucun moyen de paiement n'est disponible pour votre compte. Veuillez contacter notre
-                équipe.
-              </AppNotice>
+          <div v-if="!needsUpload || uploadDone" class="confirmation__actions">
+            <q-btn
+              unelevated
+              color="primary"
+              label="Voir mes commandes"
+              :to="{ name: 'account', query: { tab: 'orders' } }"
+            />
+            <q-btn
+              outline
+              color="primary"
+              label="Continuer mes achats"
+              :to="{ name: 'catalogue' }"
+            />
+          </div>
+        </section>
 
-              <template v-else>
-                <!-- Manual / document payment confirmation (chèque, virement, BC) -->
-                <template v-if="instructions">
-                  <AppNotice tone="success" class="q-mb-md">
-                    <div>Votre demande de paiement a bien été enregistrée.</div>
-                    <div
-                      v-if="placedOrderRef"
-                      data-testid="checkout-order-ref"
-                      class="text-weight-medium q-mt-xs"
-                    >
-                      Commande {{ placedOrderRef }}
-                    </div>
-                    <div v-if="placedDeparture" class="text-caption q-mt-xs">
-                      Rattachée au départ groupé « {{ placedDeparture.name }} ».
-                      <template v-if="departureStore.deliveryLabel">
-                        {{ departureStore.deliveryLabel }}.
-                      </template>
-                    </div>
-                  </AppNotice>
-                  <div class="text-body2 q-mb-md" style="white-space: pre-line">
-                    {{ instructions }}
-                  </div>
+        <!-- Étapes : adresse, livraison, règlement, paiement -->
+        <template v-else-if="!formToken">
+          <section class="step">
+            <h2 class="step__title">
+              <span class="step__num font-mono">1</span>Adresse de livraison
+            </h2>
+            <div v-if="addresses.length === 0" class="app-empty step__empty">
+              <p>Aucune adresse enregistrée.</p>
+              <q-btn
+                outline
+                color="primary"
+                label="Ajouter une adresse"
+                :to="{ name: 'account', query: { tab: 'addresses' } }"
+              />
+            </div>
+            <ChoiceList
+              v-else
+              v-model="selectedAddressId"
+              label="Adresse de livraison"
+              :options="addressChoices"
+            />
+            <router-link
+              v-if="addresses.length"
+              :to="{ name: 'account', query: { tab: 'addresses' } }"
+              class="text-link step__link"
+            >
+              Gérer mes adresses
+            </router-link>
+          </section>
 
-                  <!-- Bon de commande (BC) : téléversement de la pièce -->
-                  <template v-if="needsUpload && !uploadDone">
-                    <div class="text-caption text-grey-7 q-mb-xs">
-                      Joignez votre bon de commande pour permettre la validation de la commande.
-                    </div>
-                    <AppNotice v-if="uploadError" dense tone="error" class="q-mb-sm">
-                      {{ uploadError }}
-                    </AppNotice>
-                    <q-file
-                      v-model="selectedFile"
-                      outlined
-                      dense
-                      label="Bon de commande (PDF, JPG, PNG)"
-                      accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
-                      :max-file-size="20 * 1024 * 1024"
-                    >
-                      <template #prepend><q-icon name="attach_file" /></template>
-                    </q-file>
-                    <q-btn
-                      color="primary"
-                      icon="upload_file"
-                      label="Envoyer le bon de commande"
-                      class="full-width q-mt-sm"
-                      :loading="uploading"
-                      :disable="uploading || !selectedFile"
-                      @click="uploadDocument"
-                    />
-                  </template>
+          <section v-if="deliveryOptions.length > 0" class="step">
+            <h2 class="step__title"><span class="step__num font-mono">2</span>Livraison</h2>
+            <ChoiceList
+              v-model="selectedDeliveryType"
+              label="Mode de livraison"
+              :options="deliveryChoices"
+            />
+          </section>
 
-                  <AppNotice v-else-if="uploadDone" tone="success" icon="task_alt" class="q-mb-md">
-                    Bon de commande reçu. Il sera vérifié par notre équipe avant validation.
-                  </AppNotice>
+          <section v-if="quote?.deposit_available" class="step">
+            <h2 class="step__title">
+              <span class="step__num font-mono">{{ stepNumber('plan') }}</span
+              >Règlement
+            </h2>
+            <AppNotice
+              v-if="quote.deposit_required"
+              tone="info"
+              icon="ph:piggy-bank"
+              data-testid="checkout-deposit-required"
+            >
+              Un acompte de {{ Number(quote.deposit_pct) }} % est demandé à la commande ; le solde
+              vous sera demandé à la réception de vos articles.
+            </AppNotice>
+            <ChoiceList v-else v-model="paymentPlan" label="Règlement" :options="planChoices" />
+          </section>
 
-                  <q-btn
-                    v-if="!needsUpload || uploadDone"
-                    color="primary"
-                    icon="receipt_long"
-                    label="Voir mes commandes"
-                    class="full-width q-mt-sm"
-                    :to="{ name: 'account', query: { tab: 'orders' } }"
-                  />
-                </template>
+          <section class="step">
+            <h2 class="step__title">
+              <span class="step__num font-mono">{{ stepNumber('payment') }}</span
+              >Paiement
+            </h2>
+            <div
+              v-if="quote && hasFee(quote.store_credit_available)"
+              class="app-panel credit-toggle"
+              data-testid="checkout-store-credit"
+            >
+              <q-icon name="ph:wallet" size="20px" class="text-muted" />
+              <span class="credit-toggle__text">
+                Vous disposez d'un avoir de
+                <span class="font-mono">{{ formatMoney(quote.store_credit_available) }}</span
+                >.
+              </span>
+              <q-toggle v-model="useStoreCredit" label="L'utiliser" left-label dense />
+            </div>
+            <ChoiceList
+              v-if="!creditCoversEverything"
+              v-model="selectedMethodId"
+              label="Moyen de paiement"
+              :options="methodChoices"
+            />
+            <AppNotice v-else tone="success" data-testid="checkout-credit-covers">
+              Votre avoir couvre la totalité du montant à régler maintenant : aucun paiement n'est
+              nécessaire.
+            </AppNotice>
+          </section>
 
-                <!-- Method selection + initiate -->
-                <template v-else-if="!formToken">
-                  <!-- Shipping address (validated addresses only) -->
-                  <div class="text-subtitle2 text-weight-medium q-mb-sm">Adresse de livraison</div>
-                  <AppNotice
-                    v-if="addresses.length === 0"
-                    dense
-                    tone="warning"
-                    icon="location_off"
-                    class="q-mb-md"
-                  >
-                    Aucune adresse enregistrée. Ajoutez-en une depuis « Mon compte ».
-                    <template #action>
-                      <q-btn
-                        flat
-                        dense
-                        no-caps
-                        label="Mes adresses"
-                        :to="{ name: 'account', query: { tab: 'addresses' } }"
-                      />
-                    </template>
-                  </AppNotice>
-                  <q-list v-else bordered separator class="rounded-borders q-mb-md">
-                    <q-item
-                      v-for="a in addresses"
-                      :key="a.id"
-                      v-ripple
-                      clickable
-                      :data-testid="`checkout-address-${a.id}`"
-                      :active="selectedAddressId === a.id"
-                      active-class="bg-tile"
-                      @click="selectedAddressId = a.id"
-                    >
-                      <q-item-section avatar>
-                        <q-radio v-model="selectedAddressId" :val="a.id" />
-                      </q-item-section>
-                      <q-item-section avatar>
-                        <q-icon name="place" color="primary" />
-                      </q-item-section>
-                      <q-item-section>
-                        <q-item-label>{{ a.street }}</q-item-label>
-                        <q-item-label caption>
-                          {{ a.postal_code }} {{ a.city }}, {{ countryLabel(a.country) }}
-                        </q-item-label>
-                      </q-item-section>
-                      <q-item-section side>
-                        <StatusTag
-                          v-if="a.is_validated"
-                          tone="ok"
-                          icon="verified"
-                          label="Validée"
-                        />
-                        <StatusTag v-else tone="warn" icon="schedule" label="Non validée" />
-                      </q-item-section>
-                    </q-item>
-                  </q-list>
+          <div class="checkout__confirm">
+            <q-checkbox v-model="cgvAccepted" data-testid="checkout-cgv" dense>
+              <span class="checkout__cgv">
+                J'ai lu et j'accepte les
+                <router-link :to="{ name: 'cgv' }" target="_blank" @click.stop>
+                  conditions générales de vente
+                </router-link>
+              </span>
+            </q-checkbox>
+            <q-btn
+              data-testid="checkout-submit"
+              unelevated
+              color="primary"
+              :label="submitLabel"
+              class="checkout__submit"
+              :loading="initiating"
+              :disable="
+                initiating ||
+                !cgvAccepted ||
+                (!selectedMethodId && !creditCoversEverything) ||
+                !selectedAddressId ||
+                (deliveryOptions.length > 0 && !selectedDeliveryType) ||
+                quoteLoading ||
+                !quote
+              "
+              @click="startPayment"
+            />
+            <p v-if="paysByCard" class="checkout__secure">
+              <q-icon name="ph:lock-simple" size="14px" /> Paiement par carte chiffré, géré par
+              notre banque. Aucune donnée de carte n'est conservée sur ce site.
+            </p>
+          </div>
+        </template>
 
-                  <template v-if="deliveryOptions.length > 0">
-                    <div class="text-subtitle2 text-weight-medium q-mb-sm">Mode de livraison</div>
-                    <q-list bordered separator class="rounded-borders q-mb-md">
-                      <q-item
-                        v-for="d in deliveryOptions"
-                        :key="d.value"
-                        v-ripple
-                        clickable
-                        :data-testid="`checkout-delivery-${d.value}`"
-                        :active="selectedDeliveryType === d.value"
-                        active-class="bg-tile"
-                        @click="selectedDeliveryType = d.value"
-                      >
-                        <q-item-section avatar>
-                          <q-radio v-model="selectedDeliveryType" :val="d.value" />
-                        </q-item-section>
-                        <q-item-section avatar>
-                          <q-icon :name="d.icon" color="primary" />
-                        </q-item-section>
-                        <q-item-section>
-                          <q-item-label>{{ d.label }}</q-item-label>
-                          <q-item-label v-if="d.etaDays != null" caption>
-                            Livraison estimée ~{{ d.etaDays }} j
-                          </q-item-label>
-                        </q-item-section>
-                        <q-item-section v-if="deliveryPriceLabel(d.amount)" side>
-                          <q-item-label class="text-weight-medium text-primary">
-                            {{ deliveryPriceLabel(d.amount) }}
-                          </q-item-label>
-                        </q-item-section>
-                      </q-item>
-                    </q-list>
-                  </template>
-
-                  <!-- Deposit option (offered or imposed by the customer's price group) -->
-                  <template v-if="quote?.deposit_available">
-                    <div class="text-subtitle2 text-weight-medium q-mb-sm">Règlement</div>
-                    <AppNotice
-                      v-if="quote.deposit_required"
-                      tone="info"
-                      icon="ph:piggy-bank"
-                      class="q-mb-md"
-                      data-testid="checkout-deposit-required"
-                    >
-                      Un acompte de {{ Number(quote.deposit_pct) }} % est demandé à la commande ; le
-                      solde vous sera demandé à la réception de vos articles.
-                    </AppNotice>
-                    <q-list v-else bordered separator class="rounded-borders q-mb-md">
-                      <q-item
-                        v-for="p in planOptions"
-                        :key="p.value"
-                        v-ripple
-                        clickable
-                        :data-testid="`checkout-plan-${p.value}`"
-                        :active="paymentPlan === p.value"
-                        active-class="bg-tile"
-                        @click="paymentPlan = p.value"
-                      >
-                        <q-item-section avatar>
-                          <q-radio v-model="paymentPlan" :val="p.value" />
-                        </q-item-section>
-                        <q-item-section>
-                          <q-item-label>{{ p.label }}</q-item-label>
-                          <q-item-label caption>{{ p.caption }}</q-item-label>
-                        </q-item-section>
-                      </q-item>
-                    </q-list>
-                  </template>
-
-                  <!-- Store credit (« avoir ») -->
-                  <AppNotice
-                    v-if="quote && hasFee(quote.store_credit_available)"
-                    tone="info"
-                    icon="ph:wallet"
-                    class="q-mb-md"
-                    data-testid="checkout-store-credit"
-                  >
-                    Vous disposez d'un avoir de {{ formatMoney(quote.store_credit_available) }}.
-                    <template #action>
-                      <q-toggle
-                        v-model="useStoreCredit"
-                        label="L'utiliser sur cette commande"
-                        dense
-                      />
-                    </template>
-                  </AppNotice>
-
-                  <template v-if="!creditCoversEverything">
-                    <div class="text-subtitle2 text-weight-medium q-mb-sm">Moyen de paiement</div>
-                    <q-list bordered separator class="rounded-borders q-mb-md">
-                      <q-item
-                        v-for="m in methods"
-                        :key="m.id"
-                        v-ripple
-                        clickable
-                        :data-testid="`checkout-method-${m.provider_code}`"
-                        :active="selectedMethodId === m.id"
-                        active-class="bg-tile"
-                        @click="selectedMethodId = m.id"
-                      >
-                        <q-item-section avatar>
-                          <q-radio v-model="selectedMethodId" :val="m.id" />
-                        </q-item-section>
-                        <q-item-section avatar>
-                          <q-icon :name="methodIcon(m.provider_code)" color="primary" />
-                        </q-item-section>
-                        <q-item-section>
-                          <q-item-label>{{ m.name }}</q-item-label>
-                          <q-item-label v-if="m.description" caption>{{
-                            m.description
-                          }}</q-item-label>
-                        </q-item-section>
-                        <q-item-section v-if="hasFee(m.fee)" side>
-                          <q-item-label caption>+ {{ formatMoney(m.fee) }} de frais</q-item-label>
-                        </q-item-section>
-                      </q-item>
-                    </q-list>
-                  </template>
-                  <AppNotice
-                    v-else
-                    tone="success"
-                    class="q-mb-md"
-                    data-testid="checkout-credit-covers"
-                  >
-                    Votre avoir couvre la totalité du montant à régler maintenant : aucun paiement
-                    n'est nécessaire.
-                  </AppNotice>
-
-                  <q-checkbox
-                    v-model="cgvAccepted"
-                    data-testid="checkout-cgv"
-                    dense
-                    class="q-mb-sm"
-                  >
-                    <span class="text-body2">
-                      J'ai lu et j'accepte les
-                      <router-link :to="{ name: 'cgv' }" target="_blank" @click.stop>
-                        conditions générales de vente
-                      </router-link>
-                    </span>
-                  </q-checkbox>
-
-                  <q-btn
-                    data-testid="checkout-submit"
-                    color="primary"
-                    icon="check_circle"
-                    label="Valider la commande"
-                    size="lg"
-                    class="full-width"
-                    :loading="initiating"
-                    :disable="
-                      initiating ||
-                      !cgvAccepted ||
-                      (!selectedMethodId && !creditCoversEverything) ||
-                      !selectedAddressId ||
-                      (deliveryOptions.length > 0 && !selectedDeliveryType) ||
-                      quoteLoading ||
-                      !quote
-                    "
-                    @click="startPayment"
-                  />
-                </template>
-
-                <!-- Payzen SmartForm container -->
-                <div v-show="formToken">
-                  <div id="kr-smart-form-container" />
-                </div>
-              </template>
-            </q-card-section>
-          </q-card>
+        <!-- Formulaire carte (PayZen SmartForm) -->
+        <div v-show="formToken" class="checkout__card-form">
+          <p v-if="placedOrderRef" class="confirmation__ref">
+            Commande <span class="font-mono">{{ placedOrderRef }}</span>
+          </p>
+          <div id="kr-smart-form-container" />
         </div>
       </div>
-    </template>
+
+      <aside v-if="!orderPlaced" class="checkout__aside" aria-label="Récapitulatif">
+        <div class="app-panel summary">
+          <h2 class="summary__title">Récapitulatif</h2>
+          <ul class="summary__lines">
+            <li v-for="{ item, product } in cartStore.detailedItems" :key="item.id">
+              <span class="summary__line-name">
+                <span class="font-mono summary__qty">{{ item.quantity }}×</span>
+                {{ product?.name ?? 'Article' }}
+              </span>
+              <span class="font-mono">{{ formatMoney(item.line_total) }}</span>
+            </li>
+          </ul>
+
+          <!-- Le devis vient du backend (même calcul que la commande) : le
+               total affiché est le montant débité, frais compris. -->
+          <template v-if="quote">
+            <div class="app-kv">
+              <span>Articles</span>
+              <span class="font-mono">{{ formatMoney(quote.subtotal_amount) }}</span>
+            </div>
+            <div v-if="selectedDeliveryType" class="app-kv">
+              <span>Livraison</span>
+              <span class="font-mono" data-testid="checkout-quote-shipping">{{
+                shippingOnlyAmount(quote) > 0
+                  ? formatMoney(String(shippingOnlyAmount(quote)))
+                  : 'Offerte'
+              }}</span>
+            </div>
+            <div v-if="hasFee(quote.customs_declaration_fee)" class="app-kv">
+              <span>Dédouanement <small>(une fois par envoi)</small></span>
+              <span class="font-mono">{{ formatMoney(quote.customs_declaration_fee) }}</span>
+            </div>
+            <div v-if="hasFee(quote.payment_fee_amount)" class="app-kv">
+              <span>Frais de paiement</span>
+              <span class="font-mono">{{ formatMoney(quote.payment_fee_amount) }}</span>
+            </div>
+            <div
+              v-if="quote.discount_code && hasFee(quote.discount_amount ?? '0')"
+              class="app-kv app-kv--credit"
+            >
+              <span>Remise {{ quote.discount_code }}</span>
+              <span class="font-mono" data-testid="checkout-quote-discount"
+                >−{{ formatMoney(quote.discount_amount ?? '0') }}</span
+              >
+            </div>
+            <div
+              v-if="hasFee(quote.deposit_fee_amount)"
+              class="app-kv"
+              data-testid="checkout-quote-deposit-fee"
+            >
+              <span>Frais option acompte</span>
+              <span class="font-mono">{{ formatMoney(quote.deposit_fee_amount) }}</span>
+            </div>
+            <div class="app-kv app-kv--total">
+              <span>{{
+                quote.payment_plan === 'deposit' ? 'Total de la commande' : 'Total à payer'
+              }}</span>
+              <span class="font-mono" data-testid="checkout-quote-total">{{
+                formatMoney(quote.total_amount)
+              }}</span>
+            </div>
+            <template v-if="quote.payment_plan === 'deposit'">
+              <div class="app-kv summary__due">
+                <span>Acompte maintenant ({{ Number(quote.deposit_pct) }} %)</span>
+                <span class="font-mono" data-testid="checkout-quote-deposit">{{
+                  formatMoney(quote.deposit_amount)
+                }}</span>
+              </div>
+              <div class="app-kv">
+                <span>Solde à la réception</span>
+                <span class="font-mono">{{ formatMoney(quote.balance_amount) }}</span>
+              </div>
+            </template>
+            <template v-if="hasFee(quote.store_credit_applied)">
+              <div class="app-kv app-kv--credit">
+                <span>Avoir utilisé</span>
+                <span class="font-mono" data-testid="checkout-quote-credit"
+                  >−{{ formatMoney(quote.store_credit_applied) }}</span
+                >
+              </div>
+              <div class="app-kv summary__due">
+                <span>Reste à payer maintenant</span>
+                <span class="font-mono" data-testid="checkout-quote-due">{{
+                  formatMoney(quote.amount_due_now)
+                }}</span>
+              </div>
+            </template>
+            <p v-if="departureStore.next" class="summary__note" data-testid="checkout-departure">
+              <q-icon name="ph:calendar-check" size="14px" />
+              Votre commande rejoint le départ groupé « {{ departureStore.next.name }} ».
+              <template v-if="departureStore.deliveryLabel">
+                {{ departureStore.deliveryLabel }}.
+              </template>
+            </p>
+          </template>
+          <template v-else>
+            <div class="app-kv app-kv--total">
+              <span>Articles</span>
+              <span class="font-mono">{{ formatMoney(String(cartStore.totalAmount)) }}</span>
+            </div>
+            <p v-if="isAuthenticated" class="summary__note">
+              <q-spinner size="1em" /> Calcul de la livraison et des frais…
+            </p>
+          </template>
+
+          <!-- Code promo : validé et chiffré par le backend dans le même devis. -->
+          <q-form class="promo" @submit.prevent="applyDiscountCode">
+            <q-input
+              v-model="discountInput"
+              label="Code promo"
+              dense
+              outlined
+              class="promo__input"
+              :disable="!isAuthenticated || quoteLoading"
+              :error="!!quote?.discount_error"
+              :error-message="quote?.discount_error ?? undefined"
+              :hint="appliedDiscountHint"
+              data-testid="checkout-discount-input"
+            >
+              <template #append>
+                <q-btn
+                  v-if="discountCode"
+                  flat
+                  dense
+                  round
+                  icon="ph:x"
+                  aria-label="Retirer le code"
+                  @click="clearDiscountCode"
+                />
+              </template>
+            </q-input>
+            <q-btn
+              type="submit"
+              outline
+              color="primary"
+              label="Appliquer"
+              class="promo__apply"
+              :disable="!isAuthenticated || !discountInput.trim()"
+              :loading="quoteLoading"
+            />
+          </q-form>
+        </div>
+      </aside>
+    </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import StatusTag from '@/components/StatusTag.vue';
-import AppNotice from '@/components/AppNotice.vue';
 import { computed, onMounted, ref, watch } from 'vue';
+import { useMeta } from 'quasar';
 import { useRoute } from 'vue-router';
-import { countryLabel, formatXpf, orderRef } from '@app/utils';
+import { countryLabel, orderRef } from '@app/utils';
+
+import AppNotice from '@app/ui/AppNotice.vue';
+import ChoiceList, { type ChoiceOption } from '@/components/ChoiceList.vue';
+import { useCurrencyStore } from '@/stores/currency';
+import { apiErrorMessage } from '@/utils/errors';
+import { orderMoney } from '@/utils/money';
 import { useCartStore } from '@/stores/cart';
 import { useAuthStore } from '@/stores/auth';
 import { useDepartureStore } from '@/stores/departure';
@@ -561,7 +444,10 @@ import { PENDING_PAYMENT_KEY, loadPayzenSmartForm } from '@/utils/payzen';
 const cartStore = useCartStore();
 const authStore = useAuthStore();
 const departureStore = useDepartureStore();
+const currencyStore = useCurrencyStore();
 const route = useRoute();
+
+useMeta({ title: 'Commande' });
 // Ordering an issued quote (`?quote=<id>`): its prices and delivery fee apply.
 const quoteRequestId = computed(() => {
   const raw = route.query.quote;
@@ -578,6 +464,8 @@ const cgvAccepted = ref(false);
 const orderPlaced = ref(false);
 const formToken = ref<string | null>(null);
 const instructions = ref<string | null>(null);
+// PayPal : départ vers la page d'approbation après création de la commande.
+const redirecting = ref(false);
 // Reference of the order just created, shown on the confirmation so the
 // customer can quote it before the email arrives (M5).
 const placedOrderRef = ref<string | null>(null);
@@ -758,10 +646,10 @@ async function loadMethods(basis: number) {
 }
 
 function iconForMode(mode: string): string {
-  if (mode === 'pickup') return 'store';
-  if (mode === 'air_freight') return 'flight';
-  if (mode === 'sea_freight') return 'directions_boat';
-  return 'local_shipping';
+  if (mode === 'pickup') return 'ph:storefront';
+  if (mode === 'air_freight') return 'ph:airplane-tilt';
+  if (mode === 'sea_freight') return 'ph:boat';
+  return 'ph:truck';
 }
 function prettifyMode(mode: string): string {
   return mode.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -794,9 +682,9 @@ const needsUpload = computed(
     selectedMethod.value?.provider_code === 'document',
 );
 
+/** Montants du panier et du devis : dans la devise de facturation. */
 function formatMoney(raw: string): string {
-  const n = Number.parseFloat(raw);
-  return Number.isFinite(n) ? formatXpf(n) : raw;
+  return orderMoney(raw, quote.value?.currency, currencyStore.reference);
 }
 
 function hasFee(fee: string): boolean {
@@ -804,11 +692,97 @@ function hasFee(fee: string): boolean {
 }
 
 function methodIcon(providerCode: string): string {
-  if (providerCode === 'payzen') return 'credit_card';
-  if (providerCode === 'manual') return 'account_balance';
-  if (providerCode === 'document') return 'description';
-  return 'payments';
+  if (providerCode === 'payzen') return 'ph:credit-card';
+  if (providerCode === 'paypal') return 'ph:paypal-logo';
+  if (providerCode === 'manual_transfer') return 'ph:bank';
+  if (providerCode === 'manual_check') return 'ph:money';
+  if (providerCode === 'manual_cash') return 'ph:coins';
+  if (providerCode.startsWith('po_') || providerCode === 'document') return 'ph:file-text';
+  return 'ph:wallet';
 }
+
+// --- Options des listes de choix -------------------------------------------
+const addressChoices = computed<ChoiceOption[]>(() =>
+  addresses.value.map((a) => ({
+    value: a.id,
+    title: a.street,
+    caption: `${a.postal_code} ${a.city}, ${countryLabel(a.country)}`,
+    icon: 'ph:map-pin',
+    testid: `checkout-address-${a.id}`,
+  })),
+);
+
+const deliveryChoices = computed<ChoiceOption[]>(() =>
+  deliveryOptions.value.map((d) => ({
+    value: d.value,
+    title: d.label,
+    caption: d.etaDays != null ? `Livraison estimée sous ${d.etaDays} jours environ` : null,
+    icon: d.icon,
+    aside: deliveryPriceLabel(d.amount),
+    testid: `checkout-delivery-${d.value}`,
+  })),
+);
+
+const planChoices = computed<ChoiceOption<'full' | 'deposit'>[]>(() =>
+  planOptions.value.map((p) => ({
+    value: p.value,
+    title: p.label,
+    caption: p.caption,
+    testid: `checkout-plan-${p.value}`,
+  })),
+);
+
+// A method the shop excluded from deposits is not offered when paying one.
+const usableMethods = computed(() =>
+  paymentPlan.value === 'deposit'
+    ? methods.value.filter((m) => m.deposit_allowed !== false)
+    : methods.value,
+);
+
+watch(usableMethods, (usable) => {
+  if (!usable.some((m) => m.id === selectedMethodId.value)) {
+    selectedMethodId.value = usable[0]?.id ?? null;
+  }
+});
+
+const methodChoices = computed<ChoiceOption[]>(() =>
+  usableMethods.value.map((m) => ({
+    value: m.id,
+    title: m.name,
+    caption: m.description,
+    icon: methodIcon(m.provider_code),
+    aside: hasFee(m.fee) ? `+ ${formatMoney(m.fee)}` : null,
+    testid: `checkout-method-${m.provider_code}`,
+  })),
+);
+
+/** Numéro d'étape : la livraison et le règlement n'apparaissent pas toujours. */
+function stepNumber(step: 'plan' | 'payment'): number {
+  let n = 1;
+  if (deliveryOptions.value.length > 0) n += 1;
+  if (step === 'plan') return n + 1;
+  if (quote.value?.deposit_available) n += 1;
+  return n + 1;
+}
+
+const submitLabel = computed(() => {
+  const q = quote.value;
+  if (!q) return 'Valider la commande';
+  const due = hasFee(q.store_credit_applied)
+    ? q.amount_due_now
+    : q.payment_plan === 'deposit'
+      ? q.deposit_amount
+      : q.total_amount;
+  if (!hasFee(due) || !paysByCard.value) return 'Valider la commande';
+  return `Payer ${formatMoney(due)}`;
+});
+
+/** Carte ou PayPal : le paiement se fait tout de suite, chez le prestataire. */
+const paysByCard = computed(
+  () =>
+    !creditCoversEverything.value &&
+    ['payzen', 'paypal'].includes(selectedMethod.value?.provider_code ?? ''),
+);
 
 onMounted(async () => {
   await cartStore.loadCart();
@@ -891,7 +865,7 @@ async function startPayment() {
     return;
   }
   if (!selectedAddress.value) {
-    errorMessage.value = 'Veuillez sélectionner une adresse de livraison validée.';
+    errorMessage.value = 'Choisissez une adresse de livraison.';
     return;
   }
 
@@ -946,6 +920,15 @@ async function startPayment() {
       return;
     }
 
+    // PayPal: the customer approves on PayPal's page and comes back to
+    // /paiement/retour?payment=…&provider=paypal, where the shop captures it.
+    if (checkout.redirect_url) {
+      localStorage.setItem(PENDING_PAYMENT_KEY, checkout.payment_id);
+      redirecting.value = true;
+      window.location.assign(checkout.redirect_url);
+      return;
+    }
+
     // Manual (chèque/virement) or document-validated (BC): show the payment
     // instructions; the order is recorded and awaits validation. The payment id
     // is kept so a Bon de commande can be uploaded for document providers.
@@ -975,7 +958,7 @@ async function startPayment() {
       cartStore.applyServerPrices(drifted);
     }
     errorMessage.value =
-      extractError(err) ?? 'Une erreur est survenue lors de la finalisation de la commande.';
+      apiErrorMessage(err) ?? 'Une erreur est survenue lors de la finalisation de la commande.';
   } finally {
     initiating.value = false;
   }
@@ -1037,22 +1020,249 @@ async function uploadDocument() {
     uploadDone.value = true;
   } catch (err) {
     uploadError.value =
-      extractError(err) ?? "Échec de l'envoi du bon de commande. Veuillez réessayer.";
+      apiErrorMessage(err) ?? "Échec de l'envoi du bon de commande. Veuillez réessayer.";
   } finally {
     uploading.value = false;
   }
 }
-
-function extractError(err: unknown): string | null {
-  if (err && typeof err === 'object' && 'response' in err) {
-    const data = (err as { response?: { data?: unknown } }).response?.data;
-    if (typeof data === 'object' && data !== null) {
-      const errorObj = (data as { error?: { message?: unknown } }).error;
-      if (errorObj && typeof errorObj.message === 'string') return errorObj.message;
-      const detail = (data as { detail?: unknown }).detail;
-      if (typeof detail === 'string') return detail;
-    }
-  }
-  return null;
-}
 </script>
+
+<style scoped lang="scss">
+.checkout__back {
+  margin-bottom: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--n-ink-2);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--n-accent);
+  }
+}
+
+.checkout__title {
+  margin-bottom: 32px;
+}
+
+.checkout__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: 64px;
+  align-items: start;
+
+  &--done {
+    grid-template-columns: minmax(0, 720px);
+  }
+
+  @media (max-width: 1023px) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+  }
+}
+
+.checkout__notice {
+  margin-bottom: 20px;
+}
+
+.checkout__skeleton {
+  margin-bottom: 8px;
+  border-radius: 8px;
+}
+
+.step + .step {
+  margin-top: 40px;
+}
+
+.step__title {
+  margin: 0 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.step__num {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--n-ink);
+  color: var(--n-on-ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.step__empty {
+  padding: 28px 16px;
+}
+
+.step__link {
+  margin-top: 10px;
+  display: inline-block;
+}
+
+.credit-toggle {
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.credit-toggle__text {
+  flex-grow: 1;
+  font-size: 14px;
+}
+
+.checkout__confirm {
+  margin-top: 40px;
+  padding-top: 24px;
+  border-top: 1px solid var(--n-line);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.checkout__cgv {
+  font-size: 14px;
+
+  a {
+    color: inherit;
+    text-underline-offset: 3px;
+  }
+}
+
+.checkout__submit {
+  min-height: 52px;
+  font-size: 16px;
+}
+
+.checkout__secure {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--n-ink-3);
+}
+
+.checkout__card-form {
+  max-width: 480px;
+}
+
+.checkout__aside {
+  position: sticky;
+  top: 88px;
+
+  @media (max-width: 1023px) {
+    position: static;
+    order: -1;
+  }
+}
+
+.summary__title {
+  margin: 0 0 16px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.summary__lines {
+  margin: 0 0 16px;
+  padding: 0 0 16px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-bottom: 1px solid var(--n-line-2);
+  font-size: 14px;
+
+  li {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+  }
+}
+
+.summary__line-name {
+  min-width: 0;
+}
+
+.summary__qty {
+  margin-right: 4px;
+  color: var(--n-ink-3);
+}
+
+.summary__due {
+  color: var(--n-ink);
+  font-weight: 500;
+}
+
+.summary__note {
+  margin: 14px 0 0;
+  display: flex;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--n-ink-2);
+}
+
+.promo {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--n-line-2);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.promo__input {
+  flex-grow: 1;
+}
+
+.promo__apply {
+  min-height: 40px;
+}
+
+.confirmation__head {
+  display: flex;
+  gap: 16px;
+}
+
+.confirmation__icon {
+  flex-shrink: 0;
+  color: var(--n-ok);
+}
+
+.confirmation__ref {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.confirmation__text {
+  margin: 6px 0 0;
+  color: var(--n-ink-2);
+}
+
+.confirmation__instructions {
+  margin-top: 32px;
+}
+
+.confirmation__body {
+  margin: 0;
+  white-space: pre-line;
+  line-height: 1.6;
+}
+
+.confirmation__actions {
+  margin-top: 32px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+</style>

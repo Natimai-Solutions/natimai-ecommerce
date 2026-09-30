@@ -19,6 +19,7 @@ from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.models.payment_method_eligibility import (
     PaymentMethodEligibility,
 )
+from app.features.payment.services.provider_settings import unavailable_providers
 from app.features.product.models.price_group import PriceGroup
 
 
@@ -80,6 +81,15 @@ async def get_eligible_payment_methods(
             eligible.append(method)
         elif method.id in allowed_ids:
             eligible.append(method)
+
+    # A provider switched off, or without credentials, hides its methods.
+    unavailable = await unavailable_providers(
+        session, [getattr(m, "provider_code", "") or "" for m in eligible]
+    )
+    if unavailable:
+        eligible = [
+            m for m in eligible if getattr(m, "provider_code", "") not in unavailable
+        ]
 
     # Apply max_amount filter
     if cart_total is not None:

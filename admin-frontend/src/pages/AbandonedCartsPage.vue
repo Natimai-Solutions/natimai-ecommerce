@@ -1,30 +1,33 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="text-h6 col">Paniers abandonnés</div>
-      <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader title="Paniers abandonnés">
+      <template #hint>
+        Paniers ouverts (jamais commandés) des clients connectés. Un panier sans activité depuis
+        {{ response?.reminder_delay_hours ?? '—' }} h reçoit un rappel par e-mail, une seule fois,
+        si le client accepte les rappels commerciaux ; au-delà de
+        {{ response?.reminder_max_age_days ?? '—' }} jours il n'est plus relancé.
+      </template>
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+      </template>
+    </PageHeader>
 
-    <div class="text-caption text-grey-7 q-mb-md">
-      Paniers ouverts (jamais commandés) des clients connectés. Un panier sans activité depuis
-      {{ response?.reminder_delay_hours ?? '—' }} h reçoit un rappel par e-mail, une seule fois, si
-      le client accepte les rappels commerciaux ; au-delà de
-      {{ response?.reminder_max_age_days ?? '—' }} jours il n'est plus relancé.
-    </div>
-
-    <div class="row q-col-gutter-md q-mb-md">
-      <div v-for="tile in tiles" :key="tile.label" class="col-12 col-sm-4">
-        <q-card flat bordered>
-          <q-card-section>
-            <div class="text-caption text-grey-7">{{ tile.label }}</div>
-            <div class="text-h5">{{ tile.value }}</div>
-            <div class="text-caption text-grey-6">{{ tile.hint }}</div>
-          </q-card-section>
-        </q-card>
+    <div class="cart-tiles">
+      <div v-for="tile in tiles" :key="tile.label" class="app-panel cart-tile">
+        <span class="cart-tile__label">{{ tile.label }}</span>
+        <span class="cart-tile__value font-mono">{{ tile.value }}</span>
+        <span class="cart-tile__hint">{{ tile.hint }}</span>
       </div>
     </div>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
+    <AppNotice v-if="error" tone="error" class="q-mb-md">{{ error }}</AppNotice>
 
     <q-table
       :rows="rows"
@@ -39,7 +42,7 @@
       <template #body-cell-customer="props">
         <q-td :props="props">
           <div>{{ props.row.user_name || '—' }}</div>
-          <div class="text-caption text-grey-7">{{ props.row.user_email }}</div>
+          <div class="text-caption text-muted">{{ props.row.user_email }}</div>
         </q-td>
       </template>
       <template #body-cell-items="props">
@@ -47,23 +50,27 @@
           <div v-for="line in props.row.items.slice(0, 3)" :key="line.product_id" class="ellipsis">
             {{ line.quantity }} × {{ line.name }}
           </div>
-          <div v-if="props.row.items.length > 3" class="text-caption text-grey-7">
+          <div v-if="props.row.items.length > 3" class="text-caption text-muted">
             + {{ props.row.items.length - 3 }} autre(s)
           </div>
         </q-td>
       </template>
+      <template #body-cell-total="props">
+        <q-td :props="props" class="font-mono">{{ props.value }}</q-td>
+      </template>
       <template #body-cell-reminded="props">
         <q-td :props="props" align="center">
-          <q-chip
+          <StatusTag
             v-if="props.row.reminded_at"
-            dense
-            size="sm"
-            color="green-2"
-            text-color="green-10"
+            tone="ok"
+            icon="ph:paper-plane-tilt"
             :label="`Relancé le ${formatDate(props.row.reminded_at)}`"
           />
-          <q-chip v-else dense size="sm" color="grey-3" text-color="grey-8" label="En attente" />
+          <StatusTag v-else tone="neutral" icon="ph:clock" label="En attente" />
         </q-td>
+      </template>
+      <template #no-data>
+        <span class="text-subtle">Aucun panier abandonné.</span>
       </template>
     </q-table>
   </q-page>
@@ -72,6 +79,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import {
   listAbandonedCarts,
   type AbandonedCart,
@@ -148,3 +158,36 @@ async function load() {
 
 onMounted(load);
 </script>
+
+<style scoped lang="scss">
+.cart-tiles {
+  margin-bottom: 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.cart-tile {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cart-tile__label {
+  font-size: 13px;
+  color: var(--n-ink-2);
+}
+
+.cart-tile__value {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--n-ink);
+}
+
+.cart-tile__hint {
+  font-size: 12px;
+  color: var(--n-ink-3);
+}
+</style>

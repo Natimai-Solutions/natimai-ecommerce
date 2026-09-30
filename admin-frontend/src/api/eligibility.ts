@@ -1,13 +1,75 @@
 import { api } from '@/boot/api';
 
+/** A payment method as the admin manages it (GET /admin/payment-methods). */
 export interface PaymentMethod {
   id: string;
   name: string;
   description: string | null;
+  /** Its type (payzen, paypal, manual_cash…): fixed once created. */
   provider_code: string;
+  type_label: string;
+  /** card | wallet | manual | document */
+  family: string;
+  /** The customer receives instructions (manual and document types). */
+  supports_instructions: boolean;
+  fee: string;
+  /** Maximum order amount (null = no cap). */
+  max_amount: string | null;
   sort_order: number;
   /** Global admin on/off switch. When false the method is hidden for everyone. */
   is_admin_active: boolean;
+  /** Whether the method can pay a deposit (the balance stays open to all). */
+  deposit_allowed: boolean;
+  /** Its own instructions (null = those of its type). */
+  instructions: string | null;
+  /** Payments made with it: a used method cannot be deleted. */
+  payments_count: number;
+}
+
+/** A type a method can be created on (behaviour fixed in the code). */
+export interface PaymentMethodType {
+  code: string;
+  label: string;
+  family: string;
+  supports_instructions: boolean;
+  /** What the customer receives when the method has no text of its own. */
+  fallback_instructions: string | null;
+}
+
+export interface PaymentMethodWrite {
+  name?: string;
+  description?: string | null;
+  fee?: string;
+  max_amount?: string | null;
+  sort_order?: number;
+  is_admin_active?: boolean;
+  deposit_allowed?: boolean;
+  instructions?: string | null;
+}
+
+export async function listPaymentMethodTypes(): Promise<PaymentMethodType[]> {
+  const { data } = await api.get<PaymentMethodType[]>('/admin/payment-methods/types');
+  return data;
+}
+
+export async function createPaymentMethod(
+  payload: PaymentMethodWrite & { provider_code: string; name: string },
+): Promise<PaymentMethod> {
+  const { data } = await api.post<PaymentMethod>('/admin/payment-methods', payload);
+  return data;
+}
+
+export async function updatePaymentMethod(
+  methodId: string,
+  payload: PaymentMethodWrite,
+): Promise<PaymentMethod> {
+  const { data } = await api.patch<PaymentMethod>(`/admin/payment-methods/${methodId}`, payload);
+  return data;
+}
+
+/** Refused (409) once a payment used the method: switch it off instead. */
+export async function deletePaymentMethod(methodId: string): Promise<void> {
+  await api.delete(`/admin/payment-methods/${methodId}`);
 }
 
 export interface PriceGroup {
@@ -46,18 +108,15 @@ export interface EligibleGroup {
   label: string;
 }
 
-interface PaymentMethodsResponse {
-  data: PaymentMethod[];
-  count: number;
-}
 interface PriceGroupsResponse {
   data: PriceGroup[];
   count: number;
 }
 
+/** Every method, switched on or off, in checkout order. */
 export async function listPaymentMethods(): Promise<PaymentMethod[]> {
-  const { data } = await api.get<PaymentMethodsResponse>('/payment_method');
-  return data.data.sort((a, b) => a.sort_order - b.sort_order);
+  const { data } = await api.get<PaymentMethod[]>('/admin/payment-methods');
+  return data;
 }
 
 export async function listPriceGroups(): Promise<PriceGroup[]> {
@@ -81,5 +140,39 @@ export async function removeEligibility(methodId: string, groupId: string): Prom
 
 /** Global enable/disable of a payment method (admin). */
 export async function setPaymentMethodActive(methodId: string, isActive: boolean): Promise<void> {
-  await api.put(`/payment_method/${methodId}`, { is_admin_active: isActive });
+  await updatePaymentMethod(methodId, { is_admin_active: isActive });
+}
+
+/** Allow or exclude a payment method for deposits (admin). */
+export async function setPaymentMethodDepositAllowed(
+  methodId: string,
+  allowed: boolean,
+): Promise<void> {
+  await updatePaymentMethod(methodId, { deposit_allowed: allowed });
+}
+
+/** A card / wallet provider (PayZen, PayPal, Stripe) and its switch. */
+export interface PaymentProvider {
+  code: string;
+  label: string;
+  enabled: boolean;
+  credentials_present: boolean;
+  implemented: boolean;
+  /** Switched on, implemented and with credentials: takes new payments. */
+  available: boolean;
+}
+
+export async function listPaymentProviders(): Promise<PaymentProvider[]> {
+  const { data } = await api.get<PaymentProvider[]>('/admin/payment-providers');
+  return data;
+}
+
+export async function setPaymentProviderEnabled(
+  code: string,
+  enabled: boolean,
+): Promise<PaymentProvider[]> {
+  const { data } = await api.put<PaymentProvider[]>(`/admin/payment-providers/${code}`, {
+    enabled,
+  });
+  return data;
 }

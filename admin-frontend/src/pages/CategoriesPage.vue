@@ -1,22 +1,28 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="col">
-        <div class="text-h6">Catégories</div>
-        <div class="text-caption text-grey-7">
-          Les catégories viennent de la synchronisation fournisseur : leur nom d'origine sert de clé
-          de rapprochement et ne se modifie pas. Personnalisez le titre vitrine, la description et
-          l'image ; fusionnez les doublons. Taux de TVA et de douane : pages dédiées.
-        </div>
-      </div>
-      <q-toggle v-model="showMerged" label="Afficher les fusionnées" class="q-mr-md" />
-      <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader title="Catégories">
+      <template #hint>
+        Les catégories viennent de la synchronisation fournisseur : leur nom d'origine sert de clé
+        de rapprochement et ne se modifie pas. Personnalisez le titre vitrine, la description et
+        l'image ; fusionnez les doublons. Taux de TVA et de douane : pages dédiées.
+      </template>
+      <template #actions>
+        <q-toggle v-model="showMerged" label="Afficher les fusionnées" />
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+      </template>
+    </PageHeader>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
-    <q-banner v-if="notice" class="bg-green-1 text-green-9 q-mb-md" dense rounded>
-      {{ notice }}
-    </q-banner>
+    <div v-if="error || notice" class="admin-notices">
+      <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
+      <AppNotice v-if="notice" tone="success" dense>{{ notice }}</AppNotice>
+    </div>
 
     <q-table
       :rows="visibleRows"
@@ -31,52 +37,51 @@
       <template #body-cell-title="props">
         <q-td :props="props">
           <div class="text-body2">{{ props.row.title }}</div>
-          <div v-if="props.row.display_name" class="text-caption text-grey-7">
+          <div v-if="props.row.display_name" class="text-caption text-muted">
             Nom fournisseur : {{ props.row.name }}
           </div>
         </q-td>
       </template>
       <template #body-cell-status="props">
         <q-td :props="props">
-          <q-chip
+          <StatusTag
             v-if="props.row.merged_into_id"
-            dense
-            color="grey-6"
-            text-color="white"
-            icon="merge"
+            tone="neutral"
+            icon="ph:git-merge"
             :label="`Fusionnée dans ${props.row.merged_into_name ?? '?'}`"
           />
-          <q-chip
-            v-else
-            dense
-            :color="props.row.is_active ? 'green' : 'grey-6'"
-            text-color="white"
-            :label="props.row.is_active ? 'Active' : 'Inactive'"
+          <StatusTag
+            v-else-if="props.row.is_active"
+            tone="ok"
+            icon="ph:check-circle"
+            label="Active"
           />
+          <StatusTag v-else tone="neutral" icon="ph:minus-circle" label="Inactive" />
         </q-td>
       </template>
       <template #body-cell-customs="props">
         <q-td :props="props">
-          <span v-if="props.row.default_customs_rate_pct"
+          <span v-if="props.row.default_customs_rate_pct" class="font-mono"
             >{{ props.row.default_customs_rate_pct }} %</span
           >
-          <span v-else class="text-grey-6">—</span>
+          <span v-else class="text-subtle">—</span>
         </q-td>
       </template>
       <template #body-cell-actions="props">
-        <q-td :props="props" align="right">
+        <q-td :props="props" align="right" class="no-wrap">
           <template v-if="!props.row.merged_into_id">
-            <q-btn flat dense icon="edit" color="primary" @click="openEdit(props.row)">
+            <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
               <q-tooltip>Titre vitrine, description, image</q-tooltip>
             </q-btn>
-            <q-btn flat dense icon="merge" color="secondary" @click="openMerge(props.row)">
+            <q-btn flat round dense icon="ph:git-merge" @click="openMerge(props.row)">
               <q-tooltip>Fusionner dans une autre catégorie</q-tooltip>
             </q-btn>
             <q-btn
               flat
+              round
               dense
-              :icon="props.row.is_active ? 'visibility_off' : 'visibility'"
-              :color="props.row.is_active ? 'negative' : 'positive'"
+              :icon="props.row.is_active ? 'ph:eye-slash' : 'ph:eye'"
+              :color="props.row.is_active ? 'negative' : undefined"
               :loading="busyIds.has(props.row.id)"
               @click="onToggleActive(props.row)"
             >
@@ -85,19 +90,23 @@
           </template>
         </q-td>
       </template>
+      <template #no-data>
+        <div class="full-width text-center text-subtle q-pa-md">Aucune catégorie.</div>
+      </template>
     </q-table>
 
-    <div class="text-caption text-grey-7 q-mt-sm">{{ visibleRows.length }} catégorie(s)</div>
+    <div class="text-caption text-muted q-mt-sm">{{ visibleRows.length }} catégorie(s)</div>
 
     <!-- Édition -->
     <q-dialog v-model="editDialog">
-      <q-card style="min-width: 460px">
-        <q-card-section class="text-h6">{{ editing?.name }}</q-card-section>
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">{{ editing?.name }}</h2>
+          <p class="app-dialog__text">Ces champs ne sont jamais réécrits par la synchronisation.</p>
+        </q-card-section>
         <q-form @submit.prevent="submitEdit">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="editForm.display_name"
               label="Titre vitrine"
@@ -114,7 +123,27 @@
               outlined
               dense
             />
-            <q-input v-model="editForm.image_url" label="URL de l'image" outlined dense />
+            <q-input
+              v-model="editForm.image_url"
+              label="Image de la tuile vitrine"
+              hint="Affichée sur l'accueil ; médiathèque ou URL"
+              outlined
+              dense
+            >
+              <template v-if="editForm.image_url" #prepend>
+                <img :src="editForm.image_url" alt="" class="image-field__thumb" />
+              </template>
+              <template #append>
+                <q-btn
+                  flat
+                  dense
+                  no-caps
+                  icon="ph:images"
+                  label="Médiathèque"
+                  @click="mediaPickerOpen = true"
+                />
+              </template>
+            </q-input>
             <q-input
               v-model="editForm.default_margin_rate_pct"
               label="Marge par défaut (%)"
@@ -125,13 +154,17 @@
               outlined
               dense
             />
-            <div class="text-caption text-grey-7">
-              Ces champs ne sont jamais réécrits par la synchronisation.
-            </div>
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" label="Enregistrer" :loading="saving" />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn
+              type="submit"
+              color="primary"
+              unelevated
+              no-caps
+              label="Enregistrer"
+              :loading="saving"
+            />
           </q-card-actions>
         </q-form>
       </q-card>
@@ -139,13 +172,13 @@
 
     <!-- Fusion -->
     <q-dialog v-model="mergeDialog">
-      <q-card style="min-width: 460px">
-        <q-card-section class="text-h6">Fusionner « {{ merging?.title }} »</q-card-section>
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">Fusionner « {{ merging?.title }} »</h2>
+        </q-card-section>
         <q-form @submit.prevent="submitMerge">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-select
               v-model="mergeTarget"
               :options="mergeTargets"
@@ -158,21 +191,20 @@
               input-debounce="0"
               @filter="filterTargets"
             />
-            <q-banner dense class="bg-orange-1 text-grey-9" rounded>
-              <template #avatar><q-icon name="warning" color="orange-8" /></template>
-              <span class="text-caption">
-                Les {{ merging?.product_count ?? 0 }} produit(s) et les remises de cette catégorie
-                passent sur la cible. La catégorie devient inactive mais reste connue : la prochaine
-                synchronisation continuera d'envoyer ses produits vers la cible.
-                <strong>Irréversible.</strong>
-              </span>
-            </q-banner>
+            <AppNotice tone="warning" dense>
+              Les {{ merging?.product_count ?? 0 }} produit(s) et les remises de cette catégorie
+              passent sur la cible. La catégorie devient inactive mais reste connue : la prochaine
+              synchronisation continuera d'envoyer ses produits vers la cible.
+              <strong>Irréversible.</strong>
+            </AppNotice>
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
             <q-btn
               type="submit"
               color="negative"
+              unelevated
+              no-caps
               label="Fusionner"
               :loading="saving"
               :disable="!mergeTarget"
@@ -181,12 +213,21 @@
         </q-form>
       </q-card>
     </q-dialog>
+    <MediaPicker
+      v-model="mediaPickerOpen"
+      kind="category"
+      @select="(asset) => (editForm.image_url = asset.url)"
+    />
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import MediaPicker from '@/components/MediaPicker.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import {
   listAdminCategories,
   mergeCategory,
@@ -208,7 +249,13 @@ const visibleRows = computed(() =>
 const columns: QTableColumn[] = [
   { name: 'title', label: 'Catégorie', field: 'title', align: 'left' },
   { name: 'status', label: 'Statut', field: 'is_active', align: 'left' },
-  { name: 'product_count', label: 'Produits', field: 'product_count', align: 'right' },
+  {
+    name: 'product_count',
+    label: 'Produits',
+    field: 'product_count',
+    align: 'right',
+    classes: 'font-mono',
+  },
   { name: 'customs', label: 'Douane', field: 'default_customs_rate_pct', align: 'left' },
   {
     name: 'margin',
@@ -341,4 +388,14 @@ async function submitMerge() {
 }
 
 onMounted(load);
+const mediaPickerOpen = ref(false);
 </script>
+
+<style scoped lang="scss">
+.image-field__thumb {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+</style>

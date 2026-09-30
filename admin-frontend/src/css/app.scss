@@ -1,1 +1,347 @@
-// app global css
+// Natimai « Précision » : admin.
+//
+// Jetons (clair / sombre), base et grammaire des écrans d'application viennent
+// du socle partagé avec la vitrine (shared/ui). Ce fichier ajoute la grammaire
+// propre au back-office : page, en-tête, tableaux denses, champs et dialogues.
+
+@use '../../../shared/ui/src/css/tokens';
+@use '../../../shared/ui/src/css/components';
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
+.admin-page {
+  width: 100%;
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 28px 32px 72px;
+
+  @media (max-width: 767px) {
+    padding: 20px 16px 56px;
+  }
+}
+
+// Bandeau d'aide sous l'en-tête : texte courant, jamais une bannière colorée.
+.admin-hint {
+  max-width: 88ch;
+  margin: 0 0 20px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--n-ink-2);
+}
+
+// Barre de filtres au-dessus d'un tableau.
+.admin-toolbar {
+  margin-bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+
+  > .q-field {
+    min-width: 180px;
+  }
+}
+
+// Groupes de notices sous l'en-tête.
+.admin-notices {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// Les titres HTML gardent sinon la typographie Quasar (h2 : interligne 60 px).
+.q-page,
+.q-dialog {
+  h1,
+  h2,
+  h3,
+  h4 {
+    line-height: 1.3;
+  }
+}
+
+// Sous-titre de section dans une page longue ou un dialogue.
+.admin-subtitle {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--n-ink);
+}
+
+// Valeurs clé / valeur compactes (fiches commande, fournisseur…). Dans un
+// panneau latéral étroit, le libellé passe au-dessus de sa valeur.
+.app-panel .admin-dl {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+
+  dt {
+    font-size: 12.5px;
+  }
+
+  dd {
+    overflow-wrap: anywhere;
+  }
+
+  dd + dt {
+    margin-top: 10px;
+  }
+}
+
+.admin-dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(120px, max-content) 1fr;
+  gap: 8px 20px;
+  font-size: 14px;
+
+  dt {
+    color: var(--n-ink-3);
+  }
+
+  dd {
+    margin: 0;
+    min-width: 0;
+    color: var(--n-ink);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tableaux : filets fins, en-têtes discrets, survol en tuile.
+// ---------------------------------------------------------------------------
+
+body .q-table__container {
+  background: var(--n-surface);
+  color: var(--n-ink);
+  box-shadow: none;
+}
+
+body .q-table--bordered {
+  border: 1px solid var(--n-line);
+  border-radius: 8px;
+}
+
+body .q-table {
+  thead tr th {
+    height: 40px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    color: var(--n-ink-3);
+    background: var(--n-surface);
+  }
+
+  tbody td {
+    height: 48px;
+    font-size: 14px;
+  }
+
+  thead tr,
+  tbody td {
+    border-color: var(--n-line);
+  }
+
+  tbody tr:not(.q-tr--no-hover):hover > td::before {
+    background: var(--n-tile);
+    opacity: 0.6;
+  }
+}
+
+body .q-table__bottom {
+  border-color: var(--n-line);
+  color: var(--n-ink-2);
+  font-size: 13px;
+}
+
+body .q-table__card,
+body .q-table__middle {
+  border-radius: 8px;
+}
+
+// Codes et références en chasse fixe : un cran plus petits que le texte.
+body .q-table .font-mono {
+  font-size: 13px;
+}
+
+// Actions destructives en icône seule (supprimer, désactiver) : discrètes au
+// repos, rouges au survol ou au focus, pour ne pas crier sur chaque ligne.
+body .q-btn--flat.q-btn--round.text-negative:not(:hover):not(:focus-visible) {
+  color: var(--n-ink-2) !important;
+}
+
+// Tableau secondaire dans une fiche (lignes d'une commande…) : sans cadre.
+.admin-table-plain.q-table__container {
+  border: 0;
+  background: transparent;
+}
+
+// ---------------------------------------------------------------------------
+// Champs, menus, dialogues, onglets
+// ---------------------------------------------------------------------------
+
+body .q-field--outlined .q-field__control::before {
+  border-color: var(--n-line-2);
+}
+
+body .q-field--outlined:hover .q-field__control::before {
+  border-color: var(--n-ink-3);
+}
+
+body .q-field__label,
+body .q-field__bottom {
+  color: var(--n-ink-3);
+}
+
+body .q-menu,
+body .q-dialog .q-card {
+  background: var(--n-surface);
+  color: var(--n-ink);
+}
+
+body .q-menu {
+  border: 1px solid var(--n-line);
+  box-shadow: var(--n-shadow);
+}
+
+body .q-dialog .q-card:not(.q-dialog__inner--maximized .q-card) {
+  border-radius: 12px;
+}
+
+body .q-dialog__backdrop {
+  background: var(--n-scrim);
+}
+
+body .q-tabs {
+  color: var(--n-ink-2);
+}
+
+body .q-tab--active {
+  color: var(--n-ink);
+}
+
+body .q-tab__indicator {
+  height: 2px;
+  background: var(--n-ink);
+}
+
+body .q-separator {
+  background: var(--n-line);
+}
+
+body .q-expansion-item--standard > .q-expansion-item__container > .q-item {
+  border-radius: 8px;
+}
+
+body .q-list--bordered,
+body .q-card--bordered {
+  border-color: var(--n-line);
+}
+
+body .q-card {
+  background: var(--n-surface);
+  color: var(--n-ink);
+}
+
+// Pastilles restantes (filtres, étiquettes libres) : neutres, filet fin.
+body .q-chip:not([class*='bg-']) {
+  background: var(--n-tile);
+  color: var(--n-ink);
+}
+
+// Liens texte dans les tableaux et fiches.
+.admin-link {
+  color: var(--n-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--n-line-2);
+  text-underline-offset: 3px;
+
+  &:hover {
+    color: var(--n-accent);
+    text-decoration-color: currentColor;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Filet de sécurité : couleurs Material restantes ramenées sur les jetons.
+// Les écrans refondus utilisent AppNotice, StatusTag et les classes
+// sémantiques ; ces règles évitent un bleu ou un vert criard là où un
+// composant garde une couleur Quasar (ex. q-btn color="positive").
+// ---------------------------------------------------------------------------
+
+body {
+  .text-green,
+  .text-green-7,
+  .text-green-8,
+  .text-green-9,
+  .text-green-10,
+  .text-positive {
+    color: var(--n-ok) !important;
+  }
+
+  .text-red,
+  .text-red-7,
+  .text-red-8,
+  .text-red-9,
+  .text-red-10,
+  .text-negative {
+    color: var(--n-danger) !important;
+  }
+
+  .text-orange,
+  .text-orange-8,
+  .text-orange-9,
+  .text-orange-10,
+  .text-amber-8,
+  .text-warning {
+    color: var(--n-warn) !important;
+  }
+
+  .text-blue,
+  .text-blue-8,
+  .text-blue-9,
+  .text-blue-10,
+  .text-indigo-9,
+  .text-teal-10 {
+    color: var(--n-ink) !important;
+  }
+
+  .bg-green-1,
+  .bg-green-2 {
+    background: color-mix(in srgb, var(--n-ok) 8%, var(--n-surface)) !important;
+  }
+
+  .bg-red-1 {
+    background: color-mix(in srgb, var(--n-danger) 8%, var(--n-surface)) !important;
+  }
+
+  .bg-orange-1,
+  .bg-orange-2,
+  .bg-amber-1 {
+    background: color-mix(in srgb, var(--n-warn) 8%, var(--n-surface)) !important;
+  }
+
+  .bg-blue-1,
+  .bg-indigo-1,
+  .bg-teal-2 {
+    background: var(--n-tile) !important;
+  }
+}
+
+// Dialogues de saisie plus larges que ceux de la vitrine (formulaires admin).
+// Quasar plafonne le contenu d'un dialogue à 560 px (.q-dialog__inner--minimized
+// > div) : le plafond est relevé pour ces deux largeurs.
+.app-dialog--wide {
+  width: 760px;
+}
+
+.app-dialog--xl {
+  width: 1080px;
+}
+
+.q-dialog__inner--minimized > .app-dialog--wide,
+.q-dialog__inner--minimized > .app-dialog--xl {
+  max-width: calc(100vw - 32px);
+}

@@ -154,3 +154,27 @@ def test_me_methods_resolves_to_methods_endpoint_not_payment_id(
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_get_my_payment_status_authorized_is_terminal(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    current_user: SimpleNamespace,
+    db_session: SimpleNamespace,
+) -> None:
+    """Deferred capture: an authorised card is final for the customer, so the
+    return page stops polling instead of timing out."""
+    status_id = uuid.uuid4()
+    monkeypatch.setattr(
+        crud_payment,
+        "read",
+        AsyncMock(return_value=_payment(user_id=current_user.id, status_id=status_id)),
+    )
+    db_session.get = AsyncMock(return_value=SimpleNamespace(name="Authorized"))
+
+    response = client.get(f"/api/v1/payments/me/{uuid.uuid4()}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status_name"] == "Authorized"
+    assert body["is_terminal"] is True

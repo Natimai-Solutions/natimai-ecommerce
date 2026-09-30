@@ -14,13 +14,25 @@ Flow (Authorization Code):
        → 302 redirect to FRONTEND_OAUTH_REDIRECT_URL?access_token=...&refresh_token=...
 
 No authlib dependency: uses httpx for HTTP calls and Redis for state.
+
+Account takeover rules (review of 30/09/2026, « nOAuth »): an e-mail returned by
+a provider is only trusted when the provider vouches for it — Google's
+``email_verified``, a personal Microsoft account, the shop's own Microsoft
+tenant, or the ``xms_edov`` claim. An unverified e-mail never creates an
+account nor links to an existing one. A superuser account is never linked nor
+signed in through OAuth: administrators use their password.
 """
 
 from __future__ import annotations
 
+import base64
+import binascii
+import json
 import logging
+import re
 import secrets
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 from urllib.parse import urlencode
@@ -39,7 +51,8 @@ from app.core.errors import AppError
 from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.crud.user import crud_user, mark_logged_in
 from app.features.user.models.oauth_link import UserOAuthLink
-from app.features.user.models.user import User, UserCreate
+from app.features.user.models.user import User
+from app.features.user.services.invitation import unusable_password_hash
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +74,33 @@ _MICROSOFT_TOKEN_URL = "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/t
 _MICROSOFT_USERINFO_URL = "https://graph.microsoft.com/v1.0/me"
 
 _SUPPORTED_PROVIDERS = {"google", "microsoft"}
+
+# Personal Microsoft accounts (outlook.com, hotmail…) all belong to this tenant;
+# Microsoft owns and verifies their addresses.
+_MSA_CONSUMER_TENANT_ID = "9188040d-6c67-4c5b-b112-36a304b66dad"
+# Multi-tenant endpoints: any Entra directory can sign in, and its admins can
+# put any address in `mail` — never trusted on their own.
+_MICROSOFT_MULTI_TENANT = {"common", "organizations", "consumers"}
+_GUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+
+
+@dataclass(frozen=True)
+class OAuthIdentity:
+    """What the provider says about the person signing in."""
+
+    provider_user_id: str
+    email: str
+    full_name: str
+    email_verified: bool
+
+
+class OAuthRefused(Exception):
+    """The identity cannot be used here; ``code`` goes to the front as
+    ``oauth_error``."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 def _check_provider(provider: str) -> None:
@@ -200,12 +240,55 @@ async def _fetch_user_info(provider: str, access_token: str) -> dict[str, Any]:
     return cast("dict[str, Any]", resp.json())
 
 
-def _extract_user_info(provider: str, info: dict[str, Any]) -> tuple[str, str, str]:
-    """Return (provider_user_id, email, full_name) from raw provider profile."""
+def _id_token_claims(token_data: dict[str, Any]) -> dict[str, Any]:
+    """Claims of the ``id_token`` returned by the token endpoint.
+
+    The token comes straight from the provider's token endpoint over TLS,
+    authenticated with our client secret, so its signature need not be checked
+    (OpenID Connect Core §3.1.3.7). An absent or malformed token gives ``{}``:
+    the caller then treats the e-mail as unverified.
+    """
+    raw = token_data.get("id_token")
+    if not isinstance(raw, str) or raw.count(".") != 2:
+        return {}
+    payload = raw.split(".")[1]
+    try:
+        decoded = base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))
+        claims = json.loads(decoded)
+    except (binascii.Error, ValueError):
+        return {}
+    return claims if isinstance(claims, dict) else {}
+
+
+def _is_true(value: Any) -> bool:
+    return value is True or str(value).lower() in {"true", "1"}
+
+
+def _microsoft_email_verified(claims: dict[str, Any]) -> bool:
+    """Whether Microsoft vouches for the address of this sign-in."""
+    if _is_true(claims.get("xms_edov")):
+        # Optional claim: the tenant proved it owns the address's domain.
+        return True
+    tenant_id = str(claims.get("tid") or "").lower()
+    if tenant_id == _MSA_CONSUMER_TENANT_ID:
+        return True
+    configured = (settings.MICROSOFT_TENANT_ID or "common").strip().lower()
+    if configured in _MICROSOFT_MULTI_TENANT:
+        return False
+    # Single-tenant app: only the shop's own directory can sign in, and the shop
+    # controls its addresses. A GUID is also checked against the token.
+    return not _GUID.match(configured) or configured == tenant_id
+
+
+def _extract_user_info(
+    provider: str, info: dict[str, Any], id_claims: dict[str, Any]
+) -> OAuthIdentity:
+    """Identity from the raw provider profile and the id_token claims."""
     if provider == "google":
         provider_uid = info.get("sub", "")
         email = info.get("email", "")
         full_name = info.get("name", "")
+        verified = _is_true(info.get("email_verified"))
     else:
         # Microsoft Graph
         provider_uid = info.get("id", "")
@@ -213,7 +296,13 @@ def _extract_user_info(provider: str, info: dict[str, Any]) -> tuple[str, str, s
             info.get("mail") or info.get("userPrincipalName") or info.get("email") or ""
         )
         full_name = info.get("displayName", "")
-    return str(provider_uid), str(email).lower().strip(), str(full_name)
+        verified = _microsoft_email_verified(id_claims)
+    return OAuthIdentity(
+        provider_user_id=str(provider_uid),
+        email=str(email).lower().strip(),
+        full_name=str(full_name),
+        email_verified=verified,
+    )
 
 
 def _build_token_bundle(user_id: uuid.UUID) -> tuple[str, str, str, datetime]:
@@ -249,59 +338,71 @@ def _frontend_error_redirect(error: str) -> RedirectResponse:
 
 
 async def _find_or_create_user(
-    session: AsyncSession,
-    *,
-    provider: str,
-    provider_uid: str,
-    email: str,
-    full_name: str,
+    session: AsyncSession, *, provider: str, identity: OAuthIdentity
 ) -> User:
-    """Find or create a local User for the given OAuth identity.
+    """Find or create the local User for an OAuth identity.
 
-    Priority:
-    1. Existing UserOAuthLink for (provider, provider_uid) → return linked user
-    2. Existing User with matching email → link OAuth account + return user
-    3. No user → create user (random password) + link
+    1. An existing link (provider, provider uid) → its user, active or not (the
+       caller blocks inactive accounts); never a superuser.
+    2. An account with the same e-mail → linked, only if the provider verified
+       the address and the account is not a superuser.
+    3. No account → created, only if the provider verified the address.
+
+    Raises ``OAuthRefused`` otherwise.
     """
-    # 1. Lookup by OAuth link
     link_result = await session.exec(
         select(UserOAuthLink).where(
             UserOAuthLink.provider == provider,
-            UserOAuthLink.provider_user_id == provider_uid,
+            UserOAuthLink.provider_user_id == identity.provider_user_id,
         )
     )
     existing_link = link_result.first()
     if existing_link is not None:
-        user = await session.get(User, existing_link.user_id)
-        if user and user.is_active:
-            return user
+        linked = await session.get(User, existing_link.user_id)
+        if linked is not None:
+            if linked.is_superuser:
+                raise OAuthRefused(
+                    "superuser_oauth_disabled",
+                    "OAuth sign-in is disabled for administrator accounts",
+                )
+            return linked
 
-    # 2. Lookup by email
-    user = await crud_user.get_by_email(session, email=email)
+    if not identity.email_verified:
+        raise OAuthRefused(
+            "email_not_verified",
+            f"{provider} did not verify {identity.email!r}",
+        )
 
-    # 3. Create user if not found
+    user = await crud_user.get_by_email(session, email=identity.email)
+    if user is not None and user.is_superuser:
+        # Never hand an administrator account to whoever controls a provider
+        # account with the same address.
+        raise OAuthRefused(
+            "account_exists",
+            "an administrator account uses this e-mail; sign in with the password",
+        )
+
     if user is None:
-        random_password = secrets.token_urlsafe(32)
-        user_create = UserCreate(
-            email=email,
-            password=random_password,
-            full_name=full_name or None,
+        # Built directly, like the signup: the CRUD's model_dump drops the
+        # excluded hashed_password of UserCreate, and the column is NOT NULL.
+        # The password is one nobody knows; « mot de passe oublié » sets one.
+        user = User(
+            email=identity.email,
+            full_name=identity.full_name or None,
             is_active=True,
             is_verified=True,
+            hashed_password=unusable_password_hash(),
         )
-        user = await crud_user.create_draft(
-            session=session, data=user_create, user=None
-        )
+        session.add(user)
         await session.flush()
 
-    # Create/update OAuth link
     if existing_link is None:
         session.add(
             UserOAuthLink(
                 user_id=user.id,
                 provider=provider,
-                provider_user_id=provider_uid,
-                email_at_link=email,
+                provider_user_id=identity.provider_user_id,
+                email_at_link=identity.email,
             )
         )
     return user
@@ -371,25 +472,30 @@ async def oauth_callback(
         )
         access_token_provider = token_data.get("access_token", "")
         user_info = await _fetch_user_info(provider, access_token_provider)
-        provider_uid, email, full_name = _extract_user_info(provider, user_info)
+        identity = _extract_user_info(provider, user_info, _id_token_claims(token_data))
     except AppError as exc:
         logger.warning("OAuth exchange/userinfo failed: %s", exc)
         return _frontend_error_redirect("provider_error")
 
-    if not email or not provider_uid:
+    email = identity.email
+    if not email or not identity.provider_user_id:
         logger.warning(
             "OAuth provider=%s returned empty email or uid — aborting", provider
         )
         return _frontend_error_redirect("missing_user_info")
 
     try:
-        user = await _find_or_create_user(
-            session,
-            provider=provider,
-            provider_uid=provider_uid,
-            email=email,
-            full_name=full_name,
+        user = await _find_or_create_user(session, provider=provider, identity=identity)
+    except OAuthRefused as refused:
+        logger.warning(
+            "OAuth sign-in refused: provider=%s email=%s reason=%s (%s)",
+            provider,
+            email,
+            refused.code,
+            refused,
         )
+        await session.rollback()
+        return _frontend_error_redirect(refused.code)
     except Exception:
         logger.exception(
             "Error creating/linking OAuth user: provider=%s email=%s", provider, email
@@ -398,7 +504,10 @@ async def oauth_callback(
         return _frontend_error_redirect("server_error")
 
     # Keep parity with classic password login: inactive users must not be able
-    # to authenticate through OAuth.
+    # to authenticate through OAuth. Superusers never sign in this way either.
+    if getattr(user, "is_superuser", False):
+        await session.rollback()
+        return _frontend_error_redirect("superuser_oauth_disabled")
     if not user.is_active:
         logger.info(
             "OAuth login blocked for inactive user: provider=%s user=%s email=%s",

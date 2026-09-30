@@ -3,10 +3,13 @@
     <q-card flat class="auth-card">
       <q-card-section>
         <h1 class="auth-title">Connexion</h1>
-        <div class="text-body2 text-grey-7">Connectez-vous pour accéder à votre compte.</div>
+        <div class="auth-lead">Connectez-vous pour accéder à votre compte.</div>
       </q-card-section>
 
       <q-card-section>
+        <AppNotice v-if="passwordChanged && !authStore.loginError" tone="success" class="q-mb-md">
+          Mot de passe modifié. Reconnectez-vous avec le nouveau.
+        </AppNotice>
         <AppNotice v-if="authStore.loginError" tone="error" class="q-mb-md">
           {{ authStore.loginError }}
         </AppNotice>
@@ -36,7 +39,7 @@
           >
             <template #append>
               <q-icon
-                :name="showPassword ? 'visibility_off' : 'visibility'"
+                :name="showPassword ? 'ph:eye-slash' : 'ph:eye'"
                 class="cursor-pointer"
                 @click="showPassword = !showPassword"
               />
@@ -59,7 +62,7 @@
             dense
             no-caps
             size="sm"
-            color="grey-7"
+            color="primary"
             label="Mot de passe oublié ?"
             :to="{ name: 'forgot-password' }"
           />
@@ -69,12 +72,12 @@
       <q-card-section v-if="oauthEnabled" class="q-pt-none">
         <div class="row items-center q-my-sm">
           <q-separator class="col" />
-          <span class="q-mx-sm text-caption text-grey-6">ou</span>
+          <span class="q-mx-sm auth-or">ou</span>
           <q-separator class="col" />
         </div>
         <q-btn
           outline
-          color="grey-8"
+          color="primary"
           icon="img:https://www.google.com/favicon.ico"
           label="Continuer avec Google"
           class="full-width q-mb-sm"
@@ -82,8 +85,8 @@
         />
         <q-btn
           outline
-          color="grey-8"
-          icon="window"
+          color="primary"
+          icon="ph:windows-logo"
           label="Continuer avec Microsoft"
           class="full-width"
           @click="oauthLogin('microsoft')"
@@ -91,7 +94,7 @@
       </q-card-section>
 
       <q-card-section class="text-center q-pt-none">
-        <span class="text-body2 text-grey-7">Pas encore de compte ?</span>
+        <span class="auth-lead">Pas encore de compte ?</span>
         <q-btn
           flat
           dense
@@ -106,8 +109,8 @@
 </template>
 
 <script setup lang="ts">
-import AppNotice from '@/components/AppNotice.vue';
-import { ref } from 'vue';
+import AppNotice from '@app/ui/AppNotice.vue';
+import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 
@@ -118,6 +121,8 @@ const router = useRouter();
 const email = ref('');
 const password = ref('');
 const showPassword = ref(false);
+// Arrivée depuis « Profil et sécurité » : toutes les sessions ont été fermées.
+const passwordChanged = computed(() => route.query.motif === 'mot-de-passe-change');
 
 // OAuth buttons are gated behind an explicit flag: they only work once the
 // backend has GOOGLE/MICROSOFT client credentials AND

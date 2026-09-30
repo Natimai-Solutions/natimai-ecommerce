@@ -6,7 +6,7 @@ import '@fontsource-variable/geist';
 import '@fontsource-variable/geist-mono';
 import '@phosphor-icons/web/light';
 
-import { phosphorIconMapFn } from '@/icons/phosphor';
+import { createPhosphorIconMapFn, warnMissingIcon } from '@app/ui/icons';
 import {
   THEME_COOKIE,
   THEME_HINT_COOKIE,
@@ -26,7 +26,7 @@ import {
  */
 export default defineBoot(({ app, ssrContext }) => {
   const $q = app.config.globalProperties.$q;
-  $q.iconMapFn = phosphorIconMapFn;
+  $q.iconMapFn = createPhosphorIconMapFn(import.meta.env.QUASAR_DEV ? warnMissingIcon : undefined);
 
   const cookies =
     import.meta.env.QUASAR_SERVER && ssrContext ? Cookies.parseSSR(ssrContext) : Cookies;

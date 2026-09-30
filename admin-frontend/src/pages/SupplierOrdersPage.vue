@@ -1,11 +1,22 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="text-h6 col">Commandes fournisseurs</div>
-      <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader
+      title="Commandes fournisseurs"
+      hint="Bons de commande transmis aux fournisseurs pour les commandes clients."
+    >
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+      </template>
+    </PageHeader>
 
-    <div class="row q-col-gutter-md q-mb-md items-end">
+    <div class="admin-toolbar">
       <q-select
         v-model="statusFilter"
         :options="statusOptions"
@@ -15,7 +26,6 @@
         emit-value
         map-options
         clearable
-        class="col-12 col-sm-3"
         @update:model-value="load"
       />
       <q-input
@@ -24,15 +34,15 @@
         outlined
         dense
         clearable
-        class="col-12 col-sm-4"
+        style="min-width: 260px"
         @update:model-value="load"
       />
     </div>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
-    <q-banner v-if="notice" class="bg-blue-1 text-blue-10 q-mb-md" dense rounded>{{
-      notice
-    }}</q-banner>
+    <div v-if="error || notice" class="admin-notices">
+      <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
+      <AppNotice v-if="notice" tone="info" dense>{{ notice }}</AppNotice>
+    </div>
 
     <q-table
       :rows="rows"
@@ -46,27 +56,32 @@
     >
       <template #body-cell-status="props">
         <q-td :props="props">
-          <q-chip
-            dense
-            :color="statusColor(props.row.status)"
-            text-color="white"
+          <StatusTag
             :label="props.row.status"
+            :tone="toneOf(statusColor(props.row.status))"
+            :icon="toneIcon(toneOf(statusColor(props.row.status)))"
           />
         </q-td>
       </template>
       <template #body-cell-customer_order_number="props">
         <q-td :props="props">
-          <span :title="props.row.customer_order_number">{{
+          <span class="font-mono" :title="props.row.customer_order_number">{{
             props.row.customer_order_number.slice(0, 8)
           }}</span>
         </q-td>
+      </template>
+      <template #body-cell-supplier_order_number="props">
+        <q-td :props="props" class="font-mono">{{ props.value }}</q-td>
+      </template>
+      <template #body-cell-attempts="props">
+        <q-td :props="props" class="font-mono">{{ props.row.attempts }}</q-td>
       </template>
       <template #body-cell-error_message="props">
         <q-td :props="props">
           <span v-if="props.row.error_message" class="text-negative">{{
             props.row.error_message
           }}</span>
-          <span v-else class="text-grey-5">—</span>
+          <span v-else class="text-subtle">—</span>
         </q-td>
       </template>
       <template #body-cell-actions="props">
@@ -74,15 +89,17 @@
           <q-btn
             flat
             dense
-            icon="replay"
-            color="primary"
-            label="Réessayer"
             no-caps
+            icon="ph:arrow-counter-clockwise"
+            label="Réessayer"
             :loading="retryingId === props.row.id"
             :disable="props.row.status === 'submitted'"
             @click="onRetry(props.row)"
           />
         </q-td>
+      </template>
+      <template #no-data>
+        <div class="full-width text-center text-subtle q-pa-md">Aucune commande fournisseur.</div>
       </template>
     </q-table>
   </q-page>
@@ -91,6 +108,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import { toneIcon, toneOf } from '@app/ui/statusTone';
+import PageHeader from '@/components/PageHeader.vue';
 import {
   listSupplierOrders,
   retrySupplierOrder,

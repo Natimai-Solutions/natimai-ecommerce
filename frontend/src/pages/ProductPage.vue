@@ -205,6 +205,20 @@
               :loading="cartStore.mutating"
               @click="onAddToCart"
             />
+            <q-btn
+              outline
+              color="primary"
+              icon="ph:heart"
+              class="product__wish"
+              :class="{ 'product__wish--on': inWishlist }"
+              :aria-pressed="inWishlist"
+              :aria-label="inWishlist ? 'Retirer des favoris' : 'Ajouter aux favoris'"
+              :loading="wishSaving"
+              data-testid="product-wishlist"
+              @click="toggleWishlist"
+            >
+              <q-tooltip>{{ inWishlist ? 'Dans vos favoris' : 'Ajouter aux favoris' }}</q-tooltip>
+            </q-btn>
           </div>
 
           <AppNotice v-if="cartError" tone="warning" dense class="q-mt-md">
@@ -349,7 +363,7 @@
   </q-page>
 </template>
 <script setup lang="ts">
-import AppNotice from '@/components/AppNotice.vue';
+import AppNotice from '@app/ui/AppNotice.vue';
 import DOMPurify from 'isomorphic-dompurify';
 import { useMeta } from 'quasar';
 import { computed, onBeforeUnmount, onMounted, onServerPrefetch, ref, watch } from 'vue';
@@ -371,6 +385,7 @@ import {
 import ProductImage from '@/components/ProductImage.vue';
 import ProductOffers from '@/components/ProductOffers.vue';
 import { useAuthStore } from '@/stores/auth';
+import { addToMyWishlist, getMyWishlist, removeFromMyWishlist } from '@/api/wishlist';
 import { useCartStore } from '@/stores/cart';
 import { useProductsStore } from '@/stores/products';
 import { useCurrencyStore } from '@/stores/currency';
@@ -447,6 +462,38 @@ const availability = computed(() =>
 
 // « Me prévenir » : an e-mail when the product is orderable again.
 const authStore = useAuthStore();
+
+// Favoris : la liste du compte (Mon compte → Favoris et alertes).
+const inWishlist = ref(false);
+const wishSaving = ref(false);
+
+async function refreshWishlistState() {
+  if (!authStore.isAuthenticated || !product.value) return;
+  try {
+    const wishlist = await getMyWishlist();
+    inWishlist.value = wishlist.items.some((item) => item.product_id === product.value?.id);
+  } catch {
+    inWishlist.value = false;
+  }
+}
+
+async function toggleWishlist() {
+  if (!product.value) return;
+  if (!authStore.isAuthenticated) {
+    await router.push({ name: 'login', query: { redirect: route.fullPath } });
+    return;
+  }
+  wishSaving.value = true;
+  try {
+    if (inWishlist.value) await removeFromMyWishlist(product.value.id);
+    else await addToMyWishlist(product.value.id);
+    inWishlist.value = !inWishlist.value;
+  } catch (err) {
+    cartError.value = extractApiMessage(err) ?? "Les favoris n'ont pas pu être mis à jour.";
+  } finally {
+    wishSaving.value = false;
+  }
+}
 const alertDialog = ref(false);
 const alertEmail = ref('');
 const alertSaving = ref(false);
@@ -800,13 +847,15 @@ onMounted(async () => {
   // Client only: the SSR pass must not count a view, and a bot-heavy server
   // render would skew the « plus consultés » ranking.
   if (import.meta.env.QUASAR_CLIENT && product.value) void trackProductView(product.value.id);
+  void refreshWishlistState();
 });
 
 watch(
   () => route.params.id,
-  (current, previous) => {
+  async (current, previous) => {
     if (current && current !== previous) {
-      void loadProduct();
+      await loadProduct();
+      void refreshWishlistState();
     }
   },
 );
@@ -1155,6 +1204,16 @@ watch(
   flex-grow: 1;
   min-height: 48px;
   font-size: 15px;
+}
+
+.product__wish {
+  flex-shrink: 0;
+  width: 48px;
+  min-height: 48px;
+
+  &--on {
+    color: var(--n-accent) !important;
+  }
 }
 
 .product__added {

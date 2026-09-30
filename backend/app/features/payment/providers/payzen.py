@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any
 
@@ -9,13 +10,16 @@ from app.features.payment.providers.base import (
     CaptureResult,
     InitiationRequest,
     InitiationResult,
+    RefundResult,
     WebhookResult,
 )
 from app.features.payment.utils.payzen import (
     capture_payzen_transaction,
     create_payzen_form_token,
+    refund_payzen_transaction,
     validate_ipn_signature,
 )
+from app.utils.money import decimal_to_minor_units
 
 
 class PayzenProvider(ApiPaymentProvider):
@@ -94,4 +98,43 @@ class PayzenProvider(ApiPaymentProvider):
             status="completed",
             provider_reference=payment_reference,
             message="Capture PayZen effectuée.",
+        )
+
+    def refund_reference(
+        self,
+        *,
+        provider_data: Mapping[str, Any] | None,
+        provider_reference: str | None,
+        fallback: str,
+    ) -> str:
+        """The PayZen transaction uuid recorded from the IPN."""
+        return self.capture_reference(provider_data) or provider_reference or fallback
+
+    async def refund(
+        self,
+        *,
+        payment_reference: str,
+        amount: Decimal,
+        currency: str,
+        reason: str | None = None,
+    ) -> RefundResult:
+        """Card refund through PayZen when ``PAYZEN_API_REFUND_ENABLED`` is on;
+        otherwise recorded as pending, to finalise in the PayZen back office."""
+        if not settings.PAYZEN_API_REFUND_ENABLED:
+            return await super().refund(
+                payment_reference=payment_reference,
+                amount=amount,
+                currency=currency,
+                reason=reason,
+            )
+        answer = await refund_payzen_transaction(
+            payment_reference,
+            amount_minor=decimal_to_minor_units(amount, currency),
+            currency=currency,
+        )
+        return RefundResult(
+            status="completed",
+            provider_reference=answer.get("uuid") or payment_reference,
+            message="Remboursement PayZen effectué.",
+            metadata={"detailed_status": answer.get("detailedStatus")},
         )
