@@ -289,7 +289,14 @@
           >
             <q-tooltip>Journal des prix</q-tooltip>
           </q-btn>
-          <q-btn flat dense round icon="ph:pencil-simple" @click="openEdit(props.row)">
+          <q-btn
+            flat
+            dense
+            round
+            icon="ph:pencil-simple"
+            aria-label="Modifier"
+            @click="openEdit(props.row)"
+          >
             <q-tooltip>Modifier</q-tooltip>
           </q-btn>
         </q-td>

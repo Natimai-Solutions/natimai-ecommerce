@@ -268,7 +268,11 @@
                   class="col"
                 />
               </div>
-              <MarginPreviewPanel v-if="modelValue" :input="marginInput" />
+              <MarginPreviewPanel
+                v-if="modelValue"
+                v-model:group-prices="groupPrices"
+                :input="marginInput"
+              />
             </div>
 
             <div>
@@ -419,7 +423,7 @@ import { listSuppliers, type Supplier } from '@/api/suppliers';
 import { adjustInventory } from '@/api/inventory';
 import MarginPreviewPanel from '@/components/MarginPreviewPanel.vue';
 import MediaPicker from '@/components/MediaPicker.vue';
-import type { MarginPreviewRequest } from '@/api/margin';
+import { getGroupPrices, setGroupPrices, type MarginPreviewRequest } from '@/api/margin';
 import ProductVariantsPanel from '@/components/ProductVariantsPanel.vue';
 import { useProductsStore, type ProductPublic } from '@/stores/products';
 import { useShopConfigStore } from '@/stores/shopConfig';
@@ -605,8 +609,43 @@ function onSupplierChange(code: string | null) {
 const categoryOptions = ref<{ label: string; value: string }[]>([]);
 const taxRateOptions = ref<{ label: string; value: string }[]>([]);
 
+// Prix saisis par groupe de clients (group id → prix TTC) ; null tant que ceux
+// de l'article ne sont pas chargés (l'aperçu prend alors ceux enregistrés).
+const groupPrices = ref<Record<string, string> | null>(null);
+let storedGroupPrices: Record<string, string> = {};
+
+async function loadGroupPrices(product: ProductPublic | null) {
+  groupPrices.value = null;
+  storedGroupPrices = {};
+  if (!product) {
+    groupPrices.value = {};
+    return;
+  }
+  try {
+    storedGroupPrices = await getGroupPrices(product.id);
+  } catch {
+    storedGroupPrices = {};
+  }
+  groupPrices.value = { ...storedGroupPrices };
+}
+
+/** Enregistre les prix par groupe modifiés (après l'article lui-même). */
+async function saveGroupPrices(productId: string) {
+  if (groupPrices.value === null) return;
+  const current = groupPrices.value;
+  const ids = new Set([...Object.keys(storedGroupPrices), ...Object.keys(current)]);
+  const changes = [...ids]
+    .filter((id) => (current[id] ?? '') !== (storedGroupPrices[id] ?? ''))
+    .map((id) => ({
+      price_group_id: id,
+      price: current[id] ? String(Number(current[id])) : null,
+    }));
+  if (changes.length) await setGroupPrices(productId, changes);
+}
+
 /** Valeurs de prix du formulaire, envoyées à l'aperçu de marge. */
 const marginInput = computed<MarginPreviewRequest>(() => ({
+  group_prices: groupPrices.value,
   product_id: isEdit.value ? (props.product?.id ?? null) : null,
   pricing_mode: form.pricing_mode,
   base_price: decimalOrNull(form.base_price),
@@ -777,6 +816,7 @@ async function onSubmit() {
       productId = (await store.createProduct(payload)).id;
     }
     await saveLocalStock(productId);
+    await saveGroupPrices(productId);
     emit('saved');
     emit('update:modelValue', false);
   } catch (err: unknown) {
@@ -843,6 +883,7 @@ watch(
       error.value = null;
       lockedFields.value = [...(props.product?.overridden_fields ?? [])];
       loadFromProduct(props.product);
+      void loadGroupPrices(props.product);
     }
   },
 );

@@ -204,6 +204,7 @@ const allNav: NavSection[] = [
   {
     label: 'Tarifs et paiement',
     links: [
+      { label: 'Groupes tarifaires', icon: 'ph:users-three', to: '/price-groups' },
       { label: 'Taux de TVA', icon: 'ph:percent', to: '/tax-rates' },
       { label: 'Douane par catégorie', icon: 'ph:gavel', to: '/customs-rates' },
       { label: 'Taux de change', icon: 'ph:arrows-left-right', to: '/currency-rates' },

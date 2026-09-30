@@ -77,6 +77,8 @@ export interface PriceGroup {
   code: string;
   label: string;
   margin_rate_pct: string;
+  /** Remise du groupe en % du prix de référence (0 pour le groupe par défaut). */
+  discount_pct: string;
   default: boolean;
   requires_validation: boolean;
   /** Deposit policy: share paid at checkout (null = not offered), fee, imposed. */
@@ -95,7 +97,7 @@ export interface DepositPolicyWrite {
 
 export async function updatePriceGroup(
   groupId: string,
-  payload: Partial<DepositPolicyWrite>,
+  payload: Partial<DepositPolicyWrite> & { discount_pct?: string; margin_rate_pct?: string },
 ): Promise<PriceGroup> {
   const { data } = await api.patch<PriceGroup>(`/admin/price-groups/${groupId}`, payload);
   return data;

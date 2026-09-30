@@ -2198,6 +2198,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/products/{product_id}/group-prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Group Prices
+         * @description Prices typed per customer group on the article.
+         */
+        get: operations["admin-product-get_group_prices"];
+        /**
+         * Set Group Prices
+         * @description Set (or clear, with a null price) the article's price per group.
+         */
+        put: operations["admin-product-set_group_prices"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/products/publish-drafts": {
         parameters: {
             query?: never;
@@ -2365,7 +2389,8 @@ export interface paths {
         head?: never;
         /**
          * Update Price Group
-         * @description Partial update (deposit policy: share, fee, imposed or offered).
+         * @description Partial update: discount on the reference price, fallback margin (default
+         *     group), deposit policy (share, fee, imposed or offered).
          */
         patch: operations["admin-price-groups-update_price_group"];
         trace?: never;
@@ -11225,6 +11250,56 @@ export interface components {
              */
             priority: number;
         };
+        /** GroupPriceInput */
+        GroupPriceInput: {
+            /**
+             * Price Group Id
+             * Format: uuid
+             */
+            price_group_id: string;
+            /** Price */
+            price?: number | string | null;
+        };
+        /**
+         * GroupPriceLine
+         * @description What one customer group pays for the article, and the margin left.
+         */
+        GroupPriceLine: {
+            /**
+             * Price Group Id
+             * Format: uuid
+             */
+            price_group_id: string;
+            /** Label */
+            label: string;
+            /** Is Default */
+            is_default: boolean;
+            /** Discount Pct */
+            discount_pct: string;
+            /** Typed Price */
+            typed_price: string | null;
+            /** Price */
+            price: string | null;
+            /** Margin Amount */
+            margin_amount: string | null;
+            /** Margin Pct */
+            margin_pct: string | null;
+        };
+        /** GroupPriceStored */
+        GroupPriceStored: {
+            /**
+             * Price Group Id
+             * Format: uuid
+             */
+            price_group_id: string;
+            /** Price */
+            price: string;
+        };
+        /** GroupPricesUpdate */
+        GroupPricesUpdate: {
+            /** Prices */
+            prices: components["schemas"]["GroupPriceInput"][];
+        };
         /**
          * GroupPublic
          * @description Public schema for group exposure via API
@@ -12548,6 +12623,8 @@ export interface components {
             currency: string;
             /** Note */
             note?: string | null;
+            /** Groups */
+            groups?: components["schemas"]["GroupPriceLine"][];
         };
         /**
          * MarginPreviewRequest
@@ -12571,6 +12648,10 @@ export interface components {
             tax_rate_id?: string | null;
             /** Category Id */
             category_id?: string | null;
+            /** Group Prices */
+            group_prices?: {
+                [key: string]: number | string;
+            } | null;
         };
         /**
          * MediaAssetPublic
@@ -15758,6 +15839,12 @@ export interface components {
              */
             margin_rate_pct: string;
             /**
+             * Discount Pct
+             * @description Remise du groupe en % du prix de référence (tous les articles, prix calculés comme prix fixés) ; un prix saisi pour le groupe sur l'article passe avant
+             * @default 0.00
+             */
+            discount_pct: string;
+            /**
              * Default
              * @description Whether this group is the default fallback
              * @default false
@@ -15811,6 +15898,8 @@ export interface components {
             label?: string | null;
             /** Margin Rate Pct */
             margin_rate_pct?: number | string | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
             /** Default */
             default?: boolean | null;
             /** Requires Validation */
@@ -24843,6 +24932,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MarginPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-get_group_prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupPriceStored"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-set_group_prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupPricesUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupPriceStored"][];
                 };
             };
             /** @description Validation Error */

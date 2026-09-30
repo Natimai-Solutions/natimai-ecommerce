@@ -40,6 +40,70 @@
       <p v-if="preview.note" class="margin-panel__note">
         <q-icon name="ph:info" /> {{ preview.note }}
       </p>
+
+      <div v-if="preview.groups.length > 1" class="margin-panel__groups" data-testid="group-prices">
+        <h4 class="margin-panel__title">Prix par groupe de clients</h4>
+        <table class="margin-panel__table">
+          <thead>
+            <tr>
+              <th>Groupe</th>
+              <th>Prix TTC saisi</th>
+              <th>Prix payé</th>
+              <th>Marge HT</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="line in preview.groups"
+              :key="line.price_group_id"
+              :data-testid="`group-price-row-${line.label}`"
+            >
+              <td>
+                {{ line.label }}
+                <div class="text-caption text-subtle">
+                  <template v-if="line.is_default">prix de référence</template>
+                  <template v-else-if="Number(line.discount_pct) > 0">
+                    remise {{ pct(line.discount_pct) }}
+                  </template>
+                  <template v-else>sans remise</template>
+                </div>
+              </td>
+              <td>
+                <q-input
+                  v-if="!line.is_default"
+                  :model-value="groupPrices?.[line.price_group_id] ?? ''"
+                  type="number"
+                  min="0"
+                  step="1"
+                  dense
+                  outlined
+                  clearable
+                  :placeholder="line.typed_price === null ? money(line.price) : ''"
+                  class="margin-panel__input font-mono"
+                  :data-testid="`group-price-input-${line.label}`"
+                  @update:model-value="(v) => setGroupPrice(line.price_group_id, v)"
+                />
+                <span v-else class="text-subtle">—</span>
+              </td>
+              <td class="font-mono" :data-testid="`group-price-paid-${line.label}`">
+                {{ money(line.price) }}
+              </td>
+              <td
+                class="font-mono"
+                :class="{ 'text-negative': Number(line.margin_amount ?? 0) < 0 }"
+              >
+                {{ line.margin_amount === null ? '—' : money(line.margin_amount) }}
+                <span v-if="line.margin_pct !== null" class="text-caption text-subtle">
+                  {{ pct(line.margin_pct) }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="margin-panel__note">
+          Vide = prix de référence moins la remise du groupe (Groupes tarifaires).
+        </p>
+      </div>
     </template>
   </section>
 </template>
@@ -55,7 +119,20 @@ import { previewMargin, type MarginPreview, type MarginPreviewRequest } from '@/
  * Prix HT, coût de revient et marge des valeurs du formulaire article,
  * recalculés par le serveur (même formule que le catalogue) à chaque saisie.
  */
-const props = defineProps<{ input: MarginPreviewRequest }>();
+const props = defineProps<{
+  input: MarginPreviewRequest;
+  /** Prix saisis par groupe (group id → prix TTC) ; null = pas encore chargés. */
+  groupPrices?: Record<string, string> | null;
+}>();
+const emit = defineEmits<{ 'update:groupPrices': [value: Record<string, string>] }>();
+
+function setGroupPrice(groupId: string, value: string | number | null) {
+  const next = { ...(props.groupPrices ?? {}) };
+  const text = value === null ? '' : String(value).trim();
+  if (text === '') delete next[groupId];
+  else next[groupId] = text;
+  emit('update:groupPrices', next);
+}
 
 const preview = ref<MarginPreview | null>(null);
 const loading = ref(false);
@@ -166,6 +243,35 @@ onBeforeUnmount(() => {
 .margin-panel__rates {
   font-size: 13px;
   color: var(--n-ink-2);
+}
+
+.margin-panel__groups {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--n-line);
+}
+
+.margin-panel__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.margin-panel__table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--n-ink-2);
+  padding: 4px 6px;
+}
+
+.margin-panel__table td {
+  padding: 4px 6px;
+  vertical-align: middle;
+}
+
+.margin-panel__input {
+  max-width: 130px;
 }
 
 .margin-panel__note {

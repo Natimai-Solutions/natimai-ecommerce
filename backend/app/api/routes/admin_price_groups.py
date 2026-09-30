@@ -50,7 +50,8 @@ async def update_price_group(
     session: SessionDep,
     _current_user: CurrentSuperUser,
 ) -> PriceGroupPublic:
-    """Partial update (deposit policy: share, fee, imposed or offered)."""
+    """Partial update: discount on the reference price, fallback margin (default
+    group), deposit policy (share, fee, imposed or offered)."""
     group = await session.get(PriceGroup, group_id)
     if group is None or not group.is_active:
         raise AppError(
@@ -59,7 +60,19 @@ async def update_price_group(
             message="Groupe tarifaire introuvable",
             details={"group_id": str(group_id)},
         )
-    for key, value in body.model_dump(exclude_unset=True).items():
+    changes = body.model_dump(exclude_unset=True)
+    if group.default and (changes.get("discount_pct") or 0) > 0:
+        # The default group's prices *are* the reference prices.
+        raise AppError(
+            code="price_group.default_discount",
+            status_code=400,
+            message=(
+                "Le groupe par défaut donne les prix de référence : il ne peut pas "
+                "avoir de remise"
+            ),
+            details={"group_id": str(group_id)},
+        )
+    for key, value in changes.items():
         setattr(group, key, value)
     session.add(group)
     await session.commit()
