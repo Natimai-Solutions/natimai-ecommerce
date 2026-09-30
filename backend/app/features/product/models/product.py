@@ -43,6 +43,13 @@ class PricingMode(str, Enum):
     FIXED = "fixed"
 
 
+class StockLocation(str, Enum):
+    """Where the sellable stock of an article is (storefront filter)."""
+
+    LOCAL = "local"
+    SUPPLIER = "supplier"
+
+
 class AvailabilityMode(str, Enum):
     """Whether a product can be ordered beyond the stock known at checkout.
 
@@ -618,6 +625,11 @@ class ProductPublic(ProductBase, BasePublic):
     available_quantity: Decimal | None = None
     #: Active variants of a parent product (0 for a plain product).
     variants_count: int = 0
+    #: Sellable stock by location (variants included for a parent): held in
+    #: our warehouse (« chez nous ») / at the supplier (longer delivery).
+    #: ``None`` = not computed by this endpoint.
+    stock_local: Decimal | None = None
+    stock_supplier: Decimal | None = None
     #: A promotion lowers the customer's price: their usual price (struck
     #: through), the promotion's name and end. None without promotion.
     regular_price: Decimal | None = None
@@ -648,6 +660,13 @@ class ProductSearchRequest(SQLModel):
     price_max: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     specs: dict[str, Any] = Field(default_factory=dict)
     in_stock: bool | None = None
+    stock: StockLocation | None = Field(
+        default=None,
+        description=(
+            "local = in stock in our warehouse ; supplier = available at the "
+            "supplier (longer delivery)"
+        ),
+    )
     condition: ProductCondition | None = Field(
         default=None, description="Only new or only refurbished items"
     )
@@ -668,6 +687,10 @@ class ProductSearchFacets(SQLModel):
     manufacturers: dict[str, int] = Field(default_factory=dict)
     categories: dict[str, int] = Field(default_factory=dict)
     price_ranges: dict[str, int] = Field(default_factory=dict)
+    #: Results in stock ``local`` (our warehouse) / ``supplier``.
+    stock: dict[str, int] = Field(default_factory=dict)
+    #: Results ``new`` / ``refurbished``.
+    conditions: dict[str, int] = Field(default_factory=dict)
 
 
 class ProductSearchResponse(SQLModel):

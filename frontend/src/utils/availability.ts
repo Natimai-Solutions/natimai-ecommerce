@@ -27,7 +27,18 @@ export interface AvailabilityInput {
   available_quantity?: string | number | null;
   /** stock | on_demand | continuous | lot — absent on older payloads = stock. */
   availability_mode?: string | null;
+  /** Sellable stock held in our warehouse (« chez nous »), variants included. */
+  stock_local?: string | number | null;
+  /** Sellable stock at the supplier (longer delivery), variants included. */
+  stock_supplier?: string | number | null;
 }
+
+/**
+ * Where the units come from: our warehouse (`local`), the supplier only
+ * (`supplier`, longer delivery), bought to order (`order`), none (`none`).
+ * `unknown` = in stock but the response does not say where.
+ */
+export type StockSource = 'local' | 'supplier' | 'order' | 'none' | 'unknown';
 
 export interface Availability {
   /** Add-to-cart allowed. */
@@ -37,15 +48,38 @@ export interface Availability {
   /** Stock units to display (0 when none). */
   quantity: number;
   label: string;
+  source: StockSource;
+  /** Units in our warehouse / at the supplier (0 when unknown). */
+  localQuantity: number;
+  supplierQuantity: number;
+  /** Second line: « + 4 chez le fournisseur », « Délai plus long »… or null. */
+  note: string | null;
+}
+
+function toQuantity(raw: string | number | null | undefined): number | null {
+  if (raw == null) return null;
+  const parsed = typeof raw === 'number' ? raw : parseFloat(raw);
+  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
 }
 
 export function productAvailability(product: AvailabilityInput): Availability {
   const quantity = sellableQuantity(product);
   const mode = product.availability_mode ?? 'stock';
   const inStock = quantity > 0;
+  const local = toQuantity(product.stock_local);
+  const supplier = toQuantity(product.stock_supplier);
+  const split = { localQuantity: local ?? 0, supplierQuantity: supplier ?? 0 };
 
   if (mode === 'continuous' || (mode === 'on_demand' && inStock)) {
-    return { orderable: true, preorder: true, quantity, label: 'Sur commande' };
+    return {
+      orderable: true,
+      preorder: true,
+      quantity,
+      label: 'Sur commande',
+      source: 'order',
+      ...split,
+      note: null,
+    };
   }
   if (mode === 'lot') {
     return inStock
@@ -54,13 +88,63 @@ export function productAvailability(product: AvailabilityInput): Availability {
           preorder: false,
           quantity,
           label: `${quantity} exemplaire${quantity > 1 ? 's' : ''} restant${quantity > 1 ? 's' : ''} sur ce lot`,
+          source: local ? 'local' : supplier ? 'supplier' : 'unknown',
+          ...split,
+          note: null,
         }
-      : { orderable: false, preorder: false, quantity: 0, label: 'Lot épuisé' };
+      : {
+          orderable: false,
+          preorder: false,
+          quantity: 0,
+          label: 'Lot épuisé',
+          source: 'none',
+          ...split,
+          note: null,
+        };
   }
-  if (inStock) {
-    return { orderable: true, preorder: false, quantity, label: `${quantity} en stock` };
+  if (!inStock) {
+    return {
+      orderable: false,
+      preorder: false,
+      quantity: 0,
+      label: 'Indisponible',
+      source: 'none',
+      ...split,
+      note: null,
+    };
   }
-  return { orderable: false, preorder: false, quantity: 0, label: 'Indisponible' };
+  if (local) {
+    return {
+      orderable: true,
+      preorder: false,
+      quantity,
+      label: `En stock chez nous (${local})`,
+      source: 'local',
+      ...split,
+      note: supplier ? `+ ${supplier} chez le fournisseur` : null,
+    };
+  }
+  if (supplier) {
+    return {
+      orderable: true,
+      preorder: false,
+      quantity,
+      label: `En stock chez le fournisseur (${supplier})`,
+      source: 'supplier',
+      ...split,
+      note: 'Délai de livraison plus long',
+    };
+  }
+  // Older payload without the split: the historical label.
+  return {
+    orderable: true,
+    preorder: false,
+    quantity,
+    label: `${quantity} en stock`,
+    source: 'unknown',
+    ...split,
+    note: null,
+  };
 }
 
 export interface ConditionInput {

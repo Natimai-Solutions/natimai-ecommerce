@@ -23,7 +23,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.db import engine
 from app.core.security import get_password_hash
 from app.features.inventory.models.inventory import Inventory
-from app.features.product.models.product import Product
+from app.features.product.models.product import Product, ProductCondition
 from app.features.user.models.address import Address
 from app.features.user.models.user import User
 
@@ -33,6 +33,9 @@ logger = logging.getLogger("seed-e2e")
 E2E_EMAIL = "e2e-customer@example.com"
 E2E_PASSWORD = "e2e-customer-password-123"
 E2E_PRODUCT_NAME = "Station de travail E2E"
+# Refurbished, held by the supplier only: the storefront's « chez le
+# fournisseur » and « reconditionné » filters and badges.
+E2E_SUPPLIER_PRODUCT_NAME = "Portable reconditionné E2E"
 
 
 async def _seed(session: AsyncSession) -> None:
@@ -129,6 +132,33 @@ async def _seed(session: AsyncSession) -> None:
     product.customs_rate_pct = Decimal("5.00")
     product.weight = 2.5
     session.add(product)
+
+    refurbished = (
+        await session.exec(
+            select(Product).where(col(Product.name) == E2E_SUPPLIER_PRODUCT_NAME)
+        )
+    ).first()
+    if refurbished is None:
+        refurbished = Product(
+            name=E2E_SUPPLIER_PRODUCT_NAME,
+            description="Produit de test : reconditionné, en stock fournisseur.",
+            base_price=Decimal("40000.00"),
+            cost_amount=Decimal("25000.00"),
+            cost_currency="XPF",
+            supplier_name="e2e-fournisseur",
+            supplier_sku="E2E-REFURB-1",
+            condition=ProductCondition.REFURBISHED,
+            condition_grade="A",
+            is_enriched=True,
+            customs_rate_pct=Decimal("5.00"),
+            weight=2.0,
+            is_active=True,
+            is_admin_active=True,
+        )
+        logger.info("product created: %s", E2E_SUPPLIER_PRODUCT_NAME)
+    # No warehouse row: its whole stock is at the supplier.
+    refurbished.supplier_quantity = Decimal("5")
+    session.add(refurbished)
 
     await session.commit()
 

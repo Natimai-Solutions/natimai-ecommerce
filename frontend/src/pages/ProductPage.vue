@@ -107,9 +107,21 @@
             >
               <span
                 class="stock-dot"
-                :class="{ 'stock-dot--order': availability.preorder || isOutOfStock }"
+                :class="{
+                  'stock-dot--order': availability.preorder || isOutOfStock,
+                  'stock-dot--supplier': availability.source === 'supplier',
+                }"
                 aria-hidden="true"
-              />{{ availability.label }}
+              /><span data-testid="product-stock" :data-source="availability.source">{{
+                availability.label
+              }}</span>
+            </span>
+            <span
+              v-if="!needsVariantChoice && availability.note"
+              class="product__price-note"
+              data-testid="product-stock-note"
+            >
+              {{ availability.note }}
             </span>
             <router-link
               v-if="product.parent_product_id"
@@ -121,7 +133,7 @@
           </div>
 
           <div
-            v-if="departureStore.next"
+            v-if="departureStore.next && availability.source !== 'local'"
             class="product__departure"
             data-testid="product-departure"
           >

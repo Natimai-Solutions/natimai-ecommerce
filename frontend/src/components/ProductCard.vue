@@ -6,13 +6,13 @@
 
     <div class="product-card__info">
       <span class="product-card__brand">
-        {{ brand
-        }}<template v-if="refurbished">
-          <span v-if="brand" aria-hidden="true"> · </span>
-          <span class="product-card__condition" data-testid="product-condition">{{
-            conditionLabel(product)
-          }}</span>
-        </template>
+        {{ brand }}<span v-if="brand" aria-hidden="true"> · </span
+        ><span
+          class="product-card__condition"
+          :class="{ 'product-card__condition--refurbished': refurbished }"
+          data-testid="product-condition"
+          >{{ conditionLabel(product) }}</span
+        >
       </span>
       <router-link :to="productRoute" class="product-card__name">{{ product.name }}</router-link>
       <span v-if="product.vendor_part_number" class="product-card__ref font-mono">
@@ -40,14 +40,22 @@
           :class="{
             'product-card__stock--order': availability.preorder || !availability.orderable,
           }"
+          data-testid="product-card-stock"
+          :data-source="availability.source"
         >
           <span
             class="stock-dot"
-            :class="{ 'stock-dot--order': availability.preorder || !availability.orderable }"
+            :class="{
+              'stock-dot--order': availability.preorder || !availability.orderable,
+              'stock-dot--supplier': availability.source === 'supplier',
+            }"
             aria-hidden="true"
           />{{ availability.label }}
         </span>
-        <span v-if="departureStore.deliveryLabel" class="product-card__offers">
+        <span v-if="availability.note" class="product-card__offers">
+          {{ availability.note }}
+        </span>
+        <span v-if="showDeparture" class="product-card__offers">
           {{ departureStore.deliveryLabel }}
         </span>
 
@@ -114,6 +122,13 @@ const brand = computed(() => props.product.manufacturer ?? props.product.supplie
 const departureStore = useDepartureStore();
 const availability = computed(() => productAvailability(props.product));
 const refurbished = computed(() => isRefurbished(props.product));
+// Our warehouse stock does not wait for the grouped departure's date.
+const showDeparture = computed(
+  () =>
+    !!departureStore.deliveryLabel &&
+    availability.value.orderable &&
+    availability.value.source !== 'local',
+);
 const variantsCount = computed(() => props.product.variants_count ?? 0);
 
 const isQuote = computed(() => parseFloat(props.product.base_price) === 0);
@@ -248,7 +263,12 @@ const promoBadge = computed(() => {
 }
 
 .product-card__condition {
-  color: var(--n-ink);
+  color: var(--n-ink-3);
+
+  &--refurbished {
+    color: var(--n-ink);
+    font-weight: 600;
+  }
 }
 
 .product-card__stock {

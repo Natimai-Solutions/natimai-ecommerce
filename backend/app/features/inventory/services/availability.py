@@ -83,6 +83,24 @@ def supplier_quantity_expression() -> Any:
     )
 
 
+def local_stock_expression() -> Any:
+    """SQL: warehouse stock, the variants' included for a parent (« chez nous »)."""
+    from app.features.product.services.variants import (
+        children_local_quantity_expression,
+    )
+
+    return local_quantity_expression() + children_local_quantity_expression()
+
+
+def supplier_stock_expression() -> Any:
+    """SQL: supplier stock, the variants' included (« chez le fournisseur »)."""
+    from app.features.product.services.variants import (
+        children_supplier_quantity_expression,
+    )
+
+    return supplier_quantity_expression() + children_supplier_quantity_expression()
+
+
 def available_quantity_expression() -> Any:
     """SQL: local + supplier stock, plus the variants' for a parent product."""
     from app.features.product.services.variants import (
@@ -152,10 +170,14 @@ async def publish_with_availability(
     )
     for public in publics:
         public.local_quantity = local.get(public.id, ZERO)
-        public.available_quantity = public.local_quantity + supplier_available_quantity(
-            public
+        children = parents.get(public.id)
+        public.variants_count = children.count if children else 0
+        # Sellable stock split by where it is: our warehouse, the supplier.
+        public.stock_local = public.local_quantity + (
+            children.local if children else ZERO
         )
-        count, from_variants = parents.get(public.id, (0, ZERO))
-        public.variants_count = count
-        public.available_quantity += from_variants
+        public.stock_supplier = supplier_available_quantity(public) + (
+            children.supplier if children else ZERO
+        )
+        public.available_quantity = public.stock_local + public.stock_supplier
     return publics

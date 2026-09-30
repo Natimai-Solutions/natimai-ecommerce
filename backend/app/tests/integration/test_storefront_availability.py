@@ -20,7 +20,11 @@ from app.features.inventory.services.availability import (
     publish_with_availability,
 )
 from app.features.product.crud.product import crud_product
-from app.features.product.models.product import PricingMode, Product
+from app.features.product.models.product import (
+    PricingMode,
+    Product,
+    ProductCondition,
+)
 from app.tasks.pricing_tasks import refresh_sale_prices
 
 
@@ -121,6 +125,58 @@ async def test_in_stock_filter_counts_warehouse_stock(db_session: AsyncSession) 
 
 
 @pytest.mark.asyncio
+async def test_stock_filter_separates_our_warehouse_from_the_supplier(
+    db_session: AsyncSession,
+) -> None:
+    products = await _seed(db_session)
+    # In stock at both: counted in both filters.
+    both = _product("Clavier (les deux)", supplier="tahiti", supplier_qty="3")
+    refurbished = _product("Écran (reconditionné)", supplier="tahiti", supplier_qty="1")
+    refurbished.condition = ProductCondition.REFURBISHED
+    db_session.add_all([both, refurbished])
+    await db_session.flush()
+    db_session.add(
+        Inventory(
+            product_id=both.id,
+            place_id=None,
+            quantity=Decimal("1"),
+            compute_from_movements=False,
+        )
+    )
+    await db_session.commit()
+    await refresh_sale_prices(db_session)
+    assert products
+
+    local = await crud_product.search_products(
+        db_session, stock="local", group_offers=False
+    )
+    assert _names(local) == {
+        "Câble HDMI (entrepôt)",
+        "Souris (entrepôt)",
+        "Clavier (les deux)",
+    }
+    supplier = await crud_product.search_products(
+        db_session, stock="supplier", group_offers=False
+    )
+    assert _names(supplier) == {
+        "Câble DP (fournisseur)",
+        "Clavier (les deux)",
+        "Écran (reconditionné)",
+    }
+
+    everything = await crud_product.search_products(db_session, group_offers=False)
+    assert everything["facets"]["stock"] == {"local": 3, "supplier": 3}
+    assert everything["facets"]["conditions"] == {"new": 6, "refurbished": 1}
+
+    # Facets follow the other filters.
+    refurbished_only = await crud_product.search_products(
+        db_session, condition="refurbished", group_offers=False
+    )
+    assert _names(refurbished_only) == {"Écran (reconditionné)"}
+    assert refurbished_only["facets"]["stock"] == {"local": 0, "supplier": 1}
+
+
+@pytest.mark.asyncio
 async def test_grouping_prefers_the_offer_with_sellable_stock(
     db_session: AsyncSession,
 ) -> None:
@@ -153,6 +209,12 @@ async def test_public_products_carry_the_sellable_quantity(
 
     linked = publics["Câble DP (fournisseur)"]
     assert linked.available_quantity == Decimal("4")
+    # Where the stock is, for the « chez nous / chez le fournisseur » badges.
+    assert warehouse.stock_local == Decimal("10")
+    assert warehouse.stock_supplier == Decimal("0")
+    assert linked.stock_local == Decimal("0")
+    assert linked.stock_supplier == Decimal("4")
+    assert orphan.stock_supplier == Decimal("0")
 
     # The row-less case is zero, never ``None``, on a storefront serialization.
     assert all(p.available_quantity is not None for p in publics.values())

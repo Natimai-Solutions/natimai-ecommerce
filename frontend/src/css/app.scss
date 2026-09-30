@@ -42,6 +42,11 @@
   border-radius: 999px;
   background: var(--n-ok);
 
+  // En stock chez le fournisseur seulement : disponible, délai plus long.
+  &--supplier {
+    background: var(--n-warn);
+  }
+
   &--order {
     width: 6px;
     height: 6px;

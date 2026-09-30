@@ -16756,6 +16756,10 @@ export interface components {
              * @default 0
              */
             variants_count: number;
+            /** Stock Local */
+            stock_local?: string | null;
+            /** Stock Supplier */
+            stock_supplier?: string | null;
             /** Regular Price */
             regular_price?: string | null;
             /** Promotion Name */
@@ -16804,6 +16808,14 @@ export interface components {
             price_ranges?: {
                 [key: string]: number;
             };
+            /** Stock */
+            stock?: {
+                [key: string]: number;
+            };
+            /** Conditions */
+            conditions?: {
+                [key: string]: number;
+            };
         };
         /**
          * ProductSearchRequest
@@ -16826,6 +16838,8 @@ export interface components {
             };
             /** In Stock */
             in_stock?: boolean | null;
+            /** @description local = in stock in our warehouse ; supplier = available at the supplier (longer delivery) */
+            stock?: components["schemas"]["StockLocation"] | null;
             /** @description Only new or only refurbished items */
             condition?: components["schemas"]["ProductCondition"] | null;
             /**
@@ -19705,6 +19719,12 @@ export interface components {
             /** Email */
             email?: string | null;
         };
+        /**
+         * StockLocation
+         * @description Where the sellable stock of an article is (storefront filter).
+         * @enum {string}
+         */
+        StockLocation: "local" | "supplier";
         /**
          * StoreCreditBalance
          * @description Balance and ledger of one customer.

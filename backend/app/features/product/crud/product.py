@@ -15,6 +15,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.features.base.crud import CrudBase
 from app.features.inventory.services.availability import (
     available_quantity_expression,
+    local_stock_expression,
+    supplier_stock_expression,
 )
 from app.features.product.models.price_history import (
     REASON_PRODUCT_WRITE,
@@ -600,6 +602,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         price_max: Decimal | None = None,
         specs: dict[str, Any] | None = None,
         in_stock: bool | None = None,
+        stock: str | None = None,
         condition: str | None = None,
         limit: int = 24,
         offset: int = 0,
@@ -652,6 +655,11 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             conditions.append(available_quantity_expression() > 0)
         elif in_stock is False:
             conditions.append(available_quantity_expression() <= 0)
+        # Where the stock is: our warehouse, or the supplier.
+        if stock == "local":
+            conditions.append(local_stock_expression() > 0)
+        elif stock == "supplier":
+            conditions.append(supplier_stock_expression() > 0)
         if condition:
             conditions.append(col(Product.condition) == condition)
         if price_min is not None:
@@ -817,10 +825,31 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         for row in bucket_rows:
             price_ranges[str(row[0])] = int(row[1])
 
+        stock_row = (
+            await session.exec(
+                select(
+                    func.count().filter(local_stock_expression() > 0),
+                    func.count().filter(supplier_stock_expression() > 0),
+                    func.count().filter(col(Product.condition) == "refurbished"),
+                    func.count(),
+                )
+                .select_from(Product)
+                .join(representatives, representatives.c.id == col(Product.id))
+            )
+        ).first()
+        local_count, supplier_count, refurbished_count, total = (
+            (int(v or 0) for v in stock_row) if stock_row else (0, 0, 0, 0)
+        )
+
         return {
             "manufacturers": manufacturers,
             "categories": categories,
             "price_ranges": price_ranges,
+            "stock": {"local": local_count, "supplier": supplier_count},
+            "conditions": {
+                "new": total - refurbished_count,
+                "refurbished": refurbished_count,
+            },
         }
 
 

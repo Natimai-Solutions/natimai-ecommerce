@@ -12,10 +12,7 @@
     >
       <span class="offers__who">
         <span class="offers__name">{{ offer.supplier_label ?? offer.name }}</span>
-        <span class="offers__detail">
-          {{ offer.is_domestic ? 'Stock local' : 'Import' }},
-          {{ offer.in_stock ? `${stockOf(offer)} en stock` : 'sur commande' }}
-        </span>
+        <span class="offers__detail">{{ detailOf(offer) }}</span>
       </span>
       <span class="offers__price-col">
         <span class="offers__price font-mono">{{ priceOf(offer) }}</span>
@@ -55,8 +52,14 @@ function priceOf(offer: ProductOfferPublic): string {
   return price > 0 ? currencyStore.format(price) : 'Prix sur devis';
 }
 
-function stockOf(offer: ProductOfferPublic): number {
-  return sellableQuantity(offer);
+/** « En stock chez nous (2) », « Chez le fournisseur (5), import »… */
+function detailOf(offer: ProductOfferPublic): string {
+  const local = Math.max(0, Math.round(parseFloat(offer.local_quantity ?? '0') || 0));
+  const supplier = Math.max(0, sellableQuantity(offer) - local);
+  const origin = offer.is_domestic ? 'fournisseur local' : 'import';
+  if (local > 0) return `En stock chez nous (${local})`;
+  if (supplier > 0) return `En stock chez le fournisseur (${supplier}), ${origin}`;
+  return `Sur commande, ${origin}`;
 }
 </script>
 

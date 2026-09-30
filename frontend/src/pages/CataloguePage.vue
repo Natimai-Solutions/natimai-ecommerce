@@ -45,6 +45,25 @@
 
         <div class="filters__body">
           <div class="filters__group">
+            <fieldset class="filters__fieldset" data-testid="catalogue-stock">
+              <legend class="filters__legend">Disponibilité</legend>
+              <label v-for="opt in stockOptions" :key="String(opt.value)" class="filters__option">
+                <input
+                  type="radio"
+                  name="stock"
+                  :checked="selectedStock === opt.value"
+                  :data-testid="`catalogue-stock-${opt.value ?? 'all'}`"
+                  @change="onStockChange(opt.value)"
+                />
+                <span class="filters__option-label">{{ opt.label }}</span>
+                <span v-if="opt.count != null" class="filters__count font-mono">{{
+                  opt.count
+                }}</span>
+              </label>
+            </fieldset>
+          </div>
+
+          <div class="filters__group">
             <fieldset class="filters__fieldset" data-testid="catalogue-condition">
               <legend class="filters__legend">État</legend>
               <label
@@ -56,9 +75,13 @@
                   type="radio"
                   name="condition"
                   :checked="selectedCondition === opt.value"
+                  :data-testid="`catalogue-condition-${opt.value ?? 'all'}`"
                   @change="onConditionChange(opt.value)"
                 />
                 <span class="filters__option-label">{{ opt.label }}</span>
+                <span v-if="opt.count != null" class="filters__count font-mono">{{
+                  opt.count
+                }}</span>
               </label>
             </fieldset>
           </div>
@@ -327,11 +350,30 @@ const selectedManufacturer = ref<string | null>(null);
 const selectedCategory = ref<string | null>(null);
 // null = new and refurbished together.
 const selectedCondition = ref<'new' | 'refurbished' | null>(null);
-const conditionOptions: { label: string; value: 'new' | 'refurbished' | null }[] = [
-  { label: 'Neuf et reconditionné', value: null },
-  { label: 'Neuf', value: 'new' },
-  { label: 'Reconditionné', value: 'refurbished' },
-];
+// Counts of the current results (facets); null on « all » options.
+const conditionOptions = computed(() => {
+  const counts = store.facets?.conditions ?? {};
+  return [
+    { label: 'Neuf et reconditionné', value: null, count: null },
+    { label: 'Neuf', value: 'new' as const, count: counts['new'] ?? null },
+    { label: 'Reconditionné', value: 'refurbished' as const, count: counts['refurbished'] ?? null },
+  ];
+});
+// Where the stock is: our warehouse (fast) or the supplier (longer delivery).
+type StockLocation = 'local' | 'supplier';
+const selectedStock = ref<StockLocation | null>(null);
+const STOCK_LABELS: Record<StockLocation, string> = {
+  local: 'En stock chez nous',
+  supplier: 'En stock chez le fournisseur',
+};
+const stockOptions = computed(() => {
+  const counts = store.facets?.stock ?? {};
+  return [
+    { label: 'Tous les articles', value: null, count: null },
+    { label: STOCK_LABELS.local, value: 'local' as const, count: counts['local'] ?? null },
+    { label: STOCK_LABELS.supplier, value: 'supplier' as const, count: counts['supplier'] ?? null },
+  ];
+});
 // Spec filters: enum key → selected value_text[]; numeric key → minimum value.
 const enumSelections = ref<Record<string, string[]>>({});
 const numericMin = ref<Record<string, number | null>>({});
@@ -420,6 +462,13 @@ const activeFilters = computed<ActiveFilter[]>(() => {
       },
     });
   }
+  if (selectedStock.value) {
+    list.push({
+      key: 'stock',
+      label: STOCK_LABELS[selectedStock.value],
+      remove: () => void onStockChange(null),
+    });
+  }
   if (selectedCondition.value) {
     list.push({
       key: 'cond',
@@ -485,7 +534,14 @@ async function onPageChange(page: number) {
 }
 
 async function onConditionChange(val: 'new' | 'refurbished' | null) {
+  selectedCondition.value = val;
   await store.applyFilters({ condition: val });
+  syncQueryParams();
+}
+
+async function onStockChange(val: StockLocation | null) {
+  selectedStock.value = val;
+  await store.applyFilters({ stock: val });
   syncQueryParams();
 }
 
@@ -539,6 +595,7 @@ async function resetFilters() {
   selectedManufacturer.value = null;
   selectedCategory.value = null;
   selectedCondition.value = null;
+  selectedStock.value = null;
   enumSelections.value = {};
   numericMin.value = {};
   priceMin.value = '';
@@ -550,6 +607,7 @@ async function resetFilters() {
     manufacturer: null,
     category_id: null,
     in_stock: null,
+    stock: null,
     condition: null,
     price_min: null,
     price_max: null,
@@ -564,6 +622,7 @@ function stateQuery(): Record<string, string> {
   if (selectedManufacturer.value) query['mfr'] = selectedManufacturer.value;
   if (selectedCategory.value) query['cat'] = selectedCategory.value;
   if (selectedCondition.value) query['cond'] = selectedCondition.value;
+  if (selectedStock.value) query['stock'] = selectedStock.value;
   return query;
 }
 
@@ -590,6 +649,8 @@ function initFromQuery(query: LocationQuery = route.query) {
   selectedCategory.value = typeof cat === 'string' ? cat : null;
   const cond = query['cond'];
   selectedCondition.value = cond === 'new' || cond === 'refurbished' ? cond : null;
+  const stock = query['stock'];
+  selectedStock.value = stock === 'local' || stock === 'supplier' ? stock : null;
 }
 
 async function loadCatalogueData() {
@@ -601,6 +662,7 @@ async function loadCatalogueData() {
     manufacturer: selectedManufacturer.value,
     category_id: selectedCategory.value,
     condition: selectedCondition.value,
+    stock: selectedStock.value,
     specs: buildSpecs(),
   });
 }
@@ -612,7 +674,7 @@ watch(
   (query) => {
     if (route.name !== 'catalogue') return;
     const current = stateQuery();
-    const keys = ['q', 'mfr', 'cat', 'cond'];
+    const keys = ['q', 'mfr', 'cat', 'cond', 'stock'];
     const same =
       keys.every((k) => (query[k] ?? undefined) === current[k]) &&
       Object.keys(query).every((k) => keys.includes(k));

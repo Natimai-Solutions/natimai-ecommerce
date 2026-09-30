@@ -124,6 +124,15 @@ async def test_variants_are_sold_and_listed_through_their_parent(
         db_session, in_stock=True, group_offers=False
     )
     assert {p.name for p in in_stock["data"]} == {"T-shirt Natimai"}
+    # Its variants' warehouse stock puts the parent « en stock chez nous ».
+    local = await crud_product.search_products(
+        db_session, stock="local", group_offers=False
+    )
+    assert {p.name for p in local["data"]} == {"T-shirt Natimai"}
+    supplier = await crud_product.search_products(
+        db_session, stock="supplier", group_offers=False
+    )
+    assert "T-shirt Natimai" not in {p.name for p in supplier["data"]}
 
     # The product page: axes and variants with their stock.
     page = await get_product_variants(
