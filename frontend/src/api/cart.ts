@@ -22,6 +22,8 @@ type CheckoutRequest = Omit<
   delivery_type?: string | null;
   /** Id of the saved shipping address to link (avoids duplicate creation). */
   shipping_address_id?: string | null;
+  /** Promo code validated server-side (the one the quote accepted). */
+  discount_code?: string | null;
 };
 type CheckoutResponse = components['schemas']['CheckoutResponse'] & {
   provider_code?: string | null;
@@ -151,6 +153,12 @@ export interface CheckoutQuote {
   delivery_type: string | null;
   shipping_eta_days: number | null;
   free_shipping_applied: boolean;
+  /** Code promo appliqué (normalisé), sa remise et son libellé. */
+  discount_code?: string | null;
+  discount_amount?: string;
+  discount_label?: string | null;
+  /** Pourquoi le code saisi n'a pas été appliqué (le devis reste valide sans lui). */
+  discount_error?: string | null;
 }
 
 /** What POST /cart/checkout will bill for the backend cart and these choices.
@@ -163,11 +171,13 @@ export async function getCheckoutQuote(params: {
   addressId?: string | null;
   deliveryType?: string | null;
   paymentMethodId?: string | null;
+  discountCode?: string | null;
 }): Promise<CheckoutQuote> {
   const query: Record<string, string> = {};
   if (params.addressId) query.address_id = params.addressId;
   if (params.deliveryType) query.delivery_type = params.deliveryType;
   if (params.paymentMethodId) query.payment_method_id = params.paymentMethodId;
+  if (params.discountCode) query.discount_code = params.discountCode;
   const { data } = await api.get<CheckoutQuote>('/cart/me/checkout-quote', { params: query });
   return data;
 }

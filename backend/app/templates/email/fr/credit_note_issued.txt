@@ -1,0 +1,17 @@
+Bonjour {{ full_name }},
+
+Un avoir {{ credit_note_number }} a été émis pour la commande {{ order_ref or (order_id | short_ref) }}{% if invoice_number %}, en correction de la facture {{ invoice_number }}{% endif %}.
+
+Montant crédité : {{ total_incl_tax }} {{ currency }}
+dont taxes : {{ total_tax }} {{ currency }}
+{% if reason %}Motif : {{ reason }}
+{% endif %}
+Ce montant vous est remboursé par le moyen de paiement utilisé lors de la commande.
+
+Vous pouvez télécharger l'avoir depuis votre espace client, rubrique « Mes commandes » :
+{{ account_url }}
+
+Conservez ce document avec votre facture : il en corrige le montant.
+
+Merci pour votre confiance,
+L'équipe {{ shop_name }}

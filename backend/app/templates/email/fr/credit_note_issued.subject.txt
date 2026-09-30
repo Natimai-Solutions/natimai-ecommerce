@@ -1,0 +1,1 @@
+Votre avoir {{ credit_note_number }} — commande {{ order_ref or (order_id | short_ref) }}

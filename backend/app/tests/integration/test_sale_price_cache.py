@@ -188,7 +188,7 @@ async def test_refresh_task_follows_a_currency_rate_change(
     euro_id = euro.id
 
     stats = await refresh_sale_prices(db_session)
-    assert stats == {"total": 2, "priced": 1, "unpriced": 1, "batches": 1}
+    assert stats == {"total": 2, "priced": 1, "unpriced": 1, "batches": 1, "parents": 0}
     await db_session.refresh(euro)
     await db_session.refresh(dollar)
     assert euro.sale_price_cached == Decimal("11933.00")  # no tax rate seeded → 0 %

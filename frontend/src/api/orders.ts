@@ -14,6 +14,9 @@ export interface Order {
   shipping_fee_amount: string;
   payment_fee_amount: string;
   total_fees_amount: string;
+  /** Code promo appliqué au checkout et remise déduite des articles. */
+  discount_code?: string | null;
+  discount_amount?: string;
   shipping_address: string | null;
   /** Last-leg delivery mode chosen at checkout: pickup | home_delivery | air_freight. */
   delivery_type: string | null;

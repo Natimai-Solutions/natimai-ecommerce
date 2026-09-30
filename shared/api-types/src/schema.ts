@@ -1480,6 +1480,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/products/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Publish Products
+         * @description Show products on the storefront without waiting for Icecat enrichment.
+         *
+         *     The storefront hides a supplier-synced row until Icecat has enriched it.
+         *     An item Icecat does not know (a file import without barcode, a local
+         *     brand) would stay hidden forever: this flag publishes it as it stands.
+         *     Enrichment still runs later and only adds to it. Manual products are
+         *     always visible and are left untouched here.
+         */
+        post: operations["admin-product-admin_publish_products"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/products": {
         parameters: {
             query?: never;
@@ -1540,6 +1566,51 @@ export interface paths {
          *     it — no supplier copy is kept alongside.
          */
         delete: operations["admin-product-admin_release_override"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/products/{product_id}/variants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin List Variants
+         * @description Every variant of a product, active or not.
+         */
+        get: operations["admin-product-admin_list_variants"];
+        put?: never;
+        /**
+         * Admin Create Variant
+         * @description Add a variant: a manual product row under the parent, which becomes
+         *     the storefront entry (``has_variants``) and shows the cheapest price.
+         */
+        post: operations["admin-product-admin_create_variant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/products/{product_id}/variants/{variant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Admin Deactivate Variant
+         * @description Retire a variant (soft: past orders keep referencing it).
+         */
+        delete: operations["admin-product-admin_deactivate_variant"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1833,6 +1904,29 @@ export interface paths {
          *     personne resterait connectée jusqu'à expiration de son refresh token.
          */
         patch: operations["admin-users-update_user"];
+        trace?: never;
+    };
+    "/api/v1/admin/carts/abandoned": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Abandoned Carts
+         * @description Open carts (never ordered, with lines), most recent activity first.
+         *
+         *     « Récupérés » counts the reminded carts that were ordered since: the one
+         *     number that tells whether the reminder pays.
+         */
+        get: operations["admin-cart-list_abandoned_carts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/admin/categories": {
@@ -2209,6 +2303,72 @@ export interface paths {
          * @description Search products with filters and return lightweight facets.
          */
         post: operations["product-search_products"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product/{product_id}/variants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Product Variants
+         * @description Active variants of a product, with their price and sellable stock.
+         *
+         *     Empty for a plain product. Variants are reached only through here (or by
+         *     id): the listings show the parent.
+         */
+        get: operations["product-get_product_variants"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product/popular": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Popular Products
+         * @description Most viewed products over the last ``days`` days (storefront-visible only).
+         */
+        get: operations["product-get_popular_products"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product/{product_id}/view": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Track Product View
+         * @description Count one view of a product page (anonymous, fire-and-forget).
+         *
+         *     Only products the storefront shows are counted; anything else answers the
+         *     same 204 so the endpoint reveals nothing about hidden rows.
+         */
+        post: operations["product-track_product_view"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4324,6 +4484,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Shop Config
+         * @description Territory and mode of the shop, for the storefront and the admin.
+         */
+        get: operations["system-get_shop_config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/settings": {
         parameters: {
             query?: never;
@@ -5214,13 +5394,39 @@ export interface paths {
          * Import Catalog File
          * @description Import a CSV / Excel catalog for the supplier through the column mapping.
          *
-         *     Runs inline: each product is committed as it is upserted, so a failure on
-         *     one row never rolls back the others. Newly created products are queued for
-         *     Icecat enrichment like API-synced ones.
+         *     Up to ``SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS`` rows the import runs inline:
+         *     each product is committed as it is upserted, so a failure on one row never
+         *     rolls back the others. A larger file is stored and imported by the worker
+         *     (``queued`` response; poll ``GET …/import-file/{sync_log_id}``). Newly
+         *     created products are queued for Icecat enrichment like API-synced ones;
+         *     with ``publish_new`` (the default) they are visible on the storefront
+         *     meanwhile, as the file describes them.
          *
          *     **Required permissions:** Superuser only
          */
         post: operations["suppliers-import_catalog_file"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/suppliers/{supplier_name}/import-file/{sync_log_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Catalog Import Status
+         * @description Progress and outcome of a file import, queued or inline (its sync log).
+         *
+         *     **Required permissions:** Superuser only
+         */
+        get: operations["suppliers-get_catalog_import_status"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5716,6 +5922,24 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AbandonedCartsResponse
+         * @description Open carts with their owner, plus the reminder counters.
+         */
+        AbandonedCartsResponse: {
+            /** Data */
+            data?: {
+                [key: string]: unknown;
+            }[];
+            /** Counters */
+            counters?: {
+                [key: string]: number;
+            };
+            /** Reminder Delay Hours */
+            reminder_delay_hours: number;
+            /** Reminder Max Age Days */
+            reminder_max_age_days: number;
+        };
         /**
          * AccessTokenResponse
          * @description Login/refresh response — access token only.
@@ -6294,6 +6518,13 @@ export interface components {
             payment_fee_amount: number;
             /** Total Fees Amount */
             total_fees_amount: number;
+            /** Discount Code */
+            discount_code?: string | null;
+            /**
+             * Discount Amount
+             * @default 0
+             */
+            discount_amount: number;
             /** Total Amount */
             total_amount: number;
             /** Shipping Address */
@@ -7209,6 +7440,12 @@ export interface components {
              * @description JSON {internal_field: column}; defaults to the supplier's mapping
              */
             mapping?: string | null;
+            /**
+             * Publish New
+             * @description Show the created (and adopted) products on the storefront without waiting for Icecat enrichment
+             * @default true
+             */
+            publish_new: boolean;
         };
         /** Body_suppliers-inspect_catalog_file */
         "Body_suppliers-inspect_catalog_file": {
@@ -7793,6 +8030,27 @@ export interface components {
             /** Total Fees Amount */
             total_fees_amount: string;
             /**
+             * Discount Code
+             * @description Code promo appliqué (normalisé)
+             */
+            discount_code?: string | null;
+            /**
+             * Discount Amount
+             * @description Remise déduite des articles
+             * @default 0.00
+             */
+            discount_amount: string;
+            /**
+             * Discount Label
+             * @description Nom de la remise, pour le récapitulatif
+             */
+            discount_label?: string | null;
+            /**
+             * Discount Error
+             * @description Pourquoi le code saisi n'a pas été appliqué (devis seulement)
+             */
+            discount_error?: string | null;
+            /**
              * Total Amount
              * @description Montant qui sera débité
              */
@@ -7870,6 +8128,11 @@ export interface components {
              * @description Return URL for provider redirect/SmartForm (CB).
              */
             return_url?: string | null;
+            /**
+             * Discount Code
+             * @description Promo code to apply (validated and priced server-side)
+             */
+            discount_code?: string | null;
         };
         /**
          * CheckoutResponse
@@ -7895,6 +8158,13 @@ export interface components {
             cart_id: string;
             /** Subtotal Amount */
             subtotal_amount: string;
+            /** Discount Code */
+            discount_code?: string | null;
+            /**
+             * Discount Amount
+             * @default 0.00
+             */
+            discount_amount: string;
             /** Shipping Fee Amount */
             shipping_fee_amount: string;
             /** Payment Fee Amount */
@@ -8026,6 +8296,10 @@ export interface components {
             total_incl_tax: string;
             /** Reason */
             reason: string | null;
+            /** Order Number */
+            order_number?: string | null;
+            /** Invoice Number */
+            invoice_number?: string | null;
         };
         /**
          * CurrencyRatePublic
@@ -8375,9 +8649,24 @@ export interface components {
             code?: string | null;
             /**
              * Percentage
-             * @description Pourcentage de réduction (0.01-100.00)
+             * @description Pourcentage de réduction (0.01-100.00) — ou `amount`
              */
-            percentage: number | string;
+            percentage?: number | string | null;
+            /**
+             * Amount
+             * @description Remise en montant fixe (devise de référence) — ou `percentage`
+             */
+            amount?: number | string | null;
+            /**
+             * Min Order Amount
+             * @description Montant minimum des articles éligibles pour appliquer la remise
+             */
+            min_order_amount?: number | string | null;
+            /**
+             * Max Uses Per Customer
+             * @description Utilisations maximum par client (None = illimité)
+             */
+            max_uses_per_customer?: number | null;
             /** @description Cible de la réduction */
             target: components["schemas"]["DiscountTarget"];
             /**
@@ -8454,9 +8743,24 @@ export interface components {
             code?: string | null;
             /**
              * Percentage
-             * @description Pourcentage de réduction (0.01-100.00)
+             * @description Pourcentage de réduction (0.01-100.00) — ou `amount`
              */
-            percentage: string;
+            percentage?: string | null;
+            /**
+             * Amount
+             * @description Remise en montant fixe (devise de référence) — ou `percentage`
+             */
+            amount?: string | null;
+            /**
+             * Min Order Amount
+             * @description Montant minimum des articles éligibles pour appliquer la remise
+             */
+            min_order_amount?: string | null;
+            /**
+             * Max Uses Per Customer
+             * @description Utilisations maximum par client (None = illimité)
+             */
+            max_uses_per_customer?: number | null;
             /** @description Cible de la réduction */
             target: components["schemas"]["DiscountTarget"];
             /**
@@ -8524,6 +8828,12 @@ export interface components {
             code?: string | null;
             /** Percentage */
             percentage?: number | string | null;
+            /** Amount */
+            amount?: number | string | null;
+            /** Min Order Amount */
+            min_order_amount?: number | string | null;
+            /** Max Uses Per Customer */
+            max_uses_per_customer?: number | null;
             target?: components["schemas"]["DiscountTarget"] | null;
             /** Product Id */
             product_id?: string | null;
@@ -8702,6 +9012,20 @@ export interface components {
             }[];
             /** Sync Log Id */
             sync_log_id?: string | null;
+            /**
+             * Published New
+             * @default false
+             */
+            published_new: boolean;
+            /**
+             * Queued
+             * @default false
+             */
+            queued: boolean;
+            /** Job Id */
+            job_id?: string | null;
+            /** Message */
+            message?: string | null;
             /** Sample */
             sample?: {
                 [key: string]: unknown;
@@ -8712,6 +9036,8 @@ export interface components {
             };
             /** Sample Resolutions */
             sample_resolutions?: components["schemas"]["FileImportResolutionRow"][];
+            /** Resolution Limited To */
+            resolution_limited_to?: number | null;
         };
         /**
          * FileImportRowError
@@ -8722,6 +9048,46 @@ export interface components {
             row_number: number;
             /** Message */
             message: string;
+        };
+        /**
+         * FileImportStatusResponse
+         * @description Progress and outcome of a queued catalog file import (its sync log).
+         */
+        FileImportStatusResponse: {
+            /** Sync Log Id */
+            sync_log_id: string;
+            /** Supplier Name */
+            supplier_name: string;
+            status: components["schemas"]["SyncStatus"];
+            /** Filename */
+            filename?: string | null;
+            /** Total Rows */
+            total_rows?: number | null;
+            /** Parsed Products */
+            parsed_products?: number | null;
+            /** Rejected Rows */
+            rejected_rows?: number | null;
+            /** Row Errors */
+            row_errors?: components["schemas"]["FileImportRowError"][];
+            /** Statistics */
+            statistics?: {
+                [key: string]: number;
+            };
+            /** Sync Errors */
+            sync_errors?: {
+                [key: string]: string;
+            }[];
+            /**
+             * Published New
+             * @default false
+             */
+            published_new: boolean;
+            /** Error Message */
+            error_message?: string | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Completed At */
+            completed_at?: string | null;
         };
         /**
          * FileInspectResponse
@@ -9805,6 +10171,22 @@ export interface components {
              */
             total_fees_amount: string;
             /**
+             * Discount Id
+             * @description Remise appliquée au checkout (code promo)
+             */
+            discount_id?: string | null;
+            /**
+             * Discount Code
+             * @description Code promo tel que saisi (figé, même si la remise change)
+             */
+            discount_code?: string | null;
+            /**
+             * Discount Amount
+             * @description Remise totale déduite des articles au checkout
+             * @default 0.00
+             */
+            discount_amount: string;
+            /**
              * Currency
              * @description Devise de facturation figée au checkout (null pour les commandes antérieures — on retombe alors sur la devise du paiement)
              */
@@ -10143,6 +10525,22 @@ export interface components {
              */
             total_fees_amount: number | string;
             /**
+             * Discount Id
+             * @description Remise appliquée au checkout (code promo)
+             */
+            discount_id?: string | null;
+            /**
+             * Discount Code
+             * @description Code promo tel que saisi (figé, même si la remise change)
+             */
+            discount_code?: string | null;
+            /**
+             * Discount Amount
+             * @description Remise totale déduite des articles au checkout
+             * @default 0.00
+             */
+            discount_amount: number | string;
+            /**
              * Currency
              * @description Devise de facturation figée au checkout (null pour les commandes antérieures — on retombe alors sur la devise du paiement)
              */
@@ -10474,6 +10872,22 @@ export interface components {
              */
             total_fees_amount: string;
             /**
+             * Discount Id
+             * @description Remise appliquée au checkout (code promo)
+             */
+            discount_id?: string | null;
+            /**
+             * Discount Code
+             * @description Code promo tel que saisi (figé, même si la remise change)
+             */
+            discount_code?: string | null;
+            /**
+             * Discount Amount
+             * @description Remise totale déduite des articles au checkout
+             * @default 0.00
+             */
+            discount_amount: string;
+            /**
              * Currency
              * @description Devise de facturation figée au checkout (null pour les commandes antérieures — on retombe alors sur la devise du paiement)
              */
@@ -10663,6 +11077,8 @@ export interface components {
             payment_fee_amount?: number | string | null;
             /** Total Fees Amount */
             total_fees_amount?: number | string | null;
+            /** Discount Amount */
+            discount_amount?: number | string | null;
             /** Currency */
             currency?: string | null;
             /** Shipping Address */
@@ -12282,6 +12698,18 @@ export interface components {
              */
             customs_rate_pct?: number | string | null;
             /**
+             * Parent Product Id
+             * @description Parent of this variant. A variant is a full product row (own SKU, price, stock, image); the parent is the storefront entry.
+             */
+            parent_product_id?: string | null;
+            /**
+             * Variant Options
+             * @description Option values of this variant, e.g. {"Taille": "M", "Couleur": "Noir"}
+             */
+            variant_options?: {
+                [key: string]: string;
+            } | null;
+            /**
              * Has Variants
              * @description Indicates if the product has variants
              * @default false
@@ -12410,6 +12838,12 @@ export interface components {
              * @description Last synchronization timestamp for enrichment data
              */
             last_enrichment_sync?: string | null;
+            /**
+             * Published Without Enrichment
+             * @description Admin decision to show the product on the storefront without waiting for Icecat enrichment (file imports, items Icecat does not know). Manual products never need it.
+             * @default false
+             */
+            published_without_enrichment: boolean;
             /**
              * Is Enriched
              * @description Indicates if the product has been enriched with external data
@@ -12556,6 +12990,16 @@ export interface components {
             sale_price: string;
             /** Supplier Quantity */
             supplier_quantity: string;
+            /**
+             * Local Quantity
+             * @default 0.00
+             */
+            local_quantity: string;
+            /**
+             * Available Quantity
+             * @default 0.00
+             */
+            available_quantity: string;
             /** In Stock */
             in_stock: boolean;
             /** Image Url */
@@ -12650,6 +13094,18 @@ export interface components {
              */
             customs_rate_pct?: string | null;
             /**
+             * Parent Product Id
+             * @description Parent of this variant. A variant is a full product row (own SKU, price, stock, image); the parent is the storefront entry.
+             */
+            parent_product_id?: string | null;
+            /**
+             * Variant Options
+             * @description Option values of this variant, e.g. {"Taille": "M", "Couleur": "Noir"}
+             */
+            variant_options?: {
+                [key: string]: string;
+            } | null;
+            /**
              * Has Variants
              * @description Indicates if the product has variants
              * @default false
@@ -12735,6 +13191,12 @@ export interface components {
              * @description Last synchronization timestamp for enrichment data
              */
             last_enrichment_sync?: string | null;
+            /**
+             * Published Without Enrichment
+             * @description Admin decision to show the product on the storefront without waiting for Icecat enrichment (file imports, items Icecat does not know). Manual products never need it.
+             * @default false
+             */
+            published_without_enrichment: boolean;
             /**
              * Is Enriched
              * @description Indicates if the product has been enriched with external data
@@ -12823,6 +13285,39 @@ export interface components {
              * @default 1
              */
             offers_count: number;
+            /** Local Quantity */
+            local_quantity?: string | null;
+            /** Available Quantity */
+            available_quantity?: string | null;
+            /**
+             * Variants Count
+             * @default 0
+             */
+            variants_count: number;
+        };
+        /**
+         * ProductPublishRequest
+         * @description Publish (or unpublish) products as they stand, without Icecat.
+         */
+        ProductPublishRequest: {
+            /** Product Ids */
+            product_ids: string[];
+            /**
+             * Published
+             * @description True: show on the storefront as is; False: back to waiting
+             * @default true
+             */
+            published: boolean;
+        };
+        /**
+         * ProductPublishResponse
+         * @description Outcome of a bulk publication.
+         */
+        ProductPublishResponse: {
+            /** Updated */
+            updated: number;
+            /** Missing */
+            missing?: string[];
         };
         /**
          * ProductSearchFacets
@@ -12952,6 +13447,12 @@ export interface components {
             cost_currency?: string | null;
             /** Customs Rate Pct */
             customs_rate_pct?: number | string | null;
+            /** Parent Product Id */
+            parent_product_id?: string | null;
+            /** Variant Options */
+            variant_options?: {
+                [key: string]: string;
+            } | null;
             /** Has Variants */
             has_variants?: boolean | null;
             /** Supplier Sku */
@@ -13014,6 +13515,8 @@ export interface components {
              * @description Last synchronization timestamp for enrichment data
              */
             last_enrichment_sync?: string | null;
+            /** Published Without Enrichment */
+            published_without_enrichment?: boolean | null;
             /**
              * Is Enriched
              * @description Indicates if the product has been enriched with external data
@@ -13070,6 +13573,36 @@ export interface components {
             }[] | null;
             /** Category Id */
             category_id?: string | null;
+        };
+        /**
+         * ProductVariantsAdminResponse
+         * @description Variants of a parent for the back office (inactive ones included).
+         */
+        ProductVariantsAdminResponse: {
+            /**
+             * Parent Id
+             * Format: uuid
+             */
+            parent_id: string;
+            /** Axes */
+            axes?: string[];
+            /** Variants */
+            variants?: components["schemas"]["ProductPublic"][];
+        };
+        /**
+         * ProductVariantsResponse
+         * @description The variants of a parent product and the option axes that tell them apart.
+         */
+        ProductVariantsResponse: {
+            /**
+             * Parent Id
+             * Format: uuid
+             */
+            parent_id: string;
+            /** Axes */
+            axes?: string[];
+            /** Variants */
+            variants?: components["schemas"]["ProductPublic"][];
         };
         /**
          * ProductsPublic
@@ -14688,6 +15221,26 @@ export interface components {
             pricing_effective: boolean;
         };
         /**
+         * ShopConfigPublic
+         * @description What every client may know about this deployment (no secrets).
+         */
+        ShopConfigPublic: {
+            /** Shop Mode */
+            shop_mode: string;
+            /** Territory Profile */
+            territory_profile: string;
+            /** Territory Label */
+            territory_label: string;
+            /** Reference Currency */
+            reference_currency: string;
+            /** Country Code */
+            country_code: string;
+            /** Tax Territory Code */
+            tax_territory_code: string;
+            /** Shop Name */
+            shop_name: string;
+        };
+        /**
          * SignupTokenResponse
          * @description Single-use token proving the email was verified.
          */
@@ -15597,6 +16150,12 @@ export interface components {
              */
             timestamp: string;
         };
+        /**
+         * SyncStatus
+         * @description Synchronization status enum
+         * @enum {string}
+         */
+        SyncStatus: "pending" | "running" | "success" | "failed" | "partial";
         /** SystemSettingPublic */
         SystemSettingPublic: {
             /** Key */
@@ -15668,9 +16227,8 @@ export interface components {
             /**
              * Territory Code
              * @description Territory code where this tax applies
-             * @default PF
              */
-            territory_code: string;
+            territory_code?: string;
             /**
              * Valid From
              * Format: date
@@ -15725,9 +16283,8 @@ export interface components {
             /**
              * Territory Code
              * @description Territory code where this tax applies
-             * @default PF
              */
-            territory_code: string;
+            territory_code?: string;
             /**
              * Valid From
              * Format: date
@@ -16019,6 +16576,12 @@ export interface components {
              */
             notification_shipping_steps: boolean;
             /**
+             * Marketing Email Enabled
+             * @description Receive commercial reminders (forgotten cart, offers)
+             * @default true
+             */
+            marketing_email_enabled: boolean;
+            /**
              * Default Shipping Preference
              * @description Checkout fallback: fastest | cheapest | eco_friendly
              */
@@ -16053,6 +16616,8 @@ export interface components {
             notification_email_enabled?: boolean | null;
             /** Notification Shipping Steps */
             notification_shipping_steps?: boolean | null;
+            /** Marketing Email Enabled */
+            marketing_email_enabled?: boolean | null;
             /** Default Shipping Preference */
             default_shipping_preference?: string | null;
             /** Locale */
@@ -16074,6 +16639,39 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * VariantCreateRequest
+         * @description A new variant of a parent product.
+         *
+         *     Everything not given is inherited from the parent (category, tax rate,
+         *     pricing mode, cost currency, margin and customs rates, supplier, origin,
+         *     weight, description). The name is composed from the parent's and the
+         *     option values unless ``name`` is set.
+         */
+        VariantCreateRequest: {
+            /** Options */
+            options: {
+                [key: string]: string;
+            };
+            /** Name */
+            name?: string | null;
+            /** Supplier Sku */
+            supplier_sku?: string | null;
+            /** Vendor Part Number */
+            vendor_part_number?: string | null;
+            /** Ean */
+            ean?: string | null;
+            /** Base Price */
+            base_price?: number | string | null;
+            /** Cost Amount */
+            cost_amount?: number | string | null;
+            /** Supplier Quantity */
+            supplier_quantity?: number | string | null;
+            /** Image Url */
+            image_url?: string | null;
+            /** Weight */
+            weight?: number | null;
         };
         /**
          * VerifyOtpRequest
@@ -19025,6 +19623,39 @@ export interface operations {
             };
         };
     };
+    "admin-product-admin_publish_products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductPublishRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductPublishResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-product-admin_create_product": {
         parameters: {
             query?: never;
@@ -19100,6 +19731,104 @@ export interface operations {
             path: {
                 product_id: string;
                 field: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-admin_list_variants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductVariantsAdminResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-admin_create_variant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VariantCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-admin_deactivate_variant": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+                variant_id: string;
             };
             cookie?: never;
         };
@@ -19631,6 +20360,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminUserItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-cart-list_abandoned_carts": {
+        parameters: {
+            query?: {
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AbandonedCartsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -20339,6 +21100,98 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ProductSearchResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "product-get_product_variants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductVariantsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "product-get_popular_products": {
+        parameters: {
+            query?: {
+                days?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductsPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "product-track_product_view": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -21183,6 +22036,8 @@ export interface operations {
                 delivery_type?: string | null;
                 /** @description Chosen payment method (its fee is added) */
                 payment_method_id?: string | null;
+                /** @description Promo code to price */
+                discount_code?: string | null;
             };
             header?: never;
             path?: never;
@@ -25209,6 +26064,26 @@ export interface operations {
             };
         };
     };
+    "system-get_shop_config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShopConfigPublic"];
+                };
+            };
+        };
+    };
     "system-get_public_settings": {
         parameters: {
             query?: never;
@@ -27088,6 +27963,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FileImportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "suppliers-get_catalog_import_status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sync_log_id: string;
+                /** @description Supplier code */
+                supplier_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileImportStatusResponse"];
                 };
             };
             /** @description Validation Error */

@@ -16,6 +16,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'orders', component: () => import('pages/OrdersPage.vue') },
       { path: 'orders/:id', component: () => import('pages/OrderDetailPage.vue') },
       { path: 'invoices', component: () => import('pages/InvoicesPage.vue') },
+      { path: 'credit-notes', component: () => import('pages/CreditNotesPage.vue') },
       { path: 'quote-requests', component: () => import('pages/QuoteRequestsPage.vue') },
       { path: 'shipping', component: () => import('pages/ShippingPage.vue') },
       { path: 'carriers', component: () => import('pages/CarriersPage.vue') },
@@ -27,6 +28,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'tax-rates', component: () => import('pages/TaxRatesPage.vue') },
       { path: 'customs-rates', component: () => import('pages/CustomsRatesPage.vue') },
       { path: 'currency-rates', component: () => import('pages/CurrencyRatesPage.vue') },
+      { path: 'discounts', component: () => import('pages/DiscountsPage.vue') },
       { path: 'spec-definitions', component: () => import('pages/SpecDefinitionsPage.vue') },
       { path: 'supplier-orders', component: () => import('pages/SupplierOrdersPage.vue') },
       { path: 'suppliers', component: () => import('pages/SuppliersPage.vue') },
@@ -37,6 +39,7 @@ const routes: RouteRecordRaw[] = [
       },
       { path: 'addresses', component: () => import('pages/AddressesPage.vue') },
       { path: 'users', component: () => import('pages/UsersPage.vue') },
+      { path: 'abandoned-carts', component: () => import('pages/AbandonedCartsPage.vue') },
       {
         path: 'payment-eligibility',
         component: () => import('pages/PaymentEligibilityPage.vue'),

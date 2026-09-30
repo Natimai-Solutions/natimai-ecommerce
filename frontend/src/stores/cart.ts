@@ -1,7 +1,13 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import type { components } from '@app/api-types';
-import { createGuestQuoteRequest, type GuestQuoteRequestResponse } from 'src/api/cart';
+import {
+  clearMyCart,
+  createGuestQuoteRequest,
+  replaceMyCartItems,
+  type GuestQuoteRequestResponse,
+} from 'src/api/cart';
+import { useAuthStore } from 'src/stores/auth';
 import { getProductById } from 'src/api/products';
 
 type ProductPublic = components['schemas']['ProductPublic'];
@@ -27,6 +33,8 @@ type CartItemWithProduct = {
 };
 
 const STORAGE_KEY = 'frontend.cart.v1';
+/** Debounce of the server mirror: one PUT per burst of clicks, not per click. */
+const MIRROR_DELAY_MS = 1500;
 
 export const useCartStore = defineStore('cart', () => {
   const cart = ref<LocalCart>(emptyCart());
@@ -40,6 +48,42 @@ export const useCartStore = defineStore('cart', () => {
   const quoteEmailDelivered = ref<boolean | null>(null);
 
   const items = computed(() => cart.value.items);
+
+  /**
+   * Mirror the local cart into the account's server cart when logged in.
+   *
+   * The cart lives in the browser; the server only saw it at checkout, so a
+   * customer who added items and left was invisible to the abandoned-cart
+   * reminder. Best effort and silent: a refused line (product gone) must not
+   * disturb the local cart, the checkout re-validates everything anyway.
+   */
+  let mirrorTimer: ReturnType<typeof setTimeout> | null = null;
+  function scheduleServerMirror() {
+    if (typeof window === 'undefined') return;
+    if (mirrorTimer !== null) clearTimeout(mirrorTimer);
+    mirrorTimer = setTimeout(() => {
+      mirrorTimer = null;
+      void mirrorToServer();
+    }, MIRROR_DELAY_MS);
+  }
+  async function mirrorToServer() {
+    const auth = useAuthStore();
+    if (!auth.isAuthenticated) return;
+    try {
+      if (cart.value.items.length === 0) {
+        await clearMyCart();
+        return;
+      }
+      await replaceMyCartItems({
+        items: cart.value.items.map((item) => ({
+          product_id: item.product_id,
+          quantity: item.quantity,
+        })),
+      });
+    } catch {
+      // ignored on purpose: the local cart is the source of truth until checkout
+    }
+  }
 
   const totalItems = computed(() => items.value.reduce((sum, item) => sum + item.quantity, 0));
 
@@ -107,6 +151,7 @@ export const useCartStore = defineStore('cart', () => {
 
       recomputeTotals();
       persistCart(cart.value);
+      scheduleServerMirror();
       requiresAuth.value = false;
       return true;
     } catch (err) {
@@ -132,6 +177,7 @@ export const useCartStore = defineStore('cart', () => {
       item.quantity = nextQuantity;
       recomputeTotals();
       persistCart(cart.value);
+      scheduleServerMirror();
       requiresAuth.value = false;
       return true;
     } catch (err) {
@@ -150,6 +196,7 @@ export const useCartStore = defineStore('cart', () => {
       cart.value.items = cart.value.items.filter((entry) => entry.id !== itemId);
       recomputeTotals();
       persistCart(cart.value);
+      scheduleServerMirror();
       requiresAuth.value = false;
       return true;
     } catch (err) {
@@ -167,6 +214,7 @@ export const useCartStore = defineStore('cart', () => {
     try {
       cart.value = emptyCart(cart.value.currency);
       persistCart(cart.value);
+      scheduleServerMirror();
       requiresAuth.value = false;
       return true;
     } catch (err) {

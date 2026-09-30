@@ -41,6 +41,7 @@ ORDER_STATUS_PAYMENT_REVIEW = "PaymentReview"
 #: Emitted once the accounting invoice exists, so its delivery e-mail retries
 #: independently of the issuance itself.
 EVENT_INVOICE_ISSUED = "invoice.issued"
+EVENT_CREDIT_NOTE_ISSUED = "credit_note.issued"
 
 EVENT_WEBHOOK_RECEIVED = "payment.webhook_received"
 EVENT_AWAITING_VALIDATION = "payment.awaiting_validation"
@@ -422,6 +423,27 @@ async def on_payment_refunded_issue_credit_note(
         credit_note.credit_note_number,
         refund_id,
     )
+
+    # Issuing is not delivering (same rule as the invoice): a dedicated event
+    # e-mails the document and retries on its own. Issuance is idempotent, so
+    # a replay re-publishes for the same note; ``emailed_at`` stops the mail.
+    await outbox_registry.publish(
+        session=session,
+        event_type=EVENT_CREDIT_NOTE_ISSUED,
+        payload={
+            "credit_note_id": str(credit_note.id),
+            "credit_note_number": credit_note.credit_note_number,
+            "invoice_id": str(credit_note.invoice_id),
+            "order_id": str(credit_note.order_id),
+            "user_id": str(credit_note.user_id),
+            "currency": credit_note.currency,
+            "total_incl_tax": str(credit_note.total_incl_tax),
+            "total_tax": str(credit_note.total_tax),
+            "reason": credit_note.reason or "",
+        },
+        correlation_id=credit_note.order_id,
+    )
+    await session.commit()
 
 
 @outbox_handler("payment.rejected")

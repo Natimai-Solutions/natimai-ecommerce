@@ -151,3 +151,7 @@ class CreditNotePublic(SQLModel):
     total_tax: Decimal
     total_incl_tax: Decimal
     reason: str | None
+    #: Human-readable references read from the frozen snapshot, so a screen
+    #: can label the row without a second lookup (None on legacy documents).
+    order_number: str | None = None
+    invoice_number: str | None = None

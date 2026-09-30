@@ -1,6 +1,7 @@
 """System settings endpoints.
 
 Public:
+  GET /system/config   — territory profile, mode and currency of the shop
   GET /system/settings — whitelisted keys (default_display_currency, …)
 
 Admin:
@@ -16,9 +17,11 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter
 from fastapi import status as http_status
+from pydantic import BaseModel
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.core.config import settings
 from app.core.errors import AppError
 from app.features.system.legal_identity import LEGAL_SETTING_KEYS
 from app.features.system.models.system_setting import (
@@ -35,6 +38,33 @@ from app.features.system.models.system_setting import (
 _PUBLIC_KEYS = frozenset({"default_display_currency"}) | LEGAL_SETTING_KEYS
 
 router = APIRouter(tags=["system"])
+
+
+class ShopConfigPublic(BaseModel):
+    """What every client may know about this deployment (no secrets)."""
+
+    shop_mode: str
+    territory_profile: str
+    territory_label: str
+    reference_currency: str
+    country_code: str
+    tax_territory_code: str
+    shop_name: str
+
+
+@router.get("/system/config", response_model=ShopConfigPublic)
+async def get_shop_config() -> ShopConfigPublic:
+    """Territory and mode of the shop, for the storefront and the admin."""
+    profile = settings.territory_profile
+    return ShopConfigPublic(
+        shop_mode=settings.SHOP_MODE,
+        territory_profile=profile.code,
+        territory_label=profile.label,
+        reference_currency=settings.REFERENCE_CURRENCY,
+        country_code=settings.SHOP_COUNTRY_CODE,
+        tax_territory_code=settings.TAX_TERRITORY_CODE,
+        shop_name=settings.SHOP_NAME,
+    )
 
 
 @router.get("/system/settings", response_model=list[SystemSettingPublic])

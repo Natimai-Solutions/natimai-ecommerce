@@ -30,7 +30,11 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { ProductOfferPublic, ProductOffersResponse } from 'src/api/products';
+import {
+  sellableQuantity,
+  type ProductOfferPublic,
+  type ProductOffersResponse,
+} from 'src/api/products';
 import { useCurrencyStore } from 'src/stores/currency';
 import { getProductRouteByIdAndName } from 'src/utils/productRoute';
 
@@ -52,7 +56,7 @@ function priceOf(offer: ProductOfferPublic): string {
 }
 
 function stockOf(offer: ProductOfferPublic): number {
-  return Math.max(0, Math.round(parseFloat(offer.supplier_quantity)));
+  return sellableQuantity(offer);
 }
 </script>
 

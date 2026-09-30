@@ -1,13 +1,18 @@
 import uuid
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, Query
-from sqlmodel import SQLModel, col, func, select
+from fastapi import APIRouter, Depends, Query, Response
+from sqlmodel import Field, SQLModel, col, func, select
 
 from app.api.deps import CurrentSuperUser, SessionDep, get_current_user_optional
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.integrations.models.supplier import Supplier
+from app.features.inventory.services.availability import (
+    local_quantities,
+    publish_with_availability,
+    supplier_available_quantity,
+)
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import (
     PricingMode,
@@ -30,6 +35,14 @@ from app.features.product.models.product_spec import (
 )
 from app.features.product.services.identity import product_identity_key
 from app.features.product.services.key_specs import compute_key_specs
+from app.features.product.services.popularity import (
+    DEFAULT_LIMIT,
+    DEFAULT_WINDOW_DAYS,
+    MAX_LIMIT,
+    MAX_WINDOW_DAYS,
+    popular_products,
+    record_product_view,
+)
 from app.features.product.services.pricing import (
     CurrencyRateMissing,
     PricingContext,
@@ -37,10 +50,15 @@ from app.features.product.services.pricing import (
     resolve_default_price_group,
     resolve_pricing_mode,
 )
-from app.features.product.services.publication import publication_blockers
+from app.features.product.services.publication import (
+    content_ready_condition,
+    has_storefront_content,
+    publication_blockers,
+)
 from app.features.product.services.spec_projection import (
     get_effective_spec_definitions,
 )
+from app.features.product.services.variants import list_variants, option_axes
 from app.features.shipping.models.route import ShippingRoute
 from app.features.user.crud.user_preference import get_preference_for_user
 from app.features.user.models.user import User
@@ -100,7 +118,7 @@ async def get_product_shipping_modes(
         )
 
     is_admin = getattr(current_user, "is_superuser", False)
-    if not is_admin and not product.is_enriched:
+    if not is_admin and not has_storefront_content(product):
         raise AppError(
             code="product.not_found",
             status_code=404,
@@ -201,7 +219,8 @@ async def _load_published_product(
 
     is_admin = getattr(current_user, "is_superuser", False)
     if not is_admin and (
-        not product.is_enriched or await publication_blockers(session, product)
+        not has_storefront_content(product)
+        or await publication_blockers(session, product)
     ):
         raise AppError(
             code="product.not_found",
@@ -251,6 +270,9 @@ async def get_product_offers(
         rows = await session.exec(select(Supplier).where(col(Supplier.code).in_(codes)))
         suppliers = {row.code: row for row in rows.all()}
 
+    # Sellable stock as the checkout counts it: warehouse + supplier.
+    local = await local_quantities(session, (p.id for p in everyone))
+
     offers: list[ProductOfferPublic] = []
     for candidate in everyone:
         mode = resolve_pricing_mode(candidate)
@@ -262,6 +284,8 @@ async def get_product_offers(
             sale_price = Decimal("0")
         supplier = suppliers.get(candidate.supplier_name or "")
         quantity = Decimal(str(candidate.supplier_quantity or 0))
+        local_quantity = local.get(candidate.id, Decimal("0.00"))
+        available = local_quantity + supplier_available_quantity(candidate)
         offers.append(
             ProductOfferPublic(
                 product_id=candidate.id,
@@ -277,7 +301,9 @@ async def get_product_offers(
                 pricing_mode=mode,
                 sale_price=sale_price,
                 supplier_quantity=quantity,
-                in_stock=quantity > 0,
+                local_quantity=local_quantity,
+                available_quantity=available,
+                in_stock=available > 0,
                 image_url=candidate.image_url or candidate.supplier_image_url,
             )
         )
@@ -333,17 +359,90 @@ async def search_products(
     )
 
     offers_counts: dict[str, int] = search_result.get("offers_counts", {}) or {}
-    products = []
-    for product in search_result.get("data", []):
-        public = ProductPublic.model_validate(product)
-        public.offers_count = offers_counts.get(str(product.id), 1)
-        products.append(public)
+    products = await publish_with_availability(session, search_result.get("data", []))
+    for public in products:
+        public.offers_count = offers_counts.get(str(public.id), 1)
 
     return ProductSearchResponse(
         data=products,
         count=search_result.get("count", 0),
         facets=ProductSearchFacets.model_validate(search_result.get("facets", {})),
     )
+
+
+class ProductVariantsResponse(SQLModel):
+    """The variants of a parent product and the option axes that tell them apart."""
+
+    parent_id: uuid.UUID
+    axes: list[str] = Field(default_factory=list)
+    variants: list[ProductPublic] = Field(default_factory=list)
+
+
+@router.get("/{product_id}/variants", response_model=ProductVariantsResponse)
+async def get_product_variants(
+    session: SessionDep,
+    product_id: uuid.UUID,
+    current_user: object = Depends(get_current_user_optional),
+) -> ProductVariantsResponse:
+    """Active variants of a product, with their price and sellable stock.
+
+    Empty for a plain product. Variants are reached only through here (or by
+    id): the listings show the parent.
+    """
+    product = await session.get(Product, product_id)
+    is_admin = getattr(current_user, "is_superuser", False)
+    if product is None or (not is_admin and not has_storefront_content(product)):
+        raise AppError(
+            code="product.not_found",
+            status_code=404,
+            message="Product not found",
+            details={"product_id": str(product_id)},
+        )
+    variants = await list_variants(session, product_id)
+    if not is_admin:
+        variants = [v for v in variants if has_storefront_content(v)]
+    await crud_product._apply_runtime_sale_prices(session, variants)  # noqa: SLF001
+    return ProductVariantsResponse(
+        parent_id=product_id,
+        axes=option_axes(variants),
+        variants=await publish_with_availability(session, variants),
+    )
+
+
+@router.get("/popular", response_model=ProductsPublic)
+async def get_popular_products(
+    session: SessionDep,
+    days: int = Query(default=DEFAULT_WINDOW_DAYS, ge=1, le=MAX_WINDOW_DAYS),
+    limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+) -> ProductsPublic:
+    """Most viewed products over the last ``days`` days (storefront-visible only)."""
+    products = await popular_products(
+        session,
+        conditions=crud_product.storefront_conditions(),
+        days=days,
+        limit=limit,
+    )
+    await crud_product._apply_runtime_sale_prices(session, products)  # noqa: SLF001
+    return ProductsPublic(
+        data=await publish_with_availability(session, products),
+        count=len(products),
+    )
+
+
+@router.post("/{product_id}/view", status_code=204)
+async def track_product_view(
+    session: SessionDep,
+    product_id: uuid.UUID,
+) -> Response:
+    """Count one view of a product page (anonymous, fire-and-forget).
+
+    Only products the storefront shows are counted; anything else answers the
+    same 204 so the endpoint reveals nothing about hidden rows.
+    """
+    product = await session.get(Product, product_id)
+    if product is not None and product.is_active and product.is_admin_active:
+        await record_product_view(session, product_id=product_id)
+    return Response(status_code=204)
 
 
 @router.get("/featured", response_model=ProductsPublic)
@@ -354,7 +453,7 @@ async def get_featured_products(
     """Get public featured products."""
     products = await crud_product.get_featured(session=session, limit=limit)
     return ProductsPublic(
-        data=[ProductPublic.model_validate(product) for product in products],
+        data=await publish_with_availability(session, products),
         count=len(products),
     )
 
@@ -447,7 +546,7 @@ async def get_category_spec_facets(
             col(ProductSpec.value_text).is_not(None),
             col(Product.category_id) == category_id,
             col(Product.is_active).is_(True),
-            col(Product.is_enriched).is_(True),
+            content_ready_condition(),
         )
         .group_by(col(ProductSpec.spec_key), col(ProductSpec.value_text))
         .order_by(
@@ -469,7 +568,7 @@ async def get_category_spec_facets(
             col(ProductSpec.value_numeric).is_not(None),
             col(Product.category_id) == category_id,
             col(Product.is_active).is_(True),
-            col(Product.is_enriched).is_(True),
+            content_ready_condition(),
         )
         .group_by(col(ProductSpec.spec_key), col(ProductSpec.value_numeric))
         .order_by(col(ProductSpec.spec_key), col(ProductSpec.value_numeric))

@@ -29,6 +29,7 @@ from app.core.db import engine
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product
 from app.features.product.services.pricing import PricingContext
+from app.features.product.services.variants import refresh_all_parents
 from app.tasks.enqueue import enqueue_with_dedup
 
 logger = logging.getLogger(__name__)
@@ -76,6 +77,10 @@ async def refresh_sale_prices(
         stats["unpriced"] += len(products) - priced
         stats["batches"] += 1
         await session.commit()
+    # Parents show « à partir de » = their cheapest variant: roll them up
+    # once the variants carry their fresh price.
+    stats["parents"] = await refresh_all_parents(session)
+    await session.commit()
     return stats
 
 

@@ -15,7 +15,10 @@
     <div class="product-card__buy">
       <div class="product-card__meta">
         <span v-if="isQuote" class="product-card__price">Prix sur devis</span>
-        <span v-else class="product-card__price font-mono">{{ displayPrice }}</span>
+        <span v-else class="product-card__price">
+          <span v-if="product.has_variants" class="product-card__from">À partir de</span>
+          <span class="font-mono">{{ displayPrice }}</span>
+        </span>
 
         <span v-if="isOutOfStock" class="product-card__stock product-card__stock--order">
           <span class="stock-dot stock-dot--order" aria-hidden="true" />Sur commande
@@ -24,12 +27,26 @@
           <span class="stock-dot" aria-hidden="true" />{{ stockQuantity }} en stock
         </span>
 
+        <span v-if="variantsCount > 1" class="product-card__offers">
+          {{ variantsCount }} déclinaisons
+        </span>
+
         <span v-if="offersCount > 1" class="product-card__offers">
           {{ offersCount }} offres, meilleur prix affiché
         </span>
       </div>
 
+      <router-link
+        v-if="product.has_variants"
+        :to="productRoute"
+        class="product-card__add"
+        data-testid="product-choose-variant"
+        :aria-label="`Choisir une déclinaison de ${product.name}`"
+      >
+        <q-icon name="ph:arrow-right" size="20px" />
+      </router-link>
       <button
+        v-else
         type="button"
         class="product-card__add"
         data-testid="product-add-to-cart"
@@ -48,6 +65,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { components } from '@app/api-types';
+import { sellableQuantity } from 'src/api/products';
 import ProductImage from 'src/components/ProductImage.vue';
 import { getProductRoute } from 'src/utils/productRoute';
 import { useCurrencyStore } from 'src/stores/currency';
@@ -66,12 +84,12 @@ const productRoute = computed(() => getProductRoute(props.product));
 const imageUrl = computed(() => props.product.image_url ?? props.product.supplier_image_url);
 const brand = computed(() => props.product.manufacturer ?? props.product.supplier_name ?? '');
 
-const isOutOfStock = computed(() => parseFloat(props.product.supplier_quantity) <= 0);
-const stockQuantity = computed(() =>
-  Math.max(0, Math.round(parseFloat(props.product.supplier_quantity))),
-);
+const stockQuantity = computed(() => sellableQuantity(props.product));
+const isOutOfStock = computed(() => stockQuantity.value <= 0);
+const variantsCount = computed(() => props.product.variants_count ?? 0);
 
 const isQuote = computed(() => parseFloat(props.product.base_price) === 0);
+// A parent is listed at its cheapest variant, prefixed « À partir de ».
 const displayPrice = computed(() => currencyStore.format(parseFloat(props.product.base_price)));
 </script>
 
@@ -155,6 +173,14 @@ const displayPrice = computed(() => currencyStore.format(parseFloat(props.produc
   color: var(--n-ink);
 }
 
+.product-card__from {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--n-ink-3);
+}
+
 .product-card__stock {
   display: flex;
   align-items: center;
@@ -183,6 +209,7 @@ const displayPrice = computed(() => currencyStore.format(parseFloat(props.produc
   border-radius: 8px;
   background: var(--n-surface);
   color: var(--n-ink);
+  text-decoration: none;
   cursor: pointer;
   transition:
     border-color 0.2s ease,

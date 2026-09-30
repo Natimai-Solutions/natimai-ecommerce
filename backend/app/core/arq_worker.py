@@ -8,6 +8,10 @@ from arq.worker import func
 
 from app.core.config import settings
 from app.outbox.consumer import OUTBOX_HANDLER_MAX_TRIES, execute_outbox_handler
+from app.tasks.cart_tasks import (
+    get_cart_abandonment_cron_jobs,
+    remind_abandoned_carts_task,
+)
 from app.tasks.icecat_tasks import (
     batch_enrich_products_task,
     enrich_product_with_icecat_task,
@@ -24,6 +28,7 @@ from app.tasks.pricing_tasks import (
     refresh_sale_prices_task,
     scheduled_sale_price_refresh_task,
 )
+from app.tasks.supplier_file_import_tasks import import_supplier_file_task
 from app.tasks.supplier_tasks import (
     check_supplier_health_task,
     get_supplier_sync_cron_jobs,
@@ -94,11 +99,15 @@ class WorkerSettings:
         scheduled_supplier_catalog_sync_task,
         scheduled_supplier_inventory_sync_task,
         scheduled_supplier_health_check_task,
+        # Import d'un catalogue fichier volumineux (déposé dans le stockage)
+        import_supplier_file_task,
         # Tâches Icecat
         enrich_product_with_icecat_task,
         batch_enrich_products_task,
         scheduled_batch_enrich_task,
         reproject_product_specs_task,
+        # Relance des paniers abandonnés (événement cart.abandoned → e-mail)
+        remind_abandoned_carts_task,
         # Hygiène du stock : libération des réservations sans issue de paiement
         release_expired_stock_reservations_task,
         # Prix vitrine matérialisés (rafraîchis quand un taux ou une marge change)
@@ -110,11 +119,13 @@ class WorkerSettings:
     # Cron jobs : synchronisation fournisseurs (un jeu par fournisseur enregistré)
     # + enrichissement Icecat récurrent (drainage du backlog non-enrichi)
     # + balayage horaire des réservations de stock expirées.
+    # SHOP_MODE=simple: own stock, no supplier sync and no Icecat pass.
     cron_jobs = (
-        get_supplier_sync_cron_jobs()
-        + get_enrichment_cron_jobs()
+        ([] if settings.is_simple_shop else get_supplier_sync_cron_jobs())
+        + ([] if settings.is_simple_shop else get_enrichment_cron_jobs())
         + get_stock_reservation_cron_jobs()
         + get_pricing_cron_jobs()
+        + get_cart_abandonment_cron_jobs()
     )
 
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)

@@ -75,6 +75,12 @@
                   <q-item-section>Frais de paiement</q-item-section>
                   <q-item-section side>{{ formatMoney(order.payment_fee_amount) }}</q-item-section>
                 </q-item>
+                <q-item v-if="order.discount_code" class="q-px-none text-positive">
+                  <q-item-section>Remise {{ order.discount_code }}</q-item-section>
+                  <q-item-section side
+                    >-{{ formatMoney(order.discount_amount ?? 0) }}</q-item-section
+                  >
+                </q-item>
                 <q-separator class="q-my-xs" />
                 <q-item class="q-px-none text-weight-bold">
                   <q-item-section>Total</q-item-section>

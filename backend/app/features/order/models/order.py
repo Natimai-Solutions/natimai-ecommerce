@@ -71,6 +71,24 @@ class OrderBase(Base):
         decimal_places=2,
         description="Total des frais figes au checkout",
     )
+    discount_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="discounts.id",
+        index=True,
+        description="Remise appliquée au checkout (code promo)",
+    )
+    discount_code: str | None = Field(
+        default=None,
+        max_length=50,
+        description="Code promo tel que saisi (figé, même si la remise change)",
+    )
+    discount_amount: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description="Remise totale déduite des articles au checkout",
+    )
     currency: str | None = Field(
         default=None,
         max_length=8,
@@ -132,6 +150,7 @@ class OrderUpdate(BaseUpdate):
     shipping_fee_amount: Decimal | None = None
     payment_fee_amount: Decimal | None = None
     total_fees_amount: Decimal | None = None
+    discount_amount: Decimal | None = None
     currency: str | None = None
     shipping_address: str | None = None
     shipping_cost_breakdown: dict[str, Any] | None = None

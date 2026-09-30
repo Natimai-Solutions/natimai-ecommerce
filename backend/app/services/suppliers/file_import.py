@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from app.core.config import settings
 from app.features.integrations.models.supplier import (
     FILE_MAPPING_REQUIRED,
     FILE_MAPPING_TARGETS,
@@ -29,8 +30,10 @@ from app.services.suppliers.base import NormalizedProductData
 
 #: Extensions lues par openpyxl ; tout le reste est traité comme du CSV.
 EXCEL_EXTENSIONS: tuple[str, ...] = (".xlsx", ".xlsm")
-#: Lignes maximum acceptées par import (garde-fou mémoire / durée de requête).
-MAX_ROWS = 50_000
+#: Lignes maximum acceptées par import (garde-fou mémoire du worker) ; les
+#: fichiers au-delà de ``SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS`` sont importés
+#: en tâche de fond, pas dans la requête.
+MAX_ROWS = settings.SUPPLIER_FILE_IMPORT_MAX_ROWS
 
 _DELIMITERS = ",;\t|"
 _NUMBER_JUNK_RE = re.compile(r"[^\d,.\-]")

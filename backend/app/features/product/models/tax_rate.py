@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from sqlmodel import Field, SQLModel
 
+from app.core.config import settings
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
@@ -21,7 +22,7 @@ class TaxRateBase(Base):
         description="Tax percentage",
     )
     territory_code: str = Field(
-        default="PF",
+        default_factory=lambda: settings.TAX_TERRITORY_CODE,
         max_length=8,
         index=True,
         description="Territory code where this tax applies",

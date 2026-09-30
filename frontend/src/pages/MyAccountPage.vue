@@ -44,6 +44,10 @@
                 v-model="prefs.notification_shipping_steps"
                 label="Recevoir les notifications de suivi d'expédition"
               />
+              <q-toggle
+                v-model="prefs.marketing_email_enabled"
+                label="Recevoir les rappels commerciaux (panier oublié, offres)"
+              />
 
               <q-separator class="q-my-md" />
 
@@ -231,6 +235,23 @@
                   :loading="downloadingInvoiceId === invoiceByOrderId.get(order.id)?.id"
                   @click="onDownloadInvoice(invoiceByOrderId.get(order.id)!)"
                 />
+                <q-btn
+                  v-for="note in creditNotesByOrderId.get(order.id) ?? []"
+                  :key="note.id"
+                  flat
+                  dense
+                  no-caps
+                  color="primary"
+                  icon="picture_as_pdf"
+                  :label="`Avoir ${note.credit_note_number}`"
+                  :loading="downloadingCreditNoteId === note.id"
+                  @click="onDownloadCreditNote(note)"
+                >
+                  <q-tooltip>
+                    {{ formatMoney(note.total_incl_tax) }} crédité(s)
+                    {{ note.reason ? `: ${note.reason}` : '' }}
+                  </q-tooltip>
+                </q-btn>
               </q-item-section>
             </q-item>
           </q-list>
@@ -512,6 +533,7 @@ import {
 } from 'src/api/addresses';
 import { listMyOrders, type Order } from 'src/api/orders';
 import { downloadInvoicePdf, listMyInvoices, type Invoice } from 'src/api/invoices';
+import { downloadCreditNotePdf, listMyCreditNotes, type CreditNote } from 'src/api/creditNotes';
 import {
   getUpgradeOptions,
   listMyUpgradeRequests,
@@ -566,6 +588,7 @@ const prefsSaved = ref(false);
 const prefs = reactive<Omit<UserPreferences, 'user_id'>>({
   notification_email_enabled: true,
   notification_shipping_steps: true,
+  marketing_email_enabled: true,
   default_shipping_preference: null,
   locale: null,
   currency_pref: null,
@@ -579,6 +602,7 @@ async function loadPreferences() {
     const data = await getMyPreferences();
     prefs.notification_email_enabled = data.notification_email_enabled;
     prefs.notification_shipping_steps = data.notification_shipping_steps;
+    prefs.marketing_email_enabled = data.marketing_email_enabled ?? true;
     prefs.default_shipping_preference = data.default_shipping_preference;
     prefs.locale = data.locale;
     prefs.currency_pref = data.currency_pref;
@@ -980,6 +1004,43 @@ async function onDownloadInvoice(invoice: Invoice) {
   }
 }
 
+// --------------------------------------------------------------------------
+// Credit notes (Z2) — one per refund, correcting the invoice; several per order
+// --------------------------------------------------------------------------
+const creditNotes = ref<CreditNote[]>([]);
+const downloadingCreditNoteId = ref<string | null>(null);
+
+const creditNotesByOrderId = computed(() => {
+  const map = new Map<string, CreditNote[]>();
+  for (const note of creditNotes.value) {
+    const list = map.get(note.order_id) ?? [];
+    list.push(note);
+    map.set(note.order_id, list);
+  }
+  return map;
+});
+
+async function loadCreditNotes() {
+  // Same rule as the invoices: a failure is reported inline, never blocking.
+  try {
+    creditNotes.value = await listMyCreditNotes();
+  } catch (err) {
+    invoiceError.value = extractError(err) ?? 'Impossible de charger vos avoirs.';
+  }
+}
+
+async function onDownloadCreditNote(note: CreditNote) {
+  downloadingCreditNoteId.value = note.id;
+  invoiceError.value = null;
+  try {
+    await downloadCreditNotePdf(note);
+  } catch (err) {
+    invoiceError.value = extractError(err) ?? "Le téléchargement de l'avoir a échoué.";
+  } finally {
+    downloadingCreditNoteId.value = null;
+  }
+}
+
 /** Human-readable order reference: CMD-2026-00042, else the legacy short id. */
 function orderRef(order: Order): string {
   return order.order_number ?? `#${order.id.slice(0, 8)}`;
@@ -1163,6 +1224,7 @@ onMounted(async () => {
     loadAddresses(),
     loadOrders(),
     loadInvoices(),
+    loadCreditNotes(),
     loadGroup(),
   ]);
 });
