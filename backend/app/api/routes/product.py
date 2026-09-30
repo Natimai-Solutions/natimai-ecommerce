@@ -10,7 +10,10 @@ from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
-from app.features.inventory.services.availability import publish_with_availability
+from app.features.inventory.services.availability import (
+    STAFF,
+    publish_with_availability,
+)
 from app.features.product.crud.product import (
     ProductCrud,
     crud_product,
@@ -96,7 +99,11 @@ class ProductRouter(
                         },
                     )
 
-            return (await publish_with_availability(session, [record]))[0]
+            return (
+                await publish_with_availability(
+                    session, [record], customer=STAFF if is_admin else current_user
+                )
+            )[0]
 
         read.__name__ = "get_one_product"
         return read
@@ -178,7 +185,11 @@ class ProductRouter(
                 user=current_user,
             )
             return ProductsPublic(
-                data=await publish_with_availability(session, result["data"]),
+                data=await publish_with_availability(
+                    session,
+                    result["data"],
+                    customer=STAFF if is_admin else current_user,
+                ),
                 count=result["count"],
             )
 

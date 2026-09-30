@@ -21,12 +21,23 @@ from app.features.product.models.product import (
     ProductFeatureRequest,
     ProductSearchRequest,
 )
+from app.features.product.services import group_pricing
 from app.features.user.models.user import User
 
 
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
+
+
+@pytest.fixture(autouse=True)
+def _reference_prices(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A visitor of the default group without discount: reference prices."""
+    monkeypatch.setattr(
+        group_pricing,
+        "pricing_for_user",
+        AsyncMock(return_value=group_pricing.GroupPricing(group_id=None)),
+    )
 
 
 @pytest.mark.anyio
@@ -54,6 +65,7 @@ async def test_search_products_returns_data_and_facets(
     response = await search_products(
         session=session,
         payload=ProductSearchRequest(q="laptop", limit=10),
+        current_user=None,
     )
 
     assert response.count == 1
@@ -75,7 +87,7 @@ async def test_get_featured_products_honors_limit(
     monkeypatch.setattr(crud_product, "get_featured", featured_mock)
     monkeypatch.setattr(availability, "local_quantities", AsyncMock(return_value={}))
 
-    response = await get_featured_products(session=session, limit=5)
+    response = await get_featured_products(session=session, limit=5, current_user=None)
 
     assert response.count == 1
     assert response.data[0].name == "Featured"

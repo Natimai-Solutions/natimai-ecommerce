@@ -30,6 +30,7 @@ from app.features.base.crud import RecordNotFoundError
 from app.features.integrations.models.supplier import Supplier
 from app.features.inventory.services.availability import publish_with_availability
 from app.features.product.crud.product import crud_product
+from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.price_history import (
     ProductPriceEntry,
     ProductPriceEntryPublic,
@@ -41,6 +42,8 @@ from app.features.product.models.product import (
     ProductPublic,
     ProductUpdate,
 )
+from app.features.product.models.product_group_price import ProductGroupPrice
+from app.features.product.services.group_pricing import apply_discount
 from app.features.product.services.overrides import merge_locks, release_lock
 from app.features.product.services.pricing import CurrencyRateMissing, PricingContext
 from app.features.product.services.variants import (
@@ -177,6 +180,23 @@ class MarginPreviewRequest(BaseModel):
     customs_rate_pct: Decimal | None = Field(default=None, ge=0)
     tax_rate_id: uuid.UUID | None = None
     category_id: uuid.UUID | None = None
+    #: Prices typed per group in the form (absent: the stored ones).
+    group_prices: dict[uuid.UUID, Decimal] | None = None
+
+
+class GroupPriceLine(BaseModel):
+    """What one customer group pays for the article, and the margin left."""
+
+    price_group_id: uuid.UUID
+    label: str
+    is_default: bool
+    discount_pct: Decimal
+    #: Price typed for the group on the article (None: the discount applies).
+    typed_price: Decimal | None
+    #: What the group pays: typed price, else reference − discount.
+    price: Decimal | None
+    margin_amount: Decimal | None
+    margin_pct: Decimal | None
 
 
 class MarginPreview(BaseModel):
@@ -196,6 +216,59 @@ class MarginPreview(BaseModel):
     currency: str
     #: Why a figure is missing (no cost, no exchange rate…).
     note: str | None = None
+    #: One line per customer group (the reference price is the default's).
+    groups: list[GroupPriceLine] = Field(default_factory=list)
+
+
+async def _active_groups(session: SessionDep) -> list[PriceGroup]:
+    rows = await session.exec(
+        select(PriceGroup)
+        .where(col(PriceGroup.is_active).is_(True))
+        .order_by(col(PriceGroup.default).desc(), col(PriceGroup.label).asc())
+    )
+    return list(rows.all())
+
+
+async def _stored_group_prices(
+    session: SessionDep, product_id: uuid.UUID
+) -> dict[uuid.UUID, Decimal]:
+    rows = await session.exec(
+        select(ProductGroupPrice).where(col(ProductGroupPrice.product_id) == product_id)
+    )
+    return {row.price_group_id: Decimal(row.price) for row in rows.all()}
+
+
+def _group_lines(
+    groups: list[PriceGroup],
+    typed: dict[uuid.UUID, Decimal],
+    *,
+    reference: Decimal | None,
+    context: PricingContext,
+    product: Product,
+) -> list[GroupPriceLine]:
+    lines = []
+    for group in groups:
+        typed_price = typed.get(group.id)
+        if typed_price is not None:
+            price: Decimal | None = typed_price
+        elif reference is not None:
+            price = apply_discount(reference, group.discount_pct)
+        else:
+            price = None
+        figures = context.margin(product, price) if price is not None else None
+        lines.append(
+            GroupPriceLine(
+                price_group_id=group.id,
+                label=group.label,
+                is_default=group.default,
+                discount_pct=Decimal(group.discount_pct or 0),
+                typed_price=typed_price,
+                price=price,
+                margin_amount=figures.margin_amount if figures else None,
+                margin_pct=figures.margin_pct if figures else None,
+            )
+        )
+    return lines
 
 
 @router.post("/margin-preview", response_model=MarginPreview)
@@ -226,6 +299,16 @@ async def preview_margin(
 
     context = await PricingContext.load(session)
     tax_pct = context.tax_rate_pct(draft)
+    groups = await _active_groups(session)
+    typed = (
+        {gid: price for gid, price in payload.group_prices.items() if price is not None}
+        if payload.group_prices is not None
+        else (
+            await _stored_group_prices(session, payload.product_id)
+            if payload.product_id is not None
+            else {}
+        )
+    )
     empty = MarginPreview(
         price_incl_tax=None,
         tax_rate_pct=tax_pct,
@@ -241,13 +324,22 @@ async def preview_margin(
     try:
         price = context.price(draft)
     except CurrencyRateMissing as exc:
-        return empty.model_copy(update={"note": f"Pas de taux de change pour {exc}"})
+        return empty.model_copy(
+            update={
+                "note": f"Pas de taux de change pour {exc}",
+                "groups": _group_lines(
+                    groups, typed, reference=None, context=context, product=draft
+                ),
+            }
+        )
+    lines = _group_lines(groups, typed, reference=price, context=context, product=draft)
     figures = context.margin(draft, price)
     if figures is None:
         return empty.model_copy(
             update={
                 "price_incl_tax": price,
                 "note": "Saisissez le coût d'achat pour voir la marge.",
+                "groups": lines,
             }
         )
     return MarginPreview(
@@ -266,7 +358,86 @@ async def preview_margin(
             if figures.margin_amount < 0
             else None
         ),
+        groups=lines,
     )
+
+
+class GroupPriceInput(BaseModel):
+    price_group_id: uuid.UUID
+    #: Tax-inclusive price for the group; None removes it (discount applies).
+    price: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2)
+
+
+class GroupPricesUpdate(BaseModel):
+    prices: list[GroupPriceInput]
+
+
+class GroupPriceStored(BaseModel):
+    price_group_id: uuid.UUID
+    price: Decimal
+
+
+@router.get("/{product_id}/group-prices", response_model=list[GroupPriceStored])
+async def get_group_prices(
+    product_id: uuid.UUID,
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+) -> list[GroupPriceStored]:
+    """Prices typed per customer group on the article."""
+    stored = await _stored_group_prices(session, product_id)
+    return [GroupPriceStored(price_group_id=k, price=v) for k, v in stored.items()]
+
+
+@router.put("/{product_id}/group-prices", response_model=list[GroupPriceStored])
+async def set_group_prices(
+    product_id: uuid.UUID,
+    payload: GroupPricesUpdate,
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+) -> list[GroupPriceStored]:
+    """Set (or clear, with a null price) the article's price per group."""
+    if await session.get(Product, product_id) is None:
+        raise AppError(
+            code="product.not_found",
+            status_code=404,
+            message="Product not found",
+            details={"product_id": str(product_id)},
+        )
+    group_ids = {g.id for g in await _active_groups(session)}
+    existing = {
+        row.price_group_id: row
+        for row in (
+            await session.exec(
+                select(ProductGroupPrice).where(
+                    col(ProductGroupPrice.product_id) == product_id
+                )
+            )
+        ).all()
+    }
+    for entry in payload.prices:
+        if entry.price_group_id not in group_ids:
+            raise AppError(
+                code="price_group.not_found",
+                status_code=404,
+                message="Groupe tarifaire introuvable",
+                details={"price_group_id": str(entry.price_group_id)},
+            )
+        row = existing.get(entry.price_group_id)
+        if entry.price is None:
+            if row is not None:
+                await session.delete(row)
+            continue
+        if row is None:
+            row = ProductGroupPrice(
+                product_id=product_id,
+                price_group_id=entry.price_group_id,
+                price=entry.price,
+            )
+        row.price = entry.price
+        session.add(row)
+    await session.commit()
+    stored = await _stored_group_prices(session, product_id)
+    return [GroupPriceStored(price_group_id=k, price=v) for k, v in stored.items()]
 
 
 @router.post("/publish-drafts", response_model=PublishDraftsResponse)

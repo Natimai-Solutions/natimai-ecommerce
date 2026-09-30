@@ -118,17 +118,34 @@ async def local_quantities(
     }
 
 
+#: ``customer`` of :func:`publish_with_availability` for back-office screens:
+#: reference prices, whatever the admin's own group.
+STAFF: Any = object()
+
+
 async def publish_with_availability(
-    session: AsyncSession, products: Sequence[Any]
+    session: AsyncSession, products: Sequence[Any], *, customer: Any = STAFF
 ) -> list[ProductPublic]:
     """Serialize products for the storefront with their sellable quantity.
 
     Sets ``local_quantity`` and ``available_quantity`` on each
-    :class:`ProductPublic`; everything else is the plain validation.
+    :class:`ProductPublic`. With ``customer`` (a user, or None for a visitor)
+    the prices are the ones that customer pays: their group's price or
+    discount (product/services/group_pricing.py); :data:`STAFF` keeps the
+    reference prices.
     """
+    from app.features.product.services.group_pricing import (
+        price_publics,
+        pricing_for_user,
+    )
     from app.features.product.services.variants import children_availability
 
     publics = [ProductPublic.model_validate(product) for product in products]
+    if customer is not STAFF and publics:
+        pricing = await pricing_for_user(
+            session, customer, (public.id for public in publics)
+        )
+        price_publics(publics, pricing)
     local = await local_quantities(session, (public.id for public in publics))
     parents = await children_availability(
         session, [public.id for public in publics if public.has_variants]

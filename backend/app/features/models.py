@@ -40,6 +40,7 @@ from app.features.product.models.category import Category
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.price_history import ProductPriceEntry
 from app.features.product.models.product import Product
+from app.features.product.models.product_group_price import ProductGroupPrice
 from app.features.product.models.product_view import ProductViewDaily
 from app.features.product.models.spec_definition import SpecDefinition
 from app.features.product.models.stock_alert import StockAlert
@@ -77,6 +78,7 @@ __all__ = [
     "CartItem",
     "Category",
     "PriceGroup",
+    "ProductGroupPrice",
     "TaxRate",
     "Carrier",
     "DeliveryTask",

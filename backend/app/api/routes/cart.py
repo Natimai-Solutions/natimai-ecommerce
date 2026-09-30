@@ -10,6 +10,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, Response, status
 from pydantic import BaseModel
+from sqlalchemy.orm.attributes import set_committed_value
 from sqlmodel import col, or_, select
 
 from app.api.deps import CurrentUser, SessionDep
@@ -110,6 +111,7 @@ from app.features.product.models.product import (
     AvailabilityMode,
     Product,
 )
+from app.features.product.services.group_pricing import customer_price
 from app.features.product.services.pricing import (
     PricingContext,
     calculate_sale_price,
@@ -1380,8 +1382,15 @@ async def _get_active_product_or_404(
     session: SessionDep,
     *,
     product_id: uuid.UUID,
+    user: Any = None,
 ) -> Product:
-    """Get active product or 404."""
+    """Get active product or 404, priced for ``user`` (``product.base_price``).
+
+    The price is the customer's: their group's price or discount on the
+    reference price (product/services/group_pricing.py). It is set without
+    marking the row dirty — for a fixed-price article ``base_price`` *is* the
+    stored reference price, which a later flush must never overwrite.
+    """
     product = await session.get(Product, product_id)
     if product is None or not product.is_active or not product.is_admin_active:
         raise AppError(
@@ -1412,8 +1421,34 @@ async def _get_active_product_or_404(
             details={"product_id": str(product_id), "blockers": blockers},
         )
 
-    product.base_price = await calculate_sale_price(session, product)
+    await _price_for_customer(session, product, user)
     return product
+
+
+_REFERENCE_PRICES_KEY = "cart_reference_prices"
+
+
+async def _price_for_customer(
+    session: SessionDep, product: Product, user: Any
+) -> Decimal:
+    """Set ``product.base_price`` to what ``user`` pays, once per request.
+
+    The reference price is computed on first sight and kept in the session:
+    a second lookup of the same product never discounts the discounted price.
+    """
+    info = getattr(session, "info", None)
+    cache: dict[uuid.UUID, Decimal] = (
+        info.setdefault(_REFERENCE_PRICES_KEY, {}) if isinstance(info, dict) else {}
+    )
+    reference = cache.get(product.id)
+    if reference is None:
+        reference = await calculate_sale_price(session, product)
+        cache[product.id] = reference
+    price = await customer_price(
+        session, product_id=product.id, reference=reference, user=user
+    )
+    set_committed_value(product, "base_price", price)
+    return price
 
 
 @router.get("/me", response_model=CartDetailPublic)
@@ -1449,7 +1484,9 @@ async def add_cart_item(
     # re-reading cart.id from an expired instance triggers a sync lazy-load
     # (MissingGreenlet) in the async session.
     cart_id = cart.id
-    product = await _get_active_product_or_404(session, product_id=payload.product_id)
+    product = await _get_active_product_or_404(
+        session, product_id=payload.product_id, user=current_user
+    )
 
     await crud_cart_item.add_or_increment(
         session=session,
@@ -1579,7 +1616,9 @@ async def replace_my_cart_items(
 
     entries: list[tuple[Product, int]] = []
     for product_id, quantity in merged.items():
-        product = await _get_active_product_or_404(session, product_id=product_id)
+        product = await _get_active_product_or_404(
+            session, product_id=product_id, user=current_user
+        )
         entries.append((product, quantity))
 
     await crud_cart_item.replace_cart_items(
@@ -1804,7 +1843,9 @@ async def create_quote_request(
     item_snapshots: list[dict[str, str | None]] = []
     subtotal_amount = Decimal("0.00")
     for item in items:
-        product = await _get_active_product_or_404(session, product_id=item.product_id)
+        product = await _get_active_product_or_404(
+            session, product_id=item.product_id, user=current_user
+        )
         line_total = quantize_amount(item.unit_price * item.quantity, cart.currency)
         subtotal_amount += line_total
         item_snapshots.append(
@@ -1961,6 +2002,7 @@ async def _install_quote_in_cart(
     entries: list[tuple[Product, int]] = []
     for product_id, (quantity, _price) in prices.items():
         entries.append(
+            # Priced by the quote below, not by the customer's group.
             (await _get_active_product_or_404(session, product_id=product_id), quantity)
         )
     items = await crud_cart_item.replace_cart_items(
@@ -2546,7 +2588,7 @@ async def get_checkout_quote(
     products_by_id: dict[uuid.UUID, Product] = {}
     for item in items:
         products_by_id[item.product_id] = await _get_active_product_or_404(
-            session, product_id=item.product_id
+            session, product_id=item.product_id, user=current_user
         )
     fixed_shipping_fee: Decimal | None = None
     # isinstance: called directly (tests) the FastAPI defaults are Query objects.
@@ -2632,7 +2674,7 @@ async def get_last_leg_options(
     try:
         for item in items:
             products_by_id[item.product_id] = await _get_active_product_or_404(
-                session, product_id=item.product_id
+                session, product_id=item.product_id, user=current_user
             )
     except AppError:
         # A cart line is no longer purchasable; no quote to show (checkout will
@@ -2757,6 +2799,7 @@ async def checkout_my_cart(
         product = await _get_active_product_or_404(
             session,
             product_id=item.product_id,
+            user=current_user,
         )
         products_by_id[item.product_id] = product
 
@@ -2786,6 +2829,8 @@ async def checkout_my_cart(
         strict=True,
     )
     price_group = await _resolve_customer_price_group(session, current_user)
+    # The reference price's margin comes from the default group.
+    reference_group = await resolve_default_price_group(session)
     quote = await _quote_checkout(
         session,
         user_id=user_id,
@@ -2946,10 +2991,11 @@ async def checkout_my_cart(
                     or settings.REFERENCE_CURRENCY,
                     fx_rate_used=getattr(item, "fx_rate_used", None),
                     customs_rate_pct_snapshot=resolved_customs_rate_pct,
-                    # The margin actually applied (product → category →
-                    # group), not the group's: real-margin reports rely on it.
+                    # The margin of the reference price (product → category
+                    # → default group); the customer's group then applies its
+                    # discount or typed price (see group_pricing.py).
                     margin_rate_pct_snapshot=await resolve_margin_rate_pct(
-                        session, product, group=price_group
+                        session, product, group=reference_group
                     ),
                     price_group_id_snapshot=getattr(price_group, "id", None),
                     unit_cost_snapshot=await _unit_cost_snapshot(session, product),
