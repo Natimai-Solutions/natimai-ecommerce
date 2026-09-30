@@ -69,6 +69,7 @@ export const PAYMENT_KIND_LABELS: Record<string, string> = {
 
 export interface AdminOrderDetail {
   order_id: string;
+  order_number: string | null;
   created_at: string | null;
   user_id: string;
   user_name: string | null;

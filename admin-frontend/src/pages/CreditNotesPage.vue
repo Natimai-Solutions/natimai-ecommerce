@@ -1,17 +1,34 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="text-h6 col">Avoirs</div>
-      <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader title="Avoirs">
+      <template #hint>
+        Un avoir est émis automatiquement à chaque remboursement, en correction de la facture
+        d'origine : une facture émise n'est jamais modifiée. La numérotation
+        <span class="font-mono">AV-AAAA-NNNNN</span> est continue par exercice, distincte de celle
+        des factures.
+      </template>
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+        <q-btn
+          color="primary"
+          unelevated
+          no-caps
+          icon="ph:download-simple"
+          label="Export comptable (CSV)"
+          :loading="exporting"
+          @click="onExport"
+        />
+      </template>
+    </PageHeader>
 
-    <div class="text-caption text-grey-7 q-mb-md">
-      Un avoir est émis automatiquement à chaque remboursement, en correction de la facture
-      d'origine : une facture émise n'est jamais modifiée. La numérotation AV-AAAA-NNNNN est
-      continue par exercice, distincte de celle des factures.
-    </div>
-
-    <div class="row q-col-gutter-md q-mb-md items-end">
+    <div class="admin-toolbar">
       <q-select
         v-model="fiscalYear"
         :options="yearOptions"
@@ -21,25 +38,14 @@
         emit-value
         map-options
         clearable
-        class="col-12 col-sm-3"
         @update:model-value="load"
       />
-      <div class="col-12 col-sm-auto">
-        <q-btn
-          color="primary"
-          icon="download"
-          label="Export comptable (CSV)"
-          no-caps
-          :loading="exporting"
-          @click="onExport"
-        />
-      </div>
     </div>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
-    <q-banner v-if="notice" class="bg-blue-1 text-blue-10 q-mb-md" dense rounded>
-      {{ notice }}
-    </q-banner>
+    <div v-if="error || notice" class="admin-notices">
+      <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
+      <AppNotice v-if="notice" tone="info" dense>{{ notice }}</AppNotice>
+    </div>
 
     <q-table
       :rows="rows"
@@ -51,31 +57,60 @@
       :rows-per-page-options="[0]"
       hide-pagination
     >
+      <template #body-cell-credit_note_number="props">
+        <q-td :props="props" class="font-mono">{{ props.value }}</q-td>
+      </template>
+      <template #body-cell-invoice_number="props">
+        <q-td :props="props" class="font-mono">{{ props.value }}</q-td>
+      </template>
+      <template #body-cell-order_number="props">
+        <q-td :props="props">
+          <router-link
+            :to="`/orders/${props.row.order_id}`"
+            class="admin-link font-mono"
+            :title="props.row.order_id"
+            >{{ props.value }}</router-link
+          >
+        </q-td>
+      </template>
+      <template #body-cell-total_excl_tax="props">
+        <q-td :props="props" class="font-mono">{{ props.value }}</q-td>
+      </template>
+      <template #body-cell-total_tax="props">
+        <q-td :props="props" class="font-mono">{{ props.value }}</q-td>
+      </template>
+      <template #body-cell-total_incl_tax="props">
+        <q-td :props="props" class="font-mono text-weight-medium">{{ props.value }}</q-td>
+      </template>
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
           <q-btn
             flat
             dense
             no-caps
-            icon="picture_as_pdf"
-            color="primary"
+            icon="ph:file-pdf"
             label="PDF"
             :loading="downloadingId === props.row.id"
             @click="onDownload(props.row)"
           />
         </q-td>
       </template>
+      <template #no-data>
+        <span class="text-subtle">Aucun avoir{{ fiscalYear ? ' pour cet exercice' : '' }}.</span>
+      </template>
     </q-table>
 
-    <div v-if="rows.length" class="text-caption text-grey-7 q-mt-sm">
+    <p v-if="rows.length" class="text-caption text-subtle q-mt-sm q-mb-none">
       {{ rows.length }} avoir(s) — montants crédités, en positif ; le document porte le sens.
-    </div>
+    </p>
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import {
   downloadCreditNotePdf,
   downloadCreditNotesCsv,

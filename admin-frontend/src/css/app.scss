@@ -52,6 +52,17 @@
   gap: 8px;
 }
 
+// Les titres HTML gardent sinon la typographie Quasar (h2 : interligne 60 px).
+.q-page,
+.q-dialog {
+  h1,
+  h2,
+  h3,
+  h4 {
+    line-height: 1.3;
+  }
+}
+
 // Sous-titre de section dans une page longue ou un dialogue.
 .admin-subtitle {
   margin: 0 0 10px;
@@ -61,7 +72,25 @@
   color: var(--n-ink);
 }
 
-// Valeurs clé / valeur compactes (fiches commande, fournisseur…).
+// Valeurs clé / valeur compactes (fiches commande, fournisseur…). Dans un
+// panneau latéral étroit, le libellé passe au-dessus de sa valeur.
+.app-panel .admin-dl {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+
+  dt {
+    font-size: 12.5px;
+  }
+
+  dd {
+    overflow-wrap: anywhere;
+  }
+
+  dd + dt {
+    margin-top: 10px;
+  }
+}
+
 .admin-dl {
   margin: 0;
   display: grid;
@@ -130,6 +159,17 @@ body .q-table__bottom {
 body .q-table__card,
 body .q-table__middle {
   border-radius: 8px;
+}
+
+// Codes et références en chasse fixe : un cran plus petits que le texte.
+body .q-table .font-mono {
+  font-size: 13px;
+}
+
+// Actions destructives en icône seule (supprimer, désactiver) : discrètes au
+// repos, rouges au survol ou au focus, pour ne pas crier sur chaque ligne.
+body .q-btn--flat.q-btn--round.text-negative:not(:hover):not(:focus-visible) {
+  color: var(--n-ink-2) !important;
 }
 
 // Tableau secondaire dans une fiche (lignes d'une commande…) : sans cadre.
@@ -291,10 +331,17 @@ body {
 }
 
 // Dialogues de saisie plus larges que ceux de la vitrine (formulaires admin).
+// Quasar plafonne le contenu d'un dialogue à 560 px (.q-dialog__inner--minimized
+// > div) : le plafond est relevé pour ces deux largeurs.
 .app-dialog--wide {
   width: 760px;
 }
 
 .app-dialog--xl {
   width: 1080px;
+}
+
+.q-dialog__inner--minimized > .app-dialog--wide,
+.q-dialog__inner--minimized > .app-dialog--xl {
+  max-width: calc(100vw - 32px);
 }

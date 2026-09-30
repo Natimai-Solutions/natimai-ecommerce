@@ -1,25 +1,32 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="text-h6 col">Codes promo</div>
-      <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
-      <q-btn
-        color="primary"
-        icon="add"
-        label="Nouveau code"
-        no-caps
-        class="q-ml-sm"
-        @click="openCreate"
-      />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader title="Codes promo">
+      <template #hint>
+        Un code est saisi par le client au checkout ; le serveur le valide (dates, quotas, minimum,
+        articles concernés) et déduit la remise des articles. Un pourcentage ou un montant fixe,
+        jamais les deux. Le compteur d'utilisations est pris à la commande.
+      </template>
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+        <q-btn
+          color="primary"
+          unelevated
+          no-caps
+          icon="ph:plus"
+          label="Nouveau code"
+          @click="openCreate"
+        />
+      </template>
+    </PageHeader>
 
-    <div class="text-caption text-grey-7 q-mb-md">
-      Un code est saisi par le client au checkout ; le serveur le valide (dates, quotas, minimum,
-      articles concernés) et déduit la remise des articles. Un pourcentage ou un montant fixe,
-      jamais les deux. Le compteur d'utilisations est pris à la commande.
-    </div>
-
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
+    <AppNotice v-if="error" tone="error" dense class="q-mb-md">{{ error }}</AppNotice>
 
     <q-table
       :rows="rows"
@@ -33,8 +40,8 @@
     >
       <template #body-cell-code="props">
         <q-td :props="props">
-          <code>{{ props.row.code ?? '—' }}</code>
-          <div class="text-caption text-grey-7">{{ props.row.name }}</div>
+          <span class="font-mono text-weight-medium">{{ props.row.code ?? '—' }}</span>
+          <div class="text-caption text-muted">{{ props.row.name }}</div>
         </q-td>
       </template>
       <template #body-cell-value="props">
@@ -42,27 +49,27 @@
       </template>
       <template #body-cell-uses="props">
         <q-td :props="props" align="center">
-          {{ props.row.current_uses
-          }}<span v-if="props.row.max_uses"> / {{ props.row.max_uses }}</span>
-          <div v-if="props.row.max_uses_per_customer" class="text-caption text-grey-7">
+          <span class="font-mono"
+            >{{ props.row.current_uses
+            }}<span v-if="props.row.max_uses"> / {{ props.row.max_uses }}</span></span
+          >
+          <div v-if="props.row.max_uses_per_customer" class="text-caption text-muted">
             max {{ props.row.max_uses_per_customer }} / client
           </div>
         </q-td>
       </template>
       <template #body-cell-state="props">
         <q-td :props="props" align="center">
-          <q-chip
-            dense
-            size="sm"
-            :color="stateOf(props.row).color"
-            text-color="white"
+          <StatusTag
             :label="stateOf(props.row).label"
+            :tone="toneOf(stateOf(props.row).color)"
+            :icon="toneIcon(toneOf(stateOf(props.row).color))"
           />
         </q-td>
       </template>
       <template #body-cell-actions="props">
-        <q-td :props="props" align="right">
-          <q-btn flat dense round icon="edit" color="primary" @click="openEdit(props.row)">
+        <q-td :props="props" align="right" class="no-wrap">
+          <q-btn flat dense round icon="ph:pencil-simple" @click="openEdit(props.row)">
             <q-tooltip>Modifier</q-tooltip>
           </q-btn>
           <q-toggle
@@ -76,18 +83,21 @@
           </q-toggle>
         </q-td>
       </template>
+      <template #no-data>
+        <div class="full-width text-center text-subtle q-pa-md">Aucun code promo.</div>
+      </template>
     </q-table>
 
     <q-dialog v-model="dialog">
-      <q-card style="min-width: 440px; max-width: 90vw">
-        <q-card-section class="text-h6">
-          {{ editing ? `Modifier ${editing.code ?? editing.name}` : 'Nouveau code promo' }}
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">
+            {{ editing ? `Modifier ${editing.code ?? editing.name}` : 'Nouveau code promo' }}
+          </h2>
         </q-card-section>
         <q-form @submit.prevent="submit">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input v-model="form.name" label="Nom *" outlined dense :rules="req" />
             <q-input
               v-model="form.code"
@@ -198,11 +208,13 @@
             </div>
             <q-input v-model="form.description" label="Description interne" outlined dense />
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
+              unelevated
+              no-caps
               :label="editing ? 'Enregistrer' : 'Créer'"
               :loading="saving"
             />
@@ -216,6 +228,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import { toneIcon, toneOf } from '@app/ui/statusTone';
+import PageHeader from '@/components/PageHeader.vue';
 import {
   DISCOUNT_TARGET_LABELS,
   createDiscount,

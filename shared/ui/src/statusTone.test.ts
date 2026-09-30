@@ -9,12 +9,18 @@ describe('toneOf', () => {
     expect(toneOf('orange')).toBe('warn');
     expect(toneOf('orange-2')).toBe('warn');
     expect(toneOf('negative')).toBe('danger');
+    expect(toneOf('teal')).toBe('ok');
+    expect(toneOf('deep-orange')).toBe('warn');
+    expect(toneOf('amber-8')).toBe('warn');
+    expect(toneOf('red-9')).toBe('danger');
   });
 
   it('reste neutre pour le reste', () => {
     expect(toneOf('primary')).toBe('neutral');
     expect(toneOf('grey-7')).toBe('neutral');
     expect(toneOf('blue')).toBe('neutral');
+    expect(toneOf('blue-grey')).toBe('neutral');
+    expect(toneOf('greyish')).toBe('neutral');
     expect(toneOf(undefined)).toBe('neutral');
   });
 });

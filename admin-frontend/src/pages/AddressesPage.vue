@@ -1,24 +1,33 @@
 <template>
-  <q-page padding>
-    <div class="row q-col-gutter-md q-mb-md items-end">
-      <div class="col-12 col-md-4">
-        <q-select
-          v-model="filter"
-          :options="filterOptions"
-          label="Statut de validation"
-          outlined
-          dense
-          emit-value
-          map-options
-          @update:model-value="reload"
+  <q-page class="admin-page">
+    <PageHeader title="Adresses" hint="Adresses saisies par les clients, à valider par l'équipe.">
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="reload"
         />
-      </div>
-      <div class="col-12 col-md-8 text-right">
-        <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="reload" />
-      </div>
+      </template>
+    </PageHeader>
+
+    <div class="admin-toolbar">
+      <q-select
+        v-model="filter"
+        :options="filterOptions"
+        label="Statut de validation"
+        outlined
+        dense
+        emit-value
+        map-options
+        style="min-width: 220px"
+        @update:model-value="reload"
+      />
     </div>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
+    <AppNotice v-if="error" tone="error" dense class="q-mb-md">{{ error }}</AppNotice>
 
     <q-table
       :rows="rows"
@@ -33,22 +42,26 @@
       <template #body-cell-address="props">
         <q-td :props="props">
           <div class="text-body2">{{ props.row.street }}</div>
-          <div class="text-caption text-grey-7">
-            {{ [`${props.row.postal_code} ${props.row.city}`.trim(), props.row.state, countryLabel(props.row.country)]
-              .filter((p) => !!p && String(p).trim().length > 0)
-              .join(', ') }}
+          <div class="text-caption text-muted">
+            {{
+              [
+                `${props.row.postal_code} ${props.row.city}`.trim(),
+                props.row.state,
+                countryLabel(props.row.country),
+              ]
+                .filter((p) => !!p && String(p).trim().length > 0)
+                .join(', ')
+            }}
           </div>
         </q-td>
       </template>
 
       <template #body-cell-validated="props">
         <q-td :props="props" align="center">
-          <q-chip
-            :color="props.row.is_validated ? 'positive' : 'grey-5'"
-            text-color="white"
-            :icon="props.row.is_validated ? 'verified' : 'schedule'"
+          <StatusTag
+            :tone="props.row.is_validated ? 'ok' : 'neutral'"
+            :icon="props.row.is_validated ? 'ph:seal-check' : 'ph:clock'"
             :label="props.row.is_validated ? 'Validée' : 'Non validée'"
-            dense
           />
         </q-td>
       </template>
@@ -57,27 +70,34 @@
         <q-td :props="props" align="right">
           <q-btn
             v-if="!props.row.is_validated"
-            unelevated
-            color="positive"
-            icon="check"
-            label="Valider"
+            flat
             dense
+            no-caps
+            icon="ph:check"
+            label="Valider"
             :loading="validatingIds.has(props.row.id)"
             @click="onValidate(props.row)"
           />
         </q-td>
       </template>
+
+      <template #no-data>
+        <span class="text-subtle">{{ loading ? 'Chargement…' : 'Aucune adresse.' }}</span>
+      </template>
     </q-table>
 
-    <div class="text-caption text-grey-7 q-mt-sm">{{ count }} adresse(s)</div>
+    <div class="text-caption text-muted q-mt-sm">{{ count }} adresse(s)</div>
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
-import { listAddresses, validateAddress, type AdminAddress } from '@/api/addresses';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
 import { countryLabel } from '@app/utils';
+import PageHeader from '@/components/PageHeader.vue';
+import { listAddresses, validateAddress, type AdminAddress } from '@/api/addresses';
 
 type Filter = 'all' | 'pending' | 'validated';
 

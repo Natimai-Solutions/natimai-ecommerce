@@ -7547,6 +7547,8 @@ export interface components {
              * Format: uuid
              */
             order_id: string;
+            /** Order Number */
+            order_number?: string | null;
             /** Created At */
             created_at?: string | null;
             /**

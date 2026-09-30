@@ -1,43 +1,61 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="text-h6 col">Accueil du site</div>
-      <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
-      <q-btn
-        color="primary"
-        icon="add"
-        label="Nouveau bloc"
-        no-caps
-        data-testid="homepage-new"
-        @click="openCreate()"
-      />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader title="Accueil du site">
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+        <q-btn
+          color="primary"
+          unelevated
+          no-caps
+          icon="ph:plus"
+          label="Nouveau bloc"
+          data-testid="homepage-new"
+          @click="openCreate()"
+        />
+      </template>
+    </PageHeader>
 
-    <div class="text-caption text-grey-7 q-mb-md">
+    <p class="admin-hint">
       Le <strong>hero</strong> est le grand bandeau en haut de l'accueil (le premier publié
       s'affiche, sinon un texte par défaut). Les <strong>bannières</strong> suivent, dans l'ordre
       indiqué. Un bloc programmé n'apparaît qu'entre ses dates de début et de fin.
+    </p>
+
+    <div v-if="error || notice" class="admin-notices">
+      <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
+      <AppNotice v-if="notice" tone="success" dense>{{ notice }}</AppNotice>
     </div>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
-    <q-banner v-if="notice" class="bg-green-1 text-green-9 q-mb-md" dense rounded>
-      {{ notice }}
-    </q-banner>
-
-    <div v-if="loading && !blocks.length" class="row justify-center q-pa-lg">
+    <div v-if="loading && !blocks.length" class="text-center q-pa-lg">
       <q-spinner size="2em" />
     </div>
 
     <template v-else>
-      <div v-for="group in groups" :key="group.kind" class="q-mb-lg">
-        <div class="text-subtitle1 text-weight-medium q-mb-sm">{{ group.label }}</div>
-        <div v-if="!group.blocks.length" class="text-grey-7 q-pa-sm">
-          Aucun {{ group.kind === 'hero' ? 'hero' : 'bannière' }}.
+      <section
+        v-for="group in groups"
+        :key="group.kind"
+        class="app-section"
+        :aria-labelledby="`homepage-${group.kind}-title`"
+      >
+        <div class="app-section__head">
+          <h2 :id="`homepage-${group.kind}-title`" class="app-section__title">
+            {{ group.label }}
+          </h2>
+        </div>
+        <div v-if="!group.blocks.length" class="app-empty">
+          <q-icon name="ph:image" size="28px" class="text-subtle" />
+          <h3>{{ group.kind === 'hero' ? 'Aucun hero' : 'Aucune bannière' }}</h3>
           <q-btn
-            flat
-            dense
+            outline
             no-caps
-            color="primary"
+            icon="ph:plus"
             :label="`Ajouter ${group.kind === 'hero' ? 'un hero' : 'une bannière'}`"
             @click="openCreate(group.kind)"
           />
@@ -53,7 +71,7 @@
                 loading="lazy"
               />
               <div v-else class="homepage-thumb homepage-thumb--empty">
-                <q-icon name="image" color="grey-5" />
+                <q-icon name="ph:image" class="text-subtle" />
               </div>
             </q-item-section>
             <q-item-section>
@@ -71,20 +89,19 @@
               </q-item-label>
             </q-item-section>
             <q-item-section side>
-              <q-chip
-                dense
-                size="sm"
-                :color="status(block).color"
-                text-color="white"
+              <StatusTag
                 :label="status(block).label"
+                :tone="status(block).tone"
+                :icon="status(block).icon"
               />
             </q-item-section>
             <q-item-section side>
               <div class="row no-wrap">
                 <q-btn
                   flat
+                  round
                   dense
-                  icon="arrow_upward"
+                  icon="ph:arrow-up"
                   :disable="index === 0"
                   @click="move(group.blocks, index, -1)"
                 >
@@ -92,33 +109,40 @@
                 </q-btn>
                 <q-btn
                   flat
+                  round
                   dense
-                  icon="arrow_downward"
+                  icon="ph:arrow-down"
                   :disable="index === group.blocks.length - 1"
                   @click="move(group.blocks, index, 1)"
                 >
                   <q-tooltip>Descendre</q-tooltip>
                 </q-btn>
-                <q-btn flat dense icon="edit" color="primary" @click="openEdit(block)" />
-                <q-btn flat dense icon="delete" color="grey-8" @click="remove(block)" />
+                <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(block)">
+                  <q-tooltip>Modifier</q-tooltip>
+                </q-btn>
+                <q-btn flat round dense icon="ph:trash" color="negative" @click="remove(block)">
+                  <q-tooltip>Supprimer</q-tooltip>
+                </q-btn>
               </div>
             </q-item-section>
           </q-item>
         </q-list>
-      </div>
+      </section>
     </template>
 
     <q-dialog v-model="dialog">
-      <q-card style="width: 720px; max-width: 95vw">
-        <q-card-section class="row items-center">
-          <div class="text-h6 col">{{ editingId ? 'Modifier le bloc' : 'Nouveau bloc' }}</div>
-          <q-btn flat round dense icon="close" v-close-popup />
+      <q-card class="app-dialog app-dialog--wide">
+        <q-card-section class="app-dialog__head row items-center no-wrap q-gutter-x-sm">
+          <h2 class="app-dialog__title col">
+            {{ editingId ? 'Modifier le bloc' : 'Nouveau bloc' }}
+          </h2>
+          <q-btn flat round dense icon="ph:x" v-close-popup>
+            <q-tooltip>Fermer</q-tooltip>
+          </q-btn>
         </q-card-section>
         <q-form @submit.prevent="submit">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>
-              {{ dialogError }}
-            </q-banner>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-option-group
               v-model="form.kind"
               :options="[
@@ -166,19 +190,18 @@
               />
             </div>
 
-            <div class="text-subtitle2 q-mt-md">Image</div>
+            <h3 class="admin-subtitle q-mt-md">Image</h3>
             <div class="row items-center q-gutter-md">
               <img v-if="previewSrc" :src="previewSrc" alt="" class="homepage-preview" />
               <div v-else class="homepage-preview homepage-thumb--empty">
-                <q-icon name="image" size="32px" color="grey-5" />
+                <q-icon name="ph:image" size="32px" class="text-subtle" />
               </div>
               <div class="column q-gutter-sm">
                 <q-btn
                   outline
-                  color="primary"
-                  icon="photo_library"
-                  label="Choisir dans la médiathèque"
                   no-caps
+                  icon="ph:images"
+                  label="Choisir dans la médiathèque"
                   data-testid="homepage-pick-image"
                   @click="pickerOpen = true"
                 />
@@ -187,7 +210,6 @@
                   flat
                   dense
                   no-caps
-                  color="grey-8"
                   label="Retirer l'image"
                   @click="clearImage"
                 />
@@ -210,7 +232,7 @@
               maxlength="255"
             />
 
-            <div class="text-subtitle2 q-mt-md">Publication</div>
+            <h3 class="admin-subtitle q-mt-md">Publication</h3>
             <div class="row q-col-gutter-sm items-center">
               <q-toggle v-model="form.is_published" class="col-12 col-sm-4" label="Publié" />
               <q-input
@@ -235,11 +257,13 @@
               />
             </div>
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
+              unelevated
+              no-caps
               label="Enregistrer"
               :loading="saving"
               data-testid="homepage-save"
@@ -255,8 +279,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
-import { formatDateTime } from '@app/utils';
 
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import type { StatusTone } from '@app/ui/statusTone';
+import { formatDateTime } from '@app/utils';
+import PageHeader from '@/components/PageHeader.vue';
 import MediaPicker from '@/components/MediaPicker.vue';
 import { extractApiError } from '@/api/errors';
 import {
@@ -291,16 +319,18 @@ const groups = computed<BlockGroup[]>(() => [
   },
 ]);
 
-function status(block: HomepageBlock): { label: string; color: string } {
-  if (!block.is_published) return { label: 'Brouillon', color: 'grey-6' };
+function status(block: HomepageBlock): { label: string; tone: StatusTone; icon: string } {
+  if (!block.is_published) {
+    return { label: 'Brouillon', tone: 'neutral', icon: 'ph:pencil-simple-line' };
+  }
   const now = Date.now();
   if (block.starts_at && new Date(block.starts_at).getTime() > now) {
-    return { label: 'Programmé', color: 'orange' };
+    return { label: 'Programmé', tone: 'warn', icon: 'ph:clock' };
   }
   if (block.ends_at && new Date(block.ends_at).getTime() <= now) {
-    return { label: 'Expiré', color: 'grey-7' };
+    return { label: 'Expiré', tone: 'neutral', icon: 'ph:calendar-x' };
   }
-  return { label: 'En ligne', color: 'green' };
+  return { label: 'En ligne', tone: 'ok', icon: 'ph:check-circle' };
 }
 
 function windowLabel(block: HomepageBlock): string {
@@ -513,7 +543,7 @@ onMounted(load);
   height: 64px;
   object-fit: cover;
   border-radius: 6px;
-  background: #f1f1f3;
+  background: var(--n-tile);
 
   &--empty {
     display: flex;
@@ -527,6 +557,6 @@ onMounted(load);
   height: 160px;
   object-fit: cover;
   border-radius: 8px;
-  background: #f1f1f3;
+  background: var(--n-tile);
 }
 </style>

@@ -257,6 +257,11 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 12px;
+
+  @media (max-width: 599px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
 }
 
 .todo-skeleton {
@@ -329,6 +334,21 @@ onMounted(() => {
   gap: 4px;
   font-size: 12.5px;
   color: var(--n-ink-3);
+}
+
+@media (max-width: 599px) {
+  .todo-tile {
+    min-height: 0;
+    padding: 12px 14px;
+  }
+
+  .todo-tile__count {
+    font-size: 24px;
+  }
+
+  .todo-tile__hint {
+    display: none;
+  }
 }
 
 .dashboard-columns {

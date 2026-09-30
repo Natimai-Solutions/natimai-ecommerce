@@ -1,217 +1,225 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="text-h6 col">Logistique</div>
-      <q-toggle
-        v-model="showCompleted"
-        label="Afficher les terminés"
-        dense
-        class="q-mr-md"
-      />
-      <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader
+      title="Expéditions"
+      hint="Colis en cours d'acheminement, tronçon par tronçon, et consolidations."
+    >
+      <template #actions>
+        <q-toggle v-model="showCompleted" label="Afficher les terminés" dense />
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+      </template>
+    </PageHeader>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
-    <q-banner v-if="notice" class="bg-green-1 text-green-9 q-mb-md" rounded dense>{{
-      notice
-    }}</q-banner>
+    <div v-if="error || notice" class="admin-notices">
+      <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
+      <AppNotice v-if="notice" tone="success" dense>{{ notice }}</AppNotice>
+    </div>
 
     <!-- Colis à grouper / traiter -->
-    <div class="text-subtitle1 text-weight-medium q-mb-sm">Colis à grouper / traiter</div>
-    <div class="text-caption text-grey-7 q-mb-sm">
-      Tronçons d'acheminement non encore regroupés. Sélectionnez-en pour créer une consolidation, ou
-      traitez-les individuellement.
-    </div>
+    <section class="app-section" aria-labelledby="pending-title">
+      <div class="app-section__head">
+        <h2 id="pending-title" class="app-section__title">Colis à grouper / traiter</h2>
+        <p class="app-section__hint">
+          Tronçons d'acheminement non encore regroupés. Sélectionnez-en pour créer une
+          consolidation, ou traitez-les individuellement.
+        </p>
+      </div>
 
-    <div v-if="selected.length" class="q-mb-sm">
-      <q-btn
-        color="primary"
-        icon="inventory_2"
-        :label="`Créer une consolidation (${selected.length})`"
-        no-caps
-        @click="openCreate"
-      />
-    </div>
+      <div v-if="selected.length" class="admin-toolbar">
+        <q-btn
+          color="primary"
+          unelevated
+          no-caps
+          icon="ph:package"
+          :label="`Créer une consolidation (${selected.length})`"
+          @click="openCreate"
+        />
+      </div>
 
-    <q-table
-      v-model:selected="selected"
-      :rows="visiblePending"
-      :columns="pendingColumns"
-      row-key="tracking_id"
-      selection="multiple"
-      flat
-      bordered
-      :rows-per-page-options="[0]"
-      hide-pagination
-      :loading="loading"
-    >
-      <template #body-cell-order="props">
-        <q-td :props="props">
-          <q-btn
-            flat
-            dense
-            no-caps
-            color="primary"
-            :label="`#${props.row.order_id.slice(0, 8)}`"
-            :to="`/orders/${props.row.order_id}`"
-          />
-        </q-td>
-      </template>
-      <template #body-cell-status="props">
-        <q-td :props="props">
-          <q-chip
-            dense
-            size="sm"
-            color="grey-7"
-            text-color="white"
-            :label="props.row.status_name || props.row.status_code || '—'"
-          />
-        </q-td>
-      </template>
-      <template #body-cell-ref="props">
-        <q-td :props="props">{{ props.row.tracking_ref || '—' }}</q-td>
-      </template>
-      <template #body-cell-actions="props">
-        <q-td :props="props" align="right">
-          <q-btn
-            flat
-            dense
-            no-caps
-            icon="timeline"
-            color="grey-8"
-            label="Parcours"
-            @click="openJourney(props.row)"
-          />
-          <q-btn
-            flat
-            dense
-            no-caps
-            icon="local_shipping"
-            color="primary"
-            label="Remettre au transporteur"
-            :disable="isTerminal(props.row) || isShipped(props.row)"
-            @click="openShipTracking(props.row)"
-          >
-            <q-tooltip max-width="320px">
-              Marque ce tronçon comme remis au transporteur et enregistre le n° de
-              suivi (notifie le client). Ne fait pas passer au tronçon suivant.
-            </q-tooltip>
-          </q-btn>
-          <q-btn
-            flat
-            dense
-            no-caps
-            icon="skip_next"
-            color="indigo"
-            label="Tronçon suivant"
-            :disable="isTerminal(props.row) || props.row.is_final_leg"
-            @click="advanceTrackingRow(props.row)"
-          >
-            <q-tooltip v-if="props.row.is_final_leg" max-width="280px">
-              Dernier tronçon du parcours — confirmez la livraison avec « Livrer ».
-            </q-tooltip>
-          </q-btn>
-          <q-btn
-            flat
-            dense
-            no-caps
-            icon="task_alt"
-            color="positive"
-            label="Livrer"
-            :disable="isTerminal(props.row) || !props.row.is_final_leg"
-            @click="deliver(props.row)"
-          >
-            <q-tooltip v-if="!props.row.is_final_leg" max-width="280px">
-              Réservé au dernier tronçon — faites d'abord progresser le colis avec
-              « Tronçon suivant ».
-            </q-tooltip>
-          </q-btn>
-        </q-td>
-      </template>
-      <template #no-data>
-        <div class="full-width text-center text-grey-6 q-pa-md">Aucun colis à traiter.</div>
-      </template>
-    </q-table>
+      <q-table
+        v-model:selected="selected"
+        :rows="visiblePending"
+        :columns="pendingColumns"
+        row-key="tracking_id"
+        selection="multiple"
+        flat
+        bordered
+        :rows-per-page-options="[0]"
+        hide-pagination
+        :loading="loading"
+      >
+        <template #body-cell-order="props">
+          <q-td :props="props">
+            <router-link
+              :to="`/orders/${props.row.order_id}`"
+              class="admin-link font-mono"
+              :title="props.row.order_id"
+              >#{{ props.row.order_id.slice(0, 8) }}</router-link
+            >
+          </q-td>
+        </template>
+        <template #body-cell-status="props">
+          <q-td :props="props">
+            <StatusTag
+              :label="props.row.status_name || props.row.status_code || '—'"
+              :tone="toneOf(statusColor(props.row.status_code))"
+              :icon="toneIcon(toneOf(statusColor(props.row.status_code)))"
+            />
+          </q-td>
+        </template>
+        <template #body-cell-ref="props">
+          <q-td :props="props" class="font-mono">{{ props.row.tracking_ref || '—' }}</q-td>
+        </template>
+        <template #body-cell-actions="props">
+          <q-td :props="props" align="right">
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="ph:path"
+              label="Parcours"
+              @click="openJourney(props.row)"
+            />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="ph:truck"
+              label="Remettre au transporteur"
+              :disable="isTerminal(props.row) || isShipped(props.row)"
+              @click="openShipTracking(props.row)"
+            >
+              <q-tooltip max-width="320px">
+                Marque ce tronçon comme remis au transporteur et enregistre le n° de suivi (notifie
+                le client). Ne fait pas passer au tronçon suivant.
+              </q-tooltip>
+            </q-btn>
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="ph:skip-forward"
+              label="Tronçon suivant"
+              :disable="isTerminal(props.row) || props.row.is_final_leg"
+              @click="advanceTrackingRow(props.row)"
+            >
+              <q-tooltip v-if="props.row.is_final_leg" max-width="280px">
+                Dernier tronçon du parcours — confirmez la livraison avec « Livrer ».
+              </q-tooltip>
+            </q-btn>
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="ph:check-circle"
+              label="Livrer"
+              :disable="isTerminal(props.row) || !props.row.is_final_leg"
+              @click="deliver(props.row)"
+            >
+              <q-tooltip v-if="!props.row.is_final_leg" max-width="280px">
+                Réservé au dernier tronçon — faites d'abord progresser le colis avec « Tronçon
+                suivant ».
+              </q-tooltip>
+            </q-btn>
+          </q-td>
+        </template>
+        <template #no-data>
+          <div class="full-width text-center text-subtle q-pa-md">Aucun colis à traiter.</div>
+        </template>
+      </q-table>
+    </section>
 
     <!-- Consolidations -->
-    <div class="text-subtitle1 text-weight-medium q-mt-lg q-mb-sm">Consolidations</div>
-    <q-table
-      :rows="visibleConsolidations"
-      :columns="consolidationColumns"
-      row-key="id"
-      flat
-      bordered
-      :rows-per-page-options="[0]"
-      hide-pagination
-      :loading="loading"
-    >
-      <template #body-cell-status="props">
-        <q-td :props="props">
-          <q-chip
-            dense
-            size="sm"
-            color="grey-7"
-            text-color="white"
-            :label="props.row.status_name || props.row.status_code || '—'"
-          />
-        </q-td>
-      </template>
-      <template #body-cell-ref="props">
-        <q-td :props="props">{{ props.row.tracking_ref || '—' }}</q-td>
-      </template>
-      <template #body-cell-actions="props">
-        <q-td :props="props" align="right">
-          <q-btn
-            flat
-            dense
-            no-caps
-            icon="local_shipping"
-            color="primary"
-            label="Tout remettre au transporteur"
-            :disable="isTerminal(props.row) || isShipped(props.row)"
-            @click="openShipConsolidation(props.row)"
-          >
-            <q-tooltip max-width="320px">
-              Marque tous les colis du lot comme remis au transporteur et enregistre
-              le n° de suivi (notifie les clients). Ne fait pas passer au tronçon suivant.
-            </q-tooltip>
-          </q-btn>
-          <q-btn
-            flat
-            dense
-            no-caps
-            icon="skip_next"
-            color="indigo"
-            label="Tronçon suivant"
-            :disable="isTerminal(props.row)"
-            @click="advanceConsolidationRow(props.row)"
-          />
-          <q-btn
-            flat
-            dense
-            no-caps
-            icon="task_alt"
-            color="positive"
-            label="Livrer"
-            :disable="isTerminal(props.row)"
-            @click="deliverConsolidationRow(props.row)"
-          />
-        </q-td>
-      </template>
-      <template #no-data>
-        <div class="full-width text-center text-grey-6 q-pa-md">Aucune consolidation.</div>
-      </template>
-    </q-table>
+    <section class="app-section" aria-labelledby="consolidations-title">
+      <div class="app-section__head">
+        <h2 id="consolidations-title" class="app-section__title">Consolidations</h2>
+      </div>
+      <q-table
+        :rows="visibleConsolidations"
+        :columns="consolidationColumns"
+        row-key="id"
+        flat
+        bordered
+        :rows-per-page-options="[0]"
+        hide-pagination
+        :loading="loading"
+      >
+        <template #body-cell-code="props">
+          <q-td :props="props" class="font-mono">{{ props.row.consolidation_code }}</q-td>
+        </template>
+        <template #body-cell-status="props">
+          <q-td :props="props">
+            <StatusTag
+              :label="props.row.status_name || props.row.status_code || '—'"
+              :tone="toneOf(statusColor(props.row.status_code))"
+              :icon="toneIcon(toneOf(statusColor(props.row.status_code)))"
+            />
+          </q-td>
+        </template>
+        <template #body-cell-total_orders="props">
+          <q-td :props="props" class="font-mono">{{ props.row.total_orders }}</q-td>
+        </template>
+        <template #body-cell-ref="props">
+          <q-td :props="props" class="font-mono">{{ props.row.tracking_ref || '—' }}</q-td>
+        </template>
+        <template #body-cell-actions="props">
+          <q-td :props="props" align="right">
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="ph:truck"
+              label="Tout remettre au transporteur"
+              :disable="isTerminal(props.row) || isShipped(props.row)"
+              @click="openShipConsolidation(props.row)"
+            >
+              <q-tooltip max-width="320px">
+                Marque tous les colis du lot comme remis au transporteur et enregistre le n° de
+                suivi (notifie les clients). Ne fait pas passer au tronçon suivant.
+              </q-tooltip>
+            </q-btn>
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="ph:skip-forward"
+              label="Tronçon suivant"
+              :disable="isTerminal(props.row)"
+              @click="advanceConsolidationRow(props.row)"
+            />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="ph:check-circle"
+              label="Livrer"
+              :disable="isTerminal(props.row)"
+              @click="deliverConsolidationRow(props.row)"
+            />
+          </q-td>
+        </template>
+        <template #no-data>
+          <div class="full-width text-center text-subtle q-pa-md">Aucune consolidation.</div>
+        </template>
+      </q-table>
+    </section>
 
     <!-- Ship dialog (tracking ref) -->
     <q-dialog v-model="shipDialog">
-      <q-card style="min-width: 360px">
-        <q-card-section class="text-h6">Remise au transporteur</q-card-section>
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">Remise au transporteur</h2>
+        </q-card-section>
         <q-form @submit.prevent="submitShip">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-select
               v-model="shipCarrierId"
               :options="carrierOptions"
@@ -230,9 +238,16 @@
               autofocus
             />
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" label="Remettre au transporteur" :loading="saving" />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn
+              type="submit"
+              color="primary"
+              unelevated
+              no-caps
+              label="Remettre au transporteur"
+              :loading="saving"
+            />
           </q-card-actions>
         </q-form>
       </q-card>
@@ -240,13 +255,15 @@
 
     <!-- Advance consolidation: keep or ungroup the lot -->
     <q-dialog v-model="ungroupDialog">
-      <q-card style="min-width: 400px">
-        <q-card-section class="text-h6">Passage au tronçon suivant</q-card-section>
-        <q-card-section class="q-pt-none">
-          <div class="text-body2 text-grey-8 q-mb-sm">
-            Conserver le groupage pour le prochain tronçon, ou dégrouper les colis pour
-            qu'ils continuent individuellement (livraisons séparées) ?
-          </div>
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">Passage au tronçon suivant</h2>
+          <p class="app-dialog__text">
+            Conserver le groupage pour le prochain tronçon, ou dégrouper les colis pour qu'ils
+            continuent individuellement (livraisons séparées) ?
+          </p>
+        </q-card-section>
+        <q-card-section>
           <q-option-group
             v-model="ungroupChoice"
             :options="[
@@ -256,10 +273,12 @@
             color="primary"
           />
         </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Annuler" v-close-popup />
+        <q-card-actions align="right" class="app-dialog__actions">
+          <q-btn flat no-caps label="Annuler" v-close-popup />
           <q-btn
             color="primary"
+            unelevated
+            no-caps
             label="Valider"
             :loading="ungroupBusy"
             @click="submitAdvanceConsolidation"
@@ -270,63 +289,60 @@
 
     <!-- Journey dialog (parcours du colis) -->
     <q-dialog v-model="journeyDialog">
-      <q-card style="min-width: 480px; max-width: 620px">
-        <q-card-section class="text-h6">
-          Parcours du colis
-          <div class="text-caption text-grey-7">Commande #{{ journeyOrderId?.slice(0, 8) }}</div>
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">Parcours du colis</h2>
+          <p class="app-dialog__text">
+            Commande <span class="font-mono">#{{ journeyOrderId?.slice(0, 8) }}</span>
+          </p>
         </q-card-section>
-        <q-card-section class="q-pt-none">
-          <q-banner v-if="journeyError" class="bg-red-1 text-red-9" dense rounded>{{
-            journeyError
-          }}</q-banner>
+        <q-card-section>
+          <AppNotice v-if="journeyError" tone="error" dense>{{ journeyError }}</AppNotice>
           <div v-else-if="journeyLoading" class="text-center q-pa-md">
-            <q-spinner size="2em" color="primary" />
+            <q-spinner size="2em" />
           </div>
-          <div v-else-if="journey.length === 0" class="text-grey-6 q-pa-md text-center">
+          <div v-else-if="journey.length === 0" class="text-subtle q-pa-md text-center">
             Aucun tronçon.
           </div>
-          <q-timeline v-else color="primary" layout="comfortable">
+          <q-timeline v-else layout="comfortable">
             <q-timeline-entry
               v-for="leg in journey"
               :key="leg.tracking_id"
               :title="`Tronçon ${leg.sequence_order} — ${legPath(leg)}`"
               :subtitle="leg.route_name || ''"
-              :icon="leg.is_current ? 'my_location' : 'place'"
-              :color="legColor(leg)"
+              :icon="leg.is_current ? 'ph:crosshair' : 'ph:map-pin'"
             >
               <div class="row items-center q-gutter-sm">
-                <q-chip
-                  dense
-                  size="sm"
-                  :color="legColor(leg)"
-                  text-color="white"
+                <StatusTag
                   :label="leg.status_name || leg.status_code || '—'"
+                  :tone="toneOf(legColor(leg))"
+                  :icon="toneIcon(toneOf(legColor(leg)))"
                 />
-                <span v-if="leg.mode" class="text-caption text-grey-7">{{ leg.mode }}</span>
+                <span v-if="leg.mode" class="text-caption text-muted">{{ leg.mode }}</span>
                 <span v-if="leg.tracking_ref" class="text-caption"
-                  >réf. {{ leg.tracking_ref }}</span
+                  >réf. <span class="font-mono">{{ leg.tracking_ref }}</span></span
                 >
-                <q-badge v-if="leg.is_current" color="orange" label="en cours" />
+                <StatusTag v-if="leg.is_current" tone="warn" icon="ph:crosshair" label="en cours" />
               </div>
             </q-timeline-entry>
           </q-timeline>
         </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Fermer" v-close-popup />
+        <q-card-actions align="right" class="app-dialog__actions">
+          <q-btn flat no-caps label="Fermer" v-close-popup />
         </q-card-actions>
       </q-card>
     </q-dialog>
 
     <!-- Create consolidation dialog -->
     <q-dialog v-model="createDialog">
-      <q-card style="min-width: 360px">
-        <q-card-section class="text-h6">Nouvelle consolidation</q-card-section>
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">Nouvelle consolidation</h2>
+          <p class="app-dialog__text">{{ selected.length }} colis sélectionné(s).</p>
+        </q-card-section>
         <q-form @submit.prevent="submitCreate">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
-            <div class="text-caption text-grey-7">{{ selected.length }} colis sélectionné(s).</div>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="createName"
               label="Nom de la consolidation *"
@@ -336,9 +352,16 @@
               :rules="[(v) => (!!v && v.trim().length > 0) || 'Nom requis']"
             />
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" label="Créer" :loading="saving" />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn
+              type="submit"
+              color="primary"
+              unelevated
+              no-caps
+              label="Créer"
+              :loading="saving"
+            />
           </q-card-actions>
         </q-form>
       </q-card>
@@ -350,6 +373,10 @@
 import { computed, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import { toneIcon, toneOf } from '@app/ui/statusTone';
+import PageHeader from '@/components/PageHeader.vue';
 import {
   addTrackings,
   advanceConsolidation,
@@ -438,9 +465,7 @@ const visiblePending = computed(() =>
   showCompleted.value ? pending.value : pending.value.filter((r) => !isTerminal(r)),
 );
 const visibleConsolidations = computed(() =>
-  showCompleted.value
-    ? consolidations.value
-    : consolidations.value.filter((c) => !isTerminal(c)),
+  showCompleted.value ? consolidations.value : consolidations.value.filter((c) => !isTerminal(c)),
 );
 
 // --- Ship (tracking or consolidation) ---
@@ -588,8 +613,11 @@ const _legColors: Record<string, string> = {
   in_progress: 'blue',
   pending: 'grey',
 };
+function statusColor(code: string | null): string {
+  return _legColors[code ?? ''] ?? 'grey-7';
+}
 function legColor(leg: JourneyLeg): string {
-  return _legColors[leg.status_code ?? ''] ?? 'grey-7';
+  return statusColor(leg.status_code);
 }
 function legPath(leg: JourneyLeg): string {
   return `${leg.from_place ?? '?'} → ${leg.to_place ?? '?'}`;

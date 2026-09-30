@@ -218,7 +218,8 @@ async def test_admin_detail_reports_the_order_status_not_the_payment_one(
     seed = await _seed(db_session)
     order = await db_session.get(Order, seed.paid_attached[0])
     assert order is not None
-    order_id, user_id = order.id, order.user_id  # captured: the commit expires them
+    # captured: the commit expires them
+    order_id, user_id, order_number = order.id, order.user_id, order.order_number
     completed = PaymentStatus(name="Completed")
     db_session.add(completed)
     await db_session.flush()
@@ -236,4 +237,5 @@ async def test_admin_detail_reports_the_order_status_not_the_payment_one(
 
     detail = await get_order_detail(order_id, db_session, seed.admin)
     assert detail.status == "Paid"  # used to come back as "Completed"
+    assert detail.order_number == order_number
     assert detail.payments[0].status == "Completed"

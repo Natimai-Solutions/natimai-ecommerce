@@ -1,14 +1,15 @@
 export type StatusTone = 'ok' | 'warn' | 'danger' | 'neutral';
 
 /**
- * Ton d'une étiquette d'état à partir des couleurs Quasar encore utilisées
- * par les tables de statuts (green, orange, negative…).
+ * Ton d'une étiquette d'état à partir des couleurs Quasar encore renvoyées
+ * par les tables de statuts (green, teal, orange, negative…). Le bleu, le gris
+ * et l'encre (primary) restent neutres : ils ne portent pas d'état.
  */
 export function toneOf(color: string | null | undefined): StatusTone {
   if (!color) return 'neutral';
-  if (color === 'green' || color === 'positive') return 'ok';
-  if (color.startsWith('orange') || color === 'warning') return 'warn';
-  if (color === 'negative' || color === 'red') return 'danger';
+  if (color === 'positive' || /^(green|teal|light-green)(-|$)/.test(color)) return 'ok';
+  if (color === 'warning' || /^(orange|deep-orange|amber|yellow)(-|$)/.test(color)) return 'warn';
+  if (color === 'negative' || /^(red|pink)(-|$)/.test(color)) return 'danger';
   return 'neutral';
 }
 

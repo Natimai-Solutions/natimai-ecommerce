@@ -1,19 +1,26 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="text-h6 col">Demandes d'upgrade de groupe</div>
+  <q-page class="admin-page">
+    <PageHeader
+      title="Demandes de groupe"
+      hint="Demandes de passage à un groupe de prix professionnel, à approuver ou rejeter."
+    >
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+      </template>
+    </PageHeader>
+
+    <div class="admin-toolbar">
       <q-toggle v-model="pendingOnly" label="En attente uniquement" @update:model-value="load" />
-      <q-btn
-        flat
-        icon="refresh"
-        label="Actualiser"
-        class="q-ml-md"
-        :loading="loading"
-        @click="load"
-      />
     </div>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
+    <AppNotice v-if="error" tone="error" dense class="q-mb-md">{{ error }}</AppNotice>
 
     <q-table
       :rows="rows"
@@ -27,19 +34,23 @@
     >
       <template #body-cell-user_id="props">
         <q-td :props="props"
-          ><span :title="props.row.user_id">{{ props.row.user_id.slice(0, 8) }}</span></q-td
+          ><span class="font-mono" :title="props.row.user_id">{{
+            props.row.user_id.slice(0, 8)
+          }}</span></q-td
         >
       </template>
       <template #body-cell-price_group_id="props">
         <q-td :props="props">{{ groupLabel(props.row.price_group_id) }}</q-td>
       </template>
+      <template #body-cell-business_registration_number="props">
+        <q-td :props="props" class="font-mono">{{ props.row.business_registration_number }}</q-td>
+      </template>
       <template #body-cell-status="props">
         <q-td :props="props">
-          <q-chip
-            dense
-            :color="statusColor(props.row.status)"
-            text-color="white"
+          <StatusTag
             :label="statusLabel(props.row.status)"
+            :tone="toneOf(statusColor(props.row.status))"
+            :icon="toneIcon(toneOf(statusColor(props.row.status)))"
           />
         </q-td>
       </template>
@@ -49,43 +60,47 @@
             <q-btn
               flat
               dense
-              icon="check"
-              color="positive"
-              label="Approuver"
               no-caps
+              icon="ph:check"
+              label="Approuver"
               @click="openReview(props.row, 'approve')"
             />
             <q-btn
               flat
               dense
-              icon="close"
+              no-caps
+              icon="ph:x"
               color="negative"
               label="Rejeter"
-              no-caps
               @click="openReview(props.row, 'reject')"
             />
           </template>
-          <span v-else class="text-grey-6 text-caption">{{ props.row.admin_comment || '—' }}</span>
+          <span v-else class="text-subtle text-caption">{{ props.row.admin_comment || '—' }}</span>
         </q-td>
+      </template>
+      <template #no-data>
+        <span class="text-subtle">{{ loading ? 'Chargement…' : 'Aucune demande.' }}</span>
       </template>
     </q-table>
 
     <q-dialog v-model="reviewDialog">
-      <q-card style="min-width: 380px">
-        <q-card-section class="text-h6">
-          {{ action === 'approve' ? 'Approuver la demande' : 'Rejeter la demande' }}
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">
+            {{ action === 'approve' ? 'Approuver la demande' : 'Rejeter la demande' }}
+          </h2>
         </q-card-section>
-        <q-card-section class="q-pt-none q-gutter-sm">
-          <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-            dialogError
-          }}</q-banner>
-          <div class="text-body2">
-            Groupe demandé :
-            <strong>{{ reviewing ? groupLabel(reviewing.price_group_id) : '' }}</strong
-            ><br />
-            N° d'enregistrement : {{ reviewing?.business_registration_number }}
-          </div>
-          <div v-if="reviewing?.attestation_notes" class="text-caption text-grey-8">
+        <q-card-section class="q-gutter-sm">
+          <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
+          <dl class="admin-dl">
+            <dt>Groupe demandé</dt>
+            <dd>
+              <strong>{{ reviewing ? groupLabel(reviewing.price_group_id) : '' }}</strong>
+            </dd>
+            <dt>N° d'enregistrement</dt>
+            <dd class="font-mono">{{ reviewing?.business_registration_number }}</dd>
+          </dl>
+          <div v-if="reviewing?.attestation_notes" class="text-caption text-muted">
             « {{ reviewing.attestation_notes }} »
           </div>
           <q-input
@@ -97,10 +112,12 @@
             autogrow
           />
         </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Annuler" v-close-popup />
+        <q-card-actions align="right" class="app-dialog__actions">
+          <q-btn flat no-caps label="Annuler" v-close-popup />
           <q-btn
-            :color="action === 'approve' ? 'positive' : 'negative'"
+            :color="action === 'approve' ? 'primary' : 'negative'"
+            unelevated
+            no-caps
             :label="action === 'approve' ? 'Approuver' : 'Rejeter'"
             :loading="saving"
             @click="submitReview"
@@ -114,6 +131,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import { toneIcon, toneOf } from '@app/ui/statusTone';
+import PageHeader from '@/components/PageHeader.vue';
 import {
   approveGroupUpgradeRequest,
   listGroupUpgradeRequests,

@@ -105,6 +105,7 @@ class AdminOrderDetail(BaseModel):
     """Represents the enriched admin order detail."""
 
     order_id: uuid.UUID
+    order_number: str | None = None
     created_at: datetime | None = None
     user_id: uuid.UUID
     user_name: str | None = None
@@ -585,6 +586,7 @@ async def get_order_detail(
 
     return AdminOrderDetail(
         order_id=order.id,
+        order_number=order.order_number,
         created_at=order.created_at,
         user_id=order.user_id,
         user_name=user.full_name if user else None,

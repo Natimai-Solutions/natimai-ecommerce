@@ -1,17 +1,24 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="text-h6 col">Taux de change</div>
-      <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader title="Taux de change">
+      <template #hint>
+        Taux de conversion vers la devise de référence : 1 unité de la devise =
+        <em>taux</em> unités de la référence. Mettre à jour clôture le taux courant et en ouvre un
+        nouveau.
+      </template>
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+      </template>
+    </PageHeader>
 
-    <div class="text-caption text-grey-7 q-mb-md">
-      Taux de conversion vers la devise de référence : 1 unité de la devise =
-      <em>taux</em> unités de la référence. Mettre à jour clôture le taux courant et en ouvre un
-      nouveau.
-    </div>
-
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
+    <AppNotice v-if="error" tone="error" dense class="q-mb-md">{{ error }}</AppNotice>
 
     <q-table
       :rows="rows"
@@ -23,25 +30,23 @@
       :rows-per-page-options="[0]"
       hide-pagination
     >
+      <template #body-cell-currency_code="props">
+        <q-td :props="props" class="font-mono">{{ props.row.currency_code }}</q-td>
+      </template>
+      <template #body-cell-rate_to_reference="props">
+        <q-td :props="props" class="font-mono">{{ props.row.rate_to_reference }}</q-td>
+      </template>
       <template #body-cell-source="props">
         <q-td :props="props">
-          <q-chip
-            dense
-            :color="props.row.source === 'manual' ? 'blue-grey' : 'teal'"
-            text-color="white"
+          <StatusTag
             :label="props.row.source === 'manual' ? 'manuel' : 'auto'"
+            :icon="props.row.source === 'manual' ? 'ph:hand' : 'ph:arrows-clockwise'"
           />
         </q-td>
       </template>
       <template #body-cell-valid_until="props">
         <q-td :props="props">
-          <q-chip
-            v-if="!props.row.valid_until"
-            dense
-            color="green"
-            text-color="white"
-            label="Actif"
-          />
+          <StatusTag v-if="!props.row.valid_until" label="Actif" tone="ok" icon="ph:check-circle" />
           <span v-else>{{ props.row.valid_until }}</span>
         </q-td>
       </template>
@@ -50,24 +55,26 @@
           <q-btn
             flat
             dense
-            icon="edit"
-            color="primary"
-            label="Mettre à jour"
             no-caps
+            icon="ph:pencil-simple"
+            label="Mettre à jour"
             @click="openEdit(props.row)"
           />
         </q-td>
       </template>
+      <template #no-data>
+        <div class="full-width text-center text-subtle q-pa-md">Aucun taux de change.</div>
+      </template>
     </q-table>
 
     <q-dialog v-model="editDialog">
-      <q-card style="min-width: 360px">
-        <q-card-section class="text-h6">Nouveau taux — {{ editing?.currency_code }}</q-card-section>
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">Nouveau taux — {{ editing?.currency_code }}</h2>
+        </q-card-section>
         <q-form @submit.prevent="submitEdit">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="editForm.rate_to_reference"
               label="Taux vers référence *"
@@ -86,9 +93,16 @@
               :rules="req"
             />
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" label="Enregistrer" :loading="saving" />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn
+              type="submit"
+              color="primary"
+              unelevated
+              no-caps
+              label="Enregistrer"
+              :loading="saving"
+            />
           </q-card-actions>
         </q-form>
       </q-card>
@@ -99,6 +113,9 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import { listCurrencyRates, upsertCurrencyRate, type CurrencyRate } from '@/api/currencyRates';
 import { extractApiError } from '@/api/errors';
 

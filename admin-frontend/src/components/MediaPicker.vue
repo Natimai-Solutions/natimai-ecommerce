@@ -1,12 +1,14 @@
 <template>
   <q-dialog :model-value="modelValue" @update:model-value="emit('update:modelValue', $event)">
-    <q-card class="media-picker">
-      <q-card-section class="row items-center q-pb-sm">
-        <div class="text-h6 col">Médiathèque</div>
-        <q-btn flat round dense icon="close" v-close-popup />
+    <q-card class="app-dialog app-dialog--xl">
+      <q-card-section class="app-dialog__head">
+        <div class="row items-center no-wrap">
+          <h2 class="app-dialog__title col">Médiathèque</h2>
+          <q-btn flat round dense icon="ph:x" aria-label="Fermer" v-close-popup />
+        </div>
       </q-card-section>
 
-      <q-card-section class="q-pt-none">
+      <q-card-section>
         <div class="row q-col-gutter-sm items-start">
           <q-file
             v-model="file"
@@ -18,7 +20,7 @@
             clearable
             data-testid="media-file"
           >
-            <template #prepend><q-icon name="add_photo_alternate" /></template>
+            <template #prepend><q-icon name="ph:image" /></template>
           </q-file>
           <q-input
             v-model="alt"
@@ -30,7 +32,9 @@
           <div class="col-12 col-md-3">
             <q-btn
               color="primary"
-              icon="cloud_upload"
+              unelevated
+              no-caps
+              icon="ph:cloud-arrow-up"
               label="Téléverser"
               class="full-width"
               :disable="!file"
@@ -40,14 +44,12 @@
             />
           </div>
         </div>
-        <div class="text-caption text-grey-7 q-mt-xs">
+        <p class="admin-hint q-mt-xs q-mb-none">
           L'image est vérifiée par l'antivirus, débarrassée de ses métadonnées (position GPS,
           appareil) et convertie en WebP en trois tailles.
-        </div>
+        </p>
 
-        <q-banner v-if="error" class="bg-red-1 text-red-9 q-mt-sm" dense rounded>
-          {{ error }}
-        </q-banner>
+        <AppNotice v-if="error" tone="error" dense class="q-mt-sm">{{ error }}</AppNotice>
 
         <div class="row items-center q-mt-md q-gutter-xs">
           <q-btn
@@ -68,8 +70,10 @@
         <div v-if="loading" class="row justify-center q-pa-lg">
           <q-spinner size="2em" />
         </div>
-        <div v-else-if="!assets.length" class="text-grey-7 text-center q-pa-lg">
-          Aucune image pour l'instant : téléversez-en une ci-dessus.
+        <div v-else-if="!assets.length" class="app-empty">
+          <q-icon name="ph:images" size="28px" class="text-subtle" />
+          <h3>Aucune image</h3>
+          <p>Téléversez-en une ci-dessus.</p>
         </div>
         <div v-else class="media-picker__grid">
           <button
@@ -91,20 +95,23 @@
         </div>
       </q-card-section>
 
-      <q-card-actions align="right" class="q-pa-md">
+      <q-card-actions align="right" class="app-dialog__actions">
         <q-btn
           v-if="selected"
           flat
+          no-caps
           color="negative"
-          icon="delete"
+          icon="ph:trash"
           label="Supprimer"
           :loading="deleting"
           @click="remove(selected)"
         />
         <q-space />
-        <q-btn flat label="Annuler" v-close-popup />
+        <q-btn flat no-caps label="Annuler" v-close-popup />
         <q-btn
           color="primary"
+          unelevated
+          no-caps
           label="Utiliser cette image"
           :disable="!selected"
           data-testid="media-confirm"
@@ -118,6 +125,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 
+import AppNotice from '@app/ui/AppNotice.vue';
 import { extractApiError } from '@/api/errors';
 import {
   deleteMedia,
@@ -229,11 +237,6 @@ watch(
 </script>
 
 <style scoped lang="scss">
-.media-picker {
-  width: 960px;
-  max-width: calc(100vw - 32px);
-}
-
 .media-picker__grid-wrap {
   max-height: 55vh;
   overflow-y: auto;
@@ -261,18 +264,18 @@ watch(
     aspect-ratio: 4 / 3;
     object-fit: cover;
     border-radius: 6px;
-    background: #f1f1f3;
+    background: var(--n-tile);
   }
 
   &--selected {
-    border-color: var(--q-primary);
+    border-color: var(--n-accent);
   }
 }
 
 .media-tile__meta {
   padding: 0 4px 4px;
   font-size: 12px;
-  color: #6b6b74;
+  color: var(--n-ink-3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

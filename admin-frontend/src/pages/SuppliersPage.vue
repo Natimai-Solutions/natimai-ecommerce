@@ -1,22 +1,35 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="col">
-        <div class="text-h6">Fournisseurs</div>
-        <div class="text-caption text-grey-7">
-          Un fournisseur est déclaré ici avec son entrepôt d'origine et son régime douanier. Sa
-          méthode d'approvisionnement décide comment ses articles arrivent : à la main, par fichier
-          CSV / Excel, ou par une intégration API.
-        </div>
-      </div>
-      <q-btn color="primary" icon="add" label="Nouveau fournisseur" no-caps @click="openCreate" />
-      <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader title="Fournisseurs">
+      <template #hint>
+        Un fournisseur est déclaré ici avec son entrepôt d'origine et son régime douanier. Sa
+        méthode d'approvisionnement décide comment ses articles arrivent : à la main, par fichier
+        CSV / Excel, ou par une intégration API.
+      </template>
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+        <q-btn
+          color="primary"
+          unelevated
+          no-caps
+          icon="ph:plus"
+          label="Nouveau fournisseur"
+          @click="openCreate"
+        />
+      </template>
+    </PageHeader>
 
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
-    <q-banner v-if="notice" class="bg-green-1 text-green-9 q-mb-md" rounded dense>{{
-      notice
-    }}</q-banner>
+    <div v-if="error || notice" class="admin-notices">
+      <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
+      <AppNotice v-if="notice" tone="success" dense>{{ notice }}</AppNotice>
+    </div>
 
     <q-table
       :rows="rows"
@@ -28,10 +41,13 @@
       :rows-per-page-options="[0]"
       hide-pagination
     >
+      <template #body-cell-code="props">
+        <q-td :props="props" class="font-mono">{{ props.row.code }}</q-td>
+      </template>
       <template #body-cell-kind="props">
         <q-td :props="props">
-          <q-badge :color="kindColor(props.row.kind)" :label="kindLabel(props.row.kind)" />
-          <span v-if="props.row.kind === 'api'" class="text-caption text-grey-7 q-ml-xs">
+          <StatusTag :label="kindLabel(props.row.kind)" :icon="kindIcon(props.row.kind)" />
+          <span v-if="props.row.kind === 'api'" class="text-caption text-muted font-mono q-ml-xs">
             {{ props.row.adapter_key }}
           </span>
         </q-td>
@@ -41,25 +57,24 @@
       </template>
       <template #body-cell-domestic="props">
         <q-td :props="props">
-          <q-badge v-if="props.row.is_domestic" color="teal" label="Local — sans douane" />
-          <q-badge v-else color="orange" label="Import — CAF + douane" />
+          <StatusTag v-if="props.row.is_domestic" label="Local — sans douane" icon="ph:map-pin" />
+          <StatusTag v-else label="Import — CAF + douane" icon="ph:globe-hemisphere-west" />
         </q-td>
       </template>
       <template #body-cell-status="props">
         <q-td :props="props">
-          <q-icon v-if="!props.row.is_active" name="block" color="grey" size="sm">
-            <q-tooltip>Désactivé</q-tooltip>
-          </q-icon>
-          <q-icon
-            v-else-if="props.row.kind === 'api' && !props.row.configured"
-            name="warning"
-            color="orange"
-            size="sm"
-          >
+          <StatusTag
+            v-if="!props.row.is_active"
+            label="Désactivé"
+            tone="neutral"
+            icon="ph:minus-circle"
+          />
+          <span v-else-if="props.row.kind === 'api' && !props.row.configured">
+            <StatusTag label="À configurer" tone="warn" icon="ph:warning" />
             <q-tooltip>Identifiants absents de l'environnement</q-tooltip>
-          </q-icon>
-          <q-icon v-else name="check_circle" color="positive" size="sm" />
-          <span v-if="props.row.kind === 'api'" class="text-caption text-grey-7 q-ml-xs">
+          </span>
+          <StatusTag v-else label="Actif" tone="ok" icon="ph:check-circle" />
+          <span v-if="props.row.kind === 'api'" class="text-caption text-muted q-ml-xs">
             {{
               props.row.sync_enabled
                 ? props.row.sync_interval_hours > 0
@@ -68,24 +83,25 @@
                 : 'sync désactivée'
             }}
           </span>
-          <q-badge
+          <q-chip
             v-if="props.row.sku_allowlist?.length"
-            color="deep-purple"
+            dense
+            icon="ph:list-checks"
             class="q-ml-xs"
             :label="`${props.row.sku_allowlist.length} réf. suivie(s)`"
             data-testid="supplier-allowlist-badge"
           >
             <q-tooltip>Seules ces références sont créées et rafraîchies</q-tooltip>
-          </q-badge>
+          </q-chip>
         </q-td>
       </template>
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
           <q-btn
             flat
+            round
             dense
-            icon="upload_file"
-            color="primary"
+            icon="ph:file-arrow-up"
             :disable="!props.row.is_active"
             @click="openImport(props.row)"
           >
@@ -94,9 +110,9 @@
           <q-btn
             v-if="props.row.kind === 'api'"
             flat
+            round
             dense
-            icon="sync"
-            color="primary"
+            icon="ph:arrows-clockwise"
             :disable="!props.row.is_active || !props.row.configured"
             :loading="busy === props.row.code"
             @click="onSync(props.row)"
@@ -106,9 +122,9 @@
           <q-btn
             v-if="props.row.kind === 'api'"
             flat
+            round
             dense
-            icon="monitor_heart"
-            color="primary"
+            icon="ph:heartbeat"
             :disable="!props.row.is_active"
             @click="onHealth(props.row)"
           >
@@ -117,23 +133,24 @@
           <q-btn
             v-if="props.row.kind !== 'manual'"
             flat
+            round
             dense
-            icon="playlist_add_check"
-            color="deep-purple"
+            icon="ph:list-checks"
             :disable="!props.row.is_active"
             data-testid="supplier-allowlist"
             @click="openAllowlist(props.row)"
           >
             <q-tooltip>Références suivies (liste blanche de SKU)</q-tooltip>
           </q-btn>
-          <q-btn flat dense icon="edit" color="primary" @click="openEdit(props.row)">
+          <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
             <q-tooltip>Modifier</q-tooltip>
           </q-btn>
           <q-btn
             v-if="props.row.is_active"
             flat
+            round
             dense
-            icon="block"
+            icon="ph:prohibit"
             color="negative"
             @click="onDeactivate(props.row)"
           >
@@ -142,21 +159,21 @@
         </q-td>
       </template>
       <template #no-data>
-        <div class="full-width text-center text-grey-6 q-pa-md">Aucun fournisseur déclaré.</div>
+        <div class="full-width text-center text-subtle q-pa-md">Aucun fournisseur déclaré.</div>
       </template>
     </q-table>
 
     <!-- Création / édition -->
     <q-dialog v-model="formDialog">
-      <q-card style="min-width: 620px; max-width: 92vw">
-        <q-card-section class="text-h6">
-          {{ editing ? `Modifier ${editing.name}` : 'Nouveau fournisseur' }}
+      <q-card class="app-dialog app-dialog--wide">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">
+            {{ editing ? `Modifier ${editing.name}` : 'Nouveau fournisseur' }}
+          </h2>
         </q-card-section>
         <q-form @submit.prevent="submitForm">
-          <q-card-section class="q-pt-none q-gutter-sm">
-            <q-banner v-if="dialogError" class="bg-red-1 text-red-9" dense rounded>{{
-              dialogError
-            }}</q-banner>
+          <q-card-section class="q-gutter-sm">
+            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
 
             <div class="row" style="gap: 8px">
               <q-input
@@ -193,15 +210,14 @@
               emit-value
               map-options
             />
-            <q-banner
+            <AppNotice
               v-if="form.kind === 'api' && selectedAdapter && !selectedAdapter.configured"
-              class="bg-orange-1 text-orange-10"
+              tone="warning"
               dense
-              rounded
             >
               Les identifiants de cette intégration ne sont pas configurés dans l'environnement du
               serveur : la synchronisation restera impossible tant qu'ils manquent.
-            </q-banner>
+            </AppNotice>
 
             <q-select
               v-model="form.origin_place_id"
@@ -219,7 +235,7 @@
               v-model="form.is_domestic"
               label="Fournisseur local — même territoire douanier que notre entrepôt"
             />
-            <div class="text-caption text-grey-7 q-ml-md">
+            <div class="text-caption text-muted q-ml-md">
               {{
                 form.is_domestic
                   ? 'Articles créés en mode « local » : coût + marge + taxe, sans douane ni fret import.'
@@ -259,7 +275,7 @@
                 label="Nouveaux articles en brouillon"
                 data-testid="supplier-import-as-draft"
               />
-              <div class="text-caption text-grey-7 q-ml-md">
+              <div class="text-caption text-muted q-ml-md">
                 Un article créé par une synchronisation ou un import reste invisible en vitrine
                 (enrichi et rafraîchi quand même) jusqu'à ce que vous le publiiez depuis la page
                 Articles. Les articles existants ne changent pas.
@@ -278,7 +294,7 @@
                 dense
               />
               <div v-if="selectedAdapter?.settings_keys.length" class="q-gutter-sm">
-                <div class="text-subtitle2">Réglages de l'intégration</div>
+                <h3 class="admin-subtitle q-mb-none">Réglages de l'intégration</h3>
                 <q-input
                   v-for="key in selectedAdapter.settings_keys"
                   :key="key"
@@ -302,9 +318,16 @@
             </div>
             <q-input v-model="form.notes" label="Notes" type="textarea" autogrow outlined dense />
           </q-card-section>
-          <q-card-actions align="right">
-            <q-btn flat label="Annuler" v-close-popup />
-            <q-btn type="submit" color="primary" label="Enregistrer" :loading="saving" />
+          <q-card-actions align="right" class="app-dialog__actions">
+            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn
+              type="submit"
+              color="primary"
+              unelevated
+              no-caps
+              label="Enregistrer"
+              :loading="saving"
+            />
           </q-card-actions>
         </q-form>
       </q-card>
@@ -312,15 +335,13 @@
 
     <!-- Références suivies (liste blanche de SKU) -->
     <q-dialog v-model="allowlistDialog">
-      <q-card style="min-width: 640px; max-width: 92vw">
-        <q-card-section class="text-h6">
-          Références suivies — {{ allowlistSupplier?.name }}
+      <q-card class="app-dialog app-dialog--wide">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">Références suivies — {{ allowlistSupplier?.name }}</h2>
         </q-card-section>
-        <q-card-section class="q-pt-none q-gutter-sm">
-          <q-banner v-if="allowlistError" class="bg-red-1 text-red-9" dense rounded>{{
-            allowlistError
-          }}</q-banner>
-          <div class="text-caption text-grey-7">
+        <q-card-section class="q-gutter-sm">
+          <AppNotice v-if="allowlistError" tone="error" dense>{{ allowlistError }}</AppNotice>
+          <div class="text-caption text-muted">
             Collez ici les références fournisseur (SKU) que la boutique vend, une par ligne. Liste
             vide : tout le catalogue synchronisé est suivi. Liste renseignée : seules ces références
             sont créées et rafraîchies (prix / stock), et les articles de ce fournisseur hors liste
@@ -337,7 +358,7 @@
             placeholder="IM-12345&#10;IM-67890"
             data-testid="allowlist-text"
           />
-          <div v-if="allowlistView" class="text-caption text-grey-8">
+          <div v-if="allowlistView" class="text-caption text-muted">
             {{ allowlistView.entries.length }} référence(s) — {{ allowlistView.known }} au
             catalogue, {{ allowlistView.unknown.length }} à créer à la prochaine synchronisation,
             {{ allowlistView.outside }} article(s) hors liste retiré(s) de la vitrine.
@@ -361,22 +382,34 @@
               </thead>
               <tbody>
                 <tr v-for="e in allowlistView.entries" :key="e.supplier_sku">
-                  <td>{{ e.supplier_sku }}</td>
+                  <td class="font-mono">{{ e.supplier_sku }}</td>
                   <td>{{ e.product_name ?? '— à créer' }}</td>
                   <td>
-                    <q-badge v-if="e.is_active === true" color="positive" label="en vitrine" />
-                    <q-badge v-else-if="e.is_active === false" color="grey" label="masqué" />
-                    <span v-else class="text-grey-6">inconnu</span>
+                    <StatusTag
+                      v-if="e.is_active === true"
+                      label="en vitrine"
+                      tone="ok"
+                      icon="ph:eye"
+                    />
+                    <StatusTag
+                      v-else-if="e.is_active === false"
+                      label="masqué"
+                      tone="neutral"
+                      icon="ph:eye-slash"
+                    />
+                    <span v-else class="text-subtle">inconnu</span>
                   </td>
                 </tr>
               </tbody>
             </q-markup-table>
           </q-expansion-item>
         </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Fermer" v-close-popup />
+        <q-card-actions align="right" class="app-dialog__actions">
+          <q-btn flat no-caps label="Fermer" v-close-popup />
           <q-btn
             color="primary"
+            unelevated
+            no-caps
             label="Enregistrer la liste"
             :loading="allowlistSaving"
             data-testid="allowlist-save"
@@ -388,14 +421,12 @@
 
     <!-- Import fichier -->
     <q-dialog v-model="importDialog">
-      <q-card style="min-width: 720px; max-width: 95vw">
-        <q-card-section class="text-h6">
-          Importer un catalogue — {{ importing?.name }}
+      <q-card class="app-dialog app-dialog--wide">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">Importer un catalogue — {{ importing?.name }}</h2>
         </q-card-section>
-        <q-card-section class="q-pt-none q-gutter-sm">
-          <q-banner v-if="importError" class="bg-red-1 text-red-9" dense rounded>{{
-            importError
-          }}</q-banner>
+        <q-card-section class="q-gutter-sm">
+          <AppNotice v-if="importError" tone="error" dense>{{ importError }}</AppNotice>
 
           <q-file
             v-model="importFile"
@@ -406,20 +437,20 @@
             clearable
             @update:model-value="onFileChosen"
           >
-            <template #prepend><q-icon name="attach_file" /></template>
+            <template #prepend><q-icon name="ph:paperclip" /></template>
           </q-file>
 
           <template v-if="inspection">
-            <div class="text-caption text-grey-7">
+            <div class="text-caption text-muted">
               {{ inspection.total_rows }} ligne(s) détectée(s) — colonnes :
               {{ inspection.headers.join(', ') }}
             </div>
-            <div class="text-subtitle2 q-mt-sm">Correspondance des colonnes</div>
-            <div class="text-caption text-grey-7 q-mb-xs">
+            <h3 class="admin-subtitle q-mt-sm q-mb-none">Correspondance des colonnes</h3>
+            <div class="text-caption text-muted q-mb-xs">
               Associez chaque champ de notre système à une colonne du fichier. Les champs marqués *
               sont obligatoires. La correspondance est mémorisée sur le fournisseur.
             </div>
-            <div class="text-caption text-grey-7 q-mb-xs">
+            <div class="text-caption text-muted q-mb-xs">
               Un article déjà présent chez ce fournisseur est reconnu par sa référence, sinon par
               son code-barres EAN/UPC, sinon par marque + référence fabricant : mappez ces colonnes
               pour qu'un changement de référence ne crée pas de doublon. Un article saisi à la main
@@ -449,7 +480,7 @@
               class="q-mt-sm"
               label="Afficher les nouveaux articles en boutique sans attendre l’enrichissement Icecat"
             />
-            <div class="text-caption text-grey-7 q-mb-xs">
+            <div class="text-caption text-muted q-mb-xs">
               Décoché, un article créé reste masqué tant qu’Icecat ne l’a pas reconnu (page
               Produits, filtre « Masqués », pour le publier ensuite).
             </div>
@@ -469,21 +500,14 @@
             </q-expansion-item>
           </template>
 
-          <q-banner v-if="queuedImport" class="bg-blue-1 text-blue-10" dense rounded>
-            <template #avatar>
-              <q-spinner color="primary" size="sm" />
-            </template>
+          <AppNotice v-if="queuedImport" tone="info" icon="ph:hourglass" dense>
+            <q-spinner size="1em" class="q-mr-xs" />
             Import en tâche de fond ({{ queuedImport.totalRows }} lignes) — l'avancement se met à
             jour ici ; vous pouvez fermer cette fenêtre, le résultat restera dans le journal de
             synchronisation.
-          </q-banner>
+          </AppNotice>
 
-          <q-banner
-            v-if="importResult"
-            :class="importResult.dry_run ? 'bg-blue-1 text-blue-10' : 'bg-green-1 text-green-9'"
-            dense
-            rounded
-          >
+          <AppNotice v-if="importResult" :tone="importResult.dry_run ? 'info' : 'success'" dense>
             <div>
               <strong>{{ importResult.dry_run ? 'Simulation' : 'Import' }}</strong> :
               {{ importResult.parsed_products }} article(s) lisible(s),
@@ -534,7 +558,7 @@
                     :key="r.supplier_sku + r.action"
                     :class="r.action === 'ambiguous' ? 'text-negative' : ''"
                   >
-                    <td>{{ r.supplier_sku }}</td>
+                    <td class="font-mono">{{ r.supplier_sku }}</td>
                     <td>{{ r.name }}</td>
                     <td>{{ actionLabel(r.action) }}</td>
                     <td>{{ r.match_key ? matchKeyLabel(r.match_key) : '—' }}</td>
@@ -553,13 +577,13 @@
                 {{ e.sku }} : {{ e.error }}
               </li>
             </ul>
-          </q-banner>
+          </AppNotice>
         </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Fermer" v-close-popup />
+        <q-card-actions align="right" class="app-dialog__actions">
+          <q-btn flat no-caps label="Fermer" v-close-popup />
           <q-btn
-            flat
-            color="primary"
+            outline
+            no-caps
             label="Simuler"
             :disable="!importFile || !inspection"
             :loading="importBusy === 'dry'"
@@ -567,6 +591,8 @@
           />
           <q-btn
             color="primary"
+            unelevated
+            no-caps
             label="Importer"
             :disable="!importFile || !inspection || !!queuedImport"
             :loading="importBusy === 'run'"
@@ -581,6 +607,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import type { QTableColumn } from 'quasar';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import {
   MAPPING_TARGET_LABELS,
   MATCH_KEY_LABELS,
@@ -653,8 +682,8 @@ const placeOptions = computed(() =>
 function kindLabel(kind: SupplierKind): string {
   return SUPPLIER_KIND_LABELS[kind] ?? kind;
 }
-function kindColor(kind: SupplierKind): string {
-  return kind === 'api' ? 'indigo' : kind === 'file' ? 'blue-grey' : 'grey-7';
+function kindIcon(kind: SupplierKind): string {
+  return kind === 'api' ? 'ph:plugs-connected' : kind === 'file' ? 'ph:file-arrow-up' : 'ph:hand';
 }
 function placeName(id: string | null): string {
   if (!id) return '—';

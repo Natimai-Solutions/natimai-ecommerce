@@ -1,148 +1,173 @@
 <template>
-  <q-page padding>
-    <div class="row items-center q-mb-md">
-      <div class="text-h6 col">Éligibilité paiement ↔ groupe</div>
-      <q-btn flat icon="refresh" label="Actualiser" :loading="loading" @click="load" />
-    </div>
+  <q-page class="admin-page">
+    <PageHeader
+      title="Moyens de paiement"
+      hint="Méthodes proposées aux clients, ouverture par groupe tarifaire et politique d'acompte."
+    >
+      <template #actions>
+        <q-btn
+          flat
+          no-caps
+          icon="ph:arrow-clockwise"
+          label="Actualiser"
+          :loading="loading"
+          @click="load"
+        />
+      </template>
+    </PageHeader>
 
-    <div class="text-caption text-grey-7 q-mb-md">
-      Le commutateur <strong>Activé</strong> coupe/rétablit une méthode <strong>globalement</strong>
-      (masquée pour tous les clients si désactivée). Les cases cochent les groupes autorisés :
-      <strong>aucune coche</strong> = méthode ouverte à <strong>tous</strong> les groupes.
-    </div>
-
-    <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
+    <AppNotice v-if="error" tone="error" class="q-mb-md">{{ error }}</AppNotice>
 
     <div v-if="loading" class="text-center q-pa-xl">
-      <q-spinner color="primary" size="2.5em" />
+      <q-spinner size="2.5em" />
     </div>
 
-    <q-markup-table v-else flat bordered separator="cell">
-      <thead>
-        <tr>
-          <th class="text-left">Méthode</th>
-          <th class="text-center">Activé</th>
-          <th v-for="g in groups" :key="g.id" class="text-center">
-            {{ g.label }}
-            <q-badge v-if="g.default" color="grey-6" class="q-ml-xs" label="défaut" />
-          </th>
-          <th class="text-center">Ouverture</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="m in methods" :key="m.id">
-          <td class="text-left">
-            <div>{{ m.name }}</div>
-            <div class="text-caption text-grey-6">{{ m.provider_code }}</div>
-          </td>
-          <td class="text-center">
-            <q-toggle
-              :model-value="m.is_admin_active"
-              color="positive"
-              :disable="updatingKey === activeKey(m.id)"
-              @update:model-value="(val) => toggleActive(m, val)"
-            />
-          </td>
-          <td v-for="g in groups" :key="g.id" class="text-center">
-            <q-checkbox
-              :model-value="isEligible(m.id, g.id)"
-              :disable="updatingKey === cellKey(m.id, g.id)"
-              @update:model-value="(val) => toggle(m.id, g.id, val)"
-            />
-          </td>
-          <td class="text-center">
-            <q-chip
-              v-if="(eligible[m.id]?.length ?? 0) === 0"
-              dense
-              color="green"
-              text-color="white"
-              label="tous"
-            />
-            <q-chip v-else dense color="orange" text-color="white" label="restreinte" />
-          </td>
-        </tr>
-      </tbody>
-    </q-markup-table>
+    <template v-else>
+      <section class="app-section" aria-labelledby="eligibility-title">
+        <div class="app-section__head">
+          <h2 id="eligibility-title" class="app-section__title">Ouverture par groupe</h2>
+        </div>
+        <p class="admin-hint">
+          Le commutateur <strong>Activé</strong> coupe/rétablit une méthode
+          <strong>globalement</strong> (masquée pour tous les clients si désactivée). Les cases
+          cochent les groupes autorisés : <strong>aucune coche</strong> = méthode ouverte à
+          <strong>tous</strong> les groupes.
+        </p>
 
-    <!-- Deposit policy per price group (« acompte à la commande ») -->
-    <div v-if="!loading" class="q-mt-lg">
-      <div class="text-h6 q-mb-xs">Acompte à la commande</div>
-      <div class="text-caption text-grey-7 q-mb-md">
-        Par groupe tarifaire : part du total versée à la commande (vide = pas d'acompte proposé),
-        frais de l'option (en % du total et/ou fixes, inclus dans le total facturé), et acompte
-        imposé ou laissé au choix du client. Le solde est demandé par e-mail à la réception des
-        articles.
-      </div>
-      <q-banner v-if="depositNotice" class="bg-green-1 text-green-9 q-mb-sm" dense rounded>
-        {{ depositNotice }}
-      </q-banner>
-      <q-markup-table flat bordered dense>
-        <thead>
-          <tr>
-            <th class="text-left">Groupe</th>
-            <th class="text-left">Acompte (%)</th>
-            <th class="text-left">Frais (%)</th>
-            <th class="text-left">Frais fixes (XPF)</th>
-            <th class="text-left">Imposé</th>
-            <th class="text-right"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="g in groups" :key="g.id">
-            <td class="text-left">{{ g.label }}</td>
-            <td>
-              <q-input
-                v-model="depositEdit(g).deposit_pct"
-                type="number"
-                min="1"
-                max="99"
-                dense
-                outlined
-                style="width: 90px"
-                placeholder="—"
-              />
-            </td>
-            <td>
-              <q-input
-                v-model="depositEdit(g).deposit_fee_pct"
-                type="number"
-                min="0"
-                step="0.5"
-                dense
-                outlined
-                style="width: 90px"
-              />
-            </td>
-            <td>
-              <q-input
-                v-model="depositEdit(g).deposit_fee_fixed"
-                type="number"
-                min="0"
-                dense
-                outlined
-                style="width: 110px"
-              />
-            </td>
-            <td><q-toggle v-model="depositEdit(g).deposit_required" dense /></td>
-            <td class="text-right">
-              <q-btn
-                flat
-                dense
-                icon="save"
-                color="primary"
-                :loading="savingDeposit === g.id"
-                @click="saveDeposit(g)"
-              />
-            </td>
-          </tr>
-        </tbody>
-      </q-markup-table>
-    </div>
+        <q-markup-table flat bordered separator="cell">
+          <thead>
+            <tr>
+              <th class="text-left">Méthode</th>
+              <th class="text-center">Activé</th>
+              <th v-for="g in groups" :key="g.id" class="text-center">
+                {{ g.label }}
+                <span v-if="g.default" class="text-subtle q-ml-xs">(défaut)</span>
+              </th>
+              <th class="text-center">Ouverture</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="m in methods" :key="m.id">
+              <td class="text-left">
+                <div>{{ m.name }}</div>
+                <div class="text-caption text-subtle font-mono">{{ m.provider_code }}</div>
+              </td>
+              <td class="text-center">
+                <q-toggle
+                  :model-value="m.is_admin_active"
+                  color="positive"
+                  :disable="updatingKey === activeKey(m.id)"
+                  @update:model-value="(val) => toggleActive(m, val)"
+                />
+              </td>
+              <td v-for="g in groups" :key="g.id" class="text-center">
+                <q-checkbox
+                  :model-value="isEligible(m.id, g.id)"
+                  :disable="updatingKey === cellKey(m.id, g.id)"
+                  @update:model-value="(val) => toggle(m.id, g.id, val)"
+                />
+              </td>
+              <td class="text-center">
+                <StatusTag
+                  v-if="(eligible[m.id]?.length ?? 0) === 0"
+                  tone="ok"
+                  icon="ph:users-three"
+                  label="Tous"
+                />
+                <StatusTag v-else tone="warn" icon="ph:lock-simple" label="Restreinte" />
+              </td>
+            </tr>
+          </tbody>
+        </q-markup-table>
+      </section>
+
+      <!-- Deposit policy per price group (« acompte à la commande ») -->
+      <section class="app-section" aria-labelledby="deposit-title">
+        <div class="app-section__head">
+          <h2 id="deposit-title" class="app-section__title">Acompte à la commande</h2>
+        </div>
+        <p class="admin-hint">
+          Par groupe tarifaire : part du total versée à la commande (vide = pas d'acompte proposé),
+          frais de l'option (en % du total et/ou fixes, inclus dans le total facturé), et acompte
+          imposé ou laissé au choix du client. Le solde est demandé par e-mail à la réception des
+          articles.
+        </p>
+        <AppNotice v-if="depositNotice" tone="success" dense class="q-mb-sm">
+          {{ depositNotice }}
+        </AppNotice>
+        <q-markup-table flat bordered dense>
+          <thead>
+            <tr>
+              <th class="text-left">Groupe</th>
+              <th class="text-left">Acompte (%)</th>
+              <th class="text-left">Frais (%)</th>
+              <th class="text-left">Frais fixes (XPF)</th>
+              <th class="text-left">Imposé</th>
+              <th class="text-right"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="g in groups" :key="g.id">
+              <td class="text-left">{{ g.label }}</td>
+              <td>
+                <q-input
+                  v-model="depositEdit(g).deposit_pct"
+                  type="number"
+                  min="1"
+                  max="99"
+                  dense
+                  outlined
+                  style="width: 90px"
+                  placeholder="—"
+                />
+              </td>
+              <td>
+                <q-input
+                  v-model="depositEdit(g).deposit_fee_pct"
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  dense
+                  outlined
+                  style="width: 90px"
+                />
+              </td>
+              <td>
+                <q-input
+                  v-model="depositEdit(g).deposit_fee_fixed"
+                  type="number"
+                  min="0"
+                  dense
+                  outlined
+                  style="width: 110px"
+                />
+              </td>
+              <td><q-toggle v-model="depositEdit(g).deposit_required" dense /></td>
+              <td class="text-right">
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="ph:floppy-disk"
+                  :loading="savingDeposit === g.id"
+                  @click="saveDeposit(g)"
+                >
+                  <q-tooltip>Enregistrer</q-tooltip>
+                </q-btn>
+              </td>
+            </tr>
+          </tbody>
+        </q-markup-table>
+      </section>
+    </template>
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import {
   addEligibility,
   listEligibleGroups,

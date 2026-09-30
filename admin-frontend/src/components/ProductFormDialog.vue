@@ -1,46 +1,48 @@
 <template>
   <q-dialog :model-value="modelValue" @update:model-value="emit('update:modelValue', $event)">
-    <q-card style="min-width: 640px; max-width: 90vw">
-      <q-card-section class="row items-center q-pb-none">
-        <div class="text-h6">{{ isEdit ? 'Modifier le produit' : 'Nouveau produit' }}</div>
-        <q-space />
-        <q-badge v-if="isEdit && product?.is_supplier_managed" color="orange" label="Fournisseur" />
-        <q-badge v-else-if="isEdit" color="teal" label="Manuel" />
-      </q-card-section>
-
-      <q-card-section>
-        <q-banner v-if="error" class="bg-negative text-white q-mb-md" dense>{{ error }}</q-banner>
-
-        <q-banner
-          v-if="isEdit && product?.is_supplier_managed"
-          class="bg-blue-1 text-grey-8 q-mb-md"
-          dense
-        >
-          Produit synchronisé depuis un fournisseur. Les champs que vous modifiez ici seront
-          <strong>verrouillés</strong> : ni la synchronisation ni l'enrichissement Icecat ne les
-          réécriront.
-        </q-banner>
-
-        <div v-if="isEdit && lockedFields.length" class="q-mb-md">
-          <div class="text-caption text-grey-7 q-mb-xs">
-            Champs verrouillés — cliquez pour libérer (la valeur fournisseur reviendra à la
-            prochaine synchronisation ou au prochain enrichissement) :
+    <q-card class="app-dialog app-dialog--xl">
+      <q-form @submit="onSubmit">
+        <q-card-section class="app-dialog__head">
+          <div class="product-form__head">
+            <h2 class="app-dialog__title">
+              {{ isEdit ? 'Modifier le produit' : 'Nouveau produit' }}
+            </h2>
+            <StatusTag
+              v-if="isEdit && product?.is_supplier_managed"
+              label="Fournisseur"
+              icon="ph:truck"
+            />
+            <StatusTag v-else-if="isEdit" label="Manuel" icon="ph:hand" />
           </div>
-          <q-chip
-            v-for="field in lockedFields"
-            :key="field"
-            dense
-            removable
-            icon="lock"
-            color="orange-2"
-            text-color="orange-10"
-            :label="fieldLabel(field)"
-            :disable="releasing === field"
-            @remove="onRelease(field)"
-          />
-        </div>
+        </q-card-section>
 
-        <q-form @submit="onSubmit">
+        <q-card-section>
+          <div v-if="error || (isEdit && product?.is_supplier_managed)" class="admin-notices">
+            <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
+            <AppNotice v-if="isEdit && product?.is_supplier_managed" tone="info" dense>
+              Produit synchronisé depuis un fournisseur. Les champs que vous modifiez ici seront
+              <strong>verrouillés</strong> : ni la synchronisation ni l'enrichissement Icecat ne les
+              réécriront.
+            </AppNotice>
+          </div>
+
+          <div v-if="isEdit && lockedFields.length" class="q-mb-md">
+            <p class="admin-hint q-mb-xs">
+              Champs verrouillés — cliquez pour libérer (la valeur fournisseur reviendra à la
+              prochaine synchronisation ou au prochain enrichissement) :
+            </p>
+            <q-chip
+              v-for="field in lockedFields"
+              :key="field"
+              dense
+              removable
+              icon="ph:lock"
+              :label="fieldLabel(field)"
+              :disable="releasing === field"
+              @remove="onRelease(field)"
+            />
+          </div>
+
           <q-input v-model="form.name" label="Nom *" outlined dense bottom-slots :rules="req" />
           <q-input
             v-model="form.description"
@@ -59,295 +61,309 @@
             bottom-slots
           />
 
-          <div v-if="!isSimpleShop" class="text-subtitle2 q-mt-sm q-mb-xs">Approvisionnement</div>
-          <div v-if="!isSimpleShop" class="row" style="gap: 8px">
-            <q-select
-              v-model="form.supplier_name"
-              :options="supplierOptions"
-              label="Fournisseur"
-              hint="Vide = article de votre entrepôt, sans fournisseur"
-              outlined
-              dense
-              bottom-slots
-              emit-value
-              map-options
-              clearable
-              class="col"
-              :disable="isEdit && !!product?.is_supplier_managed"
-              @update:model-value="onSupplierChange"
-            />
-            <q-input
-              v-model="form.supplier_sku"
-              label="Référence chez le fournisseur"
-              outlined
-              dense
-              bottom-slots
-              class="col"
-            />
-          </div>
-          <q-input
-            v-if="!isSimpleShop && form.supplier_name && !product?.is_supplier_managed"
-            v-model="form.supplier_quantity"
-            label="Stock disponible chez le fournisseur"
-            hint="Tenu à jour à la main (ou par import fichier) — 0 = indisponible"
-            type="number"
-            step="1"
-            min="0"
-            outlined
-            dense
-            bottom-slots
-          />
-          <q-input
-            v-model="form.local_quantity"
-            label="Stock entrepôt (unités physiquement chez vous)"
-            :hint="localStockHint"
-            type="number"
-            step="1"
-            min="0"
-            outlined
-            dense
-            bottom-slots
-          />
-
-          <div class="text-subtitle2 q-mt-sm q-mb-xs">État</div>
-          <q-option-group v-model="form.condition" :options="conditionOptions" inline dense />
-          <div v-if="form.condition === 'refurbished'" class="row q-col-gutter-sm q-mb-sm">
-            <q-input
-              v-model="form.condition_grade"
-              class="col-6 col-sm-3"
-              label="Grade"
-              hint="A, B, C…"
-              outlined
-              dense
-              maxlength="5"
-            />
-            <q-input
-              v-model="form.battery_health_pct"
-              class="col-6 col-sm-3"
-              type="number"
-              min="0"
-              max="100"
-              label="Batterie (%)"
-              outlined
-              dense
-            />
-            <q-input
-              v-model="form.os_licence"
-              class="col-12 col-sm-3"
-              label="Licence OS"
-              outlined
-              dense
-            />
-            <q-input
-              v-model="form.warranty_months"
-              class="col-6 col-sm-3"
-              type="number"
-              min="0"
-              label="Garantie (mois)"
-              outlined
-              dense
-            />
-          </div>
-
-          <div class="text-subtitle2 q-mt-sm q-mb-xs">Disponibilité</div>
-          <q-option-group
-            v-model="form.availability_mode"
-            :options="availabilityModeOptions"
-            inline
-            dense
-          />
-          <div class="text-caption text-grey-7 q-mb-sm">{{ availabilityModeHint }}</div>
-
-          <div class="text-subtitle2 q-mt-sm q-mb-xs">Prix &amp; taxes</div>
-          <q-option-group v-model="form.pricing_mode" :options="pricingModeOptions" inline dense />
-          <div class="text-caption text-grey-7 q-mb-sm">{{ pricingModeHint }}</div>
-
-          <template v-if="form.pricing_mode === 'fixed'">
-            <q-input
-              v-model="form.base_price"
-              label="Prix de vente TTC *"
-              hint="Prix affiché tel quel, taxes comprises"
-              type="number"
-              step="0.01"
-              min="0"
-              outlined
-              dense
-              bottom-slots
-            />
-          </template>
-          <template v-else>
-            <div class="row" style="gap: 8px">
+          <div class="product-form__grid">
+            <div>
+              <h3 v-if="!isSimpleShop" class="admin-subtitle">Approvisionnement</h3>
+              <div v-if="!isSimpleShop" class="row" style="gap: 8px">
+                <q-select
+                  v-model="form.supplier_name"
+                  :options="supplierOptions"
+                  label="Fournisseur"
+                  hint="Vide = article de votre entrepôt, sans fournisseur"
+                  outlined
+                  dense
+                  bottom-slots
+                  emit-value
+                  map-options
+                  clearable
+                  class="col"
+                  :disable="isEdit && !!product?.is_supplier_managed"
+                  @update:model-value="onSupplierChange"
+                />
+                <q-input
+                  v-model="form.supplier_sku"
+                  label="Référence chez le fournisseur"
+                  outlined
+                  dense
+                  bottom-slots
+                  class="col"
+                />
+              </div>
               <q-input
-                v-model="form.cost_amount"
-                label="Coût d'achat"
+                v-if="!isSimpleShop && form.supplier_name && !product?.is_supplier_managed"
+                v-model="form.supplier_quantity"
+                label="Stock disponible chez le fournisseur"
+                hint="Tenu à jour à la main (ou par import fichier) — 0 = indisponible"
                 type="number"
-                step="0.01"
+                step="1"
+                min="0"
                 outlined
                 dense
                 bottom-slots
-                class="col"
               />
+              <q-input
+                v-model="form.local_quantity"
+                label="Stock entrepôt (unités physiquement chez vous)"
+                :hint="localStockHint"
+                type="number"
+                step="1"
+                min="0"
+                outlined
+                dense
+                bottom-slots
+              />
+            </div>
+
+            <div>
+              <h3 class="admin-subtitle">État</h3>
+              <q-option-group v-model="form.condition" :options="conditionOptions" inline dense />
+              <div v-if="form.condition === 'refurbished'" class="row q-col-gutter-sm q-mb-sm">
+                <q-input
+                  v-model="form.condition_grade"
+                  class="col-6"
+                  label="Grade"
+                  hint="A, B, C…"
+                  outlined
+                  dense
+                  maxlength="5"
+                />
+                <q-input
+                  v-model="form.battery_health_pct"
+                  class="col-6"
+                  type="number"
+                  min="0"
+                  max="100"
+                  label="Batterie (%)"
+                  outlined
+                  dense
+                />
+                <q-input
+                  v-model="form.os_licence"
+                  class="col-6"
+                  label="Licence OS"
+                  outlined
+                  dense
+                />
+                <q-input
+                  v-model="form.warranty_months"
+                  class="col-6"
+                  type="number"
+                  min="0"
+                  label="Garantie (mois)"
+                  outlined
+                  dense
+                />
+              </div>
+
+              <h3 class="admin-subtitle q-mt-md">Disponibilité</h3>
+              <q-option-group
+                v-model="form.availability_mode"
+                :options="availabilityModeOptions"
+                inline
+                dense
+              />
+              <p class="product-form__help">{{ availabilityModeHint }}</p>
+            </div>
+
+            <div>
+              <h3 class="admin-subtitle">Prix &amp; taxes</h3>
+              <q-option-group
+                v-model="form.pricing_mode"
+                :options="pricingModeOptions"
+                inline
+                dense
+              />
+              <p class="product-form__help">{{ pricingModeHint }}</p>
+
+              <template v-if="form.pricing_mode === 'fixed'">
+                <q-input
+                  v-model="form.base_price"
+                  label="Prix de vente TTC *"
+                  hint="Prix affiché tel quel, taxes comprises"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  outlined
+                  dense
+                  bottom-slots
+                />
+              </template>
+              <template v-else>
+                <div class="row" style="gap: 8px">
+                  <q-input
+                    v-model="form.cost_amount"
+                    label="Coût d'achat"
+                    type="number"
+                    step="0.01"
+                    outlined
+                    dense
+                    bottom-slots
+                    class="col"
+                  />
+                  <q-select
+                    v-model="form.cost_currency"
+                    :options="currencyOptions"
+                    label="Devise du coût"
+                    outlined
+                    dense
+                    bottom-slots
+                    emit-value
+                    map-options
+                    class="col"
+                  />
+                </div>
+                <div class="row" style="gap: 8px">
+                  <q-input
+                    v-if="form.pricing_mode === 'import'"
+                    v-model="form.customs_rate_pct"
+                    label="Douane (%)"
+                    hint="Vide = taux par défaut de la catégorie"
+                    type="number"
+                    step="0.01"
+                    outlined
+                    dense
+                    bottom-slots
+                    class="col"
+                  />
+                  <q-input
+                    v-model="form.margin_rate_pct"
+                    label="Marge (%)"
+                    hint="Vide = marge de la catégorie, sinon du groupe tarifaire"
+                    type="number"
+                    step="0.01"
+                    outlined
+                    dense
+                    bottom-slots
+                    class="col"
+                  />
+                </div>
+              </template>
+              <div class="row" style="gap: 8px">
+                <q-select
+                  v-model="form.category_id"
+                  :options="categoryOptions"
+                  label="Catégorie"
+                  outlined
+                  dense
+                  bottom-slots
+                  emit-value
+                  map-options
+                  clearable
+                  class="col"
+                />
+                <q-select
+                  v-model="form.tax_rate_id"
+                  :options="taxRateOptions"
+                  label="Taux de TVA / TGC"
+                  outlined
+                  dense
+                  bottom-slots
+                  emit-value
+                  map-options
+                  clearable
+                  class="col"
+                />
+              </div>
+            </div>
+
+            <div>
+              <h3 class="admin-subtitle">Logistique</h3>
               <q-select
-                v-model="form.cost_currency"
-                :options="currencyOptions"
-                label="Devise du coût"
+                v-model="form.supplier_place_id"
+                :options="placeOptions"
+                label="Origine (fournisseur)"
                 outlined
                 dense
                 bottom-slots
                 emit-value
                 map-options
-                class="col"
+                clearable
               />
+              <div class="row" style="gap: 8px">
+                <q-input
+                  v-model.number="form.weight"
+                  label="Poids (kg)"
+                  type="number"
+                  step="0.001"
+                  outlined
+                  dense
+                  bottom-slots
+                  class="col"
+                />
+                <q-input
+                  v-model.number="form.dimensions_length"
+                  label="Long. (cm)"
+                  type="number"
+                  outlined
+                  dense
+                  bottom-slots
+                  class="col"
+                />
+                <q-input
+                  v-model.number="form.dimensions_width"
+                  label="Larg. (cm)"
+                  type="number"
+                  outlined
+                  dense
+                  bottom-slots
+                  class="col"
+                />
+                <q-input
+                  v-model.number="form.dimensions_height"
+                  label="Haut. (cm)"
+                  type="number"
+                  outlined
+                  dense
+                  bottom-slots
+                  class="col"
+                />
+              </div>
             </div>
-            <div class="row" style="gap: 8px">
+
+            <div>
+              <h3 class="admin-subtitle">Affichage</h3>
               <q-input
-                v-if="form.pricing_mode === 'import'"
-                v-model="form.customs_rate_pct"
-                label="Douane (%)"
-                hint="Vide = taux par défaut de la catégorie"
-                type="number"
-                step="0.01"
+                v-model="form.image_url"
+                label="Image"
+                hint="Choisissez une image de la médiathèque ou collez une URL"
                 outlined
                 dense
                 bottom-slots
-                class="col"
-              />
-              <q-input
-                v-model="form.margin_rate_pct"
-                label="Marge (%)"
-                hint="Vide = marge de la catégorie, sinon du groupe tarifaire"
-                type="number"
-                step="0.01"
-                outlined
-                dense
-                bottom-slots
-                class="col"
-              />
+              >
+                <template v-if="form.image_url" #prepend>
+                  <img :src="form.image_url" alt="" class="image-field__thumb" />
+                </template>
+                <template #append>
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    icon="ph:images"
+                    label="Médiathèque"
+                    @click="mediaPickerOpen = true"
+                  />
+                </template>
+              </q-input>
+              <div class="row items-center" style="gap: 16px">
+                <q-toggle v-model="form.is_featured" label="Produit en vedette" />
+                <q-input
+                  v-if="form.is_featured"
+                  v-model.number="form.featured_position"
+                  label="Position vedette"
+                  type="number"
+                  outlined
+                  dense
+                  style="max-width: 160px"
+                />
+              </div>
             </div>
-          </template>
-          <div class="row" style="gap: 8px">
-            <q-select
-              v-model="form.category_id"
-              :options="categoryOptions"
-              label="Catégorie"
-              outlined
-              dense
-              bottom-slots
-              emit-value
-              map-options
-              clearable
-              class="col"
-            />
-            <q-select
-              v-model="form.tax_rate_id"
-              :options="taxRateOptions"
-              label="Taux de TVA / TGC"
-              outlined
-              dense
-              bottom-slots
-              emit-value
-              map-options
-              clearable
-              class="col"
-            />
-          </div>
-
-          <div class="text-subtitle2 q-mt-sm q-mb-xs">Logistique</div>
-          <q-select
-            v-model="form.supplier_place_id"
-            :options="placeOptions"
-            label="Origine (fournisseur)"
-            outlined
-            dense
-            bottom-slots
-            emit-value
-            map-options
-            clearable
-          />
-          <div class="row" style="gap: 8px">
-            <q-input
-              v-model.number="form.weight"
-              label="Poids (kg)"
-              type="number"
-              step="0.001"
-              outlined
-              dense
-              bottom-slots
-              class="col"
-            />
-            <q-input
-              v-model.number="form.dimensions_length"
-              label="Long. (cm)"
-              type="number"
-              outlined
-              dense
-              bottom-slots
-              class="col"
-            />
-            <q-input
-              v-model.number="form.dimensions_width"
-              label="Larg. (cm)"
-              type="number"
-              outlined
-              dense
-              bottom-slots
-              class="col"
-            />
-            <q-input
-              v-model.number="form.dimensions_height"
-              label="Haut. (cm)"
-              type="number"
-              outlined
-              dense
-              bottom-slots
-              class="col"
-            />
-          </div>
-
-          <div class="text-subtitle2 q-mt-sm q-mb-xs">Affichage</div>
-          <q-input
-            v-model="form.image_url"
-            label="Image"
-            hint="Choisissez une image de la médiathèque ou collez une URL"
-            outlined
-            dense
-            bottom-slots
-          >
-            <template v-if="form.image_url" #prepend>
-              <img :src="form.image_url" alt="" class="image-field__thumb" />
-            </template>
-            <template #append>
-              <q-btn
-                flat
-                dense
-                no-caps
-                icon="photo_library"
-                label="Médiathèque"
-                @click="mediaPickerOpen = true"
-              />
-            </template>
-          </q-input>
-          <div class="row items-center" style="gap: 16px">
-            <q-toggle v-model="form.is_featured" label="Produit en vedette" />
-            <q-input
-              v-if="form.is_featured"
-              v-model.number="form.featured_position"
-              label="Position vedette"
-              type="number"
-              outlined
-              dense
-              style="max-width: 160px"
-            />
           </div>
 
           <template v-if="isEdit && product && !product.parent_product_id">
-            <q-separator class="q-my-md" />
+            <q-separator class="q-my-lg" />
             <ProductVariantsPanel :product-id="product.id" @changed="emit('saved')" />
           </template>
-          <div
-            v-else-if="isEdit && product?.parent_product_id"
-            class="text-caption text-grey-7 q-mt-md"
-          >
+          <p v-else-if="isEdit && product?.parent_product_id" class="admin-hint q-mt-md q-mb-none">
             Variante d'un autre article
             <span v-if="product.variant_options">
               ({{
@@ -357,24 +373,27 @@
               }})
             </span>
             — les options se modifient depuis la fiche parente.
-          </div>
+          </p>
+        </q-card-section>
 
-          <div class="row justify-end q-mt-md" style="gap: 8px">
-            <q-btn
-              flat
-              label="Annuler"
-              :disable="saving"
-              @click="emit('update:modelValue', false)"
-            />
-            <q-btn
-              type="submit"
-              color="primary"
-              :label="isEdit ? 'Enregistrer' : 'Créer'"
-              :loading="saving"
-            />
-          </div>
-        </q-form>
-      </q-card-section>
+        <q-card-actions align="right" class="app-dialog__actions">
+          <q-btn
+            flat
+            no-caps
+            label="Annuler"
+            :disable="saving"
+            @click="emit('update:modelValue', false)"
+          />
+          <q-btn
+            type="submit"
+            color="primary"
+            unelevated
+            no-caps
+            :label="isEdit ? 'Enregistrer' : 'Créer'"
+            :loading="saving"
+          />
+        </q-card-actions>
+      </q-form>
     </q-card>
     <MediaPicker
       v-model="mediaPickerOpen"
@@ -386,6 +405,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
+import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
 import { categoryLabel, listCategories, type Category } from '@/api/categories';
 import { listTaxRates, type TaxRate } from '@/api/taxRates';
 import { listPlaces, type Place } from '@/api/logistics';
@@ -807,6 +828,31 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+.product-form__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.product-form__grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 32px;
+
+  @media (max-width: 899px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.product-form__help {
+  margin: 4px 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--n-ink-2);
+}
+
 .image-field__thumb {
   width: 32px;
   height: 32px;
