@@ -14,7 +14,6 @@ from app.features.attachment.service import issue_download_url
 from app.features.base.crud import RecordNotFoundError
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_attachment import crud_payment_attachment
-from app.features.payment.crud.payment_status import crud_payment_status
 from app.features.payment.crud.payment_validation import crud_payment_validation
 from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_attachment import (
@@ -25,13 +24,6 @@ from app.features.payment.models.payment_validation import (
     PaymentValidationPublic,
 )
 from app.features.payment.models.refund import RefundPublic
-from app.features.payment.providers.document_validated import (
-    DOCUMENT_STATUS_DOCUMENT_UPLOADED,
-    DOCUMENT_STATUS_UNDER_REVIEW,
-)
-from app.features.payment.providers.manual import (
-    MANUAL_STATUS_AWAITING_VALIDATION,
-)
 from app.features.payment.services.capture_service import capture_payment
 from app.features.payment.services.document_payment import (
     DOCUMENT_PROVIDER_CODES,
@@ -45,6 +37,9 @@ from app.features.payment.services.manual_payment import (
     PaymentNotManualError,
     approve_manual_payment,
     reject_manual_payment,
+)
+from app.features.payment.services.pending_validation import (
+    pending_validation_conditions,
 )
 from app.features.payment.services.refund_service import refund_payment
 from app.features.user.models.user import User
@@ -148,33 +143,12 @@ async def list_pending_validation(
     _admin: CurrentSuperUser,
 ) -> list[PaymentPendingValidationItem]:
     """List pending validation."""
-    pending_status_names = [
-        MANUAL_STATUS_AWAITING_VALIDATION,
-        DOCUMENT_STATUS_DOCUMENT_UPLOADED,
-        DOCUMENT_STATUS_UNDER_REVIEW,
-    ]
-    status_ids: list[uuid.UUID] = []
-    for name in pending_status_names:
-        status = await crud_payment_status.get_by_name(session, name=name)
-        if status is not None:
-            status_ids.append(status.id)
-
-    if not status_ids:
+    conditions = await pending_validation_conditions(session)
+    if conditions is None:
         return []
 
-    manual_or_document_provider = col(Payment.provider_code).startswith(
-        "manual_"
-    ) | col(Payment.provider_code).in_(list(DOCUMENT_PROVIDER_CODES))
-
     statement = (
-        select(Payment)
-        .where(
-            col(Payment.payment_status_id).in_(status_ids),
-            manual_or_document_provider,
-            col(Payment.is_active).is_(True),
-            col(Payment.is_admin_active).is_(True),
-        )
-        .order_by(col(Payment.created_at).desc())
+        select(Payment).where(*conditions).order_by(col(Payment.created_at).desc())
     )
     result = await session.exec(statement)
     payments = list(result.all())

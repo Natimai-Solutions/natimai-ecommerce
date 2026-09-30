@@ -659,6 +659,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admin Dashboard
+         * @description Work queue counters, recent activity and the next grouped departure.
+         */
+        get: operations["admin-dashboard-get_admin_dashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payments/pending-validation": {
         parameters: {
             query?: never;
@@ -7429,6 +7449,15 @@ export interface components {
             tracking_ref?: string | null;
         };
         /**
+         * AdminDashboard
+         * @description Admin home page payload.
+         */
+        AdminDashboard: {
+            todo: components["schemas"]["DashboardTodo"];
+            activity: components["schemas"]["DashboardActivity"];
+            next_departure?: components["schemas"]["DashboardDeparture"] | null;
+        };
+        /**
          * AdminInventoryItem
          * @description A product with its local stock and (read-only) supplier availability.
          */
@@ -9837,6 +9866,94 @@ export interface components {
         CustomsRateAssignBody: {
             /** Customs Rate Pct */
             customs_rate_pct?: number | string | null;
+        };
+        /**
+         * DashboardActivity
+         * @description Orders and revenue (reference currency) over recent windows.
+         */
+        DashboardActivity: {
+            /** Currency */
+            currency: string;
+            /**
+             * Orders Today
+             * @default 0
+             */
+            orders_today: number;
+            /**
+             * Orders 7D
+             * @default 0
+             */
+            orders_7d: number;
+            /**
+             * Revenue 7D
+             * @default 0
+             */
+            revenue_7d: string;
+            /**
+             * Revenue 30D
+             * @default 0
+             */
+            revenue_30d: string;
+        };
+        /**
+         * DashboardDeparture
+         * @description The next grouped departure: the open one, else the next draft.
+         */
+        DashboardDeparture: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Label */
+            label: string;
+            /** Status */
+            status: string;
+            /** Cutoff At */
+            cutoff_at?: string | null;
+            /** Departure At */
+            departure_at?: string | null;
+            /**
+             * Orders Count
+             * @default 0
+             */
+            orders_count: number;
+        };
+        /**
+         * DashboardTodo
+         * @description Work queue: how many items wait for an admin action, per screen.
+         */
+        DashboardTodo: {
+            /**
+             * Payments To Validate
+             * @default 0
+             */
+            payments_to_validate: number;
+            /**
+             * Quote Requests Open
+             * @default 0
+             */
+            quote_requests_open: number;
+            /**
+             * Group Upgrade Requests Pending
+             * @default 0
+             */
+            group_upgrade_requests_pending: number;
+            /**
+             * Orders To Process
+             * @default 0
+             */
+            orders_to_process: number;
+            /**
+             * Supplier Orders Draft
+             * @default 0
+             */
+            supplier_orders_draft: number;
+            /**
+             * Product Drafts
+             * @default 0
+             */
+            product_drafts: number;
         };
         /**
          * DeliveryTaskCreate
@@ -21396,6 +21513,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-dashboard-get_admin_dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDashboard"];
                 };
             };
         };

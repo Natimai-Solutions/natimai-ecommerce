@@ -82,7 +82,16 @@
           </router-link>
         </div>
         <div v-if="data?.next_departure" class="app-panel departure">
-          <div class="departure__label">{{ data.next_departure.label }}</div>
+          <div class="departure__head">
+            <span class="departure__label">{{ data.next_departure.label }}</span>
+            <StatusTag
+              v-if="data.next_departure.status === 'draft'"
+              tone="neutral"
+              icon="ph:pencil-simple"
+              label="Brouillon"
+            />
+            <StatusTag v-else tone="ok" icon="ph:check-circle" label="Ouvert" />
+          </div>
           <dl class="admin-dl">
             <dt>Clôture des commandes</dt>
             <dd>{{ formatDateTime(data.next_departure.cutoff_at) || '—' }}</dd>
@@ -119,6 +128,7 @@
 import { computed, onMounted, ref } from 'vue';
 
 import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
 import { formatDate, formatDateTime, formatMoney } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import { extractApiError } from '@/api/errors';
@@ -208,7 +218,7 @@ const pendingTotal = computed(() => todoItems.value.reduce((sum, item) => sum + 
 const kpis = computed(() => {
   const activity = data.value?.activity;
   if (!activity) return [];
-  const money = (value: string | number) => formatMoney(value, activity.currency);
+  const money = (value: string) => formatMoney(value, activity.currency);
   return [
     { label: "Commandes aujourd'hui", value: String(activity.orders_today) },
     { label: 'Commandes sur 7 jours', value: String(activity.orders_7d) },
@@ -374,8 +384,15 @@ onMounted(() => {
   letter-spacing: -0.01em;
 }
 
-.departure__label {
+.departure__head {
   margin-bottom: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.departure__label {
   font-size: 16px;
   font-weight: 600;
 }

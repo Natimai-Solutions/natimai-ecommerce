@@ -54,6 +54,10 @@ ALL_ORDER_STATUSES: tuple[str, ...] = PAYMENT_STATUSES + FULFILLMENT_STATUSES
 DEPARTURE_FOLLOWER_STATUSES: frozenset[str] = frozenset(
     {"Paid", "DepositPaid", "OrderedFromSupplier", "InTransit", "AtCustoms", "Received"}
 )
+#: « Commandes à préparer » (admin dashboard): paid, in full or by deposit,
+#: and no fulfilment step taken yet — the next move (ordering from the
+#: supplier) is the admin's.
+ORDERS_TO_PROCESS_STATUSES: frozenset[str] = frozenset({"Paid", "DepositPaid"})
 #: Departure status → status pushed to its orders.
 DEPARTURE_TO_ORDER_STATUS: dict[str, str] = {
     "ordered": "OrderedFromSupplier",

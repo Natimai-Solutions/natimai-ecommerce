@@ -5,6 +5,7 @@ from app.api.routes.admin_carts import router as admin_carts_router
 from app.api.routes.admin_categories import router as admin_categories_router
 from app.api.routes.admin_credit_notes import router as admin_credit_notes_router
 from app.api.routes.admin_currency_rates import router as admin_currency_rates_router
+from app.api.routes.admin_dashboard import router as admin_dashboard_router
 from app.api.routes.admin_grouped_departures import (
     router as admin_grouped_departures_router,
 )
@@ -96,6 +97,7 @@ api_router.include_router(place_router)
 api_router.include_router(payment_router)
 api_router.include_router(payment_method_router)
 api_router.include_router(payments_router)
+api_router.include_router(admin_dashboard_router)
 api_router.include_router(admin_payments_router)
 api_router.include_router(admin_quote_requests_router)
 api_router.include_router(admin_orders_router)

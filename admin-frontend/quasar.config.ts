@@ -83,6 +83,9 @@ export default defineConfig((ctx) => {
           '@app/utils': path.resolve(__dirname, '../shared/utils/src/index.ts'),
           '@app/ui': path.resolve(__dirname, '../shared/ui/src'),
         };
+        // Les composants de shared/ui importent vue et quasar (code compilé des
+        // SFC) : ils doivent se résoudre depuis l'app, pas depuis shared/.
+        viteConf.resolve.dedupe = [...(viteConf.resolve.dedupe ?? []), 'vue', 'quasar'];
         viteConf.server = viteConf.server ?? {};
         viteConf.server.fs = viteConf.server.fs ?? {};
         viteConf.server.fs.allow = [
