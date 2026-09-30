@@ -232,6 +232,12 @@ async def test_checkout_persists_segment_note_from_orchestration(
         "app.api.routes.cart.resolve_default_price_group",
         AsyncMock(return_value=None),
     )
+    # Same for the grouped-departure attachment (real queries live in
+    # tests/integration/test_grouped_departures.py).
+    monkeypatch.setattr(
+        "app.api.routes.cart.crud_grouped_departure.get_next_open",
+        AsyncMock(return_value=None),
+    )
     # Same for the per-declaration customs fees (F3) — covered on their own in
     # test_checkout_customs_declaration_fee.py.
     monkeypatch.setattr(

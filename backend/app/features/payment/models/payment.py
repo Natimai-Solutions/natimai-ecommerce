@@ -100,6 +100,11 @@ class Payment(PaymentBase, table=True):
         sa_column=Column(JSON),
         description="Raw provider payload for provider-agnostic workflows",
     )
+    kind: str = Field(
+        default="full",
+        max_length=20,
+        description="full | deposit | balance — which part of the order it settles",
+    )
 
 
 class PaymentPublic(PaymentBase, BasePublic):

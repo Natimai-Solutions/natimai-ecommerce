@@ -68,6 +68,15 @@
                 : 'sync désactivée'
             }}
           </span>
+          <q-badge
+            v-if="props.row.sku_allowlist?.length"
+            color="deep-purple"
+            class="q-ml-xs"
+            :label="`${props.row.sku_allowlist.length} réf. suivie(s)`"
+            data-testid="supplier-allowlist-badge"
+          >
+            <q-tooltip>Seules ces références sont créées et rafraîchies</q-tooltip>
+          </q-badge>
         </q-td>
       </template>
       <template #body-cell-actions="props">
@@ -104,6 +113,18 @@
             @click="onHealth(props.row)"
           >
             <q-tooltip>Tester la connexion</q-tooltip>
+          </q-btn>
+          <q-btn
+            v-if="props.row.kind !== 'manual'"
+            flat
+            dense
+            icon="playlist_add_check"
+            color="deep-purple"
+            :disable="!props.row.is_active"
+            data-testid="supplier-allowlist"
+            @click="openAllowlist(props.row)"
+          >
+            <q-tooltip>Références suivies (liste blanche de SKU)</q-tooltip>
           </q-btn>
           <q-btn flat dense icon="edit" color="primary" @click="openEdit(props.row)">
             <q-tooltip>Modifier</q-tooltip>
@@ -232,6 +253,19 @@
               />
             </div>
 
+            <template v-if="form.kind !== 'manual'">
+              <q-toggle
+                v-model="form.import_as_draft"
+                label="Nouveaux articles en brouillon"
+                data-testid="supplier-import-as-draft"
+              />
+              <div class="text-caption text-grey-7 q-ml-md">
+                Un article créé par une synchronisation ou un import reste invisible en vitrine
+                (enrichi et rafraîchi quand même) jusqu'à ce que vous le publiiez depuis la page
+                Articles. Les articles existants ne changent pas.
+              </div>
+            </template>
+
             <template v-if="form.kind === 'api'">
               <q-toggle v-model="form.sync_enabled" label="Synchronisations autorisées" />
               <q-input
@@ -273,6 +307,82 @@
             <q-btn type="submit" color="primary" label="Enregistrer" :loading="saving" />
           </q-card-actions>
         </q-form>
+      </q-card>
+    </q-dialog>
+
+    <!-- Références suivies (liste blanche de SKU) -->
+    <q-dialog v-model="allowlistDialog">
+      <q-card style="min-width: 640px; max-width: 92vw">
+        <q-card-section class="text-h6">
+          Références suivies — {{ allowlistSupplier?.name }}
+        </q-card-section>
+        <q-card-section class="q-pt-none q-gutter-sm">
+          <q-banner v-if="allowlistError" class="bg-red-1 text-red-9" dense rounded>{{
+            allowlistError
+          }}</q-banner>
+          <div class="text-caption text-grey-7">
+            Collez ici les références fournisseur (SKU) que la boutique vend, une par ligne. Liste
+            vide : tout le catalogue synchronisé est suivi. Liste renseignée : seules ces références
+            sont créées et rafraîchies (prix / stock), et les articles de ce fournisseur hors liste
+            sont retirés de la vitrine dès l'enregistrement. Une référence inconnue est créée par la
+            prochaine synchronisation catalogue.
+          </div>
+          <q-input
+            v-model="allowlistText"
+            type="textarea"
+            outlined
+            dense
+            autogrow
+            :input-style="{ minHeight: '160px', fontFamily: 'monospace' }"
+            placeholder="IM-12345&#10;IM-67890"
+            data-testid="allowlist-text"
+          />
+          <div v-if="allowlistView" class="text-caption text-grey-8">
+            {{ allowlistView.entries.length }} référence(s) — {{ allowlistView.known }} au
+            catalogue, {{ allowlistView.unknown.length }} à créer à la prochaine synchronisation,
+            {{ allowlistView.outside }} article(s) hors liste retiré(s) de la vitrine.
+            <span v-if="allowlistView.deactivated">
+              ({{ allowlistView.deactivated }} retiré(s) à l'instant)
+            </span>
+          </div>
+          <q-expansion-item
+            v-if="allowlistView?.entries.length"
+            dense
+            label="Détail des références"
+            class="q-mt-xs"
+          >
+            <q-markup-table dense flat bordered>
+              <thead>
+                <tr>
+                  <th class="text-left">Référence</th>
+                  <th class="text-left">Article</th>
+                  <th class="text-left">État</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="e in allowlistView.entries" :key="e.supplier_sku">
+                  <td>{{ e.supplier_sku }}</td>
+                  <td>{{ e.product_name ?? '— à créer' }}</td>
+                  <td>
+                    <q-badge v-if="e.is_active === true" color="positive" label="en vitrine" />
+                    <q-badge v-else-if="e.is_active === false" color="grey" label="masqué" />
+                    <span v-else class="text-grey-6">inconnu</span>
+                  </td>
+                </tr>
+              </tbody>
+            </q-markup-table>
+          </q-expansion-item>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Fermer" v-close-popup />
+          <q-btn
+            color="primary"
+            label="Enregistrer la liste"
+            :loading="allowlistSaving"
+            data-testid="allowlist-save"
+            @click="saveAllowlist"
+          />
+        </q-card-actions>
       </q-card>
     </q-dialog>
 
@@ -480,13 +590,16 @@ import {
   createSupplier,
   deactivateSupplier,
   getImportStatus,
+  getSkuAllowlist,
   importCatalogFile,
   inspectCatalogFile,
   listAdapters,
   listSuppliers,
+  saveSkuAllowlist,
   triggerProductSync,
   updateSupplier,
   type AdapterDescriptor,
+  type AllowlistView,
   type FileImportResponse,
   type FileImportStatus,
   type FileInspectResponse,
@@ -584,6 +697,7 @@ interface FormState {
   origin_place_id: string | null;
   is_domestic: boolean;
   sync_enabled: boolean;
+  import_as_draft: boolean;
   sync_interval_hours: number;
   default_categories_text: string;
   price_currency: string | null;
@@ -602,6 +716,7 @@ function emptyForm(): FormState {
     origin_place_id: null,
     is_domestic: false,
     sync_enabled: true,
+    import_as_draft: false,
     sync_interval_hours: 0,
     default_categories_text: '',
     price_currency: null,
@@ -644,6 +759,7 @@ function openEdit(supplier: Supplier) {
     origin_place_id: supplier.origin_place_id,
     is_domestic: supplier.is_domestic,
     sync_enabled: supplier.sync_enabled,
+    import_as_draft: supplier.import_as_draft,
     sync_interval_hours: supplier.sync_interval_hours,
     default_categories_text: (supplier.default_categories ?? []).join('\n'),
     price_currency: supplier.price_currency,
@@ -670,6 +786,7 @@ function buildPayload(): SupplierCreate {
     origin_place_id: form.origin_place_id,
     is_domestic: form.is_domestic,
     sync_enabled: form.sync_enabled,
+    import_as_draft: form.kind !== 'manual' && form.import_as_draft,
     sync_interval_hours: form.kind === 'api' ? Number(form.sync_interval_hours) || 0 : 0,
     default_categories: categories.length ? categories : null,
     price_currency: form.price_currency,
@@ -700,6 +817,52 @@ async function submitForm() {
     dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.';
   } finally {
     saving.value = false;
+  }
+}
+
+// --- Références suivies (liste blanche de SKU) ---------------------------
+
+const allowlistDialog = ref(false);
+const allowlistSupplier = ref<Supplier | null>(null);
+const allowlistText = ref('');
+const allowlistView = ref<AllowlistView | null>(null);
+const allowlistError = ref<string | null>(null);
+const allowlistSaving = ref(false);
+
+async function openAllowlist(supplier: Supplier) {
+  allowlistSupplier.value = supplier;
+  allowlistError.value = null;
+  allowlistView.value = null;
+  allowlistText.value = (supplier.sku_allowlist ?? []).join('\n');
+  allowlistDialog.value = true;
+  try {
+    allowlistView.value = await getSkuAllowlist(supplier.code);
+  } catch (err) {
+    allowlistError.value = extractApiError(err) ?? 'Chargement de la liste impossible.';
+  }
+}
+
+async function saveAllowlist() {
+  const supplier = allowlistSupplier.value;
+  if (!supplier) return;
+  allowlistSaving.value = true;
+  allowlistError.value = null;
+  try {
+    const skus = allowlistText.value
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const view = await saveSkuAllowlist(supplier.code, skus);
+    allowlistView.value = view;
+    allowlistText.value = view.entries.map((e) => e.supplier_sku).join('\n');
+    notice.value = view.entries.length
+      ? `${supplier.name} : ${view.entries.length} référence(s) suivie(s), ${view.deactivated} article(s) retiré(s) de la vitrine.`
+      : `${supplier.name} : liste vidée, tout le catalogue synchronisé est suivi.`;
+    await load();
+  } catch (err) {
+    allowlistError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+  } finally {
+    allowlistSaving.value = false;
   }
 }
 

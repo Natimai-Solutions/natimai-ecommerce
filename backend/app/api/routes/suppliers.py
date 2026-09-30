@@ -551,13 +551,16 @@ async def import_catalog_file(
     dry_run: bool = Query(
         default=False, description="Parse and report without writing anything"
     ),
-    publish_new: bool = Form(
-        default=True,
-        description=(
-            "Show the created (and adopted) products on the storefront without "
-            "waiting for Icecat enrichment"
+    # Annotated so a direct call (tests) gets a real default, not the Form marker.
+    publish_new: Annotated[
+        bool,
+        Form(
+            description=(
+                "Show the created (and adopted) products on the storefront "
+                "without waiting for Icecat enrichment"
+            ),
         ),
-    ),
+    ] = True,
 ) -> FileImportResponse:
     """Import a CSV / Excel catalog for the supplier through the column mapping.
 

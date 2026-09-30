@@ -65,6 +65,7 @@ export const MATERIAL_TO_PHOSPHOR: Readonly<Record<string, string>> = {
   grid_view: 'squares-four',
   image_not_supported: 'image-broken',
   info_outline: 'info',
+  inventory: 'package',
   inventory_2: 'package',
   local_shipping: 'truck',
   location_off: 'map-pin',
@@ -83,6 +84,7 @@ export const MATERIAL_TO_PHOSPHOR: Readonly<Record<string, string>> = {
   place: 'map-pin',
   receipt_long: 'receipt',
   remove: 'minus',
+  report: 'warning-octagon',
   remove_shopping_cart: 'shopping-bag',
   route: 'path',
   save: 'floppy-disk',
@@ -103,6 +105,13 @@ export const MATERIAL_TO_PHOSPHOR: Readonly<Record<string, string>> = {
   warning_amber: 'warning',
   window: 'windows-logo',
   workspace_premium: 'seal-check',
+  event_available: 'calendar-check',
+  history: 'clock-counter-clockwise',
+  link: 'link',
+  request_quote: 'receipt',
+  savings: 'piggy-bank',
+  notifications_active: 'bell-ringing',
+  publish: 'upload-simple',
 };
 
 const FALLBACK = 'question';

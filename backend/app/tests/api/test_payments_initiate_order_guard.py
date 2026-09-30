@@ -67,7 +67,10 @@ def _order_payment(
     *, currency: str = "XPF", status: str | None = "Pending"
 ) -> tuple[Any, str | None]:
     """A (payment, status_name) row as returned by the guard's crud query."""
-    return (SimpleNamespace(id=uuid4(), currency=currency), status)
+    return (
+        SimpleNamespace(id=uuid4(), currency=currency, amount=Decimal("25000.00")),
+        status,
+    )
 
 
 def _patch_order_payments(

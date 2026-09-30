@@ -346,6 +346,10 @@ async def test_file_import_creates_domestic_products_with_cost_and_stock(
     ).first()
     assert log is not None and log.statistics is not None
     assert log.statistics["source"] == "file"
+    # The rejected rows are journaled with their reason, not only counted.
+    assert log.statistics["rejected_rows"] == 1
+    assert log.statistics["row_errors"][0]["row_number"] == 4
+    assert "supplier_sku" in log.statistics["row_errors"][0]["message"]
 
     # A second import of the same file updates instead of duplicating, and a
     # mapping passed inline overrides the stored one. (The first import's

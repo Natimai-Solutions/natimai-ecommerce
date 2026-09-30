@@ -44,6 +44,8 @@ from app.features.shipping.services.origin import CUSTOMS_REGIME_DOMESTIC
 CUSTOMS_RATE_UNRESOLVED = "customs_rate_unresolved"
 WEIGHT_MISSING = "weight_missing"
 FIXED_PRICE_MISSING = "fixed_price_missing"
+#: Created as a draft by a sync / import: the admin has not published it yet.
+DRAFT = "draft"
 
 
 def customs_rate_condition() -> Any:
@@ -126,6 +128,7 @@ def publication_conditions() -> list[Any]:
     Meant to be spread into an existing ``select(Product).where(...)``.
     """
     return [
+        col(Product.is_draft).is_(False),
         or_(
             col(Product.pricing_mode) != PricingMode.IMPORT.value,
             and_(customs_rate_condition(), weight_condition()),
@@ -150,6 +153,8 @@ async def publication_blockers(
     )
 
     blockers: list[str] = []
+    if getattr(product, "is_draft", False):
+        blockers.append(DRAFT)
     mode = resolve_pricing_mode(product)
 
     if mode is PricingMode.FIXED:

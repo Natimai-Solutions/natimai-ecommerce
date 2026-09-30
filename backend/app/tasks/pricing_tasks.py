@@ -47,12 +47,14 @@ async def refresh_sale_prices(
     category_id: uuid.UUID | None = None,
     product_ids: list[uuid.UUID] | None = None,
     batch_size: int = BATCH_SIZE,
+    reason: str = "refresh",
 ) -> dict[str, int]:
     """Recompute ``sale_price_cached`` for the selected products, by batches.
 
     Every product is refreshed, published or not: an admin who fixes the
     customs rate of a category expects the list price to be right the moment
-    the products become publishable.
+    the products become publishable. ``reason`` is what the price journal
+    records for each product whose price moved.
     """
     id_statement = select(col(Product.id)).order_by(col(Product.id))
     if category_id is not None:
@@ -71,7 +73,7 @@ async def refresh_sale_prices(
             ).all()
         )
         priced = await crud_product.refresh_cached_prices(
-            session, products, context=context
+            session, products, context=context, reason=reason
         )
         stats["priced"] += priced
         stats["unpriced"] += len(products) - priced
@@ -101,6 +103,7 @@ async def refresh_sale_prices_task(
                 product_ids=[uuid.UUID(p) for p in product_ids]
                 if product_ids
                 else None,
+                reason=reason or "scheduled",
             )
     except Exception as exc:  # noqa: BLE001
         logger.error("Sale price refresh failed (%s): %s", reason, exc)

@@ -18,12 +18,21 @@ from app.features.attachment.service import (
 from app.features.base.crud import RecordNotFoundError
 from app.features.order.models.order import Order
 from app.features.order.models.order_status import OrderStatus
+from app.features.order.services.status import FULFILLMENT_STATUSES
 from app.features.payment.crud.payment import crud_payment
 from app.features.payment.crud.payment_status import crud_payment_status
 from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_status import (
     PaymentStatus,
     PaymentStatusCreate,
+)
+from app.features.payment.services.deposit import (
+    KIND_BALANCE,
+    KIND_FULL,
+    PLAN_DEPOSIT,
+    PLAN_FULL,
+    next_payment_kind,
+    remaining_amount,
 )
 from app.features.payment.services.document_payment import (
     DOCUMENT_PROVIDER_CODES,
@@ -41,6 +50,7 @@ from app.features.payment.services.provider_dispatch import (
     parse_api_webhook,
     resolve_api_provider,
 )
+from app.features.payment.services.store_credit import settled_by_kind
 from app.outbox.registry import outbox_registry
 from app.utils.money import minor_units_to_decimal, parse_minor_units, quantize_amount
 
@@ -56,7 +66,18 @@ _SUCCESS_TRANS_STATUSES = {_PAID_TRANS_STATUS, _AUTHORISED_TRANS_STATUS}
 # "PaymentReview" is set by app.handlers.payment when a capture does not match
 # the order total: the order is under human arbitration, never re-payable.
 _NON_PAYABLE_ORDER_STATUS_NAMES: frozenset[str] = frozenset(
-    {"Paid", "Refunded", "PartiallyRefunded", "PaymentReview"}
+    {
+        "Paid",
+        "DepositPaid",
+        "Refunded",
+        "PartiallyRefunded",
+        "PaymentReview",
+        *FULFILLMENT_STATUSES,
+    }
+)
+# The balance of a deposit order is paid during fulfilment; only these refuse it.
+_NON_PAYABLE_BALANCE_STATUS_NAMES: frozenset[str] = frozenset(
+    {"Refunded", "PartiallyRefunded", "PaymentReview", "Cancelled"}
 )
 _WEBHOOK_RECEIVED_EVENT = "payment.webhook_received"
 
@@ -571,14 +592,16 @@ async def _validate_order_for_initiation(
     amount: Decimal,
     currency: str,
     current_user: Any,
-) -> None:
+) -> str:
     """Server-side revalidation of a client-initiated payment tied to an order.
 
     The client-supplied amount and currency are never trusted: the order must
     exist and belong to the caller, must still be payable, must not already
-    carry a settled payment, and the amount must equal the order total
-    snapshotted at checkout. A foreign order is reported exactly like a missing
-    one so ids cannot be probed.
+    carry a settled payment for the same part, and the amount must equal what
+    that part is worth (the order total, or the deposit / the balance of a
+    deposit order). Returns the kind of payment the order accepts now. A
+    foreign order is reported exactly like a missing one so ids cannot be
+    probed.
 
     Caveat kept explicit: ``order.total_amount`` embeds the ``payment_fee_amount``
     the client sent at checkout (``routes/cart.py``), so this guard pins the
@@ -593,39 +616,45 @@ async def _validate_order_for_initiation(
             details={"order_id": str(order_id)},
         )
 
+    # The balance of a deposit order is paid while it is being fulfilled
+    # (received): only the terminal / arbitration statuses refuse it. Any
+    # other payment must find the order still unpaid.
     order_status = await session.get(OrderStatus, order.order_status_id)
-    if (
-        order_status is not None
-        and order_status.name in _NON_PAYABLE_ORDER_STATUS_NAMES
-    ):
-        raise AppError(
+    status_name = order_status.name if order_status is not None else None
+    deposit_plan = getattr(order, "payment_plan", PLAN_FULL) == PLAN_DEPOSIT
+    blocked = (
+        _NON_PAYABLE_BALANCE_STATUS_NAMES
+        if deposit_plan
+        else _NON_PAYABLE_ORDER_STATUS_NAMES
+    )
+
+    def _not_payable() -> AppError:
+        return AppError(
             code="payment.order.not_payable",
             status_code=409,
-            message=f"Order does not accept payments in status '{order_status.name}'",
-            details={
-                "order_id": str(order_id),
-                "order_status": order_status.name,
-            },
+            message=f"Order does not accept payments in status '{status_name}'",
+            details={"order_id": str(order_id), "order_status": status_name},
         )
+
+    if status_name in blocked:
+        raise _not_payable()
 
     # Every order gets a payment at checkout, oldest-first here, soft-deleted
     # rows included: that first payment is the currency reference (the order
     # itself does not store a currency) and the whole list tells us whether the
-    # order has already been charged.
+    # order has already been charged — and for which part.
     order_payments = await crud_payment.list_with_status_by_order_id(
         session, order_id=order_id
     )
-
-    settled = next(
-        (
-            (payment, status_name)
-            for payment, status_name in order_payments
-            if status_name in _SETTLED_PAYMENT_STATUS_NAMES
-        ),
-        None,
-    )
-    if settled is not None:
-        settled_payment, settled_status = settled
+    settled = [
+        (payment, status_name)
+        for payment, status_name in order_payments
+        if status_name in _SETTLED_PAYMENT_STATUS_NAMES
+    ]
+    settled_amounts, _pending = settled_by_kind(settled)
+    kind = next_payment_kind(order, settled_amounts)
+    if kind is None:
+        settled_payment, settled_status = settled[-1]
         raise AppError(
             code="payment.order.already_paid",
             status_code=409,
@@ -636,6 +665,8 @@ async def _validate_order_for_initiation(
                 "payment_status": settled_status,
             },
         )
+    if kind != KIND_BALANCE and status_name in _NON_PAYABLE_ORDER_STATUS_NAMES:
+        raise _not_payable()
 
     if not order_payments:
         # Fail closed: without a reference payment the currency cannot be
@@ -665,17 +696,20 @@ async def _validate_order_for_initiation(
             },
         )
 
-    expected_amount = quantize_amount(order.total_amount, currency)
-    if quantize_amount(amount, currency) != expected_amount:
+    # The part may already be partly settled by a store credit.
+    expected = quantize_amount(remaining_amount(order, kind, settled_amounts), currency)
+    if quantize_amount(amount, currency) != expected:
         raise AppError(
             code="payment.amount.mismatch",
             status_code=409,
-            message="Payment amount does not match the order total",
+            message="Payment amount does not match the amount due on the order",
             details={
                 "order_id": str(order_id),
-                "expected_amount": str(expected_amount),
+                "expected_amount": str(expected),
+                "kind": kind,
             },
         )
+    return kind
 
 
 @router.post("/initiate", response_model=PaymentsInitiateResponse)
@@ -686,8 +720,9 @@ async def initiate_payment(
 ) -> PaymentsInitiateResponse:
     """Initiate a standalone payment for a method (CB SmartForm / manual / document)."""
     try:
+        kind = KIND_FULL
         if request.order_id is not None:
-            await _validate_order_for_initiation(
+            kind = await _validate_order_for_initiation(
                 session,
                 order_id=request.order_id,
                 amount=request.amount,
@@ -704,6 +739,7 @@ async def initiate_payment(
             return_url=request.return_url,
             metadata=request.metadata,
             current_user=current_user,
+            kind=kind,
         )
 
         await session.commit()

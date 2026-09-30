@@ -23,6 +23,7 @@ from typing import Any
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.features.departure.models import GroupedDeparture
 from app.features.invoice.models.credit_note import CreditNote
 from app.features.invoice.models.invoice import Invoice
 from app.features.notification.email_renderer import render_email
@@ -31,11 +32,18 @@ from app.features.notification.providers import (
     UnknownNotificationProviderError,
     get_notification_provider,
 )
+from app.features.order.models.order import Order
 from app.features.order.services.order_number import resolve_order_ref
+from app.features.order.services.tracking_link import tracking_url_from_payload
+from app.features.payment.models.payment import Payment
+from app.features.payment.services.deposit import PLAN_DEPOSIT, balance_amount
 from app.features.user.models.user import User
 from app.outbox.decorators import outbox_handler
 
 logger = logging.getLogger(__name__)
+
+#: Order status at which the balance of a deposit order is asked for.
+BALANCE_TRIGGER_STATUS = "Received"
 
 EVENT_ORDER_CREATED = "order.created"
 EVENT_PAYMENT_CAPTURED = "payment.captured"
@@ -43,6 +51,53 @@ EVENT_PAYMENT_REJECTED = "payment.rejected"
 EVENT_PAYMENT_REFUNDED = "payment.refunded"
 EVENT_INVOICE_ISSUED = "invoice.issued"
 EVENT_CREDIT_NOTE_ISSUED = "credit_note.issued"
+
+EVENT_ORDER_STATUS_CHANGED = "order.status_changed"
+
+#: Fulfilment statuses the customer is told about: (title, message). Payment
+#: statuses have their own e-mails and are skipped here.
+ORDER_STATUS_MESSAGES: dict[str, tuple[str, str]] = {
+    "OrderedFromSupplier": (
+        "Commandée auprès de notre fournisseur",
+        "Votre commande est lancée auprès de notre fournisseur. Nous vous "
+        "tiendrons informé(e) à chaque étape jusqu'à sa remise.",
+    ),
+    "InTransit": (
+        "En transit",
+        "Votre commande est en route. Nous vous préviendrons à son arrivée.",
+    ),
+    "AtCustoms": (
+        "En douane",
+        "Votre commande est arrivée et passe le dédouanement. Cette étape "
+        "peut prendre quelques jours.",
+    ),
+    "Received": (
+        "Reçue, contrôle en cours",
+        "Nous avons reçu votre commande et la contrôlons. Elle vous sera "
+        "remise sous quelques jours.",
+    ),
+    "ReadyForPickup": (
+        "Disponible",
+        "Votre commande est disponible : retrait ou livraison selon le mode "
+        "choisi à la commande.",
+    ),
+    "Delivered": (
+        "Livrée",
+        "Votre commande a été remise. Nous espérons qu'elle vous donne entière "
+        "satisfaction.",
+    ),
+    "Backordered": (
+        "Article en rupture",
+        "Un article de votre commande est en rupture chez notre fournisseur. "
+        "Nous revenons vers vous pour un report sur le prochain départ, une "
+        "substitution ou un remboursement.",
+    ),
+    "Cancelled": (
+        "Annulée",
+        "Votre commande a été annulée. Si un paiement avait été encaissé, il "
+        "vous est remboursé.",
+    ),
+}
 
 
 def _shop_name() -> str:
@@ -132,6 +187,83 @@ async def _resolve_user_from_payload(
 _resolve_order_ref = resolve_order_ref
 
 
+async def _load_payment_and_order(
+    session: AsyncSession, payload: dict[str, Any]
+) -> tuple[Payment | None, Order | None]:
+    """The payment and order named by a payment payload, when loadable."""
+    payment: Payment | None = None
+    order: Order | None = None
+    try:
+        if payload.get("payment_id"):
+            payment = await session.get(Payment, uuid.UUID(str(payload["payment_id"])))
+        if payload.get("order_id"):
+            order = await session.get(Order, uuid.UUID(str(payload["order_id"])))
+    except (TypeError, ValueError):
+        return None, None
+    return (
+        payment if isinstance(payment, Payment) else None,
+        order if isinstance(order, Order) else None,
+    )
+
+
+def _order_pay_url(order_id: uuid.UUID) -> str:
+    return f"{settings.FRONTEND_HOST.rstrip('/')}/mon-compte/commandes/{order_id}/solde"
+
+
+async def request_balance(session: AsyncSession, order: Order) -> bool:
+    """Ask the customer for the balance of a deposit order: e-mail with the
+    amounts and the payment link, ``balance_requested_at`` stamped. Sent
+    again on every call (the admin's « renvoyer » button). Flushes, no commit.
+    Returns whether the e-mail reached the provider."""
+    user = await session.get(User, order.user_id)
+    full_name = (user.full_name or user.email or "") if user else ""
+    currency = order.currency or settings.REFERENCE_CURRENCY
+    email = render_email(
+        "balance_due",
+        full_name=full_name or "client",
+        order_id=str(order.id),
+        order_ref=order.order_number or "",
+        total_amount=str(order.total_amount),
+        deposit_amount=str(order.deposit_amount),
+        balance_amount=str(balance_amount(order)),
+        currency=currency,
+        pay_url=_order_pay_url(order.id),
+        shop_name=_shop_name(),
+    )
+    order.balance_requested_at = datetime.now(timezone.utc)
+    session.add(order)
+    await session.flush()
+    return await _send_order_email(
+        session,
+        user_id_raw=str(order.user_id),
+        subject=email.subject,
+        text=email.text,
+        html=email.html,
+        event_type="order.balance_due",
+        payload={"order_id": str(order.id), "order_number": order.order_number},
+    )
+
+
+@outbox_handler(EVENT_ORDER_STATUS_CHANGED)
+async def on_order_received_request_balance(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    """When the goods are received, a deposit order is asked for its balance
+    (once — the admin can re-send it from the order page)."""
+    if str(payload.get("new_status") or "") != BALANCE_TRIGGER_STATUS:
+        return
+    try:
+        order = await session.get(Order, uuid.UUID(str(payload.get("order_id"))))
+    except (TypeError, ValueError):
+        return
+    if not isinstance(order, Order) or order.payment_plan != PLAN_DEPOSIT:
+        return
+    if order.balance_paid_at is not None or order.balance_requested_at is not None:
+        return
+    await request_balance(session, order)
+    await session.commit()
+
+
 @outbox_handler(EVENT_ORDER_CREATED)
 async def on_order_created(session: AsyncSession, payload: dict[str, Any]) -> None:
     """Send 'Commande reçue' email to the customer after checkout."""
@@ -154,6 +286,7 @@ async def on_order_created(session: AsyncSession, payload: dict[str, Any]) -> No
         total_amount=payload.get("total_amount", ""),
         currency=payload.get("currency", ""),
         item_count=payload.get("item_count", ""),
+        tracking_url=tracking_url_from_payload(payload.get("order_id")),
         shop_name=_shop_name(),
     )
 
@@ -173,6 +306,10 @@ async def on_payment_captured_customer(
     session: AsyncSession, payload: dict[str, Any]
 ) -> None:
     """Send 'Paiement validé' HTML email to the customer."""
+    if payload.get("provider_code") == "store_credit":
+        # Spending an avoir is not a payment the customer made: the money
+        # payment (if any) carries the e-mail, the order e-mail the rest.
+        return
     logger.info(
         "Payment captured (customer email): order_id=%s user_id=%s",
         payload.get("order_id"),
@@ -184,6 +321,10 @@ async def on_payment_captured_customer(
 
     order_ref = await _resolve_order_ref(session, payload)
 
+    # A deposit or a balance gets its own wording (and the balance left).
+    payment, order = await _load_payment_and_order(session, payload)
+    kind = getattr(payment, "kind", None)
+    kind = kind if isinstance(kind, str) else "full"
     email = render_email(
         "payment_captured",
         full_name=full_name or "client",
@@ -191,6 +332,8 @@ async def on_payment_captured_customer(
         order_ref=order_ref,
         total_amount=payload.get("total_amount", ""),
         currency=payload.get("currency", ""),
+        payment_kind=kind,
+        balance_amount=str(balance_amount(order)) if order is not None else "",
         shop_name=_shop_name(),
     )
 
@@ -425,3 +568,59 @@ async def on_credit_note_issued_customer(
     credit_note.emailed_at = datetime.now(timezone.utc)
     session.add(credit_note)
     await session.commit()
+
+
+@outbox_handler(EVENT_ORDER_STATUS_CHANGED)
+async def on_order_status_changed_customer(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    """Tell the customer about a fulfilment step (one template, one message
+    per status). Payment statuses are covered by their own handlers."""
+    new_status = str(payload.get("new_status") or "")
+    message = ORDER_STATUS_MESSAGES.get(new_status)
+    if message is None:
+        logger.debug("order.status_changed %s: no customer message", new_status)
+        return
+    title, body = message
+
+    user = await _resolve_user_from_payload(session, payload)
+    full_name = (user.full_name or user.email or "") if user else ""
+
+    departure_name: str | None = None
+    estimated_delivery: str | None = None
+    raw_departure = payload.get("grouped_departure_id")
+    if raw_departure:
+        try:
+            departure = await session.get(
+                GroupedDeparture, uuid.UUID(str(raw_departure))
+            )
+        except (TypeError, ValueError):
+            departure = None
+        if departure is not None:
+            departure_name = departure.name
+            if departure.estimated_delivery_at:
+                estimated_delivery = departure.estimated_delivery_at.strftime(
+                    "%d/%m/%Y"
+                )
+
+    email = render_email(
+        "order_status_changed",
+        full_name=full_name or "client",
+        order_id=payload.get("order_id", ""),
+        order_ref=payload.get("order_number") or "",
+        status_title=title,
+        status_message=body,
+        departure_name=departure_name,
+        estimated_delivery=estimated_delivery,
+        tracking_url=tracking_url_from_payload(payload.get("order_id")),
+        shop_name=_shop_name(),
+    )
+    await _send_order_email(
+        session,
+        user_id_raw=payload.get("user_id"),
+        subject=email.subject,
+        text=email.text,
+        html=email.html,
+        event_type=EVENT_ORDER_STATUS_CHANGED,
+        payload=payload,
+    )

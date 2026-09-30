@@ -6,6 +6,8 @@
   GET    /admin/suppliers/{code}
   PATCH  /admin/suppliers/{code}     — partial update (``code`` is immutable)
   DELETE /admin/suppliers/{code}     — deactivate (products keep their link)
+  GET    /admin/suppliers/{code}/sku-allowlist — the references we follow
+  PUT    /admin/suppliers/{code}/sku-allowlist — replace that list
 
 A supplier of kind ``api`` must name a registered ``adapter_key``; a ``file``
 supplier's ``column_mapping`` must at least map the two required fields.
@@ -30,6 +32,12 @@ from app.features.integrations.models.supplier import (
     SupplierPublic,
     SuppliersPublic,
     SupplierUpdate,
+)
+from app.features.integrations.services.sku_allowlist import (
+    AllowlistView,
+    AllowlistWrite,
+    allowlist_view,
+    save_allowlist,
 )
 from app.features.place.models import Place
 from app.features.product.models.product import Product
@@ -190,6 +198,41 @@ async def update_supplier(
     forget_adapter(supplier.code)
     logger.info("Admin %s updated supplier %s: %s", actor_id, code, sorted(fields))
     return _public(supplier)
+
+
+@router.get("/{code}/sku-allowlist", response_model=AllowlistView)
+async def get_sku_allowlist(
+    code: str, session: SessionDep, _current_user: CurrentSuperUser
+) -> AllowlistView:
+    """The references the shop follows at this supplier, against its catalogue."""
+    return await allowlist_view(session, await _load(session, code))
+
+
+@router.put("/{code}/sku-allowlist", response_model=AllowlistView)
+async def put_sku_allowlist(
+    code: str,
+    payload: AllowlistWrite,
+    session: SessionDep,
+    current_user: CurrentSuperUser,
+) -> AllowlistView:
+    """Replace the list (empty clears it: the whole catalogue is followed).
+
+    Managed products outside a non-empty list leave the storefront now; the
+    listed ones are created or refreshed by the next syncs.
+    """
+    actor_id = current_user.id
+    supplier = await _load(session, code)
+    view = await save_allowlist(session, supplier, payload.skus)
+    await session.commit()
+    forget_adapter(code)
+    logger.info(
+        "Admin %s set the SKU allowlist of %s: %d references, %d products hidden",
+        actor_id,
+        code,
+        len(view.entries),
+        view.deactivated,
+    )
+    return view
 
 
 @router.delete("/{code}", response_model=SupplierPublic)

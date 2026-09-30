@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import datetime
 import uuid
+from decimal import Decimal
+from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 from pydantic import BaseModel, Field
 from sqlmodel import col, or_, select
 
@@ -25,6 +27,14 @@ from app.features.cart.models.quote_request import (
     CLOSED_QUOTE_STATUSES,
     QuoteRequest,
     QuoteRequestStatus,
+)
+from app.features.cart.services.quote import (
+    QuoteIssueBody,
+    QuoteLine,
+    issue_quote,
+    proposed_lines,
+    quote_pdf_response,
+    send_quote_email,
 )
 
 router = APIRouter(prefix="/admin/quote-requests", tags=["admin-quote-requests"])
@@ -45,15 +55,25 @@ class AdminQuoteRequestListItem(BaseModel):
     currency: str | None = None
     subtotal_amount: str | None = None
     handled_at: datetime.datetime | None = None
+    quote_number: str | None = None
 
 
 class AdminQuoteRequestDetail(AdminQuoteRequestListItem):
-    """Le détail, avec le panier figé au moment de la demande."""
+    """Le détail, avec le panier figé au moment de la demande et, une fois
+    émis, le devis lui-même (numéro, validité, lignes consenties)."""
 
     shipping_address: str | None = None
     notes: str | None = None
     admin_comment: str | None = None
     items: list[dict[str, str | None]] = Field(default_factory=list)
+    quote_number: str | None = None
+    quoted_at: datetime.datetime | None = None
+    valid_until: datetime.date | None = None
+    order_id: uuid.UUID | None = None
+    quote_snapshot: dict[str, Any] | None = None
+    #: Lignes pré-remplies pour l'émission : celles du devis émis, sinon le
+    #: panier de la demande.
+    proposed_lines: list[QuoteLine] = Field(default_factory=list)
 
 
 class QuoteRequestUpdateBody(BaseModel):
@@ -86,18 +106,38 @@ def _to_list_item(quote: QuoteRequest) -> AdminQuoteRequestListItem:
             else None
         ),
         handled_at=quote.handled_at,
+        quote_number=getattr(quote, "quote_number", None),
     )
 
 
 def _to_detail(quote: QuoteRequest) -> AdminQuoteRequestDetail:
     snapshot = _snapshot(quote)
     raw_items = snapshot.get("items")
+    issued = getattr(quote, "quote_snapshot", None) or None
+    proposed = (
+        [
+            QuoteLine(
+                product_id=line.get("product_id") or None,
+                product_name=str(line.get("product_name") or "Article"),
+                quantity=int(line.get("quantity") or 1),
+                unit_price=Decimal(str(line.get("unit_price") or 0)),
+            )
+            for line in issued.get("lines", [])
+        ]
+        if issued
+        else proposed_lines(quote)
+    )
     return AdminQuoteRequestDetail(
         **_to_list_item(quote).model_dump(),
         shipping_address=quote.shipping_address,
         notes=quote.notes,
         admin_comment=quote.admin_comment,
         items=list(raw_items) if isinstance(raw_items, list) else [],
+        quoted_at=getattr(quote, "quoted_at", None),
+        valid_until=getattr(quote, "valid_until", None),
+        order_id=getattr(quote, "order_id", None),
+        quote_snapshot=issued,
+        proposed_lines=proposed,
     )
 
 
@@ -195,3 +235,46 @@ async def update_quote_request(
     await session.commit()
     await session.refresh(quote)
     return _to_detail(quote)
+
+
+class QuoteIssueResponse(AdminQuoteRequestDetail):
+    """Le détail après émission, avec le sort de l'e-mail au client."""
+
+    email_sent: bool = False
+
+
+@router.post("/{quote_id}/issue", response_model=QuoteIssueResponse)
+async def issue_quote_request(
+    quote_id: uuid.UUID,
+    body: QuoteIssueBody,
+    session: SessionDep,
+    _admin: CurrentSuperUser,
+) -> QuoteIssueResponse:
+    """Émettre (ou ré-émettre) le devis : lignes au prix consenti, livraison,
+    validité, message ; numéro DEV alloué la première fois ; PDF envoyé au
+    client par e-mail quand ``send_email`` est vrai."""
+    quote = await _read_quote(session, quote_id)
+    if quote.order_id is not None:
+        raise AppError(
+            code="quote.already_converted",
+            status_code=409,
+            message="Ce devis a déjà été transformé en commande",
+            details={
+                "quote_request_id": str(quote_id),
+                "order_id": str(quote.order_id),
+            },
+        )
+    await issue_quote(session, quote, body)
+    await session.commit()
+    quote = await _read_quote(session, quote_id)
+    sent = await send_quote_email(quote) if body.send_email else False
+    return QuoteIssueResponse(**_to_detail(quote).model_dump(), email_sent=sent)
+
+
+@router.get("/{quote_id}/pdf")
+async def download_quote_pdf(
+    quote_id: uuid.UUID, session: SessionDep, _admin: CurrentSuperUser
+) -> Response:
+    """Le PDF du devis émis."""
+    quote = await _read_quote(session, quote_id)
+    return quote_pdf_response(quote)

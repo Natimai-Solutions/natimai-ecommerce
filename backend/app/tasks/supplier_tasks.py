@@ -22,6 +22,7 @@ from app.core.config import settings
 from app.core.db import engine
 from app.features.integrations.crud.supplier_sync import supplier_sync_log_crud
 from app.features.integrations.models.supplier_sync import SyncStatus, SyncType
+from app.features.integrations.services.sku_allowlist import restrict_skus
 from app.features.integrations.services.supplier_data_normalization import (
     meets_sync_thresholds,
     normalize_supplier_snapshot,
@@ -31,6 +32,7 @@ from app.features.integrations.services.supplier_sync_orchestrator import (
 )
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product, ProductUpdate
+from app.features.product.services.overrides import strip_locked
 from app.features.product.services.pricing import (
     CurrencyRateMissing,
     convert_to_reference_currency,
@@ -287,7 +289,11 @@ async def sync_supplier_inventory_task(
                     include_archived=True,
                 )
                 products = result.get("data", [])
-                skus = [p.supplier_sku for p in products if p.supplier_sku]
+                # Only the references the admin follows (all when no list).
+                skus = restrict_skus(
+                    getattr(adapter, "sku_allowlist", None),
+                    [p.supplier_sku for p in products if p.supplier_sku],
+                )
                 logger.info("Fetched %s SKUs for inventory update", len(skus))
 
             batch_size = adapter.price_batch_size
@@ -361,23 +367,31 @@ async def sync_supplier_inventory_task(
                                     snapshot.supplier_price * cached_rate
                                 ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
+                            update_data: dict[str, Any] = {
+                                "cost_amount": snapshot.supplier_price,
+                                "cost_currency": snapshot.supplier_price_currency,
+                                "supplier_price": snapshot.supplier_price,
+                                "supplier_price_currency": snapshot.supplier_price_currency,
+                                "supplier_quantity": snapshot.supplier_quantity,
+                                "is_active": meets_sync_thresholds(
+                                    snapshot, price_in_xpf=price_in_xpf
+                                ),
+                                "last_supplier_sync": _now(),
+                                # The SKU answered: any pending delisting
+                                # countdown is void.
+                                "supplier_missing_since": None,
+                            }
+                            # Same rule as the catalogue sync: a field the
+                            # admin edited (a refurbished lot's quantity, a
+                            # negotiated cost…) is never overwritten.
+                            update_data = strip_locked(
+                                update_data,
+                                getattr(product, "overridden_fields", None),
+                            )
                             await crud_product.update(
                                 session=session,
                                 id=product.id,
-                                data=ProductUpdate(
-                                    cost_amount=snapshot.supplier_price,
-                                    cost_currency=snapshot.supplier_price_currency,
-                                    supplier_price=snapshot.supplier_price,
-                                    supplier_price_currency=snapshot.supplier_price_currency,
-                                    supplier_quantity=snapshot.supplier_quantity,
-                                    is_active=meets_sync_thresholds(
-                                        snapshot, price_in_xpf=price_in_xpf
-                                    ),
-                                    last_supplier_sync=_now(),
-                                    # The SKU answered: any pending delisting
-                                    # countdown is void.
-                                    supplier_missing_since=None,
-                                ),
+                                data=ProductUpdate(**update_data),
                                 record=product,
                                 user=None,
                             )

@@ -4,5 +4,7 @@ Votre commande {{ order_ref or (order_id | short_ref) }} progresse : elle vient 
 
 {% if tracking_ref %}Référence de suivi : {{ tracking_ref }}
 {% endif %}Vous pouvez suivre l'avancement de votre livraison dans votre espace client.
+{% if tracking_url %}Suivre ma commande : {{ tracking_url }}
+{% endif %}
 
 L'équipe {{ shop_name }}

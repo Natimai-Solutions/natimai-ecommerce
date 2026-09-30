@@ -1,10 +1,25 @@
 Bonjour {{ full_name }},
 
+{% if payment_kind == 'deposit' -%}
+Votre acompte a bien été reçu pour la commande {{ order_ref or (order_id | short_ref) }}.
+
+Acompte reçu : {{ total_amount }} {{ currency }}
+Solde à régler à la réception : {{ balance_amount }} {{ currency }}
+
+Votre commande est lancée. Nous vous demanderons le solde lorsque vos articles seront arrivés ; la facture vous sera envoyée à ce moment-là.
+{%- elif payment_kind == 'balance' -%}
+Le solde de votre commande {{ order_ref or (order_id | short_ref) }} a bien été reçu.
+
+Solde reçu : {{ total_amount }} {{ currency }}
+
+Votre commande est intégralement réglée. Votre facture vous parvient dans un message séparé.
+{%- else -%}
 Votre paiement a été validé pour la commande {{ order_ref or (order_id | short_ref) }}.
 
 Montant débité : {{ total_amount }} {{ currency }}
 
 Votre commande est maintenant en cours de traitement.
+{%- endif %}
 
 Merci pour votre confiance,
 L'équipe {{ shop_name }}

@@ -25,6 +25,7 @@ from app.features.notification.providers import (
 )
 from app.features.order.models.order import Order
 from app.features.order.services.order_number import resolve_order_ref
+from app.features.order.services.tracking_link import tracking_url_from_payload
 from app.features.user.crud.user_preference import get_preference_for_user
 from app.features.user.models.user import User
 from app.outbox.decorators import outbox_handler
@@ -127,6 +128,7 @@ async def on_tracking_status_changed(
     order_id_display = str(order_id_raw or "")
     # Customer-facing reference (M5): CMD-2026-00042, short-ref fallback.
     order_ref = await resolve_order_ref(session, payload)
+    tracking_url = tracking_url_from_payload(order_id_raw)
 
     email: RenderedEmail
     if status_code in _SHIPPED_CODES:
@@ -137,6 +139,7 @@ async def on_tracking_status_changed(
             order_ref=order_ref,
             tracking_ref=tracking_ref or "",
             estimated_delivery=estimated_delivery or "",
+            tracking_url=tracking_url,
             shop_name=shop_name,
         )
         event_label = "tracking.shipped"
@@ -146,6 +149,7 @@ async def on_tracking_status_changed(
             full_name=full_name or "client",
             order_id=order_id_display,
             order_ref=order_ref,
+            tracking_url=tracking_url,
             shop_name=shop_name,
         )
         event_label = "tracking.delivered"
@@ -156,6 +160,7 @@ async def on_tracking_status_changed(
             order_id=order_id_display,
             order_ref=order_ref,
             tracking_ref=tracking_ref or "",
+            tracking_url=tracking_url,
             shop_name=shop_name,
         )
         event_label = "tracking.progress"

@@ -1,0 +1,9 @@
+Bonjour,
+
+Bonne nouvelle : « {{ product_name }} » peut de nouveau être commandé.
+
+{{ product_url }}
+
+Cette alerte ne vous sera envoyée qu'une fois ; pensez à commander avant que le produit ne reparte.
+
+L'équipe {{ shop_name }}

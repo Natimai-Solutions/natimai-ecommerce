@@ -313,9 +313,59 @@ class CheckoutRequest(SQLModel):
         max_length=50,
         description="Promo code to apply (validated and priced server-side)",
     )
+    payment_plan: str | None = Field(
+        default=None,
+        max_length=20,
+        description=(
+            "« deposit » to pay a deposit now and the balance at reception, "
+            "« full » (default) to pay everything now. Subject to the deposit "
+            "policy of the customer's price group."
+        ),
+    )
+    quote_request_id: uuid.UUID | None = Field(
+        default=None,
+        description=(
+            "Order an issued quote: the cart is rebuilt from its lines at the "
+            "quoted prices and delivery fee, whatever the catalogue says now."
+        ),
+    )
+    use_store_credit: bool = Field(
+        default=False,
+        description="Spend the customer's store credit on the amount due now",
+    )
 
 
-class CheckoutResponse(SQLModel):
+class DepositTerms(SQLModel):
+    """Deposit part of a quote / order (all zero on a full-payment order)."""
+
+    payment_plan: str = Field(default="full", description="full | deposit")
+    deposit_available: bool = Field(
+        default=False, description="The customer's group offers a deposit"
+    )
+    deposit_required: bool = Field(
+        default=False, description="The deposit is imposed by the group"
+    )
+    deposit_pct: Decimal | None = Field(default=None, description="Share paid now (%)")
+    deposit_fee_amount: Decimal = Field(
+        default=Decimal("0.00"), description="Fee of the deposit option (in total)"
+    )
+    deposit_amount: Decimal = Field(
+        default=Decimal("0.00"), description="Charged now on a deposit order"
+    )
+    balance_amount: Decimal = Field(
+        default=Decimal("0.00"), description="Asked for at reception"
+    )
+    # Store credit (« avoir ») : what the customer has, what this checkout
+    # spends on the amount due now, and what is left to pay by card / transfer.
+    store_credit_available: Decimal = Field(default=Decimal("0.00"))
+    store_credit_applied: Decimal = Field(default=Decimal("0.00"))
+    amount_due_now: Decimal = Field(
+        default=Decimal("0.00"),
+        description="Charged by the payment method now (0 = settled by credit)",
+    )
+
+
+class CheckoutResponse(DepositTerms):
     """Represents checkout response."""
 
     order_id: uuid.UUID
@@ -323,6 +373,9 @@ class CheckoutResponse(SQLModel):
     # allouée au checkout (allocate_order_number) ; ne pas la renvoyer obligeait
     # le front à refaire un appel pour afficher le numéro de la commande.
     order_number: str | None = None
+    # Départ groupé de rattachement (None hors départ) : la confirmation
+    # affiche la date de clôture / livraison estimée sans second appel.
+    grouped_departure_id: uuid.UUID | None = None
     payment_id: uuid.UUID
     cart_id: uuid.UUID
     subtotal_amount: Decimal
@@ -368,7 +421,7 @@ class LastLegOption(SQLModel):
     route_name: str | None = None
 
 
-class CheckoutQuoteResponse(SQLModel):
+class CheckoutQuoteResponse(DepositTerms):
     """What ``POST /cart/checkout`` will bill for the current cart and choices.
 
     Served by ``GET /cart/me/checkout-quote`` from the very same computation

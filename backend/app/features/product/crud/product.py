@@ -16,6 +16,10 @@ from app.features.base.crud import CrudBase
 from app.features.inventory.services.availability import (
     available_quantity_expression,
 )
+from app.features.product.models.price_history import (
+    REASON_PRODUCT_WRITE,
+    price_change_entry,
+)
 from app.features.product.models.product import (
     Product,
     ProductCreate,
@@ -78,6 +82,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         """
         if record is None:
             return
+        previous = record.sale_price_cached
         try:
             context = await PricingContext.for_session(session)
             record.sale_price_cached = context.price(record)
@@ -96,6 +101,11 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             )
             return
         record.sale_price_cached_at = datetime.now(timezone.utc)
+        entry = price_change_entry(
+            record.id, previous, record.sale_price_cached, reason=REASON_PRODUCT_WRITE
+        )
+        if entry is not None:
+            session.add(entry)
 
     async def after_create(
         self,
@@ -126,15 +136,17 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         products: list[Product],
         *,
         context: PricingContext,
+        reason: str = "refresh",
     ) -> int:
         """Recompute ``sale_price_cached`` for ``products`` (no commit).
 
         Returns how many rows were priced; rows whose currency has no rate
-        are set to ``None``.
+        are set to ``None``. Every change is journaled under ``reason``.
         """
         now = datetime.now(timezone.utc)
         priced = 0
         for product in products:
+            previous = product.sale_price_cached
             try:
                 product.sale_price_cached = context.price(product)
                 priced += 1
@@ -142,6 +154,11 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
                 product.sale_price_cached = None
             product.sale_price_cached_at = now
             session.add(product)
+            entry = price_change_entry(
+                product.id, previous, product.sale_price_cached, reason=reason
+            )
+            if entry is not None:
+                session.add(entry)
         return priced
 
     async def read(
@@ -562,6 +579,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         price_max: Decimal | None = None,
         specs: dict[str, Any] | None = None,
         in_stock: bool | None = None,
+        condition: str | None = None,
         limit: int = 24,
         offset: int = 0,
         group_offers: bool = True,
@@ -613,6 +631,8 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             conditions.append(available_quantity_expression() > 0)
         elif in_stock is False:
             conditions.append(available_quantity_expression() <= 0)
+        if condition:
+            conditions.append(col(Product.condition) == condition)
         if price_min is not None:
             conditions.append(col(Product.sale_price_cached) >= price_min)
         if price_max is not None:

@@ -108,6 +108,10 @@ class MailgunNotificationProvider(NotificationProvider):
         if isinstance(event_type, str) and event_type.strip():
             data["o:tag"] = event_type.strip()
 
+        files = [
+            ("attachment", (filename, content, mimetype))
+            for filename, content, mimetype in (message.attachments or [])
+        ]
         try:
             async with httpx.AsyncClient(
                 timeout=settings.MAILGUN_TIMEOUT_SECONDS
@@ -116,6 +120,7 @@ class MailgunNotificationProvider(NotificationProvider):
                     url,
                     auth=("api", api_key),
                     data=data,
+                    files=files or None,
                 )
             response.raise_for_status()
 

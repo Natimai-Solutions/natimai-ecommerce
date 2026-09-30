@@ -127,6 +127,12 @@ async def test_checkout_creates_order_payment_and_marks_cart_checked_out(
         "app.api.routes.cart.resolve_default_price_group",
         AsyncMock(return_value=None),
     )
+    # Same for the grouped-departure attachment (real queries live in
+    # tests/integration/test_grouped_departures.py).
+    monkeypatch.setattr(
+        "app.api.routes.cart.crud_grouped_departure.get_next_open",
+        AsyncMock(return_value=None),
+    )
     # Same for the per-declaration customs fees (F3) — covered on their own in
     # test_checkout_customs_declaration_fee.py.
     monkeypatch.setattr(
@@ -338,6 +344,12 @@ async def test_checkout_with_payment_method_runs_single_payment_initiation(
         "app.api.routes.cart.resolve_default_price_group",
         AsyncMock(return_value=None),
     )
+    # Same for the grouped-departure attachment (real queries live in
+    # tests/integration/test_grouped_departures.py).
+    monkeypatch.setattr(
+        "app.api.routes.cart.crud_grouped_departure.get_next_open",
+        AsyncMock(return_value=None),
+    )
     monkeypatch.setattr(
         "app.api.routes.cart._customs_declaration_fees",
         AsyncMock(return_value=[]),
@@ -519,6 +531,12 @@ async def test_checkout_rolls_back_when_stock_reservation_fails(
         "app.api.routes.cart.resolve_default_price_group",
         AsyncMock(return_value=None),
     )
+    # Same for the grouped-departure attachment (real queries live in
+    # tests/integration/test_grouped_departures.py).
+    monkeypatch.setattr(
+        "app.api.routes.cart.crud_grouped_departure.get_next_open",
+        AsyncMock(return_value=None),
+    )
     monkeypatch.setattr(
         "app.api.routes.cart._customs_declaration_fees",
         AsyncMock(return_value=[]),
@@ -606,6 +624,11 @@ async def test_checkout_applies_a_promo_code_and_consumes_it(
     monkeypatch.setattr(crud_payment, "create_draft", AsyncMock(return_value=payment))
     monkeypatch.setattr(
         "app.api.routes.cart.resolve_default_price_group", AsyncMock(return_value=None)
+    )
+    # The grouped-departure attachment queries the raw session too.
+    monkeypatch.setattr(
+        "app.api.routes.cart.crud_grouped_departure.get_next_open",
+        AsyncMock(return_value=None),
     )
     monkeypatch.setattr(
         "app.api.routes.cart._customs_declaration_fees", AsyncMock(return_value=[])

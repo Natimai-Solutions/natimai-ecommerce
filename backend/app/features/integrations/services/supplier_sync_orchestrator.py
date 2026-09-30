@@ -26,6 +26,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.integrations.crud.supplier_sync import supplier_product_mapping_crud
 from app.features.integrations.models.supplier_sync import SupplierProductMapping
+from app.features.integrations.services.sku_allowlist import allowed_sku
 from app.features.integrations.services.supplier_data_normalization import (
     DEFAULT_CURRENCY,
     evaluate_product_filters,
@@ -61,6 +62,16 @@ MATCH_KEYS: tuple[str, ...] = (
 #: Content an admin typed on a manual product. When the sync adopts such a
 #: product, these fields are locked (if filled) so the file never overwrites
 #: what was written by hand; only the sourcing fields flow from the supplier.
+#: Refurbished-lot fields a file import may carry (see FILE_MAPPING_TARGETS).
+REFURB_ITEM_FIELDS: tuple[str, ...] = (
+    "condition",
+    "condition_grade",
+    "battery_health_pct",
+    "os_licence",
+    "warranty_months",
+    "availability_mode",
+)
+
 ADOPTION_CONTENT_FIELDS: tuple[str, ...] = (
     "name",
     "description",
@@ -240,6 +251,12 @@ class SupplierSyncOrchestrator:
             "upc": item.upc,
             "ean": item.ean,
         }
+        # Refurbished-lot columns: only what the file carries, so a catalogue
+        # without them never resets what the admin typed.
+        for name in REFURB_ITEM_FIELDS:
+            value = getattr(item, name, None)
+            if value is not None:
+                data[name] = value
 
         if item.price is not None or item.quantity is not None:
             currency = (
@@ -423,6 +440,13 @@ class SupplierSyncOrchestrator:
             )
             return {"action": "filtered", "product_id": ""}
 
+        # The admin's allowlist: a reference outside it is neither created nor
+        # touched (the shop only follows what it chose to sell).
+        if not allowed_sku(
+            getattr(self.adapter, "sku_allowlist", None), item.supplier_sku
+        ):
+            return {"action": "filtered", "product_id": ""}
+
         resolution = await self._resolve_existing_product(session=session, item=item)
         if resolution.ambiguous:
             logger.warning(
@@ -466,6 +490,11 @@ class SupplierSyncOrchestrator:
         # as fixed, and the admin edit locks the field).
         if existing_product is None:
             product_data_dict["pricing_mode"] = self._default_pricing_mode()
+            # A supplier set to « new products as drafts »: the article is
+            # created, enriched and refreshed, but shown only once the admin
+            # publishes it. Existing products keep their state.
+            if bool(getattr(self.adapter, "import_as_draft", False)):
+                product_data_dict["is_draft"] = True
 
         # Publish as it stands (import option): a new row, or a manual product
         # being adopted — adoption makes it supplier-managed, which would

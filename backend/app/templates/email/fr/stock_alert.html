@@ -1,0 +1,13 @@
+{% extends "_layout.html" %}
+{% block title %}{{ product_name }} est de nouveau disponible{% endblock %}
+{% block header_color %}#1a7a4a{% endblock %}
+{% block heading %}De nouveau disponible{% endblock %}
+{% block content %}
+      <p>Bonjour,</p>
+      <p>Bonne nouvelle : <strong>{{ product_name }}</strong> peut de nouveau être commandé.</p>
+      <p style="text-align:center;margin:24px 0">
+        <a href="{{ product_url }}" style="background:#1a7a4a;color:#fff;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold">Voir le produit</a>
+      </p>
+      <p>Cette alerte ne vous est envoyée qu'une fois ; pensez à commander avant que le produit ne reparte.</p>
+      <p>L'équipe {{ shop_name }}</p>
+{% endblock %}
