@@ -41,7 +41,7 @@ dependencies = [
     # gdk-pixbuf) présentes dans l'image backend ; l'import est paresseux dans
     # app/features/invoice/services/pdf.py pour qu'un poste dev sans GTK
     # (Windows) ne casse que le rendu PDF.
-    "weasyprint>=62.0",
+    "weasyprint>=70.0",
     "openpyxl>=3.1.5",
 ]
 
