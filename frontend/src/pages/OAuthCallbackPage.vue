@@ -1,15 +1,21 @@
 <template>
-  <q-page class="flex flex-center q-pa-md">
-    <div class="text-center" style="max-width: 420px">
+  <q-page class="page-container">
+    <div class="app-result" aria-live="polite">
       <template v-if="errorMessage">
-        <q-icon name="error_outline" color="negative" size="3em" class="q-mb-md" />
-        <div class="text-h6 q-mb-sm">Connexion impossible</div>
-        <div class="text-body2 text-grey-7 q-mb-lg">{{ errorMessage }}</div>
-        <q-btn color="primary" label="Réessayer" :to="{ name: 'login' }" />
+        <q-icon
+          name="ph:warning-circle"
+          size="52px"
+          class="app-result__icon app-result__icon--danger"
+        />
+        <h1>Connexion impossible</h1>
+        <p>{{ errorMessage }}</p>
+        <div class="app-result__actions">
+          <q-btn unelevated color="primary" label="Réessayer" :to="{ name: 'login' }" />
+        </div>
       </template>
       <template v-else>
-        <q-spinner color="primary" size="3em" class="q-mb-md" />
-        <div class="text-body2 text-grey-7">Connexion en cours…</div>
+        <q-spinner size="44px" class="app-result__icon" />
+        <h1>Connexion en cours</h1>
       </template>
     </div>
   </q-page>

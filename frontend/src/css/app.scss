@@ -271,3 +271,319 @@ body {
   line-height: 1.15;
   letter-spacing: -0.02em;
 }
+
+// Grille de cartes produit (catalogue, accueil) et ses squelettes.
+.product-grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 20px;
+  row-gap: 48px;
+
+  @media (max-width: 1279px) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  @media (max-width: 767px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 12px;
+    row-gap: 32px;
+  }
+}
+
+.skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.skeleton-card__media {
+  aspect-ratio: 1;
+  height: auto;
+  margin-bottom: 8px;
+  border-radius: 8px;
+}
+
+// Écrans d'application (compte, suivi, checkout) : même grammaire que le
+// panier. Des sections séparées par des filets, un panneau en tuile pour les
+// récapitulatifs, jamais de carte bordée empilée.
+.app-section + .app-section {
+  margin-top: 48px;
+}
+
+.app-section__head {
+  margin-bottom: 16px;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.app-section__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.app-section__hint {
+  margin: 0;
+  font-size: 14px;
+  color: var(--n-ink-2);
+}
+
+.app-section__action {
+  margin-left: auto;
+}
+
+.app-panel {
+  padding: 24px;
+  border-radius: 8px;
+  background: var(--n-tile);
+
+  @media (max-width: 599px) {
+    padding: 18px;
+  }
+}
+
+.app-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--n-line);
+}
+
+.app-row {
+  padding: 18px 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--n-line);
+
+  @media (max-width: 599px) {
+    flex-wrap: wrap;
+    gap: 10px 14px;
+  }
+}
+
+.app-row__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.app-row__title {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--n-ink);
+  text-decoration: none;
+}
+
+a.app-row__title:hover {
+  color: var(--n-accent);
+}
+
+.app-row__meta {
+  font-size: 13px;
+  color: var(--n-ink-3);
+}
+
+.app-row__side {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+// Lignes clé / valeur d'un récapitulatif (sous-total, frais, total).
+.app-kv {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  font-size: 14px;
+  color: var(--n-ink-2);
+
+  & + & {
+    margin-top: 10px;
+  }
+
+  &--total {
+    margin-top: 14px !important;
+    padding-top: 14px;
+    border-top: 1px solid var(--n-line-2);
+    color: var(--n-ink);
+    font-weight: 600;
+
+    .font-mono {
+      font-size: 18px;
+    }
+  }
+
+  &--credit {
+    color: var(--n-ok);
+  }
+}
+
+.app-empty {
+  padding: 48px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  border-radius: 8px;
+  background: var(--n-tile);
+
+  h3 {
+    margin: 6px 0 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  p {
+    max-width: 44ch;
+    margin: 0;
+    color: var(--n-ink-2);
+  }
+
+  .q-btn {
+    margin-top: 10px;
+  }
+}
+
+// Formulaires d'application : colonne lisible, champs espacés.
+.app-form {
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.app-form__actions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.text-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--n-ink-2);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: var(--n-accent);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+}
+
+// Dialogues d'application : titre sobre, marges régulières.
+.app-dialog {
+  width: 520px;
+  max-width: calc(100vw - 32px);
+  border-radius: 12px;
+
+  &--narrow {
+    width: 420px;
+  }
+
+  .q-card__section--vert {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
+.app-dialog__head {
+  padding-top: 24px !important;
+  padding-bottom: 8px !important;
+}
+
+.app-dialog__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.app-dialog__text {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--n-ink-2);
+}
+
+.app-dialog__actions {
+  padding: 8px 24px 24px !important;
+  gap: 8px;
+}
+
+// Écran de résultat (retour de paiement, confirmation de devis, connexion
+// externe) : une colonne centrée, une icône d'état, deux actions au plus.
+.app-result {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 72px 16px 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+
+  h1 {
+    margin: 8px 0 0;
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  p {
+    margin: 0;
+    color: var(--n-ink-2);
+    line-height: 1.55;
+  }
+}
+
+.app-result__icon {
+  color: var(--n-ink-3);
+
+  &--ok {
+    color: var(--n-ok);
+  }
+
+  &--danger {
+    color: var(--n-danger);
+  }
+
+  &--warn {
+    color: var(--n-warn);
+  }
+}
+
+.app-result__actions {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+
+  .q-btn {
+    min-height: 44px;
+  }
+}

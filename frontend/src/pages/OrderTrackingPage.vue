@@ -1,34 +1,16 @@
 <template>
-  <q-page class="order-tracking-page page-container app-page">
-    <div class="row items-center q-mb-md">
-      <div class="col">
-        <h1 class="page-title">Suivi de commande</h1>
-        <div class="text-caption text-grey-7">Commande #{{ shortId }}</div>
-      </div>
-      <q-btn
-        v-if="!linkToken"
-        flat
-        color="primary"
-        icon="arrow_back"
-        label="Mes commandes"
-        no-caps
-        :to="{ name: 'account', query: { tab: 'orders' } }"
-      />
-    </div>
-
-    <AppNotice
-      v-if="linkToken && !loading"
-      tone="info"
-      icon="ph:link"
-      class="q-mb-md"
-      data-testid="tracking-link-notice"
+  <q-page class="order page-container app-page">
+    <router-link
+      v-if="!linkToken"
+      :to="{ name: 'account', query: { tab: 'orders' } }"
+      class="order__back"
     >
-      Vous suivez cette commande depuis le lien reçu par e-mail. Gardez-le : il permet à quiconque
-      le détient de consulter l'avancement de cette commande.
-    </AppNotice>
+      <q-icon name="ph:arrow-left" size="16px" /> Mes commandes
+    </router-link>
 
-    <div v-if="loading" class="text-center q-pa-xl">
-      <q-spinner color="primary" size="2.5em" />
+    <div v-if="loading" aria-busy="true" class="order__loading">
+      <q-skeleton type="text" width="240px" height="44px" />
+      <q-skeleton type="text" width="180px" />
     </div>
 
     <AppNotice v-else-if="errorMessage" tone="error">
@@ -39,297 +21,363 @@
     </AppNotice>
 
     <template v-else-if="tracking">
-      <!-- Overall status -->
-      <q-card flat bordered class="q-mb-md">
-        <q-card-section class="row items-center">
-          <div class="col">
-            <div class="text-caption text-grey-7">Statut d'expédition</div>
-            <div class="text-h6">{{ statusLabel(tracking.overall_status) }}</div>
-          </div>
+      <header class="order__head">
+        <h1 class="page-title font-mono order__ref">{{ reference }}</h1>
+        <p v-if="order?.created_at" class="order__date">
+          Passée le {{ formatDate(order.created_at) }}
+        </p>
+        <div class="order__tags">
           <StatusTag
-            :tone="toneOf(statusColor(tracking.overall_status))"
-            :icon="statusIcon(tracking.overall_status)"
-            :label="statusLabel(tracking.overall_status)"
+            v-if="order"
+            :tone="paymentFacet(order.order_status_name).tone"
+            :icon="paymentFacet(order.order_status_name).icon"
+            :label="paymentFacet(order.order_status_name).label"
           />
-        </q-card-section>
-      </q-card>
+          <StatusTag
+            v-if="order && deliveryFacet(order.order_status_name)"
+            :tone="deliveryFacet(order.order_status_name)!.tone"
+            :icon="deliveryFacet(order.order_status_name)!.icon"
+            :label="deliveryFacet(order.order_status_name)!.label"
+          />
+          <StatusTag
+            v-else
+            :tone="shippingTone(tracking.overall_status)"
+            icon="ph:truck"
+            :label="shippingLabel(tracking.overall_status)"
+          />
+        </div>
+      </header>
 
-      <!-- Cost recap (subtotal / last-leg delivery / total) -->
-      <q-card v-if="departure" flat bordered class="q-mb-md" data-testid="order-departure">
-        <q-card-section>
-          <div class="row items-center q-gutter-sm">
-            <div class="col text-subtitle1 text-weight-medium">
-              <q-icon name="ph:calendar-check" class="q-mr-xs" />
-              Départ groupé « {{ departure.name }} »
-            </div>
-            <StatusTag tone="neutral" :label="departureStatusLabel(departure.status)" />
-          </div>
-          <div class="text-body2 q-mt-xs">
-            Clôture des commandes le {{ formatDate(departure.order_cutoff_at) }}
-            <template v-if="departure.estimated_delivery_at">
-              · Livraison estimée le {{ formatDate(departure.estimated_delivery_at) }}
-            </template>
-          </div>
-        </q-card-section>
-      </q-card>
-
-      <!-- Deposit order: what was paid, what is left, pay the balance -->
-      <q-card
-        v-if="order && order.payment_plan === 'deposit'"
-        flat
-        bordered
-        class="q-mb-md"
-        data-testid="order-deposit"
+      <AppNotice
+        v-if="linkToken"
+        tone="info"
+        icon="ph:link"
+        class="order__notice"
+        data-testid="tracking-link-notice"
       >
-        <q-card-section>
-          <div class="text-subtitle1 text-weight-medium q-mb-sm">
-            <q-icon name="ph:piggy-bank" class="q-mr-xs" />Commande avec acompte
-          </div>
-          <div class="row justify-between q-mb-xs">
-            <span>Acompte versé</span><span>{{ money(order.deposit_amount) }}</span>
-          </div>
-          <div class="row justify-between q-mb-xs">
-            <span>Solde</span>
-            <span class="row items-center q-gutter-x-sm">
-              <StatusTag v-if="order.balance_paid_at" tone="ok" label="Réglé" />
-              <StatusTag v-else-if="order.balance_due" tone="warn" label="À régler" />
-              <span>{{ money(order.balance_amount) }}</span>
-            </span>
-          </div>
-          <template v-if="!order.balance_paid_at">
-            <div v-if="order.balance_due" class="text-body2 q-mt-sm">
-              Vos articles sont arrivés : réglez le solde pour les récupérer.
-            </div>
-            <div v-else class="text-caption text-grey-8 q-mt-sm">
-              Le solde vous sera demandé à la réception de vos articles ; vous pouvez aussi le
-              régler dès maintenant.
-            </div>
-            <q-btn
-              v-if="balancePayable && !linkToken"
-              color="primary"
-              icon="payments"
-              :label="`Régler le solde (${money(order.balance_amount)})`"
-              class="q-mt-sm"
-              no-caps
-              :to="{ name: 'order-balance', params: { id: order.id } }"
-              data-testid="order-pay-balance"
-            />
-            <div v-else-if="balancePayable" class="text-caption text-grey-8 q-mt-sm">
-              Pour régler le solde, connectez-vous à votre espace client.
-            </div>
-          </template>
-        </q-card-section>
-      </q-card>
+        Vous suivez cette commande depuis le lien reçu par e-mail. Gardez-le : il permet à quiconque
+        le détient de consulter l'avancement de cette commande.
+      </AppNotice>
 
-      <!-- Products, serial numbers and warranty -->
-      <q-card v-if="lines.length" flat bordered class="q-mb-md" data-testid="order-lines">
-        <q-card-section>
-          <div class="text-subtitle1 text-weight-medium q-mb-sm">Articles</div>
-          <q-list dense separator>
-            <q-item v-for="line in lines" :key="line.product_id" class="q-px-none">
-              <q-item-section>
-                <q-item-label>{{ line.quantity }} × {{ line.product_name }}</q-item-label>
-                <q-item-label v-if="line.serial_numbers.length" caption>
-                  N° de série : {{ line.serial_numbers.join(', ') }}
-                </q-item-label>
-                <q-item-label v-if="line.warranty_until" caption>
-                  Garantie {{ line.warranty_months }} mois, jusqu'au
-                  {{ formatDate(line.warranty_until) }}
-                </q-item-label>
-                <q-item-label v-else-if="line.warranty_months" caption>
-                  Garantie {{ line.warranty_months }} mois à compter de la remise
-                </q-item-label>
-              </q-item-section>
-              <q-item-section side>{{ money(line.unit_price) }}</q-item-section>
-            </q-item>
-          </q-list>
-        </q-card-section>
-      </q-card>
-
-      <q-card v-if="order" flat bordered class="q-mb-md">
-        <q-card-section>
-          <div class="text-subtitle1 text-weight-medium q-mb-sm">Récapitulatif</div>
-          <div class="row justify-between q-mb-xs">
-            <span>Sous-total</span>
-            <span>{{ money(order.subtotal_amount) }}</span>
-          </div>
-          <div class="row justify-between q-mb-xs">
-            <span>
-              <q-icon name="local_shipping" size="xs" class="q-mr-xs" />
-              Livraison<template v-if="deliveryLabel"> : {{ deliveryLabel }}</template>
-            </span>
-            <span>{{ money(order.shipping_fee_amount) }}</span>
-          </div>
-          <div v-if="hasFee(order.payment_fee_amount)" class="row justify-between q-mb-xs">
-            <span>Frais de paiement</span>
-            <span>{{ money(order.payment_fee_amount) }}</span>
-          </div>
-          <div
-            v-if="order.discount_code && hasFee(order.discount_amount ?? '0')"
-            class="row justify-between q-mb-xs text-positive"
-          >
-            <span>Remise {{ order.discount_code }}</span>
-            <span>-{{ money(order.discount_amount ?? '0') }}</span>
-          </div>
-          <q-separator class="q-my-sm" />
-          <div class="row justify-between text-weight-bold">
-            <span>Total</span>
-            <span>{{ money(order.total_amount) }}</span>
-          </div>
-        </q-card-section>
-      </q-card>
-
-      <!-- Exception scenarios -->
       <AppNotice
         v-for="scenario in tracking.exception_scenarios"
         :key="scenario"
         dense
         tone="warning"
-        class="q-mb-sm"
+        class="order__notice"
       >
         {{ scenarioLabel(scenario) }}
       </AppNotice>
 
-      <!-- No tracking yet -->
-      <AppNotice v-if="tracking.trackings.length === 0" tone="info" class="q-mt-md">
-        Aucune information d'expédition n'est encore disponible pour cette commande.
-      </AppNotice>
-
-      <!-- Segments timeline -->
-      <q-card v-else flat bordered class="q-mt-md">
-        <q-card-section>
-          <div class="text-subtitle1 text-weight-medium q-mb-md">Étapes d'acheminement</div>
-          <q-timeline color="primary">
-            <q-timeline-entry
-              v-for="segment in sortedSegments"
-              :key="segment.id"
-              :title="`Tronçon ${segment.sequence_order}`"
-              :subtitle="formatDate(segment.last_status_update) ?? undefined"
-              :icon="segmentIcon(segment)"
-            >
-              <div class="column q-gutter-xs">
-                <div v-if="legLabel(segment)" class="text-weight-medium text-grey-9">
-                  <q-icon name="route" size="xs" class="q-mr-xs" />
-                  {{ legLabel(segment) }}
-                </div>
-                <div v-if="segment.tracking_ref || segment.carrier_name" class="row items-center">
-                  <q-icon name="local_shipping" size="xs" class="q-mr-xs" />
-                  <span v-if="segment.carrier_name">{{ segment.carrier_name }}</span>
-                  <span v-if="segment.carrier_name && segment.tracking_ref" class="q-mx-xs">·</span>
-                  <span v-if="segment.tracking_ref" class="text-weight-medium">{{
-                    segment.tracking_ref
-                  }}</span>
-                  <q-btn
-                    v-if="segment.tracking_url"
-                    flat
-                    dense
-                    no-caps
-                    size="sm"
-                    color="primary"
-                    icon-right="open_in_new"
-                    label="Suivre le colis"
-                    type="a"
-                    :href="segment.tracking_url"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="q-ml-sm"
-                  />
-                </div>
-                <div v-if="segment.estimated_delivery">
-                  <q-icon name="event" size="xs" class="q-mr-xs" />
-                  Livraison estimée : {{ formatDate(segment.estimated_delivery) }}
-                </div>
-                <div v-if="segment.consolidation_id" class="text-grey-7">
-                  <q-icon name="inventory_2" size="xs" class="q-mr-xs" />
-                  Regroupé dans un envoi consolidé
-                </div>
-                <div v-if="customerNote(segment.notes)" class="text-grey-8">
-                  {{ customerNote(segment.notes) }}
-                </div>
+      <div class="order__layout">
+        <div class="order__main">
+          <section v-if="departure" class="app-section" data-testid="order-departure">
+            <div class="app-panel departure">
+              <q-icon name="ph:calendar-check" size="22px" class="departure__icon" />
+              <div>
+                <p class="departure__title">
+                  Départ groupé « {{ departure.name }} »
+                  <StatusTag tone="neutral" :label="departureStatusLabel(departure.status)" />
+                </p>
+                <p class="departure__text">
+                  Clôture des commandes le {{ formatDate(departure.order_cutoff_at) }}
+                  <template v-if="departure.estimated_delivery_at">
+                    · livraison estimée le {{ formatDate(departure.estimated_delivery_at) }}
+                  </template>
+                </p>
               </div>
-            </q-timeline-entry>
-          </q-timeline>
-        </q-card-section>
-      </q-card>
+            </div>
+          </section>
 
-      <!-- Consolidations -->
-      <q-card v-if="tracking.consolidations.length > 0" flat bordered class="q-mt-md">
-        <q-card-section>
-          <div class="text-subtitle1 text-weight-medium q-mb-sm">Envois consolidés</div>
-          <q-list dense>
-            <q-item v-for="c in tracking.consolidations" :key="c.id" class="q-px-none">
-              <q-item-section avatar><q-icon name="inventory_2" color="primary" /></q-item-section>
-              <q-item-section>
-                <q-item-label>{{ c.name }}</q-item-label>
-                <q-item-label caption>{{ c.consolidation_code }}</q-item-label>
-              </q-item-section>
-            </q-item>
-          </q-list>
-        </q-card-section>
-      </q-card>
+          <section v-if="lines.length" class="app-section" data-testid="order-lines">
+            <div class="app-section__head">
+              <h2 class="app-section__title">Articles</h2>
+            </div>
+            <ul class="app-rows">
+              <li v-for="line in lines" :key="line.product_id" class="app-row line">
+                <component
+                  :is="line.product_available ? 'router-link' : 'div'"
+                  :to="
+                    line.product_available
+                      ? { name: 'product-detail', params: { id: line.product_id } }
+                      : undefined
+                  "
+                  class="line__media"
+                  tabindex="-1"
+                  aria-hidden="true"
+                >
+                  <ProductImage :src="line.image_url" alt="" glyph-size="24px" />
+                </component>
+                <div class="app-row__main">
+                  <span v-if="line.manufacturer" class="line__brand">{{ line.manufacturer }}</span>
+                  <router-link
+                    v-if="line.product_available"
+                    :to="{ name: 'product-detail', params: { id: line.product_id } }"
+                    class="app-row__title"
+                  >
+                    {{ line.product_name }}
+                  </router-link>
+                  <span v-else class="app-row__title">{{ line.product_name }}</span>
+                  <span class="app-row__meta font-mono">
+                    {{ line.quantity }} × {{ money(line.unit_price) }}
+                  </span>
+                  <span v-if="line.serial_numbers.length" class="app-row__meta">
+                    N° de série :
+                    <span class="font-mono">{{ line.serial_numbers.join(', ') }}</span>
+                  </span>
+                  <span v-if="line.warranty_until" class="app-row__meta">
+                    Garantie {{ line.warranty_months }} mois, jusqu'au
+                    {{ formatDate(line.warranty_until) }}
+                  </span>
+                  <span v-else-if="line.warranty_months" class="app-row__meta">
+                    Garantie {{ line.warranty_months }} mois à compter de la remise
+                  </span>
+                </div>
+                <span class="font-mono line__total">
+                  {{ money(String(Number(line.unit_price) * line.quantity)) }}
+                </span>
+              </li>
+            </ul>
+          </section>
+
+          <section class="app-section">
+            <div class="app-section__head">
+              <h2 class="app-section__title">Acheminement</h2>
+              <span v-if="tracking.trackings.length" class="app-section__hint">
+                {{ shippingLabel(tracking.overall_status) }}
+              </span>
+            </div>
+
+            <div v-if="tracking.trackings.length === 0" class="app-empty legs__empty">
+              <q-icon name="ph:package" size="32px" class="text-subtle" />
+              <p>Les étapes d'expédition s'afficheront ici dès le départ de la commande.</p>
+            </div>
+
+            <ol v-else class="legs">
+              <li
+                v-for="segment in sortedSegments"
+                :key="segment.id"
+                class="leg"
+                :class="{
+                  'leg--current': segment.sequence_order === tracking.current_route_sequence,
+                }"
+              >
+                <span class="leg__dot" aria-hidden="true" />
+                <div class="leg__body">
+                  <span class="leg__title">{{
+                    legLabel(segment) ?? `Étape ${segment.sequence_order}`
+                  }}</span>
+                  <span v-if="segment.carrier_name || segment.tracking_ref" class="leg__meta">
+                    {{ segment.carrier_name }}
+                    <span v-if="segment.tracking_ref" class="font-mono">
+                      {{ segment.carrier_name ? '·' : '' }} {{ segment.tracking_ref }}
+                    </span>
+                    <a
+                      v-if="segment.tracking_url"
+                      :href="segment.tracking_url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="text-link leg__link"
+                    >
+                      Suivre le colis
+                      <q-icon name="ph:arrow-square-out" size="14px" />
+                    </a>
+                  </span>
+                  <span v-if="segment.estimated_delivery" class="leg__meta">
+                    Livraison estimée le {{ formatDate(segment.estimated_delivery) }}
+                  </span>
+                  <span v-if="segment.consolidation_id" class="leg__meta">
+                    Regroupé dans un envoi consolidé
+                  </span>
+                  <span v-if="customerNote(segment.notes)" class="leg__meta">
+                    {{ customerNote(segment.notes) }}
+                  </span>
+                  <span v-if="segment.last_status_update" class="leg__time">
+                    Mis à jour le {{ formatDateTime(segment.last_status_update) }}
+                  </span>
+                </div>
+              </li>
+            </ol>
+
+            <ul v-if="tracking.consolidations.length" class="app-rows consolidations">
+              <li v-for="c in tracking.consolidations" :key="c.id" class="app-row">
+                <q-icon name="ph:stack" size="20px" class="text-subtle" />
+                <div class="app-row__main">
+                  <span class="app-row__title">{{ c.name }}</span>
+                  <span class="app-row__meta font-mono">{{ c.consolidation_code }}</span>
+                </div>
+              </li>
+            </ul>
+          </section>
+        </div>
+
+        <aside v-if="order" class="order__aside" aria-label="Récapitulatif">
+          <div class="app-panel summary">
+            <h2 class="summary__title">Récapitulatif</h2>
+            <div class="app-kv">
+              <span>Sous-total</span>
+              <span class="font-mono">{{ money(order.subtotal_amount) }}</span>
+            </div>
+            <div class="app-kv">
+              <span>{{ deliveryLabel ?? 'Livraison' }}</span>
+              <span class="font-mono">{{ money(order.shipping_fee_amount) }}</span>
+            </div>
+            <div v-if="isPositiveAmount(order.payment_fee_amount)" class="app-kv">
+              <span>Frais de paiement</span>
+              <span class="font-mono">{{ money(order.payment_fee_amount) }}</span>
+            </div>
+            <div
+              v-if="order.discount_code && isPositiveAmount(order.discount_amount)"
+              class="app-kv app-kv--credit"
+            >
+              <span>Remise {{ order.discount_code }}</span>
+              <span class="font-mono">−{{ money(order.discount_amount ?? '0') }}</span>
+            </div>
+            <div class="app-kv app-kv--total">
+              <span>Total</span>
+              <span class="font-mono">{{ money(order.total_amount) }}</span>
+            </div>
+
+            <div
+              v-if="order.payment_plan === 'deposit'"
+              class="summary__block"
+              data-testid="order-deposit"
+            >
+              <div class="app-kv">
+                <span>Acompte versé</span>
+                <span class="font-mono">{{ money(order.deposit_amount) }}</span>
+              </div>
+              <div class="app-kv">
+                <span>
+                  Solde
+                  <StatusTag v-if="order.balance_paid_at" tone="ok" label="Réglé" />
+                  <StatusTag v-else-if="order.balance_due" tone="warn" label="À régler" />
+                </span>
+                <span class="font-mono">{{ money(order.balance_amount) }}</span>
+              </div>
+              <template v-if="!order.balance_paid_at">
+                <p class="summary__note">
+                  {{
+                    order.balance_due
+                      ? 'Vos articles sont arrivés : réglez le solde pour les récupérer.'
+                      : 'Le solde est demandé à la réception des articles ; il peut être réglé dès maintenant.'
+                  }}
+                </p>
+                <q-btn
+                  v-if="balancePayable && !linkToken"
+                  unelevated
+                  color="primary"
+                  :label="`Régler le solde · ${money(order.balance_amount)}`"
+                  class="summary__cta"
+                  :to="{ name: 'order-balance', params: { id: order.id } }"
+                  data-testid="order-pay-balance"
+                />
+                <p v-else-if="balancePayable" class="summary__note">
+                  Pour régler le solde, connectez-vous à votre espace client.
+                </p>
+              </template>
+            </div>
+
+            <dl class="summary__facts">
+              <template v-if="paymentMethod">
+                <dt>Paiement</dt>
+                <dd>{{ paymentMethod }}</dd>
+              </template>
+              <template v-if="order.shipping_address">
+                <dt>{{ order.delivery_type === 'pickup' ? 'Retrait' : 'Livraison' }}</dt>
+                <dd>{{ order.shipping_address }}</dd>
+              </template>
+            </dl>
+
+            <q-btn
+              v-if="invoice"
+              outline
+              color="primary"
+              icon="ph:file-pdf"
+              :label="`Facture ${invoice.invoice_number}`"
+              class="summary__cta"
+              :loading="downloadingInvoice"
+              data-testid="order-invoice"
+              @click="onDownloadInvoice"
+            />
+            <p v-if="invoiceError" class="summary__error">{{ invoiceError }}</p>
+          </div>
+        </aside>
+      </div>
     </template>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import StatusTag from '@/components/StatusTag.vue';
-import { toneOf } from '@/utils/statusTone';
-import AppNotice from '@/components/AppNotice.vue';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useMeta } from 'quasar';
 import { useRoute, useRouter } from 'vue-router';
-import { departureStatusLabel, formatXpf } from '@app/utils';
-import { useAuthStore } from '@/stores/auth';
+import { departureStatusLabel, formatDate, formatDateTime, orderRef } from '@app/utils';
+
+import AppNotice from '@/components/AppNotice.vue';
+import ProductImage from '@/components/ProductImage.vue';
+import StatusTag from '@/components/StatusTag.vue';
+import { getDeparture, type Departure } from '@/api/departures';
+import { downloadInvoicePdf, listMyInvoices, type Invoice } from '@/api/invoices';
 import {
   getMyOrder,
   getMyOrderLines,
   getMyOrderTracking,
   trackOrderByLink,
   type Order,
+  type OrderDetail,
   type OrderLine,
   type OrderTracking,
   type OrderTrackingSegment,
 } from '@/api/orders';
-import { getDeparture, type Departure } from '@/api/departures';
+import { useAuthStore } from '@/stores/auth';
+import { useCurrencyStore } from '@/stores/currency';
+import { apiErrorMessage } from '@/utils/errors';
+import { isPositiveAmount, orderMoney } from '@/utils/money';
+import { DELIVERY_TYPE_LABELS, deliveryFacet, paymentFacet } from '@/utils/orderStatus';
+import type { StatusTone } from '@/utils/statusTone';
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
+const currencyStore = useCurrencyStore();
 
 const orderId = computed(() => String(route.params.id ?? ''));
-// Signed link from the e-mails (`/suivi/:id?t=…`): read-only, no account.
+// Lien signé des e-mails (`/suivi/:id?t=…`) : lecture seule, sans compte.
 const linkToken = computed(() => {
   const raw = route.query.t;
   const t = Array.isArray(raw) ? raw[0] : raw;
   return typeof t === 'string' && t.length > 0 ? t : null;
 });
-const shortId = computed(() => orderId.value.slice(0, 8));
 
 const loading = ref(true);
 const errorMessage = ref<string | null>(null);
 const tracking = ref<OrderTracking | null>(null);
-const order = ref<Order | null>(null);
-// Grouped departure the order is attached to (best-effort, like the order).
+const order = ref<Order | OrderDetail | null>(null);
 const departure = ref<Departure | null>(null);
-// Products with their serial numbers and warranty end (best-effort too).
 const lines = ref<OrderLine[]>([]);
+const invoice = ref<Invoice | null>(null);
+const invoiceError = ref<string | null>(null);
+const downloadingInvoice = ref(false);
 
-const DELIVERY_LABELS: Record<string, string> = {
-  pickup: 'Retrait en magasin',
-  home_delivery: 'Livraison à domicile',
-  air_freight: 'Fret aérien',
-};
+const reference = computed(() => orderRef(order.value?.order_number, orderId.value));
+useMeta(() => ({ title: `Commande ${reference.value}` }));
+
+const paymentMethod = computed(() =>
+  order.value && 'payment_method_name' in order.value ? order.value.payment_method_name : null,
+);
+
 const deliveryLabel = computed(() => {
-  const dt = order.value?.delivery_type;
-  return dt ? (DELIVERY_LABELS[dt] ?? prettify(dt)) : null;
+  const type = order.value?.delivery_type;
+  return type ? (DELIVERY_TYPE_LABELS[type] ?? type) : null;
 });
 
 function money(raw: string): string {
-  const n = Number.parseFloat(raw);
-  return Number.isFinite(n) ? formatXpf(n) : raw;
+  return orderMoney(raw, order.value?.currency, currencyStore.reference);
 }
 
-// The balance can be settled once the deposit is in (any status past the
-// first payment), not only when it has been asked for.
+// Le solde peut se régler dès que l'acompte est encaissé, pas seulement
+// quand il est demandé.
 const UNPAID_STATUSES = new Set([
   'Pending',
   'AwaitingPayment',
@@ -346,18 +394,12 @@ const balancePayable = computed(() => {
     !UNPAID_STATUSES.has(o.order_status_name ?? '')
   );
 });
-function hasFee(raw: string): boolean {
-  return Number.parseFloat(raw) > 0;
-}
 
 const sortedSegments = computed(() =>
   [...(tracking.value?.trackings ?? [])].sort((a, b) => a.sequence_order - b.sequence_order),
 );
 
-// --------------------------------------------------------------------------
-// Status / scenario presentation (best-effort mapping with prettify fallback)
-// --------------------------------------------------------------------------
-const STATUS_LABELS: Record<string, string> = {
+const SHIPPING_LABELS: Record<string, string> = {
   unknown: 'En préparation',
   pending: 'En attente',
   preparing: 'En préparation',
@@ -371,36 +413,21 @@ const STATUS_LABELS: Record<string, string> = {
   returned: 'Retournée',
 };
 
-function prettify(code: string): string {
-  return code.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+function humanize(code: string): string {
+  const text = code.replace(/[_-]+/g, ' ').trim().toLowerCase();
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function statusLabel(code: string): string {
-  return STATUS_LABELS[code] ?? prettify(code);
+function shippingLabel(code: string): string {
+  return SHIPPING_LABELS[code] ?? humanize(code);
 }
 
-function statusColor(code: string): string {
-  if (code === 'delivered') return 'green';
-  if (code === 'cancelled' || code === 'returned' || code.endsWith('_failed')) return 'negative';
-  if (code === 'shipped' || code === 'in_transit' || code === 'out_for_delivery') return 'primary';
-  return 'grey-7';
+function shippingTone(code: string): StatusTone {
+  if (code === 'delivered') return 'ok';
+  if (code === 'cancelled' || code === 'returned' || code.endsWith('_failed')) return 'danger';
+  return 'neutral';
 }
 
-function statusIcon(code: string): string {
-  if (code === 'delivered') return 'check_circle';
-  if (code === 'cancelled' || code === 'returned' || code.endsWith('_failed')) return 'cancel';
-  if (code === 'shipped' || code === 'in_transit') return 'local_shipping';
-  if (code === 'out_for_delivery') return 'local_shipping';
-  if (code === 'customs') return 'gavel';
-  return 'schedule';
-}
-
-function segmentIcon(segment: OrderTrackingSegment): string {
-  if (segment.estimated_delivery) return 'local_shipping';
-  return 'place';
-}
-
-// Transport mode → customer-facing French label.
 const MODE_LABELS: Record<string, string> = {
   air: 'avion',
   sea: 'bateau',
@@ -408,7 +435,7 @@ const MODE_LABELS: Record<string, string> = {
   pickup: 'retrait',
 };
 
-/** e.g. "France → Papeete (avion)" — falls back to the route label or null. */
+/** « France → Papeete (avion) », sinon le libellé de la route. */
 function legLabel(segment: OrderTrackingSegment): string | null {
   const from = segment.from_place_name;
   const to = segment.to_place_name;
@@ -417,11 +444,8 @@ function legLabel(segment: OrderTrackingSegment): string | null {
   return mode ? `${from} → ${to} (${mode})` : `${from} → ${to}`;
 }
 
-/**
- * Only show genuine carrier notes. The public `notes` field historically also
- * received internal linkage metadata (e.g. "origin=checkout_selected_routes;
- * sequence=1") — those are not meaningful to the customer and are hidden.
- */
+/** Seules les vraies notes transporteur s'affichent, pas les métadonnées
+ * internes historiquement rangées au même endroit (« origin=…; sequence=1 »). */
 function customerNote(note: string | null): string | null {
   if (!note) return null;
   if (/\b(origin|segment|sequence|quantity)=/.test(note)) return null;
@@ -429,103 +453,355 @@ function customerNote(note: string | null): string | null {
 }
 
 const SCENARIO_LABELS: Record<string, string> = {
-  supplier_delay: 'Retard fournisseur signalé sur un tronçon.',
+  supplier_delay: 'Retard fournisseur signalé sur une étape.',
   parcel_split: 'Votre commande a été scindée en plusieurs colis.',
-  segment_failure: "Un incident est survenu sur un tronçon d'acheminement.",
+  segment_failure: "Un incident est survenu sur une étape d'acheminement.",
 };
 
 function scenarioLabel(code: string): string {
-  return SCENARIO_LABELS[code] ?? prettify(code);
+  return SCENARIO_LABELS[code] ?? humanize(code);
 }
 
-function formatDate(raw: string | null): string | null {
-  if (!raw) return null;
-  const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) return raw;
-  return d.toLocaleString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+const NOT_FOUND = {
+  notFound: 'Cette commande est introuvable.',
+  forbidden: "Vous n'avez pas accès à cette commande.",
+};
 
-function extractError(err: unknown): string | null {
-  if (typeof err === 'object' && err !== null && 'response' in err) {
-    const resp = (err as { response?: { status?: number; data?: unknown } }).response;
-    const data = resp?.data;
-    if (typeof data === 'object' && data !== null) {
-      const errorObj = (data as { error?: { message?: unknown } }).error;
-      if (errorObj && typeof errorObj.message === 'string') return errorObj.message;
-      const detail = (data as { detail?: unknown }).detail;
-      if (typeof detail === 'string') return detail;
-    }
-    if (resp?.status === 404) return 'Cette commande est introuvable.';
-    if (resp?.status === 403) return "Vous n'avez pas accès à cette commande.";
+async function onDownloadInvoice() {
+  if (!invoice.value) return;
+  downloadingInvoice.value = true;
+  invoiceError.value = null;
+  try {
+    await downloadInvoicePdf(invoice.value);
+  } catch (err) {
+    invoiceError.value = apiErrorMessage(err) ?? 'Le téléchargement de la facture a échoué.';
+  } finally {
+    downloadingInvoice.value = false;
   }
-  return null;
+}
+
+async function loadDeparture(id: string | null | undefined) {
+  departure.value = id ? await getDeparture(id).catch(() => null) : null;
 }
 
 async function loadFromLink(token: string) {
-  loading.value = true;
-  errorMessage.value = null;
   try {
     const tracked = await trackOrderByLink(orderId.value, token);
     tracking.value = tracked.tracking;
     order.value = tracked.order;
     lines.value = tracked.lines;
-    const departureId = tracked.order.grouped_departure_id;
-    departure.value = departureId ? await getDeparture(departureId).catch(() => null) : null;
+    await loadDeparture(tracked.order.grouped_departure_id);
   } catch (err) {
     errorMessage.value =
-      extractError(err) ?? 'Ce lien de suivi est invalide ou la commande est introuvable.';
-  } finally {
-    loading.value = false;
+      apiErrorMessage(err, NOT_FOUND) ??
+      'Ce lien de suivi est invalide ou la commande est introuvable.';
+  }
+}
+
+async function loadMine() {
+  // Le suivi porte la page ; la commande, les lignes et la facture sont
+  // chargées au mieux et ne la bloquent pas.
+  const [trackingResult, orderResult, linesResult, invoicesResult] = await Promise.allSettled([
+    getMyOrderTracking(orderId.value),
+    getMyOrder(orderId.value),
+    getMyOrderLines(orderId.value),
+    listMyInvoices(),
+  ]);
+  if (trackingResult.status === 'rejected') {
+    errorMessage.value =
+      apiErrorMessage(trackingResult.reason, NOT_FOUND) ??
+      'Impossible de charger le suivi de cette commande.';
+    return;
+  }
+  tracking.value = trackingResult.value;
+  lines.value = linesResult.status === 'fulfilled' ? linesResult.value : [];
+  if (invoicesResult.status === 'fulfilled') {
+    invoice.value = invoicesResult.value.find((i) => i.order_id === orderId.value) ?? null;
+  }
+  if (orderResult.status === 'fulfilled') {
+    order.value = orderResult.value;
+    await loadDeparture(orderResult.value.grouped_departure_id);
   }
 }
 
 async function load() {
-  loading.value = true;
-  errorMessage.value = null;
-  try {
-    // Tracking drives the page; the order (for the cost recap) is best-effort.
-    const [trackingResult, orderResult, linesResult] = await Promise.allSettled([
-      getMyOrderTracking(orderId.value),
-      getMyOrder(orderId.value),
-      getMyOrderLines(orderId.value),
-    ]);
-    if (trackingResult.status === 'fulfilled') {
-      tracking.value = trackingResult.value;
-    } else {
-      throw trackingResult.reason;
-    }
-    lines.value = linesResult.status === 'fulfilled' ? linesResult.value : [];
-    if (orderResult.status === 'fulfilled') {
-      order.value = orderResult.value;
-      const departureId = orderResult.value?.grouped_departure_id;
-      departure.value = departureId ? await getDeparture(departureId).catch(() => null) : null;
-    }
-  } catch (err) {
-    errorMessage.value = extractError(err) ?? 'Impossible de charger le suivi de cette commande.';
-  } finally {
-    loading.value = false;
-  }
-}
-
-onMounted(async () => {
   const token = linkToken.value;
-  if (token) {
-    await loadFromLink(token);
-    return;
-  }
-  if (!authStore.isAuthenticated) {
+  if (!token && !authStore.isAuthenticated) {
     await router.replace({
       name: 'login',
       query: { redirect: `/mon-compte/commandes/${orderId.value}` },
     });
     return;
   }
-  await load();
+  loading.value = true;
+  errorMessage.value = null;
+  tracking.value = null;
+  order.value = null;
+  lines.value = [];
+  invoice.value = null;
+  departure.value = null;
+  if (token) await loadFromLink(token);
+  else await loadMine();
+  loading.value = false;
+}
+
+onMounted(load);
+// Le routeur réutilise le composant d'une commande à l'autre.
+watch(orderId, (next, previous) => {
+  if (next && next !== previous) void load();
 });
 </script>
+
+<style scoped lang="scss">
+.order__back {
+  margin-bottom: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--n-ink-2);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--n-accent);
+  }
+}
+
+.order__loading {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.order__head {
+  margin-bottom: 32px;
+}
+
+.order__ref {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.order__date {
+  margin: 8px 0 0;
+  color: var(--n-ink-2);
+}
+
+.order__tags {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  .status-tag + .status-tag {
+    margin-left: 0;
+  }
+}
+
+.order__notice {
+  margin-bottom: 16px;
+}
+
+.order__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 64px;
+  align-items: start;
+
+  @media (max-width: 1023px) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+  }
+}
+
+.order__aside {
+  position: sticky;
+  top: 88px;
+
+  @media (max-width: 1023px) {
+    position: static;
+    order: -1;
+  }
+}
+
+.departure {
+  display: flex;
+  gap: 14px;
+}
+
+.departure__icon {
+  flex-shrink: 0;
+  color: var(--n-ink-2);
+}
+
+.departure__title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.departure__text {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--n-ink-2);
+}
+
+.line {
+  align-items: flex-start;
+}
+
+.line__media {
+  flex-shrink: 0;
+  width: 72px;
+  display: block;
+}
+
+.line__brand {
+  font-size: 13px;
+  color: var(--n-ink-2);
+}
+
+.line__total {
+  flex-shrink: 0;
+  font-weight: 600;
+  white-space: nowrap;
+
+  @media (max-width: 599px) {
+    margin-left: 86px;
+  }
+}
+
+.legs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legs__empty p {
+  margin: 0;
+}
+
+.leg {
+  position: relative;
+  padding: 0 0 28px 28px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 16px;
+    bottom: 0;
+    width: 1px;
+    background: var(--n-line-2);
+  }
+
+  &:last-child {
+    padding-bottom: 0;
+
+    &::before {
+      display: none;
+    }
+  }
+}
+
+.leg__dot {
+  position: absolute;
+  left: 0;
+  top: 5px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--n-ink-3);
+  border-radius: 999px;
+  background: var(--n-bg);
+
+  .leg--current & {
+    border-color: var(--n-accent);
+    background: var(--n-accent);
+  }
+}
+
+.leg__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.leg__title {
+  font-weight: 500;
+}
+
+.leg__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--n-ink-2);
+}
+
+.leg__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.leg__time {
+  font-size: 12px;
+  color: var(--n-ink-3);
+}
+
+.consolidations {
+  margin-top: 24px;
+}
+
+.summary__title {
+  margin: 0 0 16px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.summary__block {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--n-line-2);
+}
+
+.summary__note {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--n-ink-2);
+}
+
+.summary__cta {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 16px;
+}
+
+.summary__facts {
+  margin: 20px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--n-line-2);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  font-size: 14px;
+
+  dt {
+    color: var(--n-ink-3);
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
+.summary__error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--n-danger);
+}
+</style>

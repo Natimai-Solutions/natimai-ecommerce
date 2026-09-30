@@ -1,107 +1,92 @@
 <template>
-  <q-page class="balance-payment-page page-container app-page">
-    <div class="row items-center q-mb-md">
-      <div class="col">
-        <h1 class="page-title">Régler le solde</h1>
-        <div class="text-caption text-grey-7">Commande {{ orderLabel }}</div>
-      </div>
-      <q-btn
-        flat
-        color="primary"
-        icon="arrow_back"
-        label="Suivi de commande"
-        :to="{ name: 'order-tracking', params: { id: orderId } }"
-      />
+  <q-page class="balance page-container app-page">
+    <router-link :to="{ name: 'order-tracking', params: { id: orderId } }" class="balance__back">
+      <q-icon name="ph:arrow-left" size="16px" /> Commande {{ orderLabel }}
+    </router-link>
+    <h1 class="page-title balance__title">Régler le solde</h1>
+
+    <div v-if="loading" aria-busy="true">
+      <q-skeleton type="text" width="40%" /><q-skeleton type="text" width="60%" />
     </div>
 
-    <div v-if="loading" class="text-center q-pa-xl">
-      <q-spinner color="primary" size="2.5em" />
-    </div>
-
-    <AppNotice v-else-if="errorMessage" tone="error">
-      {{ errorMessage }}
-    </AppNotice>
+    <AppNotice v-else-if="errorMessage && !order" tone="error">{{ errorMessage }}</AppNotice>
 
     <template v-else-if="order">
       <AppNotice v-if="nothingDue" tone="success" data-testid="balance-settled">
         Cette commande est intégralement réglée.
+        <template #action>
+          <q-btn
+            flat
+            label="Voir la commande"
+            :to="{ name: 'order-tracking', params: { id: order.id } }"
+          />
+        </template>
       </AppNotice>
 
-      <div v-else class="row q-col-gutter-md">
-        <div class="col-12 col-md-5">
-          <q-card flat bordered>
-            <q-card-section>
-              <div class="text-subtitle1 text-weight-medium q-mb-sm">Récapitulatif</div>
-              <div class="row justify-between q-mb-xs">
-                <span>Total de la commande</span><span>{{ money(order.total_amount) }}</span>
-              </div>
-              <div class="row justify-between q-mb-xs">
-                <span>Acompte déjà versé</span><span>{{ money(order.deposit_amount) }}</span>
-              </div>
-              <q-separator class="q-my-sm" />
-              <div class="row justify-between text-weight-bold">
-                <span>Solde à régler</span>
-                <span data-testid="balance-amount">{{ money(order.balance_amount) }}</span>
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
+      <div v-else class="balance__layout">
+        <section class="balance__main">
+          <AppNotice v-if="errorMessage" tone="error" class="q-mb-md">{{ errorMessage }}</AppNotice>
 
-        <div class="col-12 col-md-7">
-          <q-card flat bordered>
-            <q-card-section>
-              <div class="text-subtitle1 text-weight-medium q-mb-md">Paiement du solde</div>
+          <template v-if="instructions">
+            <AppNotice tone="success" class="q-mb-md">
+              Votre demande de règlement a bien été enregistrée.
+            </AppNotice>
+            <p class="balance__instructions">{{ instructions }}</p>
+            <q-btn
+              outline
+              color="primary"
+              label="Retour à la commande"
+              :to="{ name: 'order-tracking', params: { id: order.id } }"
+            />
+          </template>
 
-              <template v-if="instructions">
-                <AppNotice tone="success" class="q-mb-md">
-                  Votre demande de règlement a bien été enregistrée.
-                </AppNotice>
-                <div class="text-body2" style="white-space: pre-line">{{ instructions }}</div>
-              </template>
+          <template v-else-if="!formToken">
+            <div class="app-section__head">
+              <h2 class="app-section__title">Moyen de paiement</h2>
+            </div>
+            <AppNotice v-if="methods.length === 0" tone="warning">
+              Aucun moyen de paiement n'est disponible pour votre compte. Contactez notre équipe.
+            </AppNotice>
+            <ChoiceList
+              v-else
+              v-model="selectedMethodId"
+              label="Moyen de paiement"
+              :options="methodChoices"
+            />
+            <q-btn
+              data-testid="balance-submit"
+              unelevated
+              color="primary"
+              :label="`Régler ${money(order.balance_amount)}`"
+              class="balance__submit"
+              :loading="initiating"
+              :disable="!selectedMethodId || initiating"
+              @click="pay"
+            />
+          </template>
 
-              <template v-else-if="!formToken">
-                <AppNotice v-if="methods.length === 0" tone="warning">
-                  Aucun moyen de paiement n'est disponible pour votre compte. Veuillez contacter
-                  notre équipe.
-                </AppNotice>
-                <q-list v-else bordered separator class="rounded-borders q-mb-md">
-                  <q-item
-                    v-for="m in methods"
-                    :key="m.id"
-                    v-ripple
-                    clickable
-                    :active="selectedMethodId === m.id"
-                    active-class="bg-tile"
-                    @click="selectedMethodId = m.id"
-                  >
-                    <q-item-section avatar>
-                      <q-radio v-model="selectedMethodId" :val="m.id" />
-                    </q-item-section>
-                    <q-item-section>
-                      <q-item-label>{{ m.name }}</q-item-label>
-                      <q-item-label v-if="m.description" caption>{{ m.description }}</q-item-label>
-                    </q-item-section>
-                  </q-item>
-                </q-list>
-                <q-btn
-                  data-testid="balance-submit"
-                  color="primary"
-                  icon="payments"
-                  :label="`Régler ${money(order.balance_amount)}`"
-                  size="lg"
-                  class="full-width"
-                  :loading="initiating"
-                  :disable="!selectedMethodId || initiating"
-                  @click="pay"
-                />
-              </template>
+          <div v-show="formToken" class="balance__card-form">
+            <div id="kr-smart-form-container" />
+          </div>
+        </section>
 
-              <div v-show="formToken">
-                <div id="kr-smart-form-container" />
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
+        <aside class="app-panel balance__summary" aria-label="Récapitulatif">
+          <h2 class="balance__summary-title">Récapitulatif</h2>
+          <div class="app-kv">
+            <span>Total de la commande</span>
+            <span class="font-mono">{{ money(order.total_amount) }}</span>
+          </div>
+          <div class="app-kv">
+            <span>Acompte déjà versé</span>
+            <span class="font-mono">{{ money(order.deposit_amount) }}</span>
+          </div>
+          <div class="app-kv app-kv--total">
+            <span>Solde à régler</span>
+            <span class="font-mono" data-testid="balance-amount">{{
+              money(order.balance_amount)
+            }}</span>
+          </div>
+        </aside>
       </div>
     </template>
   </q-page>
@@ -109,17 +94,23 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import AppNotice from '@/components/AppNotice.vue';
 import { useRoute, useRouter } from 'vue-router';
-import { formatXpf, orderRef } from '@app/utils';
+import { orderRef } from '@app/utils';
+
+import AppNotice from '@/components/AppNotice.vue';
+import ChoiceList, { type ChoiceOption } from '@/components/ChoiceList.vue';
 import { useAuthStore } from '@/stores/auth';
+import { useCurrencyStore } from '@/stores/currency';
 import { getMyOrder, type Order } from '@/api/orders';
+import { apiErrorMessage } from '@/utils/errors';
+import { orderMoney } from '@/utils/money';
 import { initiatePayment, listMyPaymentMethods, type PaymentMethod } from '@/api/payments';
 import { PENDING_PAYMENT_KEY, loadPayzenSmartForm } from '@/utils/payzen';
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
+const currencyStore = useCurrencyStore();
 
 const orderId = computed(() => String(route.params.id ?? ''));
 const loading = ref(true);
@@ -143,20 +134,17 @@ const nothingDue = computed(
 );
 
 function money(raw: string): string {
-  const n = Number.parseFloat(raw);
-  return Number.isFinite(n) ? formatXpf(n) : raw;
+  return orderMoney(raw, order.value?.currency, currencyStore.reference);
 }
 
-function extractError(err: unknown): string | null {
-  if (err && typeof err === 'object' && 'response' in err) {
-    const data = (err as { response?: { data?: unknown } }).response?.data;
-    if (typeof data === 'object' && data !== null) {
-      const errorObj = (data as { error?: { message?: unknown } }).error;
-      if (errorObj && typeof errorObj.message === 'string') return errorObj.message;
-    }
-  }
-  return null;
-}
+const methodChoices = computed<ChoiceOption[]>(() =>
+  methods.value.map((m) => ({
+    value: m.id,
+    title: m.name,
+    caption: m.description,
+    testid: `balance-method-${m.provider_code}`,
+  })),
+);
 
 async function pay() {
   if (!order.value || !selectedMethodId.value) return;
@@ -167,7 +155,7 @@ async function pay() {
     const result = await initiatePayment({
       payment_method_id: selectedMethodId.value,
       amount: order.value.balance_amount,
-      currency: order.value.currency ?? 'XPF',
+      currency: order.value.currency ?? currencyStore.reference,
       order_id: order.value.id,
       return_url: returnUrl,
     });
@@ -188,7 +176,8 @@ async function pay() {
     }
     errorMessage.value = "Le moyen de paiement sélectionné n'est pas disponible pour le moment.";
   } catch (err) {
-    errorMessage.value = extractError(err) ?? 'Le règlement du solde a échoué. Veuillez réessayer.';
+    errorMessage.value =
+      apiErrorMessage(err) ?? 'Le règlement du solde a échoué. Veuillez réessayer.';
   } finally {
     initiating.value = false;
   }
@@ -204,18 +193,80 @@ onMounted(async () => {
   }
   try {
     order.value = await getMyOrder(orderId.value);
-    if (!order.value) {
-      errorMessage.value = 'Cette commande est introuvable.';
-      return;
-    }
     if (!nothingDue.value) {
       methods.value = await listMyPaymentMethods(Number.parseFloat(order.value.balance_amount));
       selectedMethodId.value = methods.value[0]?.id ?? null;
     }
   } catch (err) {
-    errorMessage.value = extractError(err) ?? 'Impossible de charger cette commande.';
+    errorMessage.value =
+      apiErrorMessage(err, { notFound: 'Cette commande est introuvable.' }) ??
+      'Impossible de charger cette commande.';
   } finally {
     loading.value = false;
   }
 });
 </script>
+
+<style scoped lang="scss">
+.balance__back {
+  margin-bottom: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--n-ink-2);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--n-accent);
+  }
+}
+
+.balance__title {
+  margin-bottom: 32px;
+}
+
+.balance__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 64px;
+  align-items: start;
+
+  @media (max-width: 1023px) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+  }
+}
+
+.balance__summary {
+  position: sticky;
+  top: 88px;
+
+  @media (max-width: 1023px) {
+    position: static;
+    order: -1;
+  }
+}
+
+.balance__summary-title {
+  margin: 0 0 16px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.balance__submit {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 24px;
+}
+
+.balance__instructions {
+  margin: 0 0 20px;
+  white-space: pre-line;
+  line-height: 1.6;
+}
+
+.balance__card-form {
+  max-width: 480px;
+}
+</style>

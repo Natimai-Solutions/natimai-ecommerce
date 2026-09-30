@@ -24,6 +24,8 @@ from app.features.order.crud.order_crud import crud_order
 from app.features.order.models.order import Order, OrderPublic
 from app.features.order.models.order_status import OrderStatus
 from app.features.order.services.tracking_link import verify_order_tracking_token
+from app.features.payment.models.payment import Payment
+from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.services.deposit import balance_amount, balance_due
 from app.features.shipping.crud import (
     crud_shipping_route_tracking,
@@ -145,6 +147,45 @@ async def _my_order_or_error(
             details={"order_id": str(order_id)},
         )
     return order
+
+
+class MyOrderDetail(MyOrderPublic):
+    """One order for its detail page: the summary plus how it was paid."""
+
+    payment_method_name: str | None = None
+
+
+async def _payment_method_name(session: SessionDep, order_id: uuid.UUID) -> str | None:
+    """Name of the payment method of the order's most recent payment."""
+    result = await session.exec(
+        select(PaymentMethod.name)
+        .join(Payment, col(Payment.payment_method_id) == col(PaymentMethod.id))
+        .where(col(Payment.order_id) == order_id)
+        .order_by(col(Payment.created_at).desc().nulls_last())
+        .limit(1)
+    )
+    return result.first()
+
+
+@router.get(
+    "/me/{order_id}",
+    response_model=MyOrderDetail,
+    summary="One of my orders",
+)
+async def get_my_order(
+    order_id: uuid.UUID, session: SessionDep, current_user: CurrentUser
+) -> MyOrderDetail:
+    """A single order of the authenticated user, with its status name and the
+    payment method used. Replaces reloading the whole list to find one."""
+    order = await _my_order_or_error(session, order_id, current_user)
+    item = MyOrderDetail.model_validate(order)
+    if order.order_status_id:
+        status = await session.get(OrderStatus, order.order_status_id)
+        item.order_status_name = status.name if status else None
+    item.balance_amount = balance_amount(order)
+    item.balance_due = balance_due(order)
+    item.payment_method_name = await _payment_method_name(session, order.id)
+    return item
 
 
 @router.get(

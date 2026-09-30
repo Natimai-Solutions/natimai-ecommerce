@@ -370,22 +370,6 @@ onMounted(async () => {
   font-weight: 500;
 }
 
-.text-link {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--n-ink-2);
-  font: inherit;
-  font-size: 13px;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    color: var(--n-accent);
-  }
-}
-
 .cart__summary {
   position: sticky;
   top: 88px;

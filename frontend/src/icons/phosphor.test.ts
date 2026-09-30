@@ -31,7 +31,7 @@ function iconNamesInSource(): Map<string, string> {
   };
   for (const file of sourceFiles(srcDir)) {
     const text = readFileSync(file, 'utf8');
-    for (const m of text.matchAll(/<q-icon[^>]*?\sname="([a-z0-9_]+)"/g)) add(m[1] ?? '', file);
+    for (const m of text.matchAll(/<q-icon[^>]*?\sname="([a-z0-9_:-]+)"/g)) add(m[1] ?? '', file);
     for (const m of text.matchAll(/\s(?:icon|icon-right)="([a-z0-9_:-]+)"/g)) add(m[1] ?? '', file);
     for (const m of text.matchAll(
       /:(?:icon|name)="[^"]*\?\s*'([a-z0-9_:-]+)'\s*:\s*'([a-z0-9_:-]+)'/g,
@@ -55,9 +55,12 @@ describe('MATERIAL_TO_PHOSPHOR', () => {
 
   it('couvre toutes les icônes utilisées par la vitrine', () => {
     const used = iconNamesInSource();
-    // Garde-fou : le scan doit réellement trouver les icônes des pages.
+    // Garde-fou : le scan doit réellement trouver les icônes des pages. Les
+    // pages refondues nomment Phosphor directement (`ph:…`) : ces noms-là
+    // sont vérifiés aussi, une faute de frappe y donnerait un glyphe vide.
     expect(used.size).toBeGreaterThan(40);
-    expect(used.has('local_shipping')).toBe(true);
+    expect(used.has('ph:list')).toBe(true);
+    expect(used.has('ph:map-pin')).toBe(true);
     const missing = [...used].filter(([name]) => {
       const resolved = resolvePhosphorName(name);
       return resolved === null || !phosphorNames.has(resolved);

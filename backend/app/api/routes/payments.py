@@ -84,8 +84,12 @@ _WEBHOOK_RECEIVED_EVENT = "payment.webhook_received"
 _PAYMENT_STATUS_COMPLETED = "Completed"
 _PAYMENT_STATUS_FAILED = "Failed"
 _PAYMENT_STATUS_AUTHORIZED = "Authorized"
+# Statuses after which the storefront stops polling the payment. An
+# authorisation (deferred capture) is final for the customer: the card is
+# accepted, the debit happens later from the back office. Leaving it out made
+# the return page wait two minutes and then report a timeout.
 _TERMINAL_PAYMENT_STATUS_NAMES: frozenset[str] = frozenset(
-    {_PAYMENT_STATUS_COMPLETED, _PAYMENT_STATUS_FAILED}
+    {_PAYMENT_STATUS_COMPLETED, _PAYMENT_STATUS_FAILED, _PAYMENT_STATUS_AUTHORIZED}
 )
 # Payment statuses meaning "this order has already been charged". The order
 # status alone cannot be trusted here: it only flips to Paid asynchronously

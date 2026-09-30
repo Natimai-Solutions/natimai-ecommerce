@@ -400,6 +400,11 @@ class MyOrderLine(BaseModel):
     serial_numbers: list[str] = []
     warranty_months: int | None = None
     warranty_until: datetime | None = None
+    # Picture and brand for the order screens; `product_available` tells the
+    # storefront whether the product page still exists to link to.
+    image_url: str | None = None
+    manufacturer: str | None = None
+    product_available: bool = False
 
 
 async def customer_lines(session: AsyncSession, order: Order) -> list[MyOrderLine]:
@@ -440,6 +445,9 @@ async def customer_lines(session: AsyncSession, order: Order) -> list[MyOrderLin
                     if since and product.warranty_months
                     else None
                 ),
+                image_url=product.image_url or product.supplier_image_url,
+                manufacturer=product.manufacturer,
+                product_available=bool(product.is_active and product.is_admin_active),
             )
         )
     return items

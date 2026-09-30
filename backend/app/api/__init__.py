@@ -79,6 +79,7 @@ from app.api.routes.user_review import (
     router as user_review_router,
 )
 from app.api.routes.user_wishlist import router as user_wishlist_router
+from app.api.routes.users_me import router as users_me_router
 from app.api.routes.utils import router as utils_router
 from app.api.routes.webhooks import router as webhooks_router
 
@@ -137,6 +138,7 @@ api_router.include_router(user_review_router)
 api_router.include_router(user_notification_router)
 api_router.include_router(user_wishlist_router)
 api_router.include_router(user_preferences_router)
+api_router.include_router(users_me_router)
 api_router.include_router(group_upgrade_router)
 api_router.include_router(system_settings_router)
 api_router.include_router(currency_router)

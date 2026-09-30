@@ -3935,6 +3935,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orders/me/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One of my orders
+         * @description A single order of the authenticated user, with its status name and the
+         *     payment method used. Replaces reloading the whole list to find one.
+         */
+        get: operations["order-get_my_order"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orders/me/{order_id}/lines": {
         parameters: {
             query?: never;
@@ -4971,6 +4992,55 @@ export interface paths {
          */
         put: operations["user-update_my_preferences"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My profile
+         * @description Identity of the signed-in customer.
+         */
+        get: operations["user-get_my_profile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit my profile
+         * @description Update the name and phone number. Fields left out are unchanged.
+         */
+        patch: operations["user-update_my_profile"];
+        trace?: never;
+    };
+    "/api/v1/users/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change my password
+         * @description Replace the password after checking the current one.
+         *
+         *     Every open session is closed afterwards, the current one included: the
+         *     customer signs in again with the new password. An account created through
+         *     Google / Microsoft has no password it knows of; « mot de passe oublié »
+         *     sets one.
+         */
+        post: operations["user-change_my_password"];
         delete?: never;
         options?: never;
         head?: never;
@@ -11743,6 +11813,179 @@ export interface components {
             task_id?: string | null;
         };
         /**
+         * MyOrderDetail
+         * @description One order for its detail page: the summary plus how it was paid.
+         */
+        MyOrderDetail: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * User Id
+             * Format: uuid
+             * @description ID de l'utilisateur qui a passé la commande
+             */
+            user_id: string;
+            /**
+             * Order Status Id
+             * Format: uuid
+             * @description ID du statut de la commande
+             */
+            order_status_id: string;
+            /**
+             * Total Amount
+             * @description Montant total de la commande
+             * @default 0.00
+             */
+            total_amount: string;
+            /**
+             * Subtotal Amount
+             * @description Sous-total des lignes au checkout
+             * @default 0.00
+             */
+            subtotal_amount: string;
+            /**
+             * Shipping Fee Amount
+             * @description Frais de livraison figes au checkout
+             * @default 0.00
+             */
+            shipping_fee_amount: string;
+            /**
+             * Payment Fee Amount
+             * @description Frais de paiement figes au checkout
+             * @default 0.00
+             */
+            payment_fee_amount: string;
+            /**
+             * Total Fees Amount
+             * @description Total des frais figes au checkout
+             * @default 0.00
+             */
+            total_fees_amount: string;
+            /**
+             * Discount Id
+             * @description Remise appliquée au checkout (code promo)
+             */
+            discount_id?: string | null;
+            /**
+             * Discount Code
+             * @description Code promo tel que saisi (figé, même si la remise change)
+             */
+            discount_code?: string | null;
+            /**
+             * Discount Amount
+             * @description Remise totale déduite des articles au checkout
+             * @default 0.00
+             */
+            discount_amount: string;
+            /**
+             * Currency
+             * @description Devise de facturation figée au checkout (null pour les commandes antérieures — on retombe alors sur la devise du paiement)
+             */
+            currency?: string | null;
+            /**
+             * Shipping Address
+             * @description Adresse de livraison
+             */
+            shipping_address?: string | null;
+            /**
+             * Shipping Cost Breakdown
+             * @description Snapshot detaille des couts de livraison par troncon au checkout (routes selectionnees, forfait/poids/valeur, ETA, empreinte carbone)
+             */
+            shipping_cost_breakdown?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Notes
+             * @description Notes sur la commande
+             */
+            notes?: string | null;
+            /**
+             * Delivery Type
+             * @description Mode de livraison du dernier tronçon choisi au checkout
+             */
+            delivery_type?: string | null;
+            /**
+             * Grouped Departure Id
+             * @description Départ groupé de rattachement
+             */
+            grouped_departure_id?: string | null;
+            /**
+             * Cgv Accepted At
+             * @description Horodatage UTC de l'acceptation des CGV au checkout
+             */
+            cgv_accepted_at?: string | null;
+            /**
+             * Cgv Version
+             * @description Version des CGV acceptée au checkout
+             */
+            cgv_version?: string | null;
+            /**
+             * Payment Plan
+             * @description full | deposit
+             * @default full
+             */
+            payment_plan: string;
+            /**
+             * Deposit Amount
+             * @description Acompte versé à la commande (0 en plan full)
+             * @default 0.00
+             */
+            deposit_amount: string;
+            /**
+             * Deposit Fee Amount
+             * @description Frais de l'option acompte, inclus dans total_fees_amount
+             * @default 0.00
+             */
+            deposit_fee_amount: string;
+            /**
+             * Balance Requested At
+             * @description Envoi de la demande de solde au client
+             */
+            balance_requested_at?: string | null;
+            /**
+             * Balance Paid At
+             * @description Encaissement du solde
+             */
+            balance_paid_at?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Order Number */
+            order_number?: string | null;
+            /** Order Status Name */
+            order_status_name?: string | null;
+            /**
+             * Balance Amount
+             * @default 0.00
+             */
+            balance_amount: string;
+            /**
+             * Balance Due
+             * @default false
+             */
+            balance_due: boolean;
+            /** Payment Method Name */
+            payment_method_name?: string | null;
+        };
+        /**
          * MyOrderLine
          * @description An order line as the customer sees it: product, serials, warranty.
          */
@@ -11767,6 +12010,15 @@ export interface components {
             warranty_months?: number | null;
             /** Warranty Until */
             warranty_until?: string | null;
+            /** Image Url */
+            image_url?: string | null;
+            /** Manufacturer */
+            manufacturer?: string | null;
+            /**
+             * Product Available
+             * @default false
+             */
+            product_available: boolean;
         };
         /**
          * MyOrderPublic
@@ -11938,6 +12190,50 @@ export interface components {
              * @default false
              */
             balance_due: boolean;
+        };
+        /**
+         * MyPasswordChange
+         * @description Change the password while signed in: the current one is required.
+         */
+        MyPasswordChange: {
+            /** Current Password */
+            current_password: string;
+            /** New Password */
+            new_password: string;
+        };
+        /**
+         * MyProfilePublic
+         * @description What the customer sees of their own account.
+         */
+        MyProfilePublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Email */
+            email: string;
+            /** Full Name */
+            full_name?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /**
+             * Is Verified
+             * @default false
+             */
+            is_verified: boolean;
+            /** Created At */
+            created_at?: string | null;
+        };
+        /**
+         * MyProfileUpdate
+         * @description Editable identity fields. An empty string clears the field.
+         */
+        MyProfileUpdate: {
+            /** Full Name */
+            full_name?: string | null;
+            /** Phone */
+            phone?: string | null;
         };
         /**
          * MyQuoteItem
@@ -27107,6 +27403,37 @@ export interface operations {
             };
         };
     };
+    "order-get_my_order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyOrderDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "order-get_my_order_lines": {
         parameters: {
             query?: never;
@@ -29505,6 +29832,90 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["UserPreferencePublic"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "user-get_my_profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyProfilePublic"];
+                };
+            };
+        };
+    };
+    "user-update_my_profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MyProfileUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyProfilePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "user-change_my_password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MyPasswordChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -1,47 +1,65 @@
 <template>
-  <q-page class="payment-return-page flex flex-center">
-    <div class="text-center q-pa-xl" style="max-width: 480px">
-      <!-- Polling in progress -->
+  <q-page class="page-container">
+    <div class="app-result" aria-live="polite">
       <template v-if="state === 'polling'">
-        <q-spinner color="primary" size="3em" class="q-mb-md" />
-        <div class="text-h6 q-mb-sm">Vérification du paiement…</div>
-        <div class="text-body2 text-grey-7">
-          Merci de patienter, nous vérifions votre transaction.
-        </div>
+        <q-spinner size="44px" class="app-result__icon" />
+        <h1>Vérification du paiement</h1>
+        <p>Merci de patienter, nous confirmons la transaction auprès de la banque.</p>
       </template>
 
-      <!-- Success -->
       <template v-else-if="state === 'success'">
-        <q-icon name="check_circle" color="positive" size="4em" class="q-mb-md" />
-        <div class="text-h6 q-mb-sm">Paiement accepté !</div>
-        <div class="text-body2 text-grey-7 q-mb-lg">
-          Votre commande a bien été enregistrée. Vous recevrez une confirmation par email.
+        <q-icon name="ph:check-circle" size="52px" class="app-result__icon app-result__icon--ok" />
+        <h1>{{ authorizedOnly ? 'Paiement autorisé' : 'Paiement accepté' }}</h1>
+        <p>
+          <template v-if="authorizedOnly">
+            Votre carte est acceptée ; le débit aura lieu à l'expédition de la commande.
+          </template>
+          <template v-else>Votre commande est enregistrée.</template>
+          Une confirmation vous est envoyée par e-mail.
+        </p>
+        <div class="app-result__actions">
+          <q-btn
+            v-if="orderId"
+            unelevated
+            color="primary"
+            label="Voir ma commande"
+            :to="{ name: 'order-tracking', params: { id: orderId } }"
+          />
+          <q-btn outline color="primary" label="Continuer mes achats" :to="{ name: 'catalogue' }" />
         </div>
-        <q-btn color="primary" label="Retour au catalogue" :to="{ name: 'catalogue' }" />
       </template>
 
-      <!-- Failure -->
       <template v-else-if="state === 'failure'">
-        <q-icon name="cancel" color="negative" size="4em" class="q-mb-md" />
-        <div class="text-h6 q-mb-sm">Paiement refusé</div>
-        <div class="text-body2 text-grey-7 q-mb-lg">
-          Votre paiement n'a pas pu être traité. Vous pouvez réessayer ou contacter notre équipe.
-        </div>
-        <div class="row q-gutter-sm justify-center">
-          <q-btn outline color="primary" label="Réessayer" :to="{ name: 'checkout' }" />
-          <q-btn flat color="grey-7" label="Retour au panier" :to="{ name: 'cart' }" />
+        <q-icon name="ph:x-circle" size="52px" class="app-result__icon app-result__icon--danger" />
+        <h1>Paiement refusé</h1>
+        <p>
+          La transaction n'a pas abouti et rien n'a été débité. Vous pouvez réessayer, choisir un
+          autre moyen de paiement ou contacter notre équipe.
+        </p>
+        <div class="app-result__actions">
+          <q-btn
+            v-if="orderId"
+            unelevated
+            color="primary"
+            label="Voir la commande"
+            :to="{ name: 'order-tracking', params: { id: orderId } }"
+          />
+          <q-btn outline color="primary" label="Retour au panier" :to="{ name: 'cart' }" />
         </div>
       </template>
 
-      <!-- Error (no payment id, network error, timeout) -->
-      <template v-else-if="state === 'error'">
-        <q-icon name="warning" color="warning" size="4em" class="q-mb-md" />
-        <div class="text-h6 q-mb-sm">Vérification impossible</div>
-        <div class="text-body2 text-grey-7 q-mb-lg">
-          {{ errorMessage }}
-        </div>
-        <div class="row q-gutter-sm justify-center">
-          <q-btn color="primary" label="Retour au panier" :to="{ name: 'cart' }" />
+      <template v-else>
+        <q-icon name="ph:warning" size="52px" class="app-result__icon app-result__icon--warn" />
+        <h1>Vérification impossible</h1>
+        <p>{{ errorMessage }}</p>
+        <div class="app-result__actions">
+          <q-btn
+            unelevated
+            color="primary"
+            label="Mes commandes"
+            :to="{ name: 'account', query: { tab: 'orders' } }"
+          />
+          <q-btn outline color="primary" label="Retour au panier" :to="{ name: 'cart' }" />
         </div>
       </template>
     </div>
@@ -52,8 +70,7 @@
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { getMyPaymentStatus } from '@/api/payments';
-
-const PENDING_PAYMENT_KEY = 'payzen.pending_payment_id';
+import { PENDING_PAYMENT_KEY } from '@/utils/payzen';
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 120_000; // 2 minutes max
 
@@ -61,6 +78,9 @@ type PageState = 'polling' | 'success' | 'failure' | 'error';
 
 const state = ref<PageState>('polling');
 const errorMessage = ref('');
+const orderId = ref<string | null>(null);
+// Capture différée : la carte est autorisée, le débit suit à l'expédition.
+const authorizedOnly = ref(false);
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -131,12 +151,14 @@ async function checkStatus(paymentId: string) {
   try {
     const status = await getMyPaymentStatus(paymentId);
 
+    orderId.value = status.order_id ?? null;
     if (!status.is_terminal) return;
 
     stopPolling();
     localStorage.removeItem(PENDING_PAYMENT_KEY);
 
-    if (status.status_name === 'Completed') {
+    if (status.status_name === 'Completed' || status.status_name === 'Authorized') {
+      authorizedOnly.value = status.status_name === 'Authorized';
       state.value = 'success';
     } else {
       state.value = 'failure';
