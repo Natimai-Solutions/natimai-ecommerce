@@ -6,6 +6,9 @@
 #   unit        : unité pour les numériques (optionnel)
 #   categories  : liste de slug/mots-clés de catégories Ingram applicables (insensible à la casse)
 #   aliases     : noms Icecat reconnus pour cette spec (insensible à la casse, correspondance partielle)
+#   highlight_rank : place dans les tuiles « caractéristiques clés » de la fiche produit
+#                    (1 = première ; absent = pas de tuile). La fiche montre les 4 premières
+#                    que le produit possède.
 
 specs:
   - key: cpu_brand
@@ -28,6 +31,7 @@ specs:
 
   - key: cpu_family
     label_fr: "Famille de processeur"
+    highlight_rank: 1
     type: enum
     categories:
       - ordinateur
@@ -66,6 +70,7 @@ specs:
 
   - key: memory_gb
     label_fr: "Mémoire RAM (Go)"
+    highlight_rank: 2
     type: numeric
     unit: GB
     categories:
@@ -89,6 +94,7 @@ specs:
 
   - key: storage_gb
     label_fr: "Stockage (Go)"
+    highlight_rank: 3
     type: numeric
     unit: GB
     categories:
@@ -131,6 +137,7 @@ specs:
 
   - key: screen_inches
     label_fr: "Taille d'écran (pouces)"
+    highlight_rank: 4
     type: numeric
     unit: inch
     categories:
@@ -186,6 +193,7 @@ specs:
 
   - key: form_factor
     label_fr: "Facteur de forme"
+    highlight_rank: 5
     type: enum
     categories:
       - ordinateur
