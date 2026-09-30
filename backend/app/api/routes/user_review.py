@@ -91,7 +91,9 @@ async def get_user_reviews(
     )
     count = await crud_review.count_by_user(session=session, user_id=user_id)
 
-    return ReviewsPublic(data=reviews, count=count)
+    return ReviewsPublic(
+        data=[ReviewPublic.model_validate(r) for r in reviews], count=count
+    )
 
 
 @router.get("/users/{user_id}/reviews/{review_id}", response_model=ReviewPublic)
@@ -271,7 +273,9 @@ async def get_product_reviews(
     )
     count = await crud_review.count_by_product(session=session, product_id=product_id)
 
-    return ReviewsPublic(data=reviews, count=count)
+    return ReviewsPublic(
+        data=[ReviewPublic.model_validate(r) for r in reviews], count=count
+    )
 
 
 @router.get("/products/{product_id}/reviews/average")

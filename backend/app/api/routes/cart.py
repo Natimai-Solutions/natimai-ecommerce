@@ -3048,7 +3048,7 @@ async def checkout_my_cart(
             if won_quote is not None:
                 won_quote.order_id = order.id
                 won_quote.status = QuoteRequestStatus.WON.value
-                won_quote.handled_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                won_quote.handled_at = datetime.now(timezone.utc)
                 session.add(won_quote)
 
         for item in items:

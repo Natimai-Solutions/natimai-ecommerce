@@ -115,7 +115,7 @@ def test_login_returns_429_when_account_locked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(login_routes, "hit_rate_limit", AsyncMock(return_value=False))
-    locked_until = datetime.datetime(2026, 1, 1, 12, 0, 0)
+    locked_until = datetime.datetime(2026, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)
     monkeypatch.setattr(
         crud_user,
         "authenticate",

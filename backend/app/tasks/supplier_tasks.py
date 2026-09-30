@@ -48,7 +48,7 @@ INVENTORY_SYNC_EVERY_HOURS = 2
 
 
 def _as_utc(value: datetime) -> datetime:
-    """Read a stored timestamp as UTC-aware (the column is naive in Postgres)."""
+    """Read a stored timestamp as UTC-aware (defensive: a naive value is UTC)."""
     return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
 
 

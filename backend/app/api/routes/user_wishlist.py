@@ -206,7 +206,9 @@ async def get_user_wishlists(
         session=session, user_id=user_id, skip=skip, limit=limit
     )
     count = await crud_wishlist.count_by_user(session=session, user_id=user_id)
-    return WishlistsPublic(data=wishlists, count=count)
+    return WishlistsPublic(
+        data=[WishlistPublic.model_validate(w) for w in wishlists], count=count
+    )
 
 
 @router.post(
@@ -281,7 +283,9 @@ async def get_public_wishlists(
         session=session, skip=skip, limit=limit
     )
     count = len(wishlists)
-    return WishlistsPublic(data=wishlists, count=count)
+    return WishlistsPublic(
+        data=[WishlistPublic.model_validate(w) for w in wishlists], count=count
+    )
 
 
 router.generate_endpoints()

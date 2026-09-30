@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
@@ -61,7 +62,9 @@ def test_status_validator() -> None:
         check_status("teleported")
     with pytest.raises(ValueError):
         GroupedDepartureCreate(
-            name="x", order_cutoff_at="2026-10-15T00:00:00Z", status="teleported"
+            name="x",
+            order_cutoff_at=datetime(2026, 10, 15, tzinfo=timezone.utc),
+            status="teleported",
         )
 
 

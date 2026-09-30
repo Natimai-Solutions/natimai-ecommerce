@@ -40,11 +40,11 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _naive(value: datetime) -> datetime:
-    """The columns are naive (UTC) in Postgres; compare like with like."""
+def _utc(value: datetime) -> datetime:
+    """Aware UTC, as stored in Postgres (timestamptz); a naive value is read as UTC."""
     if value.tzinfo is None:
-        return value
-    return value.astimezone(timezone.utc).replace(tzinfo=None)
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def open_cart_conditions() -> list[Any]:
@@ -64,8 +64,8 @@ def abandoned_carts_statement(
     *, now: datetime, delay_hours: int, max_age_days: int, limit: int
 ) -> Any:
     """Open carts due for their (single) reminder, oldest activity first."""
-    newest = _naive(now - timedelta(hours=delay_hours))
-    oldest = _naive(now - timedelta(days=max_age_days))
+    newest = _utc(now - timedelta(hours=delay_hours))
+    oldest = _utc(now - timedelta(days=max_age_days))
     return (
         select(Cart)
         .where(
@@ -148,7 +148,7 @@ async def remind_abandoned_carts(
     reminded = 0
     skipped = 0
     for cart, cart_id, user_id, currency, total_amount, last_activity in snapshots:
-        cart.abandonment_reminded_at = _naive(current)
+        cart.abandonment_reminded_at = _utc(current)
         session.add(cart)
         if not await marketing_emails_allowed(session, user_id):
             skipped += 1

@@ -84,7 +84,7 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
             order_number=f"CMD-2026-{day:05d}",
             total_amount=Decimal(total),
             currency="XPF",
-            created_at=datetime(2026, 10, day, 10, 0),
+            created_at=datetime(2026, 10, day, 10, 0, tzinfo=timezone.utc),
         )
 
     o1, o2, o3 = order(paid, 1, "1000"), order(paid, 5, "2000"), order(pending, 9, "50")

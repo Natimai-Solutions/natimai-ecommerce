@@ -32,9 +32,9 @@ class AccountLockedError(Exception):
         super().__init__(f"Account locked until {locked_until.isoformat()}")
 
 
-def _utcnow_naive() -> datetime.datetime:
-    """Naive UTC now — the DB columns are TIMESTAMP WITHOUT TIME ZONE."""
-    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+def _utcnow() -> datetime.datetime:
+    """Aware UTC now — the DB columns are TIMESTAMP WITH TIME ZONE."""
+    return datetime.datetime.now(datetime.timezone.utc)
 
 
 def mark_logged_in(user: User) -> None:
@@ -45,7 +45,7 @@ def mark_logged_in(user: User) -> None:
     être écrit ; le back-office (A15) s'appuie dessus pour savoir si un compte
     invité a été ouvert.
     """
-    user.last_login = _utcnow_naive()
+    user.last_login = _utcnow()
 
 
 class CrudUser(CrudBase[User, UserCreate, UserUpdate]):
@@ -110,7 +110,7 @@ class CrudUser(CrudBase[User, UserCreate, UserUpdate]):
             verify_password(password, _get_dummy_password_hash())
             return None
 
-        now = _utcnow_naive()
+        now = _utcnow()
         if user.locked_until is not None and user.locked_until > now:
             raise AccountLockedError(user.locked_until)
 

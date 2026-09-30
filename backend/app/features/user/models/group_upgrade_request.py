@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from sqlmodel import Field, SQLModel
@@ -42,7 +42,7 @@ class GroupUpgradeRequest(SQLModel, table=True):
         default=None, foreign_key="users.id", nullable=True
     )
     reviewed_at: datetime | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class GroupUpgradeRequestPublic(SQLModel):

@@ -37,7 +37,9 @@ class BasePublic(SQLModel):
     is_active: bool
     created_at: datetime.datetime | None
     created_by_id: uuid.UUID | None
-    modify_at: datetime.datetime | None = Field(default_factory=datetime.datetime.now)
+    modify_at: datetime.datetime | None = Field(
+        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc)
+    )
     modify_by_id: uuid.UUID | None = None
 
 

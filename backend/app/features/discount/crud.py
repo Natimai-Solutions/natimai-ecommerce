@@ -35,7 +35,7 @@ class DiscountCrud(CrudBase[Discount, DiscountCreate, DiscountUpdate]):
         category_id: uuid.UUID | None = None,
     ) -> list[Discount]:
         """Get active promotions."""
-        now = datetime.datetime.now()
+        now = datetime.datetime.now(datetime.timezone.utc)
         conditions = [
             Discount.discount_type == DiscountType.PROMOTION,
             col(Discount.is_active).is_(True),
@@ -81,7 +81,7 @@ class DiscountCrud(CrudBase[Discount, DiscountCreate, DiscountUpdate]):
             return False, "Ce coupon est désactivé", None
 
         # Vérifier les dates
-        now = datetime.datetime.now()
+        now = datetime.datetime.now(datetime.timezone.utc)
         if discount.start_date and discount.start_date > now:
             return False, "Ce coupon n'est pas encore valide", None
 
@@ -101,7 +101,7 @@ class DiscountCrud(CrudBase[Discount, DiscountCreate, DiscountUpdate]):
         discount = await session.get(Discount, discount_id)
         if discount:
             discount.current_uses += 1
-            discount.modify_at = datetime.datetime.now()
+            discount.modify_at = datetime.datetime.now(datetime.timezone.utc)
             await session.commit()
             await session.refresh(discount)
         return discount

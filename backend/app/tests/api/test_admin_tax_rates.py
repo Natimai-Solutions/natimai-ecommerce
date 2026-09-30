@@ -35,19 +35,25 @@ def _admin() -> User:
     return cast(User, SimpleNamespace(id=uuid4()))
 
 
-def _rate(**over: object) -> TaxRate:
-    defaults: dict[str, object] = {
-        "id": uuid4(),
-        "code": "TGC_NORMAL",
-        "label": "TGC 16%",
-        "rate_pct": Decimal("16.00"),
-        "territory_code": "PF",
-        "valid_from": date(2026, 1, 1),
-        "valid_until": None,
-        "is_active": True,
-    }
-    defaults.update(over)
-    return TaxRate(**defaults)
+_DEFAULT_VALID_FROM = date(2026, 1, 1)
+
+
+def _rate(
+    *,
+    code: str = "TGC_NORMAL",
+    valid_from: date = _DEFAULT_VALID_FROM,
+    is_active: bool = True,
+) -> TaxRate:
+    return TaxRate(
+        id=uuid4(),
+        code=code,
+        label="TGC 16%",
+        rate_pct=Decimal("16.00"),
+        territory_code="PF",
+        valid_from=valid_from,
+        valid_until=None,
+        is_active=is_active,
+    )
 
 
 @pytest.mark.anyio

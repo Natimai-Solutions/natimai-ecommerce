@@ -49,14 +49,19 @@ def override_dependencies(
     app.dependency_overrides.clear()
 
 
-def _record(status: SupplierOrderStatus, **kw: object) -> SupplierOrder:
+def _record(
+    status: SupplierOrderStatus,
+    *,
+    supplier_order_number: str | None = None,
+    error_message: str | None = None,
+) -> SupplierOrder:
     return SupplierOrder(
-        supplier_name=kw.get("supplier_name", "ingram_micro"),
-        local_order_id=kw.get("local_order_id", uuid.uuid4()),
-        customer_order_number=kw.get("customer_order_number", "abc123"),
+        supplier_name="ingram_micro",
+        local_order_id=uuid.uuid4(),
+        customer_order_number="abc123",
         status=status,
-        supplier_order_number=kw.get("supplier_order_number"),
-        error_message=kw.get("error_message"),
+        supplier_order_number=supplier_order_number,
+        error_message=error_message,
     )
 
 

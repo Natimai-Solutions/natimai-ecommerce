@@ -38,9 +38,9 @@ logger = logging.getLogger(__name__)
 INVITATION_TOKEN_TTL_HOURS = 72
 
 
-def _utcnow_naive() -> datetime.datetime:
-    """Horodatage naïf, comme le reste du schéma."""
-    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+def _utcnow() -> datetime.datetime:
+    """Horodatage UTC conscient du fuseau, comme le reste du schéma (timestamptz)."""
+    return datetime.datetime.now(datetime.timezone.utc)
 
 
 def unusable_password_hash() -> str:
@@ -63,7 +63,7 @@ def issue_invitation_token(user: User) -> str:
     """
     token = secrets.token_urlsafe(32)
     user.password_reset_token = hash_reset_token(token)
-    user.password_reset_token_expires = _utcnow_naive() + datetime.timedelta(
+    user.password_reset_token_expires = _utcnow() + datetime.timedelta(
         hours=INVITATION_TOKEN_TTL_HOURS
     )
     return token

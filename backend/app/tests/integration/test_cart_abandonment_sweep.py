@@ -53,7 +53,7 @@ async def _cart(
     quiet_hours: float,
     checked_out: bool = False,
 ) -> Cart:
-    stamp = (NOW - timedelta(hours=quiet_hours)).replace(tzinfo=None)
+    stamp = NOW - timedelta(hours=quiet_hours)
     cart = Cart(
         user_id=user.id,
         currency="XPF",
