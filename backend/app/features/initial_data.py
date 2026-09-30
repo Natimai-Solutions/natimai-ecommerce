@@ -1,6 +1,6 @@
 from datetime import date
 from decimal import Decimal
-from typing import Any
+from typing import Any, TypedDict
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -74,9 +74,20 @@ async def _seed_payment_statuses(session: AsyncSession) -> None:
         )
 
 
+class _PaymentMethodSeed(TypedDict):
+    """One default payment method, as seeded at first start."""
+
+    name: str
+    description: str
+    provider_code: str
+    sort_order: int
+    requires_admin_validation: bool
+    requires_document_upload: bool
+
+
 async def _seed_manual_payment_methods(session: AsyncSession) -> None:
     """Execute seed manual payment methods."""
-    methods = (
+    methods: tuple[_PaymentMethodSeed, ...] = (
         {
             "name": "Carte bancaire",
             "description": "Paiement par carte bancaire (CB) via PayZen SmartForm.",

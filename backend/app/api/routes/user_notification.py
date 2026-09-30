@@ -102,7 +102,10 @@ async def get_user_notifications(
     count = await crud_notification.count_by_user(
         session=session, user_id=user_id, unread_only=False
     )
-    return NotificationsPublic(data=notifications, count=count)
+    return NotificationsPublic(
+        data=[NotificationPublic.model_validate(n) for n in notifications],
+        count=count,
+    )
 
 
 @router.get("/users/{user_id}/notifications/unread/count")

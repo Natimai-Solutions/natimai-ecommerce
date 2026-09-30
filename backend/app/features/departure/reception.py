@@ -268,7 +268,9 @@ async def upsert_receipt_line(
     """Record (or correct) the tally of one product; flushes, no commit."""
     tallies = await _receipt_lines(session, departure.id)
     line = tallies.get(product_id) or DepartureReceiptLine(
-        grouped_departure_id=departure.id, product_id=product_id
+        grouped_departure_id=departure.id,
+        product_id=product_id,
+        quantity_received=data.quantity_received,
     )
     for key, value in data.model_dump().items():
         setattr(line, key, value)

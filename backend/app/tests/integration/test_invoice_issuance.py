@@ -6,6 +6,7 @@ order-number sequence.
 """
 
 import uuid
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -46,7 +47,7 @@ async def _seed_paid_order(
         label="TGC normal",
         rate_pct=tax_rate_pct,
         territory_code="PF",
-        valid_from="2020-01-01",
+        valid_from=date(2020, 1, 1),
     )
     # Les frais (port, paiement) sont taxés sous le code configuré, pas sous
     # celui du produit. Sans cette ligne ils tombaient à 0 %, ce qui ajoutait un
@@ -57,7 +58,7 @@ async def _seed_paid_order(
         label="TGC normal (frais)",
         rate_pct=tax_rate_pct,
         territory_code="PF",
-        valid_from="2020-01-01",
+        valid_from=date(2020, 1, 1),
     )
     session.add_all([user, status, tax_rate, fees_tax_rate])
     await session.flush()

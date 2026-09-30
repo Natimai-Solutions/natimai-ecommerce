@@ -60,7 +60,9 @@ async def get_groups_by_type(
         skip=skip,
         limit=limit,
     )
-    return GroupsPublic(data=groups, count=len(groups))
+    return GroupsPublic(
+        data=[GroupPublic.model_validate(g) for g in groups], count=len(groups)
+    )
 
 
 async def get_pricing_groups(
@@ -83,7 +85,9 @@ async def get_pricing_groups(
         skip=skip,
         limit=limit,
     )
-    return GroupsPublic(data=groups, count=len(groups))
+    return GroupsPublic(
+        data=[GroupPublic.model_validate(g) for g in groups], count=len(groups)
+    )
 
 
 async def add_user_to_group(
@@ -174,7 +178,10 @@ async def get_group_users(
         session,
         group_id=group_id,
     )
-    return UserGroupsPublic(data=user_groups, count=len(user_groups))
+    return UserGroupsPublic(
+        data=[UserGroupPublic.model_validate(ug) for ug in user_groups],
+        count=len(user_groups),
+    )
 
 
 async def get_user_groups(
@@ -196,7 +203,10 @@ async def get_user_groups(
         session,
         user_id=user_id,
     )
-    return UserGroupsPublic(data=user_groups, count=len(user_groups))
+    return UserGroupsPublic(
+        data=[UserGroupPublic.model_validate(ug) for ug in user_groups],
+        count=len(user_groups),
+    )
 
 
 # Literal single-segment routes MUST be registered BEFORE the auto-generated

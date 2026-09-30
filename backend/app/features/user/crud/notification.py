@@ -164,9 +164,9 @@ class UserNotificationCrud(
             return None
 
         user_notification.is_read = True
-        from datetime import datetime
+        from datetime import datetime, timezone
 
-        user_notification.read_at = datetime.now()
+        user_notification.read_at = datetime.now(timezone.utc)
 
         session.add(user_notification)
         await session.commit()
@@ -187,11 +187,11 @@ class UserNotificationCrud(
         user_notifications = exec_result.all()
 
         count = 0
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         for user_notification in user_notifications:
             user_notification.is_read = True
-            user_notification.read_at = datetime.now()
+            user_notification.read_at = datetime.now(timezone.utc)
             session.add(user_notification)
             count += 1
 

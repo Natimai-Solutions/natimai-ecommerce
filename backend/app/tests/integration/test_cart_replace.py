@@ -42,7 +42,7 @@ async def _product(
         base_price=Decimal(price),
         is_active=active,
         is_supplier_managed=False,
-        weight=Decimal("1.00"),
+        weight=1.0,
         customs_rate_pct=Decimal("0.00"),
     )
     session.add(product)

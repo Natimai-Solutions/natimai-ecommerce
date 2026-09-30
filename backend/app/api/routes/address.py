@@ -167,7 +167,9 @@ async def get_my_addresses(
         session=session, user_id=current_user.id, skip=skip, limit=limit
     )
     count = await crud_address.count_by_user(session=session, user_id=current_user.id)
-    return AddressesPublic(data=addresses, count=count)
+    return AddressesPublic(
+        data=[AddressPublic.model_validate(a) for a in addresses], count=count
+    )
 
 
 @router.post(
@@ -343,7 +345,9 @@ async def get_user_addresses(
     )
     count = await crud_address.count_by_user(session=session, user_id=user_id)
 
-    return AddressesPublic(data=addresses, count=count)
+    return AddressesPublic(
+        data=[AddressPublic.model_validate(a) for a in addresses], count=count
+    )
 
 
 @router.get("/users/{user_id}/addresses/{address_id}", response_model=AddressPublic)

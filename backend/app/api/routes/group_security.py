@@ -48,7 +48,9 @@ async def get_group_permissions(
         session,
         group_id=group_id,
     )
-    return GroupSecuritiesPublic(data=rules, count=len(rules))
+    return GroupSecuritiesPublic(
+        data=[GroupSecurityPublic.model_validate(r) for r in rules], count=len(rules)
+    )
 
 
 async def get_table_permissions(
@@ -69,7 +71,9 @@ async def get_table_permissions(
         session,
         table_name=table_name,
     )
-    return GroupSecuritiesPublic(data=rules, count=len(rules))
+    return GroupSecuritiesPublic(
+        data=[GroupSecurityPublic.model_validate(r) for r in rules], count=len(rules)
+    )
 
 
 async def check_permission(
