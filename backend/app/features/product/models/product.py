@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any, cast
+from typing import Any
 
 from pydantic import SerializerFunctionWrapHandler, model_serializer
 from sqlalchemy import JSON, Column, event
@@ -581,11 +581,11 @@ class ProductPublic(ProductBase, BasePublic):
     for a superuser's request.
     """
 
+    # Deliberately unannotated: an annotated return type would replace the
+    # model's properties in the OpenAPI schema (and the generated TS types).
     @model_serializer(mode="wrap")
-    def _hide_internal_fields(
-        self, handler: SerializerFunctionWrapHandler
-    ) -> dict[str, Any]:
-        return cast(dict[str, Any], redact(handler(self), PRODUCT_INTERNAL_FIELDS))
+    def _hide_internal_fields(self, handler: SerializerFunctionWrapHandler):  # type: ignore[no-untyped-def]  # noqa: ANN202
+        return redact(handler(self), PRODUCT_INTERNAL_FIELDS)
 
     id: uuid.UUID
     category_id: uuid.UUID | None = None

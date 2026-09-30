@@ -2178,6 +2178,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/products/margin-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Margin
+         * @description Price, cost price and margin of the form's values, before saving.
+         */
+        post: operations["admin-product-preview_margin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/products/publish-drafts": {
         parameters: {
             query?: never;
@@ -2436,6 +2456,30 @@ export interface paths {
          *     Modifying rate_pct is forbidden — create a new rate with a new valid_from instead.
          */
         put: operations["admin-tax-rates-update_tax_rate"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/tax-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tax Settings
+         * @description Which rate applies by default, and which one taxes the fees.
+         */
+        get: operations["admin-tax-rates-get_tax_settings"];
+        /**
+         * Update Tax Settings
+         * @description Choose the default rate and the fees rate among today's rates.
+         */
+        put: operations["admin-tax-rates-update_tax_settings"];
         post?: never;
         delete?: never;
         options?: never;
@@ -7816,6 +7860,7 @@ export interface components {
             balance_paid_at?: string | null;
             /** Lines */
             lines: components["schemas"]["AdminOrderLineItem"][];
+            margin?: components["schemas"]["OrderMarginSummary"] | null;
             /** Payments */
             payments: components["schemas"]["AdminOrderPaymentItem"][];
             /**
@@ -7859,6 +7904,18 @@ export interface components {
             unit_price: number;
             /** Line Total */
             line_total: number;
+            /** Tax Rate Pct */
+            tax_rate_pct?: number | null;
+            /** Line Total Excl Tax */
+            line_total_excl_tax?: number | null;
+            /** Unit Cost */
+            unit_cost?: number | null;
+            /** Line Cost */
+            line_cost?: number | null;
+            /** Line Margin */
+            line_margin?: number | null;
+            /** Margin Pct */
+            margin_pct?: number | null;
         };
         /**
          * AdminOrderListItem
@@ -12465,6 +12522,57 @@ export interface components {
             timestamp: string;
         };
         /**
+         * MarginPreview
+         * @description What one unit sells for, what it costs and what is left.
+         */
+        MarginPreview: {
+            /** Price Incl Tax */
+            price_incl_tax: string | null;
+            /** Tax Rate Pct */
+            tax_rate_pct: string;
+            /** Price Excl Tax */
+            price_excl_tax: string | null;
+            /** Tax Amount */
+            tax_amount: string | null;
+            /** Commission Amount */
+            commission_amount: string | null;
+            /** Unit Cost */
+            unit_cost: string | null;
+            /** Margin Amount */
+            margin_amount: string | null;
+            /** Margin Pct */
+            margin_pct: string | null;
+            /** Markup Pct */
+            markup_pct: string | null;
+            /** Currency */
+            currency: string;
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * MarginPreviewRequest
+         * @description Price inputs of the product form, as they stand (unsaved).
+         */
+        MarginPreviewRequest: {
+            /** Product Id */
+            product_id?: string | null;
+            pricing_mode?: components["schemas"]["PricingMode"] | null;
+            /** Base Price */
+            base_price?: number | string | null;
+            /** Cost Amount */
+            cost_amount?: number | string | null;
+            /** Cost Currency */
+            cost_currency?: string | null;
+            /** Margin Rate Pct */
+            margin_rate_pct?: number | string | null;
+            /** Customs Rate Pct */
+            customs_rate_pct?: number | string | null;
+            /** Tax Rate Id */
+            tax_rate_id?: string | null;
+            /** Category Id */
+            category_id?: string | null;
+        };
+        /**
          * MediaAssetPublic
          * @description What the admin and the storefront need to show an image.
          */
@@ -13507,6 +13615,11 @@ export interface components {
              */
             price_group_id_snapshot?: string | null;
             /**
+             * Unit Cost Snapshot
+             * @description Coût de revient unitaire HT au moment de la commande, en devise de référence (coût converti, assurance et douane en import). Base de la marge de la ligne ; None = coût inconnu.
+             */
+            unit_cost_snapshot?: number | string | null;
+            /**
              * Serial Numbers
              * @description Numéros de série des exemplaires remis au client
              */
@@ -13514,7 +13627,7 @@ export interface components {
         };
         /**
          * OrderLinePublic
-         * @description Represents order line public.
+         * @description Represents order line public (cost figures for superusers only).
          */
         OrderLinePublic: {
             /**
@@ -13604,6 +13717,11 @@ export interface components {
              */
             price_group_id_snapshot?: string | null;
             /**
+             * Unit Cost Snapshot
+             * @description Coût de revient unitaire HT au moment de la commande, en devise de référence (coût converti, assurance et douane en import). Base de la marge de la ligne ; None = coût inconnu.
+             */
+            unit_cost_snapshot?: string | null;
+            /**
              * Serial Numbers
              * @description Numéros de série des exemplaires remis au client
              */
@@ -13652,6 +13770,30 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * OrderMarginSummary
+         * @description Gross margin on the goods of an order (fees and shipping excluded).
+         */
+        OrderMarginSummary: {
+            /** Goods Excl Tax */
+            goods_excl_tax: number;
+            /** Goods Cost */
+            goods_cost: number;
+            /** Margin */
+            margin: number;
+            /** Margin Pct */
+            margin_pct?: number | null;
+            /**
+             * Complete
+             * @default true
+             */
+            complete: boolean;
+            /**
+             * Lines Without Cost
+             * @default 0
+             */
+            lines_without_cost: number;
         };
         /**
          * OrderPublic
@@ -15958,6 +16100,21 @@ export interface components {
              */
             sale_price_cached_at?: string | null;
             /**
+             * Unit Cost Cached
+             * @description Unit cost price materialized with sale_price_cached, excl. tax, in the reference currency: purchase cost converted, plus insurance and customs in import mode (no import leg). None = cost unknown.
+             */
+            unit_cost_cached?: number | string | null;
+            /**
+             * Margin Cached
+             * @description Unit margin excl. tax: price excl. tax − payment commission − unit_cost_cached. None = cost unknown.
+             */
+            margin_cached?: number | string | null;
+            /**
+             * Margin Pct Cached
+             * @description margin_cached as a share of the price excl. tax (taux de marque)
+             */
+            margin_pct_cached?: number | string | null;
+            /**
              * Last Enrichment Sync
              * @description Last synchronization timestamp for enrichment data
              */
@@ -16173,6 +16330,9 @@ export interface components {
         /**
          * ProductPublic
          * @description Represents product public.
+         *
+         *     The internal fields (:data:`PRODUCT_INTERNAL_FIELDS`) are only serialized
+         *     for a superuser's request.
          */
         ProductPublic: {
             /**
@@ -16370,6 +16530,21 @@ export interface components {
              * @description When sale_price_cached was last computed
              */
             sale_price_cached_at?: string | null;
+            /**
+             * Unit Cost Cached
+             * @description Unit cost price materialized with sale_price_cached, excl. tax, in the reference currency: purchase cost converted, plus insurance and customs in import mode (no import leg). None = cost unknown.
+             */
+            unit_cost_cached?: string | null;
+            /**
+             * Margin Cached
+             * @description Unit margin excl. tax: price excl. tax − payment commission − unit_cost_cached. None = cost unknown.
+             */
+            margin_cached?: string | null;
+            /**
+             * Margin Pct Cached
+             * @description margin_cached as a share of the price excl. tax (taux de marque)
+             */
+            margin_pct_cached?: string | null;
             /**
              * Last Enrichment Sync
              * @description Last synchronization timestamp for enrichment data
@@ -16712,6 +16887,21 @@ export interface components {
              * @description When sale_price_cached was last computed
              */
             sale_price_cached_at?: string | null;
+            /**
+             * Unit Cost Cached
+             * @description Unit cost price materialized with sale_price_cached, excl. tax, in the reference currency: purchase cost converted, plus insurance and customs in import mode (no import leg). None = cost unknown.
+             */
+            unit_cost_cached?: number | string | null;
+            /**
+             * Margin Cached
+             * @description Unit margin excl. tax: price excl. tax − payment commission − unit_cost_cached. None = cost unknown.
+             */
+            margin_cached?: number | string | null;
+            /**
+             * Margin Pct Cached
+             * @description margin_cached as a share of the price excl. tax (taux de marque)
+             */
+            margin_pct_cached?: number | string | null;
             /**
              * Last Enrichment Sync
              * @description Last synchronization timestamp for enrichment data
@@ -19947,7 +20137,7 @@ export interface components {
             modify_by_id?: string | null;
             /**
              * Code
-             * @description Tax code (ex: TGC_NORMAL)
+             * @description Tax code (ex: TVA_NORMALE)
              */
             code: string;
             /**
@@ -20003,7 +20193,7 @@ export interface components {
             is_admin_active: boolean;
             /**
              * Code
-             * @description Tax code (ex: TGC_NORMAL)
+             * @description Tax code (ex: TVA_NORMALE)
              */
             code: string;
             /**
@@ -20063,6 +20253,27 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * TaxSettingsPublic
+         * @description The shop's default rate and fees rate, by code, with today's rate.
+         */
+        TaxSettingsPublic: {
+            /** Default Code */
+            default_code: string;
+            /** Fees Code */
+            fees_code: string;
+            default_rate: components["schemas"]["TaxRatePublic"] | null;
+            fees_rate: components["schemas"]["TaxRatePublic"] | null;
+            /** Territory Code */
+            territory_code: string;
+        };
+        /** TaxSettingsUpdate */
+        TaxSettingsUpdate: {
+            /** Default Code */
+            default_code: string;
+            /** Fees Code */
+            fees_code: string;
         };
         /**
          * TestEnrichmentRequest
@@ -24612,6 +24823,39 @@ export interface operations {
             };
         };
     };
+    "admin-product-preview_margin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarginPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarginPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-product-admin_publish_drafts": {
         parameters: {
             query?: never;
@@ -25087,6 +25331,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaxRatePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-tax-rates-get_tax_settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxSettingsPublic"];
+                };
+            };
+        };
+    };
+    "admin-tax-rates-update_tax_settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaxSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxSettingsPublic"];
                 };
             };
             /** @description Validation Error */
@@ -26431,6 +26728,7 @@ export interface operations {
                 include_archived?: boolean;
                 status?: string | null;
                 search?: string | null;
+                sort?: string | null;
             };
             header?: never;
             path?: never;

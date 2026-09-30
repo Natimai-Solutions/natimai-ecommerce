@@ -174,6 +174,20 @@ Contraintes : SSR (`frontend/public` est servi avec `maxAge` 30 j, donc noms ver
 
 Total R3 : 14 à 18 j (P1-P5 : 7 à 9 j ; P6 + P7 : 8 à 11 j). Dépendance : P5 sur R5 (registre) — en attendant, un `Literal` env par fournisseur suffit.
 
+### Prix, marge et TVA (demande du 30/09/2026) — ✅ livré le 30/09/2026
+
+- ✅ **Coût d'achat saisissable en « Prix TTC fixé »** (il était masqué) ; le prix fixé reste libre et n'est jamais recalculé ni écrasé par une synchro.
+- ✅ **Marge en direct dans le formulaire article** : prix TTC, TVA, prix HT, commission de paiement, coût de revient HT, marge HT, taux de marque (marge / prix HT) et taux de marge (marge / coût), calculés par le serveur (`POST /admin/products/margin-preview`, même formule que le catalogue) ; alerte « vendu à perte ».
+- ✅ **Liste des produits** : colonnes Prix TTC, Coût HT, Marge HT (+ taux de marque), tri par marge, taux de marque, prix ou coût (`products.unit_cost_cached` / `margin_cached` / `margin_pct_cached`, matérialisés avec `sale_price_cached`). Coût de revient = coût converti (sans le coussin de change), + assurance et douane en mode import.
+- ✅ **Marge des commandes** : `order_lines.unit_cost_snapshot` figé au checkout ; le détail de commande admin donne par ligne HT, coût et marge, et la marge brute des articles (lignes sans coût signalées). Les lignes antérieures utilisent le coût converti (sans douane).
+- ✅ **TVA librement paramétrable** : les taux se créent dans l'admin (code, libellé, %, territoire, dates) ; le **taux par défaut** et le **taux des frais** se choisissent aussi dans l'admin (`GET/PUT /admin/tax-settings`, `system_settings` `tax_default_code` / `tax_fees_code`), l'environnement n'est plus qu'un point de départ — une boutique hors Polynésie définit son propre jeu de taux sans redéploiement.
+- ✅ **Polynésie** : taux renommés TVA (codes `TVA_NORMALE` / `TVA_REDUITE` / `TVA_EXONEREE`, migration des `TGC_*` ; les anciens codes d'environnement restent compris) et **taux intermédiaire 13 %** ajouté. ⚠️ Barème à confirmer par le comptable.
+- ✅ **TVA par catégorie** dans l'écran Catégories (colonne + sélecteur).
+- ✅ **Vitrine** : « TTC » affiché à côté des prix (fiche, cartes) et sur les totaux (panier, tiroir, checkout).
+- ✅ **Confidentialité (faille corrigée)** : les API publiques renvoyaient le coût d'achat, le prix fournisseur et les taux de marge / douane des articles, et le coût des lignes à leur client ; ces champs ne sont plus sérialisés que pour une requête de super-administrateur.
+- ✅ Correctif : le contexte de prix gardait des lignes `TaxRate` de l'ORM, expirées après un commit (MissingGreenlet dans les écritures en série).
+- 🔲 Reste : arrondi commercial des prix calculés (à 10 / 100 F), marges des groupes tarifaires éditables dans l'admin (l'API existe), incohérence possible panier / snapshot quand ni l'article ni la catégorie n'ont de marge (le panier prend la marge du groupe par défaut, la ligne mémorise celle du groupe client).
+
 ### R4 — Fournisseurs (priorité 4)
 
 **Réponses de la revue** :
@@ -1182,7 +1196,7 @@ Autres écarts relevés : commission paiement en % intégrée au prix (aujourd'h
    - ✅ Migration : modèle `TaxRate` (`code`, `label`, `rate_pct`, `territory_code`, `valid_from`, `valid_until`).
    - ✅ Migration : `Category.default_tax_rate_id` (FK nullable) + `Product.tax_rate_id` (FK nullable).
    - ✅ Migration : `OrderLine.tax_rate_id` (FK, snapshot figé au checkout).
-   - ✅ Seed 3 taux PF (`TGC_NORMAL 16%`, `TGC_REDUIT 5%`, `TGC_EXONERE 0%`).
+   - ✅ Seed 3 taux PF (`TGC_NORMAL 16%`, `TGC_REDUIT 5%`, `TGC_EXONERE 0%`) — renommés TVA et complétés du 13 % le 30/09/2026 (voir « Prix, marge et TVA »).
    - ✅ Service `resolve_tax_rate(product, territory) -> TaxRate` dans `pricing.py`.
    - ✅ Toutes les catégories héritent de `TGC_NORMAL` par défaut.
 

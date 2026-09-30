@@ -204,7 +204,7 @@ const allNav: NavSection[] = [
   {
     label: 'Tarifs et paiement',
     links: [
-      { label: 'Taux TVA / TGC', icon: 'ph:percent', to: '/tax-rates' },
+      { label: 'Taux de TVA', icon: 'ph:percent', to: '/tax-rates' },
       { label: 'Douane par catégorie', icon: 'ph:gavel', to: '/customs-rates' },
       { label: 'Taux de change', icon: 'ph:arrows-left-right', to: '/currency-rates' },
       { label: 'Moyens de paiement', icon: 'ph:credit-card', to: '/payment-eligibility' },

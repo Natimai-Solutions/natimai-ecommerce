@@ -140,7 +140,7 @@
             </p>
             <AppNotice tone="warning" dense>
               <strong>Retirer la TVA du total du simulateur.</strong> Elle est déjà appliquée
-              séparément via le taux TVA/TGC du produit : l'inclure ici la compterait deux fois sur
+              séparément via le taux de TVA du produit : l'inclure ici la compterait deux fois sur
               chaque prix.
             </AppNotice>
             <p class="admin-hint q-mb-none">

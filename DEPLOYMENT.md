@@ -287,10 +287,14 @@ truth. All three are safe to leave at their defaults.
 | `SUPPLIER_DELISTING_GRACE_HOURS` | `72` | A SKU the supplier stops returning stays sellable with its last known price and stock. The first absence is only recorded (`products.supplier_missing_since`); the product is deactivated once the gap outlives this delay, so a transient supplier fault cannot empty the catalogue. `0` records the absence but never deactivates. |
 | `CHECKOUT_SUPPLIER_AVAILABILITY_CHECK` | `true` | Re-ask the supplier what it actually has before reserving, instead of trusting a snapshot up to two hours old. One request per order, on supplier-managed lines only. A supplier that answers "out of stock" refuses the order; a supplier that cannot be reached never blocks a sale — the snapshot stands. |
 | `CHECKOUT_SUPPLIER_CHECK_TIMEOUT_SECONDS` | `8` | Deliberately short: this runs on the checkout critical path, unlike the 60 s the background sync can afford. |
-| `TERRITORY_PROFILE` | `PF` | Where the shop sells: `PF` (Polynésie française: XPF, TGC, Papeete customs corridor and island tree) or `FR` (France métropolitaine: EUR, TVA, no Polynesian starter data). Fills `REFERENCE_CURRENCY`, `SHOP_COUNTRY_CODE`, `TAX_TERRITORY_CODE`, `DEFAULT_TAX_CODE`, `INVOICE_FEES_TAX_CODE`, `PAYZEN_CURRENCY` and `SEED_FRENCH_POLYNESIA_LOGISTICS` unless each is set explicitly. The seed creates the profile's tax rates and starter FX rates. |
+| `TERRITORY_PROFILE` | `PF` | Where the shop sells: `PF` (Polynésie française: XPF, TVA 16 / 13 / 5 / 0 %, Papeete customs corridor and island tree) or `FR` (France métropolitaine: EUR, TVA, no Polynesian starter data). Fills `REFERENCE_CURRENCY`, `SHOP_COUNTRY_CODE`, `TAX_TERRITORY_CODE`, `DEFAULT_TAX_CODE`, `INVOICE_FEES_TAX_CODE`, `PAYZEN_CURRENCY` and `SEED_FRENCH_POLYNESIA_LOGISTICS` unless each is set explicitly. The seed creates the profile's tax rates and starter FX rates. |
 | `SHOP_MODE` | `full` | `simple` for a one-warehouse shop selling its own stock, shipped directly to the customer: the admin hides suppliers, customs, exchange rates, spec catalog and multi-leg logistics, the product form defaults to a fixed price, and the supplier sync / Icecat crons are not scheduled. Nothing is deleted: switching back to `full` shows everything again. |
 | `SHOP_COUNTRY_CODE` | from profile | ISO country of the shop (address fallback, root of the place tree). |
-| `TAX_TERRITORY_CODE` / `DEFAULT_TAX_CODE` | from profile | Territory of the shop's own tax rates and the rate applied when neither the product nor its category says otherwise. |
+| `TAX_TERRITORY_CODE` / `DEFAULT_TAX_CODE` | from profile | Territory of the shop's own tax rates and the starting point of the rate applied when neither the product nor its category says otherwise. The rates themselves (code, label, percentage, validity) are created freely in the admin (**Taux de TVA**), and the default rate is chosen there too — a shop outside Polynesia and France defines its own set without redeploying. |
+
+**Confidentiality.** Purchase cost, supplier price, margin and customs rates of
+products (and the cost snapshots of order lines) are only serialized for a
+superuser's request; the public storefront API never returns them.
 | `CART_ABANDONMENT_REMINDER_DELAY_HOURS` | `24` | A logged-in customer's cart untouched for this long, never ordered, gets one reminder e-mail (hourly sweep, `cart.abandoned` outbox event). Customers can opt out of commercial e-mails in their preferences. `0` disables the sweep. |
 | `CART_ABANDONMENT_MAX_AGE_DAYS` | `14` | Carts older than this are never reminded. |
 | `SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS` | `2000` | A CSV / Excel catalog up to this many rows is imported inside the request. A larger file is stored (`FILE_STORAGE_BACKEND`), a sync log is opened and an ARQ job imports it; the admin screen polls the log. Simulations of a large file resolve only this many rows. |
@@ -319,7 +323,7 @@ truth. All three are safe to leave at their defaults.
 | `INVOICE_SELLER_REGISTRATION` | *(empty)* | **Required** — RC Papeete number + n° TAHITI |
 | `INVOICE_SELLER_EMAIL` / `INVOICE_SELLER_PHONE` | *(empty)* | Contact details on the document |
 | `INVOICE_LEGAL_FOOTER` | *(empty)* | Legal mentions printed at the bottom of the invoice |
-| `INVOICE_FEES_TAX_CODE` | `TGC_NORMAL` | `TaxRate.code` used to ventilate shipping/payment fees in the tax breakdown. ⚠️ Confirm with your accountant |
+| `INVOICE_FEES_TAX_CODE` | `TVA_NORMALE` | Starting point of the `TaxRate.code` used to ventilate shipping/payment fees in the tax breakdown. The admin changes it (and the default rate, `DEFAULT_TAX_CODE`) under **Taux de TVA → Taux appliqués**; its choice, stored in `system_settings`, wins. Former `TGC_*` codes are still understood. ⚠️ Confirm with your accountant |
 
 > **PDF rendering** relies on WeasyPrint and its system libraries (pango,
 > cairo, gdk-pixbuf) — present in the backend image. The import is lazy: on a
@@ -989,7 +993,7 @@ The price is built as two **separate** multipliers:
 ```
 price = CAF × (1 + customs) × (1 + margin) × (1 + tax)
                    ↑                              ↑
-        "Douane par catégorie"          TaxRate (TGC/VAT 16 %)
+        "Douane par catégorie"          TaxRate (TVA 16 %)
 ```
 
 The tax is already applied at the end. The customs field is not meant to carry it.

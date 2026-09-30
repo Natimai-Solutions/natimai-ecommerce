@@ -3,8 +3,8 @@
     <PageHeader title="Catégories">
       <template #hint>
         Les catégories viennent de la synchronisation fournisseur : leur nom d'origine sert de clé
-        de rapprochement et ne se modifie pas. Personnalisez le titre vitrine, la description et
-        l'image ; fusionnez les doublons. Taux de TVA et de douane : pages dédiées.
+        de rapprochement et ne se modifie pas. Personnalisez le titre vitrine, la description,
+        l'image, la marge et le taux de TVA par défaut ; fusionnez les doublons.
       </template>
       <template #actions>
         <q-toggle v-model="showMerged" label="Afficher les fusionnées" />
@@ -144,6 +144,18 @@
                 />
               </template>
             </q-input>
+            <q-select
+              v-model="editForm.default_tax_rate_id"
+              :options="taxRateOptions"
+              label="Taux de TVA par défaut"
+              hint="Vide = taux par défaut de la boutique ; un article peut le surcharger"
+              outlined
+              dense
+              emit-value
+              map-options
+              clearable
+              data-testid="category-tax-rate"
+            />
             <q-input
               v-model="editForm.default_margin_rate_pct"
               label="Marge par défaut (%)"
@@ -235,6 +247,7 @@ import {
   type AdminCategory,
 } from '@/api/categories';
 import { extractApiError } from '@/api/errors';
+import { listTaxRates, setCategoryTaxRate, type TaxRate } from '@/api/taxRates';
 
 const rows = ref<AdminCategory[]>([]);
 const loading = ref(false);
@@ -257,6 +270,12 @@ const columns: QTableColumn[] = [
     classes: 'font-mono',
   },
   { name: 'customs', label: 'Douane', field: 'default_customs_rate_pct', align: 'left' },
+  {
+    name: 'tax',
+    label: 'TVA',
+    field: (r) => taxLabel(r.default_tax_rate_id),
+    align: 'left',
+  },
   {
     name: 'margin',
     label: 'Marge',
@@ -307,12 +326,37 @@ const editForm = reactive<{
   description: string;
   image_url: string;
   default_margin_rate_pct: string;
+  default_tax_rate_id: string | null;
 }>({
   display_name: '',
   description: '',
   image_url: '',
   default_margin_rate_pct: '',
+  default_tax_rate_id: null,
 });
+
+// Taux de TVA en vigueur, pour le taux par défaut d'une catégorie.
+const taxRates = ref<TaxRate[]>([]);
+const taxRateOptions = computed(() =>
+  taxRates.value.map((rate) => ({
+    value: rate.id,
+    label: `${rate.label} — ${Number(rate.rate_pct).toLocaleString('fr-FR')} %`,
+  })),
+);
+
+function taxLabel(taxRateId: string | null | undefined): string {
+  if (!taxRateId) return '—';
+  const rate = taxRates.value.find((r) => r.id === taxRateId);
+  return rate ? `${Number(rate.rate_pct).toLocaleString('fr-FR')} %` : '—';
+}
+
+async function loadTaxRates() {
+  try {
+    taxRates.value = await listTaxRates({ valid: true });
+  } catch {
+    // Non bloquant : le sélecteur reste vide.
+  }
+}
 
 function openEdit(category: AdminCategory) {
   dialogError.value = null;
@@ -321,6 +365,7 @@ function openEdit(category: AdminCategory) {
   editForm.description = category.description ?? '';
   editForm.image_url = category.image_url ?? '';
   editForm.default_margin_rate_pct = category.default_margin_rate_pct ?? '';
+  editForm.default_tax_rate_id = category.default_tax_rate_id ?? null;
   editDialog.value = true;
 }
 
@@ -335,6 +380,9 @@ async function submitEdit() {
       image_url: editForm.image_url.trim() || null,
       default_margin_rate_pct: String(editForm.default_margin_rate_pct ?? '').trim() || null,
     });
+    if ((editing.value.default_tax_rate_id ?? null) !== editForm.default_tax_rate_id) {
+      await setCategoryTaxRate(editing.value.id, editForm.default_tax_rate_id);
+    }
     editDialog.value = false;
     await load();
   } catch (err) {
@@ -387,7 +435,10 @@ async function submitMerge() {
   }
 }
 
-onMounted(load);
+onMounted(() => {
+  void load();
+  void loadTaxRates();
+});
 const mediaPickerOpen = ref(false);
 </script>
 

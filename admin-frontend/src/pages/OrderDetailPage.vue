@@ -61,8 +61,11 @@
                 <tr>
                   <th class="text-left">Produit</th>
                   <th class="text-right">Qté</th>
-                  <th class="text-right">PU</th>
-                  <th class="text-right">Total</th>
+                  <th class="text-right">PU TTC</th>
+                  <th class="text-right">Total TTC</th>
+                  <th class="text-right">Total HT</th>
+                  <th class="text-right">Coût</th>
+                  <th class="text-right">Marge HT</th>
                 </tr>
               </thead>
               <tbody>
@@ -71,12 +74,52 @@
                   <td class="text-right font-mono">{{ line.quantity }}</td>
                   <td class="text-right font-mono">{{ formatMoney(line.unit_price) }}</td>
                   <td class="text-right font-mono">{{ formatMoney(line.line_total) }}</td>
+                  <td class="text-right font-mono text-muted">
+                    {{
+                      line.line_total_excl_tax == null ? '—' : formatMoney(line.line_total_excl_tax)
+                    }}
+                  </td>
+                  <td class="text-right font-mono text-muted">
+                    {{ line.line_cost == null ? '—' : formatMoney(line.line_cost) }}
+                  </td>
+                  <td class="text-right" data-testid="order-line-margin">
+                    <template v-if="line.line_margin != null">
+                      <span class="font-mono" :class="{ 'text-negative': line.line_margin < 0 }">{{
+                        formatMoney(line.line_margin)
+                      }}</span>
+                      <span v-if="line.margin_pct != null" class="text-caption text-subtle">
+                        {{ formatPct(line.margin_pct) }}
+                      </span>
+                    </template>
+                    <span v-else class="text-subtle">
+                      —
+                      <q-tooltip>Coût d'achat inconnu à la commande</q-tooltip>
+                    </span>
+                  </td>
                 </tr>
                 <tr v-if="order.lines.length === 0">
-                  <td colspan="4" class="text-center text-subtle">Aucun article.</td>
+                  <td colspan="7" class="text-center text-subtle">Aucun article.</td>
                 </tr>
               </tbody>
             </q-markup-table>
+            <div v-if="order.margin" class="order-margin" data-testid="order-margin">
+              <span class="text-muted">Marge brute sur les articles</span>
+              <strong
+                class="font-mono"
+                :class="{ 'text-negative': order.margin.margin < 0 }"
+                data-testid="order-margin-amount"
+                >{{ formatMoney(order.margin.margin) }}</strong
+              >
+              <span v-if="order.margin.margin_pct != null" class="text-muted">
+                soit {{ formatPct(order.margin.margin_pct) }} du CA HT ({{
+                  formatMoney(order.margin.goods_excl_tax)
+                }}
+                − coût {{ formatMoney(order.margin.goods_cost) }})
+              </span>
+              <span v-if="!order.margin.complete" class="text-caption text-warning">
+                {{ order.margin.lines_without_cost }} ligne(s) sans coût connu, non comptée(s)
+              </span>
+            </div>
           </section>
 
           <!-- Payments -->
@@ -872,6 +915,10 @@ async function setDeparture(departureId: string | null) {
 const loading = ref(false);
 const error = ref<string | null>(null);
 
+function formatPct(value: number): string {
+  return `${value.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`;
+}
+
 function formatMoney(amount: number): string {
   return Number.isFinite(amount) ? formatXpf(amount) : String(amount);
 }
@@ -1168,6 +1215,24 @@ onMounted(load);
 
 .order-main {
   min-width: 0;
+}
+
+.order-margin {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-top: 10px;
+  font-size: 13px;
+
+  strong {
+    font-size: 15px;
+    color: var(--n-ok);
+  }
+
+  strong.text-negative {
+    color: var(--n-danger);
+  }
 }
 
 .order-side {

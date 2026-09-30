@@ -12,6 +12,10 @@ export type ProductPublic = components['schemas']['ProductPublic'] & {
   /** Stock entrepôt (ligne Inventory) — servi par la liste, absent d'une création. */
   local_quantity?: string | null;
   parent_product_id?: string | null;
+  /** Coût de revient HT, marge HT et taux de marque (admin uniquement). */
+  unit_cost_cached?: string | null;
+  margin_cached?: string | null;
+  margin_pct_cached?: string | null;
   variant_options?: Record<string, string> | null;
   variants_count?: number;
 };
@@ -23,6 +27,17 @@ export type ProductFormValues = Record<string, unknown>;
 const PAGE_SIZE = 25;
 
 export type ActiveFilter = 'all' | 'active' | 'enriched' | 'hidden' | 'inactive' | 'draft';
+
+/** Tri serveur de la liste (vide = plus récents d'abord). */
+export type ProductSort =
+  | ''
+  | 'price_desc'
+  | 'price_asc'
+  | 'cost_desc'
+  | 'margin_desc'
+  | 'margin_asc'
+  | 'margin_pct_desc'
+  | 'margin_pct_asc';
 
 /** Une ligne du journal des prix (`ProductPriceEntryPublic`). */
 export interface PriceHistoryEntry {
@@ -51,6 +66,7 @@ export const useProductsStore = defineStore('products', () => {
 
   const search = ref('');
   const activeFilter = ref<ActiveFilter>('all');
+  const sort = ref<ProductSort>('');
   const page = ref(1);
 
   async function fetchPage() {
@@ -65,6 +81,7 @@ export const useProductsStore = defineStore('products', () => {
           include_archived: true,
           ...(activeFilter.value !== 'all' ? { status: activeFilter.value } : {}),
           ...(term ? { search: term } : {}),
+          ...(sort.value ? { sort: sort.value } : {}),
         },
       });
       const list = (data.data ?? []) as ProductPublic[];
@@ -163,9 +180,14 @@ export const useProductsStore = defineStore('products', () => {
     void fetchPage();
   }
 
-  function applyFilters(next: { search?: string; activeFilter?: ActiveFilter }) {
+  function applyFilters(next: {
+    search?: string;
+    activeFilter?: ActiveFilter;
+    sort?: ProductSort;
+  }) {
     if (next.search !== undefined) search.value = next.search;
     if (next.activeFilter !== undefined) activeFilter.value = next.activeFilter;
+    if (next.sort !== undefined) sort.value = next.sort;
     page.value = 1;
     void fetchPage();
   }
@@ -179,6 +201,7 @@ export const useProductsStore = defineStore('products', () => {
     savingOriginIds,
     search,
     activeFilter,
+    sort,
     page,
     pageSize: PAGE_SIZE,
     fetchPage,

@@ -120,10 +120,12 @@
           <span class="font-mono">{{ cartStore.totalItems }}</span>
         </div>
         <div class="cart__row cart__row--total">
-          <span>Sous-total</span>
+          <span>Sous-total TTC</span>
           <span class="font-mono">{{ moneyNumberLabel(cartStore.totalAmount) }}</span>
         </div>
-        <p class="cart__note">Frais de livraison calculés à la commande.</p>
+        <p class="cart__note">
+          Prix toutes taxes comprises. Frais de livraison calculés à la commande.
+        </p>
 
         <q-btn
           unelevated

@@ -46,6 +46,38 @@ export async function updateTaxRate(
   return data;
 }
 
+// --- Shop choices: default rate and fees rate --------------------------------
+
+/** Rate codes applied by default and to fees, with today's rate of each. */
+export interface TaxSettings {
+  default_code: string;
+  fees_code: string;
+  default_rate: TaxRate | null;
+  fees_rate: TaxRate | null;
+  territory_code: string;
+}
+
+export async function getTaxSettings(): Promise<TaxSettings> {
+  const { data } = await api.get<TaxSettings>('/admin/tax-settings');
+  return data;
+}
+
+export async function updateTaxSettings(payload: {
+  default_code: string;
+  fees_code: string;
+}): Promise<TaxSettings> {
+  const { data } = await api.put<TaxSettings>('/admin/tax-settings', payload);
+  return data;
+}
+
+/** Default tax rate of a category (`null` = the shop's default rate). */
+export async function setCategoryTaxRate(
+  categoryId: string,
+  taxRateId: string | null,
+): Promise<void> {
+  await api.put(`/admin/categories/${categoryId}/tax-rate`, { tax_rate_id: taxRateId });
+}
+
 // --- Customs (CAF price input, resolved product → category) -----------------
 
 export interface CategoryPublicationRow {

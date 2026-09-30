@@ -49,7 +49,7 @@
 
       <footer class="cart-drawer__foot">
         <div class="cart-drawer__total">
-          <span>Sous-total</span>
+          <span>Sous-total TTC</span>
           <span class="font-mono">{{ currencyStore.format(cartStore.totalAmount) }}</span>
         </div>
         <p class="cart-drawer__note">Frais de livraison calculés à la commande.</p>

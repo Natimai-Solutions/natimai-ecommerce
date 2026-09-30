@@ -228,7 +228,7 @@ async def test_the_admin_list_sorts_by_margin(db_session: AsyncSession) -> None:
         await db_session.refresh(admin)
 
     read_multi = next(
-        route.endpoint
+        cast(Any, route).endpoint
         for route in product_router.routes
         if getattr(route, "name", "") == "get_multiple_products"
     )

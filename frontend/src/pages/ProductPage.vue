@@ -79,7 +79,10 @@
               À partir de
             </span>
             <span v-if="isQuote" class="product__price">Prix sur devis</span>
-            <span v-else class="product__price font-mono">{{ displayPrice }}</span>
+            <span v-else class="product__price">
+              <span class="font-mono">{{ displayPrice }}</span>
+              <span class="product__tax" data-testid="product-price-tax">TTC</span>
+            </span>
             <span v-if="selectedMode?.customer_label" class="product__price-note">
               Prix en livraison {{ selectedMode.customer_label.toLowerCase() }}. Le mode se choisit
               à la commande.
@@ -1007,6 +1010,15 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.product__tax {
+  margin-left: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--n-ink-2);
+  vertical-align: middle;
 }
 
 .product__price {

@@ -44,7 +44,11 @@ test('a customer can order from the catalogue and gets an order number', async (
   })
 
   await test.step('adding to the cart fills it', async () => {
-    await page.getByTestId('product-add-to-cart').first().click()
+    // The first orderable item: out-of-stock cards disable their button.
+    await page
+      .locator('[data-testid="product-add-to-cart"]:not([disabled]):not([aria-disabled="true"])')
+      .first()
+      .click()
     await gotoHydrated(page, '/panier')
     await expect(page.getByTestId('cart-checkout')).toBeEnabled()
   })
@@ -68,7 +72,7 @@ test('a customer can order from the catalogue and gets an order number', async (
     }
 
     // Manual transfer — no gateway, the response carries instructions.
-    const method = page.getByTestId('checkout-method-manual_transfer')
+    const method = page.getByTestId('checkout-method-manual_transfer').first()
     await expect(method).toBeVisible()
     await method.click()
 

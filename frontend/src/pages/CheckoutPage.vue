@@ -318,7 +318,7 @@
             </div>
             <div class="app-kv app-kv--total">
               <span>{{
-                quote.payment_plan === 'deposit' ? 'Total de la commande' : 'Total à payer'
+                quote.payment_plan === 'deposit' ? 'Total de la commande TTC' : 'Total à payer TTC'
               }}</span>
               <span class="font-mono" data-testid="checkout-quote-total">{{
                 formatMoney(quote.total_amount)

@@ -175,69 +175,72 @@
               />
               <p class="product-form__help">{{ pricingModeHint }}</p>
 
-              <template v-if="form.pricing_mode === 'fixed'">
+              <q-input
+                v-if="form.pricing_mode === 'fixed'"
+                v-model="form.base_price"
+                label="Prix de vente TTC *"
+                hint="Prix affiché tel quel, taxes comprises"
+                type="number"
+                step="0.01"
+                min="0"
+                outlined
+                dense
+                bottom-slots
+                data-testid="product-base-price"
+              />
+              <div class="row" style="gap: 8px">
                 <q-input
-                  v-model="form.base_price"
-                  label="Prix de vente TTC *"
-                  hint="Prix affiché tel quel, taxes comprises"
+                  v-model="form.cost_amount"
+                  :label="form.pricing_mode === 'fixed' ? 'Coût d\'achat HT' : 'Coût d\'achat'"
+                  :hint="
+                    form.pricing_mode === 'fixed' ? 'Sert au calcul de la marge (0 = inconnu)' : ''
+                  "
                   type="number"
                   step="0.01"
                   min="0"
                   outlined
                   dense
                   bottom-slots
+                  class="col"
+                  data-testid="product-cost"
                 />
-              </template>
-              <template v-else>
-                <div class="row" style="gap: 8px">
-                  <q-input
-                    v-model="form.cost_amount"
-                    label="Coût d'achat"
-                    type="number"
-                    step="0.01"
-                    outlined
-                    dense
-                    bottom-slots
-                    class="col"
-                  />
-                  <q-select
-                    v-model="form.cost_currency"
-                    :options="currencyOptions"
-                    label="Devise du coût"
-                    outlined
-                    dense
-                    bottom-slots
-                    emit-value
-                    map-options
-                    class="col"
-                  />
-                </div>
-                <div class="row" style="gap: 8px">
-                  <q-input
-                    v-if="form.pricing_mode === 'import'"
-                    v-model="form.customs_rate_pct"
-                    label="Douane (%)"
-                    hint="Vide = taux par défaut de la catégorie"
-                    type="number"
-                    step="0.01"
-                    outlined
-                    dense
-                    bottom-slots
-                    class="col"
-                  />
-                  <q-input
-                    v-model="form.margin_rate_pct"
-                    label="Marge (%)"
-                    hint="Vide = marge de la catégorie, sinon du groupe tarifaire"
-                    type="number"
-                    step="0.01"
-                    outlined
-                    dense
-                    bottom-slots
-                    class="col"
-                  />
-                </div>
-              </template>
+                <q-select
+                  v-model="form.cost_currency"
+                  :options="currencyOptions"
+                  label="Devise du coût"
+                  outlined
+                  dense
+                  bottom-slots
+                  emit-value
+                  map-options
+                  class="col"
+                />
+              </div>
+              <div v-if="form.pricing_mode !== 'fixed'" class="row" style="gap: 8px">
+                <q-input
+                  v-if="form.pricing_mode === 'import'"
+                  v-model="form.customs_rate_pct"
+                  label="Douane (%)"
+                  hint="Vide = taux par défaut de la catégorie"
+                  type="number"
+                  step="0.01"
+                  outlined
+                  dense
+                  bottom-slots
+                  class="col"
+                />
+                <q-input
+                  v-model="form.margin_rate_pct"
+                  label="Marge (%)"
+                  hint="Vide = marge de la catégorie, sinon du groupe tarifaire"
+                  type="number"
+                  step="0.01"
+                  outlined
+                  dense
+                  bottom-slots
+                  class="col"
+                />
+              </div>
               <div class="row" style="gap: 8px">
                 <q-select
                   v-model="form.category_id"
@@ -254,7 +257,8 @@
                 <q-select
                   v-model="form.tax_rate_id"
                   :options="taxRateOptions"
-                  label="Taux de TVA / TGC"
+                  label="Taux de TVA"
+                  hint="Vide = taux de la catégorie, sinon taux par défaut"
                   outlined
                   dense
                   bottom-slots
@@ -264,6 +268,7 @@
                   class="col"
                 />
               </div>
+              <MarginPreviewPanel v-if="modelValue" :input="marginInput" />
             </div>
 
             <div>
@@ -412,7 +417,9 @@ import { listTaxRates, type TaxRate } from '@/api/taxRates';
 import { listPlaces, type Place } from '@/api/logistics';
 import { listSuppliers, type Supplier } from '@/api/suppliers';
 import { adjustInventory } from '@/api/inventory';
+import MarginPreviewPanel from '@/components/MarginPreviewPanel.vue';
 import MediaPicker from '@/components/MediaPicker.vue';
+import type { MarginPreviewRequest } from '@/api/margin';
 import ProductVariantsPanel from '@/components/ProductVariantsPanel.vue';
 import { useProductsStore, type ProductPublic } from '@/stores/products';
 import { useShopConfigStore } from '@/stores/shopConfig';
@@ -597,6 +604,24 @@ function onSupplierChange(code: string | null) {
 }
 const categoryOptions = ref<{ label: string; value: string }[]>([]);
 const taxRateOptions = ref<{ label: string; value: string }[]>([]);
+
+/** Valeurs de prix du formulaire, envoyées à l'aperçu de marge. */
+const marginInput = computed<MarginPreviewRequest>(() => ({
+  product_id: isEdit.value ? (props.product?.id ?? null) : null,
+  pricing_mode: form.pricing_mode,
+  base_price: decimalOrNull(form.base_price),
+  cost_amount: decimalOrNull(form.cost_amount),
+  cost_currency: form.cost_currency || null,
+  margin_rate_pct: decimalOrNull(form.margin_rate_pct),
+  customs_rate_pct: decimalOrNull(form.customs_rate_pct),
+  tax_rate_id: form.tax_rate_id,
+  category_id: form.category_id,
+}));
+
+function decimalOrNull(value: string | number | null): string | null {
+  const text = String(value ?? '').trim();
+  return text === '' || Number.isNaN(Number(text)) ? null : String(Number(text));
+}
 const placeOptions = ref<{ label: string; value: string }[]>([]);
 
 const isEdit = ref(false);

@@ -26,6 +26,7 @@
         <span v-else class="product-card__price">
           <span v-if="product.has_variants" class="product-card__from">À partir de</span>
           <span class="font-mono">{{ displayPrice }}</span>
+          <span class="product-card__tax">TTC</span>
         </span>
 
         <span
@@ -185,6 +186,13 @@ const displayPrice = computed(() => currencyStore.format(parseFloat(props.produc
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.product-card__tax {
+  margin-left: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--n-ink-2);
 }
 
 .product-card__price {

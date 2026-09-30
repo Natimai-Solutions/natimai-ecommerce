@@ -50,6 +50,18 @@
         style="min-width: 260px"
         @update:model-value="onFilterChange"
       />
+      <q-select
+        v-model="sort"
+        :options="sortOptions"
+        label="Trier par"
+        outlined
+        dense
+        emit-value
+        map-options
+        style="min-width: 220px"
+        data-testid="products-sort"
+        @update:model-value="onSortChange"
+      />
     </div>
 
     <div v-if="store.error || notice" class="admin-notices">
@@ -190,6 +202,36 @@
         </q-td>
       </template>
 
+      <template #body-cell-price="props">
+        <q-td :props="props" class="font-mono text-right">
+          {{ money(props.row.sale_price_cached) }}
+        </q-td>
+      </template>
+
+      <template #body-cell-cost="props">
+        <q-td :props="props" class="font-mono text-right">
+          {{ money(props.row.unit_cost_cached) }}
+        </q-td>
+      </template>
+
+      <template #body-cell-margin="props">
+        <q-td :props="props" class="text-right" data-testid="product-margin">
+          <template v-if="props.row.margin_cached != null">
+            <div
+              class="font-mono"
+              :class="{ 'text-negative': Number(props.row.margin_cached) < 0 }"
+            >
+              {{ money(props.row.margin_cached) }}
+            </div>
+            <div class="text-caption text-subtle">{{ pct(props.row.margin_pct_cached) }}</div>
+          </template>
+          <span v-else class="text-subtle">
+            —
+            <q-tooltip>Coût d'achat inconnu</q-tooltip>
+          </span>
+        </q-td>
+      </template>
+
       <template #body-cell-storefront="props">
         <q-td :props="props" align="center">
           <span v-if="isVisible(props.row)">
@@ -322,16 +364,20 @@ import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import PageHeader from '@/components/PageHeader.vue';
+import { formatMoney } from '@app/utils';
+import { useShopConfigStore } from '@/stores/shopConfig';
 import {
   useProductsStore,
   type ActiveFilter,
   type PriceHistoryEntry,
+  type ProductSort,
   type ProductPublic,
 } from '@/stores/products';
 import { listPlaces, type Place } from '@/api/logistics';
 import ProductFormDialog from '@/components/ProductFormDialog.vue';
 
 const store = useProductsStore();
+const shopConfig = useShopConfigStore();
 
 const formOpen = ref(false);
 const editingProduct = ref<ProductPublic | null>(null);
@@ -359,6 +405,33 @@ function onOriginChange(product: Parameters<typeof store.updateOriginPlace>[0], 
 
 const placeholderImg =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"/>';
+
+const sort = ref<ProductSort>(store.sort);
+const sortOptions: { label: string; value: ProductSort }[] = [
+  { label: 'Plus récents', value: '' },
+  { label: 'Marge HT décroissante', value: 'margin_desc' },
+  { label: 'Marge HT croissante', value: 'margin_asc' },
+  { label: 'Taux de marque décroissant', value: 'margin_pct_desc' },
+  { label: 'Taux de marque croissant', value: 'margin_pct_asc' },
+  { label: 'Prix décroissant', value: 'price_desc' },
+  { label: 'Prix croissant', value: 'price_asc' },
+  { label: 'Coût décroissant', value: 'cost_desc' },
+];
+
+function onSortChange(value: ProductSort) {
+  store.applyFilters({ sort: value ?? '' });
+  currentPage.value = 1;
+}
+
+function money(value: string | null | undefined): string {
+  return value == null ? '—' : formatMoney(value, shopConfig.currency);
+}
+
+function pct(value: string | null | undefined): string {
+  return value == null
+    ? '—'
+    : `${Number(value).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`;
+}
 
 const filterOptions = [
   { label: 'Tous', value: 'all' as const },
@@ -485,6 +558,9 @@ const columns: QTableColumn[] = [
     field: 'supplier_place_id',
     align: 'left',
   },
+  { name: 'price', label: 'Prix TTC', field: 'sale_price_cached', align: 'right' },
+  { name: 'cost', label: 'Coût HT', field: 'unit_cost_cached', align: 'right' },
+  { name: 'margin', label: 'Marge HT', field: 'margin_cached', align: 'right' },
   { name: 'storefront', label: 'Vitrine', field: 'is_enriched', align: 'center' },
   { name: 'active', label: 'Actif admin', field: 'is_admin_active', align: 'center' },
   { name: 'actions', label: '', field: 'id', align: 'right' },

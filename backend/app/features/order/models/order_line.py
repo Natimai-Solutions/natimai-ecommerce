@@ -1,6 +1,5 @@
 import uuid
 from decimal import Decimal
-from typing import Any, cast
 
 from pydantic import SerializerFunctionWrapHandler, model_serializer
 from sqlmodel import JSON, Column, Field, SQLModel
@@ -153,11 +152,11 @@ class OrderLinePublic(OrderLineBase, BasePublic):
 
     id: uuid.UUID
 
+    # Deliberately unannotated: an annotated return type would replace the
+    # model's properties in the OpenAPI schema (and the generated TS types).
     @model_serializer(mode="wrap")
-    def _hide_internal_fields(
-        self, handler: SerializerFunctionWrapHandler
-    ) -> dict[str, Any]:
-        return cast(dict[str, Any], redact(handler(self), ORDER_LINE_INTERNAL_FIELDS))
+    def _hide_internal_fields(self, handler: SerializerFunctionWrapHandler):  # type: ignore[no-untyped-def]  # noqa: ANN202
+        return redact(handler(self), ORDER_LINE_INTERNAL_FIELDS)
 
 
 class OrderLinesPublic(SQLModel):

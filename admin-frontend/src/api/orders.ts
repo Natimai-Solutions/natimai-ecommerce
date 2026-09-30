@@ -46,6 +46,25 @@ export interface AdminOrderLineItem {
   quantity: number;
   unit_price: number;
   line_total: number;
+  tax_rate_pct?: number | null;
+  line_total_excl_tax?: number | null;
+  /** Coût de revient unitaire figé à la commande (null = inconnu). */
+  unit_cost?: number | null;
+  line_cost?: number | null;
+  line_margin?: number | null;
+  /** Marge / total HT de la ligne (taux de marque). */
+  margin_pct?: number | null;
+}
+
+/** Marge brute sur les articles (frais et livraison exclus). */
+export interface OrderMarginSummary {
+  goods_excl_tax: number;
+  goods_cost: number;
+  margin: number;
+  margin_pct: number | null;
+  /** false : une ligne n'a pas de coût connu, les chiffres couvrent les autres. */
+  complete: boolean;
+  lines_without_cost: number;
 }
 
 export interface AdminOrderPaymentItem {
@@ -80,6 +99,8 @@ export interface AdminOrderDetail {
   user_name: string | null;
   user_email: string | null;
   status: string | null;
+  /** Marge brute des articles (null : aucun coût connu). */
+  margin?: OrderMarginSummary | null;
   subtotal_amount: number;
   shipping_fee_amount: number;
   payment_fee_amount: number;

@@ -44,7 +44,11 @@ export async function placeManualOrder(
 ): Promise<string> {
   await loginCustomer(page)
   await gotoHydrated(page, '/catalogue')
-  await page.getByTestId('product-add-to-cart').first().click()
+  // The first orderable item: out-of-stock cards disable their button.
+  await page
+    .locator('[data-testid="product-add-to-cart"]:not([disabled]):not([aria-disabled="true"])')
+    .first()
+    .click()
   await gotoHydrated(page, '/panier')
   await page.getByTestId('cart-checkout').click()
   await expect(page).toHaveURL(/checkout/)
