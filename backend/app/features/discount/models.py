@@ -104,6 +104,13 @@ class DiscountBase(Base):
         ge=0,
         description="Nombre d'utilisations actuelles",
     )
+    applies_to_promoted: bool = Field(
+        default=True,
+        description=(
+            "Code promo : s'applique aussi aux articles concernés par une "
+            "promotion en cours (faux = ces articles sont exclus du code)"
+        ),
+    )
 
 
 class DiscountCreate(DiscountBase, BaseCreate):
@@ -130,6 +137,7 @@ class DiscountUpdate(BaseUpdate):
     end_date: datetime.datetime | None = None
     max_uses: int | None = None
     current_uses: int | None = None
+    applies_to_promoted: bool | None = None
 
 
 class Discount(DiscountBase, table=True):

@@ -194,7 +194,12 @@ async def get_product_shipping_modes(
                 service_level=m.service_level,
                 customer_label=m.customer_label,
                 freight=m.freight,
-                sale_price=group_pricing.price(product.id, m.sale_price),
+                sale_price=group_pricing.price(
+                    product.id,
+                    m.sale_price,
+                    parent_id=product.parent_product_id,
+                    category_id=product.category_id,
+                ),
                 eta_days=m.eta_days,
                 carbon_footprint_kg_co2e=m.carbon_footprint_kg_co2e,
             )
@@ -290,7 +295,12 @@ async def get_product_offers(
             # No rate for the cost currency: shown as unpriced, sorted last.
             sale_price = Decimal("0")
         if sale_price > 0:
-            sale_price = group_pricing.price(candidate.id, sale_price)
+            sale_price = group_pricing.price(
+                candidate.id,
+                sale_price,
+                parent_id=candidate.parent_product_id,
+                category_id=candidate.category_id,
+            )
         supplier = suppliers.get(candidate.supplier_name or "")
         quantity = Decimal(str(candidate.supplier_quantity or 0))
         local_quantity = local.get(candidate.id, Decimal("0.00"))

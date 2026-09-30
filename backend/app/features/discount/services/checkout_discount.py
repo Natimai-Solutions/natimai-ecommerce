@@ -168,6 +168,33 @@ async def resolve_coupon(
             )
 
     lines = eligible_lines(discount, items, products_by_id)
+    if not getattr(discount, "applies_to_promoted", True) and lines:
+        # « Non cumulable » : the articles a promotion in force covers are
+        # left out of the code (they already have their own reduced price).
+        from app.features.product.services.group_pricing import (
+            load_active_promotions,
+        )
+
+        promotions = await load_active_promotions(session)
+        promoted = {
+            product_id
+            for product_id, product in products_by_id.items()
+            if any(
+                p.matches(
+                    product_id=product_id,
+                    parent_id=getattr(product, "parent_product_id", None),
+                    category_id=getattr(product, "category_id", None),
+                )
+                for p in promotions
+            )
+        }
+        kept = [item for item in lines if item.product_id not in promoted]
+        if not kept:
+            raise DiscountRefused(
+                "promoted_only",
+                "Ce code ne s'applique pas aux articles déjà en promotion",
+            )
+        lines = kept
     weights = [
         (item.id, quantize_amount(Decimal(item.unit_price) * item.quantity, currency))
         for item in lines

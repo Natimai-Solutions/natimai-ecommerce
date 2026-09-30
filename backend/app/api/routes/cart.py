@@ -1445,7 +1445,7 @@ async def _price_for_customer(
         reference = await calculate_sale_price(session, product)
         cache[product.id] = reference
     price = await customer_price(
-        session, product_id=product.id, reference=reference, user=user
+        session, product=product, reference=reference, user=user
     )
     set_committed_value(product, "base_price", price)
     return price

@@ -9,7 +9,9 @@ the stored reference price of a fixed-price article is never overwritten.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -26,6 +28,12 @@ from app.api.routes.cart import add_cart_item
 from app.api.routes.product_catalog import get_featured_products, search_products
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
 from app.features.cart.models.cart import CartItemAddRequest
+from app.features.discount.models import Discount, DiscountTarget, DiscountType
+from app.features.discount.services.checkout_discount import (
+    DiscountRefused,
+    resolve_coupon,
+)
+from app.features.product.models.category import Category
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import (
     PricingMode,
@@ -228,3 +236,176 @@ async def test_typed_prices_are_set_and_cleared(db_session: AsyncSession) -> Non
     assert {s.price_group_id: s.price for s in stored} == {
         ids["public"]: Decimal("4000.00")
     }
+
+
+# --- Promotions: the best price wins -----------------------------------------
+
+
+def _promotion(**fields: Any) -> Discount:
+    return Discount(
+        discount_type=DiscountType.PROMOTION,
+        name=fields.pop("name", "Promo"),
+        target=fields.pop("target", DiscountTarget.PRODUCT),
+        **fields,
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_promotion_never_stacks_on_the_group_price(
+    db_session: AsyncSession,
+) -> None:
+    ids = await _setup(db_session)
+    admin = cast(Any, User(email="a@t.local", is_superuser=True, hashed_password="x"))
+    await set_group_prices(
+        ids["casque"],
+        GroupPricesUpdate(
+            prices=[
+                GroupPriceInput(price_group_id=ids["public"], price=Decimal("9000"))
+            ]
+        ),
+        cast(Any, db_session),
+        admin,
+    )
+    now = datetime.now(timezone.utc)
+    db_session.add_all(
+        [
+            _promotion(
+                name="Rentrée −20 %",
+                product_id=ids["casque"],
+                percentage=Decimal("20"),
+                start_date=now - timedelta(days=1),
+                end_date=now + timedelta(days=7),
+            ),
+            # Over or not started: ignored.
+            _promotion(
+                name="Passée",
+                product_id=ids["clavier"],
+                percentage=Decimal("50"),
+                end_date=now - timedelta(days=1),
+            ),
+            _promotion(
+                name="À venir",
+                product_id=ids["clavier"],
+                percentage=Decimal("50"),
+                start_date=now + timedelta(days=1),
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    async def featured(user: Any) -> dict[str, Any]:
+        listing = await get_featured_products(
+            session=cast(Any, db_session), limit=10, current_user=user
+        )
+        return {p.name: p for p in listing.data}
+
+    visitor = await featured(None)
+    assert visitor["Casque"].base_price == Decimal("9280.00")
+    assert visitor["Casque"].regular_price == Decimal("11600.00")
+    assert visitor["Casque"].promotion_name == "Rentrée −20 %"
+    assert visitor["Clavier"].base_price == Decimal("5000.00")
+    assert visitor["Clavier"].regular_price is None
+
+    # Professionnel (−10 % → 10 440): the promotion is better, no stacking.
+    pro = await featured(await _user(db_session, ids["users"]["pro"]))
+    assert pro["Casque"].base_price == Decimal("9280.00")
+    assert pro["Casque"].regular_price == Decimal("10440.00")
+    assert pro["Clavier"].base_price == Decimal("4500.00")
+
+    # Administration: its typed price (9 000) beats the promotion.
+    public = await featured(await _user(db_session, ids["users"]["public"]))
+    assert public["Casque"].base_price == Decimal("9000")
+    assert public["Casque"].promotion_name is None
+
+    # The cart charges the best price.
+    pro_id = ids["users"]["pro"]
+    await add_cart_item(
+        session=cast(Any, db_session),
+        current_user=await _user(db_session, pro_id),
+        payload=CartItemAddRequest(product_id=ids["casque"], quantity=1),
+    )
+    cart = await crud_cart.get_active_cart_by_user(session=db_session, user_id=pro_id)
+    assert cart is not None
+    items = await crud_cart_item.get_by_cart_id(session=db_session, cart_id=cart.id)
+    assert [i.unit_price for i in items] == [Decimal("9280.00")]
+
+
+@pytest.mark.asyncio
+async def test_a_category_promotion_in_amount(db_session: AsyncSession) -> None:
+    ids = await _setup(db_session)
+    category = Category(name=f"Écrans {uuid.uuid4().hex[:4]}")
+    db_session.add(category)
+    await db_session.flush()
+    clavier = await db_session.get(Product, ids["clavier"])
+    assert clavier is not None
+    clavier.category_id = category.id
+    db_session.add(clavier)
+    db_session.add(
+        _promotion(
+            name="−1 000 F sur la catégorie",
+            target=DiscountTarget.CATEGORY,
+            category_id=category.id,
+            amount=Decimal("1000"),
+        )
+    )
+    await db_session.commit()
+    listing = await get_featured_products(
+        session=cast(Any, db_session), limit=10, current_user=None
+    )
+    prices = {p.name: p.base_price for p in listing.data}
+    assert prices["Clavier"] == Decimal("4000.00")
+    assert prices["Casque"] == Decimal("11600.00")
+
+
+@pytest.mark.asyncio
+async def test_a_non_stackable_code_skips_promoted_articles(
+    db_session: AsyncSession,
+) -> None:
+    ids = await _setup(db_session)
+    db_session.add_all(
+        [
+            _promotion(product_id=ids["casque"], percentage=Decimal("20")),
+            Discount(
+                name="Dix",
+                code="DIX",
+                discount_type=DiscountType.COUPON,
+                percentage=Decimal("10"),
+                target=DiscountTarget.ORDER,
+                applies_to_promoted=False,
+            ),
+        ]
+    )
+    await db_session.commit()
+    products = {
+        ids["casque"]: SimpleNamespace(id=ids["casque"], category_id=None),
+        ids["clavier"]: SimpleNamespace(id=ids["clavier"], category_id=None),
+    }
+
+    def line(product_id: uuid.UUID, price: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            id=uuid.uuid4(),
+            product_id=product_id,
+            unit_price=Decimal(price),
+            quantity=1,
+        )
+
+    applied = await resolve_coupon(
+        db_session,
+        code="dix",
+        user_id=ids["users"]["pro"],
+        items=[line(ids["casque"], "9280"), line(ids["clavier"], "5000")],
+        products_by_id=products,
+        currency="XPF",
+    )
+    assert applied.amount == Decimal("500")  # 10 % of the keyboard only
+
+    with pytest.raises(DiscountRefused) as refused:
+        await resolve_coupon(
+            db_session,
+            code="dix",
+            user_id=ids["users"]["pro"],
+            items=[line(ids["casque"], "9280")],
+            products_by_id=products,
+            currency="XPF",
+        )
+    assert refused.value.reason == "promoted_only"

@@ -618,6 +618,11 @@ class ProductPublic(ProductBase, BasePublic):
     available_quantity: Decimal | None = None
     #: Active variants of a parent product (0 for a plain product).
     variants_count: int = 0
+    #: A promotion lowers the customer's price: their usual price (struck
+    #: through), the promotion's name and end. None without promotion.
+    regular_price: Decimal | None = None
+    promotion_name: str | None = None
+    promotion_ends_at: datetime | None = None
 
 
 class ProductsPublic(SQLModel):
