@@ -13,6 +13,15 @@
           :loading="loading"
           @click="load"
         />
+        <q-btn
+          color="primary"
+          unelevated
+          no-caps
+          icon="ph:plus"
+          label="Nouveau moyen"
+          data-testid="method-create"
+          @click="openMethod(null)"
+        />
       </template>
     </PageHeader>
 
@@ -86,10 +95,18 @@
 
       <section class="app-section" aria-labelledby="eligibility-title">
         <div class="app-section__head">
-          <h2 id="eligibility-title" class="app-section__title">Ouverture par groupe</h2>
+          <h2 id="eligibility-title" class="app-section__title">
+            Moyens proposés et ouverture par groupe
+          </h2>
         </div>
+        <AppNotice v-if="methodNotice" tone="success" dense class="q-mb-sm">
+          {{ methodNotice }}
+        </AppNotice>
         <p class="admin-hint">
-          Le commutateur <strong>Activé</strong> coupe/rétablit une méthode
+          <strong>Modifier</strong> ouvre le nom, la description, les frais, le plafond, l'ordre et
+          les instructions envoyées au client ; <strong>Nouveau moyen</strong> en crée un sur un
+          type existant (par exemple un second virement vers une autre banque, avec son IBAN). Le
+          commutateur <strong>Activé</strong> coupe/rétablit une méthode
           <strong>globalement</strong> (masquée pour tous les clients si désactivée).
           <strong>Acompte</strong> décide si elle peut régler l'acompte d'une commande ; le solde
           reste payable par tout moyen. Les cases cochent les groupes autorisés :
@@ -112,8 +129,26 @@
           <tbody>
             <tr v-for="m in methods" :key="m.id">
               <td class="text-left">
-                <div>{{ m.name }}</div>
-                <div class="text-caption text-subtle font-mono">{{ m.provider_code }}</div>
+                <div class="method-cell">
+                  <div>
+                    <div>{{ m.name }}</div>
+                    <div class="text-caption text-subtle">
+                      {{ methodSummary(m) }}
+                    </div>
+                  </div>
+                  <q-btn
+                    flat
+                    dense
+                    round
+                    size="sm"
+                    icon="ph:pencil-simple"
+                    :aria-label="`Modifier « ${m.name} »`"
+                    data-testid="method-edit"
+                    @click="openMethod(m)"
+                  >
+                    <q-tooltip>Modifier</q-tooltip>
+                  </q-btn>
+                </div>
               </td>
               <td class="text-center">
                 <q-toggle
@@ -231,6 +266,14 @@
         </q-markup-table>
       </section>
     </template>
+
+    <PaymentMethodDialog
+      v-model="methodDialog"
+      :method="editedMethod"
+      :types="methodTypes"
+      @saved="onMethodSaved"
+      @deleted="onMethodDeleted"
+    />
   </q-page>
 </template>
 
@@ -239,10 +282,12 @@ import { onMounted, reactive, ref } from 'vue';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import PageHeader from '@/components/PageHeader.vue';
+import PaymentMethodDialog from '@/components/PaymentMethodDialog.vue';
 import {
   addEligibility,
   listEligibleGroups,
   listPaymentMethods,
+  listPaymentMethodTypes,
   listPriceGroups,
   removeEligibility,
   setPaymentMethodActive,
@@ -252,9 +297,11 @@ import {
   type PaymentProvider,
   updatePriceGroup,
   type PaymentMethod,
+  type PaymentMethodType,
   type PriceGroup,
 } from '@/api/eligibility';
 import { extractApiError } from '@/api/errors';
+import { formatMoney } from '@app/utils';
 
 // --- Deposit policy per group ---
 interface DepositEdit {
@@ -302,6 +349,36 @@ async function saveDeposit(g: PriceGroup) {
 }
 
 const methods = ref<PaymentMethod[]>([]);
+const methodTypes = ref<PaymentMethodType[]>([]);
+const methodDialog = ref(false);
+const editedMethod = ref<PaymentMethod | null>(null);
+const methodNotice = ref<string | null>(null);
+
+/** Type, frais et plafond, sous le nom du moyen. */
+function methodSummary(m: PaymentMethod): string {
+  const parts = [m.type_label];
+  if (Number(m.fee) > 0) parts.push(`frais ${formatMoney(m.fee, 'XPF')}`);
+  if (m.max_amount !== null) parts.push(`jusqu'à ${formatMoney(m.max_amount, 'XPF')}`);
+  if (m.instructions) parts.push('instructions propres');
+  return parts.join(' · ');
+}
+
+function openMethod(m: PaymentMethod | null) {
+  editedMethod.value = m;
+  methodNotice.value = null;
+  methodDialog.value = true;
+}
+
+async function onMethodSaved(saved: PaymentMethod) {
+  await load();
+  methodNotice.value = `« ${saved.name} » enregistré.`;
+}
+
+async function onMethodDeleted() {
+  const name = editedMethod.value?.name ?? 'Le moyen';
+  await load();
+  methodNotice.value = `« ${name} » supprimé.`;
+}
 const providers = ref<PaymentProvider[]>([]);
 const groups = ref<PriceGroup[]>([]);
 /** methodId → list of eligible group ids (empty = open to all). */
@@ -324,12 +401,14 @@ async function load() {
   loading.value = true;
   error.value = null;
   try {
-    const [pm, pg, psp] = await Promise.all([
+    const [pm, pg, psp, types] = await Promise.all([
       listPaymentMethods(),
       listPriceGroups(),
       listPaymentProviders(),
+      listPaymentMethodTypes(),
     ]);
     providers.value = psp;
+    methodTypes.value = types;
     methods.value = pm;
     groups.value = pg;
     const entries = await Promise.all(
@@ -408,3 +487,12 @@ async function toggle(methodId: string, groupId: string, value: boolean) {
 
 onMounted(load);
 </script>
+
+<style scoped>
+.method-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+</style>

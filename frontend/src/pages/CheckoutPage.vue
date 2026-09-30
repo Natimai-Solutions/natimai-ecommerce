@@ -79,7 +79,7 @@
             <div class="app-section__head">
               <h2 class="app-section__title">Pour régler</h2>
             </div>
-            <p class="confirmation__body">{{ instructions }}</p>
+            <p class="confirmation__body" data-testid="checkout-instructions">{{ instructions }}</p>
           </div>
 
           <div v-if="needsUpload && !uploadDone" class="app-section">

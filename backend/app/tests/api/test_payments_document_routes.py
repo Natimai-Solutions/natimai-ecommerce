@@ -80,6 +80,11 @@ async def test_payments_initiate_dispatches_po_provider(
         "app.features.payment.services.payment_initiation.check_payment_method_eligible",
         AsyncMock(return_value=True),
     )
+    # No shop-specific wording: the provider's text applies.
+    monkeypatch.setattr(
+        "app.features.payment.services.payment_initiation.shop_instructions",
+        AsyncMock(return_value=None),
+    )
     # Order revalidation is covered by test_payments_initiate_order_guard.py;
     # this test focuses on the document-provider dispatch.
     monkeypatch.setattr(

@@ -33,9 +33,15 @@ export async function placeTransferOrder(page: Page): Promise<string> {
 
 /**
  * Same with any manual method (`manual_cash`, `manual_check`,
- * `manual_transfer`). Leaves the customer signed in on the storefront.
+ * `manual_transfer`). Several methods can share a type: `methodName` picks
+ * one by its name, otherwise the first of the type is used. Leaves the
+ * customer signed in on the storefront.
  */
-export async function placeManualOrder(page: Page, providerCode: string): Promise<string> {
+export async function placeManualOrder(
+  page: Page,
+  providerCode: string,
+  methodName?: string,
+): Promise<string> {
   await loginCustomer(page)
   await gotoHydrated(page, '/catalogue')
   await page.getByTestId('product-add-to-cart').first().click()
@@ -46,7 +52,8 @@ export async function placeManualOrder(page: Page, providerCode: string): Promis
   await page.locator('[data-testid^="checkout-address-"]').first().click()
   const deliveryOptions = page.locator('[data-testid^="checkout-delivery-"]')
   if ((await deliveryOptions.count()) > 0) await deliveryOptions.first().click()
-  await page.getByTestId(`checkout-method-${providerCode}`).click()
+  const methods = page.getByTestId(`checkout-method-${providerCode}`)
+  await (methodName ? methods.filter({ hasText: methodName }) : methods.first()).click()
   // The CGV label holds a link with @click.stop: click the box itself.
   await page.getByTestId('checkout-cgv').locator('.q-checkbox__inner').click()
   await page.getByTestId('checkout-submit').click()

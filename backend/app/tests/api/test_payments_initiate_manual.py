@@ -72,7 +72,7 @@ async def test_payments_initiate_dispatches_manual_check(
     )
     # No shop-specific wording in these tests: the provider's text applies.
     monkeypatch.setattr(
-        "app.features.payment.services.payment_initiation.load_payment_instructions",
+        "app.features.payment.services.payment_initiation.shop_instructions",
         AsyncMock(return_value=None),
     )
     # Order revalidation is covered by test_payments_initiate_order_guard.py;
@@ -156,7 +156,7 @@ async def test_payments_initiate_dispatches_manual_transfer(
     )
     # No shop-specific wording in these tests: the provider's text applies.
     monkeypatch.setattr(
-        "app.features.payment.services.payment_initiation.load_payment_instructions",
+        "app.features.payment.services.payment_initiation.shop_instructions",
         AsyncMock(return_value=None),
     )
 

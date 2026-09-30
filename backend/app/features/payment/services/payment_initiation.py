@@ -38,6 +38,7 @@ from app.features.payment.services.eligibility import check_payment_method_eligi
 from app.features.payment.services.manual_payment import (
     register_intent as register_manual_intent,
 )
+from app.features.payment.services.payment_method_types import shop_instructions
 from app.features.payment.services.provider_dispatch import (
     PaymentMethodInactiveError,
     PaymentMethodNotFoundError,
@@ -46,7 +47,6 @@ from app.features.payment.services.provider_dispatch import (
     resolve_provider_code_for_payment_method,
 )
 from app.features.payment.services.provider_settings import provider_available
-from app.features.system.payment_instructions import load_payment_instructions
 from app.utils.money import decimal_to_minor_units
 
 
@@ -234,10 +234,15 @@ async def initiate_payment_for_method(
 
     elif isinstance(provider, ManualPaymentProvider):
         provider_result = await provider.register_intent(initiation_request)
-        # The shop's own wording (office address, IBAN…) replaces the default.
-        shop_instructions = await load_payment_instructions(session, provider_code)
-        if shop_instructions:
-            provider_result.instructions = shop_instructions
+        # The shop's own wording (office address, IBAN…) replaces the default:
+        # the method's own first, then its type's.
+        custom = await shop_instructions(
+            session,
+            method=await session.get(PaymentMethod, payment_method_id),
+            provider_code=provider_code,
+        )
+        if custom:
+            provider_result.instructions = custom
 
         payment.provider_code = provider_code
         payment.provider_reference = provider_result.provider_reference or str(
@@ -253,6 +258,13 @@ async def initiate_payment_for_method(
 
     elif isinstance(provider, DocumentValidatedProvider):
         provider_result = await provider.register_intent(initiation_request)
+        custom = await shop_instructions(
+            session,
+            method=await session.get(PaymentMethod, payment_method_id),
+            provider_code=provider_code,
+        )
+        if custom:
+            provider_result.instructions = custom
 
         payment.provider_code = provider_code
         payment.provider_reference = provider_result.provider_reference or str(

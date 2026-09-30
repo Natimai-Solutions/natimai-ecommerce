@@ -56,6 +56,14 @@ class PaymentMethodBase(Base):
             "(the balance can always be paid by any eligible method)"
         ),
     )
+    instructions: str | None = Field(
+        default=None,
+        max_length=2000,
+        description=(
+            "Instructions shown and e-mailed to the customer for this method "
+            "(IBAN, office address…). NULL = the instructions of its type"
+        ),
+    )
 
 
 class PaymentMethodCreate(PaymentMethodBase, BaseCreate):
@@ -76,6 +84,7 @@ class PaymentMethodUpdate(PaymentMethodBase, BaseUpdate):
     sort_order: int | None = None
     max_amount: Decimal | None = None
     deposit_allowed: bool | None = None
+    instructions: str | None = None
 
 
 class PaymentMethod(PaymentMethodBase, table=True):

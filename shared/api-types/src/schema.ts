@@ -956,6 +956,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payment-methods/types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Payment Method Types
+         * @description The types a method can be created on.
+         */
+        get: operations["admin-payment-list_payment_method_types"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payment-methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Admin Payment Methods
+         * @description Every method, switched on or off, in checkout order.
+         */
+        get: operations["admin-payment-list_admin_payment_methods"];
+        put?: never;
+        /**
+         * Create Payment Method
+         * @description A new method on an existing type (« Virement Banque de Tahiti »).
+         */
+        post: operations["admin-payment-create_payment_method"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payment-methods/{payment_method_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Payment Method
+         * @description Delete a method no payment used; a used one is switched off instead.
+         */
+        delete: operations["admin-payment-delete_payment_method"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Payment Method
+         * @description Edit a method (its type stays: create another method to change it).
+         */
+        patch: operations["admin-payment-update_payment_method"];
+        trace?: never;
+    };
     "/api/v1/admin/quote-requests": {
         parameters: {
             query?: never;
@@ -7867,6 +7935,80 @@ export interface components {
              */
             accepts_receipts: boolean;
         };
+        /** AdminPaymentMethod */
+        AdminPaymentMethod: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string | null;
+            /** Provider Code */
+            provider_code: string;
+            /** Type Label */
+            type_label: string;
+            /** Family */
+            family: string;
+            /** Supports Instructions */
+            supports_instructions: boolean;
+            /** Fee */
+            fee: string;
+            /** Max Amount */
+            max_amount: string | null;
+            /** Sort Order */
+            sort_order: number;
+            /** Is Admin Active */
+            is_admin_active: boolean;
+            /** Deposit Allowed */
+            deposit_allowed: boolean;
+            /** Instructions */
+            instructions: string | null;
+            /** Payments Count */
+            payments_count: number;
+        };
+        /** AdminPaymentMethodCreate */
+        AdminPaymentMethodCreate: {
+            /** Name */
+            name: string;
+            /** Description */
+            description?: string | null;
+            /** Fee */
+            fee?: number | string | null;
+            /** Max Amount */
+            max_amount?: number | string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Is Admin Active */
+            is_admin_active?: boolean | null;
+            /** Deposit Allowed */
+            deposit_allowed?: boolean | null;
+            /** Instructions */
+            instructions?: string | null;
+            /** Provider Code */
+            provider_code: string;
+        };
+        /** AdminPaymentMethodWrite */
+        AdminPaymentMethodWrite: {
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Fee */
+            fee?: number | string | null;
+            /** Max Amount */
+            max_amount?: number | string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Is Admin Active */
+            is_admin_active?: boolean | null;
+            /** Deposit Allowed */
+            deposit_allowed?: boolean | null;
+            /** Instructions */
+            instructions?: string | null;
+        };
         /**
          * AdminPendingTrackingItem
          * @description A tracking segment not yet attached to a consolidation.
@@ -14329,6 +14471,11 @@ export interface components {
              * @default true
              */
             deposit_allowed: boolean;
+            /**
+             * Instructions
+             * @description Instructions shown and e-mailed to the customer for this method (IBAN, office address…). NULL = the instructions of its type
+             */
+            instructions?: string | null;
         };
         /**
          * PaymentMethodPublic
@@ -14405,10 +14552,28 @@ export interface components {
              */
             deposit_allowed: boolean;
             /**
+             * Instructions
+             * @description Instructions shown and e-mailed to the customer for this method (IBAN, office address…). NULL = the instructions of its type
+             */
+            instructions?: string | null;
+            /**
              * Id
              * Format: uuid
              */
             id?: string;
+        };
+        /** PaymentMethodTypePublic */
+        PaymentMethodTypePublic: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+            /** Family */
+            family: string;
+            /** Supports Instructions */
+            supports_instructions: boolean;
+            /** Fallback Instructions */
+            fallback_instructions: string | null;
         };
         /**
          * PaymentMethodUpdate
@@ -14451,6 +14616,8 @@ export interface components {
             max_amount?: number | string | null;
             /** Deposit Allowed */
             deposit_allowed?: boolean | null;
+            /** Instructions */
+            instructions?: string | null;
         };
         /**
          * PaymentMethodsPublic
@@ -22286,6 +22453,143 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaymentProviderPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-payment-list_payment_method_types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentMethodTypePublic"][];
+                };
+            };
+        };
+    };
+    "admin-payment-list_admin_payment_methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPaymentMethod"][];
+                };
+            };
+        };
+    };
+    "admin-payment-create_payment_method": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminPaymentMethodCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPaymentMethod"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-payment-delete_payment_method": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_method_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-payment-update_payment_method": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_method_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminPaymentMethodWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPaymentMethod"];
                 };
             };
             /** @description Validation Error */
