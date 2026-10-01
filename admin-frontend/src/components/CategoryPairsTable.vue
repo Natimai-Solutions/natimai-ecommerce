@@ -4,7 +4,7 @@
       <thead>
         <tr>
           <th class="text-left">{{ $t('pairs.at_supplier') }}</th>
-          <th class="text-right">{{ countLabel }}</th>
+          <th class="text-right">{{ countLabel ?? $t('pairs.items') }}</th>
           <th class="text-left">{{ $t('pairs.shop_category') }}</th>
           <th class="text-left">{{ $t('pairs.action') }}</th>
           <th class="text-left">{{ $t('pairs.result') }}</th>
@@ -114,7 +114,7 @@ const props = withDefaults(
     saving?: boolean;
     countLabel?: string;
   }>(),
-  { saving: false, countLabel: t('pairs.items') },
+  { saving: false },
 );
 const emit = defineEmits<{ save: [rules: CategoryMappingWrite[]] }>();
 
