@@ -272,22 +272,78 @@ Inbound order‑status webhook (Phase 3):
 > as the webhook secret for the order‑status callback URL
 > `https://api.example.com/api/v1/webhooks/ingram/order-status`.
 
-### 3.7 System settings (Phase 3)
+### 3.7 Runtime settings — configuration in the database (R5)
 
-System settings are stored in the `system_settings` database table and managed
-via admin endpoints (`GET/PUT /admin/system-settings`). No environment variable
-is needed — the seed migration inserts the initial value.
+Business settings live in the `system_settings` table and are edited from
+**Admin → Paramètres** (typed form, grouped by category), without a
+redeployment. Each one is declared once in
+`backend/app/features/system/settings_catalog.py` (type, bounds, category,
+help text, public or not, secret or not, hooks); the API refuses any other
+key (`404 system_setting.unknown_key`) and any value outside the declaration
+(`400 system_setting.invalid_value`).
 
-| Key | Seeded value | Description |
-|-----|-------------|-------------|
-| `default_display_currency` | `XPF` | Currency shown to customers in the storefront. Exposed to unauthenticated callers via `GET /system/settings`. Phase 4 will add a runtime toggle. |
+**Resolution order: database → environment → default.** A value typed in the
+admin wins; a blank value (or « Valeur par défaut ») falls back to the
+environment variable named in the screen, then to the code default. The
+screen shows where each value comes from (badge *Saisi ici* / *Environnement*
+/ *Défaut*). So the environment variables below are now **starting points**:
+they keep working as long as nobody types a value in the admin, which then
+takes precedence silently — check the badge before editing a `.env`.
 
-> To change the default display currency after first deployment:
-> ```http
-> PUT /api/v1/admin/system-settings/default_display_currency
-> Authorization: Bearer <superuser-token>
-> {"value": "EUR"}
-> ```
+| Category | Settings (key → environment fallback) |
+|---|---|
+| Boutique | `shop_name` ← `SHOP_NAME`, `email_support` ← `EMAIL_SUPPORT`, `email_contact` ← `EMAIL_CONTACT`, `cgv_version` ← `CGV_VERSION` |
+| Identité légale | `legal_*` (23 keys, public) — seeded once from `INVOICE_SELLER_*` |
+| Prix | `pricing_payment_commission_pct`, `pricing_fx_safety_margin_pct`, `insurance_rate_pct` ← `INSURANCE_RATE_PCT` (each change re-prices the catalogue) |
+| Taxes | `tax_default_code` ← `DEFAULT_TAX_CODE`, `tax_fees_code` ← `INVOICE_FEES_TAX_CODE` |
+| Factures | `invoice_legal_footer` ← `INVOICE_LEGAL_FOOTER` |
+| Paiement | `payment_provider_{payzen,paypal,stripe}_enabled`, `payment_instructions_manual_{cash,check,transfer}` |
+| Notifications | `notifications_email_enabled` ← `PAYMENT_NOTIFICATIONS_EMAIL_ENABLED`, `notifications_slack_enabled` ← `PAYMENT_NOTIFICATIONS_SLACK_ENABLED`, `notifications_slack_webhook_url` ← `PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL` (secret) |
+| Commandes et stock | `stock_reservation_ttl_hours`, `cart_abandonment_reminder_delay_hours`, `cart_abandonment_max_age_days`, `checkout_supplier_availability_check`, `checkout_supplier_check_timeout_seconds` (same names in upper case) |
+| Fournisseurs | `supplier_delisting_grace_hours`, `supplier_file_import_inline_max_rows`, `supplier_file_import_max_rows` |
+| Icecat | `icecat_use_open`, `icecat_language`, `icecat_enrichment_interval_hours` ← `ICECAT_ENRICHMENT_CRON_INTERVAL_HOURS`, `icecat_batch_enrich_limit`, `icecat_enrichment_retry_cooldown_days` |
+| Logistique | `customs_free_countries`, `social_webhook_url` (secret) |
+| Affichage | `default_display_currency` (public) |
+| Sécurité | `enable_group_permissions` ← `ENABLE_GROUP_PERMISSIONS`, `audit_log_retention_days` ← `AUDIT_LOG_RETENTION_DAYS` |
+
+The module switches (`module.*`) have their own screen (Admin → Modules).
+
+**Per-supplier settings** (Admin → Fournisseurs → the supplier's form) are
+typed by the integration itself (`settings_schema`): subcategory allowlist
+and filter rules (instead of `SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST` /
+`SUPPLIER_PRODUCT_FILTER_RULES`), stock-sync thresholds (instead of
+`SUPPLIER_SYNC_MIN_*`), Ingram environment / country / ship-to contact,
+file-feed URL and login mode. Empty fields keep the environment's value.
+
+**Stays in the environment**: infrastructure and secrets, integration
+credentials (Ingram, Icecat, PayZen, PayPal), the structural choices of the
+deployment (`TERRITORY_PROFILE`, `SHOP_MODE`, `REFERENCE_CURRENCY`,
+`SHOP_COUNTRY_CODE`, `TAX_TERRITORY_CODE`, `SEED_FRENCH_POLYNESIA_LOGISTICS`,
+`PAYZEN_CURRENCY`), the e-mail provider (`PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER`)
+and the kill switches `ICECAT_ENABLED` / `INGRAM_SYNC_ENABLED`.
+`INVOICE_SELLER_*`, `INGRAM_SYNC_INTERVAL_HOURS` / `INGRAM_SYNC_CATEGORIES`
+and `INGRAM_ORDER_CREATION_ENABLED` only seed the database at the first start
+(the supplier row then owns its cadence, categories and « commande
+automatique »).
+
+**Propagation.** Every process keeps a snapshot of the table for 30 s at
+most; a change is seen at once by the process that wrote it and, through the
+Redis counter `settings:version`, within ~3 s by the other API replicas and
+the worker (TTL only if Redis is down). The CGV version stamped on an order
+is read without cache. The worker's crons (Icecat enrichment, stock
+reservations, abandoned carts) are always scheduled and re-read their setting
+at each tick: changing an interval or switching one off needs **no restart**.
+
+Every change is journaled (`setting.changed` in Admin → Journal d'audit, with
+old and new values, secrets masked) and the row records who made it.
+
+```http
+PUT /api/v1/admin/system-settings/default_display_currency
+Authorization: Bearer <superuser-token>
+{"value": "EUR"}
+
+DELETE /api/v1/admin/system-settings/default_display_currency   # back to the fallback
+```
 
 ### 3.9 Product enrichment — Icecat
 

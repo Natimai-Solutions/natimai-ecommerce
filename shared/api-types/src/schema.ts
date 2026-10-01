@@ -5863,7 +5863,7 @@ export interface paths {
         };
         /**
          * Get Public Settings
-         * @description Return whitelisted system settings (no auth required).
+         * @description The public settings that have a value (no auth required).
          */
         get: operations["system-get_public_settings"];
         put?: never;
@@ -5883,9 +5883,26 @@ export interface paths {
         };
         /**
          * Admin List Settings
-         * @description Return all system settings (superuser only).
+         * @description Every declared setting, resolved (superuser only).
          */
         get: operations["system-admin_list_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/system-settings/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin List Setting Categories */
+        get: operations["system-admin_list_setting_categories"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5905,14 +5922,19 @@ export interface paths {
         get: operations["system-admin_get_setting"];
         /**
          * Admin Upsert Setting
-         * @description Create or update a system setting.
+         * @description Store a value (blank: back to the fallback).
          *
-         *     A pricing parameter is checked (a number within its bounds) and, once
-         *     saved, re-prices the whole catalogue in the background.
+         *     Validated against its declaration (400), journaled, and followed by its
+         *     hooks — a pricing parameter re-prices the catalogue in the background.
+         *     A secret sent back masked is left unchanged.
          */
         put: operations["system-admin_upsert_setting"];
         post?: never;
-        delete?: never;
+        /**
+         * Admin Reset Setting
+         * @description Forget the stored value: the environment variable or the default applies.
+         */
+        delete: operations["system-admin_reset_setting"];
         options?: never;
         head?: never;
         patch?: never;
@@ -7663,6 +7685,13 @@ export interface components {
              * @default false
              */
             supports_purchase_orders: boolean;
+            /**
+             * Settings Schema
+             * @description Schéma JSON de Supplier.settings (formulaire admin)
+             */
+            settings_schema?: {
+                [key: string]: unknown;
+            };
         };
         /**
          * AddTrackingsRequest
@@ -17700,6 +17729,13 @@ export interface components {
              */
             count: number;
         };
+        /** PublicSetting */
+        PublicSetting: {
+            /** Key */
+            key: string;
+            /** Value */
+            value: string;
+        };
         /**
          * PublicationReport
          * @description How much of the enriched catalog is publishable, and what blocks the rest.
@@ -18427,6 +18463,76 @@ export interface components {
             }[];
         };
         /**
+         * RuntimeSettingPublic
+         * @description One declared setting, its effective value and where it comes from.
+         */
+        RuntimeSettingPublic: {
+            /** Key */
+            key: string;
+            /** Category */
+            category: string;
+            /** Label */
+            label: string;
+            /** Description */
+            description: string;
+            /** Type */
+            type: string;
+            /** Value */
+            value: string;
+            /** Source */
+            source: string;
+            /** Fallback */
+            fallback: string;
+            /** Env Var */
+            env_var?: string | null;
+            /**
+             * Stored Invalid
+             * @default false
+             */
+            stored_invalid: boolean;
+            /**
+             * Public
+             * @default false
+             */
+            public: boolean;
+            /**
+             * Secret
+             * @default false
+             */
+            secret: boolean;
+            /**
+             * Restart Required
+             * @default false
+             */
+            restart_required: boolean;
+            /**
+             * Reprices
+             * @default false
+             */
+            reprices: boolean;
+            /** Choices */
+            choices?: string[] | null;
+            /** Minimum */
+            minimum?: string | null;
+            /** Maximum */
+            maximum?: string | null;
+            /** Below */
+            below?: string | null;
+            /** Max Length */
+            max_length?: number | null;
+            /** Unit */
+            unit?: string | null;
+            /**
+             * Order
+             * @default 0
+             */
+            order: number;
+            /** Updated At */
+            updated_at?: string | null;
+            /** Updated By Email */
+            updated_by_email?: string | null;
+        };
+        /**
          * SendOtpRequest
          * @description Request an email verification code.
          */
@@ -18436,6 +18542,15 @@ export interface components {
              * Format: email
              */
             email: string;
+        };
+        /** SettingCategoryPublic */
+        SettingCategoryPublic: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Hint */
+            hint: string;
         };
         /**
          * ShipRequest
@@ -33279,7 +33394,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SystemSettingPublic"][];
+                    "application/json": components["schemas"]["PublicSetting"][];
                 };
             };
         };
@@ -33299,7 +33414,27 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SystemSettingPublic"][];
+                    "application/json": components["schemas"]["RuntimeSettingPublic"][];
+                };
+            };
+        };
+    };
+    "system-admin_list_setting_categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingCategoryPublic"][];
                 };
             };
         };
@@ -33321,7 +33456,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SystemSettingPublic"];
+                    "application/json": components["schemas"]["RuntimeSettingPublic"];
                 };
             };
             /** @description Validation Error */
@@ -33356,7 +33491,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SystemSettingPublic"];
+                    "application/json": components["schemas"]["RuntimeSettingPublic"] | components["schemas"]["SystemSettingPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "system-admin_reset_setting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeSettingPublic"];
                 };
             };
             /** @description Validation Error */

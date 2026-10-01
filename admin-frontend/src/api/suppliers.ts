@@ -83,6 +83,8 @@ export interface AdapterDescriptor {
   settings_keys: string[];
   /** L'intégration sait passer une commande fournisseur. */
   supports_purchase_orders?: boolean;
+  /** Schéma JSON de `Supplier.settings` pour cette intégration (R5 / C4). */
+  settings_schema?: Record<string, unknown>;
 }
 
 export interface FileInspectResponse {

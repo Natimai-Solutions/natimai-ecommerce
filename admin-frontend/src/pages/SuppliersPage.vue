@@ -410,23 +410,30 @@
                 outlined
                 dense
               />
-              <div v-if="selectedAdapter?.settings_keys.length" class="q-gutter-sm">
+              <div v-if="adapterFields.length" class="q-gutter-sm">
                 <h3 class="admin-subtitle q-mb-none">Réglages de l'intégration</h3>
-                <template v-for="key in selectedAdapter.settings_keys" :key="key">
+                <template v-for="field in adapterFields" :key="field.key">
                   <q-select
-                    v-if="SETTING_CHOICES[key]"
-                    v-model="form.settings[key]"
-                    :options="SETTING_CHOICES[key]"
-                    :label="SETTING_LABELS[key] ?? key"
+                    v-if="field.kind === 'choice'"
+                    v-model="form.settings[field.key]"
+                    :options="choiceOptions(field)"
+                    :label="field.label"
+                    :hint="field.hint || undefined"
                     outlined
                     dense
+                    clearable
                     emit-value
                     map-options
                   />
                   <q-input
                     v-else
-                    v-model="form.settings[key]"
-                    :label="SETTING_LABELS[key] ?? key"
+                    v-model="form.settings[field.key]"
+                    :label="field.label"
+                    :hint="fieldHint(field)"
+                    :type="field.kind === 'json' ? 'textarea' : 'text'"
+                    :autogrow="field.kind === 'json'"
+                    :inputmode="field.kind === 'number' ? 'decimal' : undefined"
+                    :input-class="field.kind === 'json' ? 'font-mono' : undefined"
                     outlined
                     dense
                   />
@@ -975,6 +982,12 @@ import CategoryPairsTable from '@/components/CategoryPairsTable.vue';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import { listPlaces, type Place } from '@/api/logistics';
 import { extractApiError } from '@/api/errors';
+import {
+  fieldsFromSchema,
+  fromFormValue,
+  toFormValue,
+  type SchemaField,
+} from '@/utils/settingsSchema';
 
 const shopConfig = useShopConfigStore();
 const rows = ref<Supplier[]>([]);
@@ -1122,9 +1135,14 @@ function openEdit(supplier: Supplier) {
   dialogError.value = null;
   credentials.username = '';
   credentials.password = '';
+  const adapter = adapters.value.find((a) => a.key === supplier.adapter_key);
+  const fields = fieldsFromSchema(adapter?.settings_schema, SETTING_LABELS);
   const settings: Record<string, string> = {};
   for (const [k, v] of Object.entries(supplier.settings ?? {})) {
-    settings[k] = typeof v === 'string' ? v : v == null ? '' : JSON.stringify(v);
+    settings[k] = toFormValue(
+      fields.find((f) => f.key === k),
+      v,
+    );
   }
   Object.assign(form, {
     code: supplier.code,
@@ -1158,8 +1176,14 @@ function optionalNumber(value: string | number | null | undefined): number | nul
 }
 
 function buildPayload(): SupplierCreate {
-  const settings: Record<string, string> = {};
-  for (const [k, v] of Object.entries(form.settings)) if (v.trim()) settings[k] = v.trim();
+  const settings: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(form.settings)) {
+    const value = fromFormValue(
+      adapterFields.value.find((f) => f.key === k),
+      String(v ?? ''),
+    );
+    if (value !== undefined) settings[k] = value;
+  }
   const categories = form.default_categories.map((c) => c.trim()).filter(Boolean);
   return {
     code: form.code.trim().toLowerCase(),
@@ -1204,7 +1228,8 @@ async function submitForm() {
     formDialog.value = false;
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    dialogError.value =
+      extractApiError(err) ?? (err instanceof Error ? err.message : 'Enregistrement impossible.');
   } finally {
     saving.value = false;
   }
@@ -1444,9 +1469,6 @@ const SETTING_LABELS: Record<string, string> = {
   password_field: "Nom du champ mot de passe (formulaire, défaut 'password')",
   file_format: 'Format du fichier',
   sheet_name: 'Feuille Excel (réservé)',
-  environment: 'Environnement',
-  country_code: 'Code pays',
-  origin_place_code: "Code du lieu d'origine",
 };
 const SETTING_CHOICES: Record<string, { label: string; value: string }[]> = {
   auth_mode: [
@@ -1454,12 +1476,35 @@ const SETTING_CHOICES: Record<string, { label: string; value: string }[]> = {
     { label: 'Authentification HTTP (basic)', value: 'basic' },
     { label: 'Formulaire de connexion + cookies', value: 'form' },
   ],
+  environment: [
+    { label: 'Bac à sable (sandbox)', value: 'sandbox' },
+    { label: 'Production', value: 'production' },
+  ],
   file_format: [
     { label: "Deviner d'après le lien", value: 'auto' },
     { label: 'CSV', value: 'csv' },
     { label: 'Excel (.xlsx)', value: 'xlsx' },
   ],
 };
+const adapterFields = computed<SchemaField[]>(() =>
+  fieldsFromSchema(selectedAdapter.value?.settings_schema, SETTING_LABELS),
+);
+
+function choiceOptions(field: SchemaField): { label: string; value: string }[] {
+  const named = SETTING_CHOICES[field.key] ?? [];
+  return (field.choices ?? []).map(
+    (value) => named.find((c) => c.value === value) ?? { label: value, value },
+  );
+}
+
+function fieldHint(field: SchemaField): string | undefined {
+  if (field.kind === 'list') {
+    return `${field.hint} Valeurs séparées par des virgules ; « [] » = toutes.`.trim();
+  }
+  if (field.kind === 'json') return `${field.hint} Format JSON.`.trim();
+  return field.hint || undefined;
+}
+
 const isFeedForm = computed(() => form.kind === 'api' && form.adapter_key === FEED_ADAPTER_KEY);
 const credentials = reactive({ username: '', password: '' });
 const credentialsBusy = ref(false);
