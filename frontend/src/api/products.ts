@@ -39,7 +39,7 @@ export async function searchProducts(req: ProductSearchRequest): Promise<Product
 }
 
 export async function getCategories(): Promise<{ data: CategoryPublic[]; count: number }> {
-  const { data } = await api.get<{ data: CategoryPublic[]; count: number }>('/category');
+  const { data } = await api.get<{ data: CategoryPublic[]; count: number }>('/category/');
   return data;
 }
 

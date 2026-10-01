@@ -80,12 +80,12 @@ interface Paginated<T> {
 
 // --- Places --------------------------------------------------------------- //
 export async function listPlaces(): Promise<Place[]> {
-  const { data } = await api.get<Paginated<Place>>('/place', { params: { limit: 500 } });
+  const { data } = await api.get<Paginated<Place>>('/place/', { params: { limit: 500 } });
   return data.data;
 }
 
 export async function createPlace(payload: PlaceCreate): Promise<Place> {
-  const { data } = await api.post<Place>('/place', payload);
+  const { data } = await api.post<Place>('/place/', payload);
   return data;
 }
 
@@ -120,14 +120,14 @@ export async function setPlacePostalCodes(
 
 // --- Routes (tronçons) ---------------------------------------------------- //
 export async function listRoutes(): Promise<ShippingRoute[]> {
-  const { data } = await api.get<Paginated<ShippingRoute>>('/shipping/route', {
+  const { data } = await api.get<Paginated<ShippingRoute>>('/shipping/route/', {
     params: { limit: 500 },
   });
   return data.data;
 }
 
 export async function createRoute(payload: ShippingRouteCreate): Promise<ShippingRoute> {
-  const { data } = await api.post<ShippingRoute>('/shipping/route', payload);
+  const { data } = await api.post<ShippingRoute>('/shipping/route/', payload);
   return data;
 }
 

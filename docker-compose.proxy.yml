@@ -46,6 +46,11 @@ services:
       # réelle du visiteur : sans cela l'API ne voit que l'adresse Docker de
       # Caddy (journal d'audit, throttle de connexion par IP).
       - CLIENT_IP_HEADER=X-Forwarded-For
+      # Uvicorn ne croit X-Forwarded-Proto / -For que de 127.0.0.1 par défaut :
+      # derrière Caddy, les URL qu'il génère (redirection « / final »
+      # notamment) partaient en http:// et le navigateur les bloquait
+      # (contenu mixte). Seuls nos conteneurs joignent l'API ici.
+      - FORWARDED_ALLOW_IPS=*
   frontend:
     ports: !reset []
   admin-frontend:

@@ -48,7 +48,7 @@ export interface PaymentStatusResponse {
 }
 
 export async function listPaymentMethods(): Promise<PaymentMethod[]> {
-  const response = await api.get<PaymentMethodsResponse>('/payment_method');
+  const response = await api.get<PaymentMethodsResponse>('/payment_method/');
   return response.data.data;
 }
 
