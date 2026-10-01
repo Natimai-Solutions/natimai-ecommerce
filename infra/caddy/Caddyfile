@@ -9,6 +9,16 @@
 # pointant vers l'IP publique du serveur ; ports 80 et 443 ouverts.
 {
 	email {$ACME_EMAIL}
+	# Adresse réelle du visiteur ({client_ip}). Par défaut, aucun proxy amont
+	# n'est cru : c'est l'adresse du pair TCP. Derrière Cloudflare (nuage
+	# orange), CADDY_TRUSTED_PROXIES liste ses plages (DEPLOYMENT.md §9) :
+	# CF-Connecting-IP n'est alors lu QUE sur une connexion venant d'elles —
+	# quelqu'un qui joint le serveur en direct ne peut pas forger son adresse.
+	servers {
+		trusted_proxies static {$CADDY_TRUSTED_PROXIES:127.0.0.1/32}
+		client_ip_headers CF-Connecting-IP X-Forwarded-For
+		trusted_proxies_strict
+	}
 }
 
 # En-têtes de sécurité pour les pages servies par les frontends (l'API pose les
@@ -51,11 +61,10 @@ api.{$DOMAIN} {
 		not client_ip {$ADMIN_ALLOWED_IPS:0.0.0.0/0 ::/0}
 	}
 	respond @admin_api_denied "Accès réservé" 403
-	# X-Forwarded-For est *remplacé* (et non complété) par l'IP du pair réel :
-	# le backend lit la chaîne par la droite, et réécrire ici garantit qu'un
-	# client ne peut pas l'allonger pour repousser sa vraie IP hors de portée
-	# et contourner le throttle par IP. Si un CDN est ajouté devant Caddy,
-	# retirer cette ligne.
+	# X-Forwarded-For est *remplacé* (et non complété) par l'adresse réelle du
+	# visiteur ({client_ip}, cf. bloc global) : le backend (CLIENT_IP_HEADER,
+	# posé par docker-compose.proxy.yml) le lit pour le throttle par IP et le
+	# journal d'audit, et un client ne peut pas l'allonger pour s'y cacher.
 	# `api` tourne en replicas: 2. Un upstream statique `api:8000` ne cible
 	# qu'une adresse résolue au démarrage : la seconde réplique ne recevait
 	# quasiment rien. `dynamic a` re-résout le DNS Docker et expose les deux
@@ -71,7 +80,7 @@ api.{$DOMAIN} {
 			port 8000
 			refresh 10s
 		}
-		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-For {client_ip}
 		lb_policy round_robin
 		lb_try_duration 5s
 		fail_duration 10s
@@ -83,8 +92,8 @@ api.{$DOMAIN} {
 # Restriction réseau facultative (R6), en plus de la double authentification
 # des administrateurs : ADMIN_ALLOWED_IPS = plages autorisées, séparées par des
 # espaces (ex. « 203.0.113.0/24 2001:db8::/32 »). Vide = tout le monde (défaut).
-# Derrière Cloudflare, déclarer ses plages en `trusted_proxies` (bloc global)
-# pour que client_ip soit l'adresse réelle du visiteur.
+# Derrière Cloudflare, renseigner CADDY_TRUSTED_PROXIES (bloc global) pour que
+# client_ip soit l'adresse réelle du visiteur et non celle de Cloudflare.
 admin.{$DOMAIN} {
 	import security_headers
 	@admin_denied not client_ip {$ADMIN_ALLOWED_IPS:0.0.0.0/0 ::/0}

@@ -56,14 +56,14 @@ export interface DiscountCreate {
 export type DiscountUpdate = Partial<DiscountCreate> & { is_active?: boolean };
 
 export async function listDiscounts(): Promise<Discount[]> {
-  const { data } = await api.get<{ data: Discount[]; count: number }>('/discount', {
+  const { data } = await api.get<{ data: Discount[]; count: number }>('/discount/', {
     params: { limit: 500, include_archived: true },
   });
   return data.data ?? [];
 }
 
 export async function createDiscount(payload: DiscountCreate): Promise<Discount> {
-  const { data } = await api.post<Discount>('/discount', payload);
+  const { data } = await api.post<Discount>('/discount/', payload);
   return data;
 }
 
