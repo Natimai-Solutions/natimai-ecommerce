@@ -317,6 +317,9 @@ class Settings(BaseSettings):
 
     # File storage backend selection for payment attachments
     FILE_STORAGE_BACKEND: Literal["s3", "local"] = "local"
+    # Escape hatch: a single-host production keeping its uploads on a local,
+    # backed-up volume. Without it, production refuses to start on "local".
+    FILE_STORAGE_ALLOW_LOCAL: bool = False
     FILE_STORAGE_LOCAL_ROOT: str = "/tmp/fastapi_ecommerce_storage"
     FILE_STORAGE_PRESIGNED_TTL_SECONDS: int = 300
     # Images publiques (accueil, produits, catégories) téléversées depuis
@@ -615,6 +618,46 @@ class Settings(BaseSettings):
             else:
                 raise ValueError(message)
 
+    def _check_file_storage(self) -> None:
+        """Uploaded documents live in S3 in production (R6).
+
+        The local backend writes into the container's filesystem: payment
+        documents, catalogue files and media are lost with a volume, absent
+        from the database backups and invisible to a second host. Production
+        refuses to start on it unless ``FILE_STORAGE_ALLOW_LOCAL`` says the
+        volume is deliberate (and backed up); staging only warns. With "s3",
+        the bucket and the credentials must be set.
+        """
+        if self.FILE_STORAGE_BACKEND == "s3":
+            missing = [
+                name
+                for name in ("S3_BUCKET_NAME", "S3_ACCESS_KEY_ID", "S3_SECRET_KEY_ID")
+                if not (getattr(self, name) or "").strip()
+            ]
+            if missing:
+                message = (
+                    "FILE_STORAGE_BACKEND=s3 needs "
+                    + ", ".join(missing)
+                    + ": uploads would fail at the first document."
+                )
+                if self.ENVIRONMENT == "local":
+                    warnings.warn(message, stacklevel=1)
+                else:
+                    raise ValueError(message)
+            return
+        if self.ENVIRONMENT == "local" or self.FILE_STORAGE_ALLOW_LOCAL:
+            return
+        message = (
+            "FILE_STORAGE_BACKEND is 'local' outside local development: "
+            "uploaded documents stay on the container's disk (lost with the "
+            "volume, absent from database backups). Set FILE_STORAGE_BACKEND=s3 "
+            "with its S3_* settings, or FILE_STORAGE_ALLOW_LOCAL=true for a "
+            "deliberate, backed-up local volume."
+        )
+        if self.ENVIRONMENT == "production":
+            raise ValueError(message)
+        warnings.warn(message, stacklevel=1)
+
     @model_validator(mode="after")
     def _enforce_non_default_secrets(self) -> Self:
         """Execute enforce non default secrets."""
@@ -630,6 +673,7 @@ class Settings(BaseSettings):
             "FIRST_SUPERUSER", self.FIRST_SUPERUSER, "admin@example.com"
         )
         self._check_clamav_enabled()
+        self._check_file_storage()
 
         return self
 

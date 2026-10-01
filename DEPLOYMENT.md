@@ -327,8 +327,9 @@ superuser's request; the public storefront API never returns them.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `FILE_STORAGE_BACKEND` | `local` | `s3` in production |
-| `FILE_STORAGE_LOCAL_ROOT` | `/tmp/fastapi_ecommerce_storage` | Dev only |
+| `FILE_STORAGE_BACKEND` | `local` | `s3` in production. **With `ENVIRONMENT=production` the backend refuses to start on `local`** (warning in staging) unless `FILE_STORAGE_ALLOW_LOCAL=true`; with `s3`, `S3_BUCKET_NAME`, `S3_ACCESS_KEY_ID` and `S3_SECRET_KEY_ID` are required |
+| `FILE_STORAGE_ALLOW_LOCAL` | `false` | Deliberate single‑host production on a local volume (`storage_data`): set it **and** back that volume up with the database |
+| `FILE_STORAGE_LOCAL_ROOT` | `/tmp/fastapi_ecommerce_storage` | Dev only (the image hands this directory to its unprivileged user at start) |
 | `MEDIA_PUBLIC_BASE_URL` | — | Public origin of the API (`https://api.example.pf`). Images uploaded from the admin (homepage, products, categories, pages) are re-encoded to WebP, stored under `media/…` in the same storage, and served by `GET /api/v1/media/{id}/{width}.webp` with a one-year immutable cache. Their absolute URLs are built from this origin; empty, the origin of the upload request is used (fine in development, wrong behind a proxy). |
 | `MEDIA_MAX_UPLOAD_BYTES` | `8388608` | Largest image accepted by `POST /admin/media` (8 MB). Keep it under Caddy's `request_body` limit (16 MB). |
 | `S3_ENDPOINT_URL` | — | S3 endpoint (when backend=s3) |

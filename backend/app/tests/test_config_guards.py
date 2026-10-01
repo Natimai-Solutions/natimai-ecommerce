@@ -21,6 +21,11 @@ _VALID_BASE_SETTINGS: dict[str, Any] = {
     "POSTGRES_DB": "unit_test_db",
     "FIRST_SUPERUSER": "ops@unit.test",
     "FIRST_SUPERUSER_PASSWORD": "unit-test-admin-password",
+    # Production also requires S3 for the uploads (see the storage guard).
+    "FILE_STORAGE_BACKEND": "s3",
+    "S3_BUCKET_NAME": "unit-test-bucket",
+    "S3_ACCESS_KEY_ID": "unit-test-key",
+    "S3_SECRET_KEY_ID": "unit-test-secret",
 }
 
 
@@ -135,3 +140,50 @@ def test_settings_refuses_to_build_with_compose_default_password() -> None:
     base = {**_VALID_BASE_SETTINGS, "POSTGRES_PASSWORD": "postgres"}
     with pytest.raises(ValueError, match="POSTGRES_PASSWORD"):
         Settings(ENVIRONMENT="production", CLAMAV_ENABLED=True, **base)
+
+
+# -- file storage (R6) -------------------------------------------------------
+
+
+def _storage(environment: str, backend: str, **extra: Any) -> Any:
+    values: dict[str, Any] = {
+        "ENVIRONMENT": environment,
+        "FILE_STORAGE_BACKEND": backend,
+        "FILE_STORAGE_ALLOW_LOCAL": False,
+        "S3_BUCKET_NAME": None,
+        "S3_ACCESS_KEY_ID": None,
+        "S3_SECRET_KEY_ID": None,
+    }
+    values.update(extra)
+    return SimpleNamespace(**values)
+
+
+def test_local_storage_is_refused_in_production() -> None:
+    with pytest.raises(ValueError, match="FILE_STORAGE_BACKEND"):
+        Settings._check_file_storage(cast(Settings, _storage("production", "local")))
+
+
+def test_local_storage_only_warns_in_staging_and_passes_in_local() -> None:
+    with pytest.warns(UserWarning, match="FILE_STORAGE_BACKEND"):
+        Settings._check_file_storage(cast(Settings, _storage("staging", "local")))
+    Settings._check_file_storage(cast(Settings, _storage("local", "local")))
+
+
+def test_a_deliberate_local_volume_is_allowed() -> None:
+    fake = _storage("production", "local", FILE_STORAGE_ALLOW_LOCAL=True)
+    Settings._check_file_storage(cast(Settings, fake))
+
+
+def test_s3_needs_its_bucket_and_keys() -> None:
+    with pytest.raises(ValueError, match="S3_BUCKET_NAME"):
+        Settings._check_file_storage(
+            cast(Settings, _storage("production", "s3", S3_ACCESS_KEY_ID="k"))
+        )
+    complete = _storage(
+        "production",
+        "s3",
+        S3_BUCKET_NAME="b",
+        S3_ACCESS_KEY_ID="k",
+        S3_SECRET_KEY_ID="s",
+    )
+    Settings._check_file_storage(cast(Settings, complete))

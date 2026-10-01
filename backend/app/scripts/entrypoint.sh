@@ -3,6 +3,19 @@
 
 set -e
 
+# Started as root only to hand the storage volume over to the unprivileged
+# user (a volume created by an older image, which ran as root, is root-owned),
+# then re-executed as that user. Never runs the application as root.
+APP_USER=${APP_USER:-app}
+STORAGE_DIR=${FILE_STORAGE_LOCAL_ROOT:-/tmp/fastapi_ecommerce_storage}
+if [ "$(id -u)" = "0" ] && id "$APP_USER" >/dev/null 2>&1; then
+    mkdir -p "$STORAGE_DIR"
+    if [ "$(stat -c %U "$STORAGE_DIR")" != "$APP_USER" ]; then
+        chown -R "$APP_USER:$APP_USER" "$STORAGE_DIR"
+    fi
+    exec env HOME=/app setpriv --reuid="$APP_USER" --regid="$APP_USER" --init-groups "$0" "$@"
+fi
+
 # Default environment variables
 WORKERS=${WORKERS:-4}
 LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -34,8 +47,7 @@ check_dependencies() {
     
     # Check if uv environment exists and is set up correctly
     if [ ! -d "/app/.venv" ]; then
-        log "UV virtual environment not found, syncing dependencies..."
-        uv sync --frozen
+        error "UV virtual environment not found in the image (/app/.venv)"
     fi
     
     # Verify UV environment is working
@@ -49,7 +61,7 @@ check_dependencies() {
     fi
     
     # Basic import test
-    uv run python -c "
+    python -c "
 import sys
 sys.path.insert(0, '/app')
 try:
@@ -68,7 +80,7 @@ except ImportError as e:
 check_database_connection() {
     log "Testing database connection..."
     
-    uv run python -c "
+    python -c "
 import asyncio
 import sys
 sys.path.insert(0, '/app')
@@ -114,7 +126,7 @@ case "$1" in
         pre_startup
         
         log "Loading outbox event handlers..."
-        uv run python -c "
+        python -c "
 import sys
 sys.path.insert(0, '/app')
 from app.outbox.loader import load_handlers
@@ -124,7 +136,7 @@ print('Event handlers loaded successfully')
         
         if [ -n "$RELOAD_ARG" ]; then
             log "Starting API server in development mode with auto-reload"
-            exec uv run uvicorn app.main:app \
+            exec uvicorn app.main:app \
                 --host $HOST \
                 --port $PORT \
                 --reload \
@@ -134,7 +146,7 @@ print('Event handlers loaded successfully')
                 --http httptools
         else
             log "Starting API server with $WORKERS workers"
-            exec uv run uvicorn app.main:app \
+            exec uvicorn app.main:app \
                 --host $HOST \
                 --port $PORT \
                 --workers $WORKERS \
@@ -151,7 +163,7 @@ print('Event handlers loaded successfully')
         pre_startup
         
         log "Loading outbox event handlers..."
-        uv run python -c "
+        python -c "
 import sys
 sys.path.insert(0, '/app')
 from app.outbox.loader import load_handlers
@@ -167,7 +179,7 @@ print('Event handlers loaded successfully')
             ARQ_ARGS="--verbose"
         fi
         
-        exec uv run arq app.core.arq_worker.WorkerSettings $ARQ_ARGS
+        exec arq app.core.arq_worker.WorkerSettings $ARQ_ARGS
         ;;
         
     "poller")
@@ -179,7 +191,7 @@ print('Event handlers loaded successfully')
         POLLER_ARGS="$@"
         
         log "Starting outbox poller with arguments: $POLLER_ARGS"
-        exec uv run python app/scripts/outbox_poller.py \
+        exec python app/scripts/outbox_poller.py \
             --log-level $LOG_LEVEL \
             $POLLER_ARGS
         ;;
@@ -192,19 +204,25 @@ print('Event handlers loaded successfully')
         fi
         
         log "Upgrading database to latest migration"
-        uv run alembic upgrade head
+        alembic upgrade head
 
         log "Importing initial data into database..."
-        exec uv run python app/initial_data.py
+        exec python app/initial_data.py
         ;;
         
+    "run")
+        # Any command, as the unprivileged user (e.g. `run alembic current`).
+        shift
+        exec "$@"
+        ;;
+
     "shell")
         log "Starting interactive Python shell..."
         
         pre_startup
         
         log "Loading application context..."
-        exec uv run python -c "
+        exec python -c "
 import sys
 sys.path.insert(0, '/app')
 from app.outbox.loader import load_handlers
@@ -221,7 +239,7 @@ code.interact()
         export ENVIRONMENT=test
         
         log "Running pytest with coverage"
-        exec uv run pytest app/tests/ \
+        exec pytest app/tests/ \
             --cov=app \
             --cov-report=term-missing \
             --cov-report=html \
@@ -241,6 +259,7 @@ Available commands:
   migrate     Run database migrations
   shell       Start interactive Python shell
   test        Run test suite
+  run CMD     Run any command as the application user
 "
         ;;
 esac
