@@ -1,0 +1,1 @@
+Your invoice {{ invoice_number }} — order {{ order_ref or (order_id | short_ref) }}

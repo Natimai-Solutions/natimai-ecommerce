@@ -1,7 +1,11 @@
 <template>
   <q-page class="catalogue page-container">
     <!-- Catégories -->
-    <nav v-if="categoryOptions.length > 0" class="catalogue__cats" aria-label="Catégories">
+    <nav
+      v-if="categoryOptions.length > 0"
+      class="catalogue__cats"
+      :aria-label="$t('catalogue.categories')"
+    >
       <button
         type="button"
         class="chip"
@@ -9,7 +13,7 @@
         :aria-pressed="selectedCategory === null"
         @click="onCategoryChange(null)"
       >
-        Tout le catalogue
+        {{ $t('catalogue.all') }}
       </button>
       <button
         v-for="cat in categoryOptions"
@@ -30,23 +34,42 @@
         id="catalogue-filters"
         class="filters"
         :class="{ 'filters--open': filtersOpen }"
-        aria-label="Filtres"
+        :aria-label="$t('catalogue.filters')"
       >
         <div class="filters__sheet-head">
-          <span class="filters__sheet-title">Filtres</span>
+          <span class="filters__sheet-title">{{ $t('catalogue.filters') }}</span>
           <q-btn
             flat
             round
             icon="ph:x"
-            aria-label="Fermer les filtres"
+            :aria-label="$t('catalogue.close_filters')"
             @click="filtersOpen = false"
           />
         </div>
 
         <div class="filters__body">
           <div class="filters__group">
+            <fieldset class="filters__fieldset" data-testid="catalogue-stock">
+              <legend class="filters__legend">{{ $t('catalogue.availability') }}</legend>
+              <label v-for="opt in stockOptions" :key="String(opt.value)" class="filters__option">
+                <input
+                  type="radio"
+                  name="stock"
+                  :checked="selectedStock === opt.value"
+                  :data-testid="`catalogue-stock-${opt.value ?? 'all'}`"
+                  @change="onStockChange(opt.value)"
+                />
+                <span class="filters__option-label">{{ opt.label }}</span>
+                <span v-if="opt.count != null" class="filters__count font-mono">{{
+                  opt.count
+                }}</span>
+              </label>
+            </fieldset>
+          </div>
+
+          <div class="filters__group">
             <fieldset class="filters__fieldset" data-testid="catalogue-condition">
-              <legend class="filters__legend">État</legend>
+              <legend class="filters__legend">{{ $t('catalogue.condition') }}</legend>
               <label
                 v-for="opt in conditionOptions"
                 :key="String(opt.value)"
@@ -56,16 +79,20 @@
                   type="radio"
                   name="condition"
                   :checked="selectedCondition === opt.value"
+                  :data-testid="`catalogue-condition-${opt.value ?? 'all'}`"
                   @change="onConditionChange(opt.value)"
                 />
                 <span class="filters__option-label">{{ opt.label }}</span>
+                <span v-if="opt.count != null" class="filters__count font-mono">{{
+                  opt.count
+                }}</span>
               </label>
             </fieldset>
           </div>
 
           <div v-if="manufacturerOptions.length > 0" class="filters__group">
             <fieldset class="filters__fieldset">
-              <legend class="filters__legend">Fabricant</legend>
+              <legend class="filters__legend">{{ $t('catalogue.manufacturer') }}</legend>
               <label class="filters__option">
                 <input
                   type="radio"
@@ -73,7 +100,7 @@
                   :checked="selectedManufacturer === null"
                   @change="onManufacturerChange(null)"
                 />
-                <span class="filters__option-label">Tous les fabricants</span>
+                <span class="filters__option-label">{{ $t('catalogue.all_manufacturers') }}</span>
               </label>
               <label v-for="opt in visibleManufacturers" :key="opt.value" class="filters__option">
                 <input
@@ -91,7 +118,7 @@
                 class="text-link filters__more"
                 @click="showAllManufacturers = true"
               >
-                Voir {{ hiddenManufacturerCount }} autres fabricants
+                {{ $t('catalogue.more_manufacturers', { n: hiddenManufacturerCount }) }}
               </button>
             </fieldset>
           </div>
@@ -99,7 +126,7 @@
           <template v-for="facet in store.specFacets" :key="facet.key">
             <div v-if="facet.type === 'numeric'" class="filters__group">
               <label :for="`spec-${facet.key}`" class="filters__legend">
-                {{ facet.label_fr }} minimum
+                {{ $t('catalogue.spec_min', { label: facet.label_fr }) }}
               </label>
               <select
                 :id="`spec-${facet.key}`"
@@ -107,7 +134,7 @@
                 :value="numericMin[facet.key] ?? ''"
                 @change="onNumericSelect(facet.key, $event)"
               >
-                <option value="">Indifférent</option>
+                <option value="">{{ $t('catalogue.any') }}</option>
                 <option v-for="opt in numericOptions(facet)" :key="opt.value" :value="opt.value">
                   {{ opt.label }}
                 </option>
@@ -141,10 +168,12 @@
           </template>
 
           <form class="filters__group" @submit.prevent="onPriceChange">
-            <span class="filters__legend">Prix (XPF)</span>
+            <span class="filters__legend">{{
+              $t('catalogue.price', { currency: currencyStore.reference })
+            }}</span>
             <div class="filters__price">
               <div class="field">
-                <label for="price-min" class="field__label">Minimum</label>
+                <label for="price-min" class="field__label">{{ $t('catalogue.min') }}</label>
                 <input
                   id="price-min"
                   v-model.number="priceMin"
@@ -155,7 +184,7 @@
                 />
               </div>
               <div class="field">
-                <label for="price-max" class="field__label">Maximum</label>
+                <label for="price-max" class="field__label">{{ $t('catalogue.max') }}</label>
                 <input
                   id="price-max"
                   v-model.number="priceMax"
@@ -166,11 +195,17 @@
                 />
               </div>
             </div>
-            <q-btn type="submit" outline color="primary" label="Appliquer" class="filters__apply" />
+            <q-btn
+              type="submit"
+              outline
+              color="primary"
+              :label="$t('catalogue.apply')"
+              class="filters__apply"
+            />
           </form>
 
           <button type="button" class="text-link filters__reset" @click="resetFilters">
-            Réinitialiser les filtres
+            {{ $t('catalogue.reset') }}
           </button>
         </div>
 
@@ -179,7 +214,7 @@
             unelevated
             color="primary"
             class="full-width"
-            :label="`Voir ${resultLabel}`"
+            :label="$t('catalogue.see_results', { label: resultLabel })"
             @click="filtersOpen = false"
           />
         </div>
@@ -197,7 +232,11 @@
             outline
             color="primary"
             icon="ph:sliders-horizontal"
-            :label="activeFilters.length > 0 ? `Filtres (${activeFilters.length})` : 'Filtres'"
+            :label="
+              activeFilters.length > 0
+                ? $t('catalogue.filters_n', { n: activeFilters.length })
+                : $t('catalogue.filters')
+            "
             class="lt-md"
             aria-controls="catalogue-filters"
             :aria-expanded="filtersOpen"
@@ -211,13 +250,15 @@
             :key="f.key"
             type="button"
             class="active-filter"
-            :aria-label="`Retirer le filtre ${f.label}`"
+            :aria-label="$t('catalogue.remove_filter', { label: f.label })"
             @click="f.remove()"
           >
             {{ f.label }}
             <q-icon name="ph:x" size="14px" />
           </button>
-          <button type="button" class="text-link" @click="resetFilters">Tout effacer</button>
+          <button type="button" class="text-link" @click="resetFilters">
+            {{ $t('catalogue.clear_all') }}
+          </button>
         </div>
 
         <AppNotice v-if="cartError" tone="warning" class="catalogue__notice">
@@ -237,19 +278,19 @@
         <AppNotice v-else-if="store.error" tone="error">
           {{ store.error }}
           <template #action>
-            <q-btn flat label="Réessayer" @click="store.search()" />
+            <q-btn flat :label="$t('common.retry')" @click="store.search()" />
           </template>
         </AppNotice>
 
         <div v-else-if="store.items.length === 0" class="catalogue__empty">
           <q-icon name="ph:magnifying-glass" size="40px" class="text-subtle" />
-          <h2>Aucun produit ne correspond</h2>
-          <p>Modifiez la recherche ou retirez des filtres.</p>
+          <h2>{{ $t('catalogue.no_match') }}</h2>
+          <p>{{ $t('catalogue.no_match_hint') }}</p>
           <q-btn
             v-if="activeFilters.length > 0"
             outline
             color="primary"
-            label="Tout effacer"
+            :label="$t('catalogue.clear_all')"
             @click="resetFilters"
           />
         </div>
@@ -263,10 +304,14 @@
           />
         </div>
 
-        <nav v-if="store.totalPages > 1" class="catalogue__pagination" aria-label="Pagination">
-          <span class="font-mono text-subtle"
-            >Page {{ currentPage }} sur {{ store.totalPages }}</span
-          >
+        <nav
+          v-if="store.totalPages > 1"
+          class="catalogue__pagination"
+          :aria-label="$t('catalogue.pagination')"
+        >
+          <span class="font-mono text-subtle">{{
+            $t('catalogue.page_of', { page: currentPage, total: store.totalPages })
+          }}</span>
           <q-pagination
             v-model="currentPage"
             :max="store.totalPages"
@@ -290,6 +335,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onServerPrefetch, ref, watch } from 'vue';
 import { useMeta } from 'quasar';
+import { useI18n } from 'vue-i18n';
+import { intlLocale } from '@app/utils';
+import { useShopModulesStore } from '@/stores/shopModules';
 import { useRoute, useRouter, type LocationQuery } from 'vue-router';
 import { useProductsStore } from '@/stores/products';
 import { useCartStore } from '@/stores/cart';
@@ -309,15 +357,17 @@ const store = useProductsStore();
 const cartStore = useCartStore();
 const currencyStore = useCurrencyStore();
 const uiStore = useUiStore();
+const { t } = useI18n();
+const shopModules = useShopModulesStore();
 const route = useRoute();
 const router = useRouter();
 
 useMeta(() => ({
-  title: 'Catalogue | Natimai',
+  title: t('catalogue.meta_title', { shop: shopModules.config.shop_name || 'Natimai' }),
   meta: {
     description: {
       name: 'description',
-      content: 'Explorez notre catalogue de produits avec filtres par fabricant et prix.',
+      content: t('catalogue.meta_description'),
     },
   },
 }));
@@ -327,11 +377,38 @@ const selectedManufacturer = ref<string | null>(null);
 const selectedCategory = ref<string | null>(null);
 // null = new and refurbished together.
 const selectedCondition = ref<'new' | 'refurbished' | null>(null);
-const conditionOptions: { label: string; value: 'new' | 'refurbished' | null }[] = [
-  { label: 'Neuf et reconditionné', value: null },
-  { label: 'Neuf', value: 'new' },
-  { label: 'Reconditionné', value: 'refurbished' },
-];
+// Counts of the current results (facets); null on « all » options.
+const conditionOptions = computed(() => {
+  const counts = store.facets?.conditions ?? {};
+  return [
+    { label: t('catalogue.new_and_refurbished'), value: null, count: null },
+    { label: t('catalogue.new'), value: 'new' as const, count: counts['new'] ?? null },
+    {
+      label: t('catalogue.refurbished'),
+      value: 'refurbished' as const,
+      count: counts['refurbished'] ?? null,
+    },
+  ];
+});
+// Where the stock is: our warehouse (fast) or the supplier (longer delivery).
+type StockLocation = 'local' | 'supplier';
+const selectedStock = ref<StockLocation | null>(null);
+const STOCK_LABELS = computed<Record<StockLocation, string>>(() => ({
+  local: t('catalogue.stock_local'),
+  supplier: t('catalogue.stock_supplier'),
+}));
+const stockOptions = computed(() => {
+  const counts = store.facets?.stock ?? {};
+  return [
+    { label: t('catalogue.all_items'), value: null, count: null },
+    { label: STOCK_LABELS.value.local, value: 'local' as const, count: counts['local'] ?? null },
+    {
+      label: STOCK_LABELS.value.supplier,
+      value: 'supplier' as const,
+      count: counts['supplier'] ?? null,
+    },
+  ];
+});
 // Spec filters: enum key → selected value_text[]; numeric key → minimum value.
 const enumSelections = ref<Record<string, string[]>>({});
 const numericMin = ref<Record<string, number | null>>({});
@@ -346,13 +423,17 @@ const categoryOptions = computed(() =>
 );
 
 const pageTitle = computed(() => {
-  if (store.filters.q) return `Résultats pour « ${store.filters.q} »`;
+  if (store.filters.q) return t('catalogue.results_for', { q: store.filters.q });
   const cat = categoryOptions.value.find((c) => c.value === selectedCategory.value);
-  return cat?.label ?? 'Catalogue';
+  return cat?.label ?? t('catalogue.title');
 });
 
 const resultLabel = computed(() =>
-  store.count === 1 ? '1 résultat' : `${store.count.toLocaleString('fr-FR')} résultats`,
+  t(
+    'catalogue.results',
+    { n: new Intl.NumberFormat(intlLocale()).format(store.count) },
+    store.count,
+  ),
 );
 
 const manufacturerOptions = computed(() => {
@@ -385,7 +466,10 @@ function numericOptions(facet: SpecFacet): { label: string; value: number }[] {
     if (!Number.isFinite(num) || seen.has(num)) continue;
     seen.add(num);
     opts.push({
-      label: `${num}${facet.unit ? ' ' + facet.unit : ''} et plus (${v.count})`,
+      label: t('catalogue.and_more', {
+        value: `${num}${facet.unit ? ' ' + facet.unit : ''}`,
+        n: v.count,
+      }),
       value: num,
     });
   }
@@ -420,10 +504,17 @@ const activeFilters = computed<ActiveFilter[]>(() => {
       },
     });
   }
+  if (selectedStock.value) {
+    list.push({
+      key: 'stock',
+      label: STOCK_LABELS.value[selectedStock.value],
+      remove: () => void onStockChange(null),
+    });
+  }
   if (selectedCondition.value) {
     list.push({
       key: 'cond',
-      label: selectedCondition.value === 'new' ? 'Neuf' : 'Reconditionné',
+      label: selectedCondition.value === 'new' ? t('catalogue.new') : t('catalogue.refurbished'),
       remove: () => void onConditionChange(null),
     });
   }
@@ -446,7 +537,10 @@ const activeFilters = computed<ActiveFilter[]>(() => {
     if (min != null) {
       list.push({
         key: `num-${facet.key}`,
-        label: `${facet.label_fr} ${min}${facet.unit ? ' ' + facet.unit : ''} et plus`,
+        label: t('catalogue.spec_and_more', {
+          label: facet.label_fr,
+          value: `${min}${facet.unit ? ' ' + facet.unit : ''}`,
+        }),
         remove: () => onNumericChange(facet.key, null),
       });
     }
@@ -455,10 +549,13 @@ const activeFilters = computed<ActiveFilter[]>(() => {
   if (pMin != null || pMax != null) {
     const label =
       pMin != null && pMax != null
-        ? `${currencyStore.format(pMin)} à ${currencyStore.format(pMax)}`
+        ? t('catalogue.price_between', {
+            min: currencyStore.format(pMin),
+            max: currencyStore.format(pMax),
+          })
         : pMin != null
-          ? `Dès ${currencyStore.format(pMin)}`
-          : `Jusqu'à ${currencyStore.format(pMax ?? 0)}`;
+          ? t('catalogue.price_from', { min: currencyStore.format(pMin) })
+          : t('catalogue.price_to', { max: currencyStore.format(pMax ?? 0) });
     list.push({
       key: 'price',
       label,
@@ -485,7 +582,14 @@ async function onPageChange(page: number) {
 }
 
 async function onConditionChange(val: 'new' | 'refurbished' | null) {
+  selectedCondition.value = val;
   await store.applyFilters({ condition: val });
+  syncQueryParams();
+}
+
+async function onStockChange(val: StockLocation | null) {
+  selectedStock.value = val;
+  await store.applyFilters({ stock: val });
   syncQueryParams();
 }
 
@@ -539,6 +643,7 @@ async function resetFilters() {
   selectedManufacturer.value = null;
   selectedCategory.value = null;
   selectedCondition.value = null;
+  selectedStock.value = null;
   enumSelections.value = {};
   numericMin.value = {};
   priceMin.value = '';
@@ -550,6 +655,7 @@ async function resetFilters() {
     manufacturer: null,
     category_id: null,
     in_stock: null,
+    stock: null,
     condition: null,
     price_min: null,
     price_max: null,
@@ -564,6 +670,7 @@ function stateQuery(): Record<string, string> {
   if (selectedManufacturer.value) query['mfr'] = selectedManufacturer.value;
   if (selectedCategory.value) query['cat'] = selectedCategory.value;
   if (selectedCondition.value) query['cond'] = selectedCondition.value;
+  if (selectedStock.value) query['stock'] = selectedStock.value;
   return query;
 }
 
@@ -578,7 +685,7 @@ async function onAddToCart(product: ProductPublic) {
     uiStore.openCartDrawer(product.id);
     return;
   }
-  cartError.value = cartStore.error ?? "Impossible d'ajouter cet article au panier.";
+  cartError.value = cartStore.error ?? t('catalogue.add_failed');
 }
 
 function initFromQuery(query: LocationQuery = route.query) {
@@ -590,6 +697,8 @@ function initFromQuery(query: LocationQuery = route.query) {
   selectedCategory.value = typeof cat === 'string' ? cat : null;
   const cond = query['cond'];
   selectedCondition.value = cond === 'new' || cond === 'refurbished' ? cond : null;
+  const stock = query['stock'];
+  selectedStock.value = stock === 'local' || stock === 'supplier' ? stock : null;
 }
 
 async function loadCatalogueData() {
@@ -601,6 +710,7 @@ async function loadCatalogueData() {
     manufacturer: selectedManufacturer.value,
     category_id: selectedCategory.value,
     condition: selectedCondition.value,
+    stock: selectedStock.value,
     specs: buildSpecs(),
   });
 }
@@ -612,7 +722,7 @@ watch(
   (query) => {
     if (route.name !== 'catalogue') return;
     const current = stateQuery();
-    const keys = ['q', 'mfr', 'cat', 'cond'];
+    const keys = ['q', 'mfr', 'cat', 'cond', 'stock'];
     const same =
       keys.every((k) => (query[k] ?? undefined) === current[k]) &&
       Object.keys(query).every((k) => keys.includes(k));

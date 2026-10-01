@@ -17,11 +17,8 @@ _ALWAYS = (
     "_seed_currency_rates",
     "_seed_shipping_statuses",
     "_seed_security_groups",
-    "_seed_legal_identity_settings",
-    "_seed_payment_instruction_settings",
-    "_seed_payment_provider_switches",
-    "_seed_pricing_settings",
-    "_seed_customs_free_countries_setting",
+    "_seed_runtime_settings",
+    "_seed_module_switches",
 )
 _POLYNESIA = (
     "_seed_france_papeete_import_corridor",

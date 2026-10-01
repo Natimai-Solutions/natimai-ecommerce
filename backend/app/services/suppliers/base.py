@@ -27,7 +27,14 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any
+from typing import Any, ClassVar
+
+from pydantic import BaseModel, ConfigDict
+from pydantic import Field as PydanticField
+
+from app.features.integrations.services.supplier_data_normalization import (
+    ProductFilterRule,
+)
 
 
 @dataclass(slots=True)
@@ -94,6 +101,48 @@ class SupplierHealth:
 
 
 @dataclass(slots=True)
+class PurchaseOrderLine:
+    """One line of a purchase order sent to a supplier."""
+
+    supplier_sku: str
+    quantity: int
+    unit_price: Decimal | None = None
+    vendor_part_number: str | None = None
+
+
+@dataclass(slots=True)
+class ShipTo:
+    """Where the supplier delivers: always *our* warehouse, never a customer."""
+
+    address_line1: str
+    city: str
+    country_code: str
+    company_name: str | None = None
+    contact: str | None = None
+    postal_code: str | None = None
+    phone: str | None = None
+    address_line2: str | None = None
+
+
+@dataclass(slots=True)
+class PurchaseOrderResult:
+    """What the supplier answered to a purchase order."""
+
+    order_number: str | None
+    status_label: str | None = None
+    raw: dict[str, Any] = field(default_factory=dict)
+
+
+def _stored_credentials(supplier: Any) -> dict[str, str]:
+    token = getattr(supplier, "credentials_encrypted", None)
+    if not token:
+        return {}
+    from app.core.secrets_box import decrypt_json
+
+    return decrypt_json(token)
+
+
+@dataclass(slots=True)
 class SupplierConfig:
     """Snapshot of a ``suppliers`` row, detached from the ORM session.
 
@@ -117,6 +166,11 @@ class SupplierConfig:
     sku_allowlist: list[str] = field(default_factory=list)
     #: New products land as drafts, published by the admin.
     import_as_draft: bool = False
+    #: File imports (and file feeds): minimum quantity / price of a row.
+    min_quantity: Decimal | None = None
+    min_price: Decimal | None = None
+    #: Decrypted credentials stored for the supplier (file feeds). Never logged.
+    credentials: dict[str, str] = field(default_factory=dict, repr=False)
 
     @classmethod
     def from_row(cls, supplier: Any) -> SupplierConfig:
@@ -139,7 +193,61 @@ class SupplierConfig:
             settings=dict(getattr(supplier, "settings", None) or {}),
             sku_allowlist=list(getattr(supplier, "sku_allowlist", None) or []),
             import_as_draft=bool(getattr(supplier, "import_as_draft", False)),
+            min_quantity=getattr(supplier, "min_quantity", None),
+            min_price=getattr(supplier, "min_price", None),
+            credentials=_stored_credentials(supplier),
         )
+
+
+class SupplierSettings(BaseModel):
+    """What ``Supplier.settings`` may hold, common to every adapter (R5 / C4).
+
+    Each adapter extends it with its own fields (:attr:`SupplierAdapter.
+    settings_schema`); the admin validates against it (unknown key or wrong
+    type: 400) and builds its form from its JSON schema. A field left empty
+    keeps the environment's value, where one exists.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    origin_place_code: str | None = PydanticField(
+        default=None,
+        max_length=50,
+        title="Lieu d'origine (code)",
+        description="Code du lieu d'expédition, quand la colonne n'est pas renseignée.",
+    )
+    subcategory_allowlist: list[str] | None = PydanticField(
+        default=None,
+        title="Sous-catégories autorisées",
+        description=(
+            "Seules ces sous-catégories du fournisseur sont publiées (les autres "
+            "sont créées désactivées). Vide : la liste de l'environnement "
+            "(SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST) ; [] : tout est autorisé."
+        ),
+    )
+    filter_rules: list[ProductFilterRule] | None = PydanticField(
+        default=None,
+        title="Règles de filtrage",
+        description=(
+            "Règles propres à ce fournisseur, à la place de celles de "
+            "l'environnement (SUPPLIER_PRODUCT_FILTER_RULES)."
+        ),
+    )
+    sync_min_quantity: Decimal | None = PydanticField(
+        default=None,
+        ge=0,
+        title="Quantité minimale (synchro de stock)",
+        description=(
+            "Sous ce stock fournisseur, l'article est retiré de la vente à la "
+            "synchro d'inventaire. Vide : SUPPLIER_SYNC_MIN_QUANTITY."
+        ),
+    )
+    sync_min_price: Decimal | None = PydanticField(
+        default=None,
+        ge=0,
+        title="Prix minimal (synchro de stock, devise de référence)",
+        description="Vide : SUPPLIER_SYNC_MIN_PRICE.",
+    )
 
 
 class SupplierAdapter(ABC):
@@ -157,12 +265,32 @@ class SupplierAdapter(ABC):
     adapter_key: str = ""
     #: Human friendly label of the implementation, e.g. ``"Ingram Micro"``.
     display_name: str = ""
-    #: Keys the implementation reads in ``Supplier.settings`` (for the admin UI).
-    settings_keys: tuple[str, ...] = ()
+    #: Schema of ``Supplier.settings`` for this implementation (R5 / C4).
+    settings_schema: ClassVar[type[SupplierSettings]] = SupplierSettings
+    #: Keys of :attr:`settings_schema` (derived, kept for the admin UI).
+    settings_keys: ClassVar[tuple[str, ...]] = tuple(SupplierSettings.model_fields)
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        cls.settings_keys = tuple(cls.settings_schema.model_fields)
+
     #: Max number of SKUs accepted per price/availability request.
     price_batch_size: int = 50
     #: Soft client-side rate limit hint (requests / minute). ``None`` = unknown.
     requests_per_minute: int | None = None
+    #: The implementation can place purchase orders (:meth:`create_purchase_order`).
+    supports_purchase_orders: bool = False
+    #: :meth:`fetch_price_and_availability` asks the supplier live. ``False``
+    #: (a downloaded file): the checkout keeps the last imported stock and
+    #: the inventory refresh skips the supplier — an empty answer must never
+    #: read as « out of stock ».
+    supports_live_availability: bool = True
+    #: The catalogue is one source fetched at once (a file): a failure fails
+    #: the whole sync instead of being counted per category.
+    single_source: bool = False
+    #: The supplier's minimum quantity / price (``Supplier.min_*``) apply to
+    #: its catalogue sync, as to a file import.
+    applies_file_thresholds: bool = False
 
     def __init__(self, config: SupplierConfig | None = None) -> None:
         """Bind the adapter to a supplier configuration."""
@@ -290,6 +418,27 @@ class SupplierAdapter(ABC):
         Callers are expected to chunk ``skus`` into :attr:`price_batch_size`
         slices; adapters may also defensively truncate.
         """
+
+    # -- purchase orders (optional) ----------------------------------------
+
+    async def create_purchase_order(
+        self,
+        *,
+        customer_order_number: str,
+        lines: list[PurchaseOrderLine],
+        ship_to: ShipTo,
+        notes: str | None = None,
+    ) -> PurchaseOrderResult:
+        """Place a purchase order with the supplier.
+
+        Optional: only implementations with :attr:`supports_purchase_orders`
+        override it. ``customer_order_number`` is derived from the local order
+        so a retry is deduplicated by the supplier when it supports it.
+        """
+        del customer_order_number, lines, ship_to, notes
+        raise NotImplementedError(
+            f"{self.adapter_key or type(self).__name__} cannot place purchase orders"
+        )
 
     # -- health -----------------------------------------------------------
 

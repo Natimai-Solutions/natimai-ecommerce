@@ -1,3 +1,4 @@
+import { labels } from '@/i18n/global';
 import { api } from '@/boot/api';
 
 /** Cycle de vie d'une demande, aligné sur QuoteRequestStatus côté backend. */
@@ -124,15 +125,15 @@ export async function updateQuoteRequest(
   return data;
 }
 
-const STATUS_LABELS: Record<QuoteRequestStatus, string> = {
-  requested: 'Reçue',
-  email_failed: 'Email non transmis',
-  in_progress: 'En cours',
-  quoted: 'Devis envoyé',
-  won: 'Gagnée',
-  lost: 'Perdue',
-  cancelled: 'Annulée',
-};
+const STATUS_LABELS: Record<QuoteRequestStatus, string> = labels({
+  requested: 'api.quote_status.requested',
+  email_failed: 'api.quote_status.email_failed',
+  in_progress: 'api.quote_status.in_progress',
+  quoted: 'api.quote_status.quoted',
+  won: 'api.quote_status.won',
+  lost: 'api.quote_status.lost',
+  cancelled: 'api.quote_status.cancelled',
+});
 
 export function quoteStatusLabel(status: QuoteRequestStatus): string {
   return STATUS_LABELS[status] ?? status;

@@ -1,15 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader
-      title="Trajets et lieux"
-      hint="Lieux logistiques et tronçons tarifés qui composent les trajets de livraison."
-    >
+    <PageHeader :title="$t('logistics.title')" :hint="$t('logistics.hint')">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -24,9 +21,9 @@
     <!-- Lieux -->
     <section class="app-section" aria-labelledby="places-title">
       <div class="app-section__head">
-        <h2 id="places-title" class="app-section__title">Lieux</h2>
+        <h2 id="places-title" class="app-section__title">{{ $t('logistics.places') }}</h2>
         <p class="app-section__hint">
-          Entrepôts, ports, aéroports, îles… utilisés comme origine / destination des tronçons.
+          {{ $t('logistics.places_hint') }}
         </p>
         <q-btn
           class="app-section__action"
@@ -34,7 +31,7 @@
           unelevated
           no-caps
           icon="ph:plus"
-          label="Nouveau lieu"
+          :label="$t('logistics.new_place')"
           @click="openPlaceCreate"
         />
       </div>
@@ -61,7 +58,7 @@
           <q-td :props="props">
             <StatusTag
               v-if="props.row.is_main_warehouse"
-              label="Principal"
+              :label="$t('logistics.main')"
               tone="ok"
               icon="ph:star"
             />
@@ -89,17 +86,18 @@
               @click="makeMainWarehouse(props.row)"
             >
               <q-tooltip max-width="300px">
-                Définir comme entrepôt principal : les articles fournisseur y convergent et le
-                dernier tronçon vers le client en part. L'ancien est déflaggé.
+                {{ $t('logistics.main_tip') }}
               </q-tooltip>
             </q-btn>
             <q-btn flat round dense icon="ph:pencil-simple" @click="openPlaceEdit(props.row)">
-              <q-tooltip>Modifier</q-tooltip>
+              <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
             </q-btn>
           </q-td>
         </template>
         <template #no-data>
-          <div class="full-width text-center text-subtle q-pa-md">Aucun lieu.</div>
+          <div class="full-width text-center text-subtle q-pa-md">
+            {{ $t('logistics.no_place') }}
+          </div>
         </template>
       </q-table>
     </section>
@@ -107,9 +105,9 @@
     <!-- Trajets -->
     <section class="app-section" aria-labelledby="routes-title">
       <div class="app-section__head">
-        <h2 id="routes-title" class="app-section__title">Trajets (tronçons)</h2>
+        <h2 id="routes-title" class="app-section__title">{{ $t('logistics.routes') }}</h2>
         <p class="app-section__hint">
-          Tronçon réutilisable d'un lieu à un autre (fournisseur → entrepôt, entrepôt → client…).
+          {{ $t('logistics.routes_hint') }}
         </p>
         <q-btn
           class="app-section__action"
@@ -117,7 +115,7 @@
           unelevated
           no-caps
           icon="ph:plus"
-          label="Nouveau trajet"
+          :label="$t('logistics.new_route')"
           :disable="places.length < 2"
           @click="openRouteCreate"
         />
@@ -151,12 +149,14 @@
         <template #body-cell-actions="props">
           <q-td :props="props" align="right">
             <q-btn flat round dense icon="ph:pencil-simple" @click="openRouteEdit(props.row)">
-              <q-tooltip>Modifier</q-tooltip>
+              <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
             </q-btn>
           </q-td>
         </template>
         <template #no-data>
-          <div class="full-width text-center text-subtle q-pa-md">Aucun trajet.</div>
+          <div class="full-width text-center text-subtle q-pa-md">
+            {{ $t('logistics.no_route') }}
+          </div>
         </template>
       </q-table>
     </section>
@@ -166,7 +166,7 @@
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
-            {{ placeEditId ? 'Modifier le lieu' : 'Nouveau lieu' }}
+            {{ placeEditId ? $t('logistics.edit_place') : $t('logistics.new_place_title') }}
           </h2>
         </q-card-section>
         <q-form @submit.prevent="submitPlace">
@@ -174,7 +174,7 @@
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="placeForm.name"
-              label="Nom *"
+              :label="$t('logistics.name')"
               outlined
               dense
               bottom-slots
@@ -183,7 +183,7 @@
             <q-select
               v-model="placeForm.type"
               :options="placeTypeOptions"
-              label="Type *"
+              :label="$t('logistics.type')"
               outlined
               dense
               bottom-slots
@@ -194,18 +194,18 @@
             <q-select
               v-model="placeForm.parent_id"
               :options="parentOptions"
-              label="Zone parente (optionnel)"
+              :label="$t('logistics.parent')"
               outlined
               dense
               bottom-slots
               emit-value
               map-options
               clearable
-              hint="Ex. commune → île, île → archipel, boutique → commune."
+              :hint="$t('logistics.parent_hint')"
             />
             <q-input
               v-model="placeForm.code"
-              label="Code (IATA / LOCODE, optionnel)"
+              :label="$t('logistics.code')"
               outlined
               dense
               bottom-slots
@@ -213,7 +213,7 @@
             <div class="row" style="gap: 8px">
               <q-input
                 v-model="placeForm.city"
-                label="Ville"
+                :label="$t('logistics.city')"
                 outlined
                 dense
                 bottom-slots
@@ -222,7 +222,7 @@
               <q-select
                 v-model="placeForm.country"
                 :options="filteredCountryOptions"
-                label="Pays"
+                :label="$t('logistics.country')"
                 outlined
                 dense
                 bottom-slots
@@ -238,7 +238,7 @@
             <q-select
               v-if="isGeoType(placeForm.type)"
               v-model="placePostalCodes"
-              label="Codes postaux de la zone"
+              :label="$t('logistics.postcodes')"
               outlined
               dense
               bottom-slots
@@ -249,36 +249,33 @@
               new-value-mode="add-unique"
               hide-dropdown-icon
               :options="[]"
-              hint="Tapez un code postal puis Entrée (ex. 98728). Sert à déduire la zone depuis l'adresse client. Pays requis."
+              :hint="$t('logistics.postcodes_hint')"
             />
-            <q-toggle v-model="placeForm.is_warehouse" label="Entrepôt" />
-            <q-toggle v-model="placeForm.customs_clearance" label="Dédouanement" />
+            <q-toggle v-model="placeForm.is_warehouse" :label="$t('logistics.warehouse')" />
+            <q-toggle v-model="placeForm.customs_clearance" :label="$t('logistics.clearance')" />
             <template v-if="!isGeoType(placeForm.type)">
               <q-select
                 v-model="placeForm.customs_regime"
                 :options="customsRegimeOptions"
-                label="Régime douanier (lieu d'origine fournisseur)"
+                :label="$t('logistics.regime')"
                 outlined
                 dense
                 bottom-slots
                 emit-value
                 map-options
-                hint="Automatique : même pays que l'entrepôt principal (ou pays exempté dans les réglages) = local, sinon import. Forcez si ce pays fait exception."
+                :hint="$t('logistics.regime_hint')"
               />
-              <q-toggle
-                v-model="placeForm.dropship_enabled"
-                label="Dropshipping : ce fournisseur livre directement le client"
-              />
+              <q-toggle v-model="placeForm.dropship_enabled" :label="$t('logistics.dropship')" />
             </template>
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              :label="placeEditId ? 'Enregistrer' : 'Créer'"
+              :label="placeEditId ? $t('common.save') : $t('common.create')"
               :loading="saving"
             />
           </q-card-actions>
@@ -291,7 +288,7 @@
       <q-card class="app-dialog app-dialog--wide">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
-            {{ routeEditId ? 'Modifier le trajet' : 'Nouveau trajet' }}
+            {{ routeEditId ? $t('logistics.edit_route') : $t('logistics.new_route_title') }}
           </h2>
         </q-card-section>
         <q-form @submit.prevent="submitRoute">
@@ -299,7 +296,7 @@
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="routeForm.name"
-              label="Nom du trajet *"
+              :label="$t('logistics.route_name')"
               outlined
               dense
               bottom-slots
@@ -309,7 +306,7 @@
               <q-select
                 v-model="routeForm.from_place_id"
                 :options="placeOptions"
-                label="Origine *"
+                :label="$t('logistics.from')"
                 outlined
                 dense
                 bottom-slots
@@ -321,7 +318,7 @@
               <q-select
                 v-model="routeForm.to_place_id"
                 :options="placeOptions"
-                label="Destination *"
+                :label="$t('logistics.to')"
                 outlined
                 dense
                 bottom-slots
@@ -335,7 +332,7 @@
               <q-select
                 v-model="routeForm.mode"
                 :options="modeOptions"
-                label="Mode *"
+                :label="$t('logistics.mode')"
                 outlined
                 dense
                 bottom-slots
@@ -347,7 +344,7 @@
               <q-select
                 v-model="routeForm.service_level"
                 :options="serviceLevelOptions"
-                label="Niveau de service"
+                :label="$t('logistics.service')"
                 outlined
                 dense
                 bottom-slots
@@ -359,7 +356,7 @@
             </div>
             <q-input
               v-model="routeForm.customer_label"
-              label="Libellé client (optionnel)"
+              :label="$t('logistics.customer_label')"
               outlined
               dense
               bottom-slots
@@ -367,7 +364,7 @@
             <div class="row" style="gap: 8px">
               <q-input
                 v-model.number="routeForm.eta_days"
-                label="Délai (jours)"
+                :label="$t('logistics.eta')"
                 type="number"
                 outlined
                 dense
@@ -376,7 +373,7 @@
               />
               <q-input
                 v-model="routeForm.price_per_kg"
-                label="Prix / kg (XPF)"
+                :label="$t('logistics.per_kg', { currency: shopConfig.currency })"
                 type="number"
                 step="0.01"
                 outlined
@@ -386,7 +383,7 @@
               />
               <q-input
                 v-model="routeForm.base_price"
-                label="Forfait (XPF)"
+                :label="$t('logistics.flat', { currency: shopConfig.currency })"
                 type="number"
                 step="0.01"
                 outlined
@@ -396,13 +393,10 @@
               />
             </div>
             <h3 class="admin-subtitle q-mt-sm q-mb-none">
-              Grille par tranches de poids (optionnel)
+              {{ $t('logistics.bands') }}
             </h3>
             <div class="text-caption text-muted">
-              Remplace « prix/kg × poids » : le prix de la première tranche dont le plafond couvre
-              le poids taxable. Laissez le plafond vide pour une dernière tranche « et au-delà » ;
-              sinon, l'excédent au-dessus de la dernière tranche est facturé au prix/kg. Le forfait
-              s'ajoute.
+              {{ $t('logistics.bands_hint') }}
             </div>
             <div
               v-for="(band, index) in routeBands"
@@ -412,18 +406,18 @@
             >
               <q-input
                 v-model="band.max_kg"
-                label="Jusqu'à (kg)"
+                :label="$t('logistics.up_to')"
                 type="number"
                 step="0.001"
                 outlined
                 dense
                 bottom-slots
                 class="col"
-                :hint="band.max_kg.trim() ? undefined : 'vide = et au-delà'"
+                :hint="band.max_kg.trim() ? undefined : $t('logistics.and_above')"
               />
               <q-input
                 v-model="band.price"
-                label="Prix (XPF)"
+                :label="$t('logistics.band_price', { currency: shopConfig.currency })"
                 type="number"
                 step="0.01"
                 outlined
@@ -439,7 +433,7 @@
                 icon="ph:trash"
                 @click="routeBands.splice(index, 1)"
               >
-                <q-tooltip>Retirer la tranche</q-tooltip>
+                <q-tooltip>{{ $t('logistics.remove_band') }}</q-tooltip>
               </q-btn>
             </div>
             <q-btn
@@ -447,26 +441,26 @@
               dense
               no-caps
               icon="ph:plus"
-              label="Ajouter une tranche"
+              :label="$t('logistics.add_band')"
               @click="routeBands.push({ max_kg: '', price: '' })"
             />
             <q-input
               v-model="routeForm.free_shipping_threshold"
-              label="Franco de port à partir de (XPF, valeur du panier)"
+              :label="$t('logistics.free_from', { currency: shopConfig.currency })"
               type="number"
               step="0.01"
               outlined
               dense
               bottom-slots
               clearable
-              hint="Ce tronçon devient gratuit dès que la valeur expédiée atteint ce montant. Vide = jamais gratuit."
+              :hint="$t('logistics.free_hint')"
             />
-            <q-toggle v-model="routeForm.is_to_customer" label="Tronçon final (livraison client)" />
+            <q-toggle v-model="routeForm.is_to_customer" :label="$t('logistics.final')" />
             <q-select
               v-if="routeForm.is_to_customer"
               v-model="routeForm.last_leg_delivery_type"
               :options="deliveryTypeSuggestions"
-              label="Mode de livraison (last-leg)"
+              :label="$t('logistics.last_leg')"
               outlined
               dense
               bottom-slots
@@ -475,18 +469,18 @@
               input-debounce="0"
               new-value-mode="add-unique"
               @filter="filterDeliveryTypes"
-              hint="Choisissez un mode ou tapez-en un nouveau (ex. sea_freight), puis Entrée. Relie ce tronçon au choix client au checkout."
+              :hint="$t('logistics.last_leg_hint')"
             />
             <q-toggle
               v-if="routeForm.is_to_customer"
               v-model="routeForm.always_available"
-              label="Toujours proposé (quelle que soit la destination)"
+              :label="$t('logistics.always')"
             />
             <q-select
               v-if="routeForm.is_to_customer && !routeForm.always_available"
               v-model="routeServedPlaceIds"
               :options="geoPlaceOptions"
-              label="Zones desservies"
+              :label="$t('logistics.zones')"
               outlined
               dense
               bottom-slots
@@ -494,17 +488,17 @@
               use-chips
               emit-value
               map-options
-              hint="Îles, communes ou archipels desservis — une zone parente couvre toutes ses zones enfants. Vide = desservi partout (héritage)."
+              :hint="$t('logistics.zones_hint')"
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              :label="routeEditId ? 'Enregistrer' : 'Créer'"
+              :label="routeEditId ? $t('common.save') : $t('common.create')"
               :loading="saving"
             />
           </q-card-actions>
@@ -515,6 +509,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { useShopConfigStore } from '@/stores/shopConfig';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -539,6 +535,9 @@ import {
 import type { WeightBand } from '@/api/logistics';
 import { extractApiError } from '@/api/errors';
 
+const { t } = useI18n();
+const shopConfig = useShopConfigStore();
+
 const places = ref<Place[]>([]);
 const routes = ref<ShippingRoute[]>([]);
 const loading = ref(false);
@@ -549,7 +548,7 @@ const dialogError = ref<string | null>(null);
 
 const req = [
   (v: string | number | null | undefined) =>
-    (v !== null && v !== undefined && String(v).length > 0) || 'Requis',
+    (v !== null && v !== undefined && String(v).length > 0) || t('common.required'),
 ];
 
 // Sélecteur pays ISO (PF/FR épinglés), filtrable à la saisie.
@@ -564,33 +563,33 @@ function filterCountries(val: string, update: (fn: () => void) => void) {
   });
 }
 
-const placeTypeOptions = [
-  { label: 'Entrepôt', value: 'warehouse' },
-  { label: 'Aéroport', value: 'airport' },
-  { label: 'Port', value: 'seaport' },
-  { label: 'Boutique', value: 'shop' },
-  { label: 'Pays', value: 'country' },
-  { label: 'Région / Archipel', value: 'region' },
-  { label: 'Île', value: 'island' },
-  { label: 'Commune', value: 'municipality' },
-  { label: 'Adresse', value: 'address' },
-];
+const placeTypeOptions = computed(() => [
+  { label: t('logistics.pt_warehouse'), value: 'warehouse' },
+  { label: t('logistics.pt_airport'), value: 'airport' },
+  { label: t('logistics.pt_port'), value: 'seaport' },
+  { label: t('logistics.pt_shop'), value: 'shop' },
+  { label: t('logistics.pt_country'), value: 'country' },
+  { label: t('logistics.pt_region'), value: 'region' },
+  { label: t('logistics.pt_island'), value: 'island' },
+  { label: t('logistics.pt_municipality'), value: 'municipality' },
+  { label: t('logistics.pt_address'), value: 'address' },
+]);
 // Zones géographiques : forment l'arbre de desserte + portent les codes postaux.
 const GEO_TYPES = ['country', 'region', 'island', 'municipality'];
 function isGeoType(type: string): boolean {
   return GEO_TYPES.includes(type);
 }
-const modeOptions = [
-  { label: 'Avion', value: 'air' },
-  { label: 'Bateau', value: 'sea' },
-  { label: 'Route', value: 'road' },
-  { label: 'Retrait', value: 'pickup' },
-];
-const serviceLevelOptions = [
-  { label: 'Rapide', value: 'rapide' },
-  { label: 'Économique', value: 'economique' },
-  { label: 'Écologique', value: 'ecologique' },
-];
+const modeOptions = computed(() => [
+  { label: t('logistics.m_air'), value: 'air' },
+  { label: t('logistics.m_sea'), value: 'sea' },
+  { label: t('logistics.m_road'), value: 'road' },
+  { label: t('logistics.m_pickup'), value: 'pickup' },
+]);
+const serviceLevelOptions = computed(() => [
+  { label: t('logistics.s_fast'), value: 'rapide' },
+  { label: t('logistics.s_eco'), value: 'economique' },
+  { label: t('logistics.s_green'), value: 'ecologique' },
+]);
 // Delivery modes are free-form: suggest a few defaults + every mode already used
 // on a route, but let the admin type a new one (e.g. "sea_freight").
 const deliveryTypeAll = computed<string[]>(() => {
@@ -640,24 +639,34 @@ function placePathLabel(place: Place): string {
   return parts.join(' ‹ ');
 }
 
-const placeColumns: QTableColumn[] = [
-  { name: 'name', label: 'Nom', field: 'name', align: 'left' },
-  { name: 'type', label: 'Type', field: 'type', align: 'left' },
-  { name: 'parent', label: 'Zone parente', field: 'parent_id', align: 'left' },
-  { name: 'code', label: 'Code', field: 'code', align: 'left' },
-  { name: 'city', label: 'Ville', field: 'city', align: 'left' },
-  { name: 'country', label: 'Pays', field: 'country', align: 'left' },
-  { name: 'warehouse', label: 'Entrepôt', field: 'is_warehouse', align: 'center' },
-  { name: 'customs', label: 'Douane', field: 'customs_clearance', align: 'center' },
-  { name: 'origin', label: 'Origine', field: 'customs_regime', align: 'left' },
+const placeColumns = computed<QTableColumn[]>(() => [
+  { name: 'name', label: t('logistics.col_name'), field: 'name', align: 'left' },
+  { name: 'type', label: t('logistics.col_type'), field: 'type', align: 'left' },
+  { name: 'parent', label: t('logistics.col_parent'), field: 'parent_id', align: 'left' },
+  { name: 'code', label: t('logistics.col_code'), field: 'code', align: 'left' },
+  { name: 'city', label: t('logistics.col_city'), field: 'city', align: 'left' },
+  { name: 'country', label: t('logistics.col_country'), field: 'country', align: 'left' },
+  {
+    name: 'warehouse',
+    label: t('logistics.col_warehouse'),
+    field: 'is_warehouse',
+    align: 'center',
+  },
+  {
+    name: 'customs',
+    label: t('logistics.col_customs'),
+    field: 'customs_clearance',
+    align: 'center',
+  },
+  { name: 'origin', label: t('logistics.col_origin'), field: 'customs_regime', align: 'left' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-];
+]);
 
-const customsRegimeOptions = [
-  { label: 'Automatique (selon le pays)', value: null },
-  { label: 'Local — sans douane ni fret import', value: 'domestic' },
-  { label: 'Import — douane et fret import', value: 'import' },
-];
+const customsRegimeOptions = computed(() => [
+  { label: t('logistics.r_auto'), value: null },
+  { label: t('logistics.r_local'), value: 'domestic' },
+  { label: t('logistics.r_import'), value: 'import' },
+]);
 
 function originSummary(p: Place): string {
   const parts: string[] = [];
@@ -671,30 +680,40 @@ async function makeMainWarehouse(p: Place) {
   error.value = null;
   try {
     await setMainWarehouse(p.id);
-    notice.value = `${p.name} est désormais l'entrepôt principal.`;
+    notice.value = t('logistics.main_set', { name: p.name });
     await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Opération impossible.';
+    error.value = extractApiError(err) ?? t('common.op_failed');
   }
 }
-const routeColumns: QTableColumn[] = [
-  { name: 'name', label: 'Nom', field: 'name', align: 'left' },
-  { name: 'path', label: 'Trajet', field: 'from_place_id', align: 'left' },
-  { name: 'mode', label: 'Mode', field: 'mode', align: 'left' },
-  { name: 'service_level', label: 'Service', field: 'service_level', align: 'left' },
-  { name: 'eta', label: 'Délai (j)', field: 'eta_days', align: 'left' },
-  { name: 'price_per_kg', label: 'Prix/kg', field: 'price_per_kg', align: 'left' },
-  { name: 'base_price', label: 'Forfait', field: 'base_price', align: 'left' },
-  { name: 'tariff', label: 'Grille / franco', field: 'weight_bands', align: 'left' },
+const routeColumns = computed<QTableColumn[]>(() => [
+  { name: 'name', label: t('logistics.col_name'), field: 'name', align: 'left' },
+  { name: 'path', label: t('logistics.col_path'), field: 'from_place_id', align: 'left' },
+  { name: 'mode', label: t('logistics.col_mode'), field: 'mode', align: 'left' },
+  {
+    name: 'service_level',
+    label: t('logistics.col_service'),
+    field: 'service_level',
+    align: 'left',
+  },
+  { name: 'eta', label: t('logistics.col_eta'), field: 'eta_days', align: 'left' },
+  { name: 'price_per_kg', label: t('logistics.col_per_kg'), field: 'price_per_kg', align: 'left' },
+  { name: 'base_price', label: t('logistics.col_flat'), field: 'base_price', align: 'left' },
+  { name: 'tariff', label: t('logistics.col_tariff'), field: 'weight_bands', align: 'left' },
   {
     name: 'delivery_mode',
-    label: 'Mode last-leg',
+    label: t('logistics.col_last_leg'),
     field: 'last_leg_delivery_type',
     align: 'left',
   },
-  { name: 'to_customer', label: 'Final', field: 'is_to_customer', align: 'center' },
+  {
+    name: 'to_customer',
+    label: t('logistics.col_final'),
+    field: 'is_to_customer',
+    align: 'center',
+  },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-];
+]);
 
 async function load() {
   loading.value = true;
@@ -702,7 +721,7 @@ async function load() {
   try {
     [places.value, routes.value] = await Promise.all([listPlaces(), listRoutes()]);
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -776,7 +795,7 @@ async function submitPlace() {
   const country = (placeForm.country ?? '').trim().toUpperCase();
   const codes = placePostalCodes.value.map((c) => c.trim()).filter((c) => c.length > 0);
   if (isGeoType(placeForm.type) && codes.length > 0 && !country) {
-    dialogError.value = 'Le pays (ISO) est requis pour rattacher des codes postaux.';
+    dialogError.value = t('logistics.country_required');
     return;
   }
   saving.value = true;
@@ -804,10 +823,10 @@ async function submitPlace() {
       await setPlacePostalCodes(saved.id, country, codes);
     }
     placeDialog.value = false;
-    notice.value = 'Lieu enregistré.';
+    notice.value = t('logistics.place_saved');
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    dialogError.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     saving.value = false;
   }
@@ -862,7 +881,7 @@ function tariffSummary(r: ShippingRoute): string {
     parts.push(`${r.weight_bands.length} tranche${r.weight_bands.length > 1 ? 's' : ''}`);
   }
   if (r.free_shipping_threshold) {
-    parts.push(`franco ≥ ${r.free_shipping_threshold}`);
+    parts.push(t('logistics.free_ge', { amount: r.free_shipping_threshold }));
   }
   return parts.length > 0 ? parts.join(' · ') : '—';
 }
@@ -927,11 +946,11 @@ function openRouteEdit(r: ShippingRoute) {
 
 async function submitRoute() {
   if (!routeForm.from_place_id || !routeForm.to_place_id) {
-    dialogError.value = 'Origine et destination requises.';
+    dialogError.value = t('logistics.ends_required');
     return;
   }
   if (routeForm.from_place_id === routeForm.to_place_id) {
-    dialogError.value = "L'origine et la destination doivent être différentes.";
+    dialogError.value = t('logistics.ends_differ');
     return;
   }
   saving.value = true;
@@ -971,10 +990,10 @@ async function submitRoute() {
       );
     }
     routeDialog.value = false;
-    notice.value = 'Trajet enregistré.';
+    notice.value = t('logistics.route_saved');
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    dialogError.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     saving.value = false;
   }

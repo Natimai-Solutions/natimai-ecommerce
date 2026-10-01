@@ -7,25 +7,25 @@
           flat
           round
           icon="ph:list"
-          aria-label="Menu"
+          aria-label="$t('layout.menu')"
           class="lt-md app-header__icon"
           @click="toggleDrawer"
         />
 
         <router-link to="/" class="app-header__logo">Natimai</router-link>
 
-        <nav class="gt-sm app-header__nav" aria-label="Navigation principale">
+        <nav class="gt-sm app-header__nav" :aria-label="$t('layout.main_nav')">
           <router-link
             :to="{ name: 'catalogue' }"
             class="app-header__link"
             :aria-current="$route.name === 'catalogue' ? 'page' : undefined"
           >
-            Catalogue
+            {{ $t('layout.catalogue') }}
           </router-link>
         </nav>
 
         <form class="gt-sm app-header__search" role="search" @submit.prevent="submitSearch">
-          <label for="header-search" class="sr-only">Rechercher dans le catalogue</label>
+          <label for="header-search" class="sr-only">{{ $t('layout.search_label') }}</label>
           <div class="search-field">
             <q-icon name="ph:magnifying-glass" size="18px" class="search-field__icon" />
             <input
@@ -33,7 +33,7 @@
               ref="searchInput"
               v-model="searchText"
               type="search"
-              placeholder="Produit, référence ou EAN"
+              :placeholder="$t('layout.search_placeholder')"
               autocomplete="off"
               class="search-field__input"
             />
@@ -42,9 +42,24 @@
         </form>
 
         <div class="app-header__actions">
-          <!-- Devise d'affichage (présentationnelle ; paiement en XPF) -->
+          <!-- Langue de l'interface (R7) -->
+          <label v-if="localeOptions.length > 1" class="gt-sm">
+            <span class="sr-only">{{ $t('common.language') }}</span>
+            <select
+              class="app-header__currency"
+              :value="currentLocale"
+              data-testid="locale-select"
+              @change="onLocaleChange"
+            >
+              <option v-for="opt in localeOptions" :key="opt.value" :value="opt.value">
+                {{ opt.value.toUpperCase() }}
+              </option>
+            </select>
+          </label>
+
+          <!-- Devise d'affichage (présentationnelle ; paiement dans la devise de référence) -->
           <label v-if="currencyStore.available.length > 1" class="gt-sm">
-            <span class="sr-only">Devise d'affichage</span>
+            <span class="sr-only">{{ $t('common.currency') }}</span>
             <select
               class="app-header__currency font-mono"
               :value="currencyStore.currency"
@@ -61,7 +76,7 @@
             round
             class="app-header__icon"
             :icon="$q.dark.isActive ? 'ph:sun' : 'ph:moon'"
-            :aria-label="$q.dark.isActive ? 'Passer en mode clair' : 'Passer en mode sombre'"
+            :aria-label="$q.dark.isActive ? $t('layout.theme_light') : $t('layout.theme_dark')"
             @click="toggleTheme"
           />
 
@@ -70,7 +85,7 @@
               flat
               no-caps
               class="gt-sm app-header__text-btn"
-              label="Mon compte"
+              :label="$t('layout.account')"
               :to="{ name: 'account' }"
             />
             <q-btn
@@ -78,7 +93,7 @@
               round
               class="gt-sm app-header__icon"
               icon="ph:sign-out"
-              aria-label="Déconnexion"
+              :aria-label="$t('layout.logout')"
               @click="onLogout"
             />
           </template>
@@ -87,7 +102,7 @@
             flat
             no-caps
             class="gt-sm app-header__text-btn"
-            label="Connexion"
+            :label="$t('layout.login')"
             :to="{ name: 'login' }"
           />
 
@@ -96,7 +111,9 @@
             round
             class="app-header__icon"
             :to="{ name: 'cart' }"
-            :aria-label="cartCount > 0 ? `Panier, ${cartCount} articles` : 'Panier'"
+            :aria-label="
+              cartCount > 0 ? $t('layout.cart_with_count', { count: cartCount }) : $t('layout.cart')
+            "
           >
             <q-icon name="ph:shopping-bag" size="22px" />
             <span v-if="cartCount > 0" class="app-header__badge font-mono" aria-hidden="true">
@@ -108,14 +125,14 @@
 
       <!-- Recherche mobile : toujours visible sous la barre -->
       <form class="lt-md app-header__search-mobile" role="search" @submit.prevent="submitSearch">
-        <label for="header-search-mobile" class="sr-only">Rechercher dans le catalogue</label>
+        <label for="header-search-mobile" class="sr-only">{{ $t('layout.search_label') }}</label>
         <div class="search-field">
           <q-icon name="ph:magnifying-glass" size="18px" class="search-field__icon" />
           <input
             id="header-search-mobile"
             v-model="searchText"
             type="search"
-            placeholder="Produit, référence ou EAN"
+            :placeholder="$t('layout.search_placeholder')"
             autocomplete="off"
             class="search-field__input"
           />
@@ -125,12 +142,12 @@
 
     <!-- Menu mobile -->
     <q-drawer v-model="drawerOpen" overlay behavior="mobile" :width="300" class="app-menu">
-      <nav class="app-menu__inner" aria-label="Menu">
+      <nav class="app-menu__inner" :aria-label="$t('layout.menu')">
         <router-link :to="{ name: 'catalogue' }" class="app-menu__link" @click="drawerOpen = false">
-          Catalogue
+          {{ $t('layout.catalogue') }}
         </router-link>
         <router-link :to="{ name: 'cart' }" class="app-menu__link" @click="drawerOpen = false">
-          Panier
+          {{ $t('layout.cart') }}
           <span v-if="cartCount > 0" class="font-mono text-subtle">{{ cartCount }}</span>
         </router-link>
         <router-link
@@ -139,7 +156,7 @@
           class="app-menu__link"
           @click="drawerOpen = false"
         >
-          Mon compte
+          {{ $t('layout.account') }}
         </router-link>
         <button
           v-if="authStore.isAuthenticated"
@@ -147,7 +164,7 @@
           class="app-menu__link"
           @click="onLogout"
         >
-          Déconnexion
+          {{ $t('layout.logout') }}
         </button>
         <router-link
           v-else
@@ -155,11 +172,19 @@
           class="app-menu__link"
           @click="drawerOpen = false"
         >
-          Connexion
+          {{ $t('layout.login') }}
         </router-link>
 
+        <label v-if="localeOptions.length > 1" class="app-menu__currency">
+          <span>{{ $t('common.language') }}</span>
+          <select class="app-header__currency" :value="currentLocale" @change="onLocaleChange">
+            <option v-for="opt in localeOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </option>
+          </select>
+        </label>
         <label v-if="currencyStore.available.length > 1" class="app-menu__currency">
-          <span>Devise d'affichage</span>
+          <span>{{ $t('common.currency') }}</span>
           <select
             class="app-header__currency font-mono"
             :value="currencyStore.currency"
@@ -182,12 +207,14 @@
 
     <q-footer class="app-footer">
       <div class="app-footer__inner page-container">
-        <span>© {{ currentYear }} Natimai Solutions. Tous droits réservés.</span>
-        <nav class="app-footer__links" aria-label="Informations légales">
-          <router-link :to="{ name: 'how-it-works' }">Comment ça marche ?</router-link>
-          <router-link :to="{ name: 'cgv' }">CGV</router-link>
-          <router-link :to="{ name: 'mentions-legales' }">Mentions légales</router-link>
-          <router-link :to="{ name: 'confidentialite' }">Confidentialité &amp; cookies</router-link>
+        <span>{{ $t('layout.rights', { year: currentYear, name: ownerName }) }}</span>
+        <nav class="app-footer__links" :aria-label="$t('layout.legal_nav')">
+          <router-link :to="{ name: 'how-it-works' }">{{ $t('layout.how_it_works') }}</router-link>
+          <router-link :to="{ name: 'cgv' }">{{ $t('layout.cgv') }}</router-link>
+          <router-link :to="{ name: 'mentions-legales' }">{{
+            $t('layout.legal_notice')
+          }}</router-link>
+          <router-link :to="{ name: 'confidentialite' }">{{ $t('layout.privacy') }}</router-link>
         </nav>
       </div>
     </q-footer>
@@ -204,6 +231,8 @@ import { useCurrencyStore } from '@/stores/currency';
 import { toggleTheme } from '@/utils/theme';
 import { useDepartureStore } from '@/stores/departure';
 import NextDepartureBanner from '@/components/NextDepartureBanner.vue';
+import { useLocale } from '@/composables/useLocale';
+import { useShopModulesStore } from '@/stores/shopModules';
 
 const drawerOpen = ref(false);
 const cartStore = useCartStore();
@@ -214,6 +243,13 @@ const departureStore = useDepartureStore();
 const router = useRouter();
 const cartCount = computed(() => cartStore.totalItems);
 const currentYear = new Date().getFullYear();
+const shop = useShopModulesStore();
+const ownerName = computed(() => shop.config.shop_name || 'Natimai');
+const { current: currentLocale, options: localeOptions, setLocale } = useLocale();
+
+function onLocaleChange(event: Event) {
+  void setLocale((event.target as HTMLSelectElement).value);
+}
 
 const searchInput = ref<HTMLInputElement | null>(null);
 const searchText = ref('');
@@ -261,6 +297,7 @@ onMounted(() => {
   void cartStore.loadCart();
   void currencyStore.loadRates();
   void departureStore.load();
+  void shop.load();
   window.addEventListener('keydown', onKeydown);
 });
 

@@ -53,8 +53,11 @@ async def on_cart_abandoned(session: AsyncSession, payload: dict[str, Any]) -> N
         logger.info("cart reminder: cart %s has no lines, skipping", cart_id)
         return
 
+    from app.core.i18n import resolve_locale, user_locale
+
     email = render_email(
         "cart_abandoned",
+        lang=resolve_locale(await user_locale(session, payload.get("user_id"))),
         full_name=full_name or "client",
         items=items,
         total_amount=payload.get("total_amount", ""),

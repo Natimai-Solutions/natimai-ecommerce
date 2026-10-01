@@ -305,6 +305,11 @@ def test_import_file_dry_run_reports_parsed_rows(
         )
     )
     monkeypatch.setattr(SupplierSyncOrchestrator, "preview_items", preview)
+    # Category rules and the file's category table read the DB: stubbed too.
+    monkeypatch.setattr(
+        SupplierSyncOrchestrator, "load_category_rules", AsyncMock(return_value=None)
+    )
+    monkeypatch.setattr(suppliers_routes, "describe_pairs", AsyncMock(return_value=[]))
 
     response = client.post(
         "/api/v1/suppliers/generic_fr/import-file?dry_run=true",

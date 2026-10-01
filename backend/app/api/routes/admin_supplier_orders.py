@@ -1,12 +1,12 @@
-"""Admin endpoints for supplier purchase orders (Ingram Micro SUPPLIER_DIRECT).
+"""Admin endpoints for supplier purchase orders.
 
 GET  /admin/supplier-orders                 — list with optional status / supplier filters
 GET  /admin/supplier-orders/{id}            — single supplier order detail
 POST /admin/supplier-orders/{id}/retry      — manually re-attempt PO creation
 
 The automatic creation runs from the ``payment.captured`` outbox handler; these
-endpoints give operators visibility and a manual recovery lever when the Ingram
-API was unavailable or the ship-to configuration was incomplete at capture time.
+endpoints give operators visibility and a manual recovery lever when the supplier
+API was unavailable or the delivery address was incomplete at capture time.
 """
 
 from __future__ import annotations
@@ -14,10 +14,10 @@ from __future__ import annotations
 import logging
 import uuid
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from sqlmodel import col, func, select
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentSuperUser, SessionDep, module_required
 from app.core.errors import AppError
 from app.features.integrations.models.supplier_order import (
     SupplierOrder,
@@ -26,12 +26,16 @@ from app.features.integrations.models.supplier_order import (
     SupplierOrderStatus,
 )
 from app.features.integrations.services.supplier_order_service import (
-    process_ingram_purchase_order,
+    process_supplier_purchase_order,
 )
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/admin/supplier-orders", tags=["supplier"])
+router = APIRouter(
+    prefix="/admin/supplier-orders",
+    tags=["supplier"],
+    dependencies=[Depends(module_required("supplier_orders"))],
+)
 
 
 async def _load_supplier_order(
@@ -56,7 +60,7 @@ async def list_supplier_orders(
         default=None, description="Filter by supplier order status"
     ),
     supplier_name: str | None = Query(
-        default=None, description="Filter by supplier machine name (e.g. ingram_micro)"
+        default=None, description="Filter by supplier code (e.g. ingram_micro)"
     ),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=200),
@@ -101,9 +105,9 @@ async def retry_supplier_order(
     session: SessionDep,
     current_user: CurrentSuperUser,
 ) -> SupplierOrderPublic:
-    """Manually re-attempt creating the Ingram PO for this supplier order's local order.
+    """Manually re-attempt the purchase order of this row (its supplier, its order).
 
-    Idempotent: an already-``SUBMITTED`` order is returned unchanged. On an Ingram
+    Idempotent: an already-``SUBMITTED`` order is returned unchanged. On a supplier
     API failure the persisted ``ERROR`` record is returned (200 with the error
     message) rather than surfacing a 5xx, so operators can read why it failed.
     """
@@ -124,12 +128,12 @@ async def retry_supplier_order(
         record.local_order_id,
         record.status,
     )
-    result = await process_ingram_purchase_order(
+    result = await process_supplier_purchase_order(
         session,
         record.local_order_id,
+        record.supplier_name,
         reraise_on_api_error=False,
     )
-    # result is the same row (updated in place) unless it was already submitted.
-    refreshed = result if result is not None else record
-    await session.refresh(refreshed)
-    return SupplierOrderPublic.model_validate(refreshed)
+    # The same row, updated in place.
+    await session.refresh(result)
+    return SupplierOrderPublic.model_validate(result)

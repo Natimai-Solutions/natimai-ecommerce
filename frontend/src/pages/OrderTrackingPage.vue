@@ -5,7 +5,7 @@
       :to="{ name: 'account', query: { tab: 'orders' } }"
       class="order__back"
     >
-      <q-icon name="ph:arrow-left" size="16px" /> Mes commandes
+      <q-icon name="ph:arrow-left" size="16px" /> {{ $t('tracking.my_orders') }}
     </router-link>
 
     <div v-if="loading" aria-busy="true" class="order__loading">
@@ -16,7 +16,11 @@
     <AppNotice v-else-if="errorMessage" tone="error">
       {{ errorMessage }}
       <template v-if="!linkToken" #action>
-        <q-btn flat label="Mes commandes" :to="{ name: 'account', query: { tab: 'orders' } }" />
+        <q-btn
+          flat
+          :label="$t('tracking.my_orders_btn')"
+          :to="{ name: 'account', query: { tab: 'orders' } }"
+        />
       </template>
     </AppNotice>
 
@@ -24,7 +28,7 @@
       <header class="order__head">
         <h1 class="page-title font-mono order__ref">{{ reference }}</h1>
         <p v-if="order?.created_at" class="order__date">
-          Passée le {{ formatDate(order.created_at) }}
+          {{ $t('tracking.placed_on', { date: formatDate(order.created_at) }) }}
         </p>
         <div class="order__tags">
           <StatusTag
@@ -55,8 +59,7 @@
         class="order__notice"
         data-testid="tracking-link-notice"
       >
-        Vous suivez cette commande depuis le lien reçu par e-mail. Gardez-le : il permet à quiconque
-        le détient de consulter l'avancement de cette commande.
+        {{ $t('tracking.link_notice') }}
       </AppNotice>
 
       <AppNotice
@@ -76,13 +79,13 @@
               <q-icon name="ph:calendar-check" size="22px" class="departure__icon" />
               <div>
                 <p class="departure__title">
-                  Départ groupé « {{ departure.name }} »
-                  <StatusTag tone="neutral" :label="departureStatusLabel(departure.status)" />
+                  {{ $t('tracking.departure', { name: departure.name }) }}
+                  <StatusTag tone="neutral" :label="statusLabel(departure.status)" />
                 </p>
                 <p class="departure__text">
-                  Clôture des commandes le {{ formatDate(departure.order_cutoff_at) }}
+                  {{ $t('tracking.cutoff', { date: formatDate(departure.order_cutoff_at) }) }}
                   <template v-if="departure.estimated_delivery_at">
-                    · livraison estimée le {{ formatDate(departure.estimated_delivery_at) }}
+                    {{ $t('tracking.eta', { date: formatDate(departure.estimated_delivery_at) }) }}
                   </template>
                 </p>
               </div>
@@ -91,7 +94,7 @@
 
           <section v-if="lines.length" class="app-section" data-testid="order-lines">
             <div class="app-section__head">
-              <h2 class="app-section__title">Articles</h2>
+              <h2 class="app-section__title">{{ $t('tracking.items') }}</h2>
             </div>
             <ul class="app-rows">
               <li v-for="line in lines" :key="line.product_id" class="app-row line">
@@ -122,15 +125,19 @@
                     {{ line.quantity }} × {{ money(line.unit_price) }}
                   </span>
                   <span v-if="line.serial_numbers.length" class="app-row__meta">
-                    N° de série :
+                    {{ $t('tracking.serials') }}
                     <span class="font-mono">{{ line.serial_numbers.join(', ') }}</span>
                   </span>
                   <span v-if="line.warranty_until" class="app-row__meta">
-                    Garantie {{ line.warranty_months }} mois, jusqu'au
-                    {{ formatDate(line.warranty_until) }}
+                    {{
+                      $t('tracking.warranty_until', {
+                        n: line.warranty_months,
+                        date: formatDate(line.warranty_until),
+                      })
+                    }}
                   </span>
                   <span v-else-if="line.warranty_months" class="app-row__meta">
-                    Garantie {{ line.warranty_months }} mois à compter de la remise
+                    {{ $t('tracking.warranty_from', { n: line.warranty_months }) }}
                   </span>
                 </div>
                 <span class="font-mono line__total">
@@ -142,7 +149,7 @@
 
           <section class="app-section">
             <div class="app-section__head">
-              <h2 class="app-section__title">Acheminement</h2>
+              <h2 class="app-section__title">{{ $t('tracking.routing') }}</h2>
               <span v-if="tracking.trackings.length" class="app-section__hint">
                 {{ shippingLabel(tracking.overall_status) }}
               </span>
@@ -150,7 +157,7 @@
 
             <div v-if="tracking.trackings.length === 0" class="app-empty legs__empty">
               <q-icon name="ph:package" size="32px" class="text-subtle" />
-              <p>Les étapes d'expédition s'afficheront ici dès le départ de la commande.</p>
+              <p>{{ $t('tracking.no_legs') }}</p>
             </div>
 
             <ol v-else class="legs">
@@ -165,7 +172,7 @@
                 <span class="leg__dot" aria-hidden="true" />
                 <div class="leg__body">
                   <span class="leg__title">{{
-                    legLabel(segment) ?? `Étape ${segment.sequence_order}`
+                    legLabel(segment) ?? $t('tracking.step_n', { n: segment.sequence_order })
                   }}</span>
                   <span v-if="segment.carrier_name || segment.tracking_ref" class="leg__meta">
                     {{ segment.carrier_name }}
@@ -179,21 +186,23 @@
                       rel="noopener noreferrer"
                       class="text-link leg__link"
                     >
-                      Suivre le colis
+                      {{ $t('tracking.track_parcel') }}
                       <q-icon name="ph:arrow-square-out" size="14px" />
                     </a>
                   </span>
                   <span v-if="segment.estimated_delivery" class="leg__meta">
-                    Livraison estimée le {{ formatDate(segment.estimated_delivery) }}
+                    {{ $t('tracking.leg_eta', { date: formatDate(segment.estimated_delivery) }) }}
                   </span>
                   <span v-if="segment.consolidation_id" class="leg__meta">
-                    Regroupé dans un envoi consolidé
+                    {{ $t('tracking.consolidated') }}
                   </span>
                   <span v-if="customerNote(segment.notes)" class="leg__meta">
                     {{ customerNote(segment.notes) }}
                   </span>
                   <span v-if="segment.last_status_update" class="leg__time">
-                    Mis à jour le {{ formatDateTime(segment.last_status_update) }}
+                    {{
+                      $t('tracking.updated', { date: formatDateTime(segment.last_status_update) })
+                    }}
                   </span>
                 </div>
               </li>
@@ -211,45 +220,44 @@
           </section>
         </div>
 
-        <aside v-if="order" class="order__aside" aria-label="Récapitulatif">
+        <aside v-if="order" class="order__aside" :aria-label="$t('tracking.summary')">
           <div class="app-panel summary">
-            <h2 class="summary__title">Récapitulatif</h2>
+            <h2 class="summary__title">{{ $t('tracking.summary_title') }}</h2>
             <div class="app-kv">
-              <span>Sous-total</span>
+              <span>{{ $t('tracking.subtotal') }}</span>
               <span class="font-mono">{{ money(order.subtotal_amount) }}</span>
             </div>
             <div class="app-kv">
-              <span>{{ deliveryLabel ?? 'Livraison' }}</span>
+              <span>{{ deliveryLabel ?? $t('tracking.delivery') }}</span>
               <span class="font-mono">{{ money(order.shipping_fee_amount) }}</span>
             </div>
             <div v-if="isPositiveAmount(order.payment_fee_amount)" class="app-kv">
-              <span>Frais de paiement</span>
+              <span>{{ $t('tracking.payment_fee') }}</span>
               <span class="font-mono">{{ money(order.payment_fee_amount) }}</span>
             </div>
             <div
               v-if="order.discount_code && isPositiveAmount(order.discount_amount)"
               class="app-kv app-kv--credit"
             >
-              <span>Remise {{ order.discount_code }}</span>
+              <span>{{ $t('tracking.discount', { code: order.discount_code }) }}</span>
               <span class="font-mono">−{{ money(order.discount_amount ?? '0') }}</span>
             </div>
             <div class="app-kv app-kv--total">
-              <span>Total</span>
+              <span>{{ $t('tracking.total') }}</span>
               <span class="font-mono">{{ money(order.total_amount) }}</span>
             </div>
 
             <div v-if="partialPayment" class="summary__block" data-testid="order-partial">
               <div class="app-kv app-kv--credit">
-                <span>Déjà réglé</span>
+                <span>{{ $t('tracking.paid') }}</span>
                 <span class="font-mono">{{ money(partialPayment.paid) }}</span>
               </div>
               <div class="app-kv">
-                <span>Reste à régler</span>
+                <span>{{ $t('tracking.due') }}</span>
                 <span class="font-mono">{{ money(partialPayment.due) }}</span>
               </div>
               <p class="summary__note">
-                Vous réglez en plusieurs fois : la commande est validée dès que le montant restant
-                est reçu.
+                {{ $t('tracking.partial_note') }}
               </p>
             </div>
 
@@ -259,14 +267,22 @@
               data-testid="order-deposit"
             >
               <div class="app-kv">
-                <span>Acompte versé</span>
+                <span>{{ $t('tracking.deposit_paid') }}</span>
                 <span class="font-mono">{{ money(order.deposit_amount) }}</span>
               </div>
               <div class="app-kv">
                 <span>
-                  Solde
-                  <StatusTag v-if="order.balance_paid_at" tone="ok" label="Réglé" />
-                  <StatusTag v-else-if="order.balance_due" tone="warn" label="À régler" />
+                  {{ $t('tracking.balance') }}
+                  <StatusTag
+                    v-if="order.balance_paid_at"
+                    tone="ok"
+                    :label="$t('tracking.balance_paid')"
+                  />
+                  <StatusTag
+                    v-else-if="order.balance_due"
+                    tone="warn"
+                    :label="$t('tracking.balance_due_tag')"
+                  />
                 </span>
                 <span class="font-mono">{{ money(order.balance_amount) }}</span>
               </div>
@@ -274,32 +290,38 @@
                 <p class="summary__note">
                   {{
                     order.balance_due
-                      ? 'Vos articles sont arrivés : réglez le solde pour les récupérer.'
-                      : 'Le solde est demandé à la réception des articles ; il peut être réglé dès maintenant.'
+                      ? $t('tracking.balance_due_text')
+                      : $t('tracking.balance_later_text')
                   }}
                 </p>
                 <q-btn
                   v-if="balancePayable && !linkToken"
                   unelevated
                   color="primary"
-                  :label="`Régler le solde · ${money(order.balance_amount)}`"
+                  :label="$t('tracking.pay_balance', { amount: money(order.balance_amount) })"
                   class="summary__cta"
                   :to="{ name: 'order-balance', params: { id: order.id } }"
                   data-testid="order-pay-balance"
                 />
                 <p v-else-if="balancePayable" class="summary__note">
-                  Pour régler le solde, connectez-vous à votre espace client.
+                  {{ $t('tracking.balance_login') }}
                 </p>
               </template>
             </div>
 
             <dl class="summary__facts">
               <template v-if="paymentMethod">
-                <dt>Paiement</dt>
+                <dt>{{ $t('tracking.payment') }}</dt>
                 <dd>{{ paymentMethod }}</dd>
               </template>
               <template v-if="order.shipping_address">
-                <dt>{{ order.delivery_type === 'pickup' ? 'Retrait' : 'Livraison' }}</dt>
+                <dt>
+                  {{
+                    order.delivery_type === 'pickup'
+                      ? $t('tracking.pickup')
+                      : $t('tracking.delivery')
+                  }}
+                </dt>
                 <dd>{{ order.shipping_address }}</dd>
               </template>
             </dl>
@@ -309,7 +331,7 @@
               outline
               color="primary"
               icon="ph:file-pdf"
-              :label="`Facture ${invoice.invoice_number}`"
+              :label="$t('tracking.invoice', { number: invoice.invoice_number })"
               class="summary__cta"
               :loading="downloadingInvoice"
               data-testid="order-invoice"
@@ -324,10 +346,12 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { useDepartureLabels } from '@/composables/useDepartureLabels';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useMeta } from 'quasar';
 import { useRoute, useRouter } from 'vue-router';
-import { departureStatusLabel, formatDate, formatDateTime, orderRef } from '@app/utils';
+import { formatDate, formatDateTime, orderRef } from '@app/utils';
 
 import AppNotice from '@app/ui/AppNotice.vue';
 import ProductImage from '@/components/ProductImage.vue';
@@ -349,8 +373,16 @@ import { useAuthStore } from '@/stores/auth';
 import { useCurrencyStore } from '@/stores/currency';
 import { apiErrorMessage } from '@/utils/errors';
 import { isPositiveAmount, orderMoney } from '@/utils/money';
-import { DELIVERY_TYPE_LABELS, deliveryFacet, paymentFacet } from '@/utils/orderStatus';
+import {
+  DELIVERY_TYPES,
+  deliveryFacet as deliveryFacetIn,
+  paymentFacet as paymentFacetIn,
+} from '@/utils/orderStatus';
+import { useTranslate } from '@/composables/useTranslate';
 import type { StatusTone } from '@app/ui/statusTone';
+
+const { t } = useI18n();
+const { statusLabel } = useDepartureLabels();
 
 const route = useRoute();
 const router = useRouter();
@@ -376,7 +408,7 @@ const invoiceError = ref<string | null>(null);
 const downloadingInvoice = ref(false);
 
 const reference = computed(() => orderRef(order.value?.order_number, orderId.value));
-useMeta(() => ({ title: `Commande ${reference.value}` }));
+useMeta(() => ({ title: t('tracking.meta_title', { ref: reference.value }) }));
 
 const paymentMethod = computed(() =>
   order.value && 'payment_method_name' in order.value ? order.value.payment_method_name : null,
@@ -392,9 +424,14 @@ const partialPayment = computed(() => {
   return Number(due) > 0 ? { paid, due } : null;
 });
 
+const tr = useTranslate();
+const paymentFacet = (name: string | null | undefined) => paymentFacetIn(name, tr);
+const deliveryFacet = (name: string | null | undefined) => deliveryFacetIn(name, tr);
+
 const deliveryLabel = computed(() => {
   const type = order.value?.delivery_type;
-  return type ? (DELIVERY_TYPE_LABELS[type] ?? type) : null;
+  if (!type) return null;
+  return DELIVERY_TYPES.includes(type) ? t(`order_status.delivery_type.${type}`) : type;
 });
 
 function money(raw: string): string {
@@ -424,19 +461,19 @@ const sortedSegments = computed(() =>
   [...(tracking.value?.trackings ?? [])].sort((a, b) => a.sequence_order - b.sequence_order),
 );
 
-const SHIPPING_LABELS: Record<string, string> = {
-  unknown: 'En préparation',
-  pending: 'En attente',
-  preparing: 'En préparation',
-  ready: 'Prête à expédier',
-  shipped: 'Expédiée',
-  in_transit: 'En transit',
-  customs: 'En dédouanement',
-  out_for_delivery: 'En cours de livraison',
-  delivered: 'Livrée',
-  cancelled: 'Annulée',
-  returned: 'Retournée',
-};
+const SHIPPING_LABELS = new Set([
+  'unknown',
+  'pending',
+  'preparing',
+  'ready',
+  'shipped',
+  'in_transit',
+  'customs',
+  'out_for_delivery',
+  'delivered',
+  'cancelled',
+  'returned',
+]);
 
 function humanize(code: string): string {
   const text = code.replace(/[_-]+/g, ' ').trim().toLowerCase();
@@ -444,7 +481,7 @@ function humanize(code: string): string {
 }
 
 function shippingLabel(code: string): string {
-  return SHIPPING_LABELS[code] ?? humanize(code);
+  return SHIPPING_LABELS.has(code) ? t(`tracking.ship.${code}`) : humanize(code);
 }
 
 function shippingTone(code: string): StatusTone {
@@ -453,19 +490,18 @@ function shippingTone(code: string): StatusTone {
   return 'neutral';
 }
 
-const MODE_LABELS: Record<string, string> = {
-  air: 'avion',
-  sea: 'bateau',
-  road: 'route',
-  pickup: 'retrait',
-};
+const MODE_LABELS = new Set(['air', 'sea', 'road', 'pickup']);
 
 /** « France → Papeete (avion) », sinon le libellé de la route. */
 function legLabel(segment: OrderTrackingSegment): string | null {
   const from = segment.from_place_name;
   const to = segment.to_place_name;
   if (!from || !to) return segment.route_label;
-  const mode = segment.mode ? (MODE_LABELS[segment.mode] ?? segment.mode) : null;
+  const mode = segment.mode
+    ? MODE_LABELS.has(segment.mode)
+      ? t(`tracking.mode.${segment.mode}`)
+      : segment.mode
+    : null;
   return mode ? `${from} → ${to} (${mode})` : `${from} → ${to}`;
 }
 
@@ -477,19 +513,19 @@ function customerNote(note: string | null): string | null {
   return note;
 }
 
-const SCENARIO_LABELS: Record<string, string> = {
-  supplier_delay: 'Retard fournisseur signalé sur une étape.',
-  parcel_split: 'Votre commande a été scindée en plusieurs colis.',
-  segment_failure: "Un incident est survenu sur une étape d'acheminement.",
-};
+const SCENARIO_LABELS = new Set(['supplier_delay', 'parcel_split', 'segment_failure']);
 
 function scenarioLabel(code: string): string {
-  return SCENARIO_LABELS[code] ?? humanize(code);
+  return SCENARIO_LABELS.has(code) ? t(`tracking.scenario.${code}`) : humanize(code);
 }
 
 const NOT_FOUND = {
-  notFound: 'Cette commande est introuvable.',
-  forbidden: "Vous n'avez pas accès à cette commande.",
+  get notFound() {
+    return t('tracking.not_found');
+  },
+  get forbidden() {
+    return t('tracking.forbidden');
+  },
 };
 
 async function onDownloadInvoice() {
@@ -499,7 +535,7 @@ async function onDownloadInvoice() {
   try {
     await downloadInvoicePdf(invoice.value);
   } catch (err) {
-    invoiceError.value = apiErrorMessage(err) ?? 'Le téléchargement de la facture a échoué.';
+    invoiceError.value = apiErrorMessage(err) ?? t('tracking.invoice_failed');
   } finally {
     downloadingInvoice.value = false;
   }
@@ -517,9 +553,7 @@ async function loadFromLink(token: string) {
     lines.value = tracked.lines;
     await loadDeparture(tracked.order.grouped_departure_id);
   } catch (err) {
-    errorMessage.value =
-      apiErrorMessage(err, NOT_FOUND) ??
-      'Ce lien de suivi est invalide ou la commande est introuvable.';
+    errorMessage.value = apiErrorMessage(err, NOT_FOUND) ?? t('tracking.link_invalid');
   }
 }
 
@@ -534,8 +568,7 @@ async function loadMine() {
   ]);
   if (trackingResult.status === 'rejected') {
     errorMessage.value =
-      apiErrorMessage(trackingResult.reason, NOT_FOUND) ??
-      'Impossible de charger le suivi de cette commande.';
+      apiErrorMessage(trackingResult.reason, NOT_FOUND) ?? t('tracking.load_failed');
     return;
   }
   tracking.value = trackingResult.value;

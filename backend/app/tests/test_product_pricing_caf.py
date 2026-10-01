@@ -132,7 +132,7 @@ def test_compute_volume_m3_computes_correctly() -> None:
 async def test_calculate_sale_price_no_route_old_formula() -> None:
     """Without an import route, freight=0 → formula = cost × (1+customs) × (1+margin) × (1+tax).
 
-    cost=100 000, customs=5%, margin=30%, TGC=16%
+    cost=100 000, customs=5%, margin=30%, TVA=16%
     expected = 100 000 × 1.05 × 1.30 × 1.16 = 158 262 (rounded)
     """
     product = _product()

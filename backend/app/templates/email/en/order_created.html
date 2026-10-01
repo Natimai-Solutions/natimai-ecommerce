@@ -1,0 +1,20 @@
+{% extends "_layout.html" %}
+{% block title %}Order received{% endblock %}
+{% block heading %}Order placed{% endblock %}
+{% block content %}
+      <p>Hello {{ full_name }},</p>
+      <p>Your order has been placed. You will receive a confirmation as soon as your payment is validated.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Order number</td><td>{{ order_ref or (order_id | short_ref) }}</td></tr>
+          <tr><td>Total amount</td><td>{{ total_amount }} {{ currency }}</td></tr>
+          <tr><td>Number of items</td><td>{{ item_count }}</td></tr>
+        </table>
+      </div>
+      {% if payment_instructions %}
+      <p><strong>To pay for your order</strong>{% if amount_due_now and amount_due_now != total_amount %} ({{ amount_due_now }} {{ currency }} now){% endif %}:</p>
+      <p style="white-space: pre-line">{{ payment_instructions }}</p>
+      {% endif %}
+      {% if tracking_url %}<p><a href="{{ tracking_url }}">Track my order</a></p>{% endif %}
+      <p>Thank you for your order,<br><strong>The {{ shop_name }} team</strong></p>
+{% endblock %}

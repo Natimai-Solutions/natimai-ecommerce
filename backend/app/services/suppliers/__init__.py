@@ -36,11 +36,13 @@ from app.services.suppliers.base import (
     SupplierConfig,
     SupplierHealth,
 )
+from app.services.suppliers.file_feed import FileFeedAdapter
 from app.services.suppliers.ingram_micro import IngramMicroAdapter
 
 # Registered implementations keyed by their stable adapter key.
 ADAPTERS: dict[str, type[SupplierAdapter]] = {
     IngramMicroAdapter.adapter_key: IngramMicroAdapter,
+    FileFeedAdapter.adapter_key: FileFeedAdapter,
 }
 
 # One adapter instance per supplier code, invalidated by the row's updated_at.
@@ -73,6 +75,8 @@ def describe_adapters() -> list[AdapterDescriptor]:
             display_name=cls.display_name or key,
             configured=cls.credentials_present(),
             settings_keys=list(cls.settings_keys),
+            supports_purchase_orders=bool(cls.supports_purchase_orders),
+            settings_schema=cls.settings_schema.model_json_schema(),
         )
         for key, cls in sorted(ADAPTERS.items())
     ]

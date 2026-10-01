@@ -1,4 +1,4 @@
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Annotated
 
 from fastapi import Depends
@@ -13,6 +13,7 @@ from app.core.cache import RedisCache
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.errors import AppError
+from app.core.field_visibility import reveal_internal_fields
 from app.features.user.models.user import TokenPayload, User
 
 reusable_oauth2 = OAuth2PasswordBearer(
@@ -71,6 +72,9 @@ async def get_current_user(session: SessionDep, token: TokenDep) -> User:
             message="Inactive user",
             details={"user_id": str(user.id)},
         )
+    if user.is_superuser:
+        # Cost, supplier price and margins serialize for this request only.
+        reveal_internal_fields()
     return user
 
 
@@ -107,19 +111,48 @@ async def get_current_user_optional(
 CurrentUserOptional = Annotated[User | None, Depends(get_current_user_optional)]
 
 
-async def get_current_active_superuser(current_user: CurrentUser) -> User:
-    """Get current active superuser."""
-    if not current_user.is_superuser:
+def _require_superuser(user: User) -> User:
+    if not user.is_superuser:
         raise AppError(
             code="auth.superuser.required",
             status_code=403,
             message="The user doesn't have enough privileges",
+            details={"user_id": str(user.id)},
+        )
+    return user
+
+
+async def get_current_active_superuser(current_user: CurrentUser) -> User:
+    """Get current active superuser.
+
+    Where two-factor authentication is required (``ADMIN_2FA_REQUIRED``,
+    production by default), a superuser who has not set it up is refused
+    with ``auth.totp.enrollment_required``: the admin sends them to the
+    enrolment screen, the only one they can reach.
+    """
+    _require_superuser(current_user)
+    if settings.admin_2fa_required and not current_user.totp_enabled:
+        raise AppError(
+            code="auth.totp.enrollment_required",
+            status_code=403,
+            message=(
+                "La double authentification est obligatoire pour l'administration : "
+                "activez-la pour continuer"
+            ),
             details={"user_id": str(current_user.id)},
         )
     return current_user
 
 
 CurrentSuperUser = Annotated[User, Depends(get_current_active_superuser)]
+
+
+async def get_current_superuser_enrolling(current_user: CurrentUser) -> User:
+    """A superuser, two-factor set up or not (the enrolment endpoints)."""
+    return _require_superuser(current_user)
+
+
+CurrentSuperUserEnrolling = Annotated[User, Depends(get_current_superuser_enrolling)]
 
 
 async def get_current_logistics_admin(
@@ -138,7 +171,9 @@ async def get_current_logistics_admin(
     if current_user.is_superuser:
         return current_user
 
-    if settings.ENABLE_GROUP_PERMISSIONS:
+    from app.core import runtime_settings
+
+    if await runtime_settings.get("enable_group_permissions", session):
         from sqlmodel import col, select
 
         from app.features.user.models.group import Group
@@ -171,3 +206,20 @@ async def get_current_logistics_admin(
 
 
 CurrentLogisticsAdmin = Annotated[User, Depends(get_current_logistics_admin)]
+
+
+def module_required(key: str) -> Callable[..., Awaitable[None]]:
+    """Dependency: an explicit 404 while the module ``key`` is switched off.
+
+    Used at router level (``dependencies=[Depends(module_required("quotes"))]``)
+    for the admin routes of a switchable module (Admin → Modules).
+    """
+    from app.features.system.modules import require_module, spec_for
+
+    spec_for(key)  # fail at import time on a typo, not at the first request
+
+    async def _gate(session: SessionDep) -> None:
+        await require_module(session, key)
+
+    _gate.__name__ = f"module_required_{key}"
+    return _gate

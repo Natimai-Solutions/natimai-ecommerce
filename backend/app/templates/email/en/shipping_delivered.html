@@ -1,0 +1,9 @@
+{% extends "_layout.html" %}
+{% block title %}Order delivered{% endblock %}
+{% block header_color %}#1a7a4a{% endblock %}
+{% block heading %}Order delivered ✓{% endblock %}
+{% block content %}
+      <p>Hello {{ full_name }},</p>
+      <p>Your order <strong>{{ order_ref or (order_id | short_ref) }}</strong> has been delivered. We hope you are happy with your purchase.</p>
+      <p>The {{ shop_name }} team</p>
+{% endblock %}

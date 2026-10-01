@@ -1,0 +1,10 @@
+{% extends "_layout.html" %}
+{% block title %}Verify your e-mail{% endblock %}
+{% block heading %}Verify your e-mail{% endblock %}
+{% block content %}
+      <p>Hello,</p>
+      <p>Your verification code is:</p>
+      <p style="font-size:32px;font-weight:bold;letter-spacing:8px;text-align:center;background:#f0f4f8;border-radius:6px;padding:16px 0;">{{ code }}</p>
+      <p>It is valid for <strong>{{ valid_minutes }} minutes</strong>. If you did not make this request, ignore this e-mail.</p>
+      <p>The {{ shop_name }} team</p>
+{% endblock %}

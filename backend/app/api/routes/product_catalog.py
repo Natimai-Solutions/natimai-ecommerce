@@ -9,6 +9,7 @@ from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.integrations.models.supplier import Supplier
 from app.features.inventory.services.availability import (
+    STAFF,
     local_quantities,
     publish_with_availability,
     supplier_available_quantity,
@@ -33,6 +34,10 @@ from app.features.product.models.product_spec import (
     SpecFacet,
     SpecFacetValue,
 )
+from app.features.product.services.group_pricing import (
+    GroupPricing,
+    pricing_for_user,
+)
 from app.features.product.services.identity import product_identity_key
 from app.features.product.services.key_specs import compute_key_specs
 from app.features.product.services.popularity import (
@@ -46,6 +51,7 @@ from app.features.product.services.popularity import (
 from app.features.product.services.pricing import (
     CurrencyRateMissing,
     PricingContext,
+    ShippingModePrice,
     calculate_price_by_mode,
     resolve_default_price_group,
     resolve_pricing_mode,
@@ -81,6 +87,8 @@ class ShippingModePricePublic(SQLModel):
     sale_price: Decimal
     eta_days: int | None
     carbon_footprint_kg_co2e: float | None
+    #: The customer's usual price for the mode when a promotion lowers it.
+    regular_price: Decimal | None = None
 
 
 class ProductShippingModesResponse(SQLModel):
@@ -89,6 +97,28 @@ class ProductShippingModesResponse(SQLModel):
     product_id: uuid.UUID
     shipping_modes: list[ShippingModePricePublic]
     default_mode: str | None
+
+
+def _mode_price(
+    mode: ShippingModePrice, product: Product, group_pricing: GroupPricing
+) -> ShippingModePricePublic:
+    """One mode's price for the customer: group price or promotion."""
+    quote = group_pricing.quote(
+        product.id,
+        mode.sale_price,
+        parent_id=product.parent_product_id,
+        category_id=product.category_id,
+    )
+    return ShippingModePricePublic(
+        route_id=mode.route_id,
+        service_level=mode.service_level,
+        customer_label=mode.customer_label,
+        freight=mode.freight,
+        sale_price=quote.price,
+        eta_days=mode.eta_days,
+        carbon_footprint_kg_co2e=mode.carbon_footprint_kg_co2e,
+        regular_price=quote.regular if quote.promotion is not None else None,
+    )
 
 
 @router.get("/{product_id}/shipping-modes", response_model=ProductShippingModesResponse)
@@ -163,6 +193,8 @@ async def get_product_shipping_modes(
     mode_prices = await calculate_price_by_mode(
         session, product, import_routes, group=group
     )
+    # The reference price of each mode, then the customer's group price.
+    group_pricing = await pricing_for_user(session, current_user, [product.id])
 
     # Resolve default_mode: user preference > is_default_import route > first route
     available_levels = {m.service_level for m in mode_prices if m.service_level}
@@ -184,18 +216,7 @@ async def get_product_shipping_modes(
 
     return ProductShippingModesResponse(
         product_id=product_id,
-        shipping_modes=[
-            ShippingModePricePublic(
-                route_id=m.route_id,
-                service_level=m.service_level,
-                customer_label=m.customer_label,
-                freight=m.freight,
-                sale_price=m.sale_price,
-                eta_days=m.eta_days,
-                carbon_footprint_kg_co2e=m.carbon_footprint_kg_co2e,
-            )
-            for m in mode_prices
-        ],
+        shipping_modes=[_mode_price(m, product, group_pricing) for m in mode_prices],
         default_mode=default_mode,
     )
 
@@ -273,6 +294,9 @@ async def get_product_offers(
     # Sellable stock as the checkout counts it: warehouse + supplier.
     local = await local_quantities(session, (p.id for p in everyone))
 
+    group_pricing = await pricing_for_user(
+        session, current_user, (p.id for p in everyone)
+    )
     offers: list[ProductOfferPublic] = []
     for candidate in everyone:
         mode = resolve_pricing_mode(candidate)
@@ -282,6 +306,13 @@ async def get_product_offers(
         except CurrencyRateMissing:
             # No rate for the cost currency: shown as unpriced, sorted last.
             sale_price = Decimal("0")
+        if sale_price > 0:
+            sale_price = group_pricing.price(
+                candidate.id,
+                sale_price,
+                parent_id=candidate.parent_product_id,
+                category_id=candidate.category_id,
+            )
         supplier = suppliers.get(candidate.supplier_name or "")
         quantity = Decimal(str(candidate.supplier_quantity or 0))
         local_quantity = local.get(candidate.id, Decimal("0.00"))
@@ -342,6 +373,7 @@ async def get_product_key_specs(
 async def search_products(
     session: SessionDep,
     payload: ProductSearchRequest,
+    current_user: object = Depends(get_current_user_optional),
 ) -> ProductSearchResponse:
     """Search products with filters and return lightweight facets."""
     search_result = await crud_product.search_products(
@@ -353,6 +385,7 @@ async def search_products(
         price_max=payload.price_max,
         specs=payload.specs,
         in_stock=payload.in_stock,
+        stock=payload.stock.value if payload.stock else None,
         condition=payload.condition.value if payload.condition else None,
         limit=payload.limit,
         offset=payload.offset,
@@ -360,7 +393,9 @@ async def search_products(
     )
 
     offers_counts: dict[str, int] = search_result.get("offers_counts", {}) or {}
-    products = await publish_with_availability(session, search_result.get("data", []))
+    products = await publish_with_availability(
+        session, search_result.get("data", []), customer=current_user
+    )
     for public in products:
         public.offers_count = offers_counts.get(str(public.id), 1)
 
@@ -406,7 +441,9 @@ async def get_product_variants(
     return ProductVariantsResponse(
         parent_id=product_id,
         axes=option_axes(variants),
-        variants=await publish_with_availability(session, variants),
+        variants=await publish_with_availability(
+            session, variants, customer=STAFF if is_admin else current_user
+        ),
     )
 
 
@@ -415,6 +452,7 @@ async def get_popular_products(
     session: SessionDep,
     days: int = Query(default=DEFAULT_WINDOW_DAYS, ge=1, le=MAX_WINDOW_DAYS),
     limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+    current_user: object = Depends(get_current_user_optional),
 ) -> ProductsPublic:
     """Most viewed products over the last ``days`` days (storefront-visible only)."""
     products = await popular_products(
@@ -425,7 +463,7 @@ async def get_popular_products(
     )
     await crud_product._apply_runtime_sale_prices(session, products)  # noqa: SLF001
     return ProductsPublic(
-        data=await publish_with_availability(session, products),
+        data=await publish_with_availability(session, products, customer=current_user),
         count=len(products),
     )
 
@@ -450,11 +488,12 @@ async def track_product_view(
 async def get_featured_products(
     session: SessionDep,
     limit: int = Query(default=10, ge=1, le=50),
+    current_user: object = Depends(get_current_user_optional),
 ) -> ProductsPublic:
     """Get public featured products."""
     products = await crud_product.get_featured(session=session, limit=limit)
     return ProductsPublic(
-        data=await publish_with_availability(session, products),
+        data=await publish_with_availability(session, products, customer=current_user),
         count=len(products),
     )
 

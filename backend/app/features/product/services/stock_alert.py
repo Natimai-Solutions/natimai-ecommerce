@@ -16,6 +16,7 @@ from typing import Any
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import runtime_settings
 from app.core.config import settings
 from app.core.errors import AppError
 from app.features.notification.email_renderer import render_email
@@ -90,7 +91,7 @@ async def _send(alert: StockAlert, product: Product) -> bool:
         "stock_alert",
         product_name=product.name,
         product_url=product_url(product.id),
-        shop_name=getattr(settings, "SHOP_NAME", "Natimai"),
+        shop_name=runtime_settings.peek("shop_name"),
     )
     try:
         provider = get_notification_provider(

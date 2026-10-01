@@ -1,16 +1,18 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { formatMoney } from '@app/utils';
+import { formatMoney, setCurrencyDecimals } from '@app/utils';
 import { getDisplayRates } from '@/api/currency';
 import { updateMyPreferences } from '@/api/account';
 import { useAuthStore } from '@/stores/auth';
+import { useShopModulesStore } from '@/stores/shopModules';
 
 const STORAGE_KEY = 'frontend.display_currency';
 
 /**
- * Display-currency store. Prices are stored/billed in the reference currency
- * (XPF); this converts them for *presentational* display only. The checkout
- * total is always XPF.
+ * Display-currency store. Prices are stored/billed in the reference currency;
+ * this converts them for *presentational* display only. The checkout total is
+ * always in the reference currency. A visitor who chose nothing sees the
+ * shop's default display currency (Admin → Paramètres → Affichage).
  */
 export const useCurrencyStore = defineStore('currency', () => {
   const reference = ref('XPF');
@@ -29,9 +31,26 @@ export const useCurrencyStore = defineStore('currency', () => {
       rates.value = Object.fromEntries(
         data.rates.map((r) => [r.currency_code, r.rate_to_reference]),
       );
-      const stored = localStorage.getItem(STORAGE_KEY);
-      currency.value =
-        stored && (stored === reference.value || stored in rates.value) ? stored : reference.value;
+      const decimals: Record<string, number> = {};
+      if (data.reference_decimals !== undefined) {
+        decimals[data.reference_currency] = data.reference_decimals;
+      }
+      for (const r of data.rates)
+        if (r.decimals !== undefined) decimals[r.currency_code] = r.decimals;
+      setCurrencyDecimals(decimals);
+
+      const known = (code: string | null | undefined): code is string =>
+        !!code && (code === reference.value || code in rates.value);
+      let stored: string | null = null;
+      try {
+        stored = localStorage.getItem(STORAGE_KEY);
+      } catch {
+        stored = null;
+      }
+      const shop = useShopModulesStore();
+      await shop.load();
+      const shopDefault = shop.config.default_display_currency;
+      currency.value = known(stored) ? stored : known(shopDefault) ? shopDefault : reference.value;
     } catch {
       // Rates unavailable → stay on the reference currency.
     } finally {

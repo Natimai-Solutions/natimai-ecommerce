@@ -1,16 +1,16 @@
 <template>
   <q-page class="checkout page-container app-page">
     <router-link v-if="!orderPlaced" :to="{ name: 'cart' }" class="checkout__back">
-      <q-icon name="ph:arrow-left" size="16px" /> Panier
+      <q-icon name="ph:arrow-left" size="16px" /> {{ $t('checkout.back_to_cart') }}
     </router-link>
     <h1 class="page-title checkout__title">
-      {{ orderPlaced ? 'Commande enregistrée' : 'Finaliser la commande' }}
+      {{ orderPlaced ? $t('checkout.title_done') : $t('checkout.title') }}
     </h1>
 
     <AppNotice v-if="cartEmpty && !orderPlaced" tone="warning">
-      Votre panier est vide.
+      {{ $t('checkout.cart_empty') }}
       <template #action>
-        <q-btn flat label="Voir le catalogue" :to="{ name: 'catalogue' }" />
+        <q-btn flat :label="$t('checkout.see_catalogue')" :to="{ name: 'catalogue' }" />
       </template>
     </AppNotice>
 
@@ -26,18 +26,18 @@
           class="checkout__notice"
           data-testid="checkout-from-quote"
         >
-          Commande depuis votre devis : les prix et la livraison du devis s'appliquent.
+          {{ $t('checkout.from_quote') }}
         </AppNotice>
 
         <!-- Paiement lié au compte : connexion requise -->
         <div v-if="!isAuthenticated" class="app-empty">
           <q-icon name="ph:lock-simple" size="36px" class="text-subtle" />
-          <h3>Connectez-vous pour commander</h3>
-          <p>Votre commande, son suivi et sa facture sont rattachés à votre compte.</p>
+          <h3>{{ $t('checkout.login_title') }}</h3>
+          <p>{{ $t('checkout.login_text') }}</p>
           <q-btn
             unelevated
             color="primary"
-            label="Se connecter"
+            :label="$t('checkout.login_btn')"
             :to="{ name: 'login', query: { redirect: '/checkout' } }"
           />
         </div>
@@ -47,12 +47,12 @@
         </div>
 
         <AppNotice v-else-if="methods.length === 0 && !orderPlaced" tone="warning">
-          Aucun moyen de paiement n'est disponible pour votre compte. Contactez notre équipe.
+          {{ $t('checkout.no_methods') }}
         </AppNotice>
 
         <!-- PayPal : le client part approuver le paiement chez PayPal -->
         <AppNotice v-else-if="redirecting" tone="info" data-testid="checkout-redirecting">
-          Commande enregistrée — redirection vers PayPal…
+          {{ $t('checkout.redirecting') }}
         </AppNotice>
 
         <!-- Confirmation : paiement manuel, bon de commande ou avoir -->
@@ -61,32 +61,30 @@
             <q-icon name="ph:check-circle" size="28px" class="confirmation__icon" />
             <div>
               <p data-testid="checkout-order-ref" class="confirmation__ref">
-                Commande <span class="font-mono">{{ placedOrderRef }}</span>
+                {{ $t('checkout.order_ref') }} <span class="font-mono">{{ placedOrderRef }}</span>
               </p>
               <p class="confirmation__text">
-                Votre demande de paiement est enregistrée. Un e-mail de confirmation suit.
+                {{ $t('checkout.request_saved') }}
               </p>
               <p v-if="placedDeparture" class="confirmation__text">
-                Rattachée au départ groupé « {{ placedDeparture.name }} ».
-                <template v-if="departureStore.deliveryLabel">
-                  {{ departureStore.deliveryLabel }}.
-                </template>
+                {{ $t('checkout.attached_departure', { name: placedDeparture.name }) }}
+                <template v-if="nextDelivery"> {{ nextDelivery }}. </template>
               </p>
             </div>
           </div>
 
           <div class="app-section confirmation__instructions">
             <div class="app-section__head">
-              <h2 class="app-section__title">Pour régler</h2>
+              <h2 class="app-section__title">{{ $t('checkout.to_pay') }}</h2>
             </div>
             <p class="confirmation__body" data-testid="checkout-instructions">{{ instructions }}</p>
           </div>
 
           <div v-if="needsUpload && !uploadDone" class="app-section">
             <div class="app-section__head">
-              <h2 class="app-section__title">Bon de commande</h2>
+              <h2 class="app-section__title">{{ $t('checkout.po_title') }}</h2>
               <p class="app-section__hint">
-                Joignez-le pour que notre équipe puisse valider la commande.
+                {{ $t('checkout.po_hint') }}
               </p>
             </div>
             <AppNotice v-if="uploadError" dense tone="error" class="q-mb-sm">
@@ -96,7 +94,7 @@
               <q-file
                 v-model="selectedFile"
                 outlined
-                label="Bon de commande (PDF, JPG, PNG)"
+                :label="$t('checkout.po_file')"
                 accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
                 :max-file-size="20 * 1024 * 1024"
               >
@@ -106,7 +104,7 @@
                 <q-btn
                   unelevated
                   color="primary"
-                  label="Envoyer le bon de commande"
+                  :label="$t('checkout.po_send')"
                   :loading="uploading"
                   :disable="uploading || !selectedFile"
                   @click="uploadDocument"
@@ -115,20 +113,20 @@
             </div>
           </div>
           <AppNotice v-else-if="uploadDone" tone="success" icon="ph:check-circle" class="q-mb-md">
-            Bon de commande reçu. Il sera vérifié par notre équipe avant validation.
+            {{ $t('checkout.po_received') }}
           </AppNotice>
 
           <div v-if="!needsUpload || uploadDone" class="confirmation__actions">
             <q-btn
               unelevated
               color="primary"
-              label="Voir mes commandes"
+              :label="$t('checkout.my_orders')"
               :to="{ name: 'account', query: { tab: 'orders' } }"
             />
             <q-btn
               outline
               color="primary"
-              label="Continuer mes achats"
+              :label="$t('checkout.continue')"
               :to="{ name: 'catalogue' }"
             />
           </div>
@@ -138,21 +136,21 @@
         <template v-else-if="!formToken">
           <section class="step">
             <h2 class="step__title">
-              <span class="step__num font-mono">1</span>Adresse de livraison
+              <span class="step__num font-mono">1</span>{{ $t('checkout.step_address') }}
             </h2>
             <div v-if="addresses.length === 0" class="app-empty step__empty">
-              <p>Aucune adresse enregistrée.</p>
+              <p>{{ $t('checkout.no_address') }}</p>
               <q-btn
                 outline
                 color="primary"
-                label="Ajouter une adresse"
+                :label="$t('checkout.add_address')"
                 :to="{ name: 'account', query: { tab: 'addresses' } }"
               />
             </div>
             <ChoiceList
               v-else
               v-model="selectedAddressId"
-              label="Adresse de livraison"
+              :label="$t('checkout.step_address')"
               :options="addressChoices"
             />
             <router-link
@@ -160,15 +158,17 @@
               :to="{ name: 'account', query: { tab: 'addresses' } }"
               class="text-link step__link"
             >
-              Gérer mes adresses
+              {{ $t('checkout.manage_addresses') }}
             </router-link>
           </section>
 
           <section v-if="deliveryOptions.length > 0" class="step">
-            <h2 class="step__title"><span class="step__num font-mono">2</span>Livraison</h2>
+            <h2 class="step__title">
+              <span class="step__num font-mono">2</span>{{ $t('checkout.step_delivery') }}
+            </h2>
             <ChoiceList
               v-model="selectedDeliveryType"
-              label="Mode de livraison"
+              :label="$t('checkout.delivery_mode')"
               :options="deliveryChoices"
             />
           </section>
@@ -176,7 +176,7 @@
           <section v-if="quote?.deposit_available" class="step">
             <h2 class="step__title">
               <span class="step__num font-mono">{{ stepNumber('plan') }}</span
-              >Règlement
+              >{{ $t('checkout.step_plan') }}
             </h2>
             <AppNotice
               v-if="quote.deposit_required"
@@ -184,16 +184,20 @@
               icon="ph:piggy-bank"
               data-testid="checkout-deposit-required"
             >
-              Un acompte de {{ Number(quote.deposit_pct) }} % est demandé à la commande ; le solde
-              vous sera demandé à la réception de vos articles.
+              {{ $t('checkout.deposit_required', { pct: Number(quote.deposit_pct) }) }}
             </AppNotice>
-            <ChoiceList v-else v-model="paymentPlan" label="Règlement" :options="planChoices" />
+            <ChoiceList
+              v-else
+              v-model="paymentPlan"
+              :label="$t('checkout.step_plan')"
+              :options="planChoices"
+            />
           </section>
 
           <section class="step">
             <h2 class="step__title">
               <span class="step__num font-mono">{{ stepNumber('payment') }}</span
-              >Paiement
+              >{{ $t('checkout.step_payment') }}
             </h2>
             <div
               v-if="quote && hasFee(quote.store_credit_available)"
@@ -202,30 +206,36 @@
             >
               <q-icon name="ph:wallet" size="20px" class="text-muted" />
               <span class="credit-toggle__text">
-                Vous disposez d'un avoir de
-                <span class="font-mono">{{ formatMoney(quote.store_credit_available) }}</span
-                >.
+                {{
+                  $t('checkout.credit_available', {
+                    amount: formatMoney(quote.store_credit_available),
+                  })
+                }}
               </span>
-              <q-toggle v-model="useStoreCredit" label="L'utiliser" left-label dense />
+              <q-toggle
+                v-model="useStoreCredit"
+                :label="$t('checkout.use_credit')"
+                left-label
+                dense
+              />
             </div>
             <ChoiceList
               v-if="!creditCoversEverything"
               v-model="selectedMethodId"
-              label="Moyen de paiement"
+              :label="$t('checkout.payment_method')"
               :options="methodChoices"
             />
             <AppNotice v-else tone="success" data-testid="checkout-credit-covers">
-              Votre avoir couvre la totalité du montant à régler maintenant : aucun paiement n'est
-              nécessaire.
+              {{ $t('checkout.credit_covers') }}
             </AppNotice>
           </section>
 
           <div class="checkout__confirm">
             <q-checkbox v-model="cgvAccepted" data-testid="checkout-cgv" dense>
               <span class="checkout__cgv">
-                J'ai lu et j'accepte les
+                {{ $t('checkout.cgv_accept') }}
                 <router-link :to="{ name: 'cgv' }" target="_blank" @click.stop>
-                  conditions générales de vente
+                  {{ $t('checkout.cgv_link') }}
                 </router-link>
               </span>
             </q-checkbox>
@@ -248,8 +258,7 @@
               @click="startPayment"
             />
             <p v-if="paysByCard" class="checkout__secure">
-              <q-icon name="ph:lock-simple" size="14px" /> Paiement par carte chiffré, géré par
-              notre banque. Aucune donnée de carte n'est conservée sur ce site.
+              <q-icon name="ph:lock-simple" size="14px" /> {{ $t('checkout.secure') }}
             </p>
           </div>
         </template>
@@ -257,20 +266,20 @@
         <!-- Formulaire carte (PayZen SmartForm) -->
         <div v-show="formToken" class="checkout__card-form">
           <p v-if="placedOrderRef" class="confirmation__ref">
-            Commande <span class="font-mono">{{ placedOrderRef }}</span>
+            {{ $t('checkout.order_ref') }} <span class="font-mono">{{ placedOrderRef }}</span>
           </p>
           <div id="kr-smart-form-container" />
         </div>
       </div>
 
-      <aside v-if="!orderPlaced" class="checkout__aside" aria-label="Récapitulatif">
+      <aside v-if="!orderPlaced" class="checkout__aside" :aria-label="$t('checkout.summary')">
         <div class="app-panel summary">
-          <h2 class="summary__title">Récapitulatif</h2>
+          <h2 class="summary__title">{{ $t('checkout.summary') }}</h2>
           <ul class="summary__lines">
             <li v-for="{ item, product } in cartStore.detailedItems" :key="item.id">
               <span class="summary__line-name">
                 <span class="font-mono summary__qty">{{ item.quantity }}×</span>
-                {{ product?.name ?? 'Article' }}
+                {{ product?.name ?? $t('checkout.item') }}
               </span>
               <span class="font-mono">{{ formatMoney(item.line_total) }}</span>
             </li>
@@ -280,30 +289,32 @@
                total affiché est le montant débité, frais compris. -->
           <template v-if="quote">
             <div class="app-kv">
-              <span>Articles</span>
+              <span>{{ $t('checkout.items') }}</span>
               <span class="font-mono">{{ formatMoney(quote.subtotal_amount) }}</span>
             </div>
             <div v-if="selectedDeliveryType" class="app-kv">
-              <span>Livraison</span>
+              <span>{{ $t('checkout.shipping') }}</span>
               <span class="font-mono" data-testid="checkout-quote-shipping">{{
                 shippingOnlyAmount(quote) > 0
                   ? formatMoney(String(shippingOnlyAmount(quote)))
-                  : 'Offerte'
+                  : $t('checkout.shipping_free')
               }}</span>
             </div>
             <div v-if="hasFee(quote.customs_declaration_fee)" class="app-kv">
-              <span>Dédouanement <small>(une fois par envoi)</small></span>
+              <span
+                >{{ $t('checkout.customs') }} <small>{{ $t('checkout.customs_once') }}</small></span
+              >
               <span class="font-mono">{{ formatMoney(quote.customs_declaration_fee) }}</span>
             </div>
             <div v-if="hasFee(quote.payment_fee_amount)" class="app-kv">
-              <span>Frais de paiement</span>
+              <span>{{ $t('checkout.payment_fee') }}</span>
               <span class="font-mono">{{ formatMoney(quote.payment_fee_amount) }}</span>
             </div>
             <div
               v-if="quote.discount_code && hasFee(quote.discount_amount ?? '0')"
               class="app-kv app-kv--credit"
             >
-              <span>Remise {{ quote.discount_code }}</span>
+              <span>{{ $t('checkout.discount', { code: quote.discount_code }) }}</span>
               <span class="font-mono" data-testid="checkout-quote-discount"
                 >−{{ formatMoney(quote.discount_amount ?? '0') }}</span
               >
@@ -313,12 +324,14 @@
               class="app-kv"
               data-testid="checkout-quote-deposit-fee"
             >
-              <span>Frais option acompte</span>
+              <span>{{ $t('checkout.deposit_fee') }}</span>
               <span class="font-mono">{{ formatMoney(quote.deposit_fee_amount) }}</span>
             </div>
             <div class="app-kv app-kv--total">
               <span>{{
-                quote.payment_plan === 'deposit' ? 'Total de la commande' : 'Total à payer'
+                quote.payment_plan === 'deposit'
+                  ? $t('checkout.total_order')
+                  : $t('checkout.total_due')
               }}</span>
               <span class="font-mono" data-testid="checkout-quote-total">{{
                 formatMoney(quote.total_amount)
@@ -326,25 +339,25 @@
             </div>
             <template v-if="quote.payment_plan === 'deposit'">
               <div class="app-kv summary__due">
-                <span>Acompte maintenant ({{ Number(quote.deposit_pct) }} %)</span>
+                <span>{{ $t('checkout.deposit_now', { pct: Number(quote.deposit_pct) }) }}</span>
                 <span class="font-mono" data-testid="checkout-quote-deposit">{{
                   formatMoney(quote.deposit_amount)
                 }}</span>
               </div>
               <div class="app-kv">
-                <span>Solde à la réception</span>
+                <span>{{ $t('checkout.balance_later') }}</span>
                 <span class="font-mono">{{ formatMoney(quote.balance_amount) }}</span>
               </div>
             </template>
             <template v-if="hasFee(quote.store_credit_applied)">
               <div class="app-kv app-kv--credit">
-                <span>Avoir utilisé</span>
+                <span>{{ $t('checkout.credit_used') }}</span>
                 <span class="font-mono" data-testid="checkout-quote-credit"
                   >−{{ formatMoney(quote.store_credit_applied) }}</span
                 >
               </div>
               <div class="app-kv summary__due">
-                <span>Reste à payer maintenant</span>
+                <span>{{ $t('checkout.due_now') }}</span>
                 <span class="font-mono" data-testid="checkout-quote-due">{{
                   formatMoney(quote.amount_due_now)
                 }}</span>
@@ -352,19 +365,17 @@
             </template>
             <p v-if="departureStore.next" class="summary__note" data-testid="checkout-departure">
               <q-icon name="ph:calendar-check" size="14px" />
-              Votre commande rejoint le départ groupé « {{ departureStore.next.name }} ».
-              <template v-if="departureStore.deliveryLabel">
-                {{ departureStore.deliveryLabel }}.
-              </template>
+              {{ $t('checkout.joins_departure', { name: departureStore.next.name }) }}
+              <template v-if="nextDelivery"> {{ nextDelivery }}. </template>
             </p>
           </template>
           <template v-else>
             <div class="app-kv app-kv--total">
-              <span>Articles</span>
+              <span>{{ $t('checkout.items') }}</span>
               <span class="font-mono">{{ formatMoney(String(cartStore.totalAmount)) }}</span>
             </div>
             <p v-if="isAuthenticated" class="summary__note">
-              <q-spinner size="1em" /> Calcul de la livraison et des frais…
+              <q-spinner size="1em" /> {{ $t('checkout.computing') }}
             </p>
           </template>
 
@@ -372,7 +383,7 @@
           <q-form class="promo" @submit.prevent="applyDiscountCode">
             <q-input
               v-model="discountInput"
-              label="Code promo"
+              :label="$t('checkout.promo_code')"
               dense
               outlined
               class="promo__input"
@@ -389,7 +400,7 @@
                   dense
                   round
                   icon="ph:x"
-                  aria-label="Retirer le code"
+                  :aria-label="$t('checkout.remove_code')"
                   @click="clearDiscountCode"
                 />
               </template>
@@ -398,7 +409,7 @@
               type="submit"
               outline
               color="primary"
-              label="Appliquer"
+              :label="$t('checkout.apply')"
               class="promo__apply"
               :disable="!isAuthenticated || !discountInput.trim()"
               :loading="quoteLoading"
@@ -413,6 +424,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useMeta } from 'quasar';
+import { useI18n } from 'vue-i18n';
+import { useDepartureLabels } from '@/composables/useDepartureLabels';
 import { useRoute } from 'vue-router';
 import { countryLabel, orderRef } from '@app/utils';
 
@@ -444,10 +457,12 @@ import { PENDING_PAYMENT_KEY, loadPayzenSmartForm } from '@/utils/payzen';
 const cartStore = useCartStore();
 const authStore = useAuthStore();
 const departureStore = useDepartureStore();
+const { t, locale } = useI18n();
+const { nextDelivery } = useDepartureLabels();
 const currencyStore = useCurrencyStore();
 const route = useRoute();
 
-useMeta({ title: 'Commande' });
+useMeta(() => ({ title: t('checkout.meta_title') }));
 // Ordering an issued quote (`?quote=<id>`): its prices and delivery fee apply.
 const quoteRequestId = computed(() => {
   const raw = route.query.quote;
@@ -521,16 +536,16 @@ const planOptions = computed(() => {
   return [
     {
       value: 'full' as const,
-      label: 'Payer la totalité maintenant',
-      caption: 'Rien à régler ensuite.',
+      label: t('checkout.plan_full'),
+      caption: t('checkout.plan_full_caption'),
     },
     {
       value: 'deposit' as const,
-      label: `Verser un acompte de ${pct} %`,
+      label: t('checkout.plan_deposit', { pct }),
       caption:
         q && hasFee(q.deposit_fee_amount) && q.payment_plan === 'deposit'
-          ? `Solde à la réception de vos articles · frais de l'option : ${formatMoney(q.deposit_fee_amount)}`
-          : 'Solde à régler à la réception de vos articles.',
+          ? t('checkout.plan_deposit_fee', { fee: formatMoney(q.deposit_fee_amount) })
+          : t('checkout.plan_deposit_caption'),
     },
   ];
 });
@@ -571,7 +586,10 @@ const discountCode = ref<string | null>(null);
 const appliedDiscountHint = computed(() => {
   const q = quote.value;
   if (!q?.discount_code) return undefined;
-  return `${q.discount_label ?? q.discount_code} : -${formatMoney(q.discount_amount ?? '0')}`;
+  return t('checkout.discount_hint', {
+    label: q.discount_label ?? q.discount_code,
+    amount: formatMoney(q.discount_amount ?? '0'),
+  });
 });
 
 async function applyDiscountCode() {
@@ -639,7 +657,7 @@ async function loadMethods(basis: number) {
       selectedMethodId.value = methods.value[0]?.id ?? null;
     }
   } catch {
-    errorMessage.value = 'Impossible de charger les moyens de paiement.';
+    errorMessage.value = t('checkout.methods_failed');
   } finally {
     loadingMethods.value = false;
   }
@@ -657,7 +675,7 @@ function prettifyMode(mode: string): string {
 function deliveryPriceLabel(amount: string): string {
   const n = Number.parseFloat(amount);
   if (!Number.isFinite(n)) return '';
-  return n > 0 ? `+ ${formatMoney(amount)}` : 'Offert';
+  return n > 0 ? `+ ${formatMoney(amount)}` : t('checkout.free');
 }
 
 function formatAddress(a: Address): string {
@@ -716,7 +734,7 @@ const deliveryChoices = computed<ChoiceOption[]>(() =>
   deliveryOptions.value.map((d) => ({
     value: d.value,
     title: d.label,
-    caption: d.etaDays != null ? `Livraison estimée sous ${d.etaDays} jours environ` : null,
+    caption: d.etaDays != null ? t('checkout.eta', { n: d.etaDays }) : null,
     icon: d.icon,
     aside: deliveryPriceLabel(d.amount),
     testid: `checkout-delivery-${d.value}`,
@@ -767,14 +785,14 @@ function stepNumber(step: 'plan' | 'payment'): number {
 
 const submitLabel = computed(() => {
   const q = quote.value;
-  if (!q) return 'Valider la commande';
+  if (!q) return t('checkout.validate');
   const due = hasFee(q.store_credit_applied)
     ? q.amount_due_now
     : q.payment_plan === 'deposit'
       ? q.deposit_amount
       : q.total_amount;
-  if (!hasFee(due) || !paysByCard.value) return 'Valider la commande';
-  return `Payer ${formatMoney(due)}`;
+  if (!hasFee(due) || !paysByCard.value) return t('checkout.validate');
+  return t('checkout.pay_amount', { amount: formatMoney(due) });
 });
 
 /** Carte ou PayPal : le paiement se fait tout de suite, chez le prestataire. */
@@ -861,11 +879,11 @@ async function startPayment() {
   const method = methods.value.find((m) => m.id === selectedMethodId.value) ?? null;
   if (!method && !creditCoversEverything.value) return;
   if (!isAuthenticated.value) {
-    errorMessage.value = 'Vous devez être connecté pour payer.';
+    errorMessage.value = t('checkout.must_login');
     return;
   }
   if (!selectedAddress.value) {
-    errorMessage.value = 'Choisissez une adresse de livraison.';
+    errorMessage.value = t('checkout.choose_address');
     return;
   }
 
@@ -916,6 +934,7 @@ async function startPayment() {
         publicKey: checkout.public_key,
         token: checkout.form_token,
         returnUrl: `${returnUrl}?payment=${encodeURIComponent(checkout.payment_id)}`,
+        language: locale.value,
       });
       return;
     }
@@ -943,12 +962,13 @@ async function startPayment() {
       Number.parseFloat(String(checkout.amount_due_now ?? '0')) <= 0 &&
       hasFee(String(checkout.store_credit_applied ?? '0'))
     ) {
-      instructions.value = `Votre commande est réglée par votre avoir (${formatMoney(String(checkout.store_credit_applied))}). Vous recevrez une confirmation par e-mail.`;
+      instructions.value = t('checkout.paid_by_credit', {
+        amount: formatMoney(String(checkout.store_credit_applied)),
+      });
       return;
     }
 
-    errorMessage.value =
-      "Le moyen de paiement sélectionné n'est pas disponible pour le moment. Veuillez réessayer.";
+    errorMessage.value = t('checkout.method_unavailable');
   } catch (err: unknown) {
     // The backend refuses to bill a price that moved since the line was added.
     // Adopt the prices it just returned so the recap shows what is actually
@@ -957,8 +977,7 @@ async function startPayment() {
     if (drifted) {
       cartStore.applyServerPrices(drifted);
     }
-    errorMessage.value =
-      apiErrorMessage(err) ?? 'Une erreur est survenue lors de la finalisation de la commande.';
+    errorMessage.value = apiErrorMessage(err) ?? t('checkout.failed');
   } finally {
     initiating.value = false;
   }
@@ -1019,8 +1038,7 @@ async function uploadDocument() {
     });
     uploadDone.value = true;
   } catch (err) {
-    uploadError.value =
-      apiErrorMessage(err) ?? "Échec de l'envoi du bon de commande. Veuillez réessayer.";
+    uploadError.value = apiErrorMessage(err) ?? t('checkout.po_failed');
   } finally {
     uploading.value = false;
   }

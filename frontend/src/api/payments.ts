@@ -152,7 +152,7 @@ export async function uploadFileToPresignedUrl(
     body: file,
   });
   if (!response.ok) {
-    throw new Error(`Échec du téléversement du document (${response.status})`);
+    throw new Error(`Upload failed (${response.status})`);
   }
 }
 

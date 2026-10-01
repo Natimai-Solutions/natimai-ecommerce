@@ -1,8 +1,10 @@
 import uuid
 from decimal import Decimal
 
+from pydantic import SerializerFunctionWrapHandler, model_serializer
 from sqlmodel import JSON, Column, Field, SQLModel
 
+from app.core.field_visibility import redact
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
@@ -83,6 +85,17 @@ class OrderLineBase(Base):
         default=None,
         description="Snapshot de l'ID du groupe de prix appliqué",
     )
+    unit_cost_snapshot: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=14,
+        decimal_places=2,
+        description=(
+            "Coût de revient unitaire HT au moment de la commande, en devise de "
+            "référence (coût converti, assurance et douane en import). Base de "
+            "la marge de la ligne ; None = coût inconnu."
+        ),
+    )
     serial_numbers: list[str] | None = Field(
         default=None,
         sa_column=Column(JSON),
@@ -120,10 +133,30 @@ class OrderLine(OrderLineBase, table=True):
     )
 
 
+#: Cost figures of a line: only a superuser's request receives them.
+ORDER_LINE_INTERNAL_FIELDS: frozenset[str] = frozenset(
+    {
+        "cost_amount_snapshot",
+        "cost_currency_snapshot",
+        "fx_rate_used",
+        "customs_rate_pct_snapshot",
+        "margin_rate_pct_snapshot",
+        "price_group_id_snapshot",
+        "unit_cost_snapshot",
+    }
+)
+
+
 class OrderLinePublic(OrderLineBase, BasePublic):
-    """Represents order line public."""
+    """Represents order line public (cost figures for superusers only)."""
 
     id: uuid.UUID
+
+    # Deliberately unannotated: an annotated return type would replace the
+    # model's properties in the OpenAPI schema (and the generated TS types).
+    @model_serializer(mode="wrap")
+    def _hide_internal_fields(self, handler: SerializerFunctionWrapHandler):  # type: ignore[no-untyped-def]  # noqa: ANN202
+        return redact(handler(self), ORDER_LINE_INTERNAL_FIELDS)
 
 
 class OrderLinesPublic(SQLModel):

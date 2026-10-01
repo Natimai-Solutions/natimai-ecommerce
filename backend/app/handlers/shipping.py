@@ -16,6 +16,7 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import runtime_settings
 from app.core.config import settings
 from app.features.notification.email_renderer import RenderedEmail, render_email
 from app.features.notification.providers import (
@@ -65,7 +66,7 @@ async def _send_shipping_email(
     payload: dict[str, Any],
 ) -> None:
     """Check notification preference and send the email if enabled."""
-    if not settings.PAYMENT_NOTIFICATIONS_EMAIL_ENABLED:
+    if not await runtime_settings.get("notifications_email_enabled", session):
         return
 
     pref = await get_preference_for_user(session, user_id=user.id)
@@ -124,16 +125,20 @@ async def on_tracking_status_changed(
         return
 
     full_name = user.full_name or user.email or ""
-    shop_name = getattr(settings, "SHOP_NAME", "Natimai")
+    shop_name = runtime_settings.peek("shop_name")
     order_id_display = str(order_id_raw or "")
     # Customer-facing reference (M5): CMD-2026-00042, short-ref fallback.
     order_ref = await resolve_order_ref(session, payload)
     tracking_url = tracking_url_from_payload(order_id_raw)
+    from app.handlers.order import _email_lang
+
+    lang = await _email_lang(session, {**payload, "order_id": order_id_raw})
 
     email: RenderedEmail
     if status_code in _SHIPPED_CODES:
         email = render_email(
             "shipping_shipped",
+            lang=lang,
             full_name=full_name or "client",
             order_id=order_id_display,
             order_ref=order_ref,
@@ -146,6 +151,7 @@ async def on_tracking_status_changed(
     elif status_code in _DELIVERED_CODES:
         email = render_email(
             "shipping_delivered",
+            lang=lang,
             full_name=full_name or "client",
             order_id=order_id_display,
             order_ref=order_ref,
@@ -156,6 +162,7 @@ async def on_tracking_status_changed(
     else:  # progress milestone (next-leg activation)
         email = render_email(
             "shipping_progress",
+            lang=lang,
             full_name=full_name or "client",
             order_id=order_id_display,
             order_ref=order_ref,

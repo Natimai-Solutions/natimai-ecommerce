@@ -1,15 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader
-      title="Commandes"
-      hint="Commandes passées sur la boutique, les plus récentes d'abord."
-    >
+    <PageHeader :title="$t('orders.title')" :hint="$t('orders.hint')">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -20,7 +17,7 @@
       <q-select
         v-model="departureFilter"
         :options="departureOptions"
-        label="Départ groupé"
+        :label="$t('orders.departure')"
         dense
         outlined
         emit-value
@@ -39,8 +36,8 @@
 
     <div v-else-if="rows.length === 0" class="app-empty">
       <q-icon name="ph:receipt" size="28px" class="text-subtle" />
-      <h3>Aucune commande</h3>
-      <p v-if="departureFilter">Aucune commande pour ce filtre.</p>
+      <h3>{{ $t('orders.none') }}</h3>
+      <p v-if="departureFilter">{{ $t('orders.none_filter') }}</p>
     </div>
 
     <q-table
@@ -84,7 +81,7 @@
       </template>
       <template #body-cell-total="props">
         <q-td :props="props" class="font-mono text-weight-medium">
-          {{ formatMoney(props.row.total_amount) }}
+          {{ formatMoney(props.row.total_amount, props.row.currency) }}
         </q-td>
       </template>
       <template #body-cell-actions="props">
@@ -94,7 +91,7 @@
             dense
             no-caps
             icon="ph:arrow-right"
-            label="Ouvrir"
+            :label="$t('common.open')"
             :to="`/orders/${props.row.order_id}`"
           />
         </q-td>
@@ -104,12 +101,14 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import { toneIcon, toneOf } from '@app/ui/statusTone';
-import { formatXpf } from '@app/utils';
+import { formatMoney as money, intlLocale } from '@app/utils';
+import { useShopConfigStore } from '@/stores/shopConfig';
 import PageHeader from '@/components/PageHeader.vue';
 import {
   listOrders,
@@ -120,12 +119,14 @@ import {
 import { extractApiError } from '@/api/errors';
 import { listDepartures, type Departure } from '@/api/departures';
 
+const { t } = useI18n();
+
 const rows = ref<AdminOrderListItem[]>([]);
 // null = all orders, 'none' = orders without a departure, otherwise a departure id.
 const departureFilter = ref<string | null>(null);
 const departures = ref<Departure[]>([]);
 const departureOptions = computed(() => [
-  { label: 'Sans départ groupé', value: 'none' },
+  { label: t('orders.no_departure'), value: 'none' },
   ...departures.value.map((d) => ({
     label: `${d.name} (${formatDate(d.order_cutoff_at)})`,
     value: d.id,
@@ -134,8 +135,11 @@ const departureOptions = computed(() => [
 const loading = ref(false);
 const error = ref<string | null>(null);
 
-function formatMoney(amount: number): string {
-  return Number.isFinite(amount) ? formatXpf(amount) : String(amount);
+const shopConfig = useShopConfigStore();
+
+/** Amount in its own currency (the order's), else the reference currency. */
+function formatMoney(amount: number, currency?: string | null): string {
+  return Number.isFinite(amount) ? money(amount, currency || shopConfig.currency) : String(amount);
 }
 
 function formatDate(raw: string | null): string {
@@ -143,23 +147,23 @@ function formatDate(raw: string | null): string {
   const d = new Date(raw);
   return Number.isNaN(d.getTime())
     ? raw
-    : d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    : d.toLocaleDateString(intlLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-const columns: QTableColumn[] = [
-  { name: 'order', label: 'Commande', field: 'order_id', align: 'left' },
+const columns = computed<QTableColumn[]>(() => [
+  { name: 'order', label: t('orders.col_order'), field: 'order_id', align: 'left' },
   {
     name: 'created_at',
-    label: 'Date',
+    label: t('orders.col_date'),
     field: 'created_at',
     align: 'left',
     format: (v: string | null) => formatDate(v),
   },
-  { name: 'client', label: 'Client', field: 'user_id', align: 'left' },
-  { name: 'status', label: 'Statut', field: 'status', align: 'left' },
-  { name: 'total', label: 'Total', field: 'total_amount', align: 'right' },
+  { name: 'client', label: t('orders.col_customer'), field: 'user_id', align: 'left' },
+  { name: 'status', label: t('orders.col_status'), field: 'status', align: 'left' },
+  { name: 'total', label: t('orders.col_total'), field: 'total_amount', align: 'right' },
   { name: 'actions', label: '', field: 'order_id', align: 'right' },
-];
+]);
 
 async function load() {
   loading.value = true;
@@ -173,7 +177,7 @@ async function load() {
       departures.value = await listDepartures().catch(() => []);
     }
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }

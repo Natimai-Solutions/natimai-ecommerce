@@ -1,0 +1,14 @@
+Hello {{ full_name }},
+
+Your invoice {{ invoice_number }} is available for order {{ order_ref or (order_id | short_ref) }}.
+
+Total amount: {{ total_incl_tax }} {{ currency }}
+of which taxes: {{ total_tax }} {{ currency }}
+
+You can download it from your account, “My orders” section:
+{{ invoice_url }}
+
+Keep this document: it is your proof of purchase.
+
+Thank you for your trust,
+The {{ shop_name }} team

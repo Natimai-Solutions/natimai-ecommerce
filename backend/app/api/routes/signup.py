@@ -15,6 +15,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 from app.api.deps import RedisDep, SessionDep
 from app.api.routes.login import _build_token_bundle
+from app.core import runtime_settings
 from app.core.auth_cookies import set_refresh_cookie
 from app.core.config import settings
 from app.core.errors import AppError
@@ -78,7 +79,7 @@ async def _send_otp_email(email: str, code: str) -> None:
         "signup_otp",
         code=code,
         valid_minutes=OTP_VALID_MINUTES,
-        shop_name=getattr(settings, "SHOP_NAME", "Natimai"),
+        shop_name=runtime_settings.peek("shop_name"),
     )
     try:
         provider = get_notification_provider(

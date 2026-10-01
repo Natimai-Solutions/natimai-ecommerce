@@ -7,6 +7,7 @@ from arq.connections import RedisSettings, create_pool
 from arq.worker import func
 
 from app.core.config import settings
+from app.features.system.audit import get_audit_cron_jobs, purge_audit_log_task
 from app.outbox.consumer import OUTBOX_HANDLER_MAX_TRIES, execute_outbox_handler
 from app.tasks.cart_tasks import (
     get_cart_abandonment_cron_jobs,
@@ -125,21 +126,26 @@ class WorkerSettings:
         publish_departure_reminders_task,
         # Alertes « me prévenir »
         notify_stock_alerts_task,
+        # Rétention du journal d'audit des administrateurs
+        purge_audit_log_task,
         # ... tes autres handlers
     ]
 
     # Cron jobs : synchronisation fournisseurs (un jeu par fournisseur enregistré)
     # + enrichissement Icecat récurrent (drainage du backlog non-enrichi)
     # + balayage horaire des réservations de stock expirées.
-    # SHOP_MODE=simple: own stock, no supplier sync and no Icecat pass.
+    # Always scheduled, whatever SHOP_MODE: the ticks do nothing without an
+    # active, configured supplier allowed to sync, nor with the Icecat module
+    # off — so switching either back on from the admin needs no restart.
     cron_jobs = (
-        ([] if settings.is_simple_shop else get_supplier_sync_cron_jobs())
-        + ([] if settings.is_simple_shop else get_enrichment_cron_jobs())
+        get_supplier_sync_cron_jobs()
+        + get_enrichment_cron_jobs()
         + get_stock_reservation_cron_jobs()
         + get_pricing_cron_jobs()
         + get_cart_abandonment_cron_jobs()
         + get_departure_cron_jobs()
         + get_stock_alert_cron_jobs()
+        + get_audit_cron_jobs()
     )
 
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)

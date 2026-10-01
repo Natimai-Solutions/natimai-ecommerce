@@ -26,7 +26,7 @@ class ProductPriceEntry(SQLModel, table=True):
     old_price: Decimal | None = Field(default=None, max_digits=12, decimal_places=2)
     new_price: Decimal | None = Field(default=None, max_digits=12, decimal_places=2)
     #: Ce qui a déclenché le recalcul : ``product_write``, ``nightly``,
-    #: ``currency_rate:EUR``, ``tax_rate_created:TGC``, ``category_…``,
+    #: ``currency_rate:EUR``, ``tax_rate_created:TVA_NORMALE``, ``category_…``,
     #: ``system_setting:pricing_…``, ``admin_inline``…
     reason: str = Field(max_length=120, index=True)
     created_at: datetime = Field(

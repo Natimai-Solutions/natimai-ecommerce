@@ -1,0 +1,25 @@
+Hello {{ full_name }},
+
+{% if payment_kind == 'deposit' -%}
+Your deposit has been received for order {{ order_ref or (order_id | short_ref) }}.
+
+Deposit received: {{ total_amount }} {{ currency }}
+Balance due on arrival: {{ balance_amount }} {{ currency }}
+
+Your order is under way. We will ask you for the balance when your items arrive; the invoice will be sent then.
+{%- elif payment_kind == 'balance' -%}
+The balance of your order {{ order_ref or (order_id | short_ref) }} has been received.
+
+Balance received: {{ total_amount }} {{ currency }}
+
+Your order is fully paid. Your invoice follows in a separate message.
+{%- else -%}
+Your payment has been validated for order {{ order_ref or (order_id | short_ref) }}.
+
+Amount charged: {{ total_amount }} {{ currency }}
+
+Your order is now being processed.
+{%- endif %}
+
+Thank you for your trust,
+The {{ shop_name }} team

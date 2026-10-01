@@ -2,6 +2,7 @@ import datetime
 import uuid
 
 from pydantic import EmailStr, model_validator
+from sqlalchemy import JSON, BigInteger, Column, Text
 from sqlmodel import Field, SQLModel
 
 from app.core.security import get_password_hash
@@ -134,6 +135,16 @@ class User(UserBase, table=True):
     failed_login_attempts: int = Field(default=0)
     locked_until: datetime.datetime | None = Field(default=None)
     last_login: datetime.datetime | None = Field(default=None)
+    # Two-factor authentication (administrators, R6). The secret is encrypted
+    # (SECRETS_ENCRYPTION_KEY); recovery codes are stored as SHA-256 hashes.
+    totp_secret_encrypted: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    totp_enabled: bool = Field(default=False)
+    totp_enabled_at: datetime.datetime | None = Field(default=None)
+    #: Last time step accepted: a code is never accepted twice (replay).
+    totp_last_step: int | None = Field(default=None, sa_column=Column(BigInteger))
+    totp_recovery_hashes: list[str] | None = Field(default=None, sa_column=Column(JSON))
 
 
 class UserPublic(UserBase, BasePublic):
@@ -159,6 +170,7 @@ class UserAdminView(UserBase, BasePublic):
     """Represents user admin view."""
 
     id: uuid.UUID
+    totp_enabled: bool = False
     failed_login_attempts: int
     locked_until: datetime.datetime | None = None
     last_login: datetime.datetime | None = None

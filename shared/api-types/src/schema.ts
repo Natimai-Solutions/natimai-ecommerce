@@ -19,7 +19,9 @@ export interface paths {
          *
          *     Returns the access token in the body (held in SPA memory) and sets the
          *     refresh token as an HttpOnly cookie. Per-IP throttled + per-account
-         *     lockout against brute force.
+         *     lockout against brute force. A superuser with two-factor authentication
+         *     also sends ``totp_code`` (``login.totp.required`` without it); a wrong
+         *     code counts towards the lockout like a wrong password.
          */
         post: operations["login-login_access_token"];
         delete?: never;
@@ -66,6 +68,100 @@ export interface paths {
          *     missing or already invalid.
          */
         post: operations["login-logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/2fa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Status */
+        get: operations["user-get_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/2fa/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Setup
+         * @description A new secret to scan (replaces a pending one). Active after /confirm.
+         */
+        post: operations["user-setup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/2fa/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm
+         * @description Turn 2FA on; the recovery codes are shown this once.
+         */
+        post: operations["user-confirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/2fa/recovery-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Regenerate Recovery Codes */
+        post: operations["user-regenerate_recovery_codes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/2fa/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disable
+         * @description Turn 2FA off: the password and a current (or recovery) code.
+         */
+        post: operations["user-disable"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2178,6 +2274,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/products/margin-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Margin
+         * @description Price, cost price and margin of the form's values, before saving.
+         */
+        post: operations["admin-product-preview_margin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/products/{product_id}/group-prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Group Prices
+         * @description Prices typed per customer group on the article.
+         */
+        get: operations["admin-product-get_group_prices"];
+        /**
+         * Set Group Prices
+         * @description Set (or clear, with a null price) the article's price per group.
+         */
+        put: operations["admin-product-set_group_prices"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/products/publish-drafts": {
         parameters: {
             query?: never;
@@ -2236,6 +2376,50 @@ export interface paths {
          */
         put: operations["admin-product-admin_update_product"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/products/{product_id}/attach-supplier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Attach Supplier
+         * @description Attach a product to a supplier reference now (« Rattacher maintenant »).
+         *
+         *     API supplier: the reference is fetched and the product adopted on the
+         *     spot (cost, stock, mapping; the admin's content stays locked). File
+         *     supplier: the link is recorded, the next import adopts it.
+         */
+        post: operations["admin-product-admin_attach_supplier"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/products/{product_id}/detach-supplier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin Detach Supplier
+         * @description Turn a supplier product back into a manual one (« Détacher »).
+         */
+        post: operations["admin-product-admin_detach_supplier"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2345,7 +2529,8 @@ export interface paths {
         head?: never;
         /**
          * Update Price Group
-         * @description Partial update (deposit policy: share, fee, imposed or offered).
+         * @description Partial update: discount on the reference price, fallback margin (default
+         *     group), deposit policy (share, fee, imposed or offered).
          */
         patch: operations["admin-price-groups-update_price_group"];
         trace?: never;
@@ -2436,6 +2621,30 @@ export interface paths {
          *     Modifying rate_pct is forbidden — create a new rate with a new valid_from instead.
          */
         put: operations["admin-tax-rates-update_tax_rate"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/tax-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tax Settings
+         * @description Which rate applies by default, and which one taxes the fees.
+         */
+        get: operations["admin-tax-rates-get_tax_settings"];
+        /**
+         * Update Tax Settings
+         * @description Choose the default rate and the fees rate among today's rates.
+         */
+        put: operations["admin-tax-rates-update_tax_settings"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2620,6 +2829,30 @@ export interface paths {
         patch: operations["admin-users-update_user"];
         trace?: never;
     };
+    "/api/v1/admin/users/{user_id}/2fa/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Two Factor
+         * @description Turn off another administrator's two-factor authentication (lost
+         *     phone, no recovery code left): they enrol again at their next sign-in.
+         *
+         *     Never one's own — that goes through ``/users/me/2fa/disable``, which asks
+         *     for the password and a code. Journaled like every admin action.
+         */
+        post: operations["admin-users-reset_two_factor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/carts/abandoned": {
         parameters: {
             query?: never;
@@ -2656,7 +2889,14 @@ export interface paths {
          */
         get: operations["admin-categories-list_categories"];
         put?: never;
-        post?: never;
+        /**
+         * Create Category
+         * @description Créer une catégorie (cible d'un mappage fournisseur, rayon manuel…).
+         *
+         *     Le nom est unique sans tenir compte de la casse, catégories fusionnées ou
+         *     inactives comprises : la synchronisation les résout par leur nom.
+         */
+        post: operations["admin-categories-create_category"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2760,9 +3000,9 @@ export interface paths {
         put?: never;
         /**
          * Retry Supplier Order
-         * @description Manually re-attempt creating the Ingram PO for this supplier order's local order.
+         * @description Manually re-attempt the purchase order of this row (its supplier, its order).
          *
-         *     Idempotent: an already-``SUBMITTED`` order is returned unchanged. On an Ingram
+         *     Idempotent: an already-``SUBMITTED`` order is returned unchanged. On a supplier
          *     API failure the persisted ``ERROR`` record is returned (200 with the error
          *     message) rather than surfacing a 5xx, so operators can read why it failed.
          */
@@ -2836,7 +3076,9 @@ export interface paths {
          * @description Deactivate a supplier (its products keep their ``supplier_name``).
          *
          *     Nothing is deleted: the code stays reserved so the links from products,
-         *     mappings, sync logs and supplier orders keep resolving.
+         *     mappings, sync logs and supplier orders keep resolving. A product keeps
+         *     selling its last synced supplier stock unless ``products`` says otherwise:
+         *     nobody refreshes it any more.
          */
         delete: operations["admin-suppliers-deactivate_supplier"];
         options?: never;
@@ -2868,6 +3110,199 @@ export interface paths {
          *     listed ones are created or refreshed by the next syncs.
          */
         put: operations["admin-suppliers-put_sku_allowlist"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suppliers/{code}/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Supplier Credentials
+         * @description Store the supplier's portal login, encrypted. Never read back.
+         */
+        put: operations["admin-suppliers-put_supplier_credentials"];
+        post?: never;
+        /**
+         * Delete Supplier Credentials
+         * @description Forget the supplier's stored login.
+         */
+        delete: operations["admin-suppliers-delete_supplier_credentials"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suppliers/{code}/feed/inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inspect Supplier Feed
+         * @description Download the supplier's feed and return its headers and first rows.
+         */
+        post: operations["admin-suppliers-inspect_supplier_feed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suppliers/{code}/category-mappings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Category Mappings
+         * @description The supplier's category rules (source couple → shop category, action).
+         */
+        get: operations["admin-suppliers-get_category_mappings"];
+        /**
+         * Put Category Mappings
+         * @description Create or replace the listed rules (keyed by their source couple).
+         *
+         *     Rules not listed stay. Products already in base are not moved: see
+         *     ``POST …/category-mappings/reapply``.
+         */
+        put: operations["admin-suppliers-put_category_mappings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suppliers/{code}/category-mappings/{mapping_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Category Mapping
+         * @description Remove one rule: its couple falls back to the unmapped behaviour.
+         */
+        delete: operations["admin-suppliers-remove_category_mapping"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suppliers/{code}/category-mappings/reapply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reapply Category Mappings
+         * @description Apply the rules to the supplier's products already in base.
+         *
+         *     Products move to their target category (unless their category was set by
+         *     hand), couples set to « hors vitrine » / « ignorer » leave the storefront;
+         *     list prices are refreshed for the moved products.
+         */
+        post: operations["admin-suppliers-reapply_category_mappings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/suppliers/{code}/observed-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Observed Categories
+         * @description The (category, subcategory) couples of the supplier's products in base,
+         *     with their count, their rule and where the next sync would put them.
+         */
+        get: operations["admin-suppliers-get_observed_categories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/modules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Modules
+         * @description Every module with its switch, its effective state and its preset.
+         */
+        get: operations["admin-modules-list_modules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/modules/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Switch Module
+         * @description Turn a module on or off. Nothing is deleted either way.
+         */
+        put: operations["admin-modules-switch_module"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Audit Entries */
+        get: operations["admin-audit-list_audit_entries"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -5428,7 +5863,7 @@ export interface paths {
         };
         /**
          * Get Public Settings
-         * @description Return whitelisted system settings (no auth required).
+         * @description The public settings that have a value (no auth required).
          */
         get: operations["system-get_public_settings"];
         put?: never;
@@ -5448,9 +5883,26 @@ export interface paths {
         };
         /**
          * Admin List Settings
-         * @description Return all system settings (superuser only).
+         * @description Every declared setting, resolved (superuser only).
          */
         get: operations["system-admin_list_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/system-settings/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin List Setting Categories */
+        get: operations["system-admin_list_setting_categories"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5470,14 +5922,19 @@ export interface paths {
         get: operations["system-admin_get_setting"];
         /**
          * Admin Upsert Setting
-         * @description Create or update a system setting.
+         * @description Store a value (blank: back to the fallback).
          *
-         *     A pricing parameter is checked (a number within its bounds) and, once
-         *     saved, re-prices the whole catalogue in the background.
+         *     Validated against its declaration (400), journaled, and followed by its
+         *     hooks — a pricing parameter re-prices the catalogue in the background.
+         *     A secret sent back masked is left unchanged.
          */
         put: operations["system-admin_upsert_setting"];
         post?: never;
-        delete?: never;
+        /**
+         * Admin Reset Setting
+         * @description Forget the stored value: the environment variable or the default applies.
+         */
+        delete: operations["system-admin_reset_setting"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5692,7 +6149,8 @@ export interface paths {
         };
         /**
          * Next Departure
-         * @description The departure new orders are attached to right now, or ``null``.
+         * @description The departure new orders are attached to right now, or ``null``
+         *     (always ``null`` while the grouped-departures module is off).
          */
         get: operations["grouped-departures-next_departure"];
         put?: never;
@@ -7221,6 +7679,19 @@ export interface components {
              * @description Clés acceptées dans Supplier.settings pour cette intégration
              */
             settings_keys?: string[];
+            /**
+             * Supports Purchase Orders
+             * @description L'intégration sait passer une commande fournisseur
+             * @default false
+             */
+            supports_purchase_orders: boolean;
+            /**
+             * Settings Schema
+             * @description Schéma JSON de Supplier.settings (formulaire admin)
+             */
+            settings_schema?: {
+                [key: string]: unknown;
+            };
         };
         /**
          * AddTrackingsRequest
@@ -7558,6 +8029,46 @@ export interface components {
              */
             count: number;
         };
+        /** AdminAuditEntryPublic */
+        AdminAuditEntryPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Actor Id */
+            actor_id: string | null;
+            /** Actor Email */
+            actor_email: string | null;
+            /** Event */
+            event: string;
+            /** Method */
+            method: string | null;
+            /** Path */
+            path: string | null;
+            /** Route */
+            route: string | null;
+            /** Status Code */
+            status_code: number | null;
+            /** Ip */
+            ip: string | null;
+            /** Details */
+            details?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** AdminAuditPage */
+        AdminAuditPage: {
+            /** Data */
+            data: components["schemas"]["AdminAuditEntryPublic"][];
+            /** Count */
+            count: number;
+        };
         /**
          * AdminCategoriesPublic
          * @description Liste complète (pas de pagination : quelques dizaines de lignes).
@@ -7567,6 +8078,18 @@ export interface components {
             data: components["schemas"]["AdminCategoryItem"][];
             /** Count */
             count: number;
+        };
+        /**
+         * AdminCategoryCreate
+         * @description Une catégorie créée à la main (le nom devient sa clé de rapprochement).
+         */
+        AdminCategoryCreate: {
+            /** Name */
+            name: string;
+            /** Display Name */
+            display_name?: string | null;
+            /** Description */
+            description?: string | null;
         };
         /**
          * AdminCategoryItem
@@ -7816,6 +8339,7 @@ export interface components {
             balance_paid_at?: string | null;
             /** Lines */
             lines: components["schemas"]["AdminOrderLineItem"][];
+            margin?: components["schemas"]["OrderMarginSummary"] | null;
             /** Payments */
             payments: components["schemas"]["AdminOrderPaymentItem"][];
             /**
@@ -7859,6 +8383,18 @@ export interface components {
             unit_price: number;
             /** Line Total */
             line_total: number;
+            /** Tax Rate Pct */
+            tax_rate_pct?: number | null;
+            /** Line Total Excl Tax */
+            line_total_excl_tax?: number | null;
+            /** Unit Cost */
+            unit_cost?: number | null;
+            /** Line Cost */
+            line_cost?: number | null;
+            /** Line Margin */
+            line_margin?: number | null;
+            /** Margin Pct */
+            margin_pct?: number | null;
         };
         /**
          * AdminOrderListItem
@@ -8207,6 +8743,11 @@ export interface components {
             last_login: string | null;
             /** Locked Until */
             locked_until: string | null;
+            /**
+             * Totp Enabled
+             * @default false
+             */
+            totp_enabled: boolean;
             /** Invitation Pending */
             invitation_pending: boolean;
             /** Invitation Expires At */
@@ -8905,6 +9446,11 @@ export interface components {
         };
         /** Body_login-login_access_token */
         "Body_login-login_access_token": {
+            /**
+             * Totp Code
+             * @description Administrators with two-factor authentication: the code of their app, or one of their recovery codes
+             */
+            totp_code?: string | null;
             /** Grant Type */
             grant_type?: string | null;
             /** Username */
@@ -8954,6 +9500,21 @@ export interface components {
              * @default true
              */
             publish_new: boolean;
+            /**
+             * Min Quantity
+             * @description Minimum quantity for this import (defaults to the supplier's; 0 disables it). A new row below it is not created; an existing product below it is updated and taken off the storefront.
+             */
+            min_quantity?: number | string | null;
+            /**
+             * Min Price
+             * @description Minimum cost for this import, in the file's currency (defaults to the supplier's; 0 disables it)
+             */
+            min_price?: number | string | null;
+            /**
+             * Default Category Id
+             * @description Shop category for every row the supplier's category rules do not place (a file without category column)
+             */
+            default_category_id?: string | null;
         };
         /** Body_suppliers-inspect_catalog_file */
         "Body_suppliers-inspect_catalog_file": {
@@ -9321,6 +9882,48 @@ export interface components {
              * @description Default margin percentage for products in this category. None → the customer's price group margin applies (Product.margin_rate_pct still overrides both).
              */
             default_margin_rate_pct?: number | string | null;
+        };
+        /**
+         * CategoryMappingAction
+         * @description Sort des articles d'un couple (catégorie, sous-catégorie) fournisseur.
+         * @enum {string}
+         */
+        CategoryMappingAction: "import" | "draft" | "deactivate" | "skip";
+        /** CategoryMappingPublic */
+        CategoryMappingPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Source Category */
+            source_category: string | null;
+            /** Source Subcategory */
+            source_subcategory: string | null;
+            /** Category Id */
+            category_id: string | null;
+            /** Category Name */
+            category_name?: string | null;
+            action: components["schemas"]["CategoryMappingAction"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * CategoryMappingWrite
+         * @description Une règle envoyée par l'admin (créée ou remplacée selon sa clé).
+         */
+        CategoryMappingWrite: {
+            /** Source Category */
+            source_category?: string | null;
+            /** Source Subcategory */
+            source_subcategory?: string | null;
+            /** Category Id */
+            category_id?: string | null;
+            /** @default import */
+            action: components["schemas"]["CategoryMappingAction"];
         };
         /**
          * CategoryPublic
@@ -10696,6 +11299,12 @@ export interface components {
              * @default 0
              */
             current_uses: number;
+            /**
+             * Applies To Promoted
+             * @description Code promo : s'applique aussi aux articles concernés par une promotion en cours (faux = ces articles sont exclus du code)
+             * @default true
+             */
+            applies_to_promoted: boolean;
         };
         /**
          * DiscountPublic
@@ -10791,6 +11400,12 @@ export interface components {
              */
             current_uses: number;
             /**
+             * Applies To Promoted
+             * @description Code promo : s'applique aussi aux articles concernés par une promotion en cours (faux = ces articles sont exclus du code)
+             * @default true
+             */
+            applies_to_promoted: boolean;
+            /**
              * Id
              * Format: uuid
              */
@@ -10843,6 +11458,8 @@ export interface components {
             max_uses?: number | null;
             /** Current Uses */
             current_uses?: number | null;
+            /** Applies To Promoted */
+            applies_to_promoted?: boolean | null;
         };
         /**
          * DiscountsPublic
@@ -10960,6 +11577,32 @@ export interface components {
             timestamp: string;
         };
         /**
+         * FeedInspection
+         * @description First rows of a supplier's feed, to build the column mapping (same
+         *     shape as the inspection of an uploaded file).
+         */
+        FeedInspection: {
+            /**
+             * Filename
+             * @default flux
+             */
+            filename: string;
+            /** Headers */
+            headers: string[];
+            /** Sample Rows */
+            sample_rows: {
+                [key: string]: string;
+            }[];
+            /** Total Rows */
+            total_rows: number;
+            /** Mapping Targets */
+            mapping_targets?: string[];
+            /** Required Targets */
+            required_targets?: string[];
+            /** Mapping Problems */
+            mapping_problems?: string[];
+        };
+        /**
          * FileImportResolutionRow
          * @description How one parsed row would be (or was) matched against the catalog.
          */
@@ -11034,6 +11677,8 @@ export interface components {
             sample_resolutions?: components["schemas"]["FileImportResolutionRow"][];
             /** Resolution Limited To */
             resolution_limited_to?: number | null;
+            /** Category Pairs */
+            category_pairs?: components["schemas"]["ObservedCategory"][];
         };
         /**
          * FileImportRowError
@@ -11167,6 +11812,56 @@ export interface components {
              * @default 0
              */
             priority: number;
+        };
+        /** GroupPriceInput */
+        GroupPriceInput: {
+            /**
+             * Price Group Id
+             * Format: uuid
+             */
+            price_group_id: string;
+            /** Price */
+            price?: number | string | null;
+        };
+        /**
+         * GroupPriceLine
+         * @description What one customer group pays for the article, and the margin left.
+         */
+        GroupPriceLine: {
+            /**
+             * Price Group Id
+             * Format: uuid
+             */
+            price_group_id: string;
+            /** Label */
+            label: string;
+            /** Is Default */
+            is_default: boolean;
+            /** Discount Pct */
+            discount_pct: string;
+            /** Typed Price */
+            typed_price: string | null;
+            /** Price */
+            price: string | null;
+            /** Margin Amount */
+            margin_amount: string | null;
+            /** Margin Pct */
+            margin_pct: string | null;
+        };
+        /** GroupPriceStored */
+        GroupPriceStored: {
+            /**
+             * Price Group Id
+             * Format: uuid
+             */
+            price_group_id: string;
+            /** Price */
+            price: string;
+        };
+        /** GroupPricesUpdate */
+        GroupPricesUpdate: {
+            /** Prices */
+            prices: components["schemas"]["GroupPriceInput"][];
         };
         /**
          * GroupPublic
@@ -12465,6 +13160,63 @@ export interface components {
             timestamp: string;
         };
         /**
+         * MarginPreview
+         * @description What one unit sells for, what it costs and what is left.
+         */
+        MarginPreview: {
+            /** Price Incl Tax */
+            price_incl_tax: string | null;
+            /** Tax Rate Pct */
+            tax_rate_pct: string;
+            /** Price Excl Tax */
+            price_excl_tax: string | null;
+            /** Tax Amount */
+            tax_amount: string | null;
+            /** Commission Amount */
+            commission_amount: string | null;
+            /** Unit Cost */
+            unit_cost: string | null;
+            /** Margin Amount */
+            margin_amount: string | null;
+            /** Margin Pct */
+            margin_pct: string | null;
+            /** Markup Pct */
+            markup_pct: string | null;
+            /** Currency */
+            currency: string;
+            /** Note */
+            note?: string | null;
+            /** Groups */
+            groups?: components["schemas"]["GroupPriceLine"][];
+        };
+        /**
+         * MarginPreviewRequest
+         * @description Price inputs of the product form, as they stand (unsaved).
+         */
+        MarginPreviewRequest: {
+            /** Product Id */
+            product_id?: string | null;
+            pricing_mode?: components["schemas"]["PricingMode"] | null;
+            /** Base Price */
+            base_price?: number | string | null;
+            /** Cost Amount */
+            cost_amount?: number | string | null;
+            /** Cost Currency */
+            cost_currency?: string | null;
+            /** Margin Rate Pct */
+            margin_rate_pct?: number | string | null;
+            /** Customs Rate Pct */
+            customs_rate_pct?: number | string | null;
+            /** Tax Rate Id */
+            tax_rate_id?: string | null;
+            /** Category Id */
+            category_id?: string | null;
+            /** Group Prices */
+            group_prices?: {
+                [key: string]: number | string;
+            } | null;
+        };
+        /**
          * MediaAssetPublic
          * @description What the admin and the storefront need to show an image.
          */
@@ -12552,6 +13304,30 @@ export interface components {
             message: string;
             /** Task Id */
             task_id?: string | null;
+        };
+        /** ModuleState */
+        ModuleState: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Description */
+            description: string;
+            /** Group */
+            group: string;
+            /** Switched On */
+            switched_on: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Preset */
+            preset: boolean;
+            /** Blocked By Env */
+            blocked_by_env?: string | null;
+        };
+        /** ModuleWrite */
+        ModuleWrite: {
+            /** Enabled */
+            enabled: boolean;
         };
         /**
          * MyOrderDetail
@@ -13234,6 +14010,26 @@ export interface components {
             checkout: components["schemas"]["CheckoutObservabilityMetrics"];
         };
         /**
+         * ObservedCategory
+         * @description Un couple (catégorie, sous-catégorie) vu chez un fournisseur.
+         */
+        ObservedCategory: {
+            /** Source Category */
+            source_category: string | null;
+            /** Source Subcategory */
+            source_subcategory: string | null;
+            /** Count */
+            count: number;
+            mapping?: components["schemas"]["CategoryMappingPublic"] | null;
+            /** Resolved Category Name */
+            resolved_category_name?: string | null;
+            /**
+             * Effect
+             * @default import
+             */
+            effect: string;
+        };
+        /**
          * OkResponse
          * @description Generic acknowledgement.
          */
@@ -13507,6 +14303,11 @@ export interface components {
              */
             price_group_id_snapshot?: string | null;
             /**
+             * Unit Cost Snapshot
+             * @description Coût de revient unitaire HT au moment de la commande, en devise de référence (coût converti, assurance et douane en import). Base de la marge de la ligne ; None = coût inconnu.
+             */
+            unit_cost_snapshot?: number | string | null;
+            /**
              * Serial Numbers
              * @description Numéros de série des exemplaires remis au client
              */
@@ -13514,7 +14315,7 @@ export interface components {
         };
         /**
          * OrderLinePublic
-         * @description Represents order line public.
+         * @description Represents order line public (cost figures for superusers only).
          */
         OrderLinePublic: {
             /**
@@ -13604,6 +14405,11 @@ export interface components {
              */
             price_group_id_snapshot?: string | null;
             /**
+             * Unit Cost Snapshot
+             * @description Coût de revient unitaire HT au moment de la commande, en devise de référence (coût converti, assurance et douane en import). Base de la marge de la ligne ; None = coût inconnu.
+             */
+            unit_cost_snapshot?: string | null;
+            /**
              * Serial Numbers
              * @description Numéros de série des exemplaires remis au client
              */
@@ -13652,6 +14458,30 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * OrderMarginSummary
+         * @description Gross margin on the goods of an order (fees and shipping excluded).
+         */
+        OrderMarginSummary: {
+            /** Goods Excl Tax */
+            goods_excl_tax: number;
+            /** Goods Cost */
+            goods_cost: number;
+            /** Margin */
+            margin: number;
+            /** Margin Pct */
+            margin_pct?: number | null;
+            /**
+             * Complete
+             * @default true
+             */
+            complete: boolean;
+            /**
+             * Lines Without Cost
+             * @default 0
+             */
+            lines_without_cost: number;
         };
         /**
          * OrderPublic
@@ -15616,6 +16446,12 @@ export interface components {
              */
             margin_rate_pct: string;
             /**
+             * Discount Pct
+             * @description Remise du groupe en % du prix de référence (tous les articles, prix calculés comme prix fixés) ; un prix saisi pour le groupe sur l'article passe avant
+             * @default 0.00
+             */
+            discount_pct: string;
+            /**
              * Default
              * @description Whether this group is the default fallback
              * @default false
@@ -15669,6 +16505,8 @@ export interface components {
             label?: string | null;
             /** Margin Rate Pct */
             margin_rate_pct?: number | string | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
             /** Default */
             default?: boolean | null;
             /** Requires Validation */
@@ -15958,6 +16796,21 @@ export interface components {
              */
             sale_price_cached_at?: string | null;
             /**
+             * Unit Cost Cached
+             * @description Unit cost price materialized with sale_price_cached, excl. tax, in the reference currency: purchase cost converted, plus insurance and customs in import mode (no import leg). None = cost unknown.
+             */
+            unit_cost_cached?: number | string | null;
+            /**
+             * Margin Cached
+             * @description Unit margin excl. tax: price excl. tax − payment commission − unit_cost_cached. None = cost unknown.
+             */
+            margin_cached?: number | string | null;
+            /**
+             * Margin Pct Cached
+             * @description margin_cached as a share of the price excl. tax (taux de marque)
+             */
+            margin_pct_cached?: number | string | null;
+            /**
              * Last Enrichment Sync
              * @description Last synchronization timestamp for enrichment data
              */
@@ -16173,6 +17026,9 @@ export interface components {
         /**
          * ProductPublic
          * @description Represents product public.
+         *
+         *     The internal fields (:data:`PRODUCT_INTERNAL_FIELDS`) are only serialized
+         *     for a superuser's request.
          */
         ProductPublic: {
             /**
@@ -16371,6 +17227,21 @@ export interface components {
              */
             sale_price_cached_at?: string | null;
             /**
+             * Unit Cost Cached
+             * @description Unit cost price materialized with sale_price_cached, excl. tax, in the reference currency: purchase cost converted, plus insurance and customs in import mode (no import leg). None = cost unknown.
+             */
+            unit_cost_cached?: string | null;
+            /**
+             * Margin Cached
+             * @description Unit margin excl. tax: price excl. tax − payment commission − unit_cost_cached. None = cost unknown.
+             */
+            margin_cached?: string | null;
+            /**
+             * Margin Pct Cached
+             * @description margin_cached as a share of the price excl. tax (taux de marque)
+             */
+            margin_pct_cached?: string | null;
+            /**
              * Last Enrichment Sync
              * @description Last synchronization timestamp for enrichment data
              */
@@ -16478,6 +17349,16 @@ export interface components {
              * @default 0
              */
             variants_count: number;
+            /** Stock Local */
+            stock_local?: string | null;
+            /** Stock Supplier */
+            stock_supplier?: string | null;
+            /** Regular Price */
+            regular_price?: string | null;
+            /** Promotion Name */
+            promotion_name?: string | null;
+            /** Promotion Ends At */
+            promotion_ends_at?: string | null;
         };
         /**
          * ProductPublishRequest
@@ -16520,6 +17401,14 @@ export interface components {
             price_ranges?: {
                 [key: string]: number;
             };
+            /** Stock */
+            stock?: {
+                [key: string]: number;
+            };
+            /** Conditions */
+            conditions?: {
+                [key: string]: number;
+            };
         };
         /**
          * ProductSearchRequest
@@ -16542,6 +17431,8 @@ export interface components {
             };
             /** In Stock */
             in_stock?: boolean | null;
+            /** @description local = in stock in our warehouse ; supplier = available at the supplier (longer delivery) */
+            stock?: components["schemas"]["StockLocation"] | null;
             /** @description Only new or only refurbished items */
             condition?: components["schemas"]["ProductCondition"] | null;
             /**
@@ -16713,6 +17604,21 @@ export interface components {
              */
             sale_price_cached_at?: string | null;
             /**
+             * Unit Cost Cached
+             * @description Unit cost price materialized with sale_price_cached, excl. tax, in the reference currency: purchase cost converted, plus insurance and customs in import mode (no import leg). None = cost unknown.
+             */
+            unit_cost_cached?: number | string | null;
+            /**
+             * Margin Cached
+             * @description Unit margin excl. tax: price excl. tax − payment commission − unit_cost_cached. None = cost unknown.
+             */
+            margin_cached?: number | string | null;
+            /**
+             * Margin Pct Cached
+             * @description margin_cached as a share of the price excl. tax (taux de marque)
+             */
+            margin_pct_cached?: number | string | null;
+            /**
              * Last Enrichment Sync
              * @description Last synchronization timestamp for enrichment data
              */
@@ -16822,6 +17728,13 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /** PublicSetting */
+        PublicSetting: {
+            /** Key */
+            key: string;
+            /** Value */
+            value: string;
         };
         /**
          * PublicationReport
@@ -17045,6 +17958,16 @@ export interface components {
             /** Redis */
             redis: boolean;
         };
+        /**
+         * ReapplyResult
+         * @description Products moved to their mapped category / taken off the storefront.
+         */
+        ReapplyResult: {
+            /** Moved */
+            moved: number;
+            /** Deactivated */
+            deactivated: number;
+        };
         /** ReceiptCancel */
         ReceiptCancel: {
             /** Reason */
@@ -17177,6 +18100,11 @@ export interface components {
             remaining_amount: string;
             /** Payment Settled */
             payment_settled: boolean;
+        };
+        /** RecoveryCodes */
+        RecoveryCodes: {
+            /** Recovery Codes */
+            recovery_codes: string[];
         };
         /**
          * RefundPublic
@@ -17535,6 +18463,76 @@ export interface components {
             }[];
         };
         /**
+         * RuntimeSettingPublic
+         * @description One declared setting, its effective value and where it comes from.
+         */
+        RuntimeSettingPublic: {
+            /** Key */
+            key: string;
+            /** Category */
+            category: string;
+            /** Label */
+            label: string;
+            /** Description */
+            description: string;
+            /** Type */
+            type: string;
+            /** Value */
+            value: string;
+            /** Source */
+            source: string;
+            /** Fallback */
+            fallback: string;
+            /** Env Var */
+            env_var?: string | null;
+            /**
+             * Stored Invalid
+             * @default false
+             */
+            stored_invalid: boolean;
+            /**
+             * Public
+             * @default false
+             */
+            public: boolean;
+            /**
+             * Secret
+             * @default false
+             */
+            secret: boolean;
+            /**
+             * Restart Required
+             * @default false
+             */
+            restart_required: boolean;
+            /**
+             * Reprices
+             * @default false
+             */
+            reprices: boolean;
+            /** Choices */
+            choices?: string[] | null;
+            /** Minimum */
+            minimum?: string | null;
+            /** Maximum */
+            maximum?: string | null;
+            /** Below */
+            below?: string | null;
+            /** Max Length */
+            max_length?: number | null;
+            /** Unit */
+            unit?: string | null;
+            /**
+             * Order
+             * @default 0
+             */
+            order: number;
+            /** Updated At */
+            updated_at?: string | null;
+            /** Updated By Email */
+            updated_by_email?: string | null;
+        };
+        /**
          * SendOtpRequest
          * @description Request an email verification code.
          */
@@ -17544,6 +18542,15 @@ export interface components {
              * Format: email
              */
             email: string;
+        };
+        /** SettingCategoryPublic */
+        SettingCategoryPublic: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Hint */
+            hint: string;
         };
         /**
          * ShipRequest
@@ -17574,6 +18581,8 @@ export interface components {
             eta_days: number | null;
             /** Carbon Footprint Kg Co2E */
             carbon_footprint_kg_co2e: number | null;
+            /** Regular Price */
+            regular_price?: string | null;
         };
         /**
          * ShippingPathQuoteResponse
@@ -18722,6 +19731,13 @@ export interface components {
             tax_territory_code: string;
             /** Shop Name */
             shop_name: string;
+            /**
+             * Modules
+             * @default {}
+             */
+            modules: {
+                [key: string]: boolean;
+            };
         };
         /**
          * Shortage
@@ -19405,6 +20421,12 @@ export interface components {
             email?: string | null;
         };
         /**
+         * StockLocation
+         * @description Where the sellable stock of an article is (storefront filter).
+         * @enum {string}
+         */
+        StockLocation: "local" | "supplier";
+        /**
          * StoreCreditBalance
          * @description Balance and ledger of one customer.
          */
@@ -19495,6 +20517,24 @@ export interface components {
             order_id?: string | null;
         };
         /**
+         * SupplierAttachRequest
+         * @description Supplier and reference to attach; both default to the product's own.
+         */
+        SupplierAttachRequest: {
+            /** Supplier Name */
+            supplier_name?: string | null;
+            /** Supplier Sku */
+            supplier_sku?: string | null;
+        };
+        /** SupplierAttachResponse */
+        SupplierAttachResponse: {
+            /** Status */
+            status: string;
+            /** Message */
+            message: string;
+            product: components["schemas"]["ProductPublic"];
+        };
+        /**
          * SupplierCreate
          * @description Création d'un fournisseur (le code est choisi une fois pour toutes).
          */
@@ -19555,11 +20595,32 @@ export interface components {
                 [key: string]: string;
             } | null;
             /**
+             * Auto Purchase Order
+             * @description kind=api, intégration qui sait commander : la commande fournisseur est passée automatiquement à l'encaissement d'une commande client (hors départ groupé), livrée à l'entrepôt principal.
+             * @default false
+             */
+            auto_purchase_order: boolean;
+            /**
              * Import As Draft
              * @description Les articles créés par une synchronisation ou un import de ce fournisseur arrivent en brouillon (Product.is_draft) : enrichis et rafraîchis, mais invisibles en vitrine tant que l'admin ne les publie pas. Les articles existants ne sont pas concernés.
              * @default false
              */
             import_as_draft: boolean;
+            /**
+             * @description Sort d'un article dont la catégorie fournisseur n'a pas de mappage : auto (catégorie au nom de la sous-catégorie, comportement historique) | draft | deactivate | skip
+             * @default auto
+             */
+            unmapped_category_action: components["schemas"]["UnmappedCategoryAction"];
+            /**
+             * Min Quantity
+             * @description Import fichier : quantité minimale d'une ligne. En dessous, une référence nouvelle n'est pas créée et un article existant est mis à jour puis retiré de la vitrine (is_active=False). Une ligne sans quantité n'est pas jugée. Vide = pas de seuil.
+             */
+            min_quantity?: number | string | null;
+            /**
+             * Min Price
+             * @description Import fichier : prix d'achat minimal d'une ligne, dans la devise du fichier (même règle que la quantité minimale). Vide = pas de seuil.
+             */
+            min_price?: number | string | null;
             /**
              * Sku Allowlist
              * @description Liste blanche de références fournisseur (SKU). Vide ou absente : tout le catalogue synchronisé est suivi. Renseignée : seules ces références sont créées et rafraîchies (prix / stock) ; les articles gérés par ce fournisseur hors liste sont retirés de la vitrine. Modifiée par PUT /admin/suppliers/{code}/sku-allowlist.
@@ -19585,6 +20646,16 @@ export interface components {
             is_active: boolean;
             /** Code */
             code: string;
+        };
+        /**
+         * SupplierCredentialsWrite
+         * @description Portal login of a file-feed supplier (write-only).
+         */
+        SupplierCredentialsWrite: {
+            /** Username */
+            username: string;
+            /** Password */
+            password: string;
         };
         /**
          * SupplierKind
@@ -19733,11 +20804,32 @@ export interface components {
                 [key: string]: string;
             } | null;
             /**
+             * Auto Purchase Order
+             * @description kind=api, intégration qui sait commander : la commande fournisseur est passée automatiquement à l'encaissement d'une commande client (hors départ groupé), livrée à l'entrepôt principal.
+             * @default false
+             */
+            auto_purchase_order: boolean;
+            /**
              * Import As Draft
              * @description Les articles créés par une synchronisation ou un import de ce fournisseur arrivent en brouillon (Product.is_draft) : enrichis et rafraîchis, mais invisibles en vitrine tant que l'admin ne les publie pas. Les articles existants ne sont pas concernés.
              * @default false
              */
             import_as_draft: boolean;
+            /**
+             * @description Sort d'un article dont la catégorie fournisseur n'a pas de mappage : auto (catégorie au nom de la sous-catégorie, comportement historique) | draft | deactivate | skip
+             * @default auto
+             */
+            unmapped_category_action: components["schemas"]["UnmappedCategoryAction"];
+            /**
+             * Min Quantity
+             * @description Import fichier : quantité minimale d'une ligne. En dessous, une référence nouvelle n'est pas créée et un article existant est mis à jour puis retiré de la vitrine (is_active=False). Une ligne sans quantité n'est pas jugée. Vide = pas de seuil.
+             */
+            min_quantity?: string | null;
+            /**
+             * Min Price
+             * @description Import fichier : prix d'achat minimal d'une ligne, dans la devise du fichier (même règle que la quantité minimale). Vide = pas de seuil.
+             */
+            min_price?: string | null;
             /**
              * Sku Allowlist
              * @description Liste blanche de références fournisseur (SKU). Vide ou absente : tout le catalogue synchronisé est suivi. Renseignée : seules ces références sont créées et rafraîchies (prix / stock) ; les articles gérés par ce fournisseur hors liste sont retirés de la vitrine. Modifiée par PUT /admin/suppliers/{code}/sku-allowlist.
@@ -19783,6 +20875,13 @@ export interface components {
              * @default true
              */
             configured: boolean;
+            /**
+             * Has Credentials
+             * @default false
+             */
+            has_credentials: boolean;
+            /** Products Withdrawn */
+            products_withdrawn?: number | null;
         };
         /**
          * SupplierSummary
@@ -19834,6 +20933,13 @@ export interface components {
             } | null;
             /** Import As Draft */
             import_as_draft?: boolean | null;
+            /** Auto Purchase Order */
+            auto_purchase_order?: boolean | null;
+            unmapped_category_action?: components["schemas"]["UnmappedCategoryAction"] | null;
+            /** Min Quantity */
+            min_quantity?: number | string | null;
+            /** Min Price */
+            min_price?: number | string | null;
             /** Settings */
             settings?: {
                 [key: string]: unknown;
@@ -19947,7 +21053,7 @@ export interface components {
             modify_by_id?: string | null;
             /**
              * Code
-             * @description Tax code (ex: TGC_NORMAL)
+             * @description Tax code (ex: TVA_NORMALE)
              */
             code: string;
             /**
@@ -20003,7 +21109,7 @@ export interface components {
             is_admin_active: boolean;
             /**
              * Code
-             * @description Tax code (ex: TGC_NORMAL)
+             * @description Tax code (ex: TVA_NORMALE)
              */
             code: string;
             /**
@@ -20063,6 +21169,27 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /**
+         * TaxSettingsPublic
+         * @description The shop's default rate and fees rate, by code, with today's rate.
+         */
+        TaxSettingsPublic: {
+            /** Default Code */
+            default_code: string;
+            /** Fees Code */
+            fees_code: string;
+            default_rate: components["schemas"]["TaxRatePublic"] | null;
+            fees_rate: components["schemas"]["TaxRatePublic"] | null;
+            /** Territory Code */
+            territory_code: string;
+        };
+        /** TaxSettingsUpdate */
+        TaxSettingsUpdate: {
+            /** Default Code */
+            default_code: string;
+            /** Fees Code */
+            fees_code: string;
         };
         /**
          * TestEnrichmentRequest
@@ -20165,6 +21292,39 @@ export interface components {
              */
             tracking_ref?: string | null;
         };
+        /** TwoFactorCode */
+        TwoFactorCode: {
+            /** Code */
+            code: string;
+        };
+        /** TwoFactorDisable */
+        TwoFactorDisable: {
+            /** Code */
+            code: string;
+            /** Password */
+            password: string;
+        };
+        /** TwoFactorSetup */
+        TwoFactorSetup: {
+            /** Secret */
+            secret: string;
+            /** Otpauth Uri */
+            otpauth_uri: string;
+            /** Qr Svg Data Uri */
+            qr_svg_data_uri: string;
+        };
+        /** TwoFactorStatus */
+        TwoFactorStatus: {
+            /** Enabled */
+            enabled: boolean;
+            /** Required */
+            required: boolean;
+            /**
+             * Recovery Codes Left
+             * @default 0
+             */
+            recovery_codes_left: number;
+        };
         /**
          * UngroupHintResponse
          * @description Smart default for the « garder / dégrouper » popup.
@@ -20173,6 +21333,12 @@ export interface components {
             /** Suggest Ungroup */
             suggest_ungroup: boolean;
         };
+        /**
+         * UnmappedCategoryAction
+         * @description Sort des articles d'une catégorie fournisseur sans mappage.
+         * @enum {string}
+         */
+        UnmappedCategoryAction: "auto" | "draft" | "deactivate" | "skip";
         /**
          * UpdateStatusRequest
          * @description Request payload for updating tracking status.
@@ -20725,6 +21891,145 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    "user-get_status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TwoFactorStatus"];
+                };
+            };
+        };
+    };
+    "user-setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TwoFactorSetup"];
+                };
+            };
+        };
+    };
+    "user-confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TwoFactorCode"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryCodes"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "user-regenerate_recovery_codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TwoFactorCode"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryCodes"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "user-disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TwoFactorDisable"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TwoFactorStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
@@ -24612,6 +25917,105 @@ export interface operations {
             };
         };
     };
+    "admin-product-preview_margin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarginPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarginPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-get_group_prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupPriceStored"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-set_group_prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupPricesUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupPriceStored"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-product-admin_publish_drafts": {
         parameters: {
             query?: never;
@@ -24692,6 +26096,72 @@ export interface operations {
                 "application/json": components["schemas"]["ProductUpdate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-admin_attach_supplier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplierAttachRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierAttachResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-admin_detach_supplier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -25100,6 +26570,59 @@ export interface operations {
             };
         };
     };
+    "admin-tax-rates-get_tax_settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxSettingsPublic"];
+                };
+            };
+        };
+    };
+    "admin-tax-rates-update_tax_settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaxSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxSettingsPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-tax-rates-assign_tax_rate_to_product": {
         parameters: {
             query?: never;
@@ -25397,6 +26920,37 @@ export interface operations {
             };
         };
     };
+    "admin-users-reset_two_factor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-cart-list_abandoned_carts": {
         parameters: {
             query?: {
@@ -25445,6 +26999,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminCategoriesPublic"];
+                };
+            };
+        };
+    };
+    "admin-categories-create_category": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCategoryCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCategoryItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -25524,7 +27111,7 @@ export interface operations {
             query?: {
                 /** @description Filter by supplier order status */
                 status?: components["schemas"]["SupplierOrderStatus"] | null;
-                /** @description Filter by supplier machine name (e.g. ingram_micro) */
+                /** @description Filter by supplier code (e.g. ingram_micro) */
                 supplier_name?: string | null;
                 skip?: number;
                 limit?: number;
@@ -25723,7 +27310,10 @@ export interface operations {
     };
     "admin-suppliers-deactivate_supplier": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description What happens to the supplier's products: keep (as they are), zero_stock (supplier stock set to 0: no longer sold on it), hide (zero_stock and taken off the storefront) */
+                products?: "keep" | "zero_stock" | "hide";
+            };
             header?: never;
             path: {
                 code: string;
@@ -25840,6 +27430,353 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AllowlistView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-put_supplier_credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplierCredentialsWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-delete_supplier_credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplierPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-inspect_supplier_feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedInspection"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-get_category_mappings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryMappingPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-put_category_mappings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryMappingWrite"][];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryMappingPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-remove_category_mapping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+                mapping_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-reapply_category_mappings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReapplyResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-suppliers-get_observed_categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObservedCategory"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-modules-list_modules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModuleState"][];
+                };
+            };
+        };
+    };
+    "admin-modules-switch_module": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModuleWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModuleState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-audit-list_audit_entries": {
+        parameters: {
+            query?: {
+                actor_id?: string | null;
+                event?: string | null;
+                path_contains?: string | null;
+                since?: string | null;
+                until?: string | null;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAuditPage"];
                 };
             };
             /** @description Validation Error */
@@ -26431,6 +28368,7 @@ export interface operations {
                 include_archived?: boolean;
                 status?: string | null;
                 search?: string | null;
+                sort?: string | null;
             };
             header?: never;
             path?: never;
@@ -31456,7 +33394,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SystemSettingPublic"][];
+                    "application/json": components["schemas"]["PublicSetting"][];
                 };
             };
         };
@@ -31476,7 +33414,27 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SystemSettingPublic"][];
+                    "application/json": components["schemas"]["RuntimeSettingPublic"][];
+                };
+            };
+        };
+    };
+    "system-admin_list_setting_categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingCategoryPublic"][];
                 };
             };
         };
@@ -31498,7 +33456,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SystemSettingPublic"];
+                    "application/json": components["schemas"]["RuntimeSettingPublic"];
                 };
             };
             /** @description Validation Error */
@@ -31533,7 +33491,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SystemSettingPublic"];
+                    "application/json": components["schemas"]["RuntimeSettingPublic"] | components["schemas"]["SystemSettingPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "system-admin_reset_setting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeSettingPublic"];
                 };
             };
             /** @description Validation Error */

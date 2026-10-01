@@ -10,25 +10,37 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.api.deps import SessionDep, get_current_active_superuser
+from app.core import runtime_settings
 from app.core.config import settings
 from app.core.errors import AppError
-from app.services.icecat_service import icecat_service
+from app.features.system.modules import module_enabled
+from app.services.icecat_service import icecat_credentials_present, icecat_service
 from app.tasks.icecat_tasks import trigger_batch_enrichment, trigger_product_enrichment
 
 router = APIRouter()
 
 
-def _ensure_icecat_enabled() -> None:
-    """Raise a stable app error when Icecat integration is disabled."""
-    if settings.ICECAT_ENABLED:
-        return
+async def _ensure_icecat_enabled(session: SessionDep) -> None:
+    """Raise a stable app error when Icecat integration is disabled.
 
-    raise AppError(
-        code="icecat.disabled",
-        status_code=400,
-        message="Icecat enrichment is disabled in settings",
-        details={"setting": "ICECAT_ENABLED"},
-    )
+    ``ICECAT_ENABLED`` is the environment kill switch; below it, the
+    ``icecat`` module switch (Admin → Modules) turns the integration off
+    without a restart.
+    """
+    if not settings.ICECAT_ENABLED:
+        raise AppError(
+            code="icecat.disabled",
+            status_code=400,
+            message="Icecat enrichment is disabled in settings",
+            details={"setting": "ICECAT_ENABLED"},
+        )
+    if not await module_enabled(session, "icecat"):
+        raise AppError(
+            code="icecat.disabled",
+            status_code=400,
+            message="Icecat enrichment is switched off in the admin",
+            details={"setting": "module.icecat"},
+        )
 
 
 class EnrichmentRequest(BaseModel):
@@ -70,7 +82,7 @@ class TestEnrichmentRequest(BaseModel):
 @router.post("/enrich", response_model=EnrichmentResponse)
 async def enrich_product(
     request: EnrichmentRequest,
-    _session: SessionDep,
+    session: SessionDep,
     _current_user: Any = Depends(get_current_active_superuser),
 ) -> EnrichmentResponse:
     """
@@ -81,7 +93,7 @@ async def enrich_product(
 
     **Required permissions:** Superuser only
     """
-    _ensure_icecat_enabled()
+    await _ensure_icecat_enabled(session)
 
     try:
         job_id = await trigger_product_enrichment(request.product_id)
@@ -108,7 +120,7 @@ async def enrich_product(
 @router.post("/enrich/batch", response_model=EnrichmentResponse)
 async def batch_enrich_products(
     request: BatchEnrichmentRequest,
-    _session: SessionDep,
+    session: SessionDep,
     _current_user: Any = Depends(get_current_active_superuser),
 ) -> EnrichmentResponse:
     """
@@ -119,7 +131,7 @@ async def batch_enrich_products(
 
     **Required permissions:** Superuser only
     """
-    _ensure_icecat_enabled()
+    await _ensure_icecat_enabled(session)
 
     try:
         job_id = await trigger_batch_enrichment(request.limit)
@@ -146,6 +158,7 @@ async def batch_enrich_products(
 @router.post("/test", response_model=dict[str, Any])
 async def test_icecat_enrichment(
     request: TestEnrichmentRequest,
+    session: SessionDep,
     _current_user: Any = Depends(get_current_active_superuser),
 ) -> dict[str, Any]:
     """
@@ -156,7 +169,7 @@ async def test_icecat_enrichment(
 
     **Required permissions:** Superuser only
     """
-    _ensure_icecat_enabled()
+    await _ensure_icecat_enabled(session)
 
     try:
         enrichment_data = await icecat_service.enrich_product_with_icecat(
@@ -197,6 +210,7 @@ async def test_icecat_enrichment(
 
 @router.get("/status")
 async def get_enrichment_status(
+    session: SessionDep,
     _current_user: Any = Depends(get_current_active_superuser),
 ) -> dict[str, Any]:
     """
@@ -208,9 +222,10 @@ async def get_enrichment_status(
     **Required permissions:** Superuser only
     """
     return {
-        "enabled": settings.ICECAT_ENABLED,
-        "configured": bool(settings.ICECAT_USERNAME and settings.ICECAT_API_KEY),
-        "language": settings.ICECAT_LANGUAGE,
+        "enabled": await module_enabled(session, "icecat"),
+        "env_enabled": settings.ICECAT_ENABLED,
+        "configured": icecat_credentials_present(),
+        "language": await runtime_settings.get("icecat_language", session),
         "api_url": icecat_service.base_url,
     }
 
@@ -218,6 +233,7 @@ async def get_enrichment_status(
 @router.get("/search/upc/{upc}", response_model=dict[str, Any])
 async def search_by_upc(
     upc: str,
+    session: SessionDep,
     _current_user: Any = Depends(get_current_active_superuser),
 ) -> dict[str, Any]:
     """
@@ -228,7 +244,7 @@ async def search_by_upc(
 
     **Required permissions:** Superuser only
     """
-    _ensure_icecat_enabled()
+    await _ensure_icecat_enabled(session)
 
     try:
         product_data = await icecat_service.get_product_by_upc(upc)
@@ -272,6 +288,7 @@ async def search_by_upc(
 @router.get("/search/ean/{ean}", response_model=dict[str, Any])
 async def search_by_ean(
     ean: str,
+    session: SessionDep,
     _current_user: Any = Depends(get_current_active_superuser),
 ) -> dict[str, Any]:
     """
@@ -281,7 +298,7 @@ async def search_by_ean(
 
     **Required permissions:** Superuser only
     """
-    _ensure_icecat_enabled()
+    await _ensure_icecat_enabled(session)
 
     try:
         product_data = await icecat_service.get_product_by_ean(ean)

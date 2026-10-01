@@ -3,23 +3,28 @@
     <q-card flat class="auth-card">
       <q-card-section>
         <h1 class="auth-title">
-          {{ invitation ? 'Activez votre compte' : 'Nouveau mot de passe' }}
+          {{ invitation ? $t('auth.activate_title') : $t('auth.new_password_title') }}
         </h1>
         <div v-if="invitation" class="auth-lead q-mt-xs">
-          Un compte a été créé pour vous. Choisissez votre mot de passe pour l'ouvrir.
+          {{ $t('auth.invitation_lead') }}
         </div>
       </q-card-section>
 
       <q-card-section class="q-pt-none">
         <AppNotice v-if="!token" tone="error">
-          Ce lien est incomplet. Demandez-en un nouveau depuis la page « mot de passe oublié ».
+          {{ $t('auth.link_incomplete') }}
         </AppNotice>
 
         <template v-else-if="doneMessage">
           <AppNotice tone="success" class="q-mb-md">
             {{ doneMessage }}
           </AppNotice>
-          <q-btn color="primary" label="Se connecter" class="full-width" :to="{ name: 'login' }" />
+          <q-btn
+            color="primary"
+            :label="$t('auth.sign_in')"
+            class="full-width"
+            :to="{ name: 'login' }"
+          />
         </template>
 
         <template v-else>
@@ -34,12 +39,12 @@
               data-testid="reset-password"
               outlined
               stack-label
-              label="Nouveau mot de passe"
+              :label="$t('auth.new_password')"
               autocomplete="new-password"
               class="q-mb-sm"
               :rules="[
-                (v) => !!v || 'Mot de passe requis',
-                (v) => v.length >= 8 || '8 caractères minimum',
+                (v) => !!v || $t('auth.password_required'),
+                (v) => v.length >= 8 || $t('auth.min_8b'),
               ]"
             >
               <template #append>
@@ -56,16 +61,16 @@
               data-testid="reset-confirmation"
               outlined
               stack-label
-              label="Confirmer le mot de passe"
+              :label="$t('auth.password_confirm')"
               autocomplete="new-password"
               class="q-mb-md"
-              :rules="[(v) => v === password || 'Les mots de passe ne correspondent pas']"
+              :rules="[(v) => v === password || $t('auth.password_mismatch')]"
             />
             <q-btn
               type="submit"
               data-testid="reset-submit"
               color="primary"
-              :label="invitation ? 'Activer mon compte' : 'Valider'"
+              :label="invitation ? $t('auth.activate_my_account') : $t('auth.validate')"
               class="full-width"
               :loading="submitting"
             />
@@ -77,11 +82,14 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { apiErrorMessage } from '@/utils/errors';
 import AppNotice from '@app/ui/AppNotice.vue';
 import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { resetPassword } from '@/api/passwordReset';
+
+const { t } = useI18n();
 
 const route = useRoute();
 // Le jeton arrive dans le lien de l'email.
@@ -104,9 +112,7 @@ async function onSubmit() {
   try {
     doneMessage.value = await resetPassword(token.value, password.value);
   } catch (err) {
-    errorMessage.value =
-      apiErrorMessage(err) ??
-      'Lien invalide ou expiré. Demandez un nouveau lien de réinitialisation.';
+    errorMessage.value = apiErrorMessage(err) ?? t('auth.link_invalid');
   } finally {
     submitting.value = false;
   }

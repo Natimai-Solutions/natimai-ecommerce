@@ -24,11 +24,17 @@ from pydantic import BaseModel, Field
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.core.config import settings
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.integrations.models.supplier import Supplier
+from app.features.integrations.services.supplier_attachment import (
+    attach_now,
+    detach,
+)
 from app.features.inventory.services.availability import publish_with_availability
 from app.features.product.crud.product import crud_product
+from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.price_history import (
     ProductPriceEntry,
     ProductPriceEntryPublic,
@@ -40,7 +46,10 @@ from app.features.product.models.product import (
     ProductPublic,
     ProductUpdate,
 )
+from app.features.product.models.product_group_price import ProductGroupPrice
+from app.features.product.services.group_pricing import apply_discount
 from app.features.product.services.overrides import merge_locks, release_lock
+from app.features.product.services.pricing import CurrencyRateMissing, PricingContext
 from app.features.product.services.variants import (
     list_variants,
     option_axes,
@@ -162,6 +171,290 @@ class PublishDraftsResponse(BaseModel):
     missing: list[uuid.UUID] = Field(default_factory=list)
 
 
+class MarginPreviewRequest(BaseModel):
+    """Price inputs of the product form, as they stand (unsaved)."""
+
+    #: Existing product: its other fields (supplier place, weight…) apply.
+    product_id: uuid.UUID | None = None
+    pricing_mode: PricingMode | None = None
+    base_price: Decimal | None = Field(default=None, ge=0)
+    cost_amount: Decimal | None = Field(default=None, ge=0)
+    cost_currency: str | None = Field(default=None, max_length=8)
+    margin_rate_pct: Decimal | None = None
+    customs_rate_pct: Decimal | None = Field(default=None, ge=0)
+    tax_rate_id: uuid.UUID | None = None
+    category_id: uuid.UUID | None = None
+    #: Prices typed per group in the form (absent: the stored ones).
+    group_prices: dict[uuid.UUID, Decimal] | None = None
+
+
+class GroupPriceLine(BaseModel):
+    """What one customer group pays for the article, and the margin left."""
+
+    price_group_id: uuid.UUID
+    label: str
+    is_default: bool
+    discount_pct: Decimal
+    #: Price typed for the group on the article (None: the discount applies).
+    typed_price: Decimal | None
+    #: What the group pays: typed price, else reference − discount.
+    price: Decimal | None
+    margin_amount: Decimal | None
+    margin_pct: Decimal | None
+
+
+class MarginPreview(BaseModel):
+    """What one unit sells for, what it costs and what is left."""
+
+    price_incl_tax: Decimal | None
+    tax_rate_pct: Decimal
+    price_excl_tax: Decimal | None
+    tax_amount: Decimal | None
+    commission_amount: Decimal | None
+    unit_cost: Decimal | None
+    margin_amount: Decimal | None
+    #: Margin / price excl. tax (taux de marque).
+    margin_pct: Decimal | None
+    #: Margin / cost (taux de marge).
+    markup_pct: Decimal | None
+    currency: str
+    #: Why a figure is missing (no cost, no exchange rate…).
+    note: str | None = None
+    #: One line per customer group (the reference price is the default's).
+    groups: list[GroupPriceLine] = Field(default_factory=list)
+
+
+async def _active_groups(session: SessionDep) -> list[PriceGroup]:
+    rows = await session.exec(
+        select(PriceGroup)
+        .where(col(PriceGroup.is_active).is_(True))
+        .order_by(col(PriceGroup.default).desc(), col(PriceGroup.label).asc())
+    )
+    return list(rows.all())
+
+
+async def _stored_group_prices(
+    session: SessionDep, product_id: uuid.UUID
+) -> dict[uuid.UUID, Decimal]:
+    rows = await session.exec(
+        select(ProductGroupPrice).where(col(ProductGroupPrice.product_id) == product_id)
+    )
+    return {row.price_group_id: Decimal(row.price) for row in rows.all()}
+
+
+def _group_lines(
+    groups: list[PriceGroup],
+    typed: dict[uuid.UUID, Decimal],
+    *,
+    reference: Decimal | None,
+    context: PricingContext,
+    product: Product,
+) -> list[GroupPriceLine]:
+    lines = []
+    for group in groups:
+        typed_price = typed.get(group.id)
+        if typed_price is not None:
+            price: Decimal | None = typed_price
+        elif reference is not None:
+            price = apply_discount(reference, group.discount_pct)
+        else:
+            price = None
+        figures = context.margin(product, price) if price is not None else None
+        lines.append(
+            GroupPriceLine(
+                price_group_id=group.id,
+                label=group.label,
+                is_default=group.default,
+                discount_pct=Decimal(group.discount_pct or 0),
+                typed_price=typed_price,
+                price=price,
+                margin_amount=figures.margin_amount if figures else None,
+                margin_pct=figures.margin_pct if figures else None,
+            )
+        )
+    return lines
+
+
+@router.post("/margin-preview", response_model=MarginPreview)
+async def preview_margin(
+    payload: MarginPreviewRequest,
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+) -> MarginPreview:
+    """Price, cost price and margin of the form's values, before saving."""
+    fields: dict[str, Any] = {}
+    if payload.product_id is not None:
+        existing = await session.get(Product, payload.product_id)
+        if existing is None:
+            raise AppError(
+                code="product.not_found",
+                status_code=404,
+                message="Product not found",
+                details={"product_id": str(payload.product_id)},
+            )
+        fields = existing.model_dump()
+    fields.update(payload.model_dump(exclude={"product_id"}, exclude_unset=True))
+    fields.pop("id", None)
+    fields.setdefault("name", "aperçu")
+    # A transient row, never added to the session.
+    draft = Product.model_validate(fields)
+    if draft.cost_currency is None:
+        draft.cost_currency = settings.REFERENCE_CURRENCY
+
+    context = await PricingContext.load(session)
+    tax_pct = context.tax_rate_pct(draft)
+    groups = await _active_groups(session)
+    typed = (
+        {gid: price for gid, price in payload.group_prices.items() if price is not None}
+        if payload.group_prices is not None
+        else (
+            await _stored_group_prices(session, payload.product_id)
+            if payload.product_id is not None
+            else {}
+        )
+    )
+    empty = MarginPreview(
+        price_incl_tax=None,
+        tax_rate_pct=tax_pct,
+        price_excl_tax=None,
+        tax_amount=None,
+        commission_amount=None,
+        unit_cost=None,
+        margin_amount=None,
+        margin_pct=None,
+        markup_pct=None,
+        currency=settings.REFERENCE_CURRENCY,
+    )
+    try:
+        price = context.price(draft)
+    except CurrencyRateMissing as exc:
+        return empty.model_copy(
+            update={
+                "note": f"Pas de taux de change pour {exc}",
+                "groups": _group_lines(
+                    groups, typed, reference=None, context=context, product=draft
+                ),
+            }
+        )
+    lines = _group_lines(groups, typed, reference=price, context=context, product=draft)
+    figures = context.margin(draft, price)
+    if figures is None:
+        return empty.model_copy(
+            update={
+                "price_incl_tax": price,
+                "note": "Saisissez le coût d'achat pour voir la marge.",
+                "groups": lines,
+            }
+        )
+    return MarginPreview(
+        price_incl_tax=figures.price_incl_tax,
+        tax_rate_pct=figures.tax_rate_pct,
+        price_excl_tax=figures.price_excl_tax,
+        tax_amount=figures.tax_amount,
+        commission_amount=figures.commission_amount,
+        unit_cost=figures.unit_cost,
+        margin_amount=figures.margin_amount,
+        margin_pct=figures.margin_pct,
+        markup_pct=figures.markup_pct,
+        currency=settings.REFERENCE_CURRENCY,
+        note=(
+            "Vendu à perte : le prix HT ne couvre pas le coût de revient."
+            if figures.margin_amount < 0
+            else None
+        ),
+        groups=lines,
+    )
+
+
+class GroupPriceInput(BaseModel):
+    price_group_id: uuid.UUID
+    #: Tax-inclusive price for the group; None removes it (discount applies).
+    #: 0 is refused: it would sell the article for free to that group.
+    price: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=2)
+
+
+class GroupPricesUpdate(BaseModel):
+    prices: list[GroupPriceInput]
+
+
+class GroupPriceStored(BaseModel):
+    price_group_id: uuid.UUID
+    price: Decimal
+
+
+@router.get("/{product_id}/group-prices", response_model=list[GroupPriceStored])
+async def get_group_prices(
+    product_id: uuid.UUID,
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+) -> list[GroupPriceStored]:
+    """Prices typed per customer group on the article."""
+    stored = await _stored_group_prices(session, product_id)
+    return [GroupPriceStored(price_group_id=k, price=v) for k, v in stored.items()]
+
+
+@router.put("/{product_id}/group-prices", response_model=list[GroupPriceStored])
+async def set_group_prices(
+    product_id: uuid.UUID,
+    payload: GroupPricesUpdate,
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+) -> list[GroupPriceStored]:
+    """Set (or clear, with a null price) the article's price per group."""
+    if await session.get(Product, product_id) is None:
+        raise AppError(
+            code="product.not_found",
+            status_code=404,
+            message="Product not found",
+            details={"product_id": str(product_id)},
+        )
+    group_ids = {g.id for g in await _active_groups(session)}
+    seen: set[uuid.UUID] = set()
+    for entry in payload.prices:
+        if entry.price_group_id in seen:
+            raise AppError(
+                code="price_group.duplicate",
+                status_code=400,
+                message="Un groupe apparaît deux fois dans la grille",
+                details={"price_group_id": str(entry.price_group_id)},
+            )
+        seen.add(entry.price_group_id)
+    existing = {
+        row.price_group_id: row
+        for row in (
+            await session.exec(
+                select(ProductGroupPrice).where(
+                    col(ProductGroupPrice.product_id) == product_id
+                )
+            )
+        ).all()
+    }
+    for entry in payload.prices:
+        if entry.price_group_id not in group_ids:
+            raise AppError(
+                code="price_group.not_found",
+                status_code=404,
+                message="Groupe tarifaire introuvable",
+                details={"price_group_id": str(entry.price_group_id)},
+            )
+        row = existing.get(entry.price_group_id)
+        if entry.price is None:
+            if row is not None:
+                await session.delete(row)
+            continue
+        if row is None:
+            row = ProductGroupPrice(
+                product_id=product_id,
+                price_group_id=entry.price_group_id,
+                price=entry.price,
+            )
+        row.price = entry.price
+        session.add(row)
+    await session.commit()
+    stored = await _stored_group_prices(session, product_id)
+    return [GroupPriceStored(price_group_id=k, price=v) for k, v in stored.items()]
+
+
 @router.post("/publish-drafts", response_model=PublishDraftsResponse)
 async def admin_publish_drafts(
     session: SessionDep,
@@ -247,6 +540,85 @@ async def admin_update_product(
     return ProductPublic.model_validate(updated)
 
 
+class SupplierAttachRequest(BaseModel):
+    """Supplier and reference to attach; both default to the product's own."""
+
+    supplier_name: str | None = Field(default=None, max_length=100)
+    supplier_sku: str | None = Field(default=None, max_length=100)
+
+
+class SupplierAttachResponse(BaseModel):
+    #: ``adopted`` (cost and stock taken now) or ``pending`` (next file import).
+    status: str
+    message: str
+    product: ProductPublic
+
+
+async def _read_product(session: SessionDep, product_id: uuid.UUID) -> Product:
+    try:
+        return await crud_product.read(session=session, id=product_id)
+    except RecordNotFoundError as exc:
+        raise AppError(
+            code="product.not_found",
+            status_code=404,
+            message=f"Product '{product_id}' not found",
+            details={"product_id": str(product_id)},
+        ) from exc
+
+
+@router.post("/{product_id}/attach-supplier", response_model=SupplierAttachResponse)
+async def admin_attach_supplier(
+    session: SessionDep,
+    current_user: CurrentSuperUser,
+    product_id: uuid.UUID,
+    payload: SupplierAttachRequest,
+) -> SupplierAttachResponse:
+    """Attach a product to a supplier reference now (« Rattacher maintenant »).
+
+    API supplier: the reference is fetched and the product adopted on the
+    spot (cost, stock, mapping; the admin's content stays locked). File
+    supplier: the link is recorded, the next import adopts it.
+    """
+    actor_id = current_user.id
+    product = await _read_product(session, product_id)
+    code = payload.supplier_name or product.supplier_name
+    sku = payload.supplier_sku or product.supplier_sku or ""
+    supplier = await _resolve_supplier(session, code)
+    if supplier is None:
+        raise AppError(
+            code="supplier.attach.missing_reference",
+            status_code=400,
+            message="Choisissez le fournisseur et saisissez sa référence (SKU)",
+            details={"product_id": str(product_id)},
+        )
+    outcome = await attach_now(session, product, supplier, supplier_sku=sku)
+    status, message = outcome.status, outcome.message
+    await session.commit()
+    refreshed = await crud_product.read(session=session, id=product_id)
+    await _refresh_parent_of(session, refreshed)
+    logger.info("Admin %s attached product %s (%s)", actor_id, product_id, status)
+    return SupplierAttachResponse(
+        status=status, message=message, product=ProductPublic.model_validate(refreshed)
+    )
+
+
+@router.post("/{product_id}/detach-supplier", response_model=ProductPublic)
+async def admin_detach_supplier(
+    session: SessionDep,
+    current_user: CurrentSuperUser,
+    product_id: uuid.UUID,
+) -> ProductPublic:
+    """Turn a supplier product back into a manual one (« Détacher »)."""
+    actor_id = current_user.id
+    product = await _read_product(session, product_id)
+    await detach(session, product)
+    await session.commit()
+    refreshed = await crud_product.read(session=session, id=product_id)
+    await _refresh_parent_of(session, refreshed)
+    logger.info("Admin %s detached product %s from its supplier", actor_id, product_id)
+    return ProductPublic.model_validate(refreshed)
+
+
 async def _refresh_parent_of(session: SessionDep, product: Product) -> None:
     """A variant changed (price, activity): the parent's « à partir de » follows."""
     parent_id = getattr(product, "parent_product_id", None)
@@ -257,6 +629,8 @@ async def _refresh_parent_of(session: SessionDep, product: Product) -> None:
         return
     await refresh_parent_from_variants(session, parent)
     await session.commit()
+    # The commit expired the variant: reload it for the response.
+    await session.refresh(product)
 
 
 @router.delete("/{product_id}/overrides/{field}", response_model=ProductPublic)

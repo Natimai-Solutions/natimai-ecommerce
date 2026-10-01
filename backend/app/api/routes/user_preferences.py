@@ -17,10 +17,25 @@ from app.features.user.models.user_preference import (
 
 router = APIRouter(prefix="/users/me/preferences", tags=["user"])
 
-_VALID_CURRENCIES = {"XPF", "USD", "EUR", settings.REFERENCE_CURRENCY}
+
+async def valid_currencies(session: SessionDep) -> set[str]:
+    """The reference currency and every currency with an active rate (R7 / L4):
+    a currency the shop cannot convert to is not offered."""
+    from sqlmodel import col, select
+
+    from app.features.product.models.currency_rate import CurrencyRate
+
+    codes = (
+        await session.exec(
+            select(CurrencyRate.currency_code).where(
+                col(CurrencyRate.is_active).is_(True)
+            )
+        )
+    ).all()
+    return {settings.REFERENCE_CURRENCY, *(str(c).upper() for c in codes)}
 
 
-def _validate_update(data: UserPreferenceUpdate) -> None:
+def _validate_update(data: UserPreferenceUpdate, allowed_currencies: set[str]) -> None:
     """Raise AppError on invalid enum-like string fields."""
     if (
         data.default_shipping_preference is not None
@@ -50,7 +65,9 @@ def _validate_update(data: UserPreferenceUpdate) -> None:
                 "allowed": sorted(_VALID_SHIPPING_MODES),
             },
         )
-    if data.locale is not None and data.locale not in _VALID_LOCALES:
+    if data.locale is not None and data.locale not in (
+        _VALID_LOCALES & set(settings.shop_locales)
+    ):
         raise AppError(
             code="user.preference.invalid",
             status_code=400,
@@ -58,10 +75,12 @@ def _validate_update(data: UserPreferenceUpdate) -> None:
             details={
                 "field": "locale",
                 "value": data.locale,
-                "allowed": sorted(_VALID_LOCALES),
+                "allowed": sorted(_VALID_LOCALES & set(settings.shop_locales)),
             },
         )
-    if data.currency_pref is not None and data.currency_pref not in _VALID_CURRENCIES:
+    if data.currency_pref is not None:
+        data.currency_pref = data.currency_pref.strip().upper()
+    if data.currency_pref is not None and data.currency_pref not in allowed_currencies:
         raise AppError(
             code="user.preference.invalid",
             status_code=400,
@@ -69,7 +88,7 @@ def _validate_update(data: UserPreferenceUpdate) -> None:
             details={
                 "field": "currency_pref",
                 "value": data.currency_pref,
-                "allowed": sorted(_VALID_CURRENCIES),
+                "allowed": sorted(allowed_currencies),
             },
         )
 
@@ -93,7 +112,7 @@ async def update_my_preferences(
     data: UserPreferenceUpdate,
 ) -> UserPreferencePublic:
     """Create or partially update the current user's preferences."""
-    _validate_update(data)
+    _validate_update(data, await valid_currencies(session))
     pref = await upsert_preference_for_user(session, user_id=current_user.id, data=data)
     await session.commit()
     await session.refresh(pref)

@@ -18,6 +18,7 @@ from decimal import Decimal
 from sqlalchemy import Column, DateTime
 from sqlmodel import Field, SQLModel
 
+from app.core.config import reference_currency
 from app.features.base.models import Base
 
 RECEIPT_METHODS: tuple[str, ...] = ("cash", "check", "transfer", "card", "other")
@@ -34,7 +35,7 @@ class PaymentReceipt(Base, table=True):
         default=None, foreign_key="orders.id", index=True, nullable=True
     )
     amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
-    currency: str = Field(default="XPF", max_length=10)
+    currency: str = Field(default_factory=reference_currency, max_length=10)
     received_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False)
     )

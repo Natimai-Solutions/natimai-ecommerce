@@ -27,6 +27,7 @@ from typing import Any
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import runtime_settings
 from app.core.alerting import send_alert
 from app.core.config import settings
 from app.features.invoice.models.invoice import Invoice
@@ -36,6 +37,7 @@ from app.features.order.models.order_line import OrderLine
 from app.features.payment.models.payment import Payment
 from app.features.product.models.product import Product
 from app.features.product.models.tax_rate import TaxRate
+from app.features.product.services.tax_settings import load_tax_codes
 from app.features.system.legal_identity import load_legal_identity
 from app.features.user.models.address import Address
 from app.features.user.models.user import User
@@ -83,10 +85,11 @@ async def _resolve_fees_tax_rate_pct(session: AsyncSession) -> Decimal:
     invoice then shows the fees untaxed, which is visible on the document
     rather than silently wrong in the totals.
     """
+    fees_code = (await load_tax_codes(session)).fees_code
     statement = (
         select(TaxRate)
         .where(
-            TaxRate.code == settings.INVOICE_FEES_TAX_CODE,
+            TaxRate.code == fees_code,
             col(TaxRate.is_active).is_(True),
         )
         .order_by(col(TaxRate.valid_from).desc())
@@ -97,7 +100,7 @@ async def _resolve_fees_tax_rate_pct(session: AsyncSession) -> Decimal:
     if tax_rate is None:
         logger.warning(
             "No active TaxRate '%s' — invoice fees will be reported untaxed",
-            settings.INVOICE_FEES_TAX_CODE,
+            fees_code,
         )
         return _ZERO
     return Decimal(str(tax_rate.rate_pct))
@@ -136,7 +139,9 @@ async def _seller_identity(session: AsyncSession) -> dict[str, str]:
         ),
         "email": legal.get("legal_contact_email") or settings.INVOICE_SELLER_EMAIL,
         "phone": legal.get("legal_contact_phone") or settings.INVOICE_SELLER_PHONE,
-        "legal_footer": settings.INVOICE_LEGAL_FOOTER,
+        "legal_footer": str(
+            await runtime_settings.get("invoice_legal_footer", session) or ""
+        ),
     }
     missing = [key for key in ("name", "address", "registration") if not identity[key]]
     if not missing:

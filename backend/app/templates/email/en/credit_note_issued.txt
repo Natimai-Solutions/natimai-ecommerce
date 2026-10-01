@@ -1,0 +1,17 @@
+Hello {{ full_name }},
+
+Credit note {{ credit_note_number }} has been issued for order {{ order_ref or (order_id | short_ref) }}{% if invoice_number %}, correcting invoice {{ invoice_number }}{% endif %}.
+
+Amount credited: {{ total_incl_tax }} {{ currency }}
+of which taxes: {{ total_tax }} {{ currency }}
+{% if reason %}Reason: {{ reason }}
+{% endif %}
+This amount is refunded with the payment method used for the order.
+
+You can download the credit note from your account, “My orders” section:
+{{ account_url }}
+
+Keep this document with your invoice: it corrects its amount.
+
+Thank you for your trust,
+The {{ shop_name }} team

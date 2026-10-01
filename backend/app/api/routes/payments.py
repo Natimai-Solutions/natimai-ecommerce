@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentUser, SessionDep
-from app.core.config import settings
+from app.core.config import reference_currency, settings
 from app.core.errors import AppError
 from app.features.attachment.service import (
     AttachmentValidationError,
@@ -560,7 +560,9 @@ class PaymentsInitiateRequest(BaseModel):
         decimal_places=2,
         description="Amount expressed in the payment currency",
     )
-    currency: str = Field(default="XPF", description="Currency code (XPF, EUR, etc.)")
+    currency: str = Field(
+        default_factory=reference_currency, description="Currency code (XPF, EUR, etc.)"
+    )
     order_id: uuid.UUID | None = Field(
         default=None,
         description="Order ID to associate with payment (optional)",

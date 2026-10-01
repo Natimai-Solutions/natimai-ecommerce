@@ -371,9 +371,9 @@ class CrudBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         pass (no restrictions); users with security groups must have an explicit
         rule granting the requested permission on this CRUD's table.
         """
-        from app.core.config import settings
+        from app.core import runtime_settings
 
-        if not settings.ENABLE_GROUP_PERMISSIONS:
+        if not await runtime_settings.get("enable_group_permissions", session):
             return True
         if user is None:
             return False

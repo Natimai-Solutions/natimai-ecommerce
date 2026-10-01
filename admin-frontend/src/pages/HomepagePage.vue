@@ -1,12 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader title="Accueil du site">
+    <PageHeader :title="$t('homepage.title')">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -15,7 +15,7 @@
           unelevated
           no-caps
           icon="ph:plus"
-          label="Nouveau bloc"
+          :label="$t('homepage.new')"
           data-testid="homepage-new"
           @click="openCreate()"
         />
@@ -23,9 +23,8 @@
     </PageHeader>
 
     <p class="admin-hint">
-      Le <strong>hero</strong> est le grand bandeau en haut de l'accueil (le premier publié
-      s'affiche, sinon un texte par défaut). Les <strong>bannières</strong> suivent, dans l'ordre
-      indiqué. Un bloc programmé n'apparaît qu'entre ses dates de début et de fin.
+      <!-- eslint-disable-next-line vue/no-v-html -- trusted message -->
+      <span v-html="$t('homepage.intro')"></span>
     </p>
 
     <div v-if="error || notice" class="admin-notices">
@@ -51,12 +50,12 @@
         </div>
         <div v-if="!group.blocks.length" class="app-empty">
           <q-icon name="ph:image" size="28px" class="text-subtle" />
-          <h3>{{ group.kind === 'hero' ? 'Aucun hero' : 'Aucune bannière' }}</h3>
+          <h3>{{ group.kind === 'hero' ? $t('homepage.no_hero') : $t('homepage.no_banner') }}</h3>
           <q-btn
             outline
             no-caps
             icon="ph:plus"
-            :label="`Ajouter ${group.kind === 'hero' ? 'un hero' : 'une bannière'}`"
+            :label="group.kind === 'hero' ? $t('homepage.add_hero') : $t('homepage.add_banner')"
             @click="openCreate(group.kind)"
           />
         </div>
@@ -85,7 +84,7 @@
               </q-item-label>
               <q-item-label caption>
                 <template v-if="block.cta_link">
-                  {{ block.cta_label || 'Découvrir' }} → {{ block.cta_link }}
+                  {{ block.cta_label || $t('homepage.discover') }} → {{ block.cta_link }}
                 </template>
                 <template v-if="block.starts_at || block.ends_at">
                   · {{ windowLabel(block) }}
@@ -109,7 +108,7 @@
                   :disable="index === 0"
                   @click="move(group.blocks, index, -1)"
                 >
-                  <q-tooltip>Monter</q-tooltip>
+                  <q-tooltip>{{ $t('homepage.up') }}</q-tooltip>
                 </q-btn>
                 <q-btn
                   flat
@@ -119,10 +118,10 @@
                   :disable="index === group.blocks.length - 1"
                   @click="move(group.blocks, index, 1)"
                 >
-                  <q-tooltip>Descendre</q-tooltip>
+                  <q-tooltip>{{ $t('homepage.down') }}</q-tooltip>
                 </q-btn>
                 <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(block)">
-                  <q-tooltip>Modifier</q-tooltip>
+                  <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
                 </q-btn>
                 <q-btn
                   flat
@@ -133,7 +132,7 @@
                   data-testid="homepage-delete"
                   @click="remove(block)"
                 >
-                  <q-tooltip>Supprimer</q-tooltip>
+                  <q-tooltip>{{ $t('common.delete') }}</q-tooltip>
                 </q-btn>
               </div>
             </q-item-section>
@@ -146,10 +145,10 @@
       <q-card class="app-dialog app-dialog--wide">
         <q-card-section class="app-dialog__head row items-center no-wrap q-gutter-x-sm">
           <h2 class="app-dialog__title col">
-            {{ editingId ? 'Modifier le bloc' : 'Nouveau bloc' }}
+            {{ editingId ? $t('homepage.edit_title') : $t('homepage.new_title') }}
           </h2>
           <q-btn flat round dense icon="ph:x" v-close-popup>
-            <q-tooltip>Fermer</q-tooltip>
+            <q-tooltip>{{ $t('common.close') }}</q-tooltip>
           </q-btn>
         </q-card-section>
         <q-form @submit.prevent="submit">
@@ -158,23 +157,23 @@
             <q-option-group
               v-model="form.kind"
               :options="[
-                { label: 'Hero (grand bandeau du haut)', value: 'hero' },
-                { label: 'Bannière', value: 'banner' },
+                { label: $t('homepage.kind_hero'), value: 'hero' },
+                { label: $t('homepage.kind_banner'), value: 'banner' },
               ]"
               inline
             />
             <q-input
               v-model="form.title"
-              label="Titre *"
+              :label="$t('homepage.block_title')"
               outlined
               dense
               maxlength="200"
-              :rules="[(v: string) => !!v.trim() || 'Titre requis']"
+              :rules="[(v: string) => !!v.trim() || $t('homepage.title_rule')]"
               data-testid="homepage-title"
             />
             <q-input
               v-model="form.subtitle"
-              label="Texte"
+              :label="$t('homepage.text')"
               type="textarea"
               autogrow
               outlined
@@ -185,8 +184,8 @@
               <q-input
                 v-model="form.cta_label"
                 class="col-12 col-sm-4"
-                label="Libellé du bouton"
-                hint="« Voir le catalogue » par défaut"
+                :label="$t('homepage.cta')"
+                :hint="$t('homepage.cta_hint')"
                 outlined
                 dense
                 maxlength="60"
@@ -194,15 +193,15 @@
               <q-input
                 v-model="form.cta_link"
                 class="col-12 col-sm-8"
-                label="Lien"
-                hint="Chemin du site (/catalogue?cat=…) ou adresse https://"
+                :label="$t('homepage.link')"
+                :hint="$t('homepage.link_hint')"
                 outlined
                 dense
                 maxlength="500"
               />
             </div>
 
-            <h3 class="admin-subtitle q-mt-md">Image</h3>
+            <h3 class="admin-subtitle q-mt-md">{{ $t('homepage.image') }}</h3>
             <div class="row items-center q-gutter-md">
               <img v-if="previewSrc" :src="previewSrc" alt="" class="homepage-preview" />
               <div v-else class="homepage-preview homepage-thumb--empty">
@@ -213,7 +212,7 @@
                   outline
                   no-caps
                   icon="ph:images"
-                  label="Choisir dans la médiathèque"
+                  :label="$t('homepage.pick')"
                   data-testid="homepage-pick-image"
                   @click="pickerOpen = true"
                 />
@@ -222,7 +221,7 @@
                   flat
                   dense
                   no-caps
-                  label="Retirer l'image"
+                  :label="$t('homepage.remove_image')"
                   @click="clearImage"
                 />
               </div>
@@ -230,33 +229,33 @@
             <q-input
               v-if="!form.media_id"
               v-model="form.image_url"
-              label="…ou URL d'une image hébergée ailleurs"
+              :label="$t('homepage.external')"
               outlined
               dense
               maxlength="500"
             />
             <q-input
               v-model="form.alt"
-              label="Texte alternatif"
-              hint="Décrit l'image pour les lecteurs d'écran ; laissez vide si décorative"
+              :label="$t('homepage.alt')"
+              :hint="$t('homepage.alt_hint')"
               outlined
               dense
               maxlength="255"
             />
 
-            <h3 class="admin-subtitle q-mt-md">Publication</h3>
+            <h3 class="admin-subtitle q-mt-md">{{ $t('homepage.publication') }}</h3>
             <div class="row q-col-gutter-sm items-center">
               <q-toggle
                 v-model="form.is_published"
                 class="col-12 col-sm-4"
-                label="Publié"
+                :label="$t('homepage.published')"
                 data-testid="homepage-published"
               />
               <q-input
                 v-model="form.starts_at"
                 class="col-12 col-sm-4"
                 type="datetime-local"
-                label="À partir du"
+                :label="$t('homepage.from')"
                 stack-label
                 outlined
                 dense
@@ -266,7 +265,7 @@
                 v-model="form.ends_at"
                 class="col-12 col-sm-4"
                 type="datetime-local"
-                label="Jusqu'au"
+                :label="$t('homepage.until')"
                 stack-label
                 outlined
                 dense
@@ -275,13 +274,13 @@
             </div>
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              label="Enregistrer"
+              :label="$t('common.save')"
               :loading="saving"
               data-testid="homepage-save"
             />
@@ -295,6 +294,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { computed, onMounted, reactive, ref } from 'vue';
 
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -314,6 +314,8 @@ import {
 } from '@/api/homepage';
 import type { MediaAsset } from '@/api/media';
 
+const { t } = useI18n();
+
 type Kind = 'hero' | 'banner';
 
 const blocks = ref<HomepageBlock[]>([]);
@@ -328,31 +330,37 @@ interface BlockGroup {
 }
 
 const groups = computed<BlockGroup[]>(() => [
-  { kind: 'hero', label: 'Hero', blocks: blocks.value.filter((b) => b.kind === 'hero') },
+  {
+    kind: 'hero',
+    label: t('homepage.hero'),
+    blocks: blocks.value.filter((b) => b.kind === 'hero'),
+  },
   {
     kind: 'banner',
-    label: 'Bannières',
+    label: t('homepage.banners'),
     blocks: blocks.value.filter((b) => b.kind === 'banner'),
   },
 ]);
 
 function status(block: HomepageBlock): { label: string; tone: StatusTone; icon: string } {
   if (!block.is_published) {
-    return { label: 'Brouillon', tone: 'neutral', icon: 'ph:pencil-simple-line' };
+    return { label: t('homepage.st_draft'), tone: 'neutral', icon: 'ph:pencil-simple-line' };
   }
   const now = Date.now();
   if (block.starts_at && new Date(block.starts_at).getTime() > now) {
-    return { label: 'Programmé', tone: 'warn', icon: 'ph:clock' };
+    return { label: t('homepage.st_scheduled'), tone: 'warn', icon: 'ph:clock' };
   }
   if (block.ends_at && new Date(block.ends_at).getTime() <= now) {
-    return { label: 'Expiré', tone: 'neutral', icon: 'ph:calendar-x' };
+    return { label: t('homepage.st_expired'), tone: 'neutral', icon: 'ph:calendar-x' };
   }
-  return { label: 'En ligne', tone: 'ok', icon: 'ph:check-circle' };
+  return { label: t('homepage.st_live'), tone: 'ok', icon: 'ph:check-circle' };
 }
 
 function windowLabel(block: HomepageBlock): string {
-  const from = block.starts_at ? `du ${formatDateTime(block.starts_at)}` : '';
-  const to = block.ends_at ? `jusqu'au ${formatDateTime(block.ends_at)}` : '';
+  const from = block.starts_at
+    ? t('homepage.from_date', { date: formatDateTime(block.starts_at) })
+    : '';
+  const to = block.ends_at ? t('homepage.until_date', { date: formatDateTime(block.ends_at) }) : '';
   return [from, to].filter(Boolean).join(' ');
 }
 
@@ -362,7 +370,7 @@ async function load() {
   try {
     blocks.value = await listHomepageBlocks();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -499,10 +507,10 @@ async function submit() {
     if (editingId.value) await saveHomepageBlock(editingId.value, payload);
     else await createHomepageBlock(payload);
     dialog.value = false;
-    notice.value = 'Bloc enregistré.';
+    notice.value = t('homepage.saved');
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    dialogError.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     saving.value = false;
   }
@@ -536,7 +544,7 @@ async function move(list: HomepageBlock[], index: number, delta: number) {
     await Promise.all(reordered.map((b, i) => saveHomepageBlock(b.id, writeOf(b, i))));
     await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Réordonnancement impossible.';
+    error.value = extractApiError(err) ?? t('homepage.reorder_failed');
   }
 }
 
@@ -544,10 +552,10 @@ async function remove(block: HomepageBlock) {
   error.value = null;
   try {
     await deleteHomepageBlock(block.id);
-    notice.value = `« ${block.title} » supprimé.`;
+    notice.value = t('homepage.deleted', { title: block.title });
     await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Suppression impossible.';
+    error.value = extractApiError(err) ?? t('common.delete_failed');
   }
 }
 

@@ -5,30 +5,31 @@
         <div class="login-panel">
           <div class="login-brand">
             <span class="login-brand__mark" aria-hidden="true">N</span>
-            <span>Administration</span>
+            <span>{{ $t('login.administration') }}</span>
           </div>
-          <h1 class="login-title">Connexion</h1>
-          <p class="login-lead">Accès réservé à l'équipe de la boutique.</p>
+          <h1 class="login-title">{{ $t('login.title') }}</h1>
+          <p class="login-lead">{{ $t('login.lead') }}</p>
 
           <q-form class="login-form" @submit.prevent="onSubmit">
             <q-input
               v-model="email"
               type="email"
-              label="Adresse e-mail"
+              :readonly="auth.needsSecondFactor"
+              :label="$t('login.email')"
               data-testid="admin-login-email"
               outlined
               autocomplete="username"
-              :rules="[(v) => !!v || 'Adresse e-mail requise']"
+              :rules="[(v) => !!v || $t('login.email_required')]"
               autofocus
             />
             <q-input
               v-model="password"
               :type="showPassword ? 'text' : 'password'"
-              label="Mot de passe"
+              :label="$t('login.password')"
               data-testid="admin-login-password"
               outlined
               autocomplete="current-password"
-              :rules="[(v) => !!v || 'Mot de passe requis']"
+              :rules="[(v) => !!v || $t('login.password_required')]"
             >
               <template #append>
                 <q-btn
@@ -36,13 +37,27 @@
                   round
                   dense
                   :icon="showPassword ? 'ph:eye-slash' : 'ph:eye'"
-                  :aria-label="
-                    showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'
-                  "
+                  :aria-label="showPassword ? $t('login.hide_password') : $t('login.show_password')"
                   @click="showPassword = !showPassword"
                 />
               </template>
             </q-input>
+
+            <template v-if="auth.needsSecondFactor">
+              <AppNotice tone="info" dense>
+                {{ $t('login.totp_hint') }}
+              </AppNotice>
+              <q-input
+                v-model="totpCode"
+                :label="$t('login.code')"
+                data-testid="admin-login-totp"
+                outlined
+                autofocus
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                :rules="[(v) => !!v || $t('login.code_required')]"
+              />
+            </template>
 
             <AppNotice v-if="auth.loginError" tone="error" dense data-testid="admin-login-error">{{
               auth.loginError
@@ -53,7 +68,7 @@
               color="primary"
               unelevated
               no-caps
-              label="Se connecter"
+              :label="auth.needsSecondFactor ? $t('login.verify') : $t('login.sign_in')"
               class="full-width login-submit"
               data-testid="admin-login-submit"
               :loading="auth.loggingIn"
@@ -75,12 +90,17 @@ import { useAuthStore } from '@/stores/auth';
 const email = ref('');
 const password = ref('');
 const showPassword = ref(false);
+const totpCode = ref('');
 const auth = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 
 async function onSubmit() {
-  const ok = await auth.login(email.value, password.value);
+  const ok = await auth.login(
+    email.value,
+    password.value,
+    auth.needsSecondFactor ? totpCode.value : undefined,
+  );
   if (ok) {
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/';
     await router.replace(redirect);

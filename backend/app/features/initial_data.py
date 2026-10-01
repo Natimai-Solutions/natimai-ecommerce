@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any, TypedDict
 
@@ -8,7 +8,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.features.content.crud import crud_content_page
 from app.features.content.models import ContentPageCreate
-from app.features.departure.services import SOCIAL_WEBHOOK_SETTING_KEY
 from app.features.order.services.status import (
     ALL_ORDER_STATUSES,
     get_or_create_order_status,
@@ -30,24 +29,16 @@ from app.features.payment.providers.manual import (
     MANUAL_STATUS_COMPLETED,
     MANUAL_STATUS_FAILED,
 )
-from app.features.payment.services.provider_settings import (
-    seed_rows as payment_provider_seed_rows,
-)
 from app.features.place.models import Place, PlacePostalCode
 from app.features.product.models.currency_rate import CurrencyRate, CurrencyRateSource
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.tax_rate import TaxRate
-from app.features.product.services.pricing_parameters import PRICING_SETTINGS
 from app.features.shipping.models.carrier import Carrier
 from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.models.status import StatusDefinition, StatusTransition
-from app.features.shipping.services.origin import (
-    CUSTOMS_FREE_COUNTRIES_DESCRIPTION,
-    CUSTOMS_FREE_COUNTRIES_KEY,
-)
-from app.features.system.legal_identity import LEGAL_SETTINGS, seed_value_for
 from app.features.system.models.system_setting import SystemSetting
-from app.features.system.payment_instructions import PAYMENT_INSTRUCTION_SETTINGS
+from app.features.system.modules import seed_rows as module_seed_rows
+from app.features.system.settings_service import seed_settings
 from app.features.user.models.group import Group
 from app.features.user.models.group_security import GroupSecurity
 
@@ -254,7 +245,7 @@ async def _seed_carriers(session: AsyncSession) -> None:
 
 
 async def _seed_tax_rates(session: AsyncSession) -> None:
-    """Seed the tax rates of the territory profile (TGC for PF, TVA for FR).
+    """Seed the tax rates of the territory profile (TVA 16 / 13 / 5 / 0 % for PF, 20 / 10 / 5,5 / 2,1 / 0 % for FR).
 
     Idempotent per (code, territory); rates of another territory are left
     alone, so switching the profile adds the new set without touching the old.
@@ -659,27 +650,6 @@ HOW_IT_WORKS_HTML = """<h2>Des commandes groupées, un prix rendu tout compris</
 """
 
 
-async def _seed_social_webhook_setting(session: AsyncSession) -> None:
-    """Empty ``social_webhook_url`` so the reminders tab has a row to edit."""
-    existing = (
-        await session.exec(
-            select(SystemSetting).where(SystemSetting.key == SOCIAL_WEBHOOK_SETTING_KEY)
-        )
-    ).first()
-    if existing is not None:
-        return
-    session.add(
-        SystemSetting(
-            key=SOCIAL_WEBHOOK_SETTING_KEY,
-            value="",
-            description=(
-                "URL https d'un webhook (Make, Zapier, Buffer…) recevant les rappels "
-                "des départs groupés : {text, link, image_url, departure}"
-            ),
-        )
-    )
-
-
 async def _seed_content_pages(session: AsyncSession) -> None:
     """Seed the « Comment ça marche » page once (idempotent, never overwrites)."""
     if await crud_content_page.get_by_slug(session, "comment-ca-marche") is not None:
@@ -849,100 +819,15 @@ async def _seed_security_groups(session: AsyncSession) -> None:
             )
 
 
-async def _seed_pricing_settings(session: AsyncSession) -> None:
-    """Créer les paramètres de prix éditables (commission de paiement…) à
-    leur valeur par défaut, description rafraîchie, valeur saisie jamais
-    réécrite — même règle que l'identité légale."""
-    for spec in PRICING_SETTINGS:
-        result = await session.exec(
-            select(SystemSetting).where(SystemSetting.key == spec.key)
-        )
-        existing = result.first()
-        if existing is not None:
-            if existing.description != spec.description:
-                existing.description = spec.description
-                session.add(existing)
-            continue
-        session.add(
-            SystemSetting(
-                key=spec.key, value=str(spec.default), description=spec.description
-            )
-        )
-    await session.commit()
+async def _seed_runtime_settings(session: AsyncSession) -> None:
+    """Copier dans la base, au premier démarrage, les valeurs d'environnement
+    qui amorcent un réglage (identité légale ← ``INVOICE_SELLER_*``).
 
-
-async def _seed_legal_identity_settings(session: AsyncSession) -> None:
-    """Créer les clés d'identité légale, vides, pour qu'elles soient éditables.
-
-    Le back-office ne montre que les lignes existantes : sans ce seed, les
-    champs n'apparaîtraient nulle part et personne ne saurait qu'ils sont à
-    remplir. Les valeurs sont amorcées depuis les réglages ``INVOICE_SELLER_*``
-    quand ils existent, pour qu'un déploiement antérieur ne reparte pas de
-    zéro.
-
-    Idempotent, et **ne réécrit jamais une valeur déjà saisie** : ce seed
-    tourne à chaque déploiement, écraser le texte légal saisi par le
-    propriétaire avec la valeur d'une variable d'environnement oubliée serait
-    exactement le genre de régression silencieuse à éviter.
+    Les autres réglages n'ont pas besoin de ligne : sans valeur en base, le
+    registre lit l'environnement puis le défaut, et l'écran Paramètres les
+    liste tous. Ne réécrit jamais une ligne existante.
     """
-    for spec in LEGAL_SETTINGS:
-        result = await session.exec(
-            select(SystemSetting).where(SystemSetting.key == spec.key)
-        )
-        existing = result.first()
-        if existing is not None:
-            # Seule la description est rafraîchie : elle sert d'aide de saisie
-            # dans l'écran admin et peut être améliorée d'une version à l'autre.
-            if existing.description != spec.description:
-                existing.description = spec.description
-                session.add(existing)
-            continue
-
-        session.add(
-            SystemSetting(
-                key=spec.key,
-                value=seed_value_for(spec),
-                description=spec.description,
-            )
-        )
-
-
-async def _seed_payment_instruction_settings(session: AsyncSession) -> None:
-    """Créer, vides, les clés d'instructions des paiements manuels.
-
-    Vides, elles gardent le texte par défaut du moyen de paiement ; créées,
-    elles apparaissent dans l'écran Paramètres où le propriétaire saisit
-    l'adresse du bureau, l'ordre des chèques ou l'IBAN. Ne réécrit jamais une
-    valeur saisie (même règle que l'identité légale).
-    """
-    for spec in PAYMENT_INSTRUCTION_SETTINGS:
-        existing = (
-            await session.exec(
-                select(SystemSetting).where(SystemSetting.key == spec.key)
-            )
-        ).first()
-        if existing is not None:
-            if existing.description != spec.description:
-                existing.description = spec.description
-                session.add(existing)
-            continue
-        session.add(SystemSetting(key=spec.key, value="", description=spec.description))
-
-
-async def _seed_payment_provider_switches(session: AsyncSession) -> None:
-    """Créer les interrupteurs des prestataires (PayZen, PayPal, Stripe) à
-    leur valeur par défaut ; ne réécrit jamais un choix déjà fait."""
-    for row in payment_provider_seed_rows():
-        existing = (
-            await session.exec(
-                select(SystemSetting).where(SystemSetting.key == row.key)
-            )
-        ).first()
-        if existing is None:
-            session.add(row)
-        elif existing.description != row.description:
-            existing.description = row.description
-            session.add(existing)
+    await seed_settings(session)
 
 
 async def _seed_suppliers(session: AsyncSession) -> None:
@@ -962,6 +847,10 @@ async def _seed_suppliers(session: AsyncSession) -> None:
 
     result = await session.exec(select(Supplier).where(Supplier.code == "ingram_micro"))
     supplier = result.first()
+    # SHOP_MODE=simple: declared but switched off, re-enabled from the admin
+    # (Fournisseurs → Réactiver) without a restart. Only at creation: the
+    # admin owns the row afterwards.
+    simple = settings.is_simple_shop
     if supplier is None:
         session.add(
             Supplier(
@@ -971,7 +860,8 @@ async def _seed_suppliers(session: AsyncSession) -> None:
                 adapter_key="ingram_micro",
                 origin_place_id=origin.id if origin is not None else None,
                 is_domestic=False,
-                sync_enabled=bool(settings.INGRAM_SYNC_ENABLED),
+                is_active=not simple,
+                sync_enabled=bool(settings.INGRAM_SYNC_ENABLED) and not simple,
                 sync_interval_hours=int(settings.INGRAM_SYNC_INTERVAL_HOURS),
                 default_categories=list(settings.INGRAM_SYNC_CATEGORIES),
                 settings={
@@ -980,29 +870,75 @@ async def _seed_suppliers(session: AsyncSession) -> None:
                 },
             )
         )
-    elif supplier.origin_place_id is None and origin is not None:
-        supplier.origin_place_id = origin.id
-        session.add(supplier)
+    else:
+        if supplier.origin_place_id is None and origin is not None:
+            supplier.origin_place_id = origin.id
+            session.add(supplier)
+        if simple:
+            await _switch_off_suppliers_once_in_simple_mode(session, supplier)
 
 
-async def _seed_customs_free_countries_setting(session: AsyncSession) -> None:
-    """Create the (empty) customs-free countries key so it is editable in admin."""
-    result = await session.exec(
-        select(SystemSetting).where(SystemSetting.key == CUSTOMS_FREE_COUNTRIES_KEY)
-    )
-    existing = result.first()
-    if existing is not None:
-        if existing.description != CUSTOMS_FREE_COUNTRIES_DESCRIPTION:
-            existing.description = CUSTOMS_FREE_COUNTRIES_DESCRIPTION
-            session.add(existing)
+#: Marker of the one-time switch-off below (never rewritten once present).
+SIMPLE_MODE_SUPPLIERS_MARKER = "seed.simple_mode_suppliers_switched_off"
+
+
+async def _switch_off_suppliers_once_in_simple_mode(
+    session: AsyncSession, supplier: Any
+) -> None:
+    """Carry the old ``SHOP_MODE=simple`` behaviour over, once.
+
+    Until the switches moved to the database, simple mode never scheduled the
+    supplier crons: an ``ingram_micro`` row seeded active stayed idle. The
+    crons now always run, so a simple shop upgraded from that version gets its
+    row switched off here, one time, as it effectively was. The marker keeps
+    this from ever overriding the admin's later « Réactiver ».
+    """
+    marker = (
+        await session.exec(
+            select(SystemSetting).where(
+                SystemSetting.key == SIMPLE_MODE_SUPPLIERS_MARKER
+            )
+        )
+    ).first()
+    if marker is not None:
         return
+    if supplier.is_active or supplier.sync_enabled:
+        supplier.is_active = False
+        supplier.sync_enabled = False
+        supplier.updated_at = datetime.now(timezone.utc)
+        session.add(supplier)
     session.add(
         SystemSetting(
-            key=CUSTOMS_FREE_COUNTRIES_KEY,
-            value="",
-            description=CUSTOMS_FREE_COUNTRIES_DESCRIPTION,
+            key=SIMPLE_MODE_SUPPLIERS_MARKER,
+            value="true",
+            description=(
+                "Mode simple : Ingram a été désactivé une fois lors du passage "
+                "aux réglages en base (ne pas modifier)"
+            ),
         )
     )
+
+
+async def _seed_module_switches(session: AsyncSession) -> None:
+    """Créer les interrupteurs de modules au préréglage de ``SHOP_MODE``.
+
+    Premier démarrage seulement : un interrupteur existant n'est jamais
+    réécrit (l'admin en est maître), seule sa description est rafraîchie.
+    """
+    from app.features.order.models.order import Order
+
+    existing_shop = (await session.exec(select(Order.id).limit(1))).first() is not None
+    for row in module_seed_rows(existing_shop=existing_shop):
+        existing = (
+            await session.exec(
+                select(SystemSetting).where(SystemSetting.key == row.key)
+            )
+        ).first()
+        if existing is None:
+            session.add(row)
+        elif existing.description != row.description:
+            existing.description = row.description
+            session.add(existing)
 
 
 async def initial_data(session: AsyncSession) -> None:
@@ -1027,10 +963,6 @@ async def initial_data(session: AsyncSession) -> None:
     await _seed_shipping_statuses(session)
     await _seed_order_statuses(session)
     await _seed_content_pages(session)
-    await _seed_social_webhook_setting(session)
     await _seed_security_groups(session)
-    await _seed_legal_identity_settings(session)
-    await _seed_payment_instruction_settings(session)
-    await _seed_payment_provider_switches(session)
-    await _seed_pricing_settings(session)
-    await _seed_customs_free_countries_setting(session)
+    await _seed_runtime_settings(session)
+    await _seed_module_switches(session)

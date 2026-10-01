@@ -34,7 +34,6 @@ from app.features.order.models.order_line import OrderLine
 from app.features.order.models.order_status import OrderStatus
 from app.features.order.services.status import DEPARTURE_FOLLOWER_STATUSES
 from app.features.product.models.product import Product
-from app.features.system.models.system_setting import SystemSetting
 
 logger = logging.getLogger(__name__)
 
@@ -353,15 +352,10 @@ async def reschedule_reminders(
 
 
 async def load_social_webhook_url(session: AsyncSession) -> str | None:
-    setting = (
-        await session.exec(
-            select(SystemSetting).where(
-                col(SystemSetting.key) == SOCIAL_WEBHOOK_SETTING_KEY
-            )
-        )
-    ).first()
-    value = (setting.value if setting else "").strip()
-    return value or None
+    from app.core import runtime_settings
+
+    value = str(await runtime_settings.get(SOCIAL_WEBHOOK_SETTING_KEY, session) or "")
+    return value.strip() or None
 
 
 async def publish_reminder(

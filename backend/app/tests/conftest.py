@@ -13,6 +13,17 @@ from app.tests.utils.user import authentication_token_from_email
 from app.tests.utils.utils import get_superuser_token_headers
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _generous_login_throttle() -> Generator[None, None, None]:
+    """The per-IP login throttle (Redis) would count every login the suite
+    makes from the test client's single address. The tests of the throttle
+    use their own keys or mock it; everything else logs in freely."""
+    previous = settings.LOGIN_RATE_LIMIT_ATTEMPTS
+    settings.LOGIN_RATE_LIMIT_ATTEMPTS = 100_000
+    yield
+    settings.LOGIN_RATE_LIMIT_ATTEMPTS = previous
+
+
 @pytest.fixture(autouse=True)
 def arq_queue(monkeypatch: pytest.MonkeyPatch) -> FakeArqRedis:
     """Every job enqueued through ``enqueue_with_dedup`` lands here, not in Redis.
@@ -28,6 +39,60 @@ def arq_queue(monkeypatch: pytest.MonkeyPatch) -> FakeArqRedis:
 
     monkeypatch.setattr("app.core.arq_worker.get_redis_pool", _pool)
     return fake
+
+
+@pytest.fixture(autouse=True)
+def _fresh_module_switches(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> Generator[None, None, None]:
+    """Module switches are cached per process: never carry one across tests.
+
+    Outside the integration suite the database is usually a stand-in (a mock
+    session, a namespace): every module reads as on there, as in a full shop.
+    The integration tests read the real switches.
+    """
+    from app.features.system import modules
+
+    modules.invalidate_cache()
+    if "/integration/" not in str(request.node.path).replace("\\", "/"):
+
+        async def _all_on(_session: object) -> dict[str, bool]:
+            return {spec.key: True for spec in modules.MODULES}
+
+        monkeypatch.setattr(modules, "stored_switches", _all_on)
+    yield
+    modules.invalidate_cache()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_runtime_settings(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> Generator[None, None, None]:
+    """Runtime settings: no snapshot carried across tests, no Redis.
+
+    Outside the integration suite the database is a stand-in: no row is
+    stored, every setting reads its environment value or default (so
+    ``monkeypatch.setattr(settings, …)`` keeps working). The integration
+    tests read the real table, without cache (a row a test inserts is seen
+    at once).
+    """
+    from app.core import runtime_settings
+
+    async def _no_redis() -> None:
+        return None
+
+    monkeypatch.setattr(runtime_settings, "_remote_version", _no_redis)
+    monkeypatch.setattr(runtime_settings, "bump_version", _no_redis)
+    monkeypatch.setattr(runtime_settings, "CACHE_TTL_SECONDS", 0.0)
+    runtime_settings.invalidate_cache()
+    if "/integration/" not in str(request.node.path).replace("\\", "/"):
+
+        async def _no_rows(_session: object) -> dict[str, str]:
+            return {}
+
+        monkeypatch.setattr(runtime_settings, "_load_rows", _no_rows)
+    yield
+    runtime_settings.invalidate_cache()
 
 
 @pytest_asyncio.fixture(scope="session")

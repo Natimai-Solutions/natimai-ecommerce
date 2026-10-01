@@ -1,0 +1,15 @@
+Hello{% if full_name %} {{ full_name }}{% endif %},
+
+A {{ shop_name }} account has just been created for you. To activate it,
+choose your password by opening this link:
+
+{{ invitation_url }}
+
+This link is valid for {{ valid_hours }} hours and works only once.
+After that, ask us for a new link or use “forgot password” on the sign-in
+page.
+
+If you were not expecting this message, ignore it: no access is possible
+without following the link.
+
+The {{ shop_name }} team

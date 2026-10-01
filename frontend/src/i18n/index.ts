@@ -1,5 +1,8 @@
-import enUS from './en-US';
+import en from './en';
+import fr, { type MessageSchema } from './fr';
 
-export default {
-  'en-US': enUS,
-};
+export type { MessageSchema };
+
+const messages: Record<'fr' | 'en', MessageSchema> = { fr, en };
+
+export default messages;

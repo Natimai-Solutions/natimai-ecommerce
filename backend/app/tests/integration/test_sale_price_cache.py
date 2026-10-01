@@ -79,7 +79,7 @@ def _fx(code: str, rate: str, *, valid_from: date | None = None) -> CurrencyRate
 async def test_context_price_matches_the_reference_formula(
     db_session: AsyncSession,
 ) -> None:
-    normal, reduced = _tax("TGC_NORMAL", "16"), _tax("TGC_REDUCED", "5")
+    normal, reduced = _tax("TVA_NORMALE", "16"), _tax("TVA_REDUITE", "5")
     db_session.add_all([normal, reduced, _fx("EUR", "119.33")])
     await db_session.flush()
     category = Category(

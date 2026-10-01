@@ -10,10 +10,10 @@ from __future__ import annotations
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlmodel import col, select
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentSuperUser, SessionDep, module_required
 from app.core.config import settings
 from app.core.errors import AppError
 from app.features.product.models.currency_rate import (
@@ -25,7 +25,11 @@ from app.features.product.models.currency_rate import (
 )
 from app.tasks.pricing_tasks import schedule_price_refresh
 
-router = APIRouter(prefix="/admin/currency-rates", tags=["admin-currency-rates"])
+router = APIRouter(
+    prefix="/admin/currency-rates",
+    tags=["admin-currency-rates"],
+    dependencies=[Depends(module_required("currencies"))],
+)
 
 
 @router.get("", response_model=CurrencyRatesPublic)

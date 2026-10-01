@@ -15,6 +15,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.features.base.crud import CrudBase
 from app.features.inventory.services.availability import (
     available_quantity_expression,
+    local_stock_expression,
+    supplier_stock_expression,
 )
 from app.features.product.models.price_history import (
     REASON_PRODUCT_WRITE,
@@ -41,6 +43,25 @@ from app.features.product.services.publication import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def margin_values(context: PricingContext, product: Product) -> dict[str, Any]:
+    """Cost price and margin to store next to ``sale_price_cached``."""
+    try:
+        figures = context.margin(product, product.sale_price_cached)
+    except Exception as exc:  # noqa: BLE001 - never blocks a price write
+        logger.warning("Margin not computed for product %s: %s", product.id, exc)
+        figures = None
+    return {
+        "unit_cost_cached": figures.unit_cost if figures else None,
+        "margin_cached": figures.margin_amount if figures else None,
+        "margin_pct_cached": figures.margin_pct if figures else None,
+    }
+
+
+def stamp_margin(context: PricingContext, product: Product) -> None:
+    for name, value in margin_values(context, product).items():
+        setattr(product, name, value)
 
 
 class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
@@ -82,6 +103,15 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         """
         if record is None:
             return
+        if getattr(record, "has_variants", False):
+            # The parent is never sold: its price and margin are the cheapest
+            # variant's (« à partir de »), never computed from its own row.
+            from app.features.product.services.variants import (
+                refresh_parent_from_variants,
+            )
+
+            await refresh_parent_from_variants(session, record)
+            return
         previous = record.sale_price_cached
         try:
             context = await PricingContext.for_session(session)
@@ -101,6 +131,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             )
             return
         record.sale_price_cached_at = datetime.now(timezone.utc)
+        stamp_margin(context, record)
         entry = price_change_entry(
             record.id, previous, record.sale_price_cached, reason=REASON_PRODUCT_WRITE
         )
@@ -153,6 +184,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             except CurrencyRateMissing:
                 product.sale_price_cached = None
             product.sale_price_cached_at = now
+            stamp_margin(context, product)
             session.add(product)
             entry = price_change_entry(
                 product.id, previous, product.sale_price_cached, reason=reason
@@ -579,6 +611,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         price_max: Decimal | None = None,
         specs: dict[str, Any] | None = None,
         in_stock: bool | None = None,
+        stock: str | None = None,
         condition: str | None = None,
         limit: int = 24,
         offset: int = 0,
@@ -631,6 +664,11 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             conditions.append(available_quantity_expression() > 0)
         elif in_stock is False:
             conditions.append(available_quantity_expression() <= 0)
+        # Where the stock is: our warehouse, or the supplier.
+        if stock == "local":
+            conditions.append(local_stock_expression() > 0)
+        elif stock == "supplier":
+            conditions.append(supplier_stock_expression() > 0)
         if condition:
             conditions.append(col(Product.condition) == condition)
         if price_min is not None:
@@ -716,6 +754,7 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             return
         now = datetime.now(timezone.utc)
         priced: dict[uuid.UUID, Decimal | None] = {}
+        margins: dict[uuid.UUID, dict[str, Any]] = {}
         for product in products:
             try:
                 priced[product.id] = context.price(product)
@@ -723,6 +762,9 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
                 priced[product.id] = None
             set_committed_value(product, "sale_price_cached", priced[product.id])
             set_committed_value(product, "sale_price_cached_at", now)
+            margins[product.id] = margin_values(context, product)
+            for name, value in margins[product.id].items():
+                set_committed_value(product, name, value)
 
         bind = getattr(session, "bind", None)
         if bind is None or not hasattr(bind, "begin"):
@@ -733,7 +775,11 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
                     await connection.execute(
                         sa_update(Product)
                         .where(col(Product.id) == product_id)
-                        .values(sale_price_cached=price, sale_price_cached_at=now)
+                        .values(
+                            sale_price_cached=price,
+                            sale_price_cached_at=now,
+                            **margins[product_id],
+                        )
                     )
         except Exception as exc:  # noqa: BLE001
             logger.warning("Fallback prices not persisted: %s", exc)
@@ -788,10 +834,31 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         for row in bucket_rows:
             price_ranges[str(row[0])] = int(row[1])
 
+        stock_row = (
+            await session.exec(
+                select(
+                    func.count().filter(local_stock_expression() > 0),
+                    func.count().filter(supplier_stock_expression() > 0),
+                    func.count().filter(col(Product.condition) == "refurbished"),
+                    func.count(),
+                )
+                .select_from(Product)
+                .join(representatives, representatives.c.id == col(Product.id))
+            )
+        ).first()
+        local_count, supplier_count, refurbished_count, total = (
+            (int(v or 0) for v in stock_row) if stock_row else (0, 0, 0, 0)
+        )
+
         return {
             "manufacturers": manufacturers,
             "categories": categories,
             "price_ranges": price_ranges,
+            "stock": {"local": local_count, "supplier": supplier_count},
+            "conditions": {
+                "new": total - refurbished_count,
+                "refurbished": refurbished_count,
+            },
         }
 
 

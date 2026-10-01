@@ -6,13 +6,13 @@
 
     <div class="product-card__info">
       <span class="product-card__brand">
-        {{ brand
-        }}<template v-if="refurbished">
-          <span v-if="brand" aria-hidden="true"> · </span>
-          <span class="product-card__condition" data-testid="product-condition">{{
-            conditionLabel(product)
-          }}</span>
-        </template>
+        {{ brand }}<span v-if="brand" aria-hidden="true"> · </span
+        ><span
+          class="product-card__condition"
+          :class="{ 'product-card__condition--refurbished': refurbished }"
+          data-testid="product-condition"
+          >{{ conditionLabel(product, tr) }}</span
+        >
       </span>
       <router-link :to="productRoute" class="product-card__name">{{ product.name }}</router-link>
       <span v-if="product.vendor_part_number" class="product-card__ref font-mono">
@@ -22,10 +22,17 @@
 
     <div class="product-card__buy">
       <div class="product-card__meta">
-        <span v-if="isQuote" class="product-card__price">Prix sur devis</span>
+        <span v-if="isQuote" class="product-card__price">{{ $t('card.on_quote') }}</span>
         <span v-else class="product-card__price">
-          <span v-if="product.has_variants" class="product-card__from">À partir de</span>
-          <span class="font-mono">{{ displayPrice }}</span>
+          <span v-if="product.has_variants" class="product-card__from">{{ $t('card.from') }}</span>
+          <span class="font-mono" :class="{ 'product-card__promo-price': regularPrice }">{{
+            displayPrice
+          }}</span>
+          <span class="product-card__tax">{{ $t('card.incl_tax') }}</span>
+        </span>
+        <span v-if="regularPrice" class="product-card__promo" data-testid="product-card-promo">
+          <s class="font-mono">{{ regularPrice }}</s>
+          <span class="product-card__promo-badge">{{ promoBadge }}</span>
         </span>
 
         <span
@@ -33,23 +40,31 @@
           :class="{
             'product-card__stock--order': availability.preorder || !availability.orderable,
           }"
+          data-testid="product-card-stock"
+          :data-source="availability.source"
         >
           <span
             class="stock-dot"
-            :class="{ 'stock-dot--order': availability.preorder || !availability.orderable }"
+            :class="{
+              'stock-dot--order': availability.preorder || !availability.orderable,
+              'stock-dot--supplier': availability.source === 'supplier',
+            }"
             aria-hidden="true"
           />{{ availability.label }}
         </span>
-        <span v-if="departureStore.deliveryLabel" class="product-card__offers">
-          {{ departureStore.deliveryLabel }}
+        <span v-if="availability.note" class="product-card__offers">
+          {{ availability.note }}
+        </span>
+        <span v-if="showDeparture" class="product-card__offers">
+          {{ nextDelivery }}
         </span>
 
         <span v-if="variantsCount > 1" class="product-card__offers">
-          {{ variantsCount }} déclinaisons
+          {{ $t('card.variants', { n: variantsCount }) }}
         </span>
 
         <span v-if="offersCount > 1" class="product-card__offers">
-          {{ offersCount }} offres, meilleur prix affiché
+          {{ $t('card.offers', { n: offersCount }) }}
         </span>
       </div>
 
@@ -58,7 +73,7 @@
         :to="productRoute"
         class="product-card__add"
         data-testid="product-choose-variant"
-        :aria-label="`Choisir une déclinaison de ${product.name}`"
+        :aria-label="$t('card.choose_variant', { name: product.name })"
       >
         <q-icon name="ph:arrow-right" size="20px" />
       </router-link>
@@ -70,8 +85,8 @@
         :disabled="!availability.orderable"
         :aria-label="
           availability.orderable
-            ? `Ajouter ${product.name} au panier`
-            : 'Indisponible pour le moment'
+            ? $t('card.add', { name: product.name })
+            : $t('card.unavailable_now')
         "
         @click="emit('add-to-cart', product)"
       >
@@ -87,7 +102,8 @@ import type { components } from '@app/api-types';
 import ProductImage from '@/components/ProductImage.vue';
 import { getProductRoute } from '@/utils/productRoute';
 import { useCurrencyStore } from '@/stores/currency';
-import { useDepartureStore } from '@/stores/departure';
+import { useDepartureLabels } from '@/composables/useDepartureLabels';
+import { useTranslate } from '@/composables/useTranslate';
 import { conditionLabel, isRefurbished, productAvailability } from '@/utils/availability';
 
 // `offers_count` is served by the backend (search grouping of the same item
@@ -104,14 +120,31 @@ const productRoute = computed(() => getProductRoute(props.product));
 const imageUrl = computed(() => props.product.image_url ?? props.product.supplier_image_url);
 const brand = computed(() => props.product.manufacturer ?? props.product.supplier_name ?? '');
 
-const departureStore = useDepartureStore();
-const availability = computed(() => productAvailability(props.product));
+const tr = useTranslate();
+const { nextDelivery } = useDepartureLabels();
+const availability = computed(() => productAvailability(props.product, tr));
 const refurbished = computed(() => isRefurbished(props.product));
+// Our warehouse stock does not wait for the grouped departure's date.
+const showDeparture = computed(
+  () =>
+    !!nextDelivery.value && availability.value.orderable && availability.value.source !== 'local',
+);
 const variantsCount = computed(() => props.product.variants_count ?? 0);
 
 const isQuote = computed(() => parseFloat(props.product.base_price) === 0);
 // A parent is listed at its cheapest variant, prefixed « À partir de ».
 const displayPrice = computed(() => currencyStore.format(parseFloat(props.product.base_price)));
+// Promotion : le prix habituel du client, barré, et la remise obtenue.
+const regularPrice = computed(() => {
+  const regular = props.product.regular_price;
+  return regular ? currencyStore.format(parseFloat(regular)) : null;
+});
+const promoBadge = computed(() => {
+  const regular = parseFloat(props.product.regular_price ?? '0');
+  const price = parseFloat(props.product.base_price);
+  if (!(regular > 0) || !(price < regular)) return tr('card.promo');
+  return `−${Math.round((1 - price / regular) * 100)} %`;
+});
 </script>
 
 <style scoped lang="scss">
@@ -187,6 +220,33 @@ const displayPrice = computed(() => currencyStore.format(parseFloat(props.produc
   gap: 6px;
 }
 
+.product-card__promo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--n-ink-2);
+}
+
+.product-card__promo-badge {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  color: var(--n-on-accent);
+  background: var(--n-accent);
+}
+
+.product-card__promo-price {
+  color: var(--n-accent);
+}
+
+.product-card__tax {
+  margin-left: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--n-ink-2);
+}
+
 .product-card__price {
   font-size: 17px;
   font-weight: 600;
@@ -203,7 +263,12 @@ const displayPrice = computed(() => currencyStore.format(parseFloat(props.produc
 }
 
 .product-card__condition {
-  color: var(--n-ink);
+  color: var(--n-ink-3);
+
+  &--refurbished {
+    color: var(--n-ink);
+    font-weight: 600;
+  }
 }
 
 .product-card__stock {

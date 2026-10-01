@@ -22,10 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
-from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
-
-from app.features.system.models.system_setting import SystemSetting
 
 
 @dataclass(frozen=True)
@@ -42,6 +39,7 @@ class PricingParameterSpec:
 
 PAYMENT_COMMISSION_KEY = "pricing_payment_commission_pct"
 FX_SAFETY_MARGIN_KEY = "pricing_fx_safety_margin_pct"
+INSURANCE_RATE_KEY = "insurance_rate_pct"
 
 PRICING_SETTINGS: tuple[PricingParameterSpec, ...] = (
     PricingParameterSpec(
@@ -91,23 +89,21 @@ class PricingParameters:
 
     payment_commission_pct: Decimal = Decimal("0")
     fx_safety_margin_pct: Decimal = Decimal("0")
+    #: Transport insurance, % of the goods + freight (runtime setting
+    #: ``insurance_rate_pct``, fallback ``INSURANCE_RATE_PCT``).
+    insurance_rate_pct: Decimal = Decimal("0")
 
 
 async def load_pricing_parameters(session: AsyncSession) -> PricingParameters:
-    """Read the pricing settings; an absent or unparsable row is its default."""
-    result = await session.exec(
-        select(SystemSetting).where(col(SystemSetting.key).in_(PRICING_SETTING_KEYS))
+    """Read the pricing settings (runtime registry); an absent or unparsable
+    row is its default."""
+    from app.core import runtime_settings
+
+    values = await runtime_settings.get_many(
+        [*PRICING_SETTING_KEYS, INSURANCE_RATE_KEY], session
     )
-    values: dict[str, Decimal] = {s.key: s.default for s in PRICING_SETTINGS}
-    for row in result.all():
-        key = getattr(row, "key", None)
-        if key not in _SPEC_BY_KEY:
-            continue
-        try:
-            values[key] = parse_pricing_value(key, str(getattr(row, "value", "")))
-        except ValueError:
-            continue
     return PricingParameters(
+        insurance_rate_pct=Decimal(str(values[INSURANCE_RATE_KEY] or 0)),
         payment_commission_pct=values[PAYMENT_COMMISSION_KEY],
         fx_safety_margin_pct=values[FX_SAFETY_MARGIN_KEY],
     )

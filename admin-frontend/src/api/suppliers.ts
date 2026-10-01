@@ -1,13 +1,15 @@
+import { labels } from '@/i18n/global';
 import { api } from '@/boot/api';
+import type { ProductPublic } from '@/stores/products';
 
 /** Méthode d'approvisionnement d'un fournisseur (voir backend `SupplierKind`). */
 export type SupplierKind = 'manual' | 'file' | 'api';
 
-export const SUPPLIER_KIND_LABELS: Record<SupplierKind, string> = {
-  manual: 'Générique (saisie manuelle)',
-  file: 'Fichier CSV / Excel',
-  api: 'API (intégration)',
-};
+export const SUPPLIER_KIND_LABELS: Record<SupplierKind, string> = labels({
+  manual: 'api.supplier_kind.manual',
+  file: 'api.supplier_kind.file',
+  api: 'api.supplier_kind.api',
+});
 
 export interface Supplier {
   id: string;
@@ -27,6 +29,16 @@ export interface Supplier {
   sku_allowlist: string[] | null;
   /** Les nouveaux articles de ce fournisseur arrivent en brouillon (publiés par l'admin). */
   import_as_draft: boolean;
+  /** Sort des articles dont la catégorie fournisseur n'a pas de règle. */
+  unmapped_category_action: UnmappedCategoryAction;
+  /** Commande fournisseur passée automatiquement à l'encaissement (intégration qui sait commander). */
+  auto_purchase_order: boolean;
+  /** Des identifiants (flux fichier) sont enregistrés, chiffrés — jamais renvoyés. */
+  has_credentials?: boolean;
+  /** Import fichier : quantité minimale d'une ligne (null = pas de seuil). */
+  min_quantity: string | null;
+  /** Import fichier : prix d'achat minimal, dans la devise du fichier (null = pas de seuil). */
+  min_price: string | null;
   settings: Record<string, unknown> | null;
   contact_email: string | null;
   contact_phone: string | null;
@@ -36,6 +48,8 @@ export interface Supplier {
   updated_at: string;
   /** kind=api : l'intégration existe et ses identifiants sont présents. */
   configured: boolean;
+  /** Réponse de la désactivation : articles retirés (stock à zéro / masqués). */
+  products_withdrawn?: number | null;
 }
 
 export interface SupplierCreate {
@@ -50,6 +64,10 @@ export interface SupplierCreate {
   default_categories?: string[] | null;
   price_currency?: string | null;
   column_mapping?: Record<string, string> | null;
+  unmapped_category_action?: UnmappedCategoryAction;
+  auto_purchase_order?: boolean;
+  min_quantity?: number | null;
+  min_price?: number | null;
   import_as_draft?: boolean;
   settings?: Record<string, unknown> | null;
   contact_email?: string | null;
@@ -64,6 +82,10 @@ export interface AdapterDescriptor {
   display_name: string;
   configured: boolean;
   settings_keys: string[];
+  /** L'intégration sait passer une commande fournisseur. */
+  supports_purchase_orders?: boolean;
+  /** Schéma JSON de `Supplier.settings` pour cette intégration (R5 / C4). */
+  settings_schema?: Record<string, unknown>;
 }
 
 export interface FileInspectResponse {
@@ -95,20 +117,20 @@ export interface FileImportResolutionRow {
   message: string | null;
 }
 
-export const MATCH_KEY_LABELS: Record<ImportMatchKey, string> = {
-  mapping: 'référence (déjà liée)',
-  supplier_sku: 'référence fournisseur',
-  gtin: 'code-barres EAN/UPC',
-  manufacturer_part: 'marque + réf. fabricant',
-};
+export const MATCH_KEY_LABELS: Record<ImportMatchKey, string> = labels({
+  mapping: 'api.match_key.mapping',
+  supplier_sku: 'api.match_key.supplier_sku',
+  gtin: 'api.match_key.gtin',
+  manufacturer_part: 'api.match_key.manufacturer_part',
+});
 
-export const RESOLUTION_ACTION_LABELS: Record<ImportResolutionAction, string> = {
-  new: 'Nouveau',
-  updated: 'Mise à jour',
-  adopted: 'Adopté (article saisi à la main)',
-  ambiguous: 'Ambigu — non traité',
-  skipped: 'Ignoré',
-};
+export const RESOLUTION_ACTION_LABELS: Record<ImportResolutionAction, string> = labels({
+  new: 'api.resolution_action.new',
+  updated: 'api.resolution_action.updated',
+  adopted: 'api.resolution_action.adopted',
+  ambiguous: 'api.resolution_action.ambiguous',
+  skipped: 'api.resolution_action.skipped',
+});
 
 export interface FileImportResponse {
   supplier_name: string;
@@ -133,6 +155,8 @@ export interface FileImportResponse {
   sample_resolutions: FileImportResolutionRow[];
   /** Simulation d'un gros fichier : seules les N premières lignes ont été rapprochées. */
   resolution_limited_to: number | null;
+  /** Simulation : chaque couple (catégorie, sous-catégorie) du fichier et son sort. */
+  category_pairs?: ObservedCategory[];
 }
 
 export type ImportStatus = 'pending' | 'running' | 'success' | 'partial' | 'failed';
@@ -173,23 +197,23 @@ export interface HealthResponse {
 }
 
 /** Libellés des champs internes qu'un mapping de colonnes peut viser. */
-export const MAPPING_TARGET_LABELS: Record<string, string> = {
-  supplier_sku: 'Référence fournisseur (SKU) *',
-  name: 'Désignation *',
-  description: 'Description',
-  manufacturer: 'Marque / fabricant',
-  vendor_part_number: 'Référence fabricant',
-  category: 'Catégorie fournisseur',
-  subcategory: 'Sous-catégorie (→ catégorie interne)',
-  price: 'Prix d’achat (coût)',
-  currency: 'Devise du prix',
-  quantity: 'Stock disponible',
-  weight: 'Poids (kg)',
-  image_url: 'URL image',
-  spec_url: 'URL fiche technique',
-  upc: 'UPC',
-  ean: 'EAN',
-};
+export const MAPPING_TARGET_LABELS: Record<string, string> = labels({
+  supplier_sku: 'api.mapping_target.supplier_sku',
+  name: 'api.mapping_target.name',
+  description: 'api.mapping_target.description',
+  manufacturer: 'api.mapping_target.manufacturer',
+  vendor_part_number: 'api.mapping_target.vendor_part_number',
+  category: 'api.mapping_target.category',
+  subcategory: 'api.mapping_target.subcategory',
+  price: 'api.mapping_target.price',
+  currency: 'api.mapping_target.currency',
+  quantity: 'api.mapping_target.quantity',
+  weight: 'api.mapping_target.weight',
+  image_url: 'api.mapping_target.image_url',
+  spec_url: 'api.mapping_target.spec_url',
+  upc: 'api.mapping_target.upc',
+  ean: 'api.mapping_target.ean',
+});
 
 export async function listSuppliers(): Promise<Supplier[]> {
   const { data } = await api.get<{ data: Supplier[]; count: number }>('/admin/suppliers');
@@ -211,8 +235,16 @@ export async function updateSupplier(code: string, payload: SupplierUpdate): Pro
   return data;
 }
 
-export async function deactivateSupplier(code: string): Promise<Supplier> {
-  const { data } = await api.delete<Supplier>(`/admin/suppliers/${code}`);
+/** Sort des articles d'un fournisseur désactivé. */
+export type SupplierWithdrawal = 'keep' | 'zero_stock' | 'hide';
+
+export async function deactivateSupplier(
+  code: string,
+  products: SupplierWithdrawal = 'keep',
+): Promise<Supplier> {
+  const { data } = await api.delete<Supplier>(`/admin/suppliers/${code}`, {
+    params: { products },
+  });
   return data;
 }
 
@@ -264,12 +296,24 @@ export async function inspectCatalogFile(code: string, file: File): Promise<File
 export async function importCatalogFile(
   code: string,
   file: File,
-  options: { mapping?: Record<string, string> | null; dryRun?: boolean; publishNew?: boolean },
+  options: {
+    mapping?: Record<string, string> | null;
+    dryRun?: boolean;
+    publishNew?: boolean;
+    /** Seuils de cet import ; absents = ceux du fournisseur, 0 = aucun. */
+    minQuantity?: number | null;
+    minPrice?: number | null;
+    /** Catégorie boutique des lignes que les règles ne placent pas. */
+    defaultCategoryId?: string | null;
+  },
 ): Promise<FileImportResponse> {
   const form = new FormData();
   form.append('file', file);
   if (options.mapping) form.append('mapping', JSON.stringify(options.mapping));
   form.append('publish_new', options.publishNew === false ? 'false' : 'true');
+  if (options.minQuantity != null) form.append('min_quantity', String(options.minQuantity));
+  if (options.minPrice != null) form.append('min_price', String(options.minPrice));
+  if (options.defaultCategoryId) form.append('default_category_id', options.defaultCategoryId);
   const { data } = await api.post<FileImportResponse>(`/suppliers/${code}/import-file`, form, {
     headers: { 'Content-Type': 'multipart/form-data' },
     params: { dry_run: options.dryRun ? 'true' : 'false' },
@@ -294,5 +338,143 @@ export async function triggerInventorySync(code: string): Promise<SyncResponse> 
 
 export async function checkSupplierHealth(code: string): Promise<HealthResponse> {
   const { data } = await api.get<HealthResponse>(`/suppliers/${code}/health`);
+  return data;
+}
+
+/** « Rattacher maintenant » : `adopted` = coût et stock repris ; `pending` = au prochain import. */
+export interface SupplierAttachResponse {
+  status: 'adopted' | 'pending';
+  message: string;
+  product: ProductPublic;
+}
+
+export async function attachProductToSupplier(
+  productId: string,
+  payload: { supplier_name?: string | null; supplier_sku?: string | null },
+): Promise<SupplierAttachResponse> {
+  const { data } = await api.post<SupplierAttachResponse>(
+    `/admin/products/${productId}/attach-supplier`,
+    payload,
+  );
+  return data;
+}
+
+/** « Détacher » : l'article redevient manuel (verrous conservés, stock fournisseur à 0). */
+export async function detachProductFromSupplier(productId: string): Promise<ProductPublic> {
+  const { data } = await api.post<ProductPublic>(`/admin/products/${productId}/detach-supplier`);
+  return data;
+}
+
+// --- Mappage des catégories fournisseur → boutique (R4 / S5) ---------------
+
+export type CategoryMappingAction = 'import' | 'draft' | 'deactivate' | 'skip';
+export type UnmappedCategoryAction = 'auto' | 'draft' | 'deactivate' | 'skip';
+
+export const CATEGORY_ACTION_LABELS: Record<CategoryMappingAction, string> = labels({
+  import: 'api.category_action.import',
+  draft: 'api.category_action.draft',
+  deactivate: 'api.category_action.deactivate',
+  skip: 'api.category_action.skip',
+});
+
+export const UNMAPPED_ACTION_LABELS: Record<UnmappedCategoryAction, string> = labels({
+  auto: 'api.unmapped_action.auto',
+  draft: 'api.unmapped_action.draft',
+  deactivate: 'api.unmapped_action.deactivate',
+  skip: 'api.unmapped_action.skip',
+});
+
+/** Ce que l'import fera d'un couple (import | draft | deactivate | skip | filtered). */
+export const CATEGORY_EFFECT_LABELS: Record<string, string> = labels({
+  import: 'api.category_effect.import',
+  draft: 'api.category_effect.draft',
+  deactivate: 'api.category_effect.deactivate',
+  skip: 'api.category_effect.skip',
+  filtered: 'api.category_effect.filtered',
+});
+
+export interface CategoryMapping {
+  id: string;
+  source_category: string | null;
+  source_subcategory: string | null;
+  /** Catégorie boutique ; null = au nom de la source (créée au besoin). */
+  category_id: string | null;
+  category_name: string | null;
+  action: CategoryMappingAction;
+  updated_at: string;
+}
+
+export interface CategoryMappingWrite {
+  source_category: string | null;
+  source_subcategory: string | null;
+  category_id: string | null;
+  action: CategoryMappingAction;
+}
+
+export interface ObservedCategory {
+  source_category: string | null;
+  source_subcategory: string | null;
+  count: number;
+  mapping: CategoryMapping | null;
+  resolved_category_name: string | null;
+  effect: string;
+}
+
+export async function listCategoryMappings(code: string): Promise<CategoryMapping[]> {
+  const { data } = await api.get<CategoryMapping[]>(`/admin/suppliers/${code}/category-mappings`);
+  return data;
+}
+
+export async function saveCategoryMappings(
+  code: string,
+  rules: CategoryMappingWrite[],
+): Promise<CategoryMapping[]> {
+  const { data } = await api.put<CategoryMapping[]>(
+    `/admin/suppliers/${code}/category-mappings`,
+    rules,
+  );
+  return data;
+}
+
+export async function deleteCategoryMapping(code: string, mappingId: string): Promise<void> {
+  await api.delete(`/admin/suppliers/${code}/category-mappings/${mappingId}`);
+}
+
+export async function reapplyCategoryMappings(
+  code: string,
+): Promise<{ moved: number; deactivated: number }> {
+  const { data } = await api.post<{ moved: number; deactivated: number }>(
+    `/admin/suppliers/${code}/category-mappings/reapply`,
+  );
+  return data;
+}
+
+export async function listObservedCategories(code: string): Promise<ObservedCategory[]> {
+  const { data } = await api.get<ObservedCategory[]>(
+    `/admin/suppliers/${code}/observed-categories`,
+  );
+  return data;
+}
+
+// --- Fichier en ligne (R4 / S3) ---------------------------------------------
+
+export const FEED_ADAPTER_KEY = 'file_feed';
+
+export async function saveSupplierCredentials(
+  code: string,
+  credentials: { username: string; password: string },
+): Promise<Supplier> {
+  const { data } = await api.put<Supplier>(`/admin/suppliers/${code}/credentials`, credentials);
+  return data;
+}
+
+export async function deleteSupplierCredentials(code: string): Promise<Supplier> {
+  const { data } = await api.delete<Supplier>(`/admin/suppliers/${code}/credentials`);
+  return data;
+}
+
+/** Télécharge le flux du fournisseur et renvoie ses en-têtes (même forme qu'un fichier). */
+export async function inspectSupplierFeed(code: string): Promise<FileInspectResponse> {
+  const { data } = await api.post<FileInspectResponse>(`/admin/suppliers/${code}/feed/inspect`);
   return data;
 }

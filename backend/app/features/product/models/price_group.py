@@ -19,6 +19,18 @@ class PriceGroupBase(Base):
         decimal_places=2,
         description="Margin percentage applied for this group",
     )
+    discount_pct: Decimal = Field(
+        default=Decimal("0.00"),
+        ge=0,
+        lt=100,
+        max_digits=5,
+        decimal_places=2,
+        description=(
+            "Remise du groupe en % du prix de référence (tous les articles, "
+            "prix calculés comme prix fixés) ; un prix saisi pour le groupe sur "
+            "l'article passe avant"
+        ),
+    )
     default: bool = Field(
         default=False,
         index=True,
@@ -71,6 +83,7 @@ class PriceGroupUpdate(BaseUpdate):
     code: str | None = None
     label: str | None = None
     margin_rate_pct: Decimal | None = None
+    discount_pct: Decimal | None = Field(default=None, ge=0, lt=100)
     default: bool | None = None
     requires_validation: bool | None = None
     deposit_pct: Decimal | None = None

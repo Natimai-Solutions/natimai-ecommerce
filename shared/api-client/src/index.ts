@@ -11,6 +11,8 @@ export interface ApiClientOptions {
   clearTokens?: () => void
   /** Invoked when an authenticated session could not be refreshed. */
   onUnauthorized?: () => void
+  /** Interface language, sent as `Accept-Language` (messages and e-mails follow it). */
+  getLocale?: () => string | null
 }
 
 export function createApiClient(options: ApiClientOptions): AxiosInstance {
@@ -25,6 +27,8 @@ export function createApiClient(options: ApiClientOptions): AxiosInstance {
   client.interceptors.request.use((config) => {
     const token = options.getAccessToken?.()
     if (token) config.headers.Authorization = `Bearer ${token}`
+    const locale = options.getLocale?.()
+    if (locale) config.headers['Accept-Language'] = locale
     return config
   })
 

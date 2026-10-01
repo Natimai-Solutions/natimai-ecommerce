@@ -2,8 +2,8 @@
   <div>
     <section class="app-section">
       <div class="app-section__head">
-        <h2 class="app-section__title">Profil</h2>
-        <p class="app-section__hint">Ces informations figurent sur vos commandes et factures.</p>
+        <h2 class="app-section__title">{{ $t('profile.title') }}</h2>
+        <p class="app-section__hint">{{ $t('profile.hint') }}</p>
       </div>
 
       <div v-if="loading" class="app-form" aria-busy="true">
@@ -12,16 +12,16 @@
 
       <AppNotice v-else-if="loadError" tone="error">
         {{ loadError }}
-        <template #action><q-btn flat label="Réessayer" @click="load" /></template>
+        <template #action><q-btn flat :label="$t('profile.retry')" @click="load" /></template>
       </AppNotice>
 
       <q-form v-else class="app-form" data-testid="account-profile" @submit.prevent="saveProfile">
         <q-input
           :model-value="profile?.email ?? ''"
-          label="Adresse e-mail"
+          :label="$t('profile.email')"
           outlined
           readonly
-          hint="Pour changer d'adresse e-mail, contactez-nous."
+          :hint="$t('profile.email_hint')"
           bottom-slots
         >
           <template #append>
@@ -30,13 +30,13 @@
               name="ph:seal-check"
               size="20px"
               class="profile__verified"
-              aria-label="Adresse vérifiée"
+              :aria-label="$t('profile.verified')"
             />
           </template>
         </q-input>
         <q-input
           v-model="form.full_name"
-          label="Nom complet"
+          :label="$t('profile.full_name')"
           outlined
           autocomplete="name"
           maxlength="255"
@@ -44,27 +44,27 @@
         />
         <q-input
           v-model="form.phone"
-          label="Téléphone"
+          :label="$t('profile.phone')"
           outlined
           type="tel"
           autocomplete="tel"
           maxlength="50"
-          hint="Pour vous joindre au sujet d'une livraison."
+          :hint="$t('profile.phone_hint')"
           bottom-slots
         />
         <AppNotice v-if="profileError" dense tone="error">{{ profileError }}</AppNotice>
-        <AppNotice v-if="profileSaved" dense tone="success">Profil enregistré.</AppNotice>
+        <AppNotice v-if="profileSaved" dense tone="success">{{ $t('profile.saved') }}</AppNotice>
         <div class="app-form__actions">
           <q-btn
             type="submit"
             unelevated
             color="primary"
-            label="Enregistrer"
+            :label="$t('profile.save')"
             :loading="savingProfile"
             :disable="!profileDirty"
           />
           <span v-if="profile?.created_at" class="profile__since">
-            Client depuis le {{ formatDate(profile.created_at) }}
+            {{ $t('profile.since', { date: formatDate(profile.created_at) }) }}
           </span>
         </div>
       </q-form>
@@ -72,16 +72,16 @@
 
     <section class="app-section">
       <div class="app-section__head">
-        <h2 class="app-section__title">Mot de passe</h2>
+        <h2 class="app-section__title">{{ $t('profile.password_title') }}</h2>
         <p class="app-section__hint">
-          Vous serez déconnecté de tous vos appareils et invité à vous reconnecter.
+          {{ $t('profile.password_hint') }}
         </p>
       </div>
 
       <q-form class="app-form" data-testid="account-password" @submit.prevent="savePassword">
         <q-input
           v-model="password.current"
-          label="Mot de passe actuel"
+          :label="$t('profile.current')"
           outlined
           :type="showPasswords ? 'text' : 'password'"
           autocomplete="current-password"
@@ -91,26 +91,26 @@
         />
         <q-input
           v-model="password.next"
-          label="Nouveau mot de passe"
+          :label="$t('profile.next')"
           outlined
           :type="showPasswords ? 'text' : 'password'"
           autocomplete="new-password"
-          hint="8 caractères au moins."
-          :rules="[(v: string) => !v || v.length >= 8 || '8 caractères au moins.']"
+          :hint="$t('profile.min_8')"
+          :rules="[(v: string) => !v || v.length >= 8 || $t('profile.min_8_rule')]"
           lazy-rules
           bottom-slots
         />
         <q-input
           v-model="password.confirm"
-          label="Confirmer le nouveau mot de passe"
+          :label="$t('profile.confirm')"
           outlined
           :type="showPasswords ? 'text' : 'password'"
           autocomplete="new-password"
-          :rules="[(v: string) => !v || v === password.next || 'Les deux saisies diffèrent.']"
+          :rules="[(v: string) => !v || v === password.next || $t('profile.mismatch')]"
           lazy-rules
           bottom-slots
         />
-        <q-checkbox v-model="showPasswords" label="Afficher les mots de passe" dense />
+        <q-checkbox v-model="showPasswords" :label="$t('profile.show')" dense />
         <AppNotice v-if="passwordError" dense tone="error" class="q-mt-sm">
           {{ passwordError }}
         </AppNotice>
@@ -119,12 +119,12 @@
             type="submit"
             unelevated
             color="primary"
-            label="Changer le mot de passe"
+            :label="$t('profile.change')"
             :loading="savingPassword"
             :disable="!passwordReady"
           />
           <router-link :to="{ name: 'forgot-password' }" class="text-link">
-            Mot de passe oublié ou compte Google / Microsoft ?
+            {{ $t('profile.forgot') }}
           </router-link>
         </div>
       </q-form>
@@ -133,6 +133,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { formatDate } from '@app/utils';
@@ -141,6 +142,8 @@ import AppNotice from '@app/ui/AppNotice.vue';
 import { changeMyPassword, getMyProfile, updateMyProfile, type MyProfile } from '@/api/profile';
 import { useAuthStore } from '@/stores/auth';
 import { apiErrorCode, apiErrorMessage } from '@/utils/errors';
+
+const { t } = useI18n();
 
 const emit = defineEmits<{ updated: [profile: MyProfile] }>();
 
@@ -174,7 +177,7 @@ async function load() {
   try {
     fill(await getMyProfile());
   } catch (err) {
-    loadError.value = apiErrorMessage(err) ?? 'Impossible de charger votre profil.';
+    loadError.value = apiErrorMessage(err) ?? t('profile.load_failed');
   } finally {
     loading.value = false;
   }
@@ -193,7 +196,7 @@ async function saveProfile() {
     profileSaved.value = true;
     emit('updated', updated);
   } catch (err) {
-    profileError.value = apiErrorMessage(err) ?? "Échec de l'enregistrement.";
+    profileError.value = apiErrorMessage(err) ?? t('profile.save_failed');
   } finally {
     savingProfile.value = false;
   }
@@ -224,7 +227,7 @@ async function savePassword() {
       query: { redirect: '/mon-compte', motif: 'mot-de-passe-change' },
     });
   } catch (err) {
-    const message = apiErrorMessage(err) ?? 'Le mot de passe n’a pas pu être changé.';
+    const message = apiErrorMessage(err) ?? t('profile.change_failed');
     if (apiErrorCode(err) === 'user.password.invalid_current') {
       currentPasswordError.value = message;
     } else {

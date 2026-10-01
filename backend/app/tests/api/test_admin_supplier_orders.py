@@ -119,7 +119,7 @@ def test_retry_already_submitted_is_noop(
     submitted = _record(SupplierOrderStatus.SUBMITTED, supplier_order_number="IM-7")
     db_session.get = AsyncMock(return_value=submitted)
     process_spy = AsyncMock()
-    monkeypatch.setattr(routes, "process_ingram_purchase_order", process_spy)
+    monkeypatch.setattr(routes, "process_supplier_purchase_order", process_spy)
 
     response = client.post(f"/api/v1/admin/supplier-orders/{uuid.uuid4()}/retry")
 
@@ -139,7 +139,7 @@ def test_retry_error_order_reprocesses(
     submitted = _record(SupplierOrderStatus.SUBMITTED, supplier_order_number="IM-NEW")
     monkeypatch.setattr(
         routes,
-        "process_ingram_purchase_order",
+        "process_supplier_purchase_order",
         AsyncMock(return_value=submitted),
     )
 
@@ -162,7 +162,7 @@ def test_retry_surfaces_persisted_error_record(
     still_error = _record(SupplierOrderStatus.ERROR, error_message="ingram 503")
     monkeypatch.setattr(
         routes,
-        "process_ingram_purchase_order",
+        "process_supplier_purchase_order",
         AsyncMock(return_value=still_error),
     )
 

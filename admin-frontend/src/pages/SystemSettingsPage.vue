@@ -1,12 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader title="Paramètres" hint="Réglages techniques de la plateforme, clé par clé.">
+    <PageHeader :title="$t('settings.title')" :hint="$t('settings.hint')">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -14,135 +14,429 @@
     </PageHeader>
 
     <AppNotice v-if="error" tone="error" dense class="q-mb-md">{{ error }}</AppNotice>
+    <AppNotice v-if="notice" tone="success" dense class="q-mb-md">{{ notice }}</AppNotice>
 
-    <q-table
-      :rows="rows"
-      :columns="columns"
-      row-key="key"
-      :loading="loading"
-      flat
-      bordered
-      :rows-per-page-options="[0]"
-      hide-pagination
-    >
-      <template #body-cell-key="props">
-        <q-td :props="props" class="font-mono">{{ props.row.key }}</q-td>
-      </template>
-      <template #body-cell-actions="props">
-        <q-td :props="props" align="right">
-          <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
-            <q-tooltip>Modifier</q-tooltip>
-          </q-btn>
-        </q-td>
-      </template>
-      <template #no-data>
-        <span class="text-subtle">{{ loading ? 'Chargement…' : 'Aucun paramètre.' }}</span>
-      </template>
-    </q-table>
+    <div class="row items-center q-mb-md" style="gap: 8px">
+      <q-input
+        v-model="search"
+        outlined
+        dense
+        clearable
+        :placeholder="$t('settings.search')"
+        style="min-width: 260px"
+        data-testid="settings-search"
+      >
+        <template #prepend><q-icon name="ph:magnifying-glass" /></template>
+      </q-input>
+    </div>
 
-    <q-dialog v-model="editDialog">
-      <q-card class="app-dialog">
-        <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title font-mono">{{ editing?.key }}</h2>
-        </q-card-section>
-        <q-form @submit.prevent="submitEdit">
-          <q-card-section class="q-gutter-sm">
-            <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
-            <q-input v-model="editForm.value" label="Valeur *" outlined dense :rules="req" />
-            <q-input
-              v-model="editForm.description"
-              label="Description"
-              outlined
-              dense
-              type="textarea"
-              autogrow
-            />
-          </q-card-section>
-          <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
-            <q-btn
-              type="submit"
-              color="primary"
-              unelevated
-              no-caps
-              label="Enregistrer"
-              :loading="saving"
-            />
-          </q-card-actions>
-        </q-form>
-      </q-card>
-    </q-dialog>
+    <div v-if="loading && !rows.length" class="text-center q-pa-xl">
+      <q-spinner size="2.5em" />
+    </div>
+
+    <div v-else class="settings-layout">
+      <nav v-if="!search" class="settings-nav" :aria-label="$t('settings.categories')">
+        <button
+          v-for="cat in visibleCategories"
+          :key="cat.key"
+          type="button"
+          class="settings-nav__item"
+          :class="{ 'settings-nav__item--active': cat.key === activeCategory }"
+          @click="activeCategory = cat.key"
+        >
+          {{ cat.label }}
+          <span class="settings-nav__count">{{ byCategory(cat.key).length }}</span>
+        </button>
+      </nav>
+
+      <div class="settings-main">
+        <section v-for="cat in shownCategories" :key="cat.key" class="app-section">
+          <div class="app-section__head">
+            <h2 class="app-section__title">{{ cat.label }}</h2>
+          </div>
+          <p class="admin-hint q-mt-none">{{ cat.hint }}</p>
+
+          <div
+            v-for="setting in filtered(cat.key)"
+            :key="setting.key"
+            class="setting"
+            :data-testid="`setting-${setting.key}`"
+          >
+            <div class="setting__text">
+              <div class="setting__label">
+                {{ setting.label }}
+                <StatusTag
+                  :label="$t(SOURCE_LABELS[setting.source])"
+                  :tone="setting.source === 'db' ? 'ok' : 'neutral'"
+                />
+                <StatusTag v-if="setting.reprices" :label="$t('settings.reprices')" tone="warn" />
+                <StatusTag
+                  v-if="setting.restart_required"
+                  :label="$t('settings.restart')"
+                  tone="warn"
+                />
+                <StatusTag v-if="setting.public" :label="$t('settings.public')" tone="neutral" />
+              </div>
+              <div v-if="setting.description" class="setting__help">{{ setting.description }}</div>
+              <div class="setting__meta text-subtle">
+                <span class="font-mono">{{ setting.key }}</span>
+                <template v-if="setting.env_var">
+                  {{ $t('settings.env_var') }}
+                  <span class="font-mono">{{ setting.env_var }}</span></template
+                >
+                <template v-if="setting.source === 'db' && setting.fallback">
+                  {{ $t('settings.fallback', { value: setting.fallback || '—' }) }}</template
+                >
+                <template v-if="setting.updated_at && setting.source === 'db'">
+                  {{ $t('settings.modified', { date: formatDate(setting.updated_at) }) }}
+                  <template v-if="setting.updated_by_email">
+                    {{ $t('settings.by', { email: setting.updated_by_email }) }}</template
+                  >
+                </template>
+              </div>
+              <AppNotice v-if="setting.stored_invalid" tone="warning" dense class="q-mt-xs">
+                {{ $t('settings.invalid') }}
+              </AppNotice>
+            </div>
+
+            <div class="setting__control">
+              <q-toggle
+                v-if="setting.type === 'bool'"
+                :model-value="draft[setting.key] === 'true'"
+                :disable="busy === setting.key"
+                :aria-label="setting.label"
+                @update:model-value="(on: boolean) => save(setting, on ? 'true' : 'false')"
+              />
+              <div v-else class="setting__row">
+                <q-select
+                  v-if="setting.choices"
+                  v-model="draft[setting.key]"
+                  :options="setting.choices"
+                  outlined
+                  dense
+                  :aria-label="setting.label"
+                  class="setting__input"
+                />
+                <q-input
+                  v-else
+                  v-model="draft[setting.key]"
+                  outlined
+                  dense
+                  :type="inputType(setting)"
+                  :autogrow="setting.type === 'text'"
+                  :inputmode="isNumeric(setting) ? 'decimal' : undefined"
+                  :placeholder="setting.secret ? $t('settings.not_set') : setting.fallback"
+                  :suffix="setting.unit ?? undefined"
+                  :maxlength="setting.max_length ?? undefined"
+                  :hint="rangeHint(setting)"
+                  :aria-label="setting.label"
+                  class="setting__input"
+                  @keyup.enter="setting.type !== 'text' && save(setting, draft[setting.key] ?? '')"
+                />
+                <q-btn
+                  color="primary"
+                  unelevated
+                  no-caps
+                  :label="$t('common.save')"
+                  :disable="!isDirty(setting)"
+                  :loading="busy === setting.key"
+                  class="setting__save"
+                  @click="save(setting, draft[setting.key] ?? '')"
+                />
+              </div>
+              <q-btn
+                v-if="setting.source === 'db' || setting.stored_invalid"
+                flat
+                no-caps
+                dense
+                size="sm"
+                icon="ph:arrow-counter-clockwise"
+                :label="$t('settings.reset')"
+                :disable="busy === setting.key"
+                @click="reset(setting)"
+              />
+            </div>
+          </div>
+          <p v-if="!filtered(cat.key).length" class="text-subtle">{{ $t('settings.none') }}</p>
+        </section>
+      </div>
+    </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
-import type { QTableColumn } from 'quasar';
+import { useI18n } from 'vue-i18n';
+import { intlLocale } from '@app/utils';
+import { computed, onMounted, reactive, ref } from 'vue';
 import AppNotice from '@app/ui/AppNotice.vue';
+import StatusTag from '@app/ui/StatusTag.vue';
 import PageHeader from '@/components/PageHeader.vue';
-import { listSystemSettings, updateSystemSetting, type SystemSetting } from '@/api/systemSettings';
+import {
+  listSettingCategories,
+  listSystemSettings,
+  resetSystemSetting,
+  updateSystemSetting,
+  type RuntimeSetting,
+  type SettingCategory,
+} from '@/api/systemSettings';
 import { extractApiError } from '@/api/errors';
 
-const rows = ref<SystemSetting[]>([]);
+const { t } = useI18n();
+
+const SOURCE_LABELS: Record<RuntimeSetting['source'], string> = {
+  db: 'settings.src_db',
+  env: 'settings.src_env',
+  default: 'settings.src_default',
+};
+
+const rows = ref<RuntimeSetting[]>([]);
+const categories = ref<SettingCategory[]>([]);
+const draft = reactive<Record<string, string>>({});
 const loading = ref(false);
+const busy = ref<string | null>(null);
 const error = ref<string | null>(null);
+const notice = ref<string | null>(null);
+const search = ref<string | null>('');
+const activeCategory = ref<string>('');
 
-const req = [
-  (v: string | number | null | undefined) =>
-    (v !== null && v !== undefined && String(v).length > 0) || 'Requis',
-];
+function byCategory(key: string): RuntimeSetting[] {
+  return rows.value.filter((r) => r.category === key).sort((a, b) => a.order - b.order);
+}
 
-const columns: QTableColumn[] = [
-  { name: 'key', label: 'Clé', field: 'key', align: 'left' },
-  { name: 'value', label: 'Valeur', field: 'value', align: 'left' },
-  { name: 'description', label: 'Description', field: (r) => r.description ?? '—', align: 'left' },
-  { name: 'updated_at', label: 'Maj', field: 'updated_at', align: 'left' },
-  { name: 'actions', label: '', field: 'key', align: 'right' },
-];
+const visibleCategories = computed(() =>
+  categories.value.filter((c) => byCategory(c.key).length > 0),
+);
+
+function matches(setting: RuntimeSetting, needle: string): boolean {
+  const text = `${setting.label} ${setting.description} ${setting.key}`.toLowerCase();
+  return text.includes(needle);
+}
+
+function filtered(key: string): RuntimeSetting[] {
+  const needle = (search.value ?? '').trim().toLowerCase();
+  return needle ? byCategory(key).filter((s) => matches(s, needle)) : byCategory(key);
+}
+
+const shownCategories = computed(() => {
+  if ((search.value ?? '').trim()) {
+    return visibleCategories.value.filter((c) => filtered(c.key).length > 0);
+  }
+  return visibleCategories.value.filter((c) => c.key === activeCategory.value);
+});
+
+/** Ce que le champ affiche : la valeur saisie, sinon vide (le repli en indice). */
+function editable(setting: RuntimeSetting): string {
+  if (setting.type === 'bool') return setting.value;
+  return setting.source === 'db' ? setting.value : '';
+}
+
+function isNumeric(setting: RuntimeSetting): boolean {
+  return ['int', 'float', 'decimal'].includes(setting.type);
+}
+
+function inputType(setting: RuntimeSetting): 'text' | 'textarea' | 'password' {
+  if (setting.secret) return 'password';
+  return setting.type === 'text' ? 'textarea' : 'text';
+}
+
+function rangeHint(setting: RuntimeSetting): string | undefined {
+  if (!isNumeric(setting)) return setting.type === 'list' ? t('settings.comma') : undefined;
+  const parts: string[] = [];
+  if (setting.minimum !== null) parts.push(`min ${Number(setting.minimum)}`);
+  if (setting.maximum !== null) parts.push(`max ${Number(setting.maximum)}`);
+  if (setting.below !== null) parts.push(`< ${Number(setting.below)}`);
+  return parts.length ? parts.join(' · ') : undefined;
+}
+
+function isDirty(setting: RuntimeSetting): boolean {
+  return (draft[setting.key] ?? '') !== editable(setting);
+}
+
+function formatDate(value: string): string {
+  return new Date(value).toLocaleString(intlLocale(), { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function apply(updated: RuntimeSetting) {
+  const index = rows.value.findIndex((r) => r.key === updated.key);
+  if (index >= 0) rows.value.splice(index, 1, updated);
+  draft[updated.key] = editable(updated);
+}
 
 async function load() {
   loading.value = true;
   error.value = null;
   try {
-    rows.value = await listSystemSettings();
+    const [settings, cats] = await Promise.all([listSystemSettings(), listSettingCategories()]);
+    rows.value = settings;
+    categories.value = cats;
+    for (const s of settings) draft[s.key] = editable(s);
+    if (!visibleCategories.value.some((c) => c.key === activeCategory.value)) {
+      activeCategory.value = visibleCategories.value[0]?.key ?? '';
+    }
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
 }
 
-const editDialog = ref(false);
-const editing = ref<SystemSetting | null>(null);
-const saving = ref(false);
-const dialogError = ref<string | null>(null);
-const editForm = reactive({ value: '', description: '' });
-
-function openEdit(setting: SystemSetting) {
-  dialogError.value = null;
-  editing.value = setting;
-  editForm.value = setting.value;
-  editForm.description = setting.description ?? '';
-  editDialog.value = true;
+async function save(setting: RuntimeSetting, value: string) {
+  busy.value = setting.key;
+  error.value = null;
+  notice.value = null;
+  try {
+    const updated = await updateSystemSetting(setting.key, { value });
+    apply(updated);
+    notice.value = updated.reprices
+      ? t('settings.saved_reprice', { label: updated.label })
+      : t('settings.saved', { label: updated.label });
+  } catch (err) {
+    error.value = extractApiError(err) ?? t('common.save_failed');
+    draft[setting.key] = editable(setting);
+  } finally {
+    busy.value = null;
+  }
 }
 
-async function submitEdit() {
-  if (!editing.value) return;
-  saving.value = true;
-  dialogError.value = null;
+async function reset(setting: RuntimeSetting) {
+  busy.value = setting.key;
+  error.value = null;
+  notice.value = null;
   try {
-    await updateSystemSetting(editing.value.key, {
-      value: editForm.value,
-      description: editForm.description || null,
-    });
-    editDialog.value = false;
-    await load();
+    apply(await resetSystemSetting(setting.key));
+    notice.value = t('settings.reset_done', { label: setting.label });
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Mise à jour impossible.';
+    error.value = extractApiError(err) ?? t('settings.reset_failed');
   } finally {
-    saving.value = false;
+    busy.value = null;
   }
 }
 
 onMounted(load);
 </script>
+
+<style scoped>
+.settings-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.settings-nav {
+  flex: 0 0 210px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: 16px;
+}
+
+.settings-nav__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-nav__item:hover {
+  background: var(--n-surface-2, rgba(127, 127, 127, 0.08));
+}
+
+.settings-nav__item--active {
+  background: var(--n-surface-2, rgba(127, 127, 127, 0.14));
+  font-weight: 600;
+}
+
+.settings-nav__count {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.settings-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.setting {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding: 14px 0;
+  border-top: 1px solid var(--n-border, rgba(127, 127, 127, 0.18));
+}
+
+.setting__text {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.setting__label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.setting__help {
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.setting__meta {
+  margin-top: 4px;
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.setting__control {
+  flex: 0 1 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.setting__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+
+.setting__input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.setting__save {
+  flex: none;
+  height: 40px;
+}
+
+@media (max-width: 760px) {
+  .settings-layout {
+    flex-direction: column;
+  }
+
+  .settings-nav {
+    position: static;
+    flex: none;
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .settings-nav__item {
+    white-space: nowrap;
+    gap: 6px;
+  }
+}
+</style>

@@ -23,7 +23,6 @@ from typing import Any
 from arq import cron
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
 from app.core.db import engine
 from app.features.inventory.crud import crud_stock_movement
 from app.features.inventory.services.stock_release import release_order_stock
@@ -50,7 +49,9 @@ async def release_expired_stock_reservations_task(
     **_kwargs: Any,
 ) -> dict[str, Any]:
     """Give back stock held by orders that never reached a payment outcome."""
-    ttl_hours = int(settings.STOCK_RESERVATION_TTL_HOURS)
+    from app.core import runtime_settings
+
+    ttl_hours = int(await runtime_settings.get("stock_reservation_ttl_hours"))
     if ttl_hours <= 0:
         logger.debug("Stock reservation sweep disabled (TTL <= 0)")
         return {"status": "disabled", "released_orders": 0, "released_movements": 0}
@@ -111,13 +112,12 @@ async def release_expired_stock_reservations_task(
 
 
 def get_stock_reservation_cron_jobs() -> list[Any]:
-    """Build the hourly reservation sweep, or nothing when disabled.
+    """The hourly reservation sweep, always scheduled (R5 / C5): a TTL of 0
+    in the runtime settings makes the tick a no-op, without a restart.
 
     Hourly rather than on the TTL boundary: the TTL decides *what* is stale,
     the cadence only decides how fast a stale reservation is noticed.
     """
-    if int(settings.STOCK_RESERVATION_TTL_HOURS) <= 0:
-        return []
     return [
         cron(
             release_expired_stock_reservations_task,  # type: ignore[arg-type]

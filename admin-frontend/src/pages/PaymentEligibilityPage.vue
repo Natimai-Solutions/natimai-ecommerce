@@ -1,15 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader
-      title="Moyens de paiement"
-      hint="Méthodes proposées aux clients, ouverture par groupe tarifaire et politique d'acompte."
-    >
+    <PageHeader :title="$t('eligibility.title')" :hint="$t('eligibility.hint')">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -18,7 +15,7 @@
           unelevated
           no-caps
           icon="ph:plus"
-          label="Nouveau moyen"
+          :label="$t('eligibility.new')"
           data-testid="method-create"
           @click="openMethod(null)"
         />
@@ -34,20 +31,18 @@
     <template v-else>
       <section class="app-section" aria-labelledby="providers-title">
         <div class="app-section__head">
-          <h2 id="providers-title" class="app-section__title">Prestataires de paiement</h2>
+          <h2 id="providers-title" class="app-section__title">{{ $t('eligibility.providers') }}</h2>
         </div>
         <p class="admin-hint">
-          Un prestataire éteint disparaît du paiement pour tous les clients, sans redéploiement ;
-          les paiements qu'il a déjà lancés continuent d'être suivis. Les identifiants restent dans
-          la configuration du serveur.
+          {{ $t('eligibility.providers_hint') }}
         </p>
         <q-markup-table flat bordered data-testid="payment-providers">
           <thead>
             <tr>
-              <th class="text-left">Prestataire</th>
-              <th class="text-center">Activé</th>
-              <th class="text-left">Identifiants</th>
-              <th class="text-left">État</th>
+              <th class="text-left">{{ $t('eligibility.provider') }}</th>
+              <th class="text-center">{{ $t('eligibility.enabled') }}</th>
+              <th class="text-left">{{ $t('eligibility.credentials') }}</th>
+              <th class="text-left">{{ $t('eligibility.state') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -69,24 +64,29 @@
                   v-if="provider.credentials_present"
                   tone="ok"
                   icon="ph:key"
-                  label="Présents"
+                  :label="$t('eligibility.present')"
                 />
-                <StatusTag v-else tone="warn" icon="ph:key" label="Absents" />
+                <StatusTag v-else tone="warn" icon="ph:key" :label="$t('eligibility.absent')" />
               </td>
               <td class="text-left">
                 <StatusTag
                   v-if="!provider.implemented"
                   tone="neutral"
                   icon="ph:hourglass"
-                  label="À venir"
+                  :label="$t('eligibility.upcoming')"
                 />
                 <StatusTag
                   v-else-if="provider.available"
                   tone="ok"
                   icon="ph:check-circle"
-                  label="Proposé aux clients"
+                  :label="$t('eligibility.offered')"
                 />
-                <StatusTag v-else tone="neutral" icon="ph:prohibit" label="Non proposé" />
+                <StatusTag
+                  v-else
+                  tone="neutral"
+                  icon="ph:prohibit"
+                  :label="$t('eligibility.not_offered')"
+                />
               </td>
             </tr>
           </tbody>
@@ -96,34 +96,30 @@
       <section class="app-section" aria-labelledby="eligibility-title">
         <div class="app-section__head">
           <h2 id="eligibility-title" class="app-section__title">
-            Moyens proposés et ouverture par groupe
+            {{ $t('eligibility.methods') }}
           </h2>
         </div>
         <AppNotice v-if="methodNotice" tone="success" dense class="q-mb-sm">
           {{ methodNotice }}
         </AppNotice>
         <p class="admin-hint">
-          <strong>Modifier</strong> ouvre le nom, la description, les frais, le plafond, l'ordre et
-          les instructions envoyées au client ; <strong>Nouveau moyen</strong> en crée un sur un
-          type existant (par exemple un second virement vers une autre banque, avec son IBAN). Le
-          commutateur <strong>Activé</strong> coupe/rétablit une méthode
-          <strong>globalement</strong> (masquée pour tous les clients si désactivée).
-          <strong>Acompte</strong> décide si elle peut régler l'acompte d'une commande ; le solde
-          reste payable par tout moyen. Les cases cochent les groupes autorisés :
-          <strong>aucune coche</strong> = méthode ouverte à <strong>tous</strong> les groupes.
+          <!-- eslint-disable-next-line vue/no-v-html -- trusted message -->
+          <span v-html="$t('eligibility.methods_help')"></span>
         </p>
 
         <q-markup-table flat bordered separator="cell">
           <thead>
             <tr>
-              <th class="text-left">Méthode</th>
-              <th class="text-center">Activé</th>
-              <th class="text-center">Acompte</th>
+              <th class="text-left">{{ $t('eligibility.method') }}</th>
+              <th class="text-center">{{ $t('eligibility.enabled') }}</th>
+              <th class="text-center">{{ $t('eligibility.deposit') }}</th>
               <th v-for="g in groups" :key="g.id" class="text-center">
                 {{ g.label }}
-                <span v-if="g.default" class="text-subtle q-ml-xs">(défaut)</span>
+                <span v-if="g.default" class="text-subtle q-ml-xs">{{
+                  $t('eligibility.default')
+                }}</span>
               </th>
-              <th class="text-center">Ouverture</th>
+              <th class="text-center">{{ $t('eligibility.opening') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -142,11 +138,11 @@
                     round
                     size="sm"
                     icon="ph:pencil-simple"
-                    :aria-label="`Modifier « ${m.name} »`"
+                    :aria-label="$t('eligibility.edit_method', { name: m.name })"
                     data-testid="method-edit"
                     @click="openMethod(m)"
                   >
-                    <q-tooltip>Modifier</q-tooltip>
+                    <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
                   </q-btn>
                 </div>
               </td>
@@ -178,9 +174,14 @@
                   v-if="(eligible[m.id]?.length ?? 0) === 0"
                   tone="ok"
                   icon="ph:users-three"
-                  label="Tous"
+                  :label="$t('eligibility.all')"
                 />
-                <StatusTag v-else tone="warn" icon="ph:lock-simple" label="Restreinte" />
+                <StatusTag
+                  v-else
+                  tone="warn"
+                  icon="ph:lock-simple"
+                  :label="$t('eligibility.restricted')"
+                />
               </td>
             </tr>
           </tbody>
@@ -190,13 +191,12 @@
       <!-- Deposit policy per price group (« acompte à la commande ») -->
       <section class="app-section" aria-labelledby="deposit-title">
         <div class="app-section__head">
-          <h2 id="deposit-title" class="app-section__title">Acompte à la commande</h2>
+          <h2 id="deposit-title" class="app-section__title">
+            {{ $t('eligibility.deposit_title') }}
+          </h2>
         </div>
         <p class="admin-hint">
-          Par groupe tarifaire : part du total versée à la commande (vide = pas d'acompte proposé),
-          frais de l'option (en % du total et/ou fixes, inclus dans le total facturé), et acompte
-          imposé ou laissé au choix du client. Le solde est demandé par e-mail à la réception des
-          articles.
+          {{ $t('eligibility.deposit_hint') }}
         </p>
         <AppNotice v-if="depositNotice" tone="success" dense class="q-mb-sm">
           {{ depositNotice }}
@@ -204,11 +204,13 @@
         <q-markup-table flat bordered dense>
           <thead>
             <tr>
-              <th class="text-left">Groupe</th>
-              <th class="text-left">Acompte (%)</th>
-              <th class="text-left">Frais (%)</th>
-              <th class="text-left">Frais fixes (XPF)</th>
-              <th class="text-left">Imposé</th>
+              <th class="text-left">{{ $t('eligibility.group') }}</th>
+              <th class="text-left">{{ $t('eligibility.deposit_pct') }}</th>
+              <th class="text-left">{{ $t('eligibility.fee_pct') }}</th>
+              <th class="text-left">
+                {{ $t('eligibility.fee_fixed', { currency: shopConfig.currency }) }}
+              </th>
+              <th class="text-left">{{ $t('eligibility.required') }}</th>
               <th class="text-right"></th>
             </tr>
           </thead>
@@ -258,7 +260,7 @@
                   :loading="savingDeposit === g.id"
                   @click="saveDeposit(g)"
                 >
-                  <q-tooltip>Enregistrer</q-tooltip>
+                  <q-tooltip>{{ $t('common.save') }}</q-tooltip>
                 </q-btn>
               </td>
             </tr>
@@ -278,6 +280,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { useShopConfigStore } from '@/stores/shopConfig';
 import { onMounted, reactive, ref } from 'vue';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
@@ -302,6 +306,9 @@ import {
 } from '@/api/eligibility';
 import { extractApiError } from '@/api/errors';
 import { formatMoney } from '@app/utils';
+
+const { t } = useI18n();
+const shopConfig = useShopConfigStore();
 
 // --- Deposit policy per group ---
 interface DepositEdit {
@@ -340,9 +347,9 @@ async function saveDeposit(g: PriceGroup) {
     });
     Object.assign(g, updated);
     delete depositEdits[g.id];
-    depositNotice.value = `Politique d'acompte du groupe « ${g.label} » enregistrée.`;
+    depositNotice.value = t('eligibility.deposit_saved', { group: g.label });
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    error.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     savingDeposit.value = null;
   }
@@ -357,9 +364,11 @@ const methodNotice = ref<string | null>(null);
 /** Type, frais et plafond, sous le nom du moyen. */
 function methodSummary(m: PaymentMethod): string {
   const parts = [m.type_label];
-  if (Number(m.fee) > 0) parts.push(`frais ${formatMoney(m.fee, 'XPF')}`);
-  if (m.max_amount !== null) parts.push(`jusqu'à ${formatMoney(m.max_amount, 'XPF')}`);
-  if (m.instructions) parts.push('instructions propres');
+  if (Number(m.fee) > 0)
+    parts.push(t('eligibility.fee', { amount: formatMoney(m.fee, shopConfig.currency) }));
+  if (m.max_amount !== null)
+    parts.push(t('eligibility.up_to', { amount: formatMoney(m.max_amount, shopConfig.currency) }));
+  if (m.instructions) parts.push(t('eligibility.own_instructions'));
   return parts.join(' · ');
 }
 
@@ -371,13 +380,13 @@ function openMethod(m: PaymentMethod | null) {
 
 async function onMethodSaved(saved: PaymentMethod) {
   await load();
-  methodNotice.value = `« ${saved.name} » enregistré.`;
+  methodNotice.value = t('eligibility.saved', { name: saved.name });
 }
 
 async function onMethodDeleted() {
-  const name = editedMethod.value?.name ?? 'Le moyen';
+  const name = editedMethod.value?.name ?? t('eligibility.the_method');
   await load();
-  methodNotice.value = `« ${name} » supprimé.`;
+  methodNotice.value = t('eligibility.deleted', { name });
 }
 const providers = ref<PaymentProvider[]>([]);
 const groups = ref<PriceGroup[]>([]);
@@ -416,7 +425,7 @@ async function load() {
     );
     eligible.value = Object.fromEntries(entries);
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -429,7 +438,7 @@ async function toggleActive(method: PaymentMethod, value: boolean) {
     await setPaymentMethodActive(method.id, value);
     method.is_admin_active = value;
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Mise à jour impossible.';
+    error.value = extractApiError(err) ?? t('common.update_failed');
   } finally {
     updatingKey.value = null;
   }
@@ -445,7 +454,7 @@ async function toggleProvider(provider: PaymentProvider, value: boolean) {
   try {
     providers.value = await setPaymentProviderEnabled(provider.code, value);
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Mise à jour impossible.';
+    error.value = extractApiError(err) ?? t('common.update_failed');
   } finally {
     updatingKey.value = null;
   }
@@ -462,7 +471,7 @@ async function toggleDeposit(method: PaymentMethod, value: boolean) {
     await setPaymentMethodDepositAllowed(method.id, value);
     method.deposit_allowed = value;
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Mise à jour impossible.';
+    error.value = extractApiError(err) ?? t('common.update_failed');
   } finally {
     updatingKey.value = null;
   }
@@ -479,7 +488,7 @@ async function toggle(methodId: string, groupId: string, value: boolean) {
     }
     eligible.value[methodId] = (await listEligibleGroups(methodId)).map((g) => g.id);
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Mise à jour impossible.';
+    error.value = extractApiError(err) ?? t('common.update_failed');
   } finally {
     updatingKey.value = null;
   }

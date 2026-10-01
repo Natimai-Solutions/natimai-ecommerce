@@ -1,12 +1,10 @@
 /**
- * Date formatting for French Polynesia.
- *
- * Timezone: Pacific/Tahiti (UTC-10, no DST)
- * Format:   DD/MM/YYYY (French convention)
+ * Date formatting in the shop's time zone and the interface's language
+ * (`configureFormatting`, R7 / L5). Defaults: Pacific/Tahiti, French
+ * (DD/MM/YYYY).
  */
 
-const TZ = 'Pacific/Tahiti'
-const LOCALE = 'fr-PF'
+import { formatContext, intlLocale } from './format'
 
 /**
  * Format an ISO date string as DD/MM/YYYY in Tahiti timezone.
@@ -14,8 +12,8 @@ const LOCALE = 'fr-PF'
 export function formatDate(isoString: string | null | undefined): string {
   if (!isoString) return '—'
   try {
-    return new Intl.DateTimeFormat(LOCALE, {
-      timeZone: TZ,
+    return new Intl.DateTimeFormat(intlLocale(), {
+      timeZone: formatContext().timeZone,
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -31,8 +29,8 @@ export function formatDate(isoString: string | null | undefined): string {
 export function formatDateTime(isoString: string | null | undefined): string {
   if (!isoString) return '—'
   try {
-    return new Intl.DateTimeFormat(LOCALE, {
-      timeZone: TZ,
+    return new Intl.DateTimeFormat(intlLocale(), {
+      timeZone: formatContext().timeZone,
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -45,13 +43,13 @@ export function formatDateTime(isoString: string | null | undefined): string {
 }
 
 /**
- * Returns a relative label ("il y a 2 jours") for recent dates.
+ * Returns a relative label ("il y a 2 jours", "2 days ago") for recent dates.
  */
 export function formatRelative(isoString: string | null | undefined): string {
   if (!isoString) return '—'
   try {
     const diff = Date.now() - new Date(isoString).getTime()
-    const rtf = new Intl.RelativeTimeFormat('fr', { numeric: 'auto' })
+    const rtf = new Intl.RelativeTimeFormat(formatContext().locale, { numeric: 'auto' })
     const seconds = Math.round(diff / 1000)
     if (seconds < 60) return rtf.format(-seconds, 'second')
     const minutes = Math.round(seconds / 60)

@@ -2,13 +2,13 @@
   <q-page class="login-page auth-page flex flex-center">
     <q-card flat class="auth-card">
       <q-card-section>
-        <h1 class="auth-title">Connexion</h1>
-        <div class="auth-lead">Connectez-vous pour accéder à votre compte.</div>
+        <h1 class="auth-title">{{ $t('auth.login_title') }}</h1>
+        <div class="auth-lead">{{ $t('auth.login_lead') }}</div>
       </q-card-section>
 
       <q-card-section>
         <AppNotice v-if="passwordChanged && !authStore.loginError" tone="success" class="q-mb-md">
-          Mot de passe modifié. Reconnectez-vous avec le nouveau.
+          {{ $t('auth.password_changed') }}
         </AppNotice>
         <AppNotice v-if="authStore.loginError" tone="error" class="q-mb-md">
           {{ authStore.loginError }}
@@ -21,10 +21,10 @@
             data-testid="login-email"
             outlined
             stack-label
-            label="Email"
+            :label="$t('auth.email')"
             autocomplete="email"
             class="q-mb-sm"
-            :rules="[(v) => !!v || 'Email requis']"
+            :rules="[(v) => !!v || $t('auth.email_required')]"
           />
           <q-input
             v-model="password"
@@ -32,10 +32,10 @@
             data-testid="login-password"
             outlined
             stack-label
-            label="Mot de passe"
+            :label="$t('auth.password')"
             autocomplete="current-password"
             class="q-mb-md"
-            :rules="[(v) => !!v || 'Mot de passe requis']"
+            :rules="[(v) => !!v || $t('auth.password_required')]"
           >
             <template #append>
               <q-icon
@@ -50,7 +50,7 @@
             type="submit"
             data-testid="login-submit"
             color="primary"
-            label="Se connecter"
+            :label="$t('auth.sign_in')"
             class="full-width"
             :loading="authStore.loggingIn"
           />
@@ -63,7 +63,7 @@
             no-caps
             size="sm"
             color="primary"
-            label="Mot de passe oublié ?"
+            :label="$t('auth.forgot')"
             :to="{ name: 'forgot-password' }"
           />
         </div>
@@ -72,14 +72,14 @@
       <q-card-section v-if="oauthEnabled" class="q-pt-none">
         <div class="row items-center q-my-sm">
           <q-separator class="col" />
-          <span class="q-mx-sm auth-or">ou</span>
+          <span class="q-mx-sm auth-or">{{ $t('auth.or') }}</span>
           <q-separator class="col" />
         </div>
         <q-btn
           outline
           color="primary"
           icon="img:https://www.google.com/favicon.ico"
-          label="Continuer avec Google"
+          :label="$t('auth.with_google')"
           class="full-width q-mb-sm"
           @click="oauthLogin('google')"
         />
@@ -87,20 +87,20 @@
           outline
           color="primary"
           icon="ph:windows-logo"
-          label="Continuer avec Microsoft"
+          :label="$t('auth.with_microsoft')"
           class="full-width"
           @click="oauthLogin('microsoft')"
         />
       </q-card-section>
 
       <q-card-section class="text-center q-pt-none">
-        <span class="auth-lead">Pas encore de compte ?</span>
+        <span class="auth-lead">{{ $t('auth.no_account') }}</span>
         <q-btn
           flat
           dense
           no-caps
           color="primary"
-          label="Créer un compte"
+          :label="$t('auth.create_account')"
           :to="{ name: 'register' }"
         />
       </q-card-section>

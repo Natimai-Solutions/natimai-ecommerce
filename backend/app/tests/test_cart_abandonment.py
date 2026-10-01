@@ -44,11 +44,21 @@ def test_sweep_selects_open_quiet_carts_never_reminded() -> None:
     assert "LIMIT 200" in sql
 
 
-def test_cron_follows_the_delay_setting(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "CART_ABANDONMENT_REMINDER_DELAY_HOURS", 24)
+@pytest.mark.anyio
+async def test_cron_follows_the_delay_setting(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Always scheduled (R5 / C5): a delay of 0 makes the tick a no-op."""
     assert len(cart_tasks.get_cart_abandonment_cron_jobs()) == 1
     monkeypatch.setattr(settings, "CART_ABANDONMENT_REMINDER_DELAY_HOURS", 0)
-    assert cart_tasks.get_cart_abandonment_cron_jobs() == []
+
+    class _Session:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_exc: object) -> None:
+            return None
+
+    monkeypatch.setattr(cart_tasks, "AsyncSession", lambda _engine: _Session())
+    assert await cart_tasks.remind_abandoned_carts_task({}) == {"status": "disabled"}
 
 
 @pytest.fixture

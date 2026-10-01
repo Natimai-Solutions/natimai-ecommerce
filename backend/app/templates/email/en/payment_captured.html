@@ -1,0 +1,36 @@
+{% extends "_layout.html" %}
+{% block title %}{% if payment_kind == 'deposit' %}Deposit received{% elif payment_kind == 'balance' %}Balance received{% else %}Payment validated{% endif %}{% endblock %}
+{% block header_color %}#1a7a4a{% endblock %}
+{% block extra_style %}.badge { background: #e6f4ed; color: #1a7a4a; }{% endblock %}
+{% block heading %}{% if payment_kind == 'deposit' %}Deposit received ✓{% elif payment_kind == 'balance' %}Balance received ✓{% else %}Payment validated ✓{% endif %}{% endblock %}
+{% block content %}
+      <p>Hello {{ full_name }},</p>
+      <span class="badge">Payment confirmed</span>
+      {% if payment_kind == 'deposit' %}
+      <p>Your deposit has been received. Your order is under way; we will ask you for the balance when your items arrive, and the invoice will be sent then.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Order number</td><td>{{ order_ref or (order_id | short_ref) }}</td></tr>
+          <tr><td>Deposit received</td><td>{{ total_amount }} {{ currency }}</td></tr>
+          <tr><td>Balance due on arrival</td><td>{{ balance_amount }} {{ currency }}</td></tr>
+        </table>
+      </div>
+      {% elif payment_kind == 'balance' %}
+      <p>The balance of your order has been received: it is fully paid. Your invoice follows in a separate message.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Order number</td><td>{{ order_ref or (order_id | short_ref) }}</td></tr>
+          <tr><td>Balance received</td><td>{{ total_amount }} {{ currency }}</td></tr>
+        </table>
+      </div>
+      {% else %}
+      <p>Your payment has been received. Your order is now being processed.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Order number</td><td>{{ order_ref or (order_id | short_ref) }}</td></tr>
+          <tr><td>Amount charged</td><td>{{ total_amount }} {{ currency }}</td></tr>
+        </table>
+      </div>
+      {% endif %}
+      <p>Thank you for your trust,<br><strong>The {{ shop_name }} team</strong></p>
+{% endblock %}

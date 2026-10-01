@@ -1,16 +1,13 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader
-      title="Caractéristiques"
-      hint="Définitions canoniques projetées depuis Icecat. Modifier les alias puis re-projeter côté backend pour réindexer."
-    >
+    <PageHeader :title="$t('specs.title')" :hint="$t('specs.hint')">
       <template #actions>
         <q-btn
           color="primary"
           unelevated
           no-caps
           icon="ph:plus"
-          label="Nouvelle caractéristique"
+          :label="$t('specs.new')"
           @click="openCreate"
         />
       </template>
@@ -36,19 +33,26 @@
       </template>
       <template #body-cell-aliases="props">
         <q-td :props="props">
-          <span class="text-muted">{{ props.row.aliases.length }} alias</span>
+          <span class="text-muted">{{
+            $t('specs.n_aliases', { n: props.row.aliases.length })
+          }}</span>
         </q-td>
       </template>
       <template #body-cell-is_active="props">
         <q-td :props="props" align="center">
-          <StatusTag v-if="props.row.is_active" label="Actif" tone="ok" icon="ph:check-circle" />
-          <StatusTag v-else label="Inactif" tone="neutral" icon="ph:minus-circle" />
+          <StatusTag
+            v-if="props.row.is_active"
+            :label="$t('specs.active')"
+            tone="ok"
+            icon="ph:check-circle"
+          />
+          <StatusTag v-else :label="$t('specs.inactive')" tone="neutral" icon="ph:minus-circle" />
         </q-td>
       </template>
       <template #body-cell-actions="props">
         <q-td :props="props" align="right" class="no-wrap">
           <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
-            <q-tooltip>Modifier</q-tooltip>
+            <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
           </q-btn>
           <q-btn
             v-if="props.row.is_active"
@@ -59,12 +63,12 @@
             color="negative"
             @click="confirmDelete(props.row)"
           >
-            <q-tooltip>Désactiver</q-tooltip>
+            <q-tooltip>{{ $t('specs.disable') }}</q-tooltip>
           </q-btn>
         </q-td>
       </template>
       <template #no-data>
-        <div class="full-width text-center text-subtle q-pa-md">Aucune caractéristique.</div>
+        <div class="full-width text-center text-subtle q-pa-md">{{ $t('specs.none') }}</div>
       </template>
     </q-table>
 
@@ -73,7 +77,7 @@
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
-            {{ editingKey ? `Modifier ${editingKey}` : 'Nouvelle caractéristique' }}
+            {{ editingKey ? $t('specs.edit_title', { key: editingKey }) : $t('specs.new_title') }}
           </h2>
         </q-card-section>
         <q-form @submit.prevent="submit">
@@ -81,27 +85,33 @@
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="form.key"
-              label="Clé canonique (ex: memory_gb) *"
+              :label="$t('specs.key')"
               outlined
               dense
               :readonly="!!editingKey"
               :rules="req"
             />
-            <q-input v-model="form.label_fr" label="Libellé FR *" outlined dense :rules="req" />
+            <q-input
+              v-model="form.label_fr"
+              :label="$t('specs.label_fr')"
+              outlined
+              dense
+              :rules="req"
+            />
             <q-select
               v-model="form.type"
               :options="typeOptions"
-              label="Type *"
+              :label="$t('specs.type')"
               outlined
               dense
               emit-value
               map-options
               :rules="req"
             />
-            <q-input v-model="form.unit" label="Unité (ex: GB)" outlined dense bottom-slots />
+            <q-input v-model="form.unit" :label="$t('specs.unit')" outlined dense bottom-slots />
             <q-select
               v-model="form.categories"
-              label="Catégories"
+              :label="$t('specs.categories')"
               outlined
               dense
               multiple
@@ -114,7 +124,7 @@
             />
             <q-select
               v-model="form.aliases"
-              label="Alias Icecat"
+              :label="$t('specs.aliases')"
               outlined
               dense
               multiple
@@ -125,16 +135,16 @@
               bottom-slots
               :options="[]"
             />
-            <q-toggle v-if="editingKey" v-model="form.is_active" label="Actif" />
+            <q-toggle v-if="editingKey" v-model="form.is_active" :label="$t('specs.active')" />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              :label="editingKey ? 'Enregistrer' : 'Créer'"
+              :label="editingKey ? $t('specs.save') : $t('specs.create')"
               :loading="saving"
             />
           </q-card-actions>
@@ -146,17 +156,17 @@
     <q-dialog v-model="deleteDialog">
       <q-card class="app-dialog app-dialog--narrow">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Désactiver la caractéristique ?</h2>
+          <h2 class="app-dialog__title">{{ $t('specs.disable_q') }}</h2>
           <p class="app-dialog__text">
-            Clé <span class="font-mono">{{ toDelete?.key }}</span>
+            {{ $t('specs.key_short') }} <span class="font-mono">{{ toDelete?.key }}</span>
           </p>
         </q-card-section>
         <q-card-actions align="right" class="app-dialog__actions">
-          <q-btn flat no-caps label="Annuler" v-close-popup />
+          <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
           <q-btn
             flat
             no-caps
-            label="Désactiver"
+            :label="$t('specs.disable')"
             color="negative"
             :loading="deleting"
             @click="performDelete"
@@ -168,7 +178,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
@@ -182,29 +193,31 @@ import {
 } from '@/api/specDefinitions';
 import { extractApiError } from '@/api/errors';
 
+const { t } = useI18n();
+
 const rows = ref<SpecDefinition[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
 const req = [
   (v: string | number | null | undefined) =>
-    (v !== null && v !== undefined && String(v).length > 0) || 'Requis',
+    (v !== null && v !== undefined && String(v).length > 0) || t('common.required'),
 ];
-const typeOptions = [
-  { label: 'Numérique', value: 'numeric' },
-  { label: 'Énuméré', value: 'enum' },
-];
+const typeOptions = computed(() => [
+  { label: t('specs.numeric'), value: 'numeric' },
+  { label: t('specs.enum'), value: 'enum' },
+]);
 
-const columns: QTableColumn[] = [
-  { name: 'key', label: 'Clé', field: 'key', align: 'left', classes: 'font-mono' },
-  { name: 'label_fr', label: 'Libellé', field: 'label_fr', align: 'left' },
-  { name: 'type', label: 'Type', field: 'type', align: 'left' },
-  { name: 'unit', label: 'Unité', field: (r) => r.unit ?? '—', align: 'left' },
-  { name: 'categories', label: 'Catégories', field: 'categories', align: 'left' },
-  { name: 'aliases', label: 'Alias', field: 'aliases', align: 'left' },
-  { name: 'is_active', label: 'Statut', field: 'is_active', align: 'center' },
+const columns = computed<QTableColumn[]>(() => [
+  { name: 'key', label: t('specs.col_key'), field: 'key', align: 'left', classes: 'font-mono' },
+  { name: 'label_fr', label: t('specs.col_label'), field: 'label_fr', align: 'left' },
+  { name: 'type', label: t('specs.col_type'), field: 'type', align: 'left' },
+  { name: 'unit', label: t('specs.col_unit'), field: (r) => r.unit ?? '—', align: 'left' },
+  { name: 'categories', label: t('specs.col_categories'), field: 'categories', align: 'left' },
+  { name: 'aliases', label: t('specs.col_aliases'), field: 'aliases', align: 'left' },
+  { name: 'is_active', label: t('specs.col_status'), field: 'is_active', align: 'center' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-];
+]);
 
 async function load() {
   loading.value = true;
@@ -212,7 +225,7 @@ async function load() {
   try {
     rows.value = await listSpecDefinitions();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -284,7 +297,7 @@ async function submit() {
     dialog.value = false;
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    dialogError.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     saving.value = false;
   }
@@ -308,7 +321,7 @@ async function performDelete() {
     toDelete.value = null;
     await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Désactivation impossible.';
+    error.value = extractApiError(err) ?? t('specs.disable_failed');
     deleteDialog.value = false;
   } finally {
     deleting.value = false;

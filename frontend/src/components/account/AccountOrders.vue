@@ -3,10 +3,10 @@
     <section v-if="storeCredit && hasCredit" class="app-section" data-testid="account-store-credit">
       <div class="app-panel credit">
         <div class="credit__main">
-          <span class="credit__label">Votre avoir</span>
+          <span class="credit__label">{{ $t('orders.credit') }}</span>
           <span class="credit__amount font-mono">{{ money(storeCredit.balance) }}</span>
           <span class="credit__hint">
-            Utilisable sur votre prochaine commande, au moment du paiement.
+            {{ $t('orders.credit_hint') }}
           </span>
         </div>
         <button
@@ -16,14 +16,14 @@
           :aria-expanded="showCreditHistory"
           @click="showCreditHistory = !showCreditHistory"
         >
-          {{ showCreditHistory ? "Masquer l'historique" : 'Voir l’historique' }}
+          {{ showCreditHistory ? $t('orders.hide_history') : $t('orders.show_history') }}
         </button>
       </div>
       <ul v-if="showCreditHistory" class="app-rows credit__history">
         <li v-for="entry in storeCredit.entries" :key="entry.id" class="app-row">
           <div class="app-row__main">
             <span class="app-row__title">
-              {{ STORE_CREDIT_KIND_LABELS[entry.kind] ?? entry.kind }}
+              {{ creditKindLabel(entry.kind) }}
             </span>
             <span class="app-row__meta"
               >{{ entry.reason }} · {{ formatDate(entry.created_at) }}</span
@@ -42,12 +42,12 @@
 
     <section class="app-section">
       <div class="app-section__head">
-        <h2 class="app-section__title">Commandes</h2>
+        <h2 class="app-section__title">{{ $t('orders.title') }}</h2>
       </div>
 
       <AppNotice v-if="error" tone="error" class="q-mb-md">
         {{ error }}
-        <template #action><q-btn flat label="Réessayer" @click="reload" /></template>
+        <template #action><q-btn flat :label="$t('orders.retry')" @click="reload" /></template>
       </AppNotice>
       <AppNotice v-if="documentsError" dense tone="warning" class="q-mb-md">
         {{ documentsError }}
@@ -64,9 +64,14 @@
 
       <div v-else-if="!orders.length && !error" class="app-empty">
         <q-icon name="ph:receipt" size="36px" class="text-subtle" />
-        <h3>Aucune commande pour l'instant</h3>
-        <p>Vos commandes, leurs factures et leur suivi apparaîtront ici.</p>
-        <q-btn unelevated color="primary" label="Voir le catalogue" :to="{ name: 'catalogue' }" />
+        <h3>{{ $t('orders.none_title') }}</h3>
+        <p>{{ $t('orders.none_text') }}</p>
+        <q-btn
+          unelevated
+          color="primary"
+          :label="$t('orders.see_catalogue')"
+          :to="{ name: 'catalogue' }"
+        />
       </div>
 
       <template v-else>
@@ -79,24 +84,30 @@
               >
                 {{ orderRef(order.order_number, order.id) }}
               </router-link>
-              <span class="app-row__meta">Passée le {{ formatDate(order.created_at) }}</span>
+              <span class="app-row__meta">{{
+                $t('orders.placed_on', { date: formatDate(order.created_at) })
+              }}</span>
               <span class="order-row__tags">
                 <StatusTag
-                  :tone="paymentFacet(order.order_status_name).tone"
-                  :icon="paymentFacet(order.order_status_name).icon"
-                  :label="paymentFacet(order.order_status_name).label"
+                  :tone="paymentFacet(order.order_status_name, tr).tone"
+                  :icon="paymentFacet(order.order_status_name, tr).icon"
+                  :label="paymentFacet(order.order_status_name, tr).label"
                 />
                 <StatusTag
-                  v-if="deliveryFacet(order.order_status_name)"
-                  :tone="deliveryFacet(order.order_status_name)!.tone"
-                  :icon="deliveryFacet(order.order_status_name)!.icon"
-                  :label="deliveryFacet(order.order_status_name)!.label"
+                  v-if="deliveryFacet(order.order_status_name, tr)"
+                  :tone="deliveryFacet(order.order_status_name, tr)!.tone"
+                  :icon="deliveryFacet(order.order_status_name, tr)!.icon"
+                  :label="deliveryFacet(order.order_status_name, tr)!.label"
                 />
                 <StatusTag
                   v-if="order.balance_due"
                   tone="warn"
                   icon="ph:coins"
-                  :label="`Solde à régler : ${money(order.balance_amount, order.currency)}`"
+                  :label="
+                    $t('orders.balance_due', {
+                      amount: money(order.balance_amount, order.currency),
+                    })
+                  "
                 />
               </span>
               <span v-if="documentsOf(order.id).length" class="order-row__docs">
@@ -119,7 +130,7 @@
               <q-btn
                 outline
                 color="primary"
-                label="Détail"
+                :label="$t('orders.detail')"
                 :to="{ name: 'order-tracking', params: { id: order.id } }"
                 class="order-row__open"
               />
@@ -131,7 +142,7 @@
           <q-btn
             outline
             color="primary"
-            label="Voir plus de commandes"
+            :label="$t('orders.more')"
             :loading="loading"
             @click="loadMore"
           />
@@ -142,6 +153,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { useTranslate } from '@/composables/useTranslate';
 import { computed, onMounted, ref } from 'vue';
 import { formatDate, orderRef } from '@app/utils';
 
@@ -150,15 +163,14 @@ import StatusTag from '@app/ui/StatusTag.vue';
 import { downloadCreditNotePdf, listMyCreditNotes, type CreditNote } from '@/api/creditNotes';
 import { downloadInvoicePdf, listMyInvoices, type Invoice } from '@/api/invoices';
 import { listMyOrders, type Order } from '@/api/orders';
-import {
-  getMyStoreCredit,
-  STORE_CREDIT_KIND_LABELS,
-  type StoreCreditBalance,
-} from '@/api/storeCredit';
+import { getMyStoreCredit, type StoreCreditBalance } from '@/api/storeCredit';
 import { useCurrencyStore } from '@/stores/currency';
 import { apiErrorMessage } from '@/utils/errors';
 import { orderMoney } from '@/utils/money';
 import { deliveryFacet, paymentFacet } from '@/utils/orderStatus';
+
+const { t } = useI18n();
+const tr = useTranslate();
 
 const PAGE_SIZE = 10;
 
@@ -182,6 +194,10 @@ const hasCredit = computed(
     (Number(storeCredit.value.balance) > 0 || storeCredit.value.entries.length > 0),
 );
 
+function creditKindLabel(kind: string): string {
+  return ['grant', 'use', 'revoke'].includes(kind) ? t(`orders.kind.${kind}`) : kind;
+}
+
 function money(raw: string, currency?: string | null): string {
   return orderMoney(raw, currency, currencyStore.reference);
 }
@@ -200,14 +216,14 @@ const documentsByOrder = computed(() => {
   for (const invoice of invoices.value) {
     push(invoice.order_id, {
       key: invoice.id,
-      label: `Facture ${invoice.invoice_number}`,
+      label: t('orders.invoice', { n: invoice.invoice_number }),
       download: () => runDownload(invoice.id, () => downloadInvoicePdf(invoice)),
     });
   }
   for (const note of creditNotes.value) {
     push(note.order_id, {
       key: note.id,
-      label: `Avoir ${note.credit_note_number}`,
+      label: t('orders.credit_note', { n: note.credit_note_number }),
       download: () => runDownload(note.id, () => downloadCreditNotePdf(note)),
     });
   }
@@ -224,7 +240,7 @@ async function runDownload(key: string, action: () => Promise<void>) {
   try {
     await action();
   } catch (err) {
-    documentsError.value = apiErrorMessage(err) ?? 'Le téléchargement du document a échoué.';
+    documentsError.value = apiErrorMessage(err) ?? t('orders.download_failed');
   } finally {
     downloading.value = null;
   }
@@ -239,7 +255,7 @@ async function fetchPage(skip: number) {
     hasMore.value = page.length > PAGE_SIZE;
     orders.value = [...orders.value, ...page.slice(0, PAGE_SIZE)];
   } catch (err) {
-    error.value = apiErrorMessage(err) ?? 'Impossible de charger vos commandes.';
+    error.value = apiErrorMessage(err) ?? t('orders.load_failed');
   } finally {
     loading.value = false;
   }
@@ -265,7 +281,7 @@ async function loadDocuments() {
   creditNotes.value = notes.status === 'fulfilled' ? notes.value : [];
   storeCredit.value = credit.status === 'fulfilled' ? credit.value : null;
   if (inv.status === 'rejected' || notes.status === 'rejected') {
-    documentsError.value = 'Vos factures et avoirs sont momentanément indisponibles.';
+    documentsError.value = t('orders.docs_unavailable');
   }
 }
 

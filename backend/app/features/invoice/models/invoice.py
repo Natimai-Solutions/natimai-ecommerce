@@ -72,7 +72,7 @@ class Invoice(SQLModel, table=True):
     total_tax: Decimal = Field(
         max_digits=12,
         decimal_places=2,
-        description="Total des taxes (TGC/TVA)",
+        description="Total des taxes (TVA)",
     )
     total_incl_tax: Decimal = Field(
         max_digits=12,

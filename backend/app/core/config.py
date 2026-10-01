@@ -30,6 +30,24 @@ def parse_cors(v: Any) -> list[str] | str:
     raise ValueError(v)
 
 
+def reference_currency() -> str:
+    """Default currency of amounts: the deployment's reference currency
+    (``default_factory`` of the models, so a FR shop does not default to XPF)."""
+    return settings.REFERENCE_CURRENCY
+
+
+def secret_is_set(value: str | None) -> bool:
+    """Whether an integration secret holds a real value.
+
+    Empty, or still the ``changeme-…`` / ``changethis`` placeholder of
+    ``.env.example``: not set. Without this, a copied example file made
+    Ingram and Icecat look configured and the crons called them with fake
+    credentials.
+    """
+    text = (value or "").strip().lower()
+    return bool(text) and not text.startswith(("changeme", "changethis"))
+
+
 class Settings(BaseSettings):
     """Represents settings."""
 
@@ -261,6 +279,13 @@ class Settings(BaseSettings):
     ICECAT_USERNAME: str | None = None
     ICECAT_API_KEY: str | None = None
     ICECAT_LANGUAGE: str = "fr"  # Default language
+    # Fernet key(s) encrypting secrets stored in the database: file-feed
+    # supplier logins, administrators' two-factor secrets (comma-separated for
+    # a rotation, the first one encrypts).
+    SECRETS_ENCRYPTION_KEY: str | None = None
+    # Catalogue files downloaded from a supplier URL: size cap and timeout.
+    SUPPLIER_FEED_MAX_BYTES: int = 25 * 1024 * 1024
+    SUPPLIER_FEED_TIMEOUT_SECONDS: int = 60
     ICECAT_ENABLED: bool = True  # Enable/disable Icecat enrichment
     ICECAT_USE_OPEN: bool = True  # Use Open Icecat (free) instead of Full Icecat (paid)
     # Recurring batch enrichment: drains the backlog of un-enriched products so
@@ -298,7 +323,16 @@ class Settings(BaseSettings):
     SUPPLIER_FILE_IMPORT_MAX_ROWS: int = 250_000
 
     # File storage backend selection for payment attachments
+    # Two-factor authentication of the administrators: None = required in
+    # production, optional elsewhere. Required, a superuser without it only
+    # reaches the enrolment endpoints.
+    ADMIN_2FA_REQUIRED: bool | None = None
+    # Days the administrators' audit trail is kept (0 = forever).
+    AUDIT_LOG_RETENTION_DAYS: int = 400
     FILE_STORAGE_BACKEND: Literal["s3", "local"] = "local"
+    # Escape hatch: a single-host production keeping its uploads on a local,
+    # backed-up volume. Without it, production refuses to start on "local".
+    FILE_STORAGE_ALLOW_LOCAL: bool = False
     FILE_STORAGE_LOCAL_ROOT: str = "/tmp/fastapi_ecommerce_storage"
     FILE_STORAGE_PRESIGNED_TTL_SECONDS: int = 300
     # Images publiques (accueil, produits, catégories) téléversées depuis
@@ -433,7 +467,7 @@ class Settings(BaseSettings):
     # --- Territoire et mode de la boutique --------------------------------
     # TERRITORY_PROFILE picks the currency, the tax territory and its seeded
     # rates, the country and the starter data (see app/core/territory.py):
-    # "PF" (Polynésie française, XPF, TGC — the historical default) or "FR"
+    # "PF" (Polynésie française, XPF, TVA — the historical default) or "FR"
     # (France métropolitaine, EUR, TVA). Every value below can still be set
     # on its own; the profile only fills what the environment leaves unset.
     TERRITORY_PROFILE: Literal["PF", "FR"] = "PF"
@@ -450,7 +484,7 @@ class Settings(BaseSettings):
     # Tax territory of the shop's own rates, and the rate applied when neither
     # the product nor its category says otherwise.
     TAX_TERRITORY_CODE: str = "PF"
-    DEFAULT_TAX_CODE: str = "TGC_NORMAL"
+    DEFAULT_TAX_CODE: str = "TVA_NORMALE"
     # Insurance rate applied on (cost + variable import freight) before customs
     # — the CAF/CIF basis, which is what an ad valorem policy actually covers.
     # Expressed as a percentage (e.g. 1.0 = 1 %). Default 0 = no insurance in
@@ -463,6 +497,16 @@ class Settings(BaseSettings):
     # shop: it then starts with carriers and statuses only, and the admin
     # creates its warehouse and its warehouse → customer routes.
     SEED_FRENCH_POLYNESIA_LOGISTICS: bool = True
+    # Languages and time zone of the shop (R7 / L5). Filled by the territory
+    # profile; each can be set on its own (a PF shop in English, a FR shop
+    # adding Spanish…) without touching the code. SHOP_LOCALES lists the
+    # languages offered to the visitor; the interface ships fr and en.
+    SHOP_DEFAULT_LOCALE: str = "fr"
+    SHOP_LOCALES: Annotated[list[str] | str, BeforeValidator(parse_cors)] = [
+        "fr",
+        "en",
+    ]
+    SHOP_TIMEZONE: str = "Pacific/Tahiti"
 
     # --- Facturation (M3) : identité du vendeur imprimée sur les factures ---
     # OBLIGATOIRE légalement avant d'émettre une facture réelle : une facture
@@ -478,7 +522,7 @@ class Settings(BaseSettings):
     # Taux appliqué aux frais (livraison, paiement) pour la ventilation de
     # taxe. Code de TaxRate résolu sur le territoire de référence.
     # ⚠️ À faire confirmer par le comptable (cf. PLAN_DE_TRAVAIL, écart F3).
-    INVOICE_FEES_TAX_CODE: str = "TGC_NORMAL"
+    INVOICE_FEES_TAX_CODE: str = "TVA_NORMALE"
     PAYZEN_CURRENCY: str = "XPF"  # Default currency for French Polynesia
     PAYZEN_IPN_URL: str | None = None  # Will be computed based on backend URL
     PAYZEN_RETURN_URL: str | None = None  # Frontend URL to return after payment
@@ -511,6 +555,9 @@ class Settings(BaseSettings):
             "INVOICE_FEES_TAX_CODE": profile.default_tax_code,
             "PAYZEN_CURRENCY": profile.currency,
             "SEED_FRENCH_POLYNESIA_LOGISTICS": profile.seed_french_polynesia_logistics,
+            "SHOP_DEFAULT_LOCALE": profile.default_locale,
+            "SHOP_LOCALES": list(profile.available_locales),
+            "SHOP_TIMEZONE": profile.timezone,
         }
         for name, value in defaults.items():
             if name not in self.model_fields_set:
@@ -518,9 +565,32 @@ class Settings(BaseSettings):
         return self
 
     @property
+    def shop_locales(self) -> list[str]:
+        """Offered languages, normalized (lower-case, default first, unique)."""
+        default = self.SHOP_DEFAULT_LOCALE.strip().lower() or "fr"
+        seen = [default]
+        codes = (
+            self.SHOP_LOCALES.split(",")
+            if isinstance(self.SHOP_LOCALES, str)
+            else self.SHOP_LOCALES
+        )
+        for code in codes:
+            value = str(code).strip().lower()
+            if value and value not in seen:
+                seen.append(value)
+        return seen
+
+    @property
     def territory_profile(self) -> Any:
         """The active :class:`~app.core.territory.TerritoryProfile`."""
         return get_profile(self.TERRITORY_PROFILE)
+
+    @property
+    def admin_2fa_required(self) -> bool:
+        """Superusers must use two-factor authentication (default: production)."""
+        if self.ADMIN_2FA_REQUIRED is not None:
+            return bool(self.ADMIN_2FA_REQUIRED)
+        return self.ENVIRONMENT == "production"
 
     @property
     def is_simple_shop(self) -> bool:
@@ -597,6 +667,68 @@ class Settings(BaseSettings):
             else:
                 raise ValueError(message)
 
+    def _check_file_storage(self) -> None:
+        """Uploaded documents live in S3 in production (R6).
+
+        The local backend writes into the container's filesystem: payment
+        documents, catalogue files and media are lost with a volume, absent
+        from the database backups and invisible to a second host. Production
+        refuses to start on it unless ``FILE_STORAGE_ALLOW_LOCAL`` says the
+        volume is deliberate (and backed up); staging only warns. With "s3",
+        the bucket and the credentials must be set.
+        """
+        if self.FILE_STORAGE_BACKEND == "s3":
+            missing = [
+                name
+                for name in ("S3_BUCKET_NAME", "S3_ACCESS_KEY_ID", "S3_SECRET_KEY_ID")
+                if not (getattr(self, name) or "").strip()
+            ]
+            if missing:
+                message = (
+                    "FILE_STORAGE_BACKEND=s3 needs "
+                    + ", ".join(missing)
+                    + ": uploads would fail at the first document."
+                )
+                if self.ENVIRONMENT == "local":
+                    warnings.warn(message, stacklevel=1)
+                else:
+                    raise ValueError(message)
+            return
+        if self.ENVIRONMENT == "local" or self.FILE_STORAGE_ALLOW_LOCAL:
+            return
+        message = (
+            "FILE_STORAGE_BACKEND is 'local' outside local development: "
+            "uploaded documents stay on the container's disk (lost with the "
+            "volume, absent from database backups). Set FILE_STORAGE_BACKEND=s3 "
+            "with its S3_* settings, or FILE_STORAGE_ALLOW_LOCAL=true for a "
+            "deliberate, backed-up local volume."
+        )
+        if self.ENVIRONMENT == "production":
+            raise ValueError(message)
+        warnings.warn(message, stacklevel=1)
+
+    def _check_secrets_key_for_2fa(self) -> None:
+        """Required 2FA needs the key that encrypts its secrets (R6).
+
+        Without SECRETS_ENCRYPTION_KEY no administrator could enrol, and
+        with 2FA required none could then reach the back-office.
+        """
+        if not self.admin_2fa_required:
+            return
+        if (self.SECRETS_ENCRYPTION_KEY or "").strip():
+            return
+        message = (
+            "Administrators' two-factor authentication is required "
+            "(ADMIN_2FA_REQUIRED, on by default in production) but "
+            "SECRETS_ENCRYPTION_KEY is empty: no administrator could enrol. "
+            'Generate one: python -c "from cryptography.fernet import Fernet; '
+            'print(Fernet.generate_key().decode())"'
+        )
+        if self.ENVIRONMENT == "local":
+            warnings.warn(message, stacklevel=1)
+        else:
+            raise ValueError(message)
+
     @model_validator(mode="after")
     def _enforce_non_default_secrets(self) -> Self:
         """Execute enforce non default secrets."""
@@ -612,6 +744,8 @@ class Settings(BaseSettings):
             "FIRST_SUPERUSER", self.FIRST_SUPERUSER, "admin@example.com"
         )
         self._check_clamav_enabled()
+        self._check_file_storage()
+        self._check_secrets_key_for_2fa()
 
         return self
 

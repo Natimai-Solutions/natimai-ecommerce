@@ -11,8 +11,8 @@ present in the environment. An unavailable provider disappears from the
 checkout, refuses new payments, and still receives the notifications of the
 payments it already started (money must never be lost to a switch).
 
-The switch lives in ``system_settings`` (``payment_provider_<code>_enabled``)
-until the typed settings registry of R5 exists.
+The switch lives in ``system_settings`` (``payment_provider_<code>_enabled``),
+declared in the runtime settings registry (R5).
 """
 
 from __future__ import annotations
@@ -69,16 +69,12 @@ def _parse(raw: str | None, default: bool) -> bool:
 
 async def switches(session: AsyncSession) -> dict[str, bool]:
     """The on/off state of every provider with a switch, in one query."""
-    rows = await session.exec(
-        select(SystemSetting).where(
-            col(SystemSetting.key).in_([setting_key(code) for code in PSP_DEFAULTS])
-        )
+    from app.core import runtime_settings
+
+    values = await runtime_settings.get_many(
+        [setting_key(code) for code in PSP_DEFAULTS], session
     )
-    stored = {row.key: row.value for row in rows.all()}
-    return {
-        code: _parse(stored.get(setting_key(code)), default)
-        for code, default in PSP_DEFAULTS.items()
-    }
+    return {code: bool(values[setting_key(code)]) for code in PSP_DEFAULTS}
 
 
 def _available(code: str, state: dict[str, bool]) -> bool:

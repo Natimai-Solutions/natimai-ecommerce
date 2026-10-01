@@ -2,10 +2,9 @@
   <q-page class="auth-page flex flex-center">
     <q-card flat class="auth-card">
       <q-card-section>
-        <h1 class="auth-title">Mot de passe oublié</h1>
+        <h1 class="auth-title">{{ $t('auth.forgot_title') }}</h1>
         <div class="auth-lead q-mt-xs">
-          Indiquez votre adresse email : si un compte y est associé, vous recevrez un lien pour
-          choisir un nouveau mot de passe.
+          {{ $t('auth.forgot_lead') }}
         </div>
       </q-card-section>
 
@@ -30,16 +29,16 @@
             data-testid="forgot-email"
             outlined
             stack-label
-            label="Email"
+            :label="$t('auth.email')"
             autocomplete="email"
             class="q-mb-md"
-            :rules="[(v) => !!v || 'Email requis']"
+            :rules="[(v) => !!v || $t('auth.email_required')]"
           />
           <q-btn
             type="submit"
             data-testid="forgot-submit"
             color="primary"
-            label="Envoyer le lien"
+            :label="$t('auth.send_link')"
             class="full-width"
             :loading="submitting"
           />
@@ -47,17 +46,26 @@
       </q-card-section>
 
       <q-card-section class="q-pt-none text-center">
-        <q-btn flat no-caps color="primary" label="Retour à la connexion" :to="{ name: 'login' }" />
+        <q-btn
+          flat
+          no-caps
+          color="primary"
+          :label="$t('auth.back_to_login')"
+          :to="{ name: 'login' }"
+        />
       </q-card-section>
     </q-card>
   </q-page>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { apiErrorMessage } from '@/utils/errors';
 import AppNotice from '@app/ui/AppNotice.vue';
 import { ref } from 'vue';
 import { requestPasswordReset } from '@/api/passwordReset';
+
+const { t } = useI18n();
 
 const email = ref('');
 const submitting = ref(false);
@@ -70,7 +78,7 @@ async function onSubmit() {
   try {
     sentMessage.value = await requestPasswordReset(email.value.trim().toLowerCase());
   } catch (err) {
-    errorMessage.value = apiErrorMessage(err) ?? 'Envoi impossible. Veuillez réessayer.';
+    errorMessage.value = apiErrorMessage(err) ?? t('auth.send_failed');
   } finally {
     submitting.value = false;
   }

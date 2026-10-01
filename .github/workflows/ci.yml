@@ -31,6 +31,9 @@ jobs:
       SECRET_KEY: ci-only-not-a-secret
       FIRST_SUPERUSER: ci-superuser@example.com
       FIRST_SUPERUSER_PASSWORD: ci-only-password
+      # The interpreter installed by setup-python below, never a download.
+      UV_PYTHON: "3.14"
+      UV_PYTHON_PREFERENCE: only-system
     services:
       postgres:
         image: postgres:16-alpine
@@ -57,13 +60,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Same Python as the production image (python:3.14-slim, see
+      # backend/Dockerfile): a test run on 3.12 against a 3.14 image let
+      # version-specific breakage (uvloop on 3.14) reach the deployment
+      # unseen. setup-python gives the latest 3.14.x (an old uv would install
+      # a 3.14 release candidate); uv picks it up.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
           version: latest
-
-      - name: Set up Python
-        run: uv python install 3.12
 
       - name: Install dependencies
         working-directory: backend
@@ -159,7 +169,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
 
       - name: Install dependencies
@@ -272,7 +282,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
 
       - name: Install dependencies

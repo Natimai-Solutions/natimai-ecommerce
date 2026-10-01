@@ -1,0 +1,17 @@
+Hello {{ full_name }},
+
+Please find attached your quote {{ quote_number }}.
+
+Total amount incl. tax: {{ total_amount }} {{ currency }}
+Valid until: {{ valid_until }}
+{% if customer_message %}
+{{ customer_message }}
+{% endif %}
+{% if has_account -%}
+To accept it, sign in to your account and click “Order this quote”: the quote's prices apply to your order.
+{{ accept_url }}
+{%- else -%}
+To accept it, simply reply to this message: we will guide you through finalising the order.
+{%- endif %}
+
+The {{ shop_name }} team

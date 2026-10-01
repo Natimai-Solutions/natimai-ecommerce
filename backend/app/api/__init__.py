@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.routes.address import router as address_router
+from app.api.routes.admin_audit import router as admin_audit_router
 from app.api.routes.admin_carts import router as admin_carts_router
 from app.api.routes.admin_categories import router as admin_categories_router
 from app.api.routes.admin_credit_notes import router as admin_credit_notes_router
@@ -11,6 +12,7 @@ from app.api.routes.admin_grouped_departures import (
 )
 from app.api.routes.admin_inventory import router as admin_inventory_router
 from app.api.routes.admin_invoices import router as admin_invoices_router
+from app.api.routes.admin_modules import router as admin_modules_router
 from app.api.routes.admin_orders import router as admin_orders_router
 from app.api.routes.admin_payment_eligibility import (
     router as admin_payment_eligibility_router,
@@ -80,6 +82,7 @@ from app.api.routes.stock_movement import router as stock_movement_router
 from app.api.routes.store_credit import router as store_credit_router
 from app.api.routes.suppliers import router as suppliers_router
 from app.api.routes.system_settings import router as system_settings_router
+from app.api.routes.two_factor import router as two_factor_router
 from app.api.routes.user_notification import (
     router as user_notification_router,
 )
@@ -95,6 +98,7 @@ from app.api.routes.webhooks import router as webhooks_router
 api_router = APIRouter()
 
 api_router.include_router(login_router, tags=["login"])
+api_router.include_router(two_factor_router)
 api_router.include_router(password_reset_router)
 api_router.include_router(oauth_router)
 api_router.include_router(signup_router)
@@ -124,6 +128,8 @@ api_router.include_router(admin_carts_router)
 api_router.include_router(admin_categories_router)
 api_router.include_router(admin_supplier_orders_router)
 api_router.include_router(admin_suppliers_router)
+api_router.include_router(admin_modules_router)
+api_router.include_router(admin_audit_router)
 api_router.include_router(admin_spec_definitions_router)
 api_router.include_router(internal_storage_router)
 api_router.include_router(product_catalog_router)

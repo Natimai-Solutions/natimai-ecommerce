@@ -21,7 +21,6 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from app.core.config import settings
 from app.features.integrations.models.supplier import (
     FILE_MAPPING_REQUIRED,
     FILE_MAPPING_TARGETS,
@@ -30,10 +29,17 @@ from app.services.suppliers.base import NormalizedProductData
 
 #: Extensions lues par openpyxl ; tout le reste est traité comme du CSV.
 EXCEL_EXTENSIONS: tuple[str, ...] = (".xlsx", ".xlsm")
-#: Lignes maximum acceptées par import (garde-fou mémoire du worker) ; les
-#: fichiers au-delà de ``SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS`` sont importés
-#: en tâche de fond, pas dans la requête.
-MAX_ROWS = settings.SUPPLIER_FILE_IMPORT_MAX_ROWS
+
+
+async def max_rows_setting(session: Any = None) -> int:
+    """Lignes maximum acceptées par import (garde-fou mémoire du worker),
+    réglage en base ``supplier_file_import_max_rows`` (R5) ; les fichiers
+    au-delà de ``supplier_file_import_inline_max_rows`` sont importés en
+    tâche de fond, pas dans la requête."""
+    from app.core import runtime_settings
+
+    return int(await runtime_settings.get("supplier_file_import_max_rows", session))
+
 
 _DELIMITERS = ",;\t|"
 _NUMBER_JUNK_RE = re.compile(r"[^\d,.\-]")
@@ -221,7 +227,7 @@ def _cell_text(value: Any) -> str:
 
 
 def read_tabular_file(
-    content: bytes, filename: str, *, max_rows: int | None = MAX_ROWS
+    content: bytes, filename: str, *, max_rows: int | None = None
 ) -> ParsedFile:
     """Lire un CSV ou un classeur Excel en lignes texte.
 

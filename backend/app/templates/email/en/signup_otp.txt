@@ -1,0 +1,7 @@
+Hello,
+
+Your {{ shop_name }} verification code is: {{ code }}
+
+It is valid for {{ valid_minutes }} minutes. If you did not make this request, ignore this e-mail.
+
+The {{ shop_name }} team

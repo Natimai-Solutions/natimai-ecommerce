@@ -222,22 +222,45 @@ Catalog sync:
 | `SUPPLIER_SYNC_MIN_PRICE` | `0` | Minimum price **in XPF** (0 = off) |
 | `SUPPLIER_SYNC_MIN_QUANTITY` | `0` | Minimum quantity (0 = off) |
 
-Automatic purchase‑order creation on `payment.captured`:
+Catalogue files downloaded from a supplier link (Foxway, Picata…): declare
+the supplier with *Intégration* = « Fichier en ligne (lien) » (`kind=api`,
+`adapter_key=file_feed`), its URL and login mode, then its portal login
+(stored encrypted) and its column mapping (Importer → « Lire le flux »).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `INGRAM_ORDER_CREATION_ENABLED` | `false` | Master switch for auto PO creation |
-| `INGRAM_SHIP_TO_ADDRESS_LINE1` | — | **Required** when enabled — our warehouse address |
-| `INGRAM_SHIP_TO_CITY` | — | **Required** when enabled |
-| `INGRAM_SHIP_TO_COUNTRY_CODE` | `PF` | Ship‑to country |
-| `INGRAM_SHIP_TO_CONTACT` | — | Contact name |
-| `INGRAM_SHIP_TO_COMPANY_NAME` | — | Company name |
-| `INGRAM_SHIP_TO_POSTAL_CODE` | — | Postal code |
-| `INGRAM_SHIP_TO_PHONE` | — | Phone |
+| `SECRETS_ENCRYPTION_KEY` | — | Fernet key encrypting the portal logins (comma-separated keys for a rotation, the first encrypts). **Required** to store a login |
+| `SUPPLIER_FEED_MAX_BYTES` | `26214400` | Size cap of a downloaded file |
+| `SUPPLIER_FEED_TIMEOUT_SECONDS` | `60` | Download timeout |
 
-> Enable `INGRAM_ORDER_CREATION_ENABLED=true` **only after**
-> `INGRAM_SHIP_TO_ADDRESS_LINE1` + `INGRAM_SHIP_TO_CITY` are set, otherwise every
-> generated PO is persisted as `ERROR` (ship‑to not configured).
+Only `https://` towards public addresses is fetched (redirects re-checked);
+portals that need JavaScript or a captcha, and `.xls` files, are out of
+scope. A failing download fails the sync and posts to `ALERT_WEBHOOK_URL`.
+
+Automatic purchase‑order creation on `payment.captured` (any supplier whose
+integration can order — Ingram today):
+
+* per supplier, **Admin → Fournisseurs → Modifier → « Commande fournisseur
+  automatique à l'encaissement »** (`suppliers.auto_purchase_order`);
+* delivered to the **main warehouse** (Trajets et lieux → « entrepôt
+  principal »): its address line, city, postal code and country are the
+  ship‑to. The variables below only complete it (contact, phone, company) or
+  replace it when the main warehouse has no address.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `INGRAM_ORDER_CREATION_ENABLED` | `false` | Historical switch: also turns Ingram's automatic orders on |
+| `INGRAM_SHIP_TO_ADDRESS_LINE1` | — | Fallback ship‑to when the main warehouse has no address |
+| `INGRAM_SHIP_TO_CITY` | — | Fallback ship‑to city |
+| `INGRAM_SHIP_TO_COUNTRY_CODE` | `PF` | Ship‑to country when the warehouse has none |
+| `INGRAM_SHIP_TO_CONTACT` | — | Contact name (sent to every supplier) |
+| `INGRAM_SHIP_TO_COMPANY_NAME` | `SHOP_NAME` | Company name |
+| `INGRAM_SHIP_TO_POSTAL_CODE` | — | Fallback postal code |
+| `INGRAM_SHIP_TO_PHONE` | — | Phone (sent to every supplier) |
+
+> Fill in the main warehouse's address **before** switching automatic orders
+> on, otherwise every generated PO is persisted as `ERROR` (no delivery
+> address) — retry them from Admin → Commandes fournisseurs once it is set.
 
 Inbound order‑status webhook (Phase 3):
 
@@ -249,22 +272,78 @@ Inbound order‑status webhook (Phase 3):
 > as the webhook secret for the order‑status callback URL
 > `https://api.example.com/api/v1/webhooks/ingram/order-status`.
 
-### 3.7 System settings (Phase 3)
+### 3.7 Runtime settings — configuration in the database (R5)
 
-System settings are stored in the `system_settings` database table and managed
-via admin endpoints (`GET/PUT /admin/system-settings`). No environment variable
-is needed — the seed migration inserts the initial value.
+Business settings live in the `system_settings` table and are edited from
+**Admin → Paramètres** (typed form, grouped by category), without a
+redeployment. Each one is declared once in
+`backend/app/features/system/settings_catalog.py` (type, bounds, category,
+help text, public or not, secret or not, hooks); the API refuses any other
+key (`404 system_setting.unknown_key`) and any value outside the declaration
+(`400 system_setting.invalid_value`).
 
-| Key | Seeded value | Description |
-|-----|-------------|-------------|
-| `default_display_currency` | `XPF` | Currency shown to customers in the storefront. Exposed to unauthenticated callers via `GET /system/settings`. Phase 4 will add a runtime toggle. |
+**Resolution order: database → environment → default.** A value typed in the
+admin wins; a blank value (or « Valeur par défaut ») falls back to the
+environment variable named in the screen, then to the code default. The
+screen shows where each value comes from (badge *Saisi ici* / *Environnement*
+/ *Défaut*). So the environment variables below are now **starting points**:
+they keep working as long as nobody types a value in the admin, which then
+takes precedence silently — check the badge before editing a `.env`.
 
-> To change the default display currency after first deployment:
-> ```http
-> PUT /api/v1/admin/system-settings/default_display_currency
-> Authorization: Bearer <superuser-token>
-> {"value": "EUR"}
-> ```
+| Category | Settings (key → environment fallback) |
+|---|---|
+| Boutique | `shop_name` ← `SHOP_NAME`, `email_support` ← `EMAIL_SUPPORT`, `email_contact` ← `EMAIL_CONTACT`, `cgv_version` ← `CGV_VERSION` |
+| Identité légale | `legal_*` (23 keys, public) — seeded once from `INVOICE_SELLER_*` |
+| Prix | `pricing_payment_commission_pct`, `pricing_fx_safety_margin_pct`, `insurance_rate_pct` ← `INSURANCE_RATE_PCT` (each change re-prices the catalogue) |
+| Taxes | `tax_default_code` ← `DEFAULT_TAX_CODE`, `tax_fees_code` ← `INVOICE_FEES_TAX_CODE` |
+| Factures | `invoice_legal_footer` ← `INVOICE_LEGAL_FOOTER` |
+| Paiement | `payment_provider_{payzen,paypal,stripe}_enabled`, `payment_instructions_manual_{cash,check,transfer}` |
+| Notifications | `notifications_email_enabled` ← `PAYMENT_NOTIFICATIONS_EMAIL_ENABLED`, `notifications_slack_enabled` ← `PAYMENT_NOTIFICATIONS_SLACK_ENABLED`, `notifications_slack_webhook_url` ← `PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL` (secret) |
+| Commandes et stock | `stock_reservation_ttl_hours`, `cart_abandonment_reminder_delay_hours`, `cart_abandonment_max_age_days`, `checkout_supplier_availability_check`, `checkout_supplier_check_timeout_seconds` (same names in upper case) |
+| Fournisseurs | `supplier_delisting_grace_hours`, `supplier_file_import_inline_max_rows`, `supplier_file_import_max_rows` |
+| Icecat | `icecat_use_open`, `icecat_language`, `icecat_enrichment_interval_hours` ← `ICECAT_ENRICHMENT_CRON_INTERVAL_HOURS`, `icecat_batch_enrich_limit`, `icecat_enrichment_retry_cooldown_days` |
+| Logistique | `customs_free_countries`, `social_webhook_url` (secret) |
+| Affichage | `default_display_currency` (public) |
+| Sécurité | `enable_group_permissions` ← `ENABLE_GROUP_PERMISSIONS`, `audit_log_retention_days` ← `AUDIT_LOG_RETENTION_DAYS` |
+
+The module switches (`module.*`) have their own screen (Admin → Modules).
+
+**Per-supplier settings** (Admin → Fournisseurs → the supplier's form) are
+typed by the integration itself (`settings_schema`): subcategory allowlist
+and filter rules (instead of `SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST` /
+`SUPPLIER_PRODUCT_FILTER_RULES`), stock-sync thresholds (instead of
+`SUPPLIER_SYNC_MIN_*`), Ingram environment / country / ship-to contact,
+file-feed URL and login mode. Empty fields keep the environment's value.
+
+**Stays in the environment**: infrastructure and secrets, integration
+credentials (Ingram, Icecat, PayZen, PayPal), the structural choices of the
+deployment (`TERRITORY_PROFILE`, `SHOP_MODE`, `REFERENCE_CURRENCY`,
+`SHOP_COUNTRY_CODE`, `TAX_TERRITORY_CODE`, `SEED_FRENCH_POLYNESIA_LOGISTICS`,
+`PAYZEN_CURRENCY`), the e-mail provider (`PAYMENT_NOTIFICATIONS_EMAIL_PROVIDER`)
+and the kill switches `ICECAT_ENABLED` / `INGRAM_SYNC_ENABLED`.
+`INVOICE_SELLER_*`, `INGRAM_SYNC_INTERVAL_HOURS` / `INGRAM_SYNC_CATEGORIES`
+and `INGRAM_ORDER_CREATION_ENABLED` only seed the database at the first start
+(the supplier row then owns its cadence, categories and « commande
+automatique »).
+
+**Propagation.** Every process keeps a snapshot of the table for 30 s at
+most; a change is seen at once by the process that wrote it and, through the
+Redis counter `settings:version`, within ~3 s by the other API replicas and
+the worker (TTL only if Redis is down). The CGV version stamped on an order
+is read without cache. The worker's crons (Icecat enrichment, stock
+reservations, abandoned carts) are always scheduled and re-read their setting
+at each tick: changing an interval or switching one off needs **no restart**.
+
+Every change is journaled (`setting.changed` in Admin → Journal d'audit, with
+old and new values, secrets masked) and the row records who made it.
+
+```http
+PUT /api/v1/admin/system-settings/default_display_currency
+Authorization: Bearer <superuser-token>
+{"value": "EUR"}
+
+DELETE /api/v1/admin/system-settings/default_display_currency   # back to the fallback
+```
 
 ### 3.9 Product enrichment — Icecat
 
@@ -287,10 +366,15 @@ truth. All three are safe to leave at their defaults.
 | `SUPPLIER_DELISTING_GRACE_HOURS` | `72` | A SKU the supplier stops returning stays sellable with its last known price and stock. The first absence is only recorded (`products.supplier_missing_since`); the product is deactivated once the gap outlives this delay, so a transient supplier fault cannot empty the catalogue. `0` records the absence but never deactivates. |
 | `CHECKOUT_SUPPLIER_AVAILABILITY_CHECK` | `true` | Re-ask the supplier what it actually has before reserving, instead of trusting a snapshot up to two hours old. One request per order, on supplier-managed lines only. A supplier that answers "out of stock" refuses the order; a supplier that cannot be reached never blocks a sale — the snapshot stands. |
 | `CHECKOUT_SUPPLIER_CHECK_TIMEOUT_SECONDS` | `8` | Deliberately short: this runs on the checkout critical path, unlike the 60 s the background sync can afford. |
-| `TERRITORY_PROFILE` | `PF` | Where the shop sells: `PF` (Polynésie française: XPF, TGC, Papeete customs corridor and island tree) or `FR` (France métropolitaine: EUR, TVA, no Polynesian starter data). Fills `REFERENCE_CURRENCY`, `SHOP_COUNTRY_CODE`, `TAX_TERRITORY_CODE`, `DEFAULT_TAX_CODE`, `INVOICE_FEES_TAX_CODE`, `PAYZEN_CURRENCY` and `SEED_FRENCH_POLYNESIA_LOGISTICS` unless each is set explicitly. The seed creates the profile's tax rates and starter FX rates. |
+| `TERRITORY_PROFILE` | `PF` | Where the shop sells: `PF` (Polynésie française: XPF, TVA 16 / 13 / 5 / 0 %, Papeete customs corridor and island tree) or `FR` (France métropolitaine: EUR, TVA, no Polynesian starter data). Fills `REFERENCE_CURRENCY`, `SHOP_COUNTRY_CODE`, `TAX_TERRITORY_CODE`, `DEFAULT_TAX_CODE`, `INVOICE_FEES_TAX_CODE`, `PAYZEN_CURRENCY` and `SEED_FRENCH_POLYNESIA_LOGISTICS` unless each is set explicitly. The seed creates the profile's tax rates and starter FX rates. |
+| `SHOP_DEFAULT_LOCALE` / `SHOP_LOCALES` / `SHOP_TIMEZONE` | from profile (`fr` / `fr,en` / `Pacific/Tahiti` for PF, `Europe/Paris` for FR) | Language used when nothing else decides, languages offered to visitors (comma list; the interface ships `fr` and `en`), and the time zone of displayed dates. See §3.11. |
 | `SHOP_MODE` | `full` | `simple` for a one-warehouse shop selling its own stock, shipped directly to the customer: the admin hides suppliers, customs, exchange rates, spec catalog and multi-leg logistics, the product form defaults to a fixed price, and the supplier sync / Icecat crons are not scheduled. Nothing is deleted: switching back to `full` shows everything again. |
 | `SHOP_COUNTRY_CODE` | from profile | ISO country of the shop (address fallback, root of the place tree). |
-| `TAX_TERRITORY_CODE` / `DEFAULT_TAX_CODE` | from profile | Territory of the shop's own tax rates and the rate applied when neither the product nor its category says otherwise. |
+| `TAX_TERRITORY_CODE` / `DEFAULT_TAX_CODE` | from profile | Territory of the shop's own tax rates and the starting point of the rate applied when neither the product nor its category says otherwise. The rates themselves (code, label, percentage, validity) are created freely in the admin (**Taux de TVA**), and the default rate is chosen there too — a shop outside Polynesia and France defines its own set without redeploying. |
+
+**Confidentiality.** Purchase cost, supplier price, margin and customs rates of
+products (and the cost snapshots of order lines) are only serialized for a
+superuser's request; the public storefront API never returns them.
 | `CART_ABANDONMENT_REMINDER_DELAY_HOURS` | `24` | A logged-in customer's cart untouched for this long, never ordered, gets one reminder e-mail (hourly sweep, `cart.abandoned` outbox event). Customers can opt out of commercial e-mails in their preferences. `0` disables the sweep. |
 | `CART_ABANDONMENT_MAX_AGE_DAYS` | `14` | Carts older than this are never reminded. |
 | `SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS` | `2000` | A CSV / Excel catalog up to this many rows is imported inside the request. A larger file is stored (`FILE_STORAGE_BACKEND`), a sync log is opened and an ARQ job imports it; the admin screen polls the log. Simulations of a large file resolve only this many rows. |
@@ -300,8 +384,9 @@ truth. All three are safe to leave at their defaults.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `FILE_STORAGE_BACKEND` | `local` | `s3` in production |
-| `FILE_STORAGE_LOCAL_ROOT` | `/tmp/fastapi_ecommerce_storage` | Dev only |
+| `FILE_STORAGE_BACKEND` | `local` | `s3` in production. **With `ENVIRONMENT=production` the backend refuses to start on `local`** (warning in staging) unless `FILE_STORAGE_ALLOW_LOCAL=true`; with `s3`, `S3_BUCKET_NAME`, `S3_ACCESS_KEY_ID` and `S3_SECRET_KEY_ID` are required |
+| `FILE_STORAGE_ALLOW_LOCAL` | `false` | Deliberate single‑host production on a local volume (`storage_data`): set it **and** back that volume up with the database |
+| `FILE_STORAGE_LOCAL_ROOT` | `/tmp/fastapi_ecommerce_storage` | Dev only (the image hands this directory to its unprivileged user at start) |
 | `MEDIA_PUBLIC_BASE_URL` | — | Public origin of the API (`https://api.example.pf`). Images uploaded from the admin (homepage, products, categories, pages) are re-encoded to WebP, stored under `media/…` in the same storage, and served by `GET /api/v1/media/{id}/{width}.webp` with a one-year immutable cache. Their absolute URLs are built from this origin; empty, the origin of the upload request is used (fine in development, wrong behind a proxy). |
 | `MEDIA_MAX_UPLOAD_BYTES` | `8388608` | Largest image accepted by `POST /admin/media` (8 MB). Keep it under Caddy's `request_body` limit (16 MB). |
 | `S3_ENDPOINT_URL` | — | S3 endpoint (when backend=s3) |
@@ -319,7 +404,7 @@ truth. All three are safe to leave at their defaults.
 | `INVOICE_SELLER_REGISTRATION` | *(empty)* | **Required** — RC Papeete number + n° TAHITI |
 | `INVOICE_SELLER_EMAIL` / `INVOICE_SELLER_PHONE` | *(empty)* | Contact details on the document |
 | `INVOICE_LEGAL_FOOTER` | *(empty)* | Legal mentions printed at the bottom of the invoice |
-| `INVOICE_FEES_TAX_CODE` | `TGC_NORMAL` | `TaxRate.code` used to ventilate shipping/payment fees in the tax breakdown. ⚠️ Confirm with your accountant |
+| `INVOICE_FEES_TAX_CODE` | `TVA_NORMALE` | Starting point of the `TaxRate.code` used to ventilate shipping/payment fees in the tax breakdown. The admin changes it (and the default rate, `DEFAULT_TAX_CODE`) under **Taux de TVA → Taux appliqués**; its choice, stored in `system_settings`, wins. Former `TGC_*` codes are still understood. ⚠️ Confirm with your accountant |
 
 > **PDF rendering** relies on WeasyPrint and its system libraries (pango,
 > cairo, gdk-pixbuf) — present in the backend image. The import is lazy: on a
@@ -358,6 +443,65 @@ truth. All three are safe to leave at their defaults.
 | `LOGIN_LOCKOUT_MINUTES` | `15` | Account lock duration |
 
 ---
+
+### 3.10bis Administration: two-factor authentication, audit trail, network (R6)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ADMIN_2FA_REQUIRED` | *(auto)* | Empty = **required in production**, optional elsewhere. Required, an administrator without two-factor authentication signs in but only reaches **Sécurité du compte** (QR code to scan, recovery codes shown once) until it is set up |
+| `SECRETS_ENCRYPTION_KEY` | — | Fernet key encrypting the 2FA secrets (and file-feed supplier logins). **The backend refuses to start in production without it** (2FA required, nobody could enrol) |
+| `AUDIT_LOG_RETENTION_DAYS` | `400` | Days the audit trail is kept (0 = forever), purged daily at 04:10 |
+| `ADMIN_ALLOWED_IPS` | *(everyone)* | Caddy (`docker-compose.proxy.yml`): space-separated ranges allowed on `admin.{DOMAIN}` and `/api/v1/admin/*`. Behind Cloudflare, declare its ranges as `trusted_proxies` first |
+
+* Sign-in of an administrator with 2FA: password, then the 6-digit code of
+  the app (or a recovery code, consumed). A wrong code counts towards the
+  account lockout like a wrong password; a code is accepted once.
+* Lost phone and no recovery code: another administrator resets it
+  (Utilisateurs → icône bouclier) — the person enrols again at the next
+  sign-in. Nobody resets their own: that is « Désactiver » in *Sécurité du
+  compte*, which asks for the password and a code.
+* **Journal d'audit** (Site et système): every POST / PUT / PATCH / DELETE of
+  an administrator (route, path parameters, query string with secrets masked,
+  status, IP — never the request body) and every administrator sign-in,
+  failed password, failed code and 2FA change.
+
+### 3.11 Languages and currencies (R7)
+
+The storefront and the admin speak **French and English**. Nothing to deploy
+beyond the three variables above; what decides the language:
+
+- **Storefront**: the visitor's choice (language switch in the header or the
+  account preferences, saved in the `locale` cookie and, once signed in, in the
+  customer's preferences), else the browser's
+  `Accept-Language`, else `SHOP_DEFAULT_LOCALE`. Rendered server-side in that
+  language (`<html lang>`, Quasar strings, dates and amounts).
+- **Admin**: the toggle in the account menu (kept in the browser), else the
+  browser language, else French.
+- **API**: every call carries `Accept-Language`; error messages (`message`
+  field) come back in that language, the `code` never changes.
+- **Orders**: the language is frozen on the order at checkout
+  (`orders.locale`). Every e-mail about the order — confirmation, payment,
+  status changes, balance request, quote — uses it, even when the worker sends
+  it days later. E-mails not tied to an order use the customer's saved
+  preference. Templates live in `backend/app/templates/email/<lang>/`; a
+  missing English template falls back to French.
+
+**Stays in French on purpose**: invoices and credit notes (French legal
+documents — the quote PDF follows the customer's language), the internal
+e-mails to the shop (payment events, quote requests), the labels of the
+runtime settings and of the backend catalogue, and **shop content** (products,
+categories, home page blocks). Content pages are the exception: create
+`<slug>-en` next to `<slug>` (e.g. `cgv-en`) in **Pages du site**; an English
+visitor gets it, or the French page with a notice when it is missing.
+
+**Currencies**: amounts are displayed with the decimals of their currency
+(`/currency/display-rates` returns them; XPF has none, EUR has two), in the
+currency the order was placed in for everything that is binding (orders,
+invoices, payments), and converted to the visitor's display currency
+(`default_display_currency` in `/system/config`, then the visitor's choice)
+for catalogue prices only. The display currencies offered are the active
+exchange rates (**Taux de change**). PayZen's payment page follows the order
+language.
 
 ## 4. Frontend (Vite, build‑time)
 
@@ -666,6 +810,8 @@ curl -fsS $API/api/v1/healthz/ready
 **Database** — migrations applied and the full‑text search extension present:
 ```bash
 docker compose exec api alembic current     # should be at head
+# (exec runs as root by default; prefix `--user app` for anything that writes
+#  into the storage volume)
 docker compose exec postgres psql -U postgres -d fastapi_ecommerce \
   -c "SELECT extname FROM pg_extension WHERE extname='pg_trgm';"   # 1 row
 ```
@@ -785,7 +931,9 @@ $COMPOSE exec -T postgres pg_restore -U postgres -d fastapi_ecommerce \
 # 3. Restore the uploads volume
 #    --index : `api` runs with replicas: 2 in production, so a bare `exec` is
 #    ambiguous. Both replicas share the same volume, index 1 is fine.
-$COMPOSE exec --index 1 -T api tar xzf - -C /tmp < backups/storage_<STAMP>.tar.gz
+#    --user app : the application runs unprivileged (uid 10001); files
+#    restored as root could not be replaced by it afterwards.
+$COMPOSE exec --index 1 -T --user app api tar xzf - -C /tmp < backups/storage_<STAMP>.tar.gz
 
 # 4. Restart and check
 $COMPOSE up -d
@@ -989,7 +1137,7 @@ The price is built as two **separate** multipliers:
 ```
 price = CAF × (1 + customs) × (1 + margin) × (1 + tax)
                    ↑                              ↑
-        "Douane par catégorie"          TaxRate (TGC/VAT 16 %)
+        "Douane par catégorie"          TaxRate (TVA 16 %)
 ```
 
 The tax is already applied at the end. The customs field is not meant to carry it.

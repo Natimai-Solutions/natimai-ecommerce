@@ -3,16 +3,15 @@
     <q-card class="app-dialog app-dialog--wide" data-testid="method-dialog">
       <q-card-section class="app-dialog__head">
         <h2 class="app-dialog__title">
-          {{ method ? `Modifier « ${method.name} »` : 'Nouveau moyen de paiement' }}
+          {{ method ? $t('method.edit_title', { name: method.name }) : $t('method.new_title') }}
         </h2>
         <p class="app-dialog__text">
           <template v-if="method">
-            Type <strong>{{ method.type_label }}</strong> — le type ne change pas : créez un autre
-            moyen pour en changer.
+            {{ $t('method.type_word') }} <strong>{{ method.type_label }}</strong>
+            {{ $t('method.type_fixed') }}
           </template>
           <template v-else>
-            Le type fixe le fonctionnement (carte, espèces, virement…) ; plusieurs moyens peuvent
-            partager un type, par exemple deux virements vers deux banques.
+            {{ $t('method.type_hint') }}
           </template>
         </p>
       </q-card-section>
@@ -25,29 +24,29 @@
             v-if="!method"
             v-model="form.providerCode"
             :options="typeOptions"
-            label="Type *"
+            :label="$t('method.type')"
             outlined
             dense
             emit-value
             map-options
             data-testid="method-type"
             hide-bottom-space
-            :rules="[(v: string) => !!v || 'Type requis']"
+            :rules="[(v: string) => !!v || $t('method.type_rule')]"
           />
 
           <q-input
             v-model="form.name"
-            label="Nom affiché au client *"
+            :label="$t('method.name')"
             outlined
             dense
             maxlength="100"
             data-testid="method-name"
             hide-bottom-space
-            :rules="[(v: string) => !!v.trim() || 'Nom requis']"
+            :rules="[(v: string) => !!v.trim() || $t('method.name_rule')]"
           />
           <q-input
             v-model="form.description"
-            label="Description (sous le nom, au checkout)"
+            :label="$t('method.description')"
             outlined
             dense
             maxlength="255"
@@ -60,7 +59,7 @@
               type="number"
               min="0"
               step="1"
-              :label="`Frais (${currency})`"
+              :label="$t('method.fee', { currency })"
               outlined
               dense
               class="font-mono"
@@ -71,8 +70,8 @@
               type="number"
               min="0"
               step="1"
-              :label="`Plafond (${currency})`"
-              hint="Vide = sans plafond"
+              :label="$t('method.ceiling', { currency })"
+              :hint="$t('method.ceiling_hint')"
               outlined
               dense
               class="font-mono"
@@ -83,7 +82,7 @@
               type="number"
               min="0"
               step="1"
-              label="Ordre d'affichage"
+              :label="$t('method.order')"
               outlined
               dense
               class="font-mono"
@@ -92,8 +91,8 @@
           </div>
 
           <div class="method-form__toggles">
-            <q-toggle v-model="form.active" label="Proposé aux clients" color="positive" />
-            <q-toggle v-model="form.depositAllowed" label="Peut régler un acompte" />
+            <q-toggle v-model="form.active" :label="$t('method.offered')" color="positive" />
+            <q-toggle v-model="form.depositAllowed" :label="$t('method.deposit')" />
           </div>
 
           <template v-if="selectedType?.supports_instructions">
@@ -102,24 +101,23 @@
               type="textarea"
               autogrow
               maxlength="2000"
-              label="Instructions envoyées au client (IBAN, adresse du bureau…)"
+              :label="$t('method.instructions')"
               outlined
               data-testid="method-instructions"
             />
             <div class="method-form__fallback">
               <template v-if="!form.instructions.trim()">
-                Laissé vide, le client reçoit le texte commun du type
-                <strong>{{ selectedType.label }}</strong> (Paramètres système) :
+                {{ $t('method.fallback') }}
+                <strong>{{ selectedType.label }}</strong> {{ $t('method.fallback_src') }}
               </template>
-              <template v-else>Texte commun du type, remplacé ici :</template>
+              <template v-else>{{ $t('method.overridden') }}</template>
               <blockquote class="method-form__quote">
                 {{ selectedType.fallback_instructions ?? '—' }}
               </blockquote>
             </div>
           </template>
           <p v-else-if="selectedType" class="text-muted method-form__note">
-            <q-icon name="ph:info" /> Paiement chez le prestataire : aucune instruction n'est
-            envoyée au client.
+            <q-icon name="ph:info" /> {{ $t('method.psp') }}
           </p>
         </q-card-section>
 
@@ -130,24 +128,24 @@
             no-caps
             color="negative"
             icon="ph:trash"
-            label="Supprimer"
+            :label="$t('common.delete')"
             :disable="method.payments_count > 0 || saving"
             :loading="deleting"
             data-testid="method-delete"
             @click="confirmDelete"
           >
             <q-tooltip v-if="method.payments_count > 0">
-              Déjà utilisé par {{ method.payments_count }} paiement(s) : désactivez-le plutôt.
+              {{ $t('method.used', { n: method.payments_count }) }}
             </q-tooltip>
           </q-btn>
           <q-space />
-          <q-btn flat no-caps label="Annuler" v-close-popup />
+          <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
           <q-btn
             type="submit"
             color="primary"
             unelevated
             no-caps
-            :label="method ? 'Enregistrer' : 'Créer le moyen'"
+            :label="method ? $t('method.save') : $t('method.create')"
             :loading="saving"
             data-testid="method-save"
           />
@@ -158,6 +156,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { computed, reactive, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 
@@ -171,6 +170,8 @@ import {
   type PaymentMethodType,
   type PaymentMethodWrite,
 } from '@/api/eligibility';
+
+const { t } = useI18n();
 
 /** Crée un moyen de paiement sur un type existant, ou modifie / supprime un moyen. */
 const props = withDefaults(
@@ -264,7 +265,7 @@ async function submit() {
     emit('saved', saved);
     emit('update:modelValue', false);
   } catch (err) {
-    error.value = extractApiError(err) ?? "Le moyen de paiement n'a pas pu être enregistré.";
+    error.value = extractApiError(err) ?? t('method.save_failed');
   } finally {
     saving.value = false;
   }
@@ -274,10 +275,10 @@ function confirmDelete() {
   const method = props.method;
   if (!method) return;
   $q.dialog({
-    title: 'Supprimer le moyen de paiement',
-    message: `« ${method.name} » disparaîtra du checkout et de cette liste. Continuer ?`,
-    cancel: { label: 'Annuler', flat: true, noCaps: true },
-    ok: { label: 'Supprimer', color: 'negative', noCaps: true, unelevated: true },
+    title: t('method.delete_title'),
+    message: t('method.delete_msg', { name: method.name }),
+    cancel: { label: t('common.cancel'), flat: true, noCaps: true },
+    ok: { label: t('common.delete'), color: 'negative', noCaps: true, unelevated: true },
   }).onOk(() => {
     void (async () => {
       deleting.value = true;
@@ -287,7 +288,7 @@ function confirmDelete() {
         emit('deleted', method.id);
         emit('update:modelValue', false);
       } catch (err) {
-        error.value = extractApiError(err) ?? 'Suppression impossible.';
+        error.value = extractApiError(err) ?? t('common.delete_failed');
       } finally {
         deleting.value = false;
       }

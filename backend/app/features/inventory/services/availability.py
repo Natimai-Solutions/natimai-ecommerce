@@ -83,6 +83,24 @@ def supplier_quantity_expression() -> Any:
     )
 
 
+def local_stock_expression() -> Any:
+    """SQL: warehouse stock, the variants' included for a parent (« chez nous »)."""
+    from app.features.product.services.variants import (
+        children_local_quantity_expression,
+    )
+
+    return local_quantity_expression() + children_local_quantity_expression()
+
+
+def supplier_stock_expression() -> Any:
+    """SQL: supplier stock, the variants' included (« chez le fournisseur »)."""
+    from app.features.product.services.variants import (
+        children_supplier_quantity_expression,
+    )
+
+    return supplier_quantity_expression() + children_supplier_quantity_expression()
+
+
 def available_quantity_expression() -> Any:
     """SQL: local + supplier stock, plus the variants' for a parent product."""
     from app.features.product.services.variants import (
@@ -118,27 +136,48 @@ async def local_quantities(
     }
 
 
+#: ``customer`` of :func:`publish_with_availability` for back-office screens:
+#: reference prices, whatever the admin's own group.
+STAFF: Any = object()
+
+
 async def publish_with_availability(
-    session: AsyncSession, products: Sequence[Any]
+    session: AsyncSession, products: Sequence[Any], *, customer: Any = STAFF
 ) -> list[ProductPublic]:
     """Serialize products for the storefront with their sellable quantity.
 
     Sets ``local_quantity`` and ``available_quantity`` on each
-    :class:`ProductPublic`; everything else is the plain validation.
+    :class:`ProductPublic`. With ``customer`` (a user, or None for a visitor)
+    the prices are the ones that customer pays: their group's price or
+    discount (product/services/group_pricing.py); :data:`STAFF` keeps the
+    reference prices.
     """
+    from app.features.product.services.group_pricing import (
+        price_publics,
+        pricing_for_user,
+    )
     from app.features.product.services.variants import children_availability
 
     publics = [ProductPublic.model_validate(product) for product in products]
+    if customer is not STAFF and publics:
+        pricing = await pricing_for_user(
+            session, customer, (public.id for public in publics)
+        )
+        price_publics(publics, pricing)
     local = await local_quantities(session, (public.id for public in publics))
     parents = await children_availability(
         session, [public.id for public in publics if public.has_variants]
     )
     for public in publics:
         public.local_quantity = local.get(public.id, ZERO)
-        public.available_quantity = public.local_quantity + supplier_available_quantity(
-            public
+        children = parents.get(public.id)
+        public.variants_count = children.count if children else 0
+        # Sellable stock split by where it is: our warehouse, the supplier.
+        public.stock_local = public.local_quantity + (
+            children.local if children else ZERO
         )
-        count, from_variants = parents.get(public.id, (0, ZERO))
-        public.variants_count = count
-        public.available_quantity += from_variants
+        public.stock_supplier = supplier_available_quantity(public) + (
+            children.supplier if children else ZERO
+        )
+        public.available_quantity = public.stock_local + public.stock_supplier
     return publics

@@ -10,6 +10,9 @@ import type { AxiosInstance } from '@app/api-client';
  */
 export const accessToken = ref<string | null>(null);
 
+/** Interface language sent with every call (set by the i18n boot and switcher). */
+export const apiLocale = ref<string>('fr');
+
 export const api: AxiosInstance = createApiClient({
   baseUrl: import.meta.env.VITE_API_URL,
   getAccessToken: () => accessToken.value,
@@ -19,4 +22,5 @@ export const api: AxiosInstance = createApiClient({
   clearTokens: () => {
     accessToken.value = null;
   },
+  getLocale: () => apiLocale.value,
 });

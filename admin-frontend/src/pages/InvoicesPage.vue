@@ -1,15 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader
-      title="Factures"
-      hint="Une facture émise n'est jamais modifiée : toute correction passe par un avoir."
-    >
+    <PageHeader :title="$t('invoices.title')" :hint="$t('invoices.hint')">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -18,7 +15,7 @@
           unelevated
           no-caps
           icon="ph:download-simple"
-          label="Export comptable (CSV)"
+          :label="$t('common.export_csv')"
           :loading="exporting"
           @click="onExport"
         />
@@ -29,7 +26,7 @@
       <q-select
         v-model="fiscalYear"
         :options="yearOptions"
-        label="Exercice"
+        :label="$t('common.fiscal_year')"
         outlined
         dense
         emit-value
@@ -90,17 +87,21 @@
         </q-td>
       </template>
       <template #no-data>
-        <span class="text-subtle">Aucune facture{{ fiscalYear ? ' pour cet exercice' : '' }}.</span>
+        <span class="text-subtle">{{
+          $t('invoices.none', { suffix: fiscalYear ? $t('common.for_year') : '' })
+        }}</span>
       </template>
     </q-table>
 
     <p v-if="rows.length" class="text-caption text-subtle q-mt-sm q-mb-none">
-      {{ rows.length }} facture(s) — la numérotation est continue par exercice (aucun trou).
+      {{ $t('invoices.count', { n: rows.length }) }}
     </p>
   </q-page>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { decimalsOf, intlLocale } from '@app/utils';
 import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -112,6 +113,8 @@ import {
   type Invoice,
 } from '@/api/invoices';
 import { extractApiError } from '@/api/errors';
+
+const { t } = useI18n();
 
 const rows = ref<Invoice[]>([]);
 const loading = ref(false);
@@ -133,9 +136,8 @@ const yearOptions = computed(() => {
 function formatAmount(value: string, currency: string): string {
   const amount = Number(value);
   if (Number.isNaN(amount)) return value;
-  // XPF has no minor unit.
-  const digits = currency === 'XPF' ? 0 : 2;
-  return `${amount.toLocaleString('fr-FR', {
+  const digits = decimalsOf(currency);
+  return `${amount.toLocaleString(intlLocale(), {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   })} ${currency}`;
@@ -143,50 +145,50 @@ function formatAmount(value: string, currency: string): string {
 
 function formatDate(value: string): string {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('fr-FR');
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(intlLocale());
 }
 
-const columns: QTableColumn<Invoice>[] = [
+const columns = computed<QTableColumn<Invoice>[]>(() => [
   {
     name: 'invoice_number',
-    label: 'N° facture',
+    label: t('invoices.col_number'),
     field: 'invoice_number',
     align: 'left',
     sortable: true,
   },
   {
     name: 'issued_at',
-    label: 'Émise le',
+    label: t('invoices.col_issued'),
     field: (row) => formatDate(row.issued_at),
     align: 'left',
     sortable: true,
   },
   {
     name: 'order_number',
-    label: 'Commande',
+    label: t('invoices.col_order'),
     field: (row) => row.order_number ?? `#${row.order_id.slice(0, 8)}`,
     align: 'left',
   },
   {
     name: 'total_excl_tax',
-    label: 'Total HT',
+    label: t('invoices.col_net'),
     field: (row) => formatAmount(row.total_excl_tax, row.currency),
     align: 'right',
   },
   {
     name: 'total_tax',
-    label: 'Taxes',
+    label: t('invoices.col_tax'),
     field: (row) => formatAmount(row.total_tax, row.currency),
     align: 'right',
   },
   {
     name: 'total_incl_tax',
-    label: 'Total TTC',
+    label: t('invoices.col_gross'),
     field: (row) => formatAmount(row.total_incl_tax, row.currency),
     align: 'right',
   },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-];
+]);
 
 async function load() {
   loading.value = true;
@@ -197,7 +199,7 @@ async function load() {
     );
     rows.value = response.data;
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Impossible de charger les factures.';
+    error.value = extractApiError(err) ?? t('invoices.load_failed');
   } finally {
     loading.value = false;
   }
@@ -209,7 +211,7 @@ async function onDownload(invoice: Invoice) {
   try {
     await downloadInvoicePdf(invoice);
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Le téléchargement du PDF a échoué.';
+    error.value = extractApiError(err) ?? t('common.pdf_failed');
   } finally {
     downloadingId.value = null;
   }
@@ -221,9 +223,9 @@ async function onExport() {
   notice.value = null;
   try {
     await downloadInvoicesCsv(fiscalYear.value);
-    notice.value = 'Export généré.';
+    notice.value = t('common.export_done');
   } catch (err) {
-    error.value = extractApiError(err) ?? "L'export comptable a échoué.";
+    error.value = extractApiError(err) ?? t('common.export_failed');
   } finally {
     exporting.value = false;
   }

@@ -1,15 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader
-      title="Utilisateurs"
-      hint="Comptes clients et administrateurs, invitations et groupes de prix."
-    >
+    <PageHeader :title="$t('users.title')" :hint="$t('users.hint')">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -18,7 +15,7 @@
           unelevated
           no-caps
           icon="ph:user-plus"
-          label="Créer un compte"
+          :label="$t('users.create_account')"
           @click="openCreate"
         />
       </template>
@@ -27,7 +24,7 @@
     <div class="admin-toolbar">
       <q-input
         v-model="search"
-        label="Rechercher (email, nom)"
+        :label="$t('users.search')"
         outlined
         dense
         clearable
@@ -40,7 +37,7 @@
       <q-select
         v-model="groupFilter"
         :options="groupOptions"
-        label="Groupe de prix"
+        :label="$t('users.price_group')"
         outlined
         dense
         emit-value
@@ -51,7 +48,7 @@
       <q-select
         v-model="statusFilter"
         :options="statusOptions"
-        label="Statut"
+        :label="$t('users.status')"
         outlined
         dense
         emit-value
@@ -81,7 +78,15 @@
           <div class="text-body2">
             {{ props.row.email }}
             <q-icon v-if="props.row.is_superuser" name="ph:shield-check" size="xs">
-              <q-tooltip>Administrateur</q-tooltip>
+              <q-tooltip>{{ $t('users.admin') }}</q-tooltip>
+            </q-icon>
+            <q-icon
+              v-if="props.row.is_superuser && props.row.totp_enabled"
+              name="ph:device-mobile"
+              size="xs"
+              data-testid="user-2fa"
+            >
+              <q-tooltip>{{ $t('users.twofa') }}</q-tooltip>
             </q-icon>
           </div>
           <div class="text-caption text-muted">
@@ -90,7 +95,7 @@
         </q-td>
       </template>
       <template #body-cell-group="props">
-        <q-td :props="props">{{ props.row.price_group_label ?? 'Par défaut' }}</q-td>
+        <q-td :props="props">{{ props.row.price_group_label ?? $t('users.default') }}</q-td>
       </template>
       <template #body-cell-status="props">
         <q-td :props="props">
@@ -110,7 +115,7 @@
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
           <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
-            <q-tooltip>Modifier (nom, téléphone, groupe)</q-tooltip>
+            <q-tooltip>{{ $t('users.edit') }}</q-tooltip>
           </q-btn>
           <q-btn
             v-if="props.row.invitation_pending && props.row.is_active"
@@ -121,7 +126,18 @@
             :loading="busyIds.has(props.row.id)"
             @click="onResend(props.row)"
           >
-            <q-tooltip>Renvoyer l'invitation</q-tooltip>
+            <q-tooltip>{{ $t('users.resend') }}</q-tooltip>
+          </q-btn>
+          <q-btn
+            v-if="props.row.is_superuser && props.row.totp_enabled"
+            flat
+            round
+            dense
+            icon="ph:shield-slash"
+            :loading="busyIds.has(props.row.id)"
+            @click="onResetTwoFactor(props.row)"
+          >
+            <q-tooltip>{{ $t('users.reset_2fa') }}</q-tooltip>
           </q-btn>
           <q-btn
             flat
@@ -132,17 +148,19 @@
             :loading="busyIds.has(props.row.id)"
             @click="onToggleActive(props.row)"
           >
-            <q-tooltip>{{ props.row.is_active ? 'Désactiver' : 'Réactiver' }}</q-tooltip>
+            <q-tooltip>{{
+              props.row.is_active ? $t('users.disable') : $t('users.enable')
+            }}</q-tooltip>
           </q-btn>
         </q-td>
       </template>
       <template #no-data>
-        <span class="text-subtle">{{ loading ? 'Chargement…' : 'Aucun compte.' }}</span>
+        <span class="text-subtle">{{ loading ? $t('common.loading') : $t('users.none') }}</span>
       </template>
     </q-table>
 
     <div class="row items-center q-mt-md">
-      <div class="text-caption text-muted col">{{ count }} compte(s)</div>
+      <div class="text-caption text-muted col">{{ $t('users.count', { n: count }) }}</div>
       <q-pagination
         v-if="totalPages > 1"
         v-model="page"
@@ -157,10 +175,9 @@
     <q-dialog v-model="createDialog">
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Créer un compte</h2>
+          <h2 class="app-dialog__title">{{ $t('users.create_title') }}</h2>
           <p class="app-dialog__text">
-            Aucun mot de passe à saisir : la personne reçoit un lien pour choisir le sien (valable
-            72 h).
+            {{ $t('users.create_hint') }}
           </p>
         </q-card-section>
         <q-form @submit.prevent="submitCreate">
@@ -168,35 +185,35 @@
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="form.email"
-              label="Email *"
+              :label="$t('users.email')"
               type="email"
               outlined
               dense
               :rules="req"
             />
-            <q-input v-model="form.full_name" label="Nom complet" outlined dense />
-            <q-input v-model="form.phone" label="Téléphone" outlined dense />
+            <q-input v-model="form.full_name" :label="$t('users.full_name')" outlined dense />
+            <q-input v-model="form.phone" :label="$t('users.phone')" outlined dense />
             <q-select
               v-model="form.price_group_id"
               :options="groupChoices"
-              label="Groupe de prix"
+              :label="$t('users.price_group')"
               outlined
               dense
               emit-value
               map-options
               clearable
             />
-            <q-toggle v-model="form.is_superuser" label="Administrateur (accès au back-office)" />
-            <q-toggle v-model="form.send_invitation" label="Envoyer l'invitation maintenant" />
+            <q-toggle v-model="form.is_superuser" :label="$t('users.is_admin')" />
+            <q-toggle v-model="form.send_invitation" :label="$t('users.send_now')" />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              label="Créer"
+              :label="$t('users.create')"
               :loading="saving"
             />
           </q-card-actions>
@@ -208,17 +225,17 @@
     <q-dialog v-model="editDialog">
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Modifier {{ editing?.email }}</h2>
+          <h2 class="app-dialog__title">{{ $t('users.edit_title', { email: editing?.email }) }}</h2>
         </q-card-section>
         <q-form @submit.prevent="submitEdit">
           <q-card-section class="q-gutter-sm">
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
-            <q-input v-model="editForm.full_name" label="Nom complet" outlined dense />
-            <q-input v-model="editForm.phone" label="Téléphone" outlined dense />
+            <q-input v-model="editForm.full_name" :label="$t('users.full_name')" outlined dense />
+            <q-input v-model="editForm.phone" :label="$t('users.phone')" outlined dense />
             <q-select
               v-model="editForm.price_group_id"
               :options="groupChoices"
-              label="Groupe de prix"
+              :label="$t('users.price_group')"
               outlined
               dense
               emit-value
@@ -227,13 +244,13 @@
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              label="Enregistrer"
+              :label="$t('common.save')"
               :loading="saving"
             />
           </q-card-actions>
@@ -244,6 +261,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { intlLocale } from '@app/utils';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -251,8 +270,11 @@ import StatusTag from '@app/ui/StatusTag.vue';
 import type { StatusTone } from '@app/ui/statusTone';
 import PageHeader from '@/components/PageHeader.vue';
 import { createUser, listUsers, resendInvitation, updateUser, type AdminUser } from '@/api/users';
+import { resetUserTwoFactor } from '@/api/security';
 import { listPriceGroups, type PriceGroup } from '@/api/eligibility';
 import { extractApiError } from '@/api/errors';
+
+const { t } = useI18n();
 
 const PAGE_SIZE = 50;
 
@@ -269,14 +291,14 @@ const groupFilter = ref<string | null>(null);
 type StatusFilter = 'all' | 'pending' | 'opened' | 'inactive';
 const statusFilter = ref<StatusFilter>('all');
 
-const statusOptions = [
-  { label: 'Tous', value: 'all' },
-  { label: 'Invitation en attente', value: 'pending' },
-  { label: 'Comptes ouverts', value: 'opened' },
-  { label: 'Désactivés', value: 'inactive' },
-];
+const statusOptions = computed(() => [
+  { label: t('users.opt_all'), value: 'all' },
+  { label: t('users.st_pending'), value: 'pending' },
+  { label: t('users.opt_opened'), value: 'opened' },
+  { label: t('users.opt_disabled'), value: 'inactive' },
+]);
 const groupOptions = computed(() => [
-  { label: 'Tous les groupes', value: null },
+  { label: t('users.all_groups'), value: null },
   ...groups.value.map((g) => ({ label: g.label, value: g.id })),
 ]);
 const groupChoices = computed(() =>
@@ -284,35 +306,36 @@ const groupChoices = computed(() =>
 );
 const totalPages = computed(() => Math.max(1, Math.ceil(count.value / PAGE_SIZE)));
 
-const req = [(v: string | null | undefined) => (!!v && v.length > 0) || 'Requis'];
+const req = [(v: string | null | undefined) => (!!v && v.length > 0) || t('common.required')];
 
-const columns: QTableColumn[] = [
-  { name: 'identity', label: 'Compte', field: 'email', align: 'left' },
-  { name: 'group', label: 'Groupe', field: 'price_group_label', align: 'left' },
-  { name: 'status', label: 'Statut', field: 'is_active', align: 'left' },
-  { name: 'last_login', label: 'Dernière connexion', field: 'last_login', align: 'left' },
-  { name: 'created_at', label: 'Créé le', field: 'created_at', align: 'left' },
+const columns = computed<QTableColumn[]>(() => [
+  { name: 'identity', label: t('users.col_account'), field: 'email', align: 'left' },
+  { name: 'group', label: t('users.col_group'), field: 'price_group_label', align: 'left' },
+  { name: 'status', label: t('users.col_status'), field: 'is_active', align: 'left' },
+  { name: 'last_login', label: t('users.col_login'), field: 'last_login', align: 'left' },
+  { name: 'created_at', label: t('users.col_created'), field: 'created_at', align: 'left' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-];
+]);
 
 function formatDate(value: string | null): string {
   if (!value) return '—';
-  return new Date(value).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+  return new Date(value).toLocaleString(intlLocale(), { dateStyle: 'short', timeStyle: 'short' });
 }
 
 function statusOf(user: AdminUser): { label: string; tone: StatusTone; icon: string } {
-  if (!user.is_active) return { label: 'Désactivé', tone: 'neutral', icon: 'ph:minus-circle' };
+  if (!user.is_active)
+    return { label: t('users.st_disabled'), tone: 'neutral', icon: 'ph:minus-circle' };
   if (user.locked_until && new Date(user.locked_until) > new Date()) {
-    return { label: 'Verrouillé', tone: 'warn', icon: 'ph:lock' };
+    return { label: t('users.st_locked'), tone: 'warn', icon: 'ph:lock' };
   }
   if (user.invitation_pending) {
     const expired =
       !user.invitation_expires_at || new Date(user.invitation_expires_at) < new Date();
     return expired
-      ? { label: 'Invitation expirée', tone: 'warn', icon: 'ph:warning-circle' }
-      : { label: 'Invitation en attente', tone: 'neutral', icon: 'ph:envelope-simple' };
+      ? { label: t('users.st_expired'), tone: 'warn', icon: 'ph:warning-circle' }
+      : { label: t('users.st_pending'), tone: 'neutral', icon: 'ph:envelope-simple' };
   }
-  return { label: 'Actif', tone: 'ok', icon: 'ph:check-circle' };
+  return { label: t('users.st_active'), tone: 'ok', icon: 'ph:check-circle' };
 }
 
 function onFilterChange() {
@@ -338,7 +361,7 @@ async function load() {
     rows.value = result.data;
     count.value = result.count;
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -363,11 +386,25 @@ async function onResend(user: AdminUser) {
     try {
       const result = await resendInvitation(user.id);
       notice.value = result.email_sent
-        ? `Invitation renvoyée à ${user.email}.`
-        : `Invitation régénérée, mais l'email vers ${user.email} n'est pas parti (voir les logs).`;
+        ? t('users.resent', { email: user.email })
+        : t('users.resent_failed_mail', { email: user.email });
       await load();
     } catch (err) {
-      error.value = extractApiError(err) ?? 'Renvoi impossible.';
+      error.value = extractApiError(err) ?? t('users.resend_failed');
+    }
+  });
+}
+
+async function onResetTwoFactor(user: AdminUser) {
+  notice.value = null;
+  error.value = null;
+  await withBusy(user.id, async () => {
+    try {
+      await resetUserTwoFactor(user.id);
+      notice.value = `${user.email} activera de nouveau la double authentification à sa prochaine connexion.`;
+      await load();
+    } catch (err) {
+      error.value = extractApiError(err) ?? t('users.reset_failed');
     }
   });
 }
@@ -380,7 +417,7 @@ async function onToggleActive(user: AdminUser) {
       await updateUser(user.id, { is_active: !user.is_active });
       await load();
     } catch (err) {
-      error.value = extractApiError(err) ?? 'Modification impossible.';
+      error.value = extractApiError(err) ?? t('users.edit_failed');
     }
   });
 }
@@ -423,13 +460,13 @@ async function submitCreate() {
     });
     createDialog.value = false;
     notice.value = !form.send_invitation
-      ? `Compte ${result.user.email} créé sans invitation.`
+      ? t('users.created_no_invite', { email: result.user.email })
       : result.email_sent
-        ? `Compte créé, invitation envoyée à ${result.user.email}.`
-        : `Compte ${result.user.email} créé, mais l'email d'invitation n'est pas parti — renvoyez-le depuis la liste.`;
+        ? t('users.created_invited', { email: result.user.email })
+        : t('users.created_mail_failed', { email: result.user.email });
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Création impossible.';
+    dialogError.value = extractApiError(err) ?? t('users.create_failed');
   } finally {
     saving.value = false;
   }
@@ -466,7 +503,7 @@ async function submitEdit() {
     editDialog.value = false;
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    dialogError.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     saving.value = false;
   }

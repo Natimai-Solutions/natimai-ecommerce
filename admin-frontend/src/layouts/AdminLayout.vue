@@ -7,7 +7,7 @@
           round
           dense
           icon="ph:list"
-          aria-label="Ouvrir le menu"
+          :aria-label="$t('layout.open_menu')"
           class="lt-md"
           @click="drawer = !drawer"
         />
@@ -17,10 +17,10 @@
           round
           dense
           :icon="themeIcon"
-          :aria-label="`Thème : ${themeLabel}`"
+          :aria-label="$t('layout.theme', { label: themeLabel })"
           data-testid="admin-theme"
         >
-          <q-tooltip>Thème : {{ themeLabel }}</q-tooltip>
+          <q-tooltip>{{ $t('layout.theme', { label: themeLabel }) }}</q-tooltip>
           <q-menu anchor="bottom right" self="top right">
             <q-list dense class="admin-menu">
               <q-item
@@ -34,27 +34,51 @@
                 @click="chooseTheme(option.value)"
               >
                 <q-item-section avatar><q-icon :name="option.icon" size="18px" /></q-item-section>
-                <q-item-section>{{ option.label }}</q-item-section>
+                <q-item-section>{{ $t(option.label) }}</q-item-section>
               </q-item>
             </q-list>
           </q-menu>
         </q-btn>
         <q-btn flat no-caps dense class="admin-topbar__account" data-testid="admin-account">
           <span class="admin-topbar__avatar" aria-hidden="true">{{ initials }}</span>
-          <span class="admin-topbar__email gt-xs">{{ me?.email ?? 'Compte' }}</span>
+          <span class="admin-topbar__email gt-xs">{{ me?.email ?? $t('layout.account') }}</span>
           <q-icon name="ph:caret-down" size="14px" />
           <q-menu anchor="bottom right" self="top right">
             <q-list dense class="admin-menu">
               <q-item v-if="me" class="admin-menu__who">
                 <q-item-section>
                   <q-item-label>{{ me.full_name || me.email }}</q-item-label>
-                  <q-item-label caption>Administrateur</q-item-label>
+                  <q-item-label caption>{{ $t('layout.administrator') }}</q-item-label>
                 </q-item-section>
               </q-item>
               <q-separator v-if="me" />
+              <q-item v-close-popup clickable to="/security" data-testid="admin-security">
+                <q-item-section avatar
+                  ><q-icon name="ph:shield-check" size="18px"
+                /></q-item-section>
+                <q-item-section>{{ $t('layout.security') }}</q-item-section>
+              </q-item>
+              <q-item>
+                <q-item-section avatar><q-icon name="ph:translate" size="18px" /></q-item-section>
+                <q-item-section>
+                  <q-btn-toggle
+                    :model-value="currentLocale"
+                    :options="
+                      localeOptions.map((o) => ({ value: o.value, label: o.value.toUpperCase() }))
+                    "
+                    dense
+                    no-caps
+                    unelevated
+                    toggle-color="primary"
+                    :aria-label="$t('layout.language')"
+                    data-testid="admin-locale"
+                    @update:model-value="setLocale"
+                  />
+                </q-item-section>
+              </q-item>
               <q-item v-close-popup clickable data-testid="admin-logout" @click="onLogout">
                 <q-item-section avatar><q-icon name="ph:sign-out" size="18px" /></q-item-section>
-                <q-item-section>Se déconnecter</q-item-section>
+                <q-item-section>{{ $t('layout.logout') }}</q-item-section>
               </q-item>
             </q-list>
           </q-menu>
@@ -68,11 +92,11 @@
           <span class="admin-nav__mark" aria-hidden="true">N</span>
           <span class="admin-nav__brand-text">
             <strong>{{ shopName }}</strong>
-            <span>Administration</span>
+            <span>{{ $t('layout.administration') }}</span>
           </span>
         </router-link>
 
-        <nav class="admin-nav__scroll" aria-label="Navigation de l'administration">
+        <nav class="admin-nav__scroll" :aria-label="$t('layout.admin_nav')">
           <router-link
             to="/"
             class="admin-nav__link"
@@ -80,10 +104,10 @@
             data-testid="nav-dashboard"
           >
             <q-icon name="ph:squares-four" size="18px" />
-            <span>Tableau de bord</span>
+            <span>{{ $t('layout.dashboard') }}</span>
           </router-link>
           <section v-for="section in nav" :key="section.label" class="admin-nav__section">
-            <h2 class="admin-nav__label">{{ section.label }}</h2>
+            <h2 class="admin-nav__label">{{ $t(section.label) }}</h2>
             <router-link
               v-for="link in section.links"
               :key="link.to"
@@ -93,19 +117,19 @@
               :data-testid="`nav-${link.to.slice(1)}`"
             >
               <q-icon :name="link.icon" size="18px" />
-              <span>{{ link.label }}</span>
+              <span>{{ $t(link.label) }}</span>
             </router-link>
           </section>
         </nav>
 
         <router-link
           v-if="shopConfig.isSimple"
-          to="/system-settings"
+          to="/modules"
           class="admin-nav__mode"
-          title="Certains écrans (fournisseurs, douane, trajets) sont masqués"
+          :title="$t('layout.simple_title')"
         >
           <q-icon name="ph:leaf" size="16px" />
-          Mode simple
+          {{ $t('layout.simple_mode') }}
         </router-link>
       </div>
     </q-drawer>
@@ -117,6 +141,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { useAdminLocale } from '@/composables/useAdminLocale';
 import { computed, onMounted, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
@@ -124,7 +150,11 @@ import { useRouter } from 'vue-router';
 import { getMe, type Me } from '@/api/me';
 import { useAuthStore } from '@/stores/auth';
 import { useShopConfigStore } from '@/stores/shopConfig';
+import { moduleOfPath } from '@/utils/modules';
 import { readThemePreference, setThemePreference, type ThemePreference } from '@/utils/theme';
+
+const { t } = useI18n();
+const { current: currentLocale, options: localeOptions, setLocale } = useAdminLocale();
 
 const $q = useQuasar();
 const auth = useAuthStore();
@@ -142,93 +172,85 @@ interface NavSection {
   links: NavLink[];
 }
 
-/**
- * Écrans qui n'ont de sens qu'avec des fournisseurs, de la douane ou une
- * logistique multi-étapes. Masqués en mode simple ; les routes restent
- * accessibles par leur adresse.
- */
-const FULL_MODE_ONLY = new Set([
-  '/spec-definitions',
-  '/customs-rates',
-  '/currency-rates',
-  '/logistics-routes',
-  '/suppliers',
-  '/supplier-orders',
-]);
-
 const allNav: NavSection[] = [
   {
-    label: 'Ventes',
+    label: 'layout.nav.sales',
     links: [
-      { label: 'Commandes', icon: 'ph:receipt', to: '/orders' },
+      { label: 'layout.nav.orders', icon: 'ph:receipt', to: '/orders' },
       {
-        label: 'Validation des paiements',
+        label: 'layout.nav.payment_validations',
         icon: 'ph:check-square-offset',
         to: '/payment-validations',
       },
-      { label: 'Demandes de devis', icon: 'ph:note-pencil', to: '/quote-requests' },
-      { label: 'Factures', icon: 'ph:file-text', to: '/invoices' },
-      { label: 'Avoirs', icon: 'ph:receipt-x', to: '/credit-notes' },
-      { label: 'Paniers abandonnés', icon: 'ph:shopping-bag', to: '/abandoned-carts' },
+      { label: 'layout.nav.quote_requests', icon: 'ph:note-pencil', to: '/quote-requests' },
+      { label: 'layout.nav.invoices', icon: 'ph:file-text', to: '/invoices' },
+      { label: 'layout.nav.credit_notes', icon: 'ph:receipt-x', to: '/credit-notes' },
+      { label: 'layout.nav.abandoned_carts', icon: 'ph:shopping-bag', to: '/abandoned-carts' },
     ],
   },
   {
-    label: 'Catalogue',
+    label: 'layout.nav.catalogue',
     links: [
-      { label: 'Produits', icon: 'ph:package', to: '/products' },
-      { label: 'Catégories', icon: 'ph:folders', to: '/categories' },
-      { label: 'Caractéristiques', icon: 'ph:sliders-horizontal', to: '/spec-definitions' },
-      { label: 'Codes promo', icon: 'ph:tag', to: '/discounts' },
+      { label: 'layout.nav.products', icon: 'ph:package', to: '/products' },
+      { label: 'layout.nav.categories', icon: 'ph:folders', to: '/categories' },
+      { label: 'layout.nav.specs', icon: 'ph:sliders-horizontal', to: '/spec-definitions' },
+      { label: 'layout.nav.promotions', icon: 'ph:seal-percent', to: '/promotions' },
+      { label: 'layout.nav.discounts', icon: 'ph:tag', to: '/discounts' },
     ],
   },
   {
-    label: 'Logistique',
+    label: 'layout.nav.logistics',
     links: [
-      { label: 'Départs groupés', icon: 'ph:calendar-check', to: '/grouped-departures' },
-      { label: 'Expéditions', icon: 'ph:truck', to: '/shipping' },
-      { label: 'Inventaire', icon: 'ph:warehouse', to: '/inventory' },
-      { label: 'Trajets et lieux', icon: 'ph:path', to: '/logistics-routes' },
-      { label: 'Transporteurs', icon: 'ph:mailbox', to: '/carriers' },
-      { label: 'Fournisseurs', icon: 'ph:storefront', to: '/suppliers' },
-      { label: 'Commandes fournisseurs', icon: 'ph:clipboard-text', to: '/supplier-orders' },
+      { label: 'layout.nav.departures', icon: 'ph:calendar-check', to: '/grouped-departures' },
+      { label: 'layout.nav.shipping', icon: 'ph:truck', to: '/shipping' },
+      { label: 'layout.nav.inventory', icon: 'ph:warehouse', to: '/inventory' },
+      { label: 'layout.nav.routes', icon: 'ph:path', to: '/logistics-routes' },
+      { label: 'layout.nav.carriers', icon: 'ph:mailbox', to: '/carriers' },
+      { label: 'layout.nav.suppliers', icon: 'ph:storefront', to: '/suppliers' },
+      { label: 'layout.nav.supplier_orders', icon: 'ph:clipboard-text', to: '/supplier-orders' },
     ],
   },
   {
-    label: 'Clients',
+    label: 'layout.nav.customers',
     links: [
-      { label: 'Utilisateurs', icon: 'ph:users', to: '/users' },
-      { label: 'Demandes de groupe', icon: 'ph:user-plus', to: '/group-upgrade-requests' },
-      { label: 'Adresses', icon: 'ph:map-pin', to: '/addresses' },
+      { label: 'layout.nav.users', icon: 'ph:users', to: '/users' },
+      { label: 'layout.nav.group_requests', icon: 'ph:user-plus', to: '/group-upgrade-requests' },
+      { label: 'layout.nav.addresses', icon: 'ph:map-pin', to: '/addresses' },
     ],
   },
   {
-    label: 'Tarifs et paiement',
+    label: 'layout.nav.pricing',
     links: [
-      { label: 'Taux TVA / TGC', icon: 'ph:percent', to: '/tax-rates' },
-      { label: 'Douane par catégorie', icon: 'ph:gavel', to: '/customs-rates' },
-      { label: 'Taux de change', icon: 'ph:arrows-left-right', to: '/currency-rates' },
-      { label: 'Moyens de paiement', icon: 'ph:credit-card', to: '/payment-eligibility' },
+      { label: 'layout.nav.price_groups', icon: 'ph:users-three', to: '/price-groups' },
+      { label: 'layout.nav.tax_rates', icon: 'ph:percent', to: '/tax-rates' },
+      { label: 'layout.nav.customs', icon: 'ph:gavel', to: '/customs-rates' },
+      { label: 'layout.nav.currency_rates', icon: 'ph:arrows-left-right', to: '/currency-rates' },
+      { label: 'layout.nav.payment_methods', icon: 'ph:credit-card', to: '/payment-eligibility' },
     ],
   },
   {
-    label: 'Site et système',
+    label: 'layout.nav.system',
     links: [
-      { label: 'Accueil du site', icon: 'ph:house', to: '/homepage' },
-      { label: 'Pages du site', icon: 'ph:article', to: '/pages' },
-      { label: 'Paramètres', icon: 'ph:gear', to: '/system-settings' },
+      { label: 'layout.nav.homepage', icon: 'ph:house', to: '/homepage' },
+      { label: 'layout.nav.pages', icon: 'ph:article', to: '/pages' },
+      { label: 'layout.nav.modules', icon: 'ph:toggle-right', to: '/modules' },
+      { label: 'layout.nav.audit', icon: 'ph:clipboard-text', to: '/audit-log' },
+      { label: 'layout.nav.settings', icon: 'ph:gear', to: '/system-settings' },
     ],
   },
 ];
 
+/** Screens of a switched-off module leave the menu (Admin → Modules). */
 const nav = computed<NavSection[]>(() =>
-  shopConfig.isSimple
-    ? allNav
-        .map((section) => ({
-          ...section,
-          links: section.links.filter((link) => !FULL_MODE_ONLY.has(link.to)),
-        }))
-        .filter((section) => section.links.length > 0)
-    : allNav,
+  allNav
+    .map((section) => ({
+      ...section,
+      links: section.links.filter((link) => {
+        const module = moduleOfPath(link.to);
+        return !module || shopConfig.moduleOn(module);
+      }),
+    }))
+    .filter((section) => section.links.length > 0),
 );
 
 const shopName = computed(() => shopConfig.config?.shop_name || 'Natimai');
@@ -255,13 +277,13 @@ function onLogout() {
 
 // --- Thème ---
 const THEME_OPTIONS: { value: ThemePreference; label: string; icon: string }[] = [
-  { value: 'auto', label: 'Comme le système', icon: 'ph:circle-half' },
-  { value: 'light', label: 'Clair', icon: 'ph:sun' },
-  { value: 'dark', label: 'Sombre', icon: 'ph:moon' },
+  { value: 'auto', label: 'layout.theme_auto', icon: 'ph:circle-half' },
+  { value: 'light', label: 'layout.theme_light', icon: 'ph:sun' },
+  { value: 'dark', label: 'layout.theme_dark', icon: 'ph:moon' },
 ];
 const theme = ref<ThemePreference>(readThemePreference());
-const themeLabel = computed(
-  () => THEME_OPTIONS.find((option) => option.value === theme.value)?.label ?? '',
+const themeLabel = computed(() =>
+  t(THEME_OPTIONS.find((option) => option.value === theme.value)?.label ?? 'layout.theme_auto'),
 );
 const themeIcon = computed(() => {
   if (theme.value === 'auto') return 'ph:circle-half';

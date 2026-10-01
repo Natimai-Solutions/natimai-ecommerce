@@ -23,7 +23,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.features.place.models import Place
 from app.features.product.models.product import Product
 from app.features.shipping.models.route import ShippingRoute
-from app.features.system.models.system_setting import SystemSetting
 
 CUSTOMS_FREE_COUNTRIES_KEY = "customs_free_countries"
 CUSTOMS_FREE_COUNTRIES_DESCRIPTION = (
@@ -60,13 +59,9 @@ def parse_country_list(raw: str | None) -> frozenset[str]:
 
 async def load_customs_free_countries(session: AsyncSession) -> frozenset[str]:
     """Countries whose suppliers count as domestic (system setting)."""
-    result = await session.exec(
-        select(SystemSetting).where(
-            col(SystemSetting.key) == CUSTOMS_FREE_COUNTRIES_KEY
-        )
-    )
-    setting = result.first()
-    return parse_country_list(setting.value if setting else None)
+    from app.core import runtime_settings
+
+    return frozenset(await runtime_settings.get(CUSTOMS_FREE_COUNTRIES_KEY, session))
 
 
 async def get_main_warehouse(session: AsyncSession) -> Place | None:

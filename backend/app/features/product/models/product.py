@@ -6,10 +6,13 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
+from pydantic import SerializerFunctionWrapHandler, model_serializer
 from sqlalchemy import JSON, Column, event
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, Relationship, SQLModel
 
+from app.core.config import reference_currency
+from app.core.field_visibility import redact
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 from app.features.product.models.category import Category
 
@@ -39,6 +42,13 @@ class PricingMode(str, Enum):
     IMPORT = "import"
     DOMESTIC = "domestic"
     FIXED = "fixed"
+
+
+class StockLocation(str, Enum):
+    """Where the sellable stock of an article is (storefront filter)."""
+
+    LOCAL = "local"
+    SUPPLIER = "supplier"
 
 
 class AvailabilityMode(str, Enum):
@@ -184,7 +194,7 @@ class ProductBase(Base):
         description="Product cost amount used to compute selling price",
     )
     cost_currency: str = Field(
-        default="XPF",
+        default_factory=reference_currency,
         max_length=10,
         description="Currency of the product cost amount",
     )
@@ -243,12 +253,12 @@ class ProductBase(Base):
     )
     supplier_category: str | None = Field(
         default=None,
-        max_length=50,
+        max_length=255,
         description="Supplier's product category",
     )
     supplier_subcategory: str | None = Field(
         default=None,
-        max_length=50,
+        max_length=255,
         description="Supplier's product subcategory",
     )
     weight: float | None = Field(
@@ -364,6 +374,29 @@ class ProductBase(Base):
     )
     sale_price_cached_at: datetime | None = Field(
         default=None, description="When sale_price_cached was last computed"
+    )
+    unit_cost_cached: Decimal | None = Field(
+        default=None,
+        ge=0,
+        decimal_places=2,
+        description=(
+            "Unit cost price materialized with sale_price_cached, excl. tax, in "
+            "the reference currency: purchase cost converted, plus insurance and "
+            "customs in import mode (no import leg). None = cost unknown."
+        ),
+    )
+    margin_cached: Decimal | None = Field(
+        default=None,
+        decimal_places=2,
+        description=(
+            "Unit margin excl. tax: price excl. tax − payment commission − "
+            "unit_cost_cached. None = cost unknown."
+        ),
+    )
+    margin_pct_cached: Decimal | None = Field(
+        default=None,
+        decimal_places=2,
+        description="margin_cached as a share of the price excl. tax (taux de marque)",
     )
     last_enrichment_sync: datetime | None = Field(
         default=None,
@@ -530,8 +563,37 @@ class Product(ProductBase, table=True):
     )
 
 
+#: Back-office figures a storefront visitor must never receive (see
+#: app/core/field_visibility.py): purchase cost, supplier price, the rates of
+#: the price formula and the margin computed from them.
+PRODUCT_INTERNAL_FIELDS: frozenset[str] = frozenset(
+    {
+        "cost_amount",
+        "cost_currency",
+        "supplier_price",
+        "supplier_price_currency",
+        "margin_rate_pct",
+        "customs_rate_pct",
+        "overridden_fields",
+        "unit_cost_cached",
+        "margin_cached",
+        "margin_pct_cached",
+    }
+)
+
+
 class ProductPublic(ProductBase, BasePublic):
-    """Represents product public."""
+    """Represents product public.
+
+    The internal fields (:data:`PRODUCT_INTERNAL_FIELDS`) are only serialized
+    for a superuser's request.
+    """
+
+    # Deliberately unannotated: an annotated return type would replace the
+    # model's properties in the OpenAPI schema (and the generated TS types).
+    @model_serializer(mode="wrap")
+    def _hide_internal_fields(self, handler: SerializerFunctionWrapHandler):  # type: ignore[no-untyped-def]  # noqa: ANN202
+        return redact(handler(self), PRODUCT_INTERNAL_FIELDS)
 
     id: uuid.UUID
     category_id: uuid.UUID | None = None
@@ -564,6 +626,16 @@ class ProductPublic(ProductBase, BasePublic):
     available_quantity: Decimal | None = None
     #: Active variants of a parent product (0 for a plain product).
     variants_count: int = 0
+    #: Sellable stock by location (variants included for a parent): held in
+    #: our warehouse (« chez nous ») / at the supplier (longer delivery).
+    #: ``None`` = not computed by this endpoint.
+    stock_local: Decimal | None = None
+    stock_supplier: Decimal | None = None
+    #: A promotion lowers the customer's price: their usual price (struck
+    #: through), the promotion's name and end. None without promotion.
+    regular_price: Decimal | None = None
+    promotion_name: str | None = None
+    promotion_ends_at: datetime | None = None
 
 
 class ProductsPublic(SQLModel):
@@ -589,6 +661,13 @@ class ProductSearchRequest(SQLModel):
     price_max: Decimal | None = Field(default=None, ge=0, decimal_places=2)
     specs: dict[str, Any] = Field(default_factory=dict)
     in_stock: bool | None = None
+    stock: StockLocation | None = Field(
+        default=None,
+        description=(
+            "local = in stock in our warehouse ; supplier = available at the "
+            "supplier (longer delivery)"
+        ),
+    )
     condition: ProductCondition | None = Field(
         default=None, description="Only new or only refurbished items"
     )
@@ -609,6 +688,10 @@ class ProductSearchFacets(SQLModel):
     manufacturers: dict[str, int] = Field(default_factory=dict)
     categories: dict[str, int] = Field(default_factory=dict)
     price_ranges: dict[str, int] = Field(default_factory=dict)
+    #: Results in stock ``local`` (our warehouse) / ``supplier``.
+    stock: dict[str, int] = Field(default_factory=dict)
+    #: Results ``new`` / ``refurbished``.
+    conditions: dict[str, int] = Field(default_factory=dict)
 
 
 class ProductSearchResponse(SQLModel):

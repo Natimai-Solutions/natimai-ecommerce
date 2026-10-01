@@ -1,0 +1,13 @@
+{% extends "_layout.html" %}
+{% block title %}Payment failed{% endblock %}
+{% block header_color %}#7a1a1a{% endblock %}
+{% block extra_style %}.badge { background: #fdecea; color: #7a1a1a; }{% endblock %}
+{% block heading %}Payment not completed{% endblock %}
+{% block content %}
+      <p>Hello {{ full_name }},</p>
+      <span class="badge">Payment declined</span>
+      <p>Unfortunately, your payment for order <strong>{{ order_ref or (order_id | short_ref) }}</strong> could not be processed.</p>
+      {% if reason %}<div class="reason">{{ reason }}</div>{% endif %}
+      <p>Please try again or contact our support if the problem persists.</p>
+      <p>The {{ shop_name }} team</p>
+{% endblock %}

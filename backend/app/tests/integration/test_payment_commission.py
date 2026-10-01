@@ -13,7 +13,7 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-import app.api.routes.system_settings as settings_routes
+import app.tasks.pricing_tasks as pricing_tasks
 from app.api.routes.system_settings import admin_upsert_setting
 from app.core.errors import AppError
 from app.features.product.models.product import PricingMode, Product
@@ -96,7 +96,7 @@ async def test_the_setting_drives_both_price_paths_and_reprices_the_catalogue(
         scheduled.append(kwargs)
         return "job"
 
-    monkeypatch.setattr(settings_routes, "schedule_price_refresh", _schedule)
+    monkeypatch.setattr(pricing_tasks, "schedule_price_refresh", _schedule)
     saved = await admin_upsert_setting(
         PAYMENT_COMMISSION_KEY, SystemSettingUpdate(value="2"), db_session, admin_view
     )

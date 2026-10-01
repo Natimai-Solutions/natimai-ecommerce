@@ -9,6 +9,7 @@ import {
 } from '@/api/cart';
 import { useAuthStore } from '@/stores/auth';
 import { getProductById } from '@/api/products';
+import { gt } from '@/i18n/global';
 
 type ProductPublic = components['schemas']['ProductPublic'];
 
@@ -113,7 +114,7 @@ export const useCartStore = defineStore('cart', () => {
       await hydrateProducts(cart.value.items);
       requiresAuth.value = false;
     } catch (err) {
-      handleError(err, 'Impossible de charger le panier');
+      handleError(err, gt('stores.cart_load'));
     } finally {
       loading.value = false;
     }
@@ -170,7 +171,7 @@ export const useCartStore = defineStore('cart', () => {
       const nextQuantity = Math.max(1, Math.floor(quantity));
       const item = cart.value.items.find((entry) => entry.id === itemId);
       if (!item) {
-        error.value = 'Article introuvable dans le panier';
+        error.value = gt('stores.cart_item_missing');
         return false;
       }
 
@@ -181,7 +182,7 @@ export const useCartStore = defineStore('cart', () => {
       requiresAuth.value = false;
       return true;
     } catch (err) {
-      handleError(err, 'Impossible de mettre a jour la quantite');
+      handleError(err, gt('stores.cart_qty'));
       return false;
     } finally {
       mutating.value = false;
@@ -200,7 +201,7 @@ export const useCartStore = defineStore('cart', () => {
       requiresAuth.value = false;
       return true;
     } catch (err) {
-      handleError(err, 'Impossible de supprimer cet article');
+      handleError(err, gt('stores.cart_remove'));
       return false;
     } finally {
       mutating.value = false;
@@ -218,7 +219,7 @@ export const useCartStore = defineStore('cart', () => {
       requiresAuth.value = false;
       return true;
     } catch (err) {
-      handleError(err, 'Impossible de vider le panier');
+      handleError(err, gt('stores.cart_clear'));
       return false;
     } finally {
       mutating.value = false;
@@ -240,12 +241,12 @@ export const useCartStore = defineStore('cart', () => {
     try {
       const customerEmail = payload.customer_email.trim().toLowerCase();
       if (!isValidEmail(customerEmail)) {
-        error.value = 'Veuillez renseigner un email client valide.';
+        error.value = gt('stores.cart_email');
         return null;
       }
 
       if (cart.value.items.length === 0) {
-        error.value = 'Le panier est vide.';
+        error.value = gt('stores.cart_empty');
         return null;
       }
 

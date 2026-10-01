@@ -1,0 +1,1 @@
+Your order {{ order_ref or (order_id | short_ref) }} has shipped

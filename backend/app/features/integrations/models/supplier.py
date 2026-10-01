@@ -26,14 +26,19 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, field_validator
 from pydantic import Field as PydanticField
-from sqlalchemy import JSON, Column
+from sqlalchemy import JSON, Column, Text
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
+
+from app.features.integrations.models.supplier_category_mapping import (
+    UnmappedCategoryAction,
+)
 
 _CODE_RE = re.compile(r"^[a-z0-9][a-z0-9_]{1,49}$")
 
@@ -164,6 +169,14 @@ class SupplierBase(SQLModel):
             "fichier}. Champs internes possibles : FILE_MAPPING_TARGETS."
         ),
     )
+    auto_purchase_order: bool = Field(
+        default=False,
+        description=(
+            "kind=api, intégration qui sait commander : la commande fournisseur "
+            "est passée automatiquement à l'encaissement d'une commande client "
+            "(hors départ groupé), livrée à l'entrepôt principal."
+        ),
+    )
     import_as_draft: bool = Field(
         default=False,
         description=(
@@ -171,6 +184,46 @@ class SupplierBase(SQLModel):
             "fournisseur arrivent en brouillon (Product.is_draft) : enrichis "
             "et rafraîchis, mais invisibles en vitrine tant que l'admin ne "
             "les publie pas. Les articles existants ne sont pas concernés."
+        ),
+    )
+    unmapped_category_action: UnmappedCategoryAction = Field(
+        default=UnmappedCategoryAction.AUTO,
+        sa_column=Column(
+            SAEnum(
+                UnmappedCategoryAction,
+                values_callable=lambda enum: [m.value for m in enum],
+                native_enum=False,
+                length=20,
+            ),
+            nullable=False,
+            server_default=UnmappedCategoryAction.AUTO.value,
+        ),
+        description=(
+            "Sort d'un article dont la catégorie fournisseur n'a pas de mappage : "
+            "auto (catégorie au nom de la sous-catégorie, comportement historique) "
+            "| draft | deactivate | skip"
+        ),
+    )
+    min_quantity: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=12,
+        decimal_places=2,
+        description=(
+            "Import fichier : quantité minimale d'une ligne. En dessous, une "
+            "référence nouvelle n'est pas créée et un article existant est mis "
+            "à jour puis retiré de la vitrine (is_active=False). Une ligne sans "
+            "quantité n'est pas jugée. Vide = pas de seuil."
+        ),
+    )
+    min_price: Decimal | None = Field(
+        default=None,
+        ge=0,
+        max_digits=14,
+        decimal_places=2,
+        description=(
+            "Import fichier : prix d'achat minimal d'une ligne, dans la devise "
+            "du fichier (même règle que la quantité minimale). Vide = pas de seuil."
         ),
     )
     sku_allowlist: list[str] | None = Field(
@@ -212,6 +265,14 @@ class Supplier(SupplierBase, table=True):
     )
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    credentials_encrypted: str | None = Field(
+        default=None,
+        sa_column=Column(Text, nullable=True),
+        description=(
+            "Identifiants du fournisseur (flux fichier), chiffrés par "
+            "SECRETS_ENCRYPTION_KEY. Jamais renvoyés par l'API."
+        ),
+    )
 
 
 class SupplierCreate(SupplierBase):
@@ -244,6 +305,10 @@ class SupplierUpdate(SQLModel):
     price_currency: str | None = None
     column_mapping: dict[str, str] | None = None
     import_as_draft: bool | None = None
+    auto_purchase_order: bool | None = None
+    unmapped_category_action: UnmappedCategoryAction | None = None
+    min_quantity: Decimal | None = Field(default=None, ge=0)
+    min_price: Decimal | None = Field(default=None, ge=0)
     settings: dict[str, Any] | None = None
     contact_email: str | None = None
     contact_phone: str | None = None
@@ -266,6 +331,11 @@ class SupplierPublic(SupplierBase):
     #: Renseigné par la route : l'intégration ``adapter_key`` existe-t-elle et
     #: a-t-elle ses identifiants (kind=api) ? Toujours True sinon.
     configured: bool = True
+    #: Des identifiants chiffrés sont enregistrés (jamais leur valeur).
+    has_credentials: bool = False
+    #: Renseigné par la désactivation seulement : articles du fournisseur dont
+    #: le stock fournisseur a été remis à zéro (et masqués, selon le choix).
+    products_withdrawn: int | None = None
 
 
 class SuppliersPublic(BaseModel):
@@ -286,4 +356,12 @@ class AdapterDescriptor(BaseModel):
     settings_keys: list[str] = PydanticField(
         default_factory=list,
         description="Clés acceptées dans Supplier.settings pour cette intégration",
+    )
+    supports_purchase_orders: bool = PydanticField(
+        default=False,
+        description="L'intégration sait passer une commande fournisseur",
+    )
+    settings_schema: dict[str, Any] = PydanticField(
+        default_factory=dict,
+        description="Schéma JSON de Supplier.settings (formulaire admin)",
     )

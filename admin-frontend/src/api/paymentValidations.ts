@@ -1,3 +1,4 @@
+import { labels } from '@/i18n/global';
 import { api } from '@/boot/api';
 
 /** A payment awaiting manual/document validation (chèque, virement, BC). */
@@ -126,13 +127,13 @@ function resolveStorageUrl(url: string): string {
 
 export type ReceiptMethod = 'cash' | 'check' | 'transfer' | 'card' | 'other';
 
-export const RECEIPT_METHOD_LABELS: Record<ReceiptMethod, string> = {
-  cash: 'Espèces',
-  check: 'Chèque',
-  transfer: 'Virement',
-  card: 'Carte (TPE)',
-  other: 'Autre',
-};
+export const RECEIPT_METHOD_LABELS: Record<ReceiptMethod, string> = labels({
+  cash: 'api.receipt_method.cash',
+  check: 'api.receipt_method.check',
+  transfer: 'api.receipt_method.transfer',
+  card: 'api.receipt_method.card',
+  other: 'api.receipt_method.other',
+});
 
 export interface PaymentReceipt {
   id: string;

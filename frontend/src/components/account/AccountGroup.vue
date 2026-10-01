@@ -10,31 +10,31 @@
 
       <section class="app-section">
         <div class="app-panel group__current">
-          <span class="group__label">Votre groupe tarifaire</span>
-          <span class="group__name">{{ options?.current_group?.label ?? 'Standard' }}</span>
-          <span class="group__hint"
-            >Les prix affichés sur le site tiennent compte de ce groupe.</span
-          >
+          <span class="group__label">{{ $t('group.yours') }}</span>
+          <span class="group__name">{{
+            options?.current_group?.label ?? $t('group.standard')
+          }}</span>
+          <span class="group__hint">{{ $t('group.hint') }}</span>
         </div>
       </section>
 
       <section class="app-section">
         <div class="app-section__head">
-          <h2 class="app-section__title">Demander un autre groupe</h2>
+          <h2 class="app-section__title">{{ $t('group.request_title') }}</h2>
           <p class="app-section__hint">
-            Réservé aux professionnels et revendeurs. Notre équipe valide chaque demande.
+            {{ $t('group.request_hint') }}
           </p>
         </div>
 
         <AppNotice v-if="saved" tone="success" class="q-mb-md">
-          Votre demande a été envoyée. Elle sera examinée par notre équipe.
+          {{ $t('group.sent') }}
         </AppNotice>
 
         <q-form v-if="selectOptions.length" class="app-form" @submit.prevent="submit">
           <q-select
             v-model="form.price_group_id"
             :options="selectOptions"
-            label="Groupe souhaité"
+            :label="$t('group.wanted')"
             outlined
             emit-value
             map-options
@@ -42,13 +42,13 @@
           />
           <q-input
             v-model="form.business_registration_number"
-            label="Numéro d'immatriculation (TAHITI, RCS, SIRET…)"
+            :label="$t('group.registration')"
             outlined
             bottom-slots
           />
           <q-input
             v-model="form.attestation_notes"
-            label="Informations complémentaires (facultatif)"
+            :label="$t('group.notes')"
             type="textarea"
             autogrow
             outlined
@@ -59,29 +59,29 @@
               type="submit"
               unelevated
               color="primary"
-              label="Envoyer la demande"
+              :label="$t('group.send')"
               :loading="submitting"
               :disable="!form.price_group_id || !form.business_registration_number.trim()"
             />
           </div>
         </q-form>
-        <p v-else class="text-muted">Aucun autre groupe n'est disponible à la demande.</p>
+        <p v-else class="text-muted">{{ $t('group.none') }}</p>
       </section>
 
       <section v-if="requests.length" class="app-section">
         <div class="app-section__head">
-          <h2 class="app-section__title">Mes demandes</h2>
+          <h2 class="app-section__title">{{ $t('group.mine') }}</h2>
         </div>
         <ul class="app-rows">
           <li v-for="req in requests" :key="req.id" class="app-row">
             <div class="app-row__main">
               <span class="app-row__title">{{ groupLabel(req.price_group_id) }}</span>
               <span class="app-row__meta">
-                Demandée le {{ formatDate(req.created_at) }}
+                {{ $t('group.requested_on', { date: formatDate(req.created_at) }) }}
                 <template v-if="req.admin_comment"> · {{ req.admin_comment }}</template>
               </span>
             </div>
-            <StatusTag :tone="STATUS[req.status].tone" :label="STATUS[req.status].label" />
+            <StatusTag :tone="STATUS[req.status].tone" :label="$t(STATUS[req.status].label)" />
           </li>
         </ul>
       </section>
@@ -90,6 +90,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { formatDate } from '@app/utils';
 
@@ -106,10 +107,12 @@ import {
 import { apiErrorMessage } from '@/utils/errors';
 import type { StatusTone } from '@app/ui/statusTone';
 
+const { t } = useI18n();
+
 const STATUS: Record<UpgradeRequestStatus, { label: string; tone: StatusTone }> = {
-  PENDING: { label: 'En attente', tone: 'warn' },
-  APPROVED: { label: 'Approuvée', tone: 'ok' },
-  REJECTED: { label: 'Refusée', tone: 'danger' },
+  PENDING: { label: 'group.status.PENDING', tone: 'warn' },
+  APPROVED: { label: 'group.status.APPROVED', tone: 'ok' },
+  REJECTED: { label: 'group.status.REJECTED', tone: 'danger' },
 };
 
 const loading = ref(true);
@@ -133,7 +136,7 @@ function groupLabel(id: string): string {
     ...(options.value?.current_group ? [options.value.current_group] : []),
     ...(options.value?.available_groups ?? []),
   ];
-  return all.find((g) => g.id === id)?.label ?? 'Groupe';
+  return all.find((g) => g.id === id)?.label ?? t('group.group');
 }
 
 async function load() {
@@ -144,7 +147,7 @@ async function load() {
     options.value = opts;
     requests.value = reqs;
   } catch (err) {
-    error.value = apiErrorMessage(err) ?? 'Impossible de charger votre groupe tarifaire.';
+    error.value = apiErrorMessage(err) ?? t('group.load_failed');
   } finally {
     loading.value = false;
   }
@@ -167,7 +170,7 @@ async function submit() {
     form.attestation_notes = '';
     await load();
   } catch (err) {
-    error.value = apiErrorMessage(err) ?? "Échec de l'envoi de la demande.";
+    error.value = apiErrorMessage(err) ?? t('group.send_failed');
   } finally {
     submitting.value = false;
   }

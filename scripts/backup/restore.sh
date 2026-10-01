@@ -134,4 +134,4 @@ $COMPOSE_CMD up -d
 
 echo "[$(date -Is)] Restaurez aussi le volume des uploads si nécessaire :"
 # --index : `api` tourne en replicas: 2 en prod, `exec` sans index est ambigu.
-echo "  $COMPOSE_CMD exec --index 1 -T api tar xzf - -C /tmp < backups/storage_<STAMP>.tar.gz"
+echo "  $COMPOSE_CMD exec --index 1 -T --user app api tar xzf - -C /tmp < backups/storage_<STAMP>.tar.gz"

@@ -37,6 +37,34 @@ RUN pnpm --filter frontend run build
 # The generated dist/ssr/package.json no longer lists the bundled @app/*
 # workspace packages: see ssr.extendSSRPackageJson in quasar.config.ts.
 
+# ── Production dependencies of the SSR server, from the lockfile ──────────────
+# The generated dist/ssr/package.json pins the direct dependencies only; an
+# `npm install` there resolved everything else afresh on every build. Here the
+# whole tree comes from pnpm-lock.yaml (--frozen-lockfile), production only,
+# with the hoisted linker: plain directories, copied as is to the runner.
+FROM node:24-alpine AS prod-deps
+
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable && corepack prepare pnpm@10.0.0 --activate
+
+WORKDIR /workspace
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY frontend/package.json          ./frontend/
+COPY frontend/src-ssr/package.json  ./frontend/src-ssr/
+COPY admin-frontend/package.json    ./admin-frontend/
+COPY shared/api-types/package.json  ./shared/api-types/
+COPY shared/api-client/package.json ./shared/api-client/
+COPY shared/utils/package.json      ./shared/utils/
+COPY shared/ui/package.json         ./shared/ui/
+
+RUN pnpm install --frozen-lockfile --prod --ignore-scripts \
+      --config.node-linker=hoisted \
+      --filter "frontend..." --filter "frontend-ssr-server" \
+    # The @app/* workspace packages are bundled into dist/ssr: their links
+    # would only dangle in the runner.
+    && rm -rf node_modules/@app
+
 # ── Production stage ────────────────────────────────────────────────────────────
 FROM node:24-alpine AS runner
 
@@ -44,8 +72,10 @@ ENV NODE_ENV=production
 WORKDIR /app
 
 COPY --from=builder /workspace/frontend/dist/ssr ./
+COPY --from=prod-deps /workspace/node_modules ./node_modules
 
-RUN npm install --omit=dev --ignore-scripts
+# The image's unprivileged user: the SSR server needs no write access.
+USER node
 
 EXPOSE 3000
 

@@ -1,20 +1,16 @@
 import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
-import { departureCutoffLabel, departureDeliveryLabel } from '@app/utils';
+import { ref } from 'vue';
 import { getNextDeparture, type Departure } from '@/api/departures';
 
 /**
  * Next grouped departure (« prochain départ groupé »). Loaded once by the
  * layout; the banner, the product pages and the checkout read the same
- * object, so every surface shows the same dates. `null` = no open departure,
+ * object, so every surface shows the same dates (labels: useDepartureLabels). `null` = no open departure,
  * the shop behaves as a classic one and nothing is displayed.
  */
 export const useDepartureStore = defineStore('departure', () => {
   const next = ref<Departure | null>(null);
   const loaded = ref(false);
-
-  const cutoffLabel = computed(() => (next.value ? departureCutoffLabel(next.value) : null));
-  const deliveryLabel = computed(() => (next.value ? departureDeliveryLabel(next.value) : null));
 
   async function load(): Promise<void> {
     try {
@@ -26,5 +22,5 @@ export const useDepartureStore = defineStore('departure', () => {
     }
   }
 
-  return { next, loaded, cutoffLabel, deliveryLabel, load };
+  return { next, loaded, load };
 });

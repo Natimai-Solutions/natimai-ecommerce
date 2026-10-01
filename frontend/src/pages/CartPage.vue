@@ -1,16 +1,16 @@
 <template>
   <q-page class="cart page-container">
     <div class="cart__head">
-      <h1 class="page-title">Panier</h1>
+      <h1 class="page-title">{{ $t('cart.title') }}</h1>
       <span v-if="cartStore.totalItems > 0" class="font-mono text-subtle">
-        {{ cartStore.totalItems }} article{{ cartStore.totalItems > 1 ? 's' : '' }}
+        {{ $t('cart.count', { n: cartStore.totalItems }, cartStore.totalItems) }}
       </span>
     </div>
 
     <AppNotice v-if="cartStore.error" tone="error" class="cart__notice">
       {{ cartStore.error }}
       <template #action>
-        <q-btn flat label="Réessayer" @click="loadCart" />
+        <q-btn flat :label="$t('common.retry')" @click="loadCart" />
       </template>
     </AppNotice>
 
@@ -28,9 +28,14 @@
 
     <div v-else-if="cartStore.items.length === 0" class="cart__empty">
       <q-icon name="ph:shopping-bag" size="44px" class="text-subtle" />
-      <h2>Votre panier est vide</h2>
-      <p>Ajoutez des produits depuis le catalogue.</p>
-      <q-btn unelevated color="primary" label="Voir le catalogue" :to="{ name: 'catalogue' }" />
+      <h2>{{ $t('cart.empty_title') }}</h2>
+      <p>{{ $t('cart.empty_text') }}</p>
+      <q-btn
+        unelevated
+        color="primary"
+        :label="$t('cart.see_catalogue')"
+        :to="{ name: 'catalogue' }"
+      />
     </div>
 
     <div v-else class="cart__layout">
@@ -71,15 +76,19 @@
               <template v-if="entry.product?.vendor_part_number">
                 {{ entry.product.vendor_part_number }} ·
               </template>
-              {{ moneyLabel(entry.item.unit_price) }} l'unité
+              {{ $t('cart.per_unit', { price: moneyLabel(entry.item.unit_price) }) }}
             </span>
 
             <div class="cart-line__controls">
-              <div class="qty" role="group" :aria-label="`Quantité, ${entry.product?.name ?? ''}`">
+              <div
+                class="qty"
+                role="group"
+                :aria-label="$t('cart.qty_of', { name: entry.product?.name ?? '' })"
+              >
                 <button
                   type="button"
                   class="qty__btn"
-                  :aria-label="entry.item.quantity <= 1 ? 'Retirer' : 'Diminuer la quantité'"
+                  :aria-label="entry.item.quantity <= 1 ? $t('cart.remove') : $t('cart.qty_less')"
                   :disabled="cartStore.mutating"
                   @click="decreaseQuantity(entry.item.id, entry.item.quantity)"
                 >
@@ -91,7 +100,7 @@
                 <button
                   type="button"
                   class="qty__btn"
-                  aria-label="Augmenter la quantité"
+                  :aria-label="$t('cart.qty_more')"
                   :disabled="cartStore.mutating"
                   @click="increaseQuantity(entry.item.id, entry.item.quantity)"
                 >
@@ -104,7 +113,7 @@
                 :disabled="cartStore.mutating"
                 @click="removeItem(entry.item.id)"
               >
-                Supprimer
+                {{ $t('cart.delete') }}
               </button>
             </div>
           </div>
@@ -113,23 +122,25 @@
         </li>
       </ul>
 
-      <aside class="cart__summary" aria-label="Récapitulatif">
-        <h2 class="cart__summary-title">Récapitulatif</h2>
+      <aside class="cart__summary" :aria-label="$t('cart.summary')">
+        <h2 class="cart__summary-title">{{ $t('cart.summary') }}</h2>
         <div class="cart__row">
-          <span>Articles</span>
+          <span>{{ $t('cart.items') }}</span>
           <span class="font-mono">{{ cartStore.totalItems }}</span>
         </div>
         <div class="cart__row cart__row--total">
-          <span>Sous-total</span>
+          <span>{{ $t('cart.subtotal') }}</span>
           <span class="font-mono">{{ moneyNumberLabel(cartStore.totalAmount) }}</span>
         </div>
-        <p class="cart__note">Frais de livraison calculés à la commande.</p>
+        <p class="cart__note">
+          {{ $t('cart.note') }}
+        </p>
 
         <q-btn
           unelevated
           data-testid="cart-checkout"
           color="primary"
-          label="Passer commande"
+          :label="$t('cart.checkout')"
           class="cart__checkout"
           :disable="cartStore.items.length === 0 || cartStore.mutating"
           @click="goToCheckout"
@@ -137,7 +148,7 @@
         <q-btn
           outline
           color="primary"
-          label="Continuer mes achats"
+          :label="$t('cart.continue')"
           class="cart__continue"
           :to="{ name: 'catalogue' }"
         />
@@ -147,7 +158,7 @@
           :disabled="cartStore.mutating"
           @click="clearCart"
         >
-          Vider le panier
+          {{ $t('cart.clear') }}
         </button>
       </aside>
     </div>
@@ -155,6 +166,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import AppNotice from '@app/ui/AppNotice.vue';
 import { onMounted } from 'vue';
 import { useRouter } from 'vue-router';
@@ -163,6 +175,7 @@ import { useCurrencyStore } from '@/stores/currency';
 import ProductImage from '@/components/ProductImage.vue';
 import { getProductRoute } from '@/utils/productRoute';
 
+const { t } = useI18n();
 const cartStore = useCartStore();
 const currencyStore = useCurrencyStore();
 const router = useRouter();
@@ -181,7 +194,7 @@ function moneyNumberLabel(amount: number): string {
 }
 
 function fallbackProductName(productId: string): string {
-  return `Produit ${productId.slice(0, 8)}`;
+  return t('cart.product_n', { id: productId.slice(0, 8) });
 }
 
 async function loadCart() {

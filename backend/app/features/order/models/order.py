@@ -141,6 +141,11 @@ class OrderBase(Base):
         max_length=50,
         description="Version des CGV acceptée au checkout",
     )
+    # Langue du client au checkout (R7) : e-mails et documents de la commande
+    # la suivent, même envoyés plus tard par le worker.
+    locale: str | None = Field(
+        default=None, max_length=8, description="Langue de la commande (fr, en…)"
+    )
     # Acompte : « full » = tout payé à la commande ; « deposit » = acompte à la
     # commande (deposit_amount, frais deposit_fee_amount inclus dans le total)
     # puis solde demandé à la réception des marchandises.

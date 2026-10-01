@@ -12,13 +12,13 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 import aiohttp
 from pydantic import BaseModel, Field
 
-from app.core.config import settings
+from app.core.config import secret_is_set, settings
 from app.core.http_retry import (
     RETRYABLE_STATUSES,
     AsyncRateLimiter,
@@ -29,9 +29,13 @@ from app.core.http_retry import (
 from app.services.suppliers.base import (
     NormalizedPricing,
     NormalizedProductData,
+    PurchaseOrderLine,
+    PurchaseOrderResult,
+    ShipTo,
     SupplierAdapter,
     SupplierConfig,
     SupplierHealth,
+    SupplierSettings,
 )
 
 logger = logging.getLogger(__name__)
@@ -495,6 +499,33 @@ def _to_normalized_product(item: IngramProductData) -> NormalizedProductData:
     )
 
 
+class IngramSettings(SupplierSettings):
+    """``Supplier.settings`` of an Ingram Micro row (R5 / C4)."""
+
+    environment: Literal["sandbox", "production"] | None = Field(
+        default=None, title="Environnement", description="Vide : INGRAM_ENVIRONMENT."
+    )
+    country_code: str | None = Field(
+        default=None,
+        min_length=2,
+        max_length=2,
+        title="Pays du compte",
+        description="Vide : INGRAM_COUNTRY_CODE.",
+    )
+    ship_to_company_name: str | None = Field(
+        default=None,
+        max_length=150,
+        title="Société destinataire des commandes",
+        description="Vide : INGRAM_SHIP_TO_COMPANY_NAME, sinon le nom de la boutique.",
+    )
+    ship_to_contact: str | None = Field(
+        default=None, max_length=150, title="Contact de livraison"
+    )
+    ship_to_phone: str | None = Field(
+        default=None, max_length=50, title="Téléphone de livraison"
+    )
+
+
 class IngramMicroAdapter(SupplierAdapter):
     """Supplier adapter wrapping :class:`IngramMicroService`.
 
@@ -507,11 +538,12 @@ class IngramMicroAdapter(SupplierAdapter):
 
     adapter_key = "ingram_micro"
     display_name = "Ingram Micro"
-    settings_keys = ("environment", "country_code", "origin_place_code")
+    settings_schema = IngramSettings
     price_batch_size = 50
     # Enforced by the shared limiter in this module, which every
     # IngramMicroService call goes through.
     requests_per_minute = INGRAM_REQUESTS_PER_MINUTE
+    supports_purchase_orders = True
 
     def __init__(
         self,
@@ -568,11 +600,12 @@ class IngramMicroAdapter(SupplierAdapter):
     def credentials_present(cls) -> bool:
         """The three Ingram secrets live in the environment."""
         return all(
-            [
+            secret_is_set(value)
+            for value in (
                 settings.INGRAM_CLIENT_ID,
                 settings.INGRAM_CLIENT_SECRET,
                 settings.INGRAM_CUSTOMER_NUMBER,
-            ]
+            )
         )
 
     def is_sync_enabled(self) -> bool:
@@ -589,6 +622,53 @@ class IngramMicroAdapter(SupplierAdapter):
             }
         )
         return summary
+
+    # -- purchase orders --------------------------------------------------
+
+    async def create_purchase_order(
+        self,
+        *,
+        customer_order_number: str,
+        lines: list[PurchaseOrderLine],
+        ship_to: ShipTo,
+        notes: str | None = None,
+    ) -> PurchaseOrderResult:
+        """POST /resellers/v6/orders — Ingram deduplicates on the order number."""
+        body_lines: list[dict[str, Any]] = []
+        for line in lines:
+            item: dict[str, Any] = {
+                "ingramPartNumber": line.supplier_sku,
+                "quantity": line.quantity,
+            }
+            if line.unit_price is not None and line.unit_price > 0:
+                item["unitPrice"] = float(line.unit_price)
+            if line.vendor_part_number:
+                item["vendorPartNumber"] = line.vendor_part_number
+            body_lines.append(item)
+        ship: dict[str, Any] = {
+            "addressLine1": ship_to.address_line1,
+            "city": ship_to.city,
+            "countryCode": ship_to.country_code,
+        }
+        optional = {
+            "addressLine2": ship_to.address_line2,
+            "contact": ship_to.contact,
+            "companyName": ship_to.company_name,
+            "postalCode": ship_to.postal_code,
+            "phoneNumber": ship_to.phone,
+        }
+        ship.update({k: v for k, v in optional.items() if v})
+        response = await self.service.create_purchase_order(
+            customer_order_number=customer_order_number,
+            lines=body_lines,
+            ship_to=ship,
+            notes=notes,
+        )
+        return PurchaseOrderResult(
+            order_number=response.get("ingramOrderNumber"),
+            status_label=response.get("orderStatus"),
+            raw=response,
+        )
 
     # -- catalog ----------------------------------------------------------
 

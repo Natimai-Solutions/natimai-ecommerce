@@ -95,13 +95,13 @@ def _make_order(**overrides: Any) -> Order:
     return cast(Order, SimpleNamespace(**defaults))
 
 
-def _make_tax_rate(rate_pct: str, code: str = "TGC_NORMAL") -> TaxRate:
+def _make_tax_rate(rate_pct: str, code: str = "TVA_NORMALE") -> TaxRate:
     return cast(
         TaxRate,
         SimpleNamespace(
             id=uuid.uuid4(),
             code=code,
-            label=f"TGC {rate_pct}",
+            label=f"TVA {rate_pct}",
             rate_pct=Decimal(rate_pct),
         ),
     )
@@ -185,7 +185,7 @@ async def test_snapshot_ventilates_several_rates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     normal = _make_tax_rate("16.00")
-    reduced = _make_tax_rate("5.00", code="TGC_REDUIT")
+    reduced = _make_tax_rate("5.00", code="TVA_REDUITE")
     line_a = _make_line(unit_price="100000", quantity=1, tax_rate_id=normal.id)
     line_b = _make_line(unit_price="50000", quantity=1, tax_rate_id=reduced.id)
     order = _make_order(

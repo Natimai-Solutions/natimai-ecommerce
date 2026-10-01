@@ -13,6 +13,7 @@ from sqlalchemy import update as sa_update
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import runtime_settings
 from app.core.config import settings
 from app.core.db import engine
 from app.features.integrations.models.icecat_sync import IcecatProductData
@@ -22,6 +23,7 @@ from app.features.integrations.services.supplier_data_normalization import (
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import Product, ProductUpdate
 from app.features.product.services.overrides import strip_locked
+from app.features.system.modules import module_enabled
 from app.services.icecat_service import icecat_service
 
 logger = logging.getLogger(__name__)
@@ -124,6 +126,9 @@ async def enrich_product_with_icecat_task(
         return {"status": "error", "message": "Invalid product ID"}
 
     async with AsyncSession(engine) as session:
+        if not await module_enabled(session, "icecat"):
+            logger.info("Icecat enrichment is switched off: %s skipped", product_id)
+            return {"status": "disabled", "message": "Icecat enrichment is off"}
         try:
             # Get product from database
             product = await crud_product.read(session, id=product_uuid)
@@ -269,6 +274,9 @@ async def batch_enrich_products_task(
     }
 
     async with AsyncSession(engine) as session:
+        if not await module_enabled(session, "icecat"):
+            logger.info("Icecat enrichment is switched off: batch skipped")
+            return {**stats, "status": "disabled"}
         try:
             # Query products that need enrichment:
             # - Have supplier managed flag
@@ -277,9 +285,12 @@ async def batch_enrich_products_task(
             # - Not attempted within the retry cooldown (so un-matchable SKUs
             #   don't get re-queried against Icecat every run). Never-attempted
             #   products (last_enrichment_sync IS NULL) are prioritised first.
+            cooldown_days = await runtime_settings.get(
+                "icecat_enrichment_retry_cooldown_days", session
+            )
             cooldown_cutoff = datetime.datetime.now(
                 tz=datetime.timezone.utc
-            ) - datetime.timedelta(days=settings.ICECAT_ENRICHMENT_RETRY_COOLDOWN_DAYS)
+            ) - datetime.timedelta(days=int(cooldown_days))
             query = (
                 select(Product)
                 .where(col(Product.is_supplier_managed).is_(True))
@@ -526,29 +537,42 @@ async def trigger_batch_enrichment(limit: int = 50) -> str:
 # the batch task to inject the configured limit.
 
 
+def _due(now: datetime.datetime, interval_hours: int) -> bool:
+    """Whether the hourly tick at ``now`` is one of every ``interval_hours``."""
+    if interval_hours <= 0:
+        return False
+    hours_since_epoch = int(now.timestamp()) // 3600
+    return hours_since_epoch % interval_hours == 0
+
+
 async def scheduled_batch_enrich_task(_ctx: dict[str, Any]) -> dict[str, Any]:
-    """Cron entrypoint for recurring batch enrichment (reads limit from config)."""
+    """Hourly tick of the recurring batch enrichment (R5 / C5).
+
+    Always scheduled: the interval and the batch size are read from the
+    runtime settings at each tick, so a change in the back-office applies
+    without restarting the worker (0 = never).
+    """
+    from app.core import runtime_settings
+
+    if not settings.ICECAT_ENABLED:
+        return {"status": "disabled"}
+    values = await runtime_settings.get_many(
+        ["icecat_enrichment_interval_hours", "icecat_batch_enrich_limit"]
+    )
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    if not _due(now, int(values["icecat_enrichment_interval_hours"])):
+        return {"status": "not_due"}
     return await batch_enrich_products_task(
-        _ctx, limit=settings.ICECAT_BATCH_ENRICH_LIMIT
+        _ctx, limit=int(values["icecat_batch_enrich_limit"])
     )
 
 
 def get_enrichment_cron_jobs() -> list[Any]:
-    """Build the recurring Icecat batch-enrichment cron job.
-
-    Runs every ``ICECAT_ENRICHMENT_CRON_INTERVAL_HOURS`` hours to drain the
-    backlog of un-enriched products independently of supplier syncs. Returns an
-    empty list when enrichment is disabled or the interval is non-positive.
-    """
-    if not settings.ICECAT_ENABLED:
-        return []
-    interval = int(settings.ICECAT_ENRICHMENT_CRON_INTERVAL_HOURS)
-    if interval <= 0:
-        return []
+    """The hourly tick of the Icecat batch enrichment (always scheduled; the
+    tick decides from the runtime settings whether it is due)."""
     return [
         cron(
             scheduled_batch_enrich_task,  # type: ignore[arg-type]
-            hour=set(range(0, 24, interval)),
             minute=15,
             second=0,
             name="icecat_batch_enrichment",

@@ -21,6 +21,7 @@ from fastapi import Response
 from pydantic import BaseModel, Field
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import runtime_settings
 from app.core.config import settings
 from app.core.errors import AppError
 from app.features.cart.models.quote_request import QuoteRequest, QuoteRequestStatus
@@ -173,7 +174,7 @@ async def send_quote_email(quote: QuoteRequest) -> bool:
         customer_message=snapshot.get("customer_message", ""),
         accept_url=snapshot.get("accept_url", ""),
         has_account=quote.user_id is not None,
-        shop_name=getattr(settings, "SHOP_NAME", "Natimai"),
+        shop_name=runtime_settings.peek("shop_name"),
     )
     attachments: list[tuple[str, bytes, str]] = []
     try:
@@ -271,8 +272,11 @@ def quote_pdf_response(quote: QuoteRequest) -> Response:
             message="Ce devis n'a pas encore été émis",
             details={"quote_request_id": str(quote.id)},
         )
+    from app.core.i18n import request_locale
+
     try:
-        pdf = render_quote_pdf(quote)
+        # The customer downloads it in the language of the interface (R7).
+        pdf = render_quote_pdf(quote, lang=request_locale())
     except PdfRenderingUnavailableError as exc:
         raise AppError(
             code="quote.pdf.unavailable",

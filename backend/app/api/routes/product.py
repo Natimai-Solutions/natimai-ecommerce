@@ -3,13 +3,17 @@ from collections.abc import Callable
 from typing import Any, cast
 
 from fastapi import Depends
+from sqlalchemy import and_
 from sqlmodel import col, not_, select
 
 from app.api.base_router import BaseRouter
 from app.api.deps import CurrentUser, SessionDep, get_current_user_optional
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
-from app.features.inventory.services.availability import publish_with_availability
+from app.features.inventory.services.availability import (
+    STAFF,
+    publish_with_availability,
+)
 from app.features.product.crud.product import (
     ProductCrud,
     crud_product,
@@ -27,6 +31,18 @@ from app.features.product.services.publication import (
     publication_blockers,
     publication_conditions,
 )
+
+#: ``sort`` values of the admin listing (products without the figure last).
+ADMIN_SORTS: dict[str, Any] = {
+    "price_asc": col(Product.sale_price_cached).asc().nulls_last(),
+    "price_desc": col(Product.sale_price_cached).desc().nulls_last(),
+    "cost_asc": col(Product.unit_cost_cached).asc().nulls_last(),
+    "cost_desc": col(Product.unit_cost_cached).desc().nulls_last(),
+    "margin_asc": col(Product.margin_cached).asc().nulls_last(),
+    "margin_desc": col(Product.margin_cached).desc().nulls_last(),
+    "margin_pct_asc": col(Product.margin_pct_cached).asc().nulls_last(),
+    "margin_pct_desc": col(Product.margin_pct_cached).desc().nulls_last(),
+}
 
 
 class ProductRouter(
@@ -83,7 +99,11 @@ class ProductRouter(
                         },
                     )
 
-            return (await publish_with_availability(session, [record]))[0]
+            return (
+                await publish_with_availability(
+                    session, [record], customer=STAFF if is_admin else current_user
+                )
+            )[0]
 
         read.__name__ = "get_one_product"
         return read
@@ -99,6 +119,7 @@ class ProductRouter(
             include_archived: bool = False,
             status: str | None = None,
             search: str | None = None,
+            sort: str | None = None,
             current_user: CurrentUser | None = Depends(get_current_user_optional),
         ) -> Any:
             await self._check_auth(session, "read", current_user)
@@ -136,7 +157,17 @@ class ProductRouter(
                         | col(Product.supplier_sku).ilike(pattern)
                         | col(Product.vendor_part_number).ilike(pattern)
                     )
-                if conditions:
+                sort_expression = ADMIN_SORTS.get(sort or "")
+                if sort_expression is not None:
+                    # Admin sorts (price, cost, margin): explicit ordering,
+                    # products without the figure last.
+                    statement = await self.crud.read_multi_statement(
+                        session,
+                        include_archived=include_archived,
+                        filter=and_(*conditions) if conditions else None,
+                        order_by=(sort_expression, col(Product.created_at)),
+                    )
+                elif conditions:
                     statement = (
                         select(Product)
                         .where(*conditions)
@@ -154,7 +185,11 @@ class ProductRouter(
                 user=current_user,
             )
             return ProductsPublic(
-                data=await publish_with_availability(session, result["data"]),
+                data=await publish_with_availability(
+                    session,
+                    result["data"],
+                    customer=STAFF if is_admin else current_user,
+                ),
                 count=result["count"],
             )
 

@@ -8,6 +8,14 @@ export interface SmartFormOptions {
   publicKey: string;
   token: string;
   returnUrl: string;
+  /** Interface language (`fr`, `en`…): the form follows it. */
+  language?: string;
+}
+
+/** PayZen expects a full tag (`fr-FR`, `en-GB`…). */
+export function payzenLanguage(locale: string | undefined): string {
+  const base = (locale ?? 'fr').toLowerCase().split('-')[0] || 'fr';
+  return base === 'en' ? 'en-GB' : base === 'fr' ? 'fr-FR' : `${base}-${base.toUpperCase()}`;
 }
 
 /** Load the PayZen script and render the form into `#kr-smart-form-container`. */
@@ -16,6 +24,7 @@ export function loadPayzenSmartForm({
   publicKey,
   token,
   returnUrl,
+  language,
 }: SmartFormOptions): Promise<void> {
   return new Promise((resolve, reject) => {
     const existing = document.getElementById('kr-payzen-script');
@@ -26,7 +35,7 @@ export function loadPayzenSmartForm({
     script.src = `${serverUrl}/static/js/krypton-client/V4.0/ext/smartform.min.js`;
     script.setAttribute('kr-public-key', publicKey);
     script.setAttribute('kr-post-url-success', returnUrl);
-    script.setAttribute('kr-language', 'fr-FR');
+    script.setAttribute('kr-language', payzenLanguage(language));
     script.onload = () => {
       const container = document.getElementById('kr-smart-form-container');
       if (container) {

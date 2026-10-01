@@ -8,13 +8,16 @@ from enum import Enum
 from time import perf_counter
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from pydantic import BaseModel
+from sqlalchemy.orm.attributes import set_committed_value
 from sqlmodel import col, or_, select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep, module_required
+from app.core import runtime_settings
 from app.core.config import settings
 from app.core.errors import AppError
+from app.core.i18n import request_locale
 from app.core.observability import log_structured_event, observe_checkout_result
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
 from app.features.cart.crud.quote_request import crud_quote_request
@@ -104,13 +107,17 @@ from app.features.payment.services.payment_initiation import (
 )
 from app.features.place.crud import crud_place
 from app.features.place.models import Place
-from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import (
     BACKORDER_MODES,
     AvailabilityMode,
     Product,
 )
+from app.features.product.services.group_pricing import (
+    customer_price,
+    resolve_customer_group,
+)
 from app.features.product.services.pricing import (
+    PricingContext,
     calculate_sale_price,
     product_applies_customs,
     resolve_default_price_group,
@@ -142,6 +149,7 @@ from app.features.shipping.services.origin import (
     get_main_warehouse,
     load_origin_context,
 )
+from app.features.system.modules import module_enabled
 from app.features.user.crud.address import crud_address
 from app.features.user.models.address import Address, AddressCreate
 from app.features.user.models.user import User
@@ -1155,17 +1163,18 @@ async def _resolve_payment_fee(
     return quantize_amount(method.fee, currency)
 
 
-async def _resolve_customer_price_group(
-    session: SessionDep, current_user: Any
-) -> PriceGroup | None:
-    """The customer's own price group, else the default one: it decides the
-    deposit policy and the margin snapshotted on the lines."""
-    group_id = getattr(current_user, "price_group_id", None)
-    if group_id is not None:
-        group = await session.get(PriceGroup, group_id)
-        if group is not None and group.is_active:
-            return group
-    return await resolve_default_price_group(session)
+async def _unit_cost_snapshot(
+    session: SessionDep, product: Product | None
+) -> Decimal | None:
+    """Cost price excl. tax of one unit at order time (margin of the line)."""
+    if product is None:
+        return None
+    try:
+        context = await PricingContext.for_session(session)
+        return context.unit_cost(product)
+    except Exception as exc:  # noqa: BLE001 - a missing figure never blocks an order
+        logger.warning("Unit cost not snapshotted for product %s: %s", product.id, exc)
+        return None
 
 
 async def _get_or_create_order_pending_status(session: SessionDep) -> OrderStatus:
@@ -1338,6 +1347,13 @@ async def _reserve_stock_for_checkout(
 router = APIRouter(prefix="/cart", tags=["cart"])
 
 
+async def _deposit_policy(session: SessionDep, group: Any) -> DepositPolicy:
+    """The group's deposit policy — none while the deposits module is off."""
+    if not await module_enabled(session, "deposits"):
+        return DepositPolicy()
+    return DepositPolicy.of(group)
+
+
 def _build_cart_detail(cart: Cart, items: list[CartItem]) -> CartDetailPublic:
     """Build cart detail."""
     item_details = [
@@ -1365,8 +1381,15 @@ async def _get_active_product_or_404(
     session: SessionDep,
     *,
     product_id: uuid.UUID,
+    user: Any = None,
 ) -> Product:
-    """Get active product or 404."""
+    """Get active product or 404, priced for ``user`` (``product.base_price``).
+
+    The price is the customer's: their group's price or discount on the
+    reference price (product/services/group_pricing.py). It is set without
+    marking the row dirty — for a fixed-price article ``base_price`` *is* the
+    stored reference price, which a later flush must never overwrite.
+    """
     product = await session.get(Product, product_id)
     if product is None or not product.is_active or not product.is_admin_active:
         raise AppError(
@@ -1397,8 +1420,34 @@ async def _get_active_product_or_404(
             details={"product_id": str(product_id), "blockers": blockers},
         )
 
-    product.base_price = await calculate_sale_price(session, product)
+    await _price_for_customer(session, product, user)
     return product
+
+
+_REFERENCE_PRICES_KEY = "cart_reference_prices"
+
+
+async def _price_for_customer(
+    session: SessionDep, product: Product, user: Any
+) -> Decimal:
+    """Set ``product.base_price`` to what ``user`` pays, once per request.
+
+    The reference price is computed on first sight and kept in the session:
+    a second lookup of the same product never discounts the discounted price.
+    """
+    info = getattr(session, "info", None)
+    cache: dict[uuid.UUID, Decimal] = (
+        info.setdefault(_REFERENCE_PRICES_KEY, {}) if isinstance(info, dict) else {}
+    )
+    reference = cache.get(product.id)
+    if reference is None:
+        reference = await calculate_sale_price(session, product)
+        cache[product.id] = reference
+    price = await customer_price(
+        session, product=product, reference=reference, user=user
+    )
+    set_committed_value(product, "base_price", price)
+    return price
 
 
 @router.get("/me", response_model=CartDetailPublic)
@@ -1434,7 +1483,9 @@ async def add_cart_item(
     # re-reading cart.id from an expired instance triggers a sync lazy-load
     # (MissingGreenlet) in the async session.
     cart_id = cart.id
-    product = await _get_active_product_or_404(session, product_id=payload.product_id)
+    product = await _get_active_product_or_404(
+        session, product_id=payload.product_id, user=current_user
+    )
 
     await crud_cart_item.add_or_increment(
         session=session,
@@ -1564,7 +1615,9 @@ async def replace_my_cart_items(
 
     entries: list[tuple[Product, int]] = []
     for product_id, quantity in merged.items():
-        product = await _get_active_product_or_404(session, product_id=product_id)
+        product = await _get_active_product_or_404(
+            session, product_id=product_id, user=current_user
+        )
         entries.append((product, quantity))
 
     await crud_cart_item.replace_cart_items(
@@ -1655,7 +1708,7 @@ def _render_quote_email(
         items=_quote_items(item_snapshots),
         currency=currency.strip().upper() or settings.REFERENCE_CURRENCY,
         subtotal=str(subtotal_amount),
-        shop_name=getattr(settings, "SHOP_NAME", "Natimai"),
+        shop_name=runtime_settings.peek("shop_name"),
     )
     return email.subject, email.text, email.html
 
@@ -1747,6 +1800,7 @@ async def _send_quote_support_email(
 
 @router.post(
     "/quote-request",
+    dependencies=[Depends(module_required("quotes"))],
     response_model=QuoteRequestResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -1756,7 +1810,9 @@ async def create_quote_request(
     payload: QuoteRequestSubmit,
 ) -> QuoteRequestResponse:
     """Create a quote request from the active cart and notify support."""
-    support_email = (settings.EMAIL_SUPPORT or "").strip()
+    support_email = str(
+        await runtime_settings.get("email_support", session) or ""
+    ).strip()
     if not support_email:
         raise AppError(
             code="cart.quote.unavailable",
@@ -1789,7 +1845,9 @@ async def create_quote_request(
     item_snapshots: list[dict[str, str | None]] = []
     subtotal_amount = Decimal("0.00")
     for item in items:
-        product = await _get_active_product_or_404(session, product_id=item.product_id)
+        product = await _get_active_product_or_404(
+            session, product_id=item.product_id, user=current_user
+        )
         line_total = quantize_amount(item.unit_price * item.quantity, cart.currency)
         subtotal_amount += line_total
         item_snapshots.append(
@@ -1946,6 +2004,7 @@ async def _install_quote_in_cart(
     entries: list[tuple[Product, int]] = []
     for product_id, (quantity, _price) in prices.items():
         entries.append(
+            # Priced by the quote below, not by the customer's group.
             (await _get_active_product_or_404(session, product_id=product_id), quantity)
         )
     items = await crud_cart_item.replace_cart_items(
@@ -1988,7 +2047,11 @@ async def download_my_quote_pdf(
     return quote_pdf_response(await _my_quote_or_404(session, quote_id, current_user))
 
 
-@router.post("/quote-requests/me/{quote_id}/accept", response_model=CartDetailPublic)
+@router.post(
+    "/quote-requests/me/{quote_id}/accept",
+    response_model=CartDetailPublic,
+    dependencies=[Depends(module_required("quotes"))],
+)
 async def accept_my_quote(
     quote_id: uuid.UUID, session: SessionDep, current_user: CurrentUser
 ) -> CartDetailPublic:
@@ -2010,6 +2073,7 @@ async def accept_my_quote(
 
 @router.post(
     "/guest-quote-request",
+    dependencies=[Depends(module_required("quotes"))],
     response_model=GuestQuoteRequestResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -2023,7 +2087,9 @@ async def create_guest_quote_request(
     sous forme d'email, et un échec d'envoi la perdait définitivement alors que
     l'endpoint répondait 201. Le back-office (A11) est désormais le filet.
     """
-    support_email = (settings.EMAIL_SUPPORT or "").strip()
+    support_email = str(
+        await runtime_settings.get("email_support", session) or ""
+    ).strip()
     if not support_email:
         raise AppError(
             code="cart.quote.unavailable",
@@ -2507,8 +2573,8 @@ async def get_checkout_quote(
     cart = await crud_cart.get_active_cart_by_user(session=session, user_id=user_id)
     currency = cart.currency if cart is not None else settings.REFERENCE_CURRENCY
     zero = quantize_amount(Decimal("0"), currency)
-    policy = DepositPolicy.of(
-        await _resolve_customer_price_group(session, current_user)
+    policy = await _deposit_policy(
+        session, await resolve_customer_group(session, current_user)
     )
     credit_available = await store_credit.balance(session, user_id)
     if cart is None:
@@ -2531,7 +2597,7 @@ async def get_checkout_quote(
     products_by_id: dict[uuid.UUID, Product] = {}
     for item in items:
         products_by_id[item.product_id] = await _get_active_product_or_404(
-            session, product_id=item.product_id
+            session, product_id=item.product_id, user=current_user
         )
     fixed_shipping_fee: Decimal | None = None
     # isinstance: called directly (tests) the FastAPI defaults are Query objects.
@@ -2617,7 +2683,7 @@ async def get_last_leg_options(
     try:
         for item in items:
             products_by_id[item.product_id] = await _get_active_product_or_404(
-                session, product_id=item.product_id
+                session, product_id=item.product_id, user=current_user
             )
     except AppError:
         # A cart line is no longer purchasable; no quote to show (checkout will
@@ -2742,6 +2808,7 @@ async def checkout_my_cart(
         product = await _get_active_product_or_404(
             session,
             product_id=item.product_id,
+            user=current_user,
         )
         products_by_id[item.product_id] = product
 
@@ -2770,7 +2837,9 @@ async def checkout_my_cart(
         currency=cart.currency,
         strict=True,
     )
-    price_group = await _resolve_customer_price_group(session, current_user)
+    price_group = await resolve_customer_group(session, current_user)
+    # The reference price's margin comes from the default group.
+    reference_group = await resolve_default_price_group(session)
     quote = await _quote_checkout(
         session,
         user_id=user_id,
@@ -2784,7 +2853,7 @@ async def checkout_my_cart(
         shipping_preference=payload.shipping_preference,
         shipping_fee_fallback=payload.shipping_fee_amount,
         discount=applied_discount,
-        deposit_policy=DepositPolicy.of(price_group),
+        deposit_policy=await _deposit_policy(session, price_group),
         payment_plan=payload.payment_plan,
         fixed_shipping_fee=fixed_shipping_fee,
         store_credit_available=(
@@ -2819,18 +2888,25 @@ async def checkout_my_cart(
 
     # Acceptation des CGV : refusée ici et pas seulement grisée dans le front,
     # sinon un appel direct à l'API commande sans jamais les accepter.
+    # Lue sans cache : la version figée sur la commande est celle en vigueur.
+    cgv_version = str(await runtime_settings.get("cgv_version", session, fresh=True))
     if not payload.cgv_accepted:
         raise AppError(
             code="cart.cgv.not_accepted",
             status_code=400,
             message="Les conditions générales de vente doivent être acceptées",
-            details={"cart_id": str(cart.id), "cgv_version": settings.CGV_VERSION},
+            details={"cart_id": str(cart.id), "cgv_version": cgv_version},
         )
     cgv_accepted_at = datetime.now(timezone.utc)
 
     try:
-        # Départ groupé ouvert le plus proche (None = boutique classique).
-        departure = await crud_grouped_departure.get_next_open(session)
+        # Départ groupé ouvert le plus proche (None = boutique classique, ou
+        # module « Départs groupés » éteint).
+        departure = (
+            await crud_grouped_departure.get_next_open(session)
+            if await module_enabled(session, "grouped_departures")
+            else None
+        )
 
         order_status = await _get_or_create_order_pending_status(session)
         # Human-readable reference allocated up-front (server-side only — the
@@ -2856,7 +2932,8 @@ async def checkout_my_cart(
                 delivery_type=payload.delivery_type,
                 grouped_departure_id=departure.id if departure else None,
                 cgv_accepted_at=cgv_accepted_at,
-                cgv_version=settings.CGV_VERSION,
+                cgv_version=cgv_version,
+                locale=request_locale(),
                 payment_plan=quote.payment_plan,
                 deposit_amount=quote.deposit_amount,
                 deposit_fee_amount=quote.deposit_fee_amount,
@@ -2931,12 +3008,14 @@ async def checkout_my_cart(
                     or settings.REFERENCE_CURRENCY,
                     fx_rate_used=getattr(item, "fx_rate_used", None),
                     customs_rate_pct_snapshot=resolved_customs_rate_pct,
-                    # The margin actually applied (product → category →
-                    # group), not the group's: real-margin reports rely on it.
+                    # The margin of the reference price (product → category
+                    # → default group); the customer's group then applies its
+                    # discount or typed price (see group_pricing.py).
                     margin_rate_pct_snapshot=await resolve_margin_rate_pct(
-                        session, product, group=price_group
+                        session, product, group=reference_group
                     ),
                     price_group_id_snapshot=getattr(price_group, "id", None),
+                    unit_cost_snapshot=await _unit_cost_snapshot(session, product),
                 ),
                 user=current_user,
             )

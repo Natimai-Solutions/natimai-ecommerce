@@ -22,7 +22,9 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import runtime_settings
 from app.core.config import settings
+from app.core.i18n import format_date
 from app.features.departure.models import GroupedDeparture
 from app.features.invoice.models.credit_note import CreditNote
 from app.features.invoice.models.invoice import Invoice
@@ -101,8 +103,70 @@ ORDER_STATUS_MESSAGES: dict[str, tuple[str, str]] = {
 }
 
 
+async def _email_lang(session: AsyncSession, payload: dict[str, Any]) -> str:
+    """Language of a customer e-mail: the order's (frozen at checkout), else
+    the customer's saved preference, else the shop's default (R7 / L3)."""
+    from app.core.i18n import resolve_locale, user_locale
+
+    order_locale = None
+    raw = payload.get("order_id")
+    if raw:
+        try:
+            order = await session.get(Order, uuid.UUID(str(raw)))
+        except (TypeError, ValueError):
+            order = None
+        order_locale = getattr(order, "locale", None) if order else None
+    if order_locale:
+        return resolve_locale(order_locale)
+    return resolve_locale(await user_locale(session, payload.get("user_id")))
+
+
+#: The same messages in English (R7 / L3).
+ORDER_STATUS_MESSAGES_EN: dict[str, tuple[str, str]] = {
+    "OrderedFromSupplier": (
+        "Ordered from our supplier",
+        "Your order has been placed with our supplier. We will keep you "
+        "informed at every step until it is handed over.",
+    ),
+    "InTransit": (
+        "In transit",
+        "Your order is on its way. We will let you know when it arrives.",
+    ),
+    "AtCustoms": (
+        "At customs",
+        "Your order has arrived and is going through customs. This step can "
+        "take a few days.",
+    ),
+    "Received": (
+        "Received, being checked",
+        "We have received your order and are checking it. It will be handed "
+        "over within a few days.",
+    ),
+    "ReadyForPickup": (
+        "Available",
+        "Your order is available: pickup or delivery depending on the mode "
+        "chosen at checkout.",
+    ),
+    "Delivered": (
+        "Delivered",
+        "Your order has been handed over. We hope you are fully satisfied with it.",
+    ),
+    "Backordered": (
+        "Item out of stock",
+        "An item of your order is out of stock at our supplier. We will get "
+        "back to you with a postponement to the next departure, a substitute "
+        "or a refund.",
+    ),
+    "Cancelled": (
+        "Cancelled",
+        "Your order has been cancelled. If a payment was collected, it is "
+        "refunded to you.",
+    ),
+}
+
+
 def _shop_name() -> str:
-    return getattr(settings, "SHOP_NAME", "Natimai")
+    return str(runtime_settings.peek("shop_name"))
 
 
 async def _send_order_email(
@@ -120,7 +184,7 @@ async def _send_order_email(
     Returns whether the message actually reached the provider, so a caller
     that must not lose the notification (the invoice) can fail and be retried.
     """
-    if not settings.PAYMENT_NOTIFICATIONS_EMAIL_ENABLED:
+    if not await runtime_settings.get("notifications_email_enabled", session):
         return False
 
     if not user_id_raw:
@@ -221,6 +285,9 @@ async def request_balance(session: AsyncSession, order: Order) -> bool:
     currency = order.currency or settings.REFERENCE_CURRENCY
     email = render_email(
         "balance_due",
+        lang=await _email_lang(
+            session, {"order_id": str(order.id), "user_id": str(order.user_id)}
+        ),
         full_name=full_name or "client",
         order_id=str(order.id),
         order_ref=order.order_number or "",
@@ -281,6 +348,7 @@ async def on_order_created(session: AsyncSession, payload: dict[str, Any]) -> No
 
     email = render_email(
         "order_created",
+        lang=await _email_lang(session, payload),
         full_name=full_name or "client",
         order_id=payload.get("order_id", ""),
         order_ref=order_ref,
@@ -330,6 +398,7 @@ async def on_payment_captured_customer(
     kind = kind if isinstance(kind, str) else "full"
     email = render_email(
         "payment_captured",
+        lang=await _email_lang(session, payload),
         full_name=full_name or "client",
         order_id=payload.get("order_id", ""),
         order_ref=order_ref,
@@ -360,6 +429,7 @@ async def on_payment_partially_received_customer(
     full_name = (user.full_name or user.email or "") if user else ""
     email = render_email(
         "payment_received_partial",
+        lang=await _email_lang(session, payload),
         full_name=full_name or "client",
         order_id=payload.get("order_id", ""),
         order_ref=await _resolve_order_ref(session, payload),
@@ -400,6 +470,7 @@ async def on_payment_rejected_customer(
 
     email = render_email(
         "payment_rejected",
+        lang=await _email_lang(session, payload),
         full_name=full_name or "client",
         order_id=payload.get("order_id", ""),
         order_ref=order_ref,
@@ -437,6 +508,7 @@ async def on_payment_refunded_customer(
 
     email = render_email(
         "payment_refunded",
+        lang=await _email_lang(session, payload),
         full_name=full_name or "client",
         order_id=payload.get("order_id", ""),
         order_ref=order_ref,
@@ -502,6 +574,7 @@ async def on_invoice_issued_customer(
 
     email = render_email(
         "invoice_issued",
+        lang=await _email_lang(session, payload),
         full_name=full_name or "client",
         invoice_number=invoice.invoice_number,
         order_id=payload.get("order_id", ""),
@@ -571,6 +644,7 @@ async def on_credit_note_issued_customer(
 
     email = render_email(
         "credit_note_issued",
+        lang=await _email_lang(session, payload),
         full_name=full_name or "client",
         credit_note_number=credit_note.credit_note_number,
         invoice_number=invoice_number,
@@ -610,11 +684,12 @@ async def on_order_status_changed_customer(
     """Tell the customer about a fulfilment step (one template, one message
     per status). Payment statuses are covered by their own handlers."""
     new_status = str(payload.get("new_status") or "")
-    message = ORDER_STATUS_MESSAGES.get(new_status)
-    if message is None:
+    if new_status not in ORDER_STATUS_MESSAGES:
         logger.debug("order.status_changed %s: no customer message", new_status)
         return
-    title, body = message
+    lang = await _email_lang(session, payload)
+    messages = ORDER_STATUS_MESSAGES_EN if lang == "en" else ORDER_STATUS_MESSAGES
+    title, body = messages[new_status]
 
     user = await _resolve_user_from_payload(session, payload)
     full_name = (user.full_name or user.email or "") if user else ""
@@ -632,12 +707,11 @@ async def on_order_status_changed_customer(
         if departure is not None:
             departure_name = departure.name
             if departure.estimated_delivery_at:
-                estimated_delivery = departure.estimated_delivery_at.strftime(
-                    "%d/%m/%Y"
-                )
+                estimated_delivery = format_date(departure.estimated_delivery_at, lang)
 
     email = render_email(
         "order_status_changed",
+        lang=lang,
         full_name=full_name or "client",
         order_id=payload.get("order_id", ""),
         order_ref=payload.get("order_number") or "",

@@ -1,7 +1,7 @@
 <template>
   <q-page class="product page-container">
-    <nav class="product__crumbs" aria-label="Fil d'Ariane">
-      <router-link :to="{ name: 'catalogue' }">Catalogue</router-link>
+    <nav class="product__crumbs" :aria-label="$t('product.crumbs')">
+      <router-link :to="{ name: 'catalogue' }">{{ $t('layout.catalogue') }}</router-link>
       <template v-if="categoryLabel && product?.category_id">
         <q-icon name="ph:caret-right" size="12px" />
         <router-link :to="{ name: 'catalogue', query: { cat: product.category_id } }">
@@ -29,7 +29,7 @@
     <AppNotice v-else-if="error" tone="error">
       {{ error }}
       <template #action>
-        <q-btn flat label="Retour au catalogue" :to="{ name: 'catalogue' }" />
+        <q-btn flat :label="$t('product.back_to_catalogue')" :to="{ name: 'catalogue' }" />
       </template>
     </AppNotice>
 
@@ -43,7 +43,12 @@
             glyph-size="120px"
             eager
           />
-          <div v-if="gallery.length > 1" class="product__thumbs" role="list" aria-label="Photos">
+          <div
+            v-if="gallery.length > 1"
+            class="product__thumbs"
+            role="list"
+            :aria-label="$t('product.photos')"
+          >
             <button
               v-for="(url, i) in gallery"
               :key="url"
@@ -51,7 +56,7 @@
               role="listitem"
               class="product__thumb"
               :class="{ 'product__thumb--active': url === mainImage }"
-              :aria-label="`Photo ${i + 1}`"
+              :aria-label="$t('product.photo_n', { n: i + 1 })"
               :aria-current="url === mainImage ? 'true' : undefined"
               @click="selectedImage = url"
             >
@@ -70,19 +75,38 @@
           </router-link>
           <h1 class="product__title">{{ product.name }}</h1>
           <div v-if="product.vendor_part_number || product.ean" class="product__ids font-mono">
-            <span v-if="product.vendor_part_number">Réf. {{ product.vendor_part_number }}</span>
+            <span v-if="product.vendor_part_number">{{
+              $t('product.ref', { ref: product.vendor_part_number })
+            }}</span>
             <span v-if="product.ean">EAN {{ product.ean }}</span>
           </div>
 
           <div class="product__price-block">
             <span v-if="needsVariantChoice && !isQuote" class="product__price-note">
-              À partir de
+              {{ $t('product.from') }}
             </span>
-            <span v-if="isQuote" class="product__price">Prix sur devis</span>
-            <span v-else class="product__price font-mono">{{ displayPrice }}</span>
+            <span v-if="isQuote" class="product__price">{{ $t('product.on_quote') }}</span>
+            <span v-else class="product__price">
+              <span class="font-mono" :class="{ 'product__promo-price': regularPrice }">{{
+                displayPrice
+              }}</span>
+              <span class="product__tax" data-testid="product-price-tax">{{
+                $t('product.incl_tax')
+              }}</span>
+            </span>
+            <span
+              v-if="regularPrice && !isQuote"
+              class="product__promo"
+              data-testid="product-promo"
+            >
+              <s class="font-mono">{{ regularPrice }}</s>
+              <span class="product__promo-badge">{{ promoLabel }}</span>
+              <span v-if="promotionEnds" class="product__price-note">
+                {{ $t('product.promo_until', { date: promotionEnds }) }}
+              </span>
+            </span>
             <span v-if="selectedMode?.customer_label" class="product__price-note">
-              Prix en livraison {{ selectedMode.customer_label.toLowerCase() }}. Le mode se choisit
-              à la commande.
+              {{ $t('product.mode_price', { mode: selectedMode.customer_label.toLowerCase() }) }}
             </span>
             <span
               v-if="!needsVariantChoice"
@@ -91,36 +115,46 @@
             >
               <span
                 class="stock-dot"
-                :class="{ 'stock-dot--order': availability.preorder || isOutOfStock }"
+                :class="{
+                  'stock-dot--order': availability.preorder || isOutOfStock,
+                  'stock-dot--supplier': availability.source === 'supplier',
+                }"
                 aria-hidden="true"
-              />{{ availability.label }}
+              /><span data-testid="product-stock" :data-source="availability.source">{{
+                availability.label
+              }}</span>
+            </span>
+            <span
+              v-if="!needsVariantChoice && availability.note"
+              class="product__price-note"
+              data-testid="product-stock-note"
+            >
+              {{ availability.note }}
             </span>
             <router-link
               v-if="product.parent_product_id"
               :to="getProductRouteByIdAndName(product.parent_product_id, product.name)"
               class="product__variants-link"
             >
-              Voir toutes les déclinaisons
+              {{ $t('product.all_variants') }}
             </router-link>
           </div>
 
           <div
-            v-if="departureStore.next"
+            v-if="departureStore.next && availability.source !== 'local'"
             class="product__departure"
             data-testid="product-departure"
           >
             <q-icon name="ph:calendar-check" size="18px" />
             <span>
-              Départ groupé « {{ departureStore.next.name }} ». {{ departureStore.cutoffLabel }}.
-              <template v-if="departureStore.deliveryLabel">
-                {{ departureStore.deliveryLabel }}.
-              </template>
+              {{ $t('product.departure', { name: departureStore.next.name, cutoff: nextCutoff }) }}
+              <template v-if="nextDelivery"> {{ nextDelivery }}. </template>
             </span>
           </div>
 
           <div class="product__condition" data-testid="product-condition">
-            <span class="product__condition-label">État</span>
-            <span>{{ conditionLabel(product) }}</span>
+            <span class="product__condition-label">{{ $t('product.condition') }}</span>
+            <span>{{ conditionLabel(product, tr) }}</span>
           </div>
           <dl v-if="refurbDetails.length" class="product__refurb">
             <div v-for="d in refurbDetails" :key="d.label" class="spec-group__row">
@@ -150,19 +184,19 @@
               </div>
             </div>
             <p v-if="selectedVariant?.supplier_sku" class="variants__hint font-mono">
-              Réf. {{ selectedVariant.supplier_sku }}
+              {{ $t('product.ref', { ref: selectedVariant.supplier_sku }) }}
             </p>
             <p v-else-if="!selectedVariant" class="variants__hint">
-              Choisissez une déclinaison pour voir son prix et sa disponibilité.
+              {{ $t('product.choose_variant_hint') }}
             </p>
           </div>
 
           <div class="product__actions">
-            <div class="qty" role="group" aria-label="Quantité">
+            <div class="qty" role="group" :aria-label="$t('product.quantity')">
               <button
                 type="button"
                 class="qty__btn"
-                aria-label="Diminuer la quantité"
+                :aria-label="$t('product.qty_less')"
                 :disabled="quantity <= 1"
                 @click="setQuantity(quantity - 1)"
               >
@@ -172,7 +206,7 @@
               <button
                 type="button"
                 class="qty__btn"
-                aria-label="Augmenter la quantité"
+                :aria-label="$t('product.qty_more')"
                 @click="setQuantity(quantity + 1)"
               >
                 <q-icon name="ph:plus" size="16px" />
@@ -181,14 +215,14 @@
 
             <router-link v-if="justAdded" :to="{ name: 'cart' }" class="product__added">
               <q-icon name="ph:check-circle" size="20px" />
-              Ajouté, voir le panier
+              {{ $t('product.added_view_cart') }}
             </router-link>
             <q-btn
               v-else-if="isOutOfStock && !needsVariantChoice"
               outline
               color="primary"
               icon="ph:bell"
-              label="Me prévenir"
+              :label="$t('product.notify_me')"
               class="product__add"
               data-testid="product-notify-me"
               @click="openAlert"
@@ -198,7 +232,7 @@
               unelevated
               color="primary"
               icon="ph:shopping-bag"
-              label="Ajouter au panier"
+              :label="$t('product.add_to_cart')"
               class="product__add"
               data-testid="product-page-add-to-cart"
               :disable="needsVariantChoice || isOutOfStock"
@@ -212,12 +246,14 @@
               class="product__wish"
               :class="{ 'product__wish--on': inWishlist }"
               :aria-pressed="inWishlist"
-              :aria-label="inWishlist ? 'Retirer des favoris' : 'Ajouter aux favoris'"
+              :aria-label="inWishlist ? $t('product.wish_remove') : $t('product.wish_add')"
               :loading="wishSaving"
               data-testid="product-wishlist"
               @click="toggleWishlist"
             >
-              <q-tooltip>{{ inWishlist ? 'Dans vos favoris' : 'Ajouter aux favoris' }}</q-tooltip>
+              <q-tooltip>{{
+                inWishlist ? $t('product.wish_in') : $t('product.wish_add')
+              }}</q-tooltip>
             </q-btn>
           </div>
 
@@ -234,12 +270,12 @@
 
       <section v-if="safeDescription || features.length > 0" class="product__about">
         <div v-if="safeDescription">
-          <h2 class="product__h2">Description</h2>
+          <h2 class="product__h2">{{ $t('product.description') }}</h2>
           <!-- eslint-disable-next-line vue/no-v-html -- nettoyé par DOMPurify -->
           <div class="product__description" v-html="safeDescription"></div>
         </div>
         <div v-if="features.length > 0">
-          <h2 class="product__h2">Points clés</h2>
+          <h2 class="product__h2">{{ $t('product.key_points') }}</h2>
           <ul class="product__features">
             <li v-for="(feat, i) in features" :key="i">
               <q-icon name="ph:check" size="18px" class="text-subtle" />
@@ -254,7 +290,7 @@
         class="product__specs"
         aria-labelledby="specs-title"
       >
-        <h2 id="specs-title" class="product__h2">Caractéristiques techniques</h2>
+        <h2 id="specs-title" class="product__h2">{{ $t('product.specs') }}</h2>
         <dl v-if="showKeySpecs" class="key-specs">
           <div v-for="spec in keySpecs" :key="spec.key" class="key-specs__tile">
             <dt class="key-specs__label">{{ spec.label }}</dt>
@@ -263,7 +299,7 @@
         </dl>
         <div class="product__spec-groups">
           <div v-for="grp in visibleSpecGroups" :key="grp.group" class="spec-group">
-            <h3 class="spec-group__title">{{ grp.group || 'Général' }}</h3>
+            <h3 class="spec-group__title">{{ grp.group || $t('product.specs_general') }}</h3>
             <dl class="spec-group__list">
               <div v-for="(spec, i) in grp.specs" :key="i" class="spec-group__row">
                 <dt>{{ spec.name }}</dt>
@@ -277,7 +313,7 @@
           outline
           color="primary"
           icon-right="ph:caret-down"
-          :label="`Afficher toutes les caractéristiques (${specCount})`"
+          :label="$t('product.specs_all', { n: specCount })"
           class="product__specs-more"
           @click="showAllSpecs = true"
         />
@@ -286,19 +322,21 @@
       <!-- Barre d'achat mobile, toujours à portée de pouce -->
       <div class="lt-md product__mobile-bar">
         <div class="product__mobile-price">
-          <span v-if="needsVariantChoice && !isQuote" class="product__price-note">À partir de</span>
-          <span v-if="isQuote">Prix sur devis</span>
+          <span v-if="needsVariantChoice && !isQuote" class="product__price-note">{{
+            $t('product.from')
+          }}</span>
+          <span v-if="isQuote">{{ $t('product.on_quote') }}</span>
           <span v-else class="font-mono">{{ displayPrice }}</span>
         </div>
         <router-link v-if="justAdded" :to="{ name: 'cart' }" class="product__added">
           <q-icon name="ph:check-circle" size="20px" />
-          Voir le panier
+          {{ $t('product.view_cart') }}
         </router-link>
         <q-btn
           v-else-if="isOutOfStock && !needsVariantChoice"
           outline
           color="primary"
-          label="Me prévenir"
+          :label="$t('product.notify_me')"
           class="product__add"
           @click="openAlert"
         />
@@ -306,7 +344,7 @@
           v-else
           unelevated
           color="primary"
-          label="Ajouter"
+          :label="$t('product.add_short')"
           class="product__add"
           :disable="needsVariantChoice || isOutOfStock"
           :loading="cartStore.mutating"
@@ -319,27 +357,24 @@
         <q-card flat class="alert-dialog">
           <q-form @submit.prevent="submitAlert">
             <q-card-section>
-              <h2 class="alert-dialog__title">Me prévenir quand il revient</h2>
+              <h2 class="alert-dialog__title">{{ $t('product.alert_title') }}</h2>
               <p class="alert-dialog__text">
-                Nous vous enverrons un e-mail dès que « {{ product.name }} » pourra de nouveau être
-                commandé.
+                {{ $t('product.alert_text', { name: product.name }) }}
               </p>
               <q-input
                 v-model="alertEmail"
                 type="email"
-                label="Votre e-mail"
+                :label="$t('product.alert_email')"
                 outlined
                 stack-label
                 autofocus
                 autocomplete="email"
-                :hint="
-                  authStore.isAuthenticated
-                    ? 'Laissez vide pour utiliser l\'e-mail de votre compte'
-                    : undefined
-                "
+                :hint="authStore.isAuthenticated ? $t('product.alert_email_hint') : undefined"
                 :rules="[
                   (v: string) =>
-                    (authStore.isAuthenticated && !v) || /.+@.+\..+/.test(v) || 'E-mail invalide',
+                    (authStore.isAuthenticated && !v) ||
+                    /.+@.+\..+/.test(v) ||
+                    $t('product.invalid_email'),
                 ]"
               />
               <AppNotice v-if="alertError" tone="error" dense class="q-mt-sm">
@@ -347,12 +382,12 @@
               </AppNotice>
             </q-card-section>
             <q-card-actions align="right" class="q-px-md q-pb-md">
-              <q-btn v-close-popup flat label="Annuler" />
+              <q-btn v-close-popup flat :label="$t('common.cancel')" />
               <q-btn
                 type="submit"
                 unelevated
                 color="primary"
-                label="Me prévenir"
+                :label="$t('product.notify_me')"
                 :loading="alertSaving"
               />
             </q-card-actions>
@@ -392,6 +427,11 @@ import { useCurrencyStore } from '@/stores/currency';
 import { useDepartureStore } from '@/stores/departure';
 import { subscribeStockAlert } from '@/api/stockAlerts';
 import { conditionLabel, productAvailability, refurbishedDetails } from '@/utils/availability';
+import { useI18n } from 'vue-i18n';
+import { formatDate } from '@app/utils';
+import { useDepartureLabels } from '@/composables/useDepartureLabels';
+import { useTranslate } from '@/composables/useTranslate';
+import { useShopModulesStore } from '@/stores/shopModules';
 import { getProductRouteByIdAndName, slugifyProductName } from '@/utils/productRoute';
 
 type ProductPublic = components['schemas']['ProductPublic'];
@@ -407,6 +447,10 @@ const productsStore = useProductsStore();
 const SPEC_GROUPS_SHOWN = 3;
 
 const departureStore = useDepartureStore();
+const { t } = useI18n();
+const tr = useTranslate();
+const shopModules = useShopModulesStore();
+const { nextCutoff, nextDelivery } = useDepartureLabels();
 
 const product = ref<ProductPublic | null>(null);
 const loading = ref(true);
@@ -457,7 +501,7 @@ const selectedVariant = computed<ProductPublic | null>(() => {
 });
 
 const availability = computed(() =>
-  productAvailability(effectiveProduct.value ?? { supplier_quantity: 0 }),
+  productAvailability(effectiveProduct.value ?? { supplier_quantity: 0 }, tr),
 );
 
 // « Me prévenir » : an e-mail when the product is orderable again.
@@ -489,7 +533,7 @@ async function toggleWishlist() {
     else await addToMyWishlist(product.value.id);
     inWishlist.value = !inWishlist.value;
   } catch (err) {
-    cartError.value = extractApiMessage(err) ?? "Les favoris n'ont pas pu être mis à jour.";
+    cartError.value = extractApiMessage(err) ?? t('product.wish_failed');
   } finally {
     wishSaving.value = false;
   }
@@ -514,10 +558,9 @@ async function submitAlert() {
   try {
     const alert = await subscribeStockAlert(product.value.id, alertEmail.value.trim() || null);
     alertDialog.value = false;
-    alertNotice.value = `C'est noté : nous vous préviendrons à ${alert.email} dès que ce produit sera disponible.`;
+    alertNotice.value = t('product.alert_ok', { email: alert.email });
   } catch (err) {
-    alertError.value =
-      extractApiMessage(err) ?? "L'inscription à l'alerte a échoué. Veuillez réessayer.";
+    alertError.value = extractApiMessage(err) ?? t('product.alert_failed');
   } finally {
     alertSaving.value = false;
   }
@@ -533,7 +576,7 @@ function extractApiMessage(err: unknown): string | null {
   }
   return null;
 }
-const refurbDetails = computed(() => (product.value ? refurbishedDetails(product.value) : []));
+const refurbDetails = computed(() => (product.value ? refurbishedDetails(product.value, tr) : []));
 
 /** Whether a value is still reachable given the other axes already chosen. */
 function isValueAvailable(axis: string, value: string): boolean {
@@ -576,6 +619,29 @@ const isQuote = computed(() => !(priceValue.value > 0));
 // Tant qu'aucune déclinaison n'est choisie, le parent affiche la moins chère,
 // précédée de « À partir de ».
 const displayPrice = computed(() => currencyStore.format(priceValue.value));
+
+// Promotion (règle du meilleur prix) : le prix habituel du client, barré.
+const regularValue = computed(() => {
+  const raw = selectedMode.value
+    ? selectedMode.value.regular_price
+    : effectiveProduct.value?.regular_price;
+  const value = raw ? parseFloat(raw) : 0;
+  return value > priceValue.value ? value : null;
+});
+const regularPrice = computed(() =>
+  regularValue.value !== null ? currencyStore.format(regularValue.value) : null,
+);
+const promoLabel = computed(() => {
+  const name = effectiveProduct.value?.promotion_name;
+  const pct =
+    regularValue.value !== null ? Math.round((1 - priceValue.value / regularValue.value) * 100) : 0;
+  const off = pct > 0 ? `−${pct} %` : t('product.promo');
+  return name ? `${off} · ${name}` : off;
+});
+const promotionEnds = computed(() => {
+  const raw = effectiveProduct.value?.promotion_ends_at;
+  return raw ? formatDate(raw) : null;
+});
 
 const categoryLabel = computed(() => {
   const id = product.value?.category_id;
@@ -665,9 +731,11 @@ const canonicalHref = computed(() => {
 });
 
 useMeta(() => {
-  const title = product.value ? `${product.value.name} | Natimai` : 'Produit | Natimai';
-  const description =
-    plainDescription.value || 'Consultez les détails et caractéristiques du produit.';
+  const shopName = shopModules.config.shop_name || 'Natimai';
+  const title = product.value
+    ? t('product.meta_title', { name: product.value.name, shop: shopName })
+    : t('product.meta_title_default', { shop: shopName });
+  const description = plainDescription.value || t('product.meta_description');
   const meta: Record<string, { name?: string; property?: string; content: string }> = {
     description: {
       name: 'description',
@@ -723,7 +791,7 @@ async function loadProduct() {
   const routeId = typeof route.params.id === 'string' ? route.params.id : null;
   if (!routeId) {
     product.value = null;
-    error.value = 'Produit introuvable';
+    error.value = t('product.not_found');
     loading.value = false;
     return;
   }
@@ -767,13 +835,13 @@ async function loadProduct() {
       message?: string;
     };
     if (requestError.response?.status === 404) {
-      error.value = 'Produit introuvable';
+      error.value = t('product.not_found');
     } else {
       error.value =
         requestError.response?.data?.message ??
         requestError.response?.data?.detail ??
         requestError.message ??
-        'Erreur inconnue';
+        t('product.unknown_error');
     }
   } finally {
     loading.value = false;
@@ -789,7 +857,7 @@ async function onAddToCart() {
   const target = effectiveProduct.value;
   if (!target) return;
   if (needsVariantChoice.value) {
-    cartError.value = 'Choisissez une déclinaison.';
+    cartError.value = t('product.choose_variant');
     return;
   }
 
@@ -799,7 +867,7 @@ async function onAddToCart() {
     justAdded.value = true;
     return;
   }
-  cartError.value = cartStore.error ?? "Impossible d'ajouter cet article au panier.";
+  cartError.value = cartStore.error ?? t('product.add_failed');
 }
 
 async function loadShippingModes(productId: string): Promise<void> {
@@ -1007,6 +1075,37 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.product__promo {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  color: var(--n-ink-2);
+}
+
+.product__promo-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--n-on-accent);
+  background: var(--n-accent);
+}
+
+.product__promo-price {
+  color: var(--n-accent);
+}
+
+.product__tax {
+  margin-left: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--n-ink-2);
+  vertical-align: middle;
 }
 
 .product__price {

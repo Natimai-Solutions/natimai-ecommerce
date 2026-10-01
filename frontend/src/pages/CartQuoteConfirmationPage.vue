@@ -6,23 +6,26 @@
         size="52px"
         class="app-result__icon app-result__icon--ok"
       />
-      <h1>Demande de devis envoyée</h1>
+      <h1>{{ $t('quote_sent.title') }}</h1>
       <p>
-        Votre panier est transmis à notre équipe. Le devis vous parvient par e-mail et se retrouve
-        dans votre espace client, prêt à être commandé à ses prix.
+        {{ $t('quote_sent.text') }}
       </p>
       <p v-if="customerEmail">
-        Envoi à <span class="text-ink">{{ customerEmail }}</span>
+        <i18n-t keypath="quote_sent.sent_to" tag="span"
+          ><template #email
+            ><span class="text-ink">{{ customerEmail }}</span></template
+          ></i18n-t
+        >
       </p>
       <div class="app-result__actions">
         <q-btn
           v-if="authStore.isAuthenticated"
           unelevated
           color="primary"
-          label="Mes devis"
+          :label="$t('quote_sent.my_quotes')"
           :to="{ name: 'account', query: { tab: 'quotes' } }"
         />
-        <q-btn outline color="primary" label="Retour au catalogue" :to="{ name: 'catalogue' }" />
+        <q-btn outline color="primary" :label="$t('quote_sent.back')" :to="{ name: 'catalogue' }" />
       </div>
     </div>
   </q-page>

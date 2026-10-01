@@ -1,0 +1,25 @@
+{% extends "_layout.html" %}
+{% block title %}Your cart is waiting{% endblock %}
+{% block header_color %}#2a6f4f{% endblock %}
+{% block extra_style %}.badge { background: #e6f4ec; color: #2a6f4f; } .line td { padding: 4px 8px; vertical-align: middle; } .thumb { width: 48px; height: 48px; object-fit: contain; }{% endblock %}
+{% block heading %}Your cart is waiting{% endblock %}
+{% block content %}
+      <p>Hello {{ full_name }},</p>
+      <p>You left items in your cart. They are still available:</p>
+      <div class="summary">
+        <table>
+          {% for item in items %}
+          <tr class="line">
+            <td>{% if item.image_url %}<img class="thumb" src="{{ item.image_url }}" alt="">{% endif %}</td>
+            <td>{{ item.name }}<br><span style="color:#666">× {{ item.quantity }}</span></td>
+            <td style="text-align:right">{{ item.line_total }} {{ currency }}</td>
+          </tr>
+          {% endfor %}
+          <tr><td></td><td><strong>Total</strong></td><td style="text-align:right"><strong>{{ total_amount }} {{ currency }}</strong></td></tr>
+        </table>
+      </div>
+      <p><a href="{{ cart_url }}">Back to my cart</a><br><span style="color:#666">{{ cart_url }}</span></p>
+      <p style="font-size:12px;color:#666">You receive this message because commercial reminders are enabled on your account.
+        To stop receiving them: <a href="{{ preferences_url }}">your preferences</a>.</p>
+      <p>See you soon,<br><strong>The {{ shop_name }} team</strong></p>
+{% endblock %}

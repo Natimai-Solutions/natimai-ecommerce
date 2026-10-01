@@ -7,6 +7,9 @@ from app.features.content.models import ContentPage, HomepageBlock
 from app.features.departure.models import DepartureReminder, GroupedDeparture
 from app.features.discount.models import Discount
 from app.features.integrations.models.supplier import Supplier
+from app.features.integrations.models.supplier_category_mapping import (
+    SupplierCategoryMapping,
+)
 from app.features.integrations.models.supplier_order import SupplierOrder
 from app.features.integrations.models.supplier_sync import (
     SupplierProductMapping,
@@ -40,6 +43,7 @@ from app.features.product.models.category import Category
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.price_history import ProductPriceEntry
 from app.features.product.models.product import Product
+from app.features.product.models.product_group_price import ProductGroupPrice
 from app.features.product.models.product_view import ProductViewDaily
 from app.features.product.models.spec_definition import SpecDefinition
 from app.features.product.models.stock_alert import StockAlert
@@ -53,6 +57,7 @@ from app.features.shipping.models.route_tracking import (
     ShippingRouteTrackingLogs,
 )
 from app.features.shipping.models.status import StatusDefinition, StatusTransition
+from app.features.system.models.audit_log import AdminAuditEntry
 from app.features.system.models.system_setting import SystemSetting
 from app.features.user.models.address import Address
 from app.features.user.models.group import Group
@@ -68,6 +73,7 @@ from app.features.user.models.user_preference import UserPreference
 from app.features.user.models.wishlist import Wishlist, WishlistItem
 
 __all__ = [
+    "AdminAuditEntry",
     "Address",
     "AnalyticsProduct",
     "AnalyticsSale",
@@ -77,6 +83,7 @@ __all__ = [
     "CartItem",
     "Category",
     "PriceGroup",
+    "ProductGroupPrice",
     "TaxRate",
     "Carrier",
     "DeliveryTask",
@@ -113,6 +120,7 @@ __all__ = [
     "StatusDefinition",
     "StatusTransition",
     "Supplier",
+    "SupplierCategoryMapping",
     "SupplierOrder",
     "SupplierProductMapping",
     "SupplierSyncLog",

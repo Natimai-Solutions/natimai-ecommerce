@@ -18,6 +18,7 @@ from pydantic import field_validator
 from sqlalchemy import JSON, Column, DateTime, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
+from app.core.config import reference_currency
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 # Lifecycle, in order. ``open`` is the only status that accepts new orders.
@@ -200,7 +201,7 @@ class SupplierOrderEntry(SQLModel):
     order_number: str = Field(max_length=100)
     ordered_at: datetime
     total_amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
-    currency: str = Field(default="XPF", max_length=8)
+    currency: str = Field(default_factory=reference_currency, max_length=8)
     notes: str | None = Field(default=None, max_length=500)
 
 

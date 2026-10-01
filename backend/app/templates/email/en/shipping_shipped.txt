@@ -1,0 +1,12 @@
+Hello {{ full_name }},
+
+Good news: your order {{ order_ref or (order_id | short_ref) }} is on its way!
+
+{% if tracking_ref %}Tracking reference: {{ tracking_ref }}
+{% endif %}{% if estimated_delivery %}Estimated delivery: {{ estimated_delivery }}
+{% endif %}
+You can follow your delivery's progress in your account.
+{% if tracking_url %}Track my order: {{ tracking_url }}
+{% endif %}
+
+The {{ shop_name }} team

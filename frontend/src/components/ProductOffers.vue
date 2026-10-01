@@ -1,7 +1,7 @@
 <template>
   <section v-if="others.length > 0" class="offers" aria-labelledby="offers-title">
     <h2 id="offers-title" class="offers__title">
-      {{ others.length === 1 ? 'Autre offre pour cet article' : 'Autres offres pour cet article' }}
+      {{ others.length === 1 ? $t('offers.other_one') : $t('offers.other_many') }}
     </h2>
     <router-link
       v-for="offer in others"
@@ -12,24 +12,24 @@
     >
       <span class="offers__who">
         <span class="offers__name">{{ offer.supplier_label ?? offer.name }}</span>
-        <span class="offers__detail">
-          {{ offer.is_domestic ? 'Stock local' : 'Import' }},
-          {{ offer.in_stock ? `${stockOf(offer)} en stock` : 'sur commande' }}
-        </span>
+        <span class="offers__detail">{{ detailOf(offer) }}</span>
       </span>
       <span class="offers__price-col">
         <span class="offers__price font-mono">{{ priceOf(offer) }}</span>
-        <span v-if="offer.product_id === cheapestId" class="offers__best">Meilleur prix</span>
+        <span v-if="offer.product_id === cheapestId" class="offers__best">{{
+          $t('offers.best')
+        }}</span>
       </span>
     </router-link>
     <p v-if="currentIsCheapest" class="offers__note">
-      <q-icon name="ph:check-circle" size="16px" />Cette offre est la moins chère.
+      <q-icon name="ph:check-circle" size="16px" />{{ $t('offers.current_cheapest') }}
     </p>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   sellableQuantity,
   type ProductOfferPublic,
@@ -42,6 +42,7 @@ const props = defineProps<{ offers: ProductOffersResponse | null }>();
 const emit = defineEmits<{ navigate: [] }>();
 
 const currencyStore = useCurrencyStore();
+const { t } = useI18n();
 
 const others = computed(() => (props.offers?.offers ?? []).filter((o) => !o.is_current));
 const cheapestId = computed(() => props.offers?.cheapest_product_id ?? null);
@@ -52,11 +53,17 @@ const currentIsCheapest = computed(() => {
 
 function priceOf(offer: ProductOfferPublic): string {
   const price = parseFloat(offer.sale_price);
-  return price > 0 ? currencyStore.format(price) : 'Prix sur devis';
+  return price > 0 ? currencyStore.format(price) : t('offers.on_quote');
 }
 
-function stockOf(offer: ProductOfferPublic): number {
-  return sellableQuantity(offer);
+/** « En stock chez nous (2) », « Chez le fournisseur (5), import »… */
+function detailOf(offer: ProductOfferPublic): string {
+  const local = Math.max(0, Math.round(parseFloat(offer.local_quantity ?? '0') || 0));
+  const supplier = Math.max(0, sellableQuantity(offer) - local);
+  const origin = offer.is_domestic ? t('offers.local_supplier') : t('offers.import');
+  if (local > 0) return t('offers.in_stock_here', { n: local });
+  if (supplier > 0) return t('offers.in_stock_supplier', { n: supplier, origin });
+  return t('offers.on_order', { origin });
 }
 </script>
 

@@ -3,8 +3,8 @@
     <q-card class="app-dialog app-dialog--xl">
       <q-card-section class="app-dialog__head">
         <div class="row items-center no-wrap">
-          <h2 class="app-dialog__title col">Médiathèque</h2>
-          <q-btn flat round dense icon="ph:x" aria-label="Fermer" v-close-popup />
+          <h2 class="app-dialog__title col">{{ $t('media.title') }}</h2>
+          <q-btn flat round dense icon="ph:x" :aria-label="$t('media.close')" v-close-popup />
         </div>
       </q-card-section>
 
@@ -13,7 +13,7 @@
           <q-file
             v-model="file"
             class="col-12 col-md-5"
-            label="Nouvelle image (JPEG, PNG, WebP, 8 Mo max)"
+            :label="$t('media.new')"
             accept="image/jpeg,image/png,image/webp"
             outlined
             dense
@@ -22,20 +22,14 @@
           >
             <template #prepend><q-icon name="ph:image" /></template>
           </q-file>
-          <q-input
-            v-model="alt"
-            class="col-12 col-md-4"
-            label="Texte alternatif (ce que montre l'image)"
-            outlined
-            dense
-          />
+          <q-input v-model="alt" class="col-12 col-md-4" :label="$t('media.alt')" outlined dense />
           <div class="col-12 col-md-3">
             <q-btn
               color="primary"
               unelevated
               no-caps
               icon="ph:cloud-arrow-up"
-              label="Téléverser"
+              :label="$t('media.upload')"
               class="full-width"
               :disable="!file"
               :loading="uploading"
@@ -45,8 +39,7 @@
           </div>
         </div>
         <p class="admin-hint q-mt-xs q-mb-none">
-          L'image est vérifiée par l'antivirus, débarrassée de ses métadonnées (position GPS,
-          appareil) et convertie en WebP en trois tailles.
+          {{ $t('media.upload_hint') }}
         </p>
 
         <AppNotice v-if="error" tone="error" dense class="q-mt-sm">{{ error }}</AppNotice>
@@ -72,8 +65,8 @@
         </div>
         <div v-else-if="!assets.length" class="app-empty">
           <q-icon name="ph:images" size="28px" class="text-subtle" />
-          <h3>Aucune image</h3>
-          <p>Téléversez-en une ci-dessus.</p>
+          <h3>{{ $t('media.none') }}</h3>
+          <p>{{ $t('media.none_hint') }}</p>
         </div>
         <div v-else class="media-picker__grid">
           <button
@@ -102,17 +95,17 @@
           no-caps
           color="negative"
           icon="ph:trash"
-          label="Supprimer"
+          :label="$t('common.delete')"
           :loading="deleting"
           @click="remove(selected)"
         />
         <q-space />
-        <q-btn flat no-caps label="Annuler" v-close-popup />
+        <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
         <q-btn
           color="primary"
           unelevated
           no-caps
-          label="Utiliser cette image"
+          :label="$t('media.use')"
           :disable="!selected"
           data-testid="media-confirm"
           @click="selected && confirm(selected)"
@@ -123,7 +116,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { computed, ref, watch } from 'vue';
 
 import AppNotice from '@app/ui/AppNotice.vue';
 import { extractApiError } from '@/api/errors';
@@ -135,6 +129,8 @@ import {
   type MediaAsset,
   type MediaKind,
 } from '@/api/media';
+
+const { t } = useI18n();
 
 /**
  * Médiathèque partagée : accueil, produits, catégories, pages. Ouvre la liste
@@ -159,13 +155,13 @@ const alt = ref('');
 const selected = ref<MediaAsset | null>(null);
 const filter = ref<MediaKind | null>(props.kind);
 
-const kindOptions: { label: string; value: MediaKind | null }[] = [
+const kindOptions = computed<{ label: string; value: MediaKind | null }[]>(() => [
   ...(Object.entries(MEDIA_KIND_LABELS) as [MediaKind, string][]).map(([value, label]) => ({
     value,
     label,
   })),
-  { label: 'Toutes', value: null },
-];
+  { label: t('media.all'), value: null },
+]);
 
 function thumbnail(asset: MediaAsset): string {
   return asset.variants?.[0]?.url ?? asset.url;
@@ -177,7 +173,7 @@ async function load() {
   try {
     assets.value = await listMedia(filter.value);
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement de la médiathèque impossible.';
+    error.value = extractApiError(err) ?? t('media.load_failed');
   } finally {
     loading.value = false;
   }
@@ -200,7 +196,7 @@ async function upload() {
     await load();
     selected.value = assets.value.find((a) => a.id === asset.id) ?? asset;
   } catch (err) {
-    error.value = extractApiError(err) ?? "L'envoi de l'image a échoué.";
+    error.value = extractApiError(err) ?? t('media.upload_failed');
   } finally {
     uploading.value = false;
   }
@@ -214,7 +210,7 @@ async function remove(asset: MediaAsset) {
     selected.value = null;
     await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Suppression impossible.';
+    error.value = extractApiError(err) ?? t('common.delete_failed');
   } finally {
     deleting.value = false;
   }

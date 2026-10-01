@@ -5,6 +5,12 @@
  */
 
 /**
+ * Translator of the visitor's language (`useI18n().t`, or a stand-in in
+ * tests): the labels below are message keys, never French text.
+ */
+export type Translate = (key: string, named?: Record<string, unknown>) => string;
+
+/**
  * Sellable quantity as the checkout counts it: warehouse stock plus supplier
  * stock (the latter only when the product has a supplier). Served as
  * `available_quantity` by the storefront endpoints; `supplier_quantity` is the
@@ -27,7 +33,18 @@ export interface AvailabilityInput {
   available_quantity?: string | number | null;
   /** stock | on_demand | continuous | lot — absent on older payloads = stock. */
   availability_mode?: string | null;
+  /** Sellable stock held in our warehouse (« chez nous »), variants included. */
+  stock_local?: string | number | null;
+  /** Sellable stock at the supplier (longer delivery), variants included. */
+  stock_supplier?: string | number | null;
 }
+
+/**
+ * Where the units come from: our warehouse (`local`), the supplier only
+ * (`supplier`, longer delivery), bought to order (`order`), none (`none`).
+ * `unknown` = in stock but the response does not say where.
+ */
+export type StockSource = 'local' | 'supplier' | 'order' | 'none' | 'unknown';
 
 export interface Availability {
   /** Add-to-cart allowed. */
@@ -37,15 +54,38 @@ export interface Availability {
   /** Stock units to display (0 when none). */
   quantity: number;
   label: string;
+  source: StockSource;
+  /** Units in our warehouse / at the supplier (0 when unknown). */
+  localQuantity: number;
+  supplierQuantity: number;
+  /** Second line: « + 4 chez le fournisseur », « Délai plus long »… or null. */
+  note: string | null;
 }
 
-export function productAvailability(product: AvailabilityInput): Availability {
+function toQuantity(raw: string | number | null | undefined): number | null {
+  if (raw == null) return null;
+  const parsed = typeof raw === 'number' ? raw : parseFloat(raw);
+  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
+}
+
+export function productAvailability(product: AvailabilityInput, t: Translate): Availability {
   const quantity = sellableQuantity(product);
   const mode = product.availability_mode ?? 'stock';
   const inStock = quantity > 0;
+  const local = toQuantity(product.stock_local);
+  const supplier = toQuantity(product.stock_supplier);
+  const split = { localQuantity: local ?? 0, supplierQuantity: supplier ?? 0 };
 
   if (mode === 'continuous' || (mode === 'on_demand' && inStock)) {
-    return { orderable: true, preorder: true, quantity, label: 'Sur commande' };
+    return {
+      orderable: true,
+      preorder: true,
+      quantity,
+      label: t('availability.on_order'),
+      source: 'order',
+      ...split,
+      note: null,
+    };
   }
   if (mode === 'lot') {
     return inStock
@@ -53,14 +93,66 @@ export function productAvailability(product: AvailabilityInput): Availability {
           orderable: true,
           preorder: false,
           quantity,
-          label: `${quantity} exemplaire${quantity > 1 ? 's' : ''} restant${quantity > 1 ? 's' : ''} sur ce lot`,
+          label: t(quantity > 1 ? 'availability.lot_left_many' : 'availability.lot_left_one', {
+            n: quantity,
+          }),
+          source: local ? 'local' : supplier ? 'supplier' : 'unknown',
+          ...split,
+          note: null,
         }
-      : { orderable: false, preorder: false, quantity: 0, label: 'Lot épuisé' };
+      : {
+          orderable: false,
+          preorder: false,
+          quantity: 0,
+          label: t('availability.lot_sold_out'),
+          source: 'none',
+          ...split,
+          note: null,
+        };
   }
-  if (inStock) {
-    return { orderable: true, preorder: false, quantity, label: `${quantity} en stock` };
+  if (!inStock) {
+    return {
+      orderable: false,
+      preorder: false,
+      quantity: 0,
+      label: t('availability.unavailable'),
+      source: 'none',
+      ...split,
+      note: null,
+    };
   }
-  return { orderable: false, preorder: false, quantity: 0, label: 'Indisponible' };
+  if (local) {
+    return {
+      orderable: true,
+      preorder: false,
+      quantity,
+      label: t('availability.in_stock_here', { n: local }),
+      source: 'local',
+      ...split,
+      note: supplier ? t('availability.plus_supplier', { n: supplier }) : null,
+    };
+  }
+  if (supplier) {
+    return {
+      orderable: true,
+      preorder: false,
+      quantity,
+      label: t('availability.in_stock_supplier', { n: supplier }),
+      source: 'supplier',
+      ...split,
+      note: t('availability.longer_delay'),
+    };
+  }
+  // Older payload without the split: the historical label.
+  return {
+    orderable: true,
+    preorder: false,
+    quantity,
+    label: t('availability.in_stock', { n: quantity }),
+    source: 'unknown',
+    ...split,
+    note: null,
+  };
 }
 
 export interface ConditionInput {
@@ -77,24 +169,33 @@ export function isRefurbished(product: ConditionInput): boolean {
 }
 
 /** « Reconditionné · Grade A » / « Neuf » — the badge text. */
-export function conditionLabel(product: ConditionInput): string {
-  if (!isRefurbished(product)) return 'Neuf';
+export function conditionLabel(product: ConditionInput, t: Translate): string {
+  if (!isRefurbished(product)) return t('condition.new');
   const grade = (product.condition_grade ?? '').trim();
-  return grade ? `Reconditionné · Grade ${grade.toUpperCase()}` : 'Reconditionné';
+  return grade
+    ? t('condition.refurbished_grade', { grade: grade.toUpperCase() })
+    : t('condition.refurbished');
 }
 
 /** Detail lines of a refurbished item (empty for new goods or when nothing is set). */
-export function refurbishedDetails(product: ConditionInput): { label: string; value: string }[] {
+export function refurbishedDetails(
+  product: ConditionInput,
+  t: Translate,
+): { label: string; value: string }[] {
   if (!isRefurbished(product)) return [];
   const details: { label: string; value: string }[] = [];
   if (product.condition_grade)
-    details.push({ label: 'Grade', value: product.condition_grade.toUpperCase() });
+    details.push({ label: t('condition.grade'), value: product.condition_grade.toUpperCase() });
   if (product.battery_health_pct != null) {
-    details.push({ label: 'Batterie', value: `${product.battery_health_pct} %` });
+    details.push({ label: t('condition.battery'), value: `${product.battery_health_pct} %` });
   }
-  if (product.os_licence) details.push({ label: 'Licence', value: product.os_licence });
+  if (product.os_licence)
+    details.push({ label: t('condition.licence'), value: product.os_licence });
   if (product.warranty_months != null) {
-    details.push({ label: 'Garantie', value: `${product.warranty_months} mois` });
+    details.push({
+      label: t('condition.warranty'),
+      value: t('condition.warranty_months', { n: product.warranty_months }),
+    });
   }
   return details;
 }

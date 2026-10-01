@@ -1,12 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader title="Départs groupés">
+    <PageHeader :title="$t('departures.title')">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -15,16 +15,14 @@
           unelevated
           no-caps
           icon="ph:plus"
-          label="Nouveau départ"
+          :label="$t('departures.new')"
           @click="openCreate"
         />
       </template>
     </PageHeader>
 
     <p class="admin-hint">
-      Un départ = une date limite de commande affichée en vitrine, les commandes qui s'y rattachent
-      (automatiquement au checkout, déplaçables ici) et le bon de commande fournisseur agrégé par
-      SKU. Un seul départ « ouvert » et publié à la fois.
+      {{ $t('departures.intro') }}
     </p>
 
     <div v-if="error || notice" class="admin-notices">
@@ -53,7 +51,7 @@
               :icon="toneIcon(departureTone(props.row.status))"
             />
             <q-icon v-if="props.row.is_published" name="ph:eye" class="text-muted q-ml-sm">
-              <q-tooltip>Publié en vitrine</q-tooltip>
+              <q-tooltip>{{ $t('departures.published_text') }}</q-tooltip>
             </q-icon>
           </q-td>
         </template>
@@ -73,10 +71,10 @@
               :label="departureStatusLabel(nextDepartureStatus(props.row.status) ?? '')"
               @click.stop="advance(props.row)"
             >
-              <q-tooltip>Passer à l'étape suivante</q-tooltip>
+              <q-tooltip>{{ $t('departures.next_step') }}</q-tooltip>
             </q-btn>
             <q-btn flat round dense icon="ph:pencil-simple" @click.stop="openEdit(props.row)">
-              <q-tooltip>Modifier</q-tooltip>
+              <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
             </q-btn>
             <q-btn
               flat
@@ -89,9 +87,7 @@
             >
               <q-tooltip>
                 {{
-                  props.row.orders_count > 0
-                    ? 'Déplacez les commandes rattachées avant de supprimer'
-                    : 'Supprimer'
+                  props.row.orders_count > 0 ? $t('departures.move_first') : $t('departures.delete')
                 }}
               </q-tooltip>
             </q-btn>
@@ -99,7 +95,7 @@
         </template>
         <template #no-data>
           <div class="full-width text-center text-subtle q-pa-md">
-            Aucun départ groupé : la boutique fonctionne en mode classique.
+            {{ $t('departures.none') }}
           </div>
         </template>
       </q-table>
@@ -109,7 +105,7 @@
     <section v-if="selected" class="app-section" aria-labelledby="departure-detail-title">
       <div class="app-section__head">
         <h2 id="departure-detail-title" class="app-section__title">
-          Commandes du départ « {{ selected.name }} »
+          {{ $t('departures.orders_of', { name: selected.name }) }}
         </h2>
         <p class="app-section__hint">{{ cutoffLabel(selected) }}</p>
         <div class="app-section__action detail-actions">
@@ -117,14 +113,14 @@
             flat
             no-caps
             icon="ph:download-simple"
-            label="Commandes (CSV)"
+            :label="$t('departures.orders_csv')"
             @click="downloadOrdersCsv(filters)"
           />
           <q-btn
             flat
             no-caps
             icon="ph:download-simple"
-            label="Bon de commande par SKU (CSV)"
+            :label="$t('departures.po_csv')"
             @click="downloadSkuSummaryCsv(filters)"
           />
           <q-btn
@@ -133,13 +129,12 @@
             unelevated
             no-caps
             icon="ph:lock"
-            label="Clôturer le départ"
+            :label="$t('departures.close')"
             :loading="closing"
             @click="closeSelected(false)"
           >
             <q-tooltip>
-              Vérifie le stock fournisseur de chaque article commandé, les seuils, et crée le départ
-              suivant si récurrent
+              {{ $t('departures.close_tip') }}
             </q-tooltip>
           </q-btn>
         </div>
@@ -164,7 +159,7 @@
               <q-select
                 v-model="moveTarget"
                 :options="moveOptions"
-                label="Déplacer la sélection vers…"
+                :label="$t('departures.move_to')"
                 dense
                 outlined
                 emit-value
@@ -174,11 +169,11 @@
               <q-btn
                 outline
                 no-caps
-                label="Déplacer"
+                :label="$t('departures.move')"
                 :disable="selectedOrders.length === 0 || moveTarget === undefined"
                 @click="moveSelected"
               />
-              <q-toggle v-model="showUnassigned" label="Voir les commandes sans départ" dense />
+              <q-toggle v-model="showUnassigned" :label="$t('departures.without')" dense />
             </div>
           </template>
           <template #body-cell-number="props">
@@ -206,18 +201,20 @@
           <template #body-cell-actions="props">
             <q-td :props="props" align="right">
               <q-btn flat round dense icon="ph:arrow-right" :to="`/orders/${props.row.order_id}`">
-                <q-tooltip>Ouvrir la commande</q-tooltip>
+                <q-tooltip>{{ $t('departures.open_order') }}</q-tooltip>
               </q-btn>
             </q-td>
           </template>
           <template #no-data>
-            <div class="full-width text-center text-subtle q-pa-md">Aucune commande.</div>
+            <div class="full-width text-center text-subtle q-pa-md">
+              {{ $t('departures.no_orders') }}
+            </div>
           </template>
         </q-table>
       </div>
 
       <div v-if="!showUnassigned" class="detail-block">
-        <h3 class="admin-subtitle">Bon de commande fournisseur (agrégé par SKU)</h3>
+        <h3 class="admin-subtitle">{{ $t('departures.po_title') }}</h3>
         <q-table
           :rows="sku"
           :columns="skuColumns"
@@ -230,7 +227,9 @@
           hide-pagination
         >
           <template #no-data>
-            <div class="full-width text-center text-subtle q-pa-md">Aucune ligne.</div>
+            <div class="full-width text-center text-subtle q-pa-md">
+              {{ $t('departures.no_line') }}
+            </div>
           </template>
         </q-table>
       </div>
@@ -238,13 +237,13 @@
       <!-- Real purchase orders placed with the suppliers -->
       <div v-if="!showUnassigned" class="detail-block">
         <div class="detail-head">
-          <h3 class="admin-subtitle">Bons de commande passés aux fournisseurs</h3>
+          <h3 class="admin-subtitle">{{ $t('departures.pos') }}</h3>
           <q-btn
             flat
             dense
             no-caps
             icon="ph:plus"
-            label="Enregistrer un BC"
+            :label="$t('departures.add_po')"
             @click="poDialog = true"
           />
         </div>
@@ -268,27 +267,30 @@
             </q-item-section>
             <q-item-section side>
               <q-btn flat round dense color="negative" icon="ph:trash" @click="removePo(i)">
-                <q-tooltip>Supprimer</q-tooltip>
+                <q-tooltip>{{ $t('departures.delete_text') }}</q-tooltip>
               </q-btn>
             </q-item-section>
           </q-item>
         </q-list>
         <p v-else class="text-caption text-subtle q-mb-none">
-          Aucun bon de commande enregistré. Le premier BC passe le départ en « commandé » et
-          prévient les clients.
+          {{ $t('departures.no_po') }}
         </p>
       </div>
 
       <!-- Goods receipt: tally per product, orders reconciliation -->
       <div v-if="!showUnassigned" class="detail-block">
         <div class="detail-head">
-          <h3 class="admin-subtitle">Réception — pointage par SKU</h3>
+          <h3 class="admin-subtitle">{{ $t('departures.reception') }}</h3>
           <span v-if="reception" class="text-caption text-muted">
-            attendu <span class="font-mono">{{ reception.expected_units }}</span> · reçu
-            <span class="font-mono">{{ reception.received_units }}</span> · endommagé
+            {{ $t('departures.expected') }}
+            <span class="font-mono">{{ reception.expected_units }}</span> ·
+            {{ $t('departures.received_s') }}
+            <span class="font-mono">{{ reception.received_units }}</span> ·
+            {{ $t('departures.damaged_s') }}
             <span class="font-mono">{{ reception.damaged_units }}</span> ·
             <span :class="reception.missing_units ? 'text-warning' : 'text-positive'"
-              >manquant <span class="font-mono">{{ reception.missing_units }}</span></span
+              >{{ $t('departures.missing_s') }}
+              <span class="font-mono">{{ reception.missing_units }}</span></span
             >
           </span>
         </div>
@@ -334,7 +336,7 @@
                 dense
                 outlined
                 autogrow
-                placeholder="SN1, SN2… (un par exemplaire conforme)"
+                :placeholder="$t('departures.serials')"
                 style="min-width: 220px"
               />
             </q-td>
@@ -358,22 +360,19 @@
                 :loading="savingReceipt === props.row.product_id"
                 @click="saveReceipt(props.row)"
               >
-                <q-tooltip
-                  >Enregistrer le pointage ; les n° de série sont attribués aux commandes par ordre
-                  d'arrivée</q-tooltip
-                >
+                <q-tooltip>{{ $t('departures.checkin_tip') }}</q-tooltip>
               </q-btn>
             </q-td>
           </template>
           <template #no-data>
             <div class="full-width text-center text-subtle q-pa-md">
-              Aucun article attendu (aucune commande payée).
+              {{ $t('departures.no_expected') }}
             </div>
           </template>
         </q-table>
         <div v-if="reception?.orders.length" class="q-mt-md">
           <div class="text-caption text-muted q-mb-xs">
-            Rapprochement des commandes (servies par ordre d'arrivée)
+            {{ $t('departures.matching') }}
           </div>
           <div class="fulfilment-list">
             <router-link
@@ -383,7 +382,12 @@
               class="fulfilment-link"
             >
               <StatusTag
-                :label="`${o.order_number ?? o.order_id.slice(0, 8)} · ${fulfilmentLabel(o.fulfilment)}`"
+                :label="
+                  $t('departures.order_chip', {
+                    number: o.order_number ?? o.order_id.slice(0, 8),
+                    fulfilment: fulfilmentLabel(o.fulfilment),
+                  })
+                "
                 :tone="toneOf(fulfilmentColor(o.fulfilment))"
                 :icon="toneIcon(toneOf(fulfilmentColor(o.fulfilment)))"
               />
@@ -402,7 +406,7 @@
 
       <!-- Margin dashboard -->
       <div v-if="!showUnassigned && board" class="detail-block">
-        <h3 class="admin-subtitle">Tableau de bord du départ</h3>
+        <h3 class="admin-subtitle">{{ $t('departures.board') }}</h3>
         <div class="kpi-grid">
           <div v-for="tile in tiles" :key="tile.label" class="kpi">
             <span class="kpi__label">{{ tile.label }}</span>
@@ -411,8 +415,9 @@
           </div>
         </div>
         <AppNotice v-if="board.unconverted_currencies.length" tone="warning" dense class="q-mt-md">
-          Bons de commande en {{ board.unconverted_currencies.join(', ') }} ignorés : aucun taux de
-          change actif.
+          {{
+            $t('departures.unconverted', { currencies: board.unconverted_currencies.join(', ') })
+          }}
         </AppNotice>
         <div class="admin-toolbar q-mt-md q-mb-none">
           <q-input
@@ -420,7 +425,7 @@
             type="number"
             step="1"
             min="0"
-            label="Fret réel (XPF)"
+            :label="$t('departures.freight', { currency: shopConfig.currency })"
             outlined
             dense
           />
@@ -429,7 +434,7 @@
             type="number"
             step="1"
             min="0"
-            label="Douane réelle (XPF)"
+            :label="$t('departures.customs', { currency: shopConfig.currency })"
             outlined
             dense
           />
@@ -438,7 +443,7 @@
             type="number"
             step="1"
             min="0"
-            label="Autres frais (XPF)"
+            :label="$t('departures.other', { currency: shopConfig.currency })"
             outlined
             dense
           />
@@ -446,7 +451,7 @@
             color="primary"
             unelevated
             no-caps
-            label="Enregistrer les coûts"
+            :label="$t('departures.save_costs')"
             :loading="saving"
             @click="saveCosts"
           />
@@ -456,19 +461,19 @@
       <!-- Social reminders -->
       <div v-if="!showUnassigned" class="detail-block">
         <div class="detail-head">
-          <h3 class="admin-subtitle">Rappels réseaux sociaux</h3>
+          <h3 class="admin-subtitle">{{ $t('departures.reminders') }}</h3>
           <q-btn
             flat
             dense
             no-caps
             icon="ph:plus"
-            label="Ajouter un rappel"
+            :label="$t('departures.add_reminder')"
             @click="openReminder()"
           />
         </div>
         <q-input
           v-model="webhookUrl"
-          label="URL du webhook (Make, Zapier, Buffer…) — reçoit {text, link, image_url, departure}"
+          :label="$t('departures.webhook')"
           hint="https uniquement. Réglage global, commun à tous les départs."
           outlined
           dense
@@ -503,7 +508,7 @@
           <template #body-cell-actions="props">
             <q-td :props="props" align="right">
               <q-btn flat round dense icon="ph:paper-plane-tilt" @click="publishNow(props.row)">
-                <q-tooltip>Publier maintenant</q-tooltip>
+                <q-tooltip>{{ $t('departures.publish_now') }}</q-tooltip>
               </q-btn>
               <q-btn
                 v-if="props.row.status !== 'sent'"
@@ -513,7 +518,7 @@
                 icon="ph:pencil-simple"
                 @click="openReminder(props.row)"
               >
-                <q-tooltip>Modifier</q-tooltip>
+                <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
               </q-btn>
               <q-btn
                 flat
@@ -523,12 +528,14 @@
                 icon="ph:trash"
                 @click="removeReminder(props.row)"
               >
-                <q-tooltip>Supprimer</q-tooltip>
+                <q-tooltip>{{ $t('departures.delete_text') }}</q-tooltip>
               </q-btn>
             </q-td>
           </template>
           <template #no-data>
-            <div class="full-width text-center text-subtle q-pa-md">Aucun rappel.</div>
+            <div class="full-width text-center text-subtle q-pa-md">
+              {{ $t('departures.no_reminder') }}
+            </div>
           </template>
         </q-table>
       </div>
@@ -539,10 +546,10 @@
       <q-card class="app-dialog app-dialog--wide">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
-            {{ closeResult?.closed ? 'Départ clôturé' : 'Départ non clôturé' }}
+            {{ closeResult?.closed ? $t('departures.closed') : $t('departures.not_closed') }}
           </h2>
           <p v-if="closeResult" class="app-dialog__text">
-            {{ closeResult.orders_count }} commande(s) payée(s) ·
+            {{ $t('departures.paid_orders', { n: closeResult.orders_count }) }}
             <span class="font-mono">{{ formatMoney(Number(closeResult.orders_total)) }}</span>
           </p>
         </q-card-section>
@@ -552,15 +559,14 @@
             class="admin-notices"
           >
             <AppNotice v-if="!closeResult.threshold_reached" tone="warning" dense>
-              Seuil minimum non atteint : le départ reste ouvert. Reportez la clôture ou forcez-la.
+              {{ $t('departures.threshold_missed') }}
             </AppNotice>
             <AppNotice v-if="closeResult.unpaid_order_ids.length" tone="info" dense>
-              {{ closeResult.unpaid_order_ids.length }} commande(s) non payée(s) restent rattachées
-              : à exclure ou à déplacer vers le départ suivant depuis la liste des commandes.
+              {{ $t('departures.unpaid_left', { n: closeResult.unpaid_order_ids.length }) }}
             </AppNotice>
           </div>
           <template v-if="closeResult.shortages.length">
-            <h3 class="admin-subtitle">Ruptures chez le fournisseur — à arbitrer</h3>
+            <h3 class="admin-subtitle">{{ $t('departures.shortages') }}</h3>
             <q-list dense bordered separator class="rounded-borders">
               <q-item v-for="s in closeResult.shortages" :key="s.product_id">
                 <q-item-section>
@@ -569,8 +575,13 @@
                     >)</q-item-label
                   >
                   <q-item-label caption>
-                    {{ s.ordered_quantity }} commandé(s), {{ s.available_quantity }} disponible(s) —
-                    commandes {{ s.order_numbers.filter(Boolean).join(', ') || s.order_ids.length }}
+                    {{
+                      $t('departures.shortage', {
+                        ordered: s.ordered_quantity,
+                        available: s.available_quantity,
+                        orders: s.order_numbers.filter(Boolean).join(', ') || s.order_ids.length,
+                      })
+                    }}
                   </q-item-label>
                 </q-item-section>
                 <q-item-section side>
@@ -578,20 +589,18 @@
                     flat
                     dense
                     no-caps
-                    label="Marquer en rupture"
+                    :label="$t('departures.mark_shortage')"
                     @click="markBackordered(s.order_ids)"
                   >
-                    <q-tooltip
-                      >Statut « rupture / report » + e-mail aux clients concernés</q-tooltip
-                    >
+                    <q-tooltip>{{ $t('departures.shortage_tip') }}</q-tooltip>
                   </q-btn>
                 </q-item-section>
               </q-item>
             </q-list>
           </template>
-          <div v-else class="text-positive">Stock fournisseur suffisant sur toutes les lignes.</div>
+          <div v-else class="text-positive">{{ $t('departures.stock_ok') }}</div>
           <div v-if="closeResult.next_departure_id" class="text-caption text-muted q-mt-sm">
-            Départ suivant créé et publié (récurrence).
+            {{ $t('departures.next_created') }}
           </div>
         </q-card-section>
         <q-card-actions align="right" class="app-dialog__actions">
@@ -600,10 +609,10 @@
             flat
             no-caps
             color="negative"
-            label="Forcer la clôture"
+            :label="$t('departures.force_close')"
             @click="closeSelected(true)"
           />
-          <q-btn flat no-caps label="Fermer" v-close-popup />
+          <q-btn flat no-caps :label="$t('common.close')" v-close-popup />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -612,31 +621,31 @@
     <q-dialog v-model="poDialog">
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Bon de commande fournisseur</h2>
+          <h2 class="app-dialog__title">{{ $t('departures.po_dialog') }}</h2>
         </q-card-section>
         <q-form @submit.prevent="submitPo">
           <q-card-section class="q-gutter-sm">
             <q-input
               v-model="poForm.supplier_name"
-              label="Fournisseur *"
+              :label="$t('departures.supplier')"
               outlined
               dense
-              :rules="[(v: string) => !!v.trim() || 'Requis']"
+              :rules="[(v: string) => !!v.trim() || $t('common.required')]"
             />
             <q-input
               v-model="poForm.order_number"
-              label="N° de commande *"
+              :label="$t('departures.po_number')"
               outlined
               dense
-              :rules="[(v: string) => !!v.trim() || 'Requis']"
+              :rules="[(v: string) => !!v.trim() || $t('common.required')]"
             />
             <q-input
               v-model="poForm.ordered_at"
               type="date"
-              label="Date *"
+              :label="$t('departures.date')"
               outlined
               dense
-              :rules="[(v: string) => !!v || 'Requis']"
+              :rules="[(v: string) => !!v || $t('common.required')]"
             />
             <div class="row q-col-gutter-sm">
               <q-input
@@ -645,22 +654,28 @@
                 type="number"
                 step="0.01"
                 min="0"
-                label="Montant payé *"
+                :label="$t('departures.paid')"
                 outlined
                 dense
               />
-              <q-input v-model="poForm.currency" class="col-4" label="Devise" outlined dense />
+              <q-input
+                v-model="poForm.currency"
+                class="col-4"
+                :label="$t('departures.currency')"
+                outlined
+                dense
+              />
             </div>
-            <q-input v-model="poForm.notes" label="Notes" outlined dense />
+            <q-input v-model="poForm.notes" :label="$t('departures.notes')" outlined dense />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              label="Enregistrer"
+              :label="$t('common.save')"
               :loading="saving"
             />
           </q-card-actions>
@@ -673,7 +688,7 @@
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
-            {{ reminderEditId ? 'Modifier le rappel' : 'Nouveau rappel' }}
+            {{ reminderEditId ? $t('departures.edit_reminder') : $t('departures.new_reminder') }}
           </h2>
         </q-card-section>
         <q-form @submit.prevent="submitReminder">
@@ -684,7 +699,7 @@
                 class="col-6"
                 type="number"
                 min="0"
-                label="Jours avant *"
+                :label="$t('departures.days_before')"
                 outlined
                 dense
               />
@@ -692,10 +707,10 @@
                 v-model="reminderForm.anchor"
                 class="col-6"
                 :options="[
-                  { label: 'la clôture des commandes', value: 'cutoff' },
-                  { label: 'le départ physique', value: 'departure' },
+                  { label: $t('departures.anchor_cutoff'), value: 'cutoff' },
+                  { label: $t('departures.anchor_departure'), value: 'departure' },
                 ]"
-                label="Avant…"
+                :label="$t('departures.before')"
                 outlined
                 dense
                 emit-value
@@ -706,28 +721,28 @@
               v-model="reminderForm.message_template"
               type="textarea"
               autogrow
-              label="Message *"
-              hint="Variables : {name} {cutoff_date} {days_left} {delivery_date} {shop_url}"
+              :label="$t('departures.message')"
+              :hint="$t('departures.variables')"
               outlined
               dense
-              :rules="[(v: string) => !!v.trim() || 'Requis']"
+              :rules="[(v: string) => !!v.trim() || $t('common.required')]"
             />
             <q-input
               v-model="reminderForm.image_url"
-              label="URL d'image (optionnel)"
+              :label="$t('departures.image')"
               outlined
               dense
               clearable
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              label="Enregistrer"
+              :label="$t('common.save')"
               :loading="saving"
             />
           </q-card-actions>
@@ -740,7 +755,7 @@
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
-            {{ editId ? 'Modifier le départ' : 'Nouveau départ groupé' }}
+            {{ editId ? $t('departures.edit_title') : $t('departures.new_title') }}
           </h2>
         </q-card-section>
         <q-form @submit.prevent="submit">
@@ -748,25 +763,25 @@
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="form.name"
-              label="Nom *"
+              :label="$t('departures.name')"
               outlined
               dense
               autofocus
-              :rules="[(v: string) => !!v.trim() || 'Nom requis']"
+              :rules="[(v: string) => !!v.trim() || $t('departures.name_rule')]"
             />
             <q-input
               v-model="form.order_cutoff_at"
               type="datetime-local"
-              label="Date limite de commande *"
-              hint="Affichée en vitrine : « Commandez avant le … »"
+              :label="$t('departures.cutoff')"
+              :hint="$t('departures.cutoff_hint')"
               outlined
               dense
-              :rules="[(v: string) => !!v || 'Date requise']"
+              :rules="[(v: string) => !!v || $t('departures.date_rule')]"
             />
             <q-input
               v-model="form.estimated_delivery_at"
               type="date"
-              label="Livraison estimée"
+              :label="$t('departures.delivery')"
               outlined
               dense
               clearable
@@ -774,7 +789,7 @@
             <q-input
               v-model="form.departure_at"
               type="date"
-              label="Départ physique (si différent de la clôture)"
+              :label="$t('departures.physical')"
               outlined
               dense
               clearable
@@ -782,19 +797,19 @@
             <q-select
               v-model="form.status"
               :options="statusOptions"
-              label="Statut"
+              :label="$t('common.status')"
               outlined
               dense
               emit-value
               map-options
             />
-            <q-toggle v-model="form.is_published" label="Publié en vitrine" />
+            <q-toggle v-model="form.is_published" :label="$t('departures.published')" />
             <div class="row q-col-gutter-sm">
               <q-input
                 v-model.number="form.min_amount"
                 class="col"
                 type="number"
-                label="Seuil montant (XPF)"
+                :label="$t('departures.threshold_amount', { currency: shopConfig.currency })"
                 outlined
                 dense
                 clearable
@@ -803,7 +818,7 @@
                 v-model.number="form.min_units"
                 class="col"
                 type="number"
-                label="Seuil pièces"
+                :label="$t('departures.threshold_units')"
                 outlined
                 dense
                 clearable
@@ -812,22 +827,29 @@
                 v-model.number="form.recurrence_days"
                 class="col"
                 type="number"
-                label="Récurrence (jours)"
+                :label="$t('departures.recurrence')"
                 outlined
                 dense
                 clearable
               />
             </div>
-            <q-input v-model="form.notes" type="textarea" label="Notes" outlined dense autogrow />
+            <q-input
+              v-model="form.notes"
+              type="textarea"
+              :label="$t('departures.notes')"
+              outlined
+              dense
+              autogrow
+            />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              label="Enregistrer"
+              :label="$t('common.save')"
               :loading="saving"
             />
           </q-card-actions>
@@ -838,6 +860,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { labels } from '@/i18n/global';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -846,10 +870,9 @@ import { toneIcon, toneOf, type StatusTone } from '@app/ui/statusTone';
 import {
   DEPARTURE_STATUSES,
   departureCutoffLabel,
-  departureStatusLabel,
   formatDate,
   formatDateTime,
-  formatXpf,
+  formatMoney as formatMoneyIn,
   nextDepartureStatus,
 } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
@@ -892,37 +915,43 @@ import {
 } from '@/api/orders';
 import { extractApiError } from '@/api/errors';
 import { listSystemSettings, updateSystemSetting } from '@/api/systemSettings';
+import { useShopConfigStore } from '@/stores/shopConfig';
 import { setOrderStatus } from '@/api/orders';
+
+const { t } = useI18n();
+const departureStatusLabel = (status: string) => t(`departure_status.${status}`);
 
 const departures = ref<Departure[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
 
-const formatMoney = (n: number) => (Number.isFinite(n) ? formatXpf(n) : String(n));
+const shopConfig = useShopConfigStore();
+const formatMoney = (n: number) =>
+  Number.isFinite(n) ? formatMoneyIn(n, shopConfig.currency) : String(n);
 const cutoffLabel = (d: Departure) => departureCutoffLabel(d);
 const departureTone = (status: string): StatusTone => (status === 'open' ? 'ok' : 'neutral');
 
-const columns: QTableColumn[] = [
-  { name: 'name', label: 'Départ', field: 'name', align: 'left' },
+const columns = computed<QTableColumn[]>(() => [
+  { name: 'name', label: t('departures.col_departure'), field: 'name', align: 'left' },
   {
     name: 'cutoff',
-    label: 'Limite de commande',
+    label: t('departures.col_cutoff'),
     field: 'order_cutoff_at',
     align: 'left',
     format: (v: string) => formatDate(v),
   },
   {
     name: 'delivery',
-    label: 'Livraison estimée',
+    label: t('departures.col_delivery'),
     field: 'estimated_delivery_at',
     align: 'left',
     format: (v: string | null) => formatDate(v),
   },
-  { name: 'status', label: 'Statut', field: 'status', align: 'left' },
-  { name: 'orders', label: 'Commandes · total', field: 'orders_count', align: 'left' },
+  { name: 'status', label: t('departures.col_status'), field: 'status', align: 'left' },
+  { name: 'orders', label: t('departures.col_orders'), field: 'orders_count', align: 'left' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-];
+]);
 
 async function load() {
   loading.value = true;
@@ -933,7 +962,7 @@ async function load() {
       selected.value = departures.value.find((d) => d.id === selected.value?.id) ?? null;
     }
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -957,49 +986,67 @@ const moveOptions = computed(() => [
   ...departures.value
     .filter((d) => d.id !== selected.value?.id || showUnassigned.value)
     .map((d) => ({ label: `${d.name} (${formatDate(d.order_cutoff_at)})`, value: d.id })),
-  { label: '— Aucun départ (détacher)', value: null },
+  { label: t('departures.detach'), value: null },
 ]);
 
-const orderColumns: QTableColumn[] = [
+const orderColumns = computed<QTableColumn[]>(() => [
   {
     name: 'number',
-    label: 'Commande',
+    label: t('departures.col_order'),
     field: (r: AdminOrderListItem) => r.order_number ?? `#${r.order_id.slice(0, 8)}`,
     align: 'left',
   },
   {
     name: 'date',
-    label: 'Date',
+    label: t('departures.col_date'),
     field: 'created_at',
     align: 'left',
     format: (v: string | null) => formatDate(v),
   },
   {
     name: 'client',
-    label: 'Client',
+    label: t('departures.col_customer'),
     field: (r: AdminOrderListItem) => r.user_name || r.user_email || '',
     align: 'left',
   },
-  { name: 'status', label: 'Statut', field: 'status', align: 'left' },
+  { name: 'status', label: t('departures.col_status'), field: 'status', align: 'left' },
   {
     name: 'total',
-    label: 'Total',
+    label: t('departures.col_total'),
     field: 'total_amount',
     align: 'right',
     format: (v: number) => formatMoney(v),
   },
   { name: 'actions', label: '', field: 'order_id', align: 'right' },
-];
+]);
 
-const skuColumns: QTableColumn[] = [
-  { name: 'supplier', label: 'Fournisseur', field: 'supplier_name', align: 'left' },
-  { name: 'sku', label: 'SKU', field: 'supplier_sku', align: 'left', classes: 'font-mono' },
-  { name: 'product', label: 'Produit', field: 'product_name', align: 'left' },
-  { name: 'qty', label: 'Qté', field: 'quantity', align: 'right', classes: 'font-mono' },
-  { name: 'orders', label: 'Cmdes', field: 'orders_count', align: 'right', classes: 'font-mono' },
+const skuColumns = computed<QTableColumn[]>(() => [
+  { name: 'supplier', label: t('departures.col_supplier'), field: 'supplier_name', align: 'left' },
+  {
+    name: 'sku',
+    label: t('departures.col_sku'),
+    field: 'supplier_sku',
+    align: 'left',
+    classes: 'font-mono',
+  },
+  { name: 'product', label: t('departures.col_product'), field: 'product_name', align: 'left' },
+  {
+    name: 'qty',
+    label: t('departures.col_qty'),
+    field: 'quantity',
+    align: 'right',
+    classes: 'font-mono',
+  },
+  {
+    name: 'orders',
+    label: t('departures.col_n_orders'),
+    field: 'orders_count',
+    align: 'right',
+    classes: 'font-mono',
+  },
   {
     name: 'cost',
-    label: 'Coût unit.',
+    label: t('departures.col_unit_cost'),
     field: (r: SkuSummaryRow) =>
       r.unit_cost === null ? '—' : `${r.unit_cost} ${r.cost_currency ?? ''}`,
     align: 'right',
@@ -1007,12 +1054,12 @@ const skuColumns: QTableColumn[] = [
   },
   {
     name: 'weight',
-    label: 'Poids total (kg)',
+    label: t('departures.col_weight'),
     field: (r: SkuSummaryRow) => r.total_weight_kg ?? '—',
     align: 'right',
     classes: 'font-mono',
   },
-];
+]);
 
 function select(row: Departure) {
   selected.value = row;
@@ -1033,26 +1080,41 @@ interface ReceiptEdit {
 }
 const receiptEdits = reactive<Record<string, ReceiptEdit>>({});
 
-const receiptColumns: QTableColumn[] = [
+const receiptColumns = computed<QTableColumn[]>(() => [
   {
     name: 'product',
-    label: 'Article',
+    label: t('departures.col_item'),
     field: (r: ReceiptLine) => `${r.supplier_sku ?? '—'} · ${r.product_name}`,
     align: 'left',
   },
   {
     name: 'expected',
-    label: 'Attendu',
+    label: t('departures.col_expected'),
     field: 'expected_quantity',
     align: 'right',
     classes: 'font-mono',
   },
-  { name: 'received', label: 'Reçu', field: 'quantity_received', align: 'right' },
-  { name: 'damaged', label: 'Endommagé', field: 'quantity_damaged', align: 'right' },
-  { name: 'missing', label: 'Manquant', field: 'expected_quantity', align: 'right' },
-  { name: 'serials', label: 'N° de série', field: 'serial_numbers', align: 'left' },
+  {
+    name: 'received',
+    label: t('departures.col_received'),
+    field: 'quantity_received',
+    align: 'right',
+  },
+  {
+    name: 'damaged',
+    label: t('departures.col_damaged'),
+    field: 'quantity_damaged',
+    align: 'right',
+  },
+  {
+    name: 'missing',
+    label: t('departures.col_missing'),
+    field: 'expected_quantity',
+    align: 'right',
+  },
+  { name: 'serials', label: t('departures.col_serials'), field: 'serial_numbers', align: 'left' },
   { name: 'actions', label: '', field: 'product_id', align: 'right' },
-];
+]);
 
 /** Editable copy of a tally row (created on first access). */
 function receiptEdit(row: ReceiptLine): ReceiptEdit {
@@ -1089,7 +1151,7 @@ async function loadReception() {
   try {
     applyReception(await getReception(selected.value.id));
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement de la réception impossible.';
+    error.value = extractApiError(err) ?? t('departures.reception_failed');
   } finally {
     receptionLoading.value = false;
   }
@@ -1112,10 +1174,10 @@ async function saveReceipt(row: ReceiptLine) {
         notes: row.notes,
       }),
     );
-    notice.value = `Pointage enregistré : ${row.product_name}.`;
+    notice.value = t('departures.checked_in', { name: row.product_name });
     void loadDashboard();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Enregistrement du pointage impossible.';
+    error.value = extractApiError(err) ?? t('departures.checkin_failed');
   } finally {
     savingReceipt.value = null;
   }
@@ -1133,13 +1195,13 @@ const tiles = computed(() => {
   const margin = n(b.gross_margin);
   return [
     {
-      label: `Chiffre d'affaires (${b.orders_count} cmdes, ${b.units} pièces)`,
+      label: t('departures.t_revenue', { orders: b.orders_count, units: b.units }),
       value: formatMoney(n(b.revenue)),
       cls: '',
       hint: '',
     },
     {
-      label: 'Encaissé (net des remboursements)',
+      label: t('departures.t_collected'),
       value: formatMoney(n(b.collected)),
       cls: '',
       hint: '',
@@ -1147,23 +1209,23 @@ const tiles = computed(() => {
     {
       label:
         b.goods_cost_source === 'supplier_orders'
-          ? 'Payé fournisseur (BC)'
-          : 'Coût marchandises (estimé au checkout)',
+          ? t('departures.t_supplier_paid')
+          : t('departures.t_goods_est'),
       value: formatMoney(
         b.goods_cost_source === 'supplier_orders' ? n(b.supplier_paid) : n(b.goods_cost_estimated),
       ),
       cls: '',
       hint:
         b.goods_cost_source === 'supplier_orders'
-          ? `estimé : ${formatMoney(n(b.goods_cost_estimated))}`
-          : 'enregistrez les BC pour le réel',
+          ? t('departures.t_estimated', { amount: formatMoney(n(b.goods_cost_estimated)) })
+          : t('departures.t_record_po'),
     },
-    { label: 'Fret + douane + autres (réels)', value: formatMoney(fees), cls: '', hint: '' },
+    { label: t('departures.t_fees'), value: formatMoney(fees), cls: '', hint: '' },
     {
-      label: 'Marge brute',
+      label: t('departures.t_margin'),
       value: formatMoney(margin),
       cls: margin < 0 ? 'text-negative' : 'text-positive',
-      hint: b.margin_rate_pct === null ? '' : `${b.margin_rate_pct} % du CA`,
+      hint: b.margin_rate_pct === null ? '' : t('departures.t_pct', { pct: b.margin_rate_pct }),
     },
   ];
 });
@@ -1178,7 +1240,7 @@ async function loadDashboard() {
       other_costs: selected.value.other_costs ?? '',
     });
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement du tableau de bord impossible.';
+    error.value = extractApiError(err) ?? t('departures.board_failed');
   }
 }
 
@@ -1195,9 +1257,9 @@ async function saveCosts() {
     });
     await load();
     await loadDashboard();
-    notice.value = 'Coûts réels enregistrés.';
+    notice.value = t('departures.costs_saved');
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Enregistrement des coûts impossible.';
+    error.value = extractApiError(err) ?? t('departures.costs_failed');
   } finally {
     saving.value = false;
   }
@@ -1212,7 +1274,7 @@ async function loadOrders() {
     orders.value = await listOrders(filters.value);
     sku.value = showUnassigned.value ? [] : await skuSummary(filters.value);
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement des commandes impossible.';
+    error.value = extractApiError(err) ?? t('departures.orders_failed');
   } finally {
     ordersLoading.value = false;
     skuLoading.value = false;
@@ -1232,7 +1294,7 @@ async function moveSelected() {
     notice.value = `${updated} commande(s) déplacée(s).`;
     await Promise.all([load(), loadOrders()]);
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Déplacement impossible.';
+    error.value = extractApiError(err) ?? t('departures.move_failed');
   }
 }
 
@@ -1251,7 +1313,7 @@ async function closeSelected(force: boolean) {
     await load();
     await loadOrders();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Clôture impossible.';
+    error.value = extractApiError(err) ?? t('departures.close_failed');
   } finally {
     closing.value = false;
   }
@@ -1261,12 +1323,12 @@ async function markBackordered(orderIds: string[]) {
   error.value = null;
   try {
     await Promise.all(
-      orderIds.map((id) => setOrderStatus(id, 'Backordered', 'rupture fournisseur')),
+      orderIds.map((id) => setOrderStatus(id, 'Backordered', t('departures.shortage_reason'))),
     );
     notice.value = `${orderIds.length} commande(s) marquée(s) en rupture, clients prévenus.`;
     await loadOrders();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Changement de statut impossible.';
+    error.value = extractApiError(err) ?? t('departures.status_failed');
   }
 }
 
@@ -1277,7 +1339,7 @@ const poForm = reactive({
   order_number: '',
   ordered_at: '',
   total_amount: '',
-  currency: 'XPF',
+  currency: shopConfig.currency,
   notes: '',
 });
 
@@ -1291,7 +1353,7 @@ async function submitPo() {
       order_number: poForm.order_number.trim(),
       ordered_at: new Date(`${poForm.ordered_at}T12:00`).toISOString(),
       total_amount: poForm.total_amount || '0',
-      currency: poForm.currency.trim() || 'XPF',
+      currency: poForm.currency.trim() || shopConfig.currency,
       notes: poForm.notes.trim() || null,
     });
     poDialog.value = false;
@@ -1302,10 +1364,10 @@ async function submitPo() {
       total_amount: '',
       notes: '',
     });
-    notice.value = `Bon de commande enregistré. ${updated.orders_updated ?? 0} commande(s) passée(s) en « commandée au fournisseur ».`;
+    notice.value = t('departures.po_saved', { n: updated.orders_updated ?? 0 });
     await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    error.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     saving.value = false;
   }
@@ -1318,7 +1380,7 @@ async function removePo(index: number) {
     await removeSupplierOrder(selected.value.id, index);
     await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Suppression impossible.';
+    error.value = extractApiError(err) ?? t('common.delete_failed');
   }
 }
 
@@ -1335,32 +1397,37 @@ const reminderForm = reactive<{
   image_url: string | null;
 }>({ offset_days: 2, anchor: 'cutoff', message_template: '', image_url: '' });
 
-const reminderColumns: QTableColumn[] = [
+const reminderColumns = computed<QTableColumn[]>(() => [
   {
     name: 'when',
-    label: 'Publication',
+    label: t('departures.col_when'),
     field: 'scheduled_at',
     align: 'left',
     format: (v: string) => formatDateTime(v),
   },
-  { name: 'offset', label: 'Avant', field: (r: Reminder) => `J-${r.offset_days}`, align: 'left' },
+  {
+    name: 'offset',
+    label: t('departures.col_before'),
+    field: (r: Reminder) => `J-${r.offset_days}`,
+    align: 'left',
+  },
   {
     name: 'text',
-    label: 'Message (rendu)',
+    label: t('departures.col_text'),
     field: 'rendered_text',
     align: 'left',
     style: 'white-space: normal; max-width: 480px',
   },
-  { name: 'status', label: 'État', field: 'status', align: 'left' },
+  { name: 'status', label: t('departures.col_state'), field: 'status', align: 'left' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-];
+]);
 
-const REMINDER_LABELS: Record<string, string> = {
-  scheduled: 'Planifié',
-  sent: 'Publié',
-  failed: 'Échec',
-  cancelled: 'Annulé',
-};
+const REMINDER_LABELS: Record<string, string> = labels({
+  scheduled: 'departures.r_scheduled',
+  sent: 'departures.r_sent',
+  failed: 'departures.r_failed',
+  cancelled: 'departures.r_cancelled',
+});
 const reminderLabel = (s: string) => REMINDER_LABELS[s] ?? s;
 const reminderColor = (s: string) =>
   s === 'sent' ? 'green' : s === 'failed' ? 'negative' : s === 'cancelled' ? 'grey-6' : 'primary';
@@ -1371,7 +1438,7 @@ async function loadReminders() {
   try {
     reminders.value = await listReminders(selected.value.id);
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement des rappels impossible.';
+    error.value = extractApiError(err) ?? t('departures.reminders_failed');
   } finally {
     remindersLoading.value = false;
   }
@@ -1390,9 +1457,9 @@ async function saveWebhook() {
   error.value = null;
   try {
     await updateSystemSetting('social_webhook_url', { value: webhookUrl.value.trim() });
-    notice.value = 'URL du webhook enregistrée.';
+    notice.value = t('departures.webhook_saved');
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Enregistrement du webhook impossible.';
+    error.value = extractApiError(err) ?? t('departures.webhook_failed');
   }
 }
 
@@ -1401,9 +1468,7 @@ function openReminder(r?: Reminder) {
   Object.assign(reminderForm, {
     offset_days: r?.offset_days ?? 2,
     anchor: r?.anchor ?? 'cutoff',
-    message_template:
-      r?.message_template ??
-      '⏰ Plus que {days_left} jours pour rejoindre le départ groupé « {name} » (clôture le {cutoff_date}). {shop_url}',
+    message_template: r?.message_template ?? t('departures.default_message'),
     image_url: r?.image_url ?? '',
   });
   reminderDialog.value = true;
@@ -1428,7 +1493,7 @@ async function submitReminder() {
     reminderDialog.value = false;
     await loadReminders();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Enregistrement du rappel impossible.';
+    error.value = extractApiError(err) ?? t('departures.reminder_failed');
   } finally {
     saving.value = false;
   }
@@ -1439,10 +1504,12 @@ async function publishNow(r: Reminder) {
   try {
     const result = await publishReminder(r.id);
     notice.value =
-      result.status === 'sent' ? 'Rappel publié.' : `Publication échouée : ${result.error ?? ''}`;
+      result.status === 'sent'
+        ? t('departures.reminder_sent')
+        : t('departures.publish_failed_msg', { error: result.error ?? '' });
     await loadReminders();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Publication impossible.';
+    error.value = extractApiError(err) ?? t('departures.publish_failed');
   }
 }
 
@@ -1452,7 +1519,7 @@ async function removeReminder(r: Reminder) {
     await deleteReminder(r.id);
     await loadReminders();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Suppression impossible.';
+    error.value = extractApiError(err) ?? t('common.delete_failed');
   }
 }
 
@@ -1464,10 +1531,14 @@ async function advance(d: Departure) {
   try {
     const updated = await updateDeparture(d.id, { status: next });
     const moved = updated.orders_updated ?? 0;
-    notice.value = `« ${d.name} » → ${departureStatusLabel(next)}. ${moved} commande(s) mise(s) à jour et client(s) prévenu(s).`;
+    notice.value = t('departures.advanced', {
+      name: d.name,
+      status: departureStatusLabel(next),
+      n: moved,
+    });
     await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Changement de statut impossible.';
+    error.value = extractApiError(err) ?? t('departures.status_failed');
   }
 }
 
@@ -1476,10 +1547,10 @@ async function remove(d: Departure) {
   try {
     await deleteDeparture(d.id);
     if (selected.value?.id === d.id) selected.value = null;
-    notice.value = `« ${d.name} » supprimé.`;
+    notice.value = t('departures.deleted', { name: d.name });
     await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Suppression impossible.';
+    error.value = extractApiError(err) ?? t('common.delete_failed');
   }
 }
 
@@ -1488,7 +1559,9 @@ const dialog = ref(false);
 const editId = ref<string | null>(null);
 const saving = ref(false);
 const dialogError = ref<string | null>(null);
-const statusOptions = DEPARTURE_STATUSES.map((s) => ({ label: departureStatusLabel(s), value: s }));
+const statusOptions = computed(() =>
+  DEPARTURE_STATUSES.map((s) => ({ label: departureStatusLabel(s), value: s })),
+);
 
 interface DepartureForm {
   name: string;
@@ -1588,10 +1661,10 @@ async function submit() {
       await createDeparture(payload);
     }
     dialog.value = false;
-    notice.value = 'Départ enregistré.';
+    notice.value = t('departures.saved');
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    dialogError.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     saving.value = false;
   }

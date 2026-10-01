@@ -7,6 +7,7 @@ import {
   getCategorySpecFacets,
   type CategoryPublic,
 } from '@/api/products';
+import { gt } from '@/i18n/global';
 
 type ProductPublic = components['schemas']['ProductPublic'];
 type ProductSearchRequest = components['schemas']['ProductSearchRequest'];
@@ -31,6 +32,7 @@ export const useProductsStore = defineStore('products', () => {
     price_min: null,
     price_max: null,
     in_stock: null,
+    stock: null,
     condition: null,
     specs: {},
     // Défaut du backend : un même article vendu par plusieurs fournisseurs
@@ -56,7 +58,7 @@ export const useProductsStore = defineStore('products', () => {
       count.value = resp.count;
       facets.value = resp.facets ?? null;
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue';
+      error.value = e instanceof Error ? e.message : gt('stores.unknown');
     } finally {
       loading.value = false;
     }
@@ -77,7 +79,11 @@ export const useProductsStore = defineStore('products', () => {
     if (categories.value.length > 0) return;
     try {
       const resp = await getCategories();
-      categories.value = resp.data ?? [];
+      // Merged (A12) or switched-off categories stay in base for the supplier
+      // sync but have no place in the storefront filter.
+      categories.value = (resp.data ?? []).filter(
+        (c) => c.is_active !== false && c.is_admin_active !== false && !c.merged_into_id,
+      );
     } catch {
       // non-critical
     }

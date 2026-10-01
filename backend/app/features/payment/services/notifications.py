@@ -7,6 +7,7 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import runtime_settings
 from app.core.config import settings
 from app.features.notification.email_renderer import render_email
 from app.features.notification.providers import (
@@ -96,7 +97,7 @@ def _build_admin_email_context(
         "currency": _as_non_empty_str(payload.get("currency")) or "",
         "reference": _as_non_empty_str(payload.get("provider_reference")) or "",
         "reason": _as_non_empty_str(payload.get("reason")) or "",
-        "shop_name": getattr(settings, "SHOP_NAME", "Natimai"),
+        "shop_name": runtime_settings.peek("shop_name"),
     }
 
 
@@ -155,7 +156,9 @@ async def _collect_email_targets(
         if email and email not in targets:
             targets.append(email)
 
-    support_email = _as_non_empty_str(settings.EMAIL_SUPPORT)
+    support_email = _as_non_empty_str(
+        await runtime_settings.get("email_support", session)
+    )
     if (
         support_email
         and _looks_like_email(support_email)
@@ -189,7 +192,7 @@ async def _send_email_notifications(
     payload: dict[str, Any],
 ) -> None:
     """Execute send email notifications."""
-    if not settings.PAYMENT_NOTIFICATIONS_EMAIL_ENABLED:
+    if not await runtime_settings.get("notifications_email_enabled", session):
         return
 
     targets = await _collect_email_targets(session, payload)
@@ -233,7 +236,7 @@ async def _send_slack_notification(
     payload: dict[str, Any],
 ) -> None:
     """Execute send slack notification."""
-    if not settings.PAYMENT_NOTIFICATIONS_SLACK_ENABLED:
+    if not await runtime_settings.get("notifications_slack_enabled"):
         return
 
     provider = _resolve_provider(settings.PAYMENT_NOTIFICATIONS_SLACK_PROVIDER)

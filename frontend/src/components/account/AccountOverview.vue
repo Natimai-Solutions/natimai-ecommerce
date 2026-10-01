@@ -2,7 +2,7 @@
   <div>
     <section v-if="todo.length" class="app-section" aria-labelledby="overview-todo">
       <div class="app-section__head">
-        <h2 id="overview-todo" class="app-section__title">À faire</h2>
+        <h2 id="overview-todo" class="app-section__title">{{ $t('overview.todo') }}</h2>
       </div>
       <ul class="app-rows" data-testid="account-todo">
         <li v-for="item in todo" :key="item.order.id" class="app-row">
@@ -21,13 +21,13 @@
 
     <section class="app-section" aria-labelledby="overview-orders">
       <div class="app-section__head">
-        <h2 id="overview-orders" class="app-section__title">Dernières commandes</h2>
+        <h2 id="overview-orders" class="app-section__title">{{ $t('overview.latest') }}</h2>
         <router-link
           v-if="orders.length"
           :to="{ name: 'account', query: { tab: 'orders' } }"
           class="text-link app-section__action"
         >
-          Toutes les commandes
+          {{ $t('overview.all_orders') }}
         </router-link>
       </div>
 
@@ -43,9 +43,14 @@
 
       <div v-else-if="!orders.length" class="app-empty">
         <q-icon name="ph:receipt" size="36px" class="text-subtle" />
-        <h3>Pas encore de commande</h3>
-        <p>Le suivi, les factures et les devis de vos commandes se retrouvent ici.</p>
-        <q-btn unelevated color="primary" label="Voir le catalogue" :to="{ name: 'catalogue' }" />
+        <h3>{{ $t('overview.none_title') }}</h3>
+        <p>{{ $t('overview.none_text') }}</p>
+        <q-btn
+          unelevated
+          color="primary"
+          :label="$t('overview.see_catalogue')"
+          :to="{ name: 'catalogue' }"
+        />
       </div>
 
       <ul v-else class="app-rows">
@@ -72,7 +77,7 @@
     </section>
 
     <section class="app-section" aria-labelledby="overview-shortcuts">
-      <h2 id="overview-shortcuts" class="sr-only">Raccourcis</h2>
+      <h2 id="overview-shortcuts" class="sr-only">{{ $t('overview.shortcuts') }}</h2>
       <ul class="shortcuts">
         <li v-for="link in shortcuts" :key="link.tab">
           <router-link :to="{ name: 'account', query: { tab: link.tab } }" class="shortcut">
@@ -87,6 +92,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { useTranslate } from '@/composables/useTranslate';
 import { computed, onMounted, ref } from 'vue';
 import type { RouteLocationRaw } from 'vue-router';
 import { formatDate, orderRef } from '@app/utils';
@@ -99,6 +106,9 @@ import { apiErrorMessage } from '@/utils/errors';
 import { orderMoney } from '@/utils/money';
 import { deliveryFacet, paymentFacet, type StatusFacet } from '@/utils/orderStatus';
 
+const { t } = useI18n();
+const tr = useTranslate();
+
 const currencyStore = useCurrencyStore();
 
 const orders = ref<Order[]>([]);
@@ -106,7 +116,7 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 
 function facet(order: Order): StatusFacet {
-  return deliveryFacet(order.order_status_name) ?? paymentFacet(order.order_status_name);
+  return deliveryFacet(order.order_status_name, tr) ?? paymentFacet(order.order_status_name, tr);
 }
 
 interface TodoItem {
@@ -127,18 +137,18 @@ const todo = computed<TodoItem[]>(() => {
       items.push({
         order,
         icon: 'ph:coins',
-        title: 'Solde à régler',
-        detail: `${amount(order.balance_amount)} : vos articles sont arrivés.`,
-        action: 'Régler le solde',
+        title: t('overview.balance_title'),
+        detail: t('overview.balance_detail', { amount: amount(order.balance_amount) }),
+        action: t('overview.pay_balance'),
         to: { name: 'order-balance', params: { id: order.id } },
       });
     } else if (order.order_status_name === 'AwaitingPayment') {
       items.push({
         order,
         icon: 'ph:clock',
-        title: 'Paiement attendu',
-        detail: `${amount(order.total_amount)} : la commande part dès réception du règlement.`,
-        action: 'Voir la commande',
+        title: t('overview.awaiting_title'),
+        detail: t('overview.awaiting_detail', { amount: amount(order.total_amount) }),
+        action: t('overview.see_order'),
         to: { name: 'order-tracking', params: { id: order.id } },
       });
     }
@@ -146,24 +156,39 @@ const todo = computed<TodoItem[]>(() => {
   return items;
 });
 
-const shortcuts = [
-  { tab: 'addresses', icon: 'ph:map-pin', label: 'Adresses', hint: 'Livraison et facturation' },
-  { tab: 'wishlist', icon: 'ph:heart', label: 'Favoris', hint: 'Produits mis de côté' },
-  { tab: 'profile', icon: 'ph:user', label: 'Profil', hint: 'Coordonnées, mot de passe' },
+const shortcuts = computed(() => [
+  {
+    tab: 'addresses',
+    icon: 'ph:map-pin',
+    label: t('overview.sc.addresses'),
+    hint: t('overview.sc.addresses_hint'),
+  },
+  {
+    tab: 'wishlist',
+    icon: 'ph:heart',
+    label: t('overview.sc.wishlist'),
+    hint: t('overview.sc.wishlist_hint'),
+  },
+  {
+    tab: 'profile',
+    icon: 'ph:user',
+    label: t('overview.sc.profile'),
+    hint: t('overview.sc.profile_hint'),
+  },
   {
     tab: 'preferences',
     icon: 'ph:sliders-horizontal',
-    label: 'Préférences',
-    hint: 'E-mails, livraison',
+    label: t('overview.sc.preferences'),
+    hint: t('overview.sc.preferences_hint'),
   },
-];
+]);
 
 onMounted(async () => {
   try {
     // Les commandes récentes suffisent : un solde demandé est toujours récent.
     orders.value = await listMyOrders({ limit: 5 });
   } catch (err) {
-    error.value = apiErrorMessage(err) ?? 'Impossible de charger vos commandes.';
+    error.value = apiErrorMessage(err) ?? t('overview.load_failed');
   } finally {
     loading.value = false;
   }

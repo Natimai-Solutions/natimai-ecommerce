@@ -1,17 +1,15 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader title="Fournisseurs">
+    <PageHeader :title="$t('suppliers.title')">
       <template #hint>
-        Un fournisseur est déclaré ici avec son entrepôt d'origine et son régime douanier. Sa
-        méthode d'approvisionnement décide comment ses articles arrivent : à la main, par fichier
-        CSV / Excel, ou par une intégration API.
+        {{ $t('suppliers.intro') }}
       </template>
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -20,7 +18,7 @@
           unelevated
           no-caps
           icon="ph:plus"
-          label="Nouveau fournisseur"
+          :label="$t('suppliers.new')"
           @click="openCreate"
         />
       </template>
@@ -57,30 +55,34 @@
       </template>
       <template #body-cell-domestic="props">
         <q-td :props="props">
-          <StatusTag v-if="props.row.is_domestic" label="Local — sans douane" icon="ph:map-pin" />
-          <StatusTag v-else label="Import — CAF + douane" icon="ph:globe-hemisphere-west" />
+          <StatusTag
+            v-if="props.row.is_domestic"
+            :label="$t('suppliers.local')"
+            icon="ph:map-pin"
+          />
+          <StatusTag v-else :label="$t('suppliers.import')" icon="ph:globe-hemisphere-west" />
         </q-td>
       </template>
       <template #body-cell-status="props">
         <q-td :props="props">
           <StatusTag
             v-if="!props.row.is_active"
-            label="Désactivé"
+            :label="$t('suppliers.disabled')"
             tone="neutral"
             icon="ph:minus-circle"
           />
           <span v-else-if="props.row.kind === 'api' && !props.row.configured">
-            <StatusTag label="À configurer" tone="warn" icon="ph:warning" />
-            <q-tooltip>Identifiants absents de l'environnement</q-tooltip>
+            <StatusTag :label="$t('suppliers.to_configure')" tone="warn" icon="ph:warning" />
+            <q-tooltip>{{ $t('suppliers.no_creds') }}</q-tooltip>
           </span>
-          <StatusTag v-else label="Actif" tone="ok" icon="ph:check-circle" />
+          <StatusTag v-else :label="$t('suppliers.active')" tone="ok" icon="ph:check-circle" />
           <span v-if="props.row.kind === 'api'" class="text-caption text-muted q-ml-xs">
             {{
               props.row.sync_enabled
                 ? props.row.sync_interval_hours > 0
-                  ? `sync toutes les ${props.row.sync_interval_hours} h`
-                  : 'sync manuelle'
-                : 'sync désactivée'
+                  ? $t('suppliers.sync_every', { n: props.row.sync_interval_hours })
+                  : $t('suppliers.sync_manual')
+                : $t('suppliers.sync_off')
             }}
           </span>
           <q-chip
@@ -88,10 +90,10 @@
             dense
             icon="ph:list-checks"
             class="q-ml-xs"
-            :label="`${props.row.sku_allowlist.length} réf. suivie(s)`"
+            :label="$t('suppliers.allowlist_badge', { n: props.row.sku_allowlist.length })"
             data-testid="supplier-allowlist-badge"
           >
-            <q-tooltip>Seules ces références sont créées et rafraîchies</q-tooltip>
+            <q-tooltip>{{ $t('suppliers.allowlist_tip') }}</q-tooltip>
           </q-chip>
         </q-td>
       </template>
@@ -101,11 +103,12 @@
             flat
             round
             dense
+            v-if="shopConfig.moduleOn('file_import')"
             icon="ph:file-arrow-up"
             :disable="!props.row.is_active"
             @click="openImport(props.row)"
           >
-            <q-tooltip>Importer un catalogue CSV / Excel</q-tooltip>
+            <q-tooltip>{{ $t('suppliers.import_tip') }}</q-tooltip>
           </q-btn>
           <q-btn
             v-if="props.row.kind === 'api'"
@@ -117,7 +120,7 @@
             :loading="busy === props.row.code"
             @click="onSync(props.row)"
           >
-            <q-tooltip>Lancer la synchronisation catalogue</q-tooltip>
+            <q-tooltip>{{ $t('suppliers.sync_tip') }}</q-tooltip>
           </q-btn>
           <q-btn
             v-if="props.row.kind === 'api'"
@@ -128,7 +131,18 @@
             :disable="!props.row.is_active"
             @click="onHealth(props.row)"
           >
-            <q-tooltip>Tester la connexion</q-tooltip>
+            <q-tooltip>{{ $t('suppliers.test_tip') }}</q-tooltip>
+          </q-btn>
+          <q-btn
+            v-if="props.row.kind !== 'manual'"
+            flat
+            round
+            dense
+            icon="ph:tree-structure"
+            data-testid="supplier-categories"
+            @click="openCategories(props.row)"
+          >
+            <q-tooltip>{{ $t('suppliers.categories_tip') }}</q-tooltip>
           </q-btn>
           <q-btn
             v-if="props.row.kind !== 'manual'"
@@ -140,10 +154,10 @@
             data-testid="supplier-allowlist"
             @click="openAllowlist(props.row)"
           >
-            <q-tooltip>Références suivies (liste blanche de SKU)</q-tooltip>
+            <q-tooltip>{{ $t('suppliers.allowlist_title_tip') }}</q-tooltip>
           </q-btn>
           <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
-            <q-tooltip>Modifier</q-tooltip>
+            <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
           </q-btn>
           <q-btn
             v-if="props.row.is_active"
@@ -152,23 +166,75 @@
             dense
             icon="ph:prohibit"
             color="negative"
-            @click="onDeactivate(props.row)"
+            data-testid="supplier-deactivate"
+            @click="openDeactivate(props.row)"
           >
-            <q-tooltip>Désactiver (les articles gardent leur lien)</q-tooltip>
+            <q-tooltip>{{ $t('suppliers.disable_tip') }}</q-tooltip>
+          </q-btn>
+          <q-btn
+            v-else
+            flat
+            round
+            dense
+            icon="ph:power"
+            :loading="busy === props.row.code"
+            data-testid="supplier-reactivate"
+            @click="onReactivate(props.row)"
+          >
+            <q-tooltip>{{ $t('suppliers.enable_tip') }}</q-tooltip>
           </q-btn>
         </q-td>
       </template>
       <template #no-data>
-        <div class="full-width text-center text-subtle q-pa-md">Aucun fournisseur déclaré.</div>
+        <div class="full-width text-center text-subtle q-pa-md">{{ $t('suppliers.none') }}</div>
       </template>
     </q-table>
+
+    <!-- Désactivation -->
+    <q-dialog v-model="deactivateDialog">
+      <q-card class="app-dialog">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">
+            {{ $t('suppliers.disable_title', { name: deactivating?.name }) }}
+          </h2>
+        </q-card-section>
+        <q-card-section class="q-gutter-sm">
+          <p class="q-mb-sm">
+            {{ $t('suppliers.disable_hint') }}
+          </p>
+          <p class="text-subtle q-mb-xs">{{ $t('suppliers.and_items') }}</p>
+          <q-option-group
+            v-model="deactivateProducts"
+            :options="deactivateOptions"
+            type="radio"
+            data-testid="supplier-deactivate-products"
+          />
+        </q-card-section>
+        <q-card-actions align="right" class="app-dialog__actions">
+          <q-btn v-close-popup flat no-caps :label="$t('common.cancel')" />
+          <q-btn
+            color="negative"
+            unelevated
+            no-caps
+            :label="$t('suppliers.disable')"
+            :loading="busy === deactivating?.code"
+            data-testid="supplier-deactivate-confirm"
+            @click="confirmDeactivate"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <!-- Création / édition -->
     <q-dialog v-model="formDialog">
       <q-card class="app-dialog app-dialog--wide">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
-            {{ editing ? `Modifier ${editing.name}` : 'Nouveau fournisseur' }}
+            {{
+              editing
+                ? $t('suppliers.edit_title', { name: editing.name })
+                : $t('suppliers.new_title')
+            }}
           </h2>
         </q-card-section>
         <q-form @submit.prevent="submitForm">
@@ -178,21 +244,28 @@
             <div class="row" style="gap: 8px">
               <q-input
                 v-model="form.code"
-                label="Code *"
-                hint="Clé technique (a-z, 0-9, _), immuable après création"
+                :label="$t('suppliers.code')"
+                :hint="$t('suppliers.code_hint')"
                 outlined
                 dense
                 class="col"
                 :disable="!!editing"
                 :rules="editing ? [] : codeRules"
               />
-              <q-input v-model="form.name" label="Nom *" outlined dense class="col" :rules="req" />
+              <q-input
+                v-model="form.name"
+                :label="$t('suppliers.name')"
+                outlined
+                dense
+                class="col"
+                :rules="req"
+              />
             </div>
 
             <q-select
               v-model="form.kind"
               :options="kindOptions"
-              label="Méthode d'approvisionnement *"
+              :label="$t('suppliers.kind')"
               outlined
               dense
               emit-value
@@ -203,8 +276,8 @@
               v-if="form.kind === 'api'"
               v-model="form.adapter_key"
               :options="adapterOptions"
-              label="Intégration *"
-              hint="Le code de l'intégration doit exister dans l'application"
+              :label="$t('suppliers.adapter')"
+              :hint="$t('suppliers.adapter_hint')"
               outlined
               dense
               emit-value
@@ -215,15 +288,14 @@
               tone="warning"
               dense
             >
-              Les identifiants de cette intégration ne sont pas configurés dans l'environnement du
-              serveur : la synchronisation restera impossible tant qu'ils manquent.
+              {{ $t('suppliers.creds_missing') }}
             </AppNotice>
 
             <q-select
               v-model="form.origin_place_id"
               :options="placeOptions"
-              label="Entrepôt d'origine (lieu)"
-              hint="Recopié sur les articles : premier tronçon logistique et suivi"
+              :label="$t('suppliers.origin')"
+              :hint="$t('suppliers.origin_hint')"
               outlined
               dense
               emit-value
@@ -231,24 +303,17 @@
               clearable
             />
 
-            <q-toggle
-              v-model="form.is_domestic"
-              label="Fournisseur local — même territoire douanier que notre entrepôt"
-            />
+            <q-toggle v-model="form.is_domestic" :label="$t('suppliers.domestic')" />
             <div class="text-caption text-muted q-ml-md">
-              {{
-                form.is_domestic
-                  ? 'Articles créés en mode « local » : coût + marge + taxe, sans douane ni fret import.'
-                  : 'Articles créés en mode « import » : CAF (coût + fret + assurance), douane, marge, taxe.'
-              }}
+              {{ form.is_domestic ? $t('suppliers.local_hint') : $t('suppliers.import_hint') }}
             </div>
 
             <div class="row" style="gap: 8px">
               <q-select
                 v-model="form.price_currency"
                 :options="currencyOptions"
-                label="Devise des prix"
-                hint="Quand la source ne la précise pas"
+                :label="$t('suppliers.currency')"
+                :hint="$t('suppliers.currency_hint')"
                 outlined
                 dense
                 emit-value
@@ -259,8 +324,8 @@
               <q-input
                 v-if="form.kind === 'api'"
                 v-model.number="form.sync_interval_hours"
-                label="Cadence catalogue (heures)"
-                hint="0 = jamais planifiée"
+                :label="$t('suppliers.interval')"
+                :hint="$t('suppliers.interval_hint')"
                 type="number"
                 min="0"
                 outlined
@@ -272,60 +337,205 @@
             <template v-if="form.kind !== 'manual'">
               <q-toggle
                 v-model="form.import_as_draft"
-                label="Nouveaux articles en brouillon"
+                :label="$t('suppliers.drafts')"
                 data-testid="supplier-import-as-draft"
               />
               <div class="text-caption text-muted q-ml-md">
-                Un article créé par une synchronisation ou un import reste invisible en vitrine
-                (enrichi et rafraîchi quand même) jusqu'à ce que vous le publiiez depuis la page
-                Articles. Les articles existants ne changent pas.
+                {{ $t('suppliers.drafts_hint') }}
               </div>
+              <div class="row q-mt-sm" style="gap: 8px">
+                <q-input
+                  v-model="form.min_quantity"
+                  :label="$t('suppliers.min_qty')"
+                  :hint="$t('suppliers.no_threshold')"
+                  type="number"
+                  min="0"
+                  outlined
+                  dense
+                  class="col"
+                  data-testid="supplier-min-quantity"
+                />
+                <q-input
+                  v-model="form.min_price"
+                  :label="$t('suppliers.min_price')"
+                  :hint="$t('suppliers.min_price_hint')"
+                  type="number"
+                  min="0"
+                  step="any"
+                  outlined
+                  dense
+                  class="col"
+                  data-testid="supplier-min-price"
+                />
+              </div>
+              <div class="text-caption text-muted q-ml-md">
+                {{ $t('suppliers.threshold_hint') }}
+              </div>
+              <q-select
+                v-model="form.unmapped_category_action"
+                :options="unmappedOptions"
+                :label="$t('suppliers.unmapped')"
+                :hint="$t('suppliers.unmapped_hint')"
+                outlined
+                dense
+                emit-value
+                map-options
+                class="q-mt-sm"
+                data-testid="supplier-unmapped-action"
+              />
             </template>
 
             <template v-if="form.kind === 'api'">
-              <q-toggle v-model="form.sync_enabled" label="Synchronisations autorisées" />
-              <q-input
-                v-model="form.default_categories_text"
-                label="Catégories fournisseur synchronisées"
-                hint="Une par ligne"
-                type="textarea"
-                autogrow
+              <q-toggle v-model="form.sync_enabled" :label="$t('suppliers.sync_enabled')" />
+              <template v-if="selectedAdapter?.supports_purchase_orders">
+                <q-toggle
+                  v-model="form.auto_purchase_order"
+                  :label="$t('suppliers.auto_po')"
+                  data-testid="supplier-auto-po"
+                />
+                <div class="text-caption text-muted q-ml-md">
+                  {{ $t('suppliers.auto_po_hint') }}
+                </div>
+              </template>
+              <q-select
+                v-model="form.default_categories"
+                :label="$t('suppliers.synced_categories')"
+                :hint="$t('suppliers.type_category')"
+                multiple
+                use-chips
+                use-input
+                hide-dropdown-icon
+                new-value-mode="add-unique"
+                input-debounce="0"
                 outlined
                 dense
               />
-              <div v-if="selectedAdapter?.settings_keys.length" class="q-gutter-sm">
-                <h3 class="admin-subtitle q-mb-none">Réglages de l'intégration</h3>
-                <q-input
-                  v-for="key in selectedAdapter.settings_keys"
-                  :key="key"
-                  v-model="form.settings[key]"
-                  :label="key"
-                  outlined
-                  dense
-                />
+              <div v-if="adapterFields.length" class="q-gutter-sm">
+                <h3 class="admin-subtitle q-mb-none">{{ $t('suppliers.adapter_settings') }}</h3>
+                <template v-for="field in adapterFields" :key="field.key">
+                  <q-select
+                    v-if="field.kind === 'choice'"
+                    v-model="form.settings[field.key]"
+                    :options="choiceOptions(field)"
+                    :label="field.label"
+                    :hint="field.hint || undefined"
+                    outlined
+                    dense
+                    clearable
+                    emit-value
+                    map-options
+                  />
+                  <q-input
+                    v-else
+                    v-model="form.settings[field.key]"
+                    :label="field.label"
+                    :hint="fieldHint(field)"
+                    :type="field.kind === 'json' ? 'textarea' : 'text'"
+                    :autogrow="field.kind === 'json'"
+                    :inputmode="field.kind === 'number' ? 'decimal' : undefined"
+                    :input-class="field.kind === 'json' ? 'font-mono' : undefined"
+                    outlined
+                    dense
+                  />
+                </template>
+                <AppNotice v-if="isFeedForm" tone="info" dense>
+                  {{ $t('suppliers.feed_hint') }}
+                </AppNotice>
               </div>
+              <div v-if="isFeedForm && editing" class="q-gutter-sm" data-testid="feed-credentials">
+                <h3 class="admin-subtitle q-mb-none">
+                  {{ $t('suppliers.portal_creds') }}
+                  <StatusTag
+                    v-if="editing.has_credentials"
+                    tone="ok"
+                    icon="ph:lock-key"
+                    :label="$t('suppliers.saved_creds')"
+                    class="q-ml-sm"
+                  />
+                </h3>
+                <div class="text-caption text-muted">
+                  {{ $t('suppliers.creds_hint') }}
+                </div>
+                <div class="row" style="gap: 8px">
+                  <q-input
+                    v-model="credentials.username"
+                    :label="$t('suppliers.username')"
+                    autocomplete="off"
+                    outlined
+                    dense
+                    class="col"
+                  />
+                  <q-input
+                    v-model="credentials.password"
+                    :label="$t('suppliers.password')"
+                    type="password"
+                    autocomplete="new-password"
+                    outlined
+                    dense
+                    class="col"
+                  />
+                </div>
+                <div class="row" style="gap: 8px">
+                  <q-btn
+                    outline
+                    dense
+                    no-caps
+                    icon="ph:floppy-disk"
+                    :label="$t('suppliers.save_creds')"
+                    :disable="!credentials.username || !credentials.password"
+                    :loading="credentialsBusy"
+                    @click="onSaveCredentials"
+                  />
+                  <q-btn
+                    v-if="editing.has_credentials"
+                    flat
+                    dense
+                    no-caps
+                    icon="ph:trash"
+                    :label="$t('suppliers.clear')"
+                    :loading="credentialsBusy"
+                    @click="onClearCredentials"
+                  />
+                </div>
+              </div>
+              <AppNotice v-else-if="isFeedForm" tone="info" dense>
+                {{ $t('suppliers.save_first') }}
+              </AppNotice>
             </template>
 
             <div class="row" style="gap: 8px">
               <q-input
                 v-model="form.contact_email"
-                label="Email de contact"
+                :label="$t('suppliers.email')"
                 outlined
                 dense
                 class="col"
               />
-              <q-input v-model="form.contact_phone" label="Téléphone" outlined dense class="col" />
+              <q-input
+                v-model="form.contact_phone"
+                :label="$t('suppliers.phone')"
+                outlined
+                dense
+                class="col"
+              />
             </div>
-            <q-input v-model="form.notes" label="Notes" type="textarea" autogrow outlined dense />
+            <q-input
+              v-model="form.notes"
+              :label="$t('suppliers.notes')"
+              type="textarea"
+              autogrow
+              outlined
+              dense
+            />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              label="Enregistrer"
+              :label="$t('common.save')"
               :loading="saving"
             />
           </q-card-actions>
@@ -337,16 +547,14 @@
     <q-dialog v-model="allowlistDialog">
       <q-card class="app-dialog app-dialog--wide">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Références suivies — {{ allowlistSupplier?.name }}</h2>
+          <h2 class="app-dialog__title">
+            {{ $t('suppliers.allowlist_title', { name: allowlistSupplier?.name }) }}
+          </h2>
         </q-card-section>
         <q-card-section class="q-gutter-sm">
           <AppNotice v-if="allowlistError" tone="error" dense>{{ allowlistError }}</AppNotice>
           <div class="text-caption text-muted">
-            Collez ici les références fournisseur (SKU) que la boutique vend, une par ligne. Liste
-            vide : tout le catalogue synchronisé est suivi. Liste renseignée : seules ces références
-            sont créées et rafraîchies (prix / stock), et les articles de ce fournisseur hors liste
-            sont retirés de la vitrine dès l'enregistrement. Une référence inconnue est créée par la
-            prochaine synchronisation catalogue.
+            {{ $t('suppliers.allowlist_hint') }}
           </div>
           <q-input
             v-model="allowlistText"
@@ -359,45 +567,50 @@
             data-testid="allowlist-text"
           />
           <div v-if="allowlistView" class="text-caption text-muted">
-            {{ allowlistView.entries.length }} référence(s) — {{ allowlistView.known }} au
-            catalogue, {{ allowlistView.unknown.length }} à créer à la prochaine synchronisation,
-            {{ allowlistView.outside }} article(s) hors liste retiré(s) de la vitrine.
+            {{
+              $t('suppliers.allowlist_stats', {
+                n: allowlistView.entries.length,
+                known: allowlistView.known,
+                unknown: allowlistView.unknown.length,
+                outside: allowlistView.outside,
+              })
+            }}
             <span v-if="allowlistView.deactivated">
-              ({{ allowlistView.deactivated }} retiré(s) à l'instant)
+              {{ $t('suppliers.just_withdrawn', { n: allowlistView.deactivated }) }}
             </span>
           </div>
           <q-expansion-item
             v-if="allowlistView?.entries.length"
             dense
-            label="Détail des références"
+            :label="$t('suppliers.allowlist_detail')"
             class="q-mt-xs"
           >
             <q-markup-table dense flat bordered>
               <thead>
                 <tr>
-                  <th class="text-left">Référence</th>
-                  <th class="text-left">Article</th>
-                  <th class="text-left">État</th>
+                  <th class="text-left">{{ $t('suppliers.h_reference') }}</th>
+                  <th class="text-left">{{ $t('suppliers.h_item') }}</th>
+                  <th class="text-left">{{ $t('suppliers.h_state') }}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="e in allowlistView.entries" :key="e.supplier_sku">
                   <td class="font-mono">{{ e.supplier_sku }}</td>
-                  <td>{{ e.product_name ?? '— à créer' }}</td>
+                  <td>{{ e.product_name ?? $t('suppliers.to_create') }}</td>
                   <td>
                     <StatusTag
                       v-if="e.is_active === true"
-                      label="en vitrine"
+                      :label="$t('suppliers.in_shop')"
                       tone="ok"
                       icon="ph:eye"
                     />
                     <StatusTag
                       v-else-if="e.is_active === false"
-                      label="masqué"
+                      :label="$t('suppliers.hidden')"
                       tone="neutral"
                       icon="ph:eye-slash"
                     />
-                    <span v-else class="text-subtle">inconnu</span>
+                    <span v-else class="text-subtle">{{ $t('suppliers.unknown') }}</span>
                   </td>
                 </tr>
               </tbody>
@@ -405,15 +618,53 @@
           </q-expansion-item>
         </q-card-section>
         <q-card-actions align="right" class="app-dialog__actions">
-          <q-btn flat no-caps label="Fermer" v-close-popup />
+          <q-btn flat no-caps :label="$t('common.close')" v-close-popup />
           <q-btn
             color="primary"
             unelevated
             no-caps
-            label="Enregistrer la liste"
+            :label="$t('suppliers.save_list')"
             :loading="allowlistSaving"
             data-testid="allowlist-save"
             @click="saveAllowlist"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Catégories du fournisseur -->
+    <q-dialog v-model="categoriesDialog">
+      <q-card class="app-dialog app-dialog--xl">
+        <q-card-section class="app-dialog__head">
+          <h2 class="app-dialog__title">
+            {{ $t('suppliers.categories_title', { name: categoriesOf?.name }) }}
+          </h2>
+        </q-card-section>
+        <q-card-section class="q-gutter-sm">
+          <AppNotice v-if="categoriesError" tone="error" dense>{{ categoriesError }}</AppNotice>
+          <AppNotice v-if="categoriesNotice" tone="success" dense>{{ categoriesNotice }}</AppNotice>
+          <p class="admin-hint">
+            {{ $t('suppliers.categories_hint', { fallback: unmappedLabel }) }}
+          </p>
+          <div v-if="categoriesLoading" class="text-center q-pa-md"><q-spinner size="2em" /></div>
+          <CategoryPairsTable
+            v-else
+            :pairs="observed"
+            :categories="categories"
+            :saving="categoriesSaving"
+            @save="saveSupplierRules"
+          />
+        </q-card-section>
+        <q-card-actions align="right" class="app-dialog__actions">
+          <q-btn flat no-caps :label="$t('common.close')" v-close-popup />
+          <q-btn
+            outline
+            no-caps
+            icon="ph:arrows-counter-clockwise"
+            :label="$t('suppliers.reapply')"
+            :loading="reapplying"
+            data-testid="supplier-categories-reapply"
+            @click="onReapply"
           />
         </q-card-actions>
       </q-card>
@@ -423,14 +674,43 @@
     <q-dialog v-model="importDialog">
       <q-card class="app-dialog app-dialog--wide">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Importer un catalogue — {{ importing?.name }}</h2>
+          <h2 class="app-dialog__title">
+            {{ $t('suppliers.import_title', { name: importing?.name }) }}
+          </h2>
         </q-card-section>
         <q-card-section class="q-gutter-sm">
           <AppNotice v-if="importError" tone="error" dense>{{ importError }}</AppNotice>
 
+          <div v-if="importing?.adapter_key === FEED_ADAPTER_KEY" class="row items-center q-mb-sm">
+            <q-btn
+              outline
+              no-caps
+              dense
+              icon="ph:cloud-arrow-down"
+              :label="$t('suppliers.read_feed')"
+              :loading="feedReading"
+              data-testid="feed-inspect"
+              @click="onReadFeed"
+            />
+            <span class="text-caption text-muted q-ml-sm">
+              {{ $t('suppliers.drop_hint') }}
+            </span>
+            <q-space />
+            <q-btn
+              v-if="inspection"
+              color="primary"
+              unelevated
+              no-caps
+              dense
+              icon="ph:floppy-disk"
+              :label="$t('suppliers.save_mapping')"
+              :loading="mappingSaving"
+              @click="onSaveFeedMapping"
+            />
+          </div>
           <q-file
             v-model="importFile"
-            label="Fichier CSV ou Excel (.xlsx)"
+            :label="$t('suppliers.file')"
             accept=".csv,.txt,.xlsx,.xlsm"
             outlined
             dense
@@ -442,20 +722,19 @@
 
           <template v-if="inspection">
             <div class="text-caption text-muted">
-              {{ inspection.total_rows }} ligne(s) détectée(s) — colonnes :
-              {{ inspection.headers.join(', ') }}
+              {{
+                $t('suppliers.rows_detected', {
+                  n: inspection.total_rows,
+                  headers: inspection.headers.join(', '),
+                })
+              }}
             </div>
-            <h3 class="admin-subtitle q-mt-sm q-mb-none">Correspondance des colonnes</h3>
+            <h3 class="admin-subtitle q-mt-sm q-mb-none">{{ $t('suppliers.mapping') }}</h3>
             <div class="text-caption text-muted q-mb-xs">
-              Associez chaque champ de notre système à une colonne du fichier. Les champs marqués *
-              sont obligatoires. La correspondance est mémorisée sur le fournisseur.
+              {{ $t('suppliers.mapping_hint') }}
             </div>
             <div class="text-caption text-muted q-mb-xs">
-              Un article déjà présent chez ce fournisseur est reconnu par sa référence, sinon par
-              son code-barres EAN/UPC, sinon par marque + référence fabricant : mappez ces colonnes
-              pour qu'un changement de référence ne crée pas de doublon. Un article saisi à la main
-              et rattaché à ce fournisseur est adopté (son contenu est conservé). Les articles des
-              autres fournisseurs ne sont jamais rapprochés.
+              {{ $t('suppliers.matching_hint') }}
             </div>
             <div class="row q-col-gutter-sm">
               <div
@@ -474,17 +753,54 @@
                 />
               </div>
             </div>
+            <q-select
+              v-model="importDefaultCategory"
+              :options="categoryOptions"
+              :label="$t('suppliers.file_category')"
+              :hint="$t('suppliers.file_category_hint')"
+              outlined
+              dense
+              emit-value
+              map-options
+              clearable
+              class="q-mt-sm"
+              data-testid="import-default-category"
+            />
+            <div class="row q-mt-sm" style="gap: 8px">
+              <q-input
+                v-model="importMinQuantity"
+                :label="$t('suppliers.import_min_qty')"
+                :hint="$t('suppliers.import_min_hint')"
+                type="number"
+                min="0"
+                outlined
+                dense
+                class="col"
+                data-testid="import-min-quantity"
+              />
+              <q-input
+                v-model="importMinPrice"
+                :label="$t('suppliers.import_min_price')"
+                :hint="$t('suppliers.import_min_price_hint')"
+                type="number"
+                min="0"
+                step="any"
+                outlined
+                dense
+                class="col"
+                data-testid="import-min-price"
+              />
+            </div>
             <q-checkbox
               v-model="publishNew"
               dense
               class="q-mt-sm"
-              label="Afficher les nouveaux articles en boutique sans attendre l’enrichissement Icecat"
+              :label="$t('suppliers.publish_new')"
             />
             <div class="text-caption text-muted q-mb-xs">
-              Décoché, un article créé reste masqué tant qu’Icecat ne l’a pas reconnu (page
-              Produits, filtre « Masqués », pour le publier ensuite).
+              {{ $t('suppliers.unchecked_hint') }}
             </div>
-            <q-expansion-item dense label="Aperçu des premières lignes" class="q-mt-sm">
+            <q-expansion-item dense :label="$t('suppliers.preview')" class="q-mt-sm">
               <q-markup-table dense flat bordered>
                 <thead>
                   <tr>
@@ -502,54 +818,72 @@
 
           <AppNotice v-if="queuedImport" tone="info" icon="ph:hourglass" dense>
             <q-spinner size="1em" class="q-mr-xs" />
-            Import en tâche de fond ({{ queuedImport.totalRows }} lignes) — l'avancement se met à
-            jour ici ; vous pouvez fermer cette fenêtre, le résultat restera dans le journal de
-            synchronisation.
+            {{ $t('suppliers.queued', { n: queuedImport.totalRows }) }}
           </AppNotice>
 
           <AppNotice v-if="importResult" :tone="importResult.dry_run ? 'info' : 'success'" dense>
             <div>
-              <strong>{{ importResult.dry_run ? 'Simulation' : 'Import' }}</strong> :
-              {{ importResult.parsed_products }} article(s) lisible(s),
-              {{ importResult.rejected_rows }} ligne(s) rejetée(s)
+              <strong>{{
+                importResult.dry_run ? $t('suppliers.simulation') : $t('suppliers.import_word')
+              }}</strong>
+              :
+              {{
+                $t('suppliers.parsed', {
+                  parsed: importResult.parsed_products,
+                  rejected: importResult.rejected_rows,
+                })
+              }}
               <span v-if="!importResult.dry_run">
-                — {{ importResult.statistics.new_products ?? 0 }} créé(s),
-                {{ importResult.statistics.updated_products ?? 0 }} mis à jour,
-                {{ importResult.statistics.adopted_products ?? 0 }} adopté(s),
-                {{ importResult.statistics.ambiguous_products ?? 0 }} ambigu(s),
-                {{ importResult.statistics.errors ?? 0 }} erreur(s)
-                <span v-if="importResult.published_new">— publiés en boutique</span>
-                <span v-else>— masqués jusqu’à enrichissement</span>
+                {{
+                  $t('suppliers.stats', {
+                    new: importResult.statistics.new_products ?? 0,
+                    updated: importResult.statistics.updated_products ?? 0,
+                    adopted: importResult.statistics.adopted_products ?? 0,
+                    ambiguous: importResult.statistics.ambiguous_products ?? 0,
+                    errors: importResult.statistics.errors ?? 0,
+                  })
+                }}
+                <template v-if="belowThresholdLine">— {{ belowThresholdLine }}</template>
+                <span v-if="importResult.published_new">{{ $t('suppliers.published_new') }}</span>
+                <span v-else>{{ $t('suppliers.hidden_new') }}</span>
               </span>
               <span v-else>
-                — {{ importResult.resolution.new ?? 0 }} nouveau(x),
-                {{ importResult.resolution.updated ?? 0 }} reconnu(s),
-                {{ importResult.resolution.adopted ?? 0 }} adopté(s),
-                {{ importResult.resolution.ambiguous ?? 0 }} ambigu(s)
+                {{
+                  $t('suppliers.resolution', {
+                    new: importResult.resolution.new ?? 0,
+                    updated: importResult.resolution.updated ?? 0,
+                    adopted: importResult.resolution.adopted ?? 0,
+                    ambiguous: importResult.resolution.ambiguous ?? 0,
+                  })
+                }}
+                <template v-if="importResult.resolution.filtered">
+                  {{ $t('suppliers.filtered', { n: importResult.resolution.filtered }) }}
+                </template>
+                <template v-if="importResult.resolution.below_threshold">
+                  {{ $t('suppliers.below', { n: importResult.resolution.below_threshold }) }}
+                </template>
               </span>
             </div>
             <div v-if="importResult.resolution_limited_to" class="text-caption">
-              Fichier volumineux : reconnaissance simulée sur les
-              {{ importResult.resolution_limited_to }} premières lignes seulement ; l'import réel
-              tournera en tâche de fond.
+              {{ $t('suppliers.limited', { n: importResult.resolution_limited_to }) }}
             </div>
             <div v-if="importResult.dry_run && matchedByLine" class="text-caption">
-              Reconnus par : {{ matchedByLine }}
+              {{ $t('suppliers.matched_by', { list: matchedByLine }) }}
             </div>
             <q-expansion-item
               v-if="importResult.sample_resolutions.length"
               dense
-              :label="`Détail des ${importResult.sample_resolutions.length} premières lignes`"
+              :label="$t('suppliers.first_rows', { n: importResult.sample_resolutions.length })"
               class="q-mt-xs"
             >
               <q-markup-table dense flat bordered>
                 <thead>
                   <tr>
-                    <th class="text-left">Référence</th>
-                    <th class="text-left">Désignation</th>
-                    <th class="text-left">Action</th>
-                    <th class="text-left">Reconnu par</th>
-                    <th class="text-left">Article existant</th>
+                    <th class="text-left">{{ $t('suppliers.h_reference') }}</th>
+                    <th class="text-left">{{ $t('suppliers.h_designation') }}</th>
+                    <th class="text-left">{{ $t('suppliers.h_action') }}</th>
+                    <th class="text-left">{{ $t('suppliers.h_matched') }}</th>
+                    <th class="text-left">{{ $t('suppliers.h_existing') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -567,9 +901,24 @@
                 </tbody>
               </q-markup-table>
             </q-expansion-item>
+            <q-expansion-item
+              v-if="importResult.dry_run && importResult.category_pairs?.length"
+              dense
+              default-opened
+              :label="$t('suppliers.file_categories', { n: importResult.category_pairs.length })"
+              class="q-mt-xs"
+            >
+              <CategoryPairsTable
+                :pairs="importResult.category_pairs"
+                :categories="categories"
+                :saving="categoriesSaving"
+                count-label="Lignes"
+                @save="saveImportRules"
+              />
+            </q-expansion-item>
             <ul v-if="importResult.row_errors.length" class="q-mb-none">
               <li v-for="e in importResult.row_errors.slice(0, 10)" :key="e.row_number">
-                Ligne {{ e.row_number }} : {{ e.message }}
+                {{ $t('suppliers.row_error', { n: e.row_number, message: e.message }) }}
               </li>
             </ul>
             <ul v-if="importResult.sync_errors.length" class="q-mb-none">
@@ -580,11 +929,11 @@
           </AppNotice>
         </q-card-section>
         <q-card-actions align="right" class="app-dialog__actions">
-          <q-btn flat no-caps label="Fermer" v-close-popup />
+          <q-btn flat no-caps :label="$t('common.close')" v-close-popup />
           <q-btn
             outline
             no-caps
-            label="Simuler"
+            :label="$t('suppliers.simulate')"
             :disable="!importFile || !inspection"
             :loading="importBusy === 'dry'"
             @click="runImport(true)"
@@ -593,7 +942,7 @@
             color="primary"
             unelevated
             no-caps
-            label="Importer"
+            :label="$t('suppliers.do_import')"
             :disable="!importFile || !inspection || !!queuedImport"
             :loading="importBusy === 'run'"
             @click="runImport(false)"
@@ -605,6 +954,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { labels } from '@/i18n/global';
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -637,10 +988,34 @@ import {
   type Supplier,
   type SupplierCreate,
   type SupplierKind,
+  type SupplierWithdrawal,
+  UNMAPPED_ACTION_LABELS,
+  listObservedCategories,
+  reapplyCategoryMappings,
+  saveCategoryMappings,
+  type CategoryMappingWrite,
+  type ObservedCategory,
+  type UnmappedCategoryAction,
+  FEED_ADAPTER_KEY,
+  deleteSupplierCredentials,
+  inspectSupplierFeed,
+  saveSupplierCredentials,
 } from '@/api/suppliers';
+import { categoryLabel, listAdminCategories, type AdminCategory } from '@/api/categories';
+import CategoryPairsTable from '@/components/CategoryPairsTable.vue';
+import { useShopConfigStore } from '@/stores/shopConfig';
 import { listPlaces, type Place } from '@/api/logistics';
 import { extractApiError } from '@/api/errors';
+import {
+  fieldsFromSchema,
+  fromFormValue,
+  toFormValue,
+  type SchemaField,
+} from '@/utils/settingsSchema';
 
+const { t } = useI18n();
+
+const shopConfig = useShopConfigStore();
 const rows = ref<Supplier[]>([]);
 const adapters = ref<AdapterDescriptor[]>([]);
 const places = ref<Place[]>([]);
@@ -649,25 +1024,27 @@ const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
 const busy = ref<string | null>(null);
 
-const req = [(v: string) => (!!v && v.trim().length > 0) || 'Requis'];
+const req = [(v: string) => (!!v && v.trim().length > 0) || t('common.required')];
 const codeRules = [
   (v: string) => (!!v && /^[a-z0-9][a-z0-9_]{1,49}$/.test(v.trim().toLowerCase())) || 'a-z, 0-9, _',
 ];
 
-const columns: QTableColumn[] = [
-  { name: 'name', label: 'Nom', field: 'name', align: 'left' },
-  { name: 'code', label: 'Code', field: 'code', align: 'left' },
-  { name: 'kind', label: 'Méthode', field: 'kind', align: 'left' },
-  { name: 'origin', label: 'Entrepôt d’origine', field: 'origin_place_id', align: 'left' },
-  { name: 'domestic', label: 'Régime', field: 'is_domestic', align: 'left' },
-  { name: 'status', label: 'État', field: 'is_active', align: 'left' },
+const columns = computed<QTableColumn[]>(() => [
+  { name: 'name', label: t('suppliers.col_name'), field: 'name', align: 'left' },
+  { name: 'code', label: t('suppliers.col_code'), field: 'code', align: 'left' },
+  { name: 'kind', label: t('suppliers.col_kind'), field: 'kind', align: 'left' },
+  { name: 'origin', label: t('suppliers.col_origin'), field: 'origin_place_id', align: 'left' },
+  { name: 'domestic', label: t('suppliers.col_regime'), field: 'is_domestic', align: 'left' },
+  { name: 'status', label: t('suppliers.col_state'), field: 'is_active', align: 'left' },
   { name: 'actions', label: '', field: 'code', align: 'right' },
-];
+]);
 
-const kindOptions = (Object.keys(SUPPLIER_KIND_LABELS) as SupplierKind[]).map((k) => ({
-  label: SUPPLIER_KIND_LABELS[k],
-  value: k,
-}));
+const kindOptions = computed(() =>
+  (Object.keys(SUPPLIER_KIND_LABELS) as SupplierKind[]).map((k) => ({
+    label: SUPPLIER_KIND_LABELS[k],
+    value: k,
+  })),
+);
 const currencyOptions = ['XPF', 'EUR', 'USD'].map((c) => ({ label: c, value: c }));
 const adapterOptions = computed(() =>
   adapters.value.map((a) => ({
@@ -710,7 +1087,7 @@ async function load() {
       listPlaces(),
     ]);
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -727,8 +1104,12 @@ interface FormState {
   is_domestic: boolean;
   sync_enabled: boolean;
   import_as_draft: boolean;
+  min_quantity: string;
+  min_price: string;
   sync_interval_hours: number;
-  default_categories_text: string;
+  default_categories: string[];
+  unmapped_category_action: UnmappedCategoryAction;
+  auto_purchase_order: boolean;
   price_currency: string | null;
   settings: Record<string, string>;
   contact_email: string;
@@ -746,8 +1127,12 @@ function emptyForm(): FormState {
     is_domestic: false,
     sync_enabled: true,
     import_as_draft: false,
+    min_quantity: '',
+    min_price: '',
     sync_interval_hours: 0,
-    default_categories_text: '',
+    default_categories: [],
+    unmapped_category_action: 'auto',
+    auto_purchase_order: false,
     price_currency: null,
     settings: {},
     contact_email: '',
@@ -776,9 +1161,16 @@ function openCreate() {
 function openEdit(supplier: Supplier) {
   editing.value = supplier;
   dialogError.value = null;
+  credentials.username = '';
+  credentials.password = '';
+  const adapter = adapters.value.find((a) => a.key === supplier.adapter_key);
+  const fields = fieldsFromSchema(adapter?.settings_schema, SETTING_LABELS);
   const settings: Record<string, string> = {};
   for (const [k, v] of Object.entries(supplier.settings ?? {})) {
-    settings[k] = typeof v === 'string' ? v : v == null ? '' : JSON.stringify(v);
+    settings[k] = toFormValue(
+      fields.find((f) => f.key === k),
+      v,
+    );
   }
   Object.assign(form, {
     code: supplier.code,
@@ -789,8 +1181,12 @@ function openEdit(supplier: Supplier) {
     is_domestic: supplier.is_domestic,
     sync_enabled: supplier.sync_enabled,
     import_as_draft: supplier.import_as_draft,
+    min_quantity: supplier.min_quantity != null ? String(Number(supplier.min_quantity)) : '',
+    min_price: supplier.min_price != null ? String(Number(supplier.min_price)) : '',
     sync_interval_hours: supplier.sync_interval_hours,
-    default_categories_text: (supplier.default_categories ?? []).join('\n'),
+    default_categories: [...(supplier.default_categories ?? [])],
+    unmapped_category_action: supplier.unmapped_category_action ?? 'auto',
+    auto_purchase_order: !!supplier.auto_purchase_order,
     price_currency: supplier.price_currency,
     settings,
     contact_email: supplier.contact_email ?? '',
@@ -800,13 +1196,23 @@ function openEdit(supplier: Supplier) {
   formDialog.value = true;
 }
 
+/** Champ numérique facultatif : vide → null. */
+function optionalNumber(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined || String(value).trim() === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
 function buildPayload(): SupplierCreate {
-  const settings: Record<string, string> = {};
-  for (const [k, v] of Object.entries(form.settings)) if (v.trim()) settings[k] = v.trim();
-  const categories = form.default_categories_text
-    .split('\n')
-    .map((c) => c.trim())
-    .filter(Boolean);
+  const settings: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(form.settings)) {
+    const value = fromFormValue(
+      adapterFields.value.find((f) => f.key === k),
+      String(v ?? ''),
+    );
+    if (value !== undefined) settings[k] = value;
+  }
+  const categories = form.default_categories.map((c) => c.trim()).filter(Boolean);
   return {
     code: form.code.trim().toLowerCase(),
     name: form.name.trim(),
@@ -816,6 +1222,13 @@ function buildPayload(): SupplierCreate {
     is_domestic: form.is_domestic,
     sync_enabled: form.sync_enabled,
     import_as_draft: form.kind !== 'manual' && form.import_as_draft,
+    unmapped_category_action: form.unmapped_category_action,
+    auto_purchase_order:
+      form.kind === 'api' && !!selectedAdapter.value?.supports_purchase_orders
+        ? form.auto_purchase_order
+        : false,
+    min_quantity: optionalNumber(form.min_quantity),
+    min_price: optionalNumber(form.min_price),
     sync_interval_hours: form.kind === 'api' ? Number(form.sync_interval_hours) || 0 : 0,
     default_categories: categories.length ? categories : null,
     price_currency: form.price_currency,
@@ -835,15 +1248,16 @@ async function submitForm() {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { code, ...rest } = payload;
       await updateSupplier(editing.value.code, rest);
-      notice.value = `Fournisseur ${payload.name} mis à jour.`;
+      notice.value = t('suppliers.updated', { name: payload.name });
     } else {
       await createSupplier(payload);
-      notice.value = `Fournisseur ${payload.name} créé.`;
+      notice.value = t('suppliers.created', { name: payload.name });
     }
     formDialog.value = false;
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    dialogError.value =
+      extractApiError(err) ?? (err instanceof Error ? err.message : t('common.save_failed'));
   } finally {
     saving.value = false;
   }
@@ -867,7 +1281,7 @@ async function openAllowlist(supplier: Supplier) {
   try {
     allowlistView.value = await getSkuAllowlist(supplier.code);
   } catch (err) {
-    allowlistError.value = extractApiError(err) ?? 'Chargement de la liste impossible.';
+    allowlistError.value = extractApiError(err) ?? t('suppliers.list_failed');
   }
 }
 
@@ -889,20 +1303,63 @@ async function saveAllowlist() {
       : `${supplier.name} : liste vidée, tout le catalogue synchronisé est suivi.`;
     await load();
   } catch (err) {
-    allowlistError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    allowlistError.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     allowlistSaving.value = false;
   }
 }
 
-async function onDeactivate(supplier: Supplier) {
+const deactivateDialog = ref(false);
+const deactivating = ref<Supplier | null>(null);
+const deactivateProducts = ref<SupplierWithdrawal>('keep');
+const deactivateOptions = computed<{ value: SupplierWithdrawal; label: string }[]>(() => [
+  { value: 'keep', label: t('suppliers.w_keep') },
+  {
+    value: 'zero_stock',
+    label: t('suppliers.w_zero'),
+  },
+  { value: 'hide', label: t('suppliers.w_hide') },
+]);
+
+function openDeactivate(supplier: Supplier) {
+  deactivating.value = supplier;
+  deactivateProducts.value = 'keep';
+  deactivateDialog.value = true;
+}
+
+async function confirmDeactivate() {
+  const supplier = deactivating.value;
+  if (!supplier) return;
+  busy.value = supplier.code;
   error.value = null;
   try {
-    await deactivateSupplier(supplier.code);
-    notice.value = `Fournisseur ${supplier.name} désactivé.`;
+    const res = await deactivateSupplier(supplier.code, deactivateProducts.value);
+    const withdrawn =
+      res.products_withdrawn != null ? t('suppliers.withdrawn', { n: res.products_withdrawn }) : '';
+    notice.value = t('suppliers.disabled_msg', { name: supplier.name, withdrawn });
+    deactivateDialog.value = false;
     await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Désactivation impossible.';
+    error.value = extractApiError(err) ?? t('suppliers.disable_failed');
+  } finally {
+    busy.value = null;
+  }
+}
+
+async function onReactivate(supplier: Supplier) {
+  busy.value = supplier.code;
+  error.value = null;
+  try {
+    await updateSupplier(supplier.code, { is_active: true, sync_enabled: true });
+    notice.value =
+      supplier.kind === 'api' && !supplier.configured
+        ? `${supplier.name} réactivé — ses identifiants manquent encore dans l'environnement.`
+        : `${supplier.name} réactivé : les synchronisations reprennent sans redémarrage.`;
+    await load();
+  } catch (err) {
+    error.value = extractApiError(err) ?? t('suppliers.enable_failed');
+  } finally {
+    busy.value = null;
   }
 }
 
@@ -913,7 +1370,7 @@ async function onSync(supplier: Supplier) {
     const res = await triggerProductSync(supplier.code);
     notice.value = `${supplier.name} : ${res.message} (job ${res.job_id}).`;
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Synchronisation impossible.';
+    error.value = extractApiError(err) ?? t('suppliers.sync_failed');
   } finally {
     busy.value = null;
   }
@@ -925,11 +1382,191 @@ async function onHealth(supplier: Supplier) {
     const res = await checkSupplierHealth(supplier.code);
     notice.value = `${supplier.name} : ${res.status} — ${res.message}`;
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Test impossible.';
+    error.value = extractApiError(err) ?? t('suppliers.test_failed');
   }
 }
 
 // --- Import fichier -------------------------------------------------------
+
+// --- Catégories (R4 / S5) ---
+const categories = ref<AdminCategory[]>([]);
+const categoryOptions = computed(() =>
+  categories.value.map((c) => ({ label: categoryLabel(c), value: c.id })),
+);
+const unmappedOptions = computed(() =>
+  (Object.keys(UNMAPPED_ACTION_LABELS) as UnmappedCategoryAction[]).map((value) => ({
+    value,
+    label: UNMAPPED_ACTION_LABELS[value],
+  })),
+);
+
+async function loadCategories() {
+  try {
+    categories.value = (await listAdminCategories()).filter(
+      (c) => c.is_active && !c.merged_into_id,
+    );
+  } catch {
+    categories.value = [];
+  }
+}
+
+const categoriesDialog = ref(false);
+const categoriesOf = ref<Supplier | null>(null);
+const observed = ref<ObservedCategory[]>([]);
+const categoriesLoading = ref(false);
+const categoriesSaving = ref(false);
+const reapplying = ref(false);
+const categoriesError = ref<string | null>(null);
+const categoriesNotice = ref<string | null>(null);
+const unmappedLabel = computed(() =>
+  UNMAPPED_ACTION_LABELS[categoriesOf.value?.unmapped_category_action ?? 'auto'].toLowerCase(),
+);
+
+async function refreshObserved() {
+  if (!categoriesOf.value) return;
+  categoriesLoading.value = true;
+  try {
+    observed.value = await listObservedCategories(categoriesOf.value.code);
+  } catch (err) {
+    categoriesError.value = extractApiError(err) ?? t('common.load_failed');
+  } finally {
+    categoriesLoading.value = false;
+  }
+}
+
+function openCategories(supplier: Supplier) {
+  categoriesOf.value = supplier;
+  categoriesError.value = null;
+  categoriesNotice.value = null;
+  observed.value = [];
+  categoriesDialog.value = true;
+  void loadCategories();
+  void refreshObserved();
+}
+
+async function saveSupplierRules(rules: CategoryMappingWrite[]) {
+  if (!categoriesOf.value) return;
+  categoriesSaving.value = true;
+  categoriesError.value = null;
+  try {
+    await saveCategoryMappings(categoriesOf.value.code, rules);
+    categoriesNotice.value = `${rules.length} règle(s) enregistrée(s).`;
+    await refreshObserved();
+  } catch (err) {
+    categoriesError.value = extractApiError(err) ?? t('common.save_failed');
+  } finally {
+    categoriesSaving.value = false;
+  }
+}
+
+async function onReapply() {
+  if (!categoriesOf.value) return;
+  reapplying.value = true;
+  categoriesError.value = null;
+  try {
+    const res = await reapplyCategoryMappings(categoriesOf.value.code);
+    categoriesNotice.value = `${res.moved} article(s) rangé(s), ${res.deactivated} retiré(s) de la vitrine.`;
+    await refreshObserved();
+  } catch (err) {
+    categoriesError.value = extractApiError(err) ?? t('suppliers.reapply_failed');
+  } finally {
+    reapplying.value = false;
+  }
+}
+
+const importDefaultCategory = ref<string | null>(null);
+
+async function saveImportRules(rules: CategoryMappingWrite[]) {
+  if (!importing.value) return;
+  categoriesSaving.value = true;
+  importError.value = null;
+  try {
+    await saveCategoryMappings(importing.value.code, rules);
+    // The simulation reflects the new rules at once.
+    await runImport(true);
+  } catch (err) {
+    importError.value = extractApiError(err) ?? t('suppliers.rules_failed');
+  } finally {
+    categoriesSaving.value = false;
+  }
+}
+
+// --- Fichier en ligne (R4 / S3) ---
+const SETTING_LABELS: Record<string, string> = labels({
+  feed_url: 'suppliers.s_feed_url',
+  auth_mode: 'suppliers.s_auth_mode',
+  login_url: 'suppliers.s_login_url',
+  username_field: 'suppliers.s_username_field',
+  password_field: 'suppliers.s_password_field',
+  file_format: 'suppliers.s_file_format',
+  sheet_name: 'suppliers.s_sheet_name',
+});
+const SETTING_CHOICES = computed<Record<string, { label: string; value: string }[]>>(() => ({
+  auth_mode: [
+    { label: t('suppliers.a_none'), value: 'none' },
+    { label: t('suppliers.a_basic'), value: 'basic' },
+    { label: t('suppliers.a_form'), value: 'form' },
+  ],
+  environment: [
+    { label: t('suppliers.e_sandbox'), value: 'sandbox' },
+    { label: t('suppliers.e_production'), value: 'production' },
+  ],
+  file_format: [
+    { label: t('suppliers.f_auto'), value: 'auto' },
+    { label: t('suppliers.f_csv'), value: 'csv' },
+    { label: t('suppliers.f_xlsx'), value: 'xlsx' },
+  ],
+}));
+const adapterFields = computed<SchemaField[]>(() =>
+  fieldsFromSchema(selectedAdapter.value?.settings_schema, SETTING_LABELS),
+);
+
+function choiceOptions(field: SchemaField): { label: string; value: string }[] {
+  const named = SETTING_CHOICES.value[field.key] ?? [];
+  return (field.choices ?? []).map(
+    (value) => named.find((c) => c.value === value) ?? { label: value, value },
+  );
+}
+
+function fieldHint(field: SchemaField): string | undefined {
+  if (field.kind === 'list') {
+    return `${field.hint} Valeurs séparées par des virgules ; « [] » = toutes.`.trim();
+  }
+  if (field.kind === 'json') return `${field.hint} Format JSON.`.trim();
+  return field.hint || undefined;
+}
+
+const isFeedForm = computed(() => form.kind === 'api' && form.adapter_key === FEED_ADAPTER_KEY);
+const credentials = reactive({ username: '', password: '' });
+const credentialsBusy = ref(false);
+
+async function onSaveCredentials() {
+  if (!editing.value) return;
+  credentialsBusy.value = true;
+  dialogError.value = null;
+  try {
+    editing.value = await saveSupplierCredentials(editing.value.code, { ...credentials });
+    credentials.username = '';
+    credentials.password = '';
+  } catch (err) {
+    dialogError.value = extractApiError(err) ?? t('suppliers.creds_failed');
+  } finally {
+    credentialsBusy.value = false;
+  }
+}
+
+async function onClearCredentials() {
+  if (!editing.value) return;
+  credentialsBusy.value = true;
+  dialogError.value = null;
+  try {
+    editing.value = await deleteSupplierCredentials(editing.value.code);
+  } catch (err) {
+    dialogError.value = extractApiError(err) ?? t('common.delete_failed');
+  } finally {
+    credentialsBusy.value = false;
+  }
+}
 
 const importDialog = ref(false);
 const importing = ref<Supplier | null>(null);
@@ -937,6 +1574,16 @@ const importFile = ref<File | null>(null);
 const inspection = ref<FileInspectResponse | null>(null);
 const importResult = ref<FileImportResponse | null>(null);
 const publishNew = ref(true);
+const importMinQuantity = ref<string>('');
+const importMinPrice = ref<string>('');
+
+const belowThresholdLine = computed(() => {
+  const stats = importResult.value?.statistics ?? {};
+  const skipped = stats.below_threshold_skipped ?? 0;
+  const hidden = stats.below_threshold_deactivated ?? 0;
+  if (!skipped && !hidden) return '';
+  return t('suppliers.below_line', { skipped, hidden });
+});
 const importError = ref<string | null>(null);
 const importBusy = ref<'dry' | 'run' | null>(null);
 
@@ -986,15 +1633,18 @@ async function pollQueuedImport() {
     }
     stopPolling();
     if (status.status === 'failed') {
-      importError.value = status.error_message ?? 'Import échoué.';
+      importError.value = status.error_message ?? t('suppliers.import_failed');
       return;
     }
     importResult.value = statusToResult(status, current.code);
-    notice.value = `Import ${status.filename ?? ''} terminé (${status.status}).`;
+    notice.value = t('suppliers.import_done', {
+      file: status.filename ?? '',
+      status: status.status,
+    });
     await load();
   } catch (err) {
     stopPolling();
-    importError.value = extractApiError(err) ?? 'Suivi de l’import impossible.';
+    importError.value = extractApiError(err) ?? t('suppliers.follow_failed');
   }
 }
 
@@ -1020,6 +1670,11 @@ function openImport(supplier: Supplier) {
   inspection.value = null;
   importResult.value = null;
   importError.value = null;
+  importMinQuantity.value =
+    supplier.min_quantity != null ? String(Number(supplier.min_quantity)) : '';
+  importMinPrice.value = supplier.min_price != null ? String(Number(supplier.min_price)) : '';
+  importDefaultCategory.value = null;
+  void loadCategories();
   for (const key of Object.keys(mapping)) delete mapping[key];
   for (const [k, v] of Object.entries(supplier.column_mapping ?? {})) mapping[k] = v;
   importDialog.value = true;
@@ -1031,21 +1686,62 @@ async function onFileChosen(file: File | null) {
   importError.value = null;
   if (!file || !importing.value) return;
   try {
-    inspection.value = await inspectCatalogFile(importing.value.code, file);
+    applyInspection(await inspectCatalogFile(importing.value.code, file));
+  } catch (err) {
+    importError.value = extractApiError(err) ?? t('suppliers.read_failed');
+  }
+}
+
+const feedReading = ref(false);
+const mappingSaving = ref(false);
+
+async function onReadFeed() {
+  if (!importing.value) return;
+  feedReading.value = true;
+  importError.value = null;
+  importResult.value = null;
+  try {
+    applyInspection(await inspectSupplierFeed(importing.value.code));
+    notice.value = null;
+  } catch (err) {
+    importError.value = extractApiError(err) ?? t('suppliers.feed_failed');
+  } finally {
+    feedReading.value = false;
+  }
+}
+
+async function onSaveFeedMapping() {
+  if (!importing.value) return;
+  mappingSaving.value = true;
+  importError.value = null;
+  try {
+    const saved = await updateSupplier(importing.value.code, {
+      column_mapping: currentMapping(),
+    });
+    importing.value = saved;
+    notice.value = t('suppliers.mapping_saved', { name: saved.name });
+    importDialog.value = false;
+    await load();
+  } catch (err) {
+    importError.value = extractApiError(err) ?? t('common.save_failed');
+  } finally {
+    mappingSaving.value = false;
+  }
+}
+
+function applyInspection(result: FileInspectResponse) {
+  inspection.value = result;
+  {
     // Drop stored mappings that point at columns the file does not have.
     for (const [k, v] of Object.entries(mapping)) {
-      if (v && !inspection.value.headers.includes(v)) mapping[k] = null;
+      if (v && !result.headers.includes(v)) mapping[k] = null;
     }
     // Pre-fill obvious matches when nothing is mapped yet.
-    for (const target of inspection.value.mapping_targets) {
+    for (const target of result.mapping_targets) {
       if (mapping[target]) continue;
-      const hit = inspection.value.headers.find(
-        (h) => h.trim().toLowerCase() === target.toLowerCase(),
-      );
+      const hit = result.headers.find((h) => h.trim().toLowerCase() === target.toLowerCase());
       if (hit) mapping[target] = hit;
     }
-  } catch (err) {
-    importError.value = extractApiError(err) ?? 'Lecture du fichier impossible.';
   }
 }
 
@@ -1070,6 +1766,9 @@ async function runImport(dryRun: boolean) {
       mapping: chosen,
       dryRun,
       publishNew: publishNew.value,
+      minQuantity: optionalNumber(importMinQuantity.value),
+      minPrice: optionalNumber(importMinPrice.value),
+      defaultCategoryId: importDefaultCategory.value,
     });
     if (result.queued && result.sync_log_id) {
       // Large file: the worker imports it; follow the sync log until it ends.
@@ -1083,11 +1782,14 @@ async function runImport(dryRun: boolean) {
     }
     importResult.value = result;
     if (!dryRun) {
-      notice.value = `Import ${result.filename} terminé pour ${importing.value.name}.`;
+      notice.value = t('suppliers.import_done_for', {
+        file: result.filename,
+        name: importing.value.name,
+      });
       await load();
     }
   } catch (err) {
-    importError.value = extractApiError(err) ?? 'Import impossible.';
+    importError.value = extractApiError(err) ?? t('suppliers.import_impossible');
   } finally {
     importBusy.value = null;
   }

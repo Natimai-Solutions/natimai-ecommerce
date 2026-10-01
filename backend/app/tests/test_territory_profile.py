@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core.config import Settings
+from app.core.config import Settings, settings
 from app.core.territory import FR, PF, get_profile
 from app.features import initial_data
 from app.features.invoice.services.pdf import _format_amount
@@ -29,8 +29,8 @@ def test_default_profile_keeps_the_historical_polynesian_values() -> None:
     assert s.TERRITORY_PROFILE == "PF"
     assert s.REFERENCE_CURRENCY == "XPF"
     assert s.TAX_TERRITORY_CODE == "PF"
-    assert s.DEFAULT_TAX_CODE == "TGC_NORMAL"
-    assert s.INVOICE_FEES_TAX_CODE == "TGC_NORMAL"
+    assert s.DEFAULT_TAX_CODE == "TVA_NORMALE"
+    assert s.INVOICE_FEES_TAX_CODE == "TVA_NORMALE"
     assert s.SHOP_COUNTRY_CODE == "PF"
     assert s.SEED_FRENCH_POLYNESIA_LOGISTICS is True
     assert s.territory_profile is PF
@@ -142,5 +142,24 @@ def test_shop_config_endpoint_exposes_no_secret() -> None:
         "country_code",
         "tax_territory_code",
         "shop_name",
+        "modules",
+        "default_locale",
+        "available_locales",
+        "timezone",
+        "default_display_currency",
     }
+    # Only booleans: the module switches, never a setting value.
+    assert all(isinstance(v, bool) for v in body["modules"].values())
     assert body["reference_currency"] == SimpleNamespace(**body).reference_currency
+
+
+def test_profiles_carry_language_and_time_zone(monkeypatch: pytest.MonkeyPatch) -> None:
+    """R7 / L5: each profile states its languages and time zone; the
+    environment can override them without touching the code."""
+    from app.core.territory import FR, PF
+
+    assert (PF.timezone, PF.default_locale) == ("Pacific/Tahiti", "fr")
+    assert FR.timezone == "Europe/Paris"
+    monkeypatch.setattr(settings, "SHOP_DEFAULT_LOCALE", "EN")
+    monkeypatch.setattr(settings, "SHOP_LOCALES", "fr, en, fr")
+    assert settings.shop_locales == ["en", "fr"]

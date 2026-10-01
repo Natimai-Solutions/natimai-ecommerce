@@ -1,13 +1,13 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader title="Transporteurs">
+    <PageHeader :title="$t('carriers.title')">
       <template #actions>
-        <q-toggle v-model="showRetired" label="Afficher les retirés" />
+        <q-toggle v-model="showRetired" :label="$t('carriers.show_retired')" />
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -16,16 +16,15 @@
           unelevated
           no-caps
           icon="ph:plus"
-          label="Nouveau transporteur"
+          :label="$t('carriers.new')"
           @click="openCreate"
         />
       </template>
     </PageHeader>
 
     <p class="admin-hint">
-      DHL, Chronopost, Colissimo, coursier local… Aucune intégration d'API : le numéro de suivi est
-      saisi à la remise au transporteur. Le gabarit d'URL (avec <code v-pre>{ref}</code>) sert à
-      construire le lien « Suivre le colis » affiché au client.
+      <!-- eslint-disable-next-line vue/no-v-html -- trusted message -->
+      <span v-html="$t('carriers.intro')"></span>
     </p>
 
     <div v-if="error || notice" class="admin-notices">
@@ -51,19 +50,24 @@
           <span v-if="props.row.tracking_url_template" class="text-caption font-mono">{{
             props.row.tracking_url_template
           }}</span>
-          <span v-else class="text-subtle">— (pas de lien de suivi)</span>
+          <span v-else class="text-subtle">{{ $t('carriers.no_link') }}</span>
         </q-td>
       </template>
       <template #body-cell-active="props">
         <q-td :props="props">
-          <StatusTag v-if="props.row.is_active" tone="ok" icon="ph:check-circle" label="Actif" />
-          <StatusTag v-else tone="neutral" icon="ph:minus-circle" label="Retiré" />
+          <StatusTag
+            v-if="props.row.is_active"
+            tone="ok"
+            icon="ph:check-circle"
+            :label="$t('common.active')"
+          />
+          <StatusTag v-else tone="neutral" icon="ph:minus-circle" :label="$t('carriers.retired')" />
         </q-td>
       </template>
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
           <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
-            <q-tooltip>Modifier</q-tooltip>
+            <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
           </q-btn>
           <q-btn
             v-if="props.row.is_active"
@@ -73,15 +77,15 @@
             icon="ph:eye-slash"
             @click="retire(props.row)"
           >
-            <q-tooltip>Retirer du sélecteur (les expéditions passées gardent leur suivi)</q-tooltip>
+            <q-tooltip>{{ $t('carriers.retire') }}</q-tooltip>
           </q-btn>
           <q-btn v-else flat round dense icon="ph:eye" @click="restore(props.row)">
-            <q-tooltip>Réactiver</q-tooltip>
+            <q-tooltip>{{ $t('carriers.reactivate') }}</q-tooltip>
           </q-btn>
         </q-td>
       </template>
       <template #no-data>
-        <div class="full-width text-center text-subtle q-pa-md">Aucun transporteur.</div>
+        <div class="full-width text-center text-subtle q-pa-md">{{ $t('carriers.none') }}</div>
       </template>
     </q-table>
 
@@ -89,7 +93,7 @@
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
-            {{ editId ? 'Modifier le transporteur' : 'Nouveau transporteur' }}
+            {{ editId ? $t('carriers.edit_title') : $t('carriers.new_title') }}
           </h2>
         </q-card-section>
         <q-form @submit.prevent="submit">
@@ -97,37 +101,37 @@
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="form.name"
-              label="Nom *"
+              :label="$t('carriers.name')"
               outlined
               dense
               autofocus
-              :rules="[(v: string) => !!v.trim() || 'Nom requis']"
+              :rules="[(v: string) => !!v.trim() || $t('carriers.name_rule')]"
             />
             <q-input
               v-model="form.code"
-              label="Code *"
-              hint="Identifiant stable (ex. dhl, chronopost). Minuscules, sans espace."
+              :label="$t('carriers.code')"
+              :hint="$t('carriers.code_hint')"
               outlined
               dense
-              :rules="[(v: string) => !!v.trim() || 'Code requis']"
+              :rules="[(v: string) => !!v.trim() || $t('carriers.code_rule')]"
             />
             <q-input
               v-model="form.tracking_url_template"
-              label="Gabarit d'URL de suivi (optionnel)"
-              hint="https://… contenant {ref}, ex. https://www.dhl.com/track?id={ref}"
+              :label="$t('carriers.template')"
+              :hint="$t('carriers.template_hint')"
               outlined
               dense
               clearable
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              label="Enregistrer"
+              :label="$t('common.save')"
               :loading="saving"
             />
           </q-card-actions>
@@ -138,6 +142,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -152,6 +157,8 @@ import {
 } from '@/api/shipping';
 import { extractApiError } from '@/api/errors';
 
+const { t } = useI18n();
+
 const carriers = ref<Carrier[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -162,13 +169,18 @@ const rows = computed(() =>
   showRetired.value ? carriers.value : carriers.value.filter((c) => c.is_active),
 );
 
-const columns: QTableColumn[] = [
-  { name: 'name', label: 'Nom', field: 'name', align: 'left' },
-  { name: 'code', label: 'Code', field: 'code', align: 'left' },
-  { name: 'template', label: 'Lien de suivi', field: 'tracking_url_template', align: 'left' },
-  { name: 'active', label: 'État', field: 'is_active', align: 'center' },
+const columns = computed<QTableColumn[]>(() => [
+  { name: 'name', label: t('carriers.col_name'), field: 'name', align: 'left' },
+  { name: 'code', label: t('carriers.col_code'), field: 'code', align: 'left' },
+  {
+    name: 'template',
+    label: t('carriers.col_link'),
+    field: 'tracking_url_template',
+    align: 'left',
+  },
+  { name: 'active', label: t('carriers.col_state'), field: 'is_active', align: 'center' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-];
+]);
 
 async function load() {
   loading.value = true;
@@ -176,7 +188,7 @@ async function load() {
   try {
     carriers.value = await listCarriers(true);
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -227,10 +239,10 @@ async function submit() {
       await createCarrier(payload);
     }
     dialog.value = false;
-    notice.value = 'Transporteur enregistré.';
+    notice.value = t('carriers.saved');
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    dialogError.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     saving.value = false;
   }
@@ -243,7 +255,7 @@ async function retire(c: Carrier) {
     notice.value = `${c.name} retiré du sélecteur.`;
     await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Opération impossible.';
+    error.value = extractApiError(err) ?? t('common.op_failed');
   }
 }
 
@@ -254,7 +266,7 @@ async function restore(c: Carrier) {
     notice.value = `${c.name} réactivé.`;
     await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Opération impossible.';
+    error.value = extractApiError(err) ?? t('common.op_failed');
   }
 }
 

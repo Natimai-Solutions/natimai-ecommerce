@@ -24,6 +24,12 @@ _VALID_BASE: dict[str, Any] = {
     "FIRST_SUPERUSER": "ops@unit.test",
     "FIRST_SUPERUSER_PASSWORD": "unit-test-admin-password",
     "CLAMAV_ENABLED": True,
+    "FILE_STORAGE_BACKEND": "s3",
+    "S3_BUCKET_NAME": "unit-test-bucket",
+    "S3_ACCESS_KEY_ID": "unit-test-key",
+    "S3_SECRET_KEY_ID": "unit-test-secret",
+    # Production requires the administrators' 2FA, hence its encryption key.
+    "SECRETS_ENCRYPTION_KEY": "unit-test-fernet-key",
 }
 
 

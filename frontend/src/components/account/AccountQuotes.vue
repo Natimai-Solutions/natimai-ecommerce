@@ -1,9 +1,9 @@
 <template>
   <section class="app-section">
     <div class="app-section__head">
-      <h2 class="app-section__title">Devis</h2>
+      <h2 class="app-section__title">{{ $t('quotes.title') }}</h2>
       <p class="app-section__hint">
-        Demandez un devis depuis votre panier ; une fois établi, il se commande à ses prix.
+        {{ $t('quotes.hint') }}
       </p>
     </div>
 
@@ -20,9 +20,9 @@
 
     <div v-else-if="!quotes.length" class="app-empty">
       <q-icon name="ph:file-text" size="36px" class="text-subtle" />
-      <h3>Aucune demande de devis</h3>
-      <p>Depuis votre panier, « Demander un devis » envoie la liste à notre équipe.</p>
-      <q-btn outline color="primary" label="Aller au panier" :to="{ name: 'cart' }" />
+      <h3>{{ $t('quotes.none') }}</h3>
+      <p>{{ $t('quotes.none_text') }}</p>
+      <q-btn outline color="primary" :label="$t('quotes.to_cart')" :to="{ name: 'cart' }" />
     </div>
 
     <ul v-else class="app-rows" data-testid="account-quotes">
@@ -30,18 +30,18 @@
         <div class="app-row__main">
           <span class="app-row__title">
             <span v-if="quote.quote_number" class="font-mono">{{ quote.quote_number }}</span>
-            <template v-else>Demande de devis</template>
+            <template v-else>{{ $t('quotes.request') }}</template>
           </span>
           <span class="app-row__meta">
             {{ formatDate(quote.quoted_at ?? quote.created_at) }}
             <template v-if="quote.valid_until">
-              · valable jusqu'au {{ formatDate(quote.valid_until) }}
+              {{ $t('quotes.valid_until', { date: formatDate(quote.valid_until) }) }}
             </template>
           </span>
           <span class="quote__tags">
             <StatusTag
               :tone="quote.status === 'won' ? 'ok' : quote.status === 'quoted' ? 'warn' : 'neutral'"
-              :label="QUOTE_STATUS_LABELS[quote.status] ?? quote.status"
+              :label="quoteStatusLabel(quote.status)"
             />
           </span>
         </div>
@@ -61,7 +61,7 @@
             v-if="quote.can_order"
             unelevated
             color="primary"
-            label="Commander ce devis"
+            :label="$t('quotes.order')"
             :loading="orderingId === quote.id"
             data-testid="account-order-quote"
             @click="onOrder(quote)"
@@ -70,7 +70,7 @@
             v-else-if="quote.order_id"
             outline
             color="primary"
-            label="Voir la commande"
+            :label="$t('quotes.see_order')"
             :to="{ name: 'order-tracking', params: { id: quote.order_id } }"
           />
         </div>
@@ -80,23 +80,26 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { formatDate } from '@app/utils';
 
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
-import {
-  acceptMyQuote,
-  downloadMyQuotePdf,
-  listMyQuotes,
-  QUOTE_STATUS_LABELS,
-  type MyQuote,
-} from '@/api/quotes';
+import { acceptMyQuote, downloadMyQuotePdf, listMyQuotes, type MyQuote } from '@/api/quotes';
 import { useCartStore } from '@/stores/cart';
 import { useCurrencyStore } from '@/stores/currency';
 import { apiErrorMessage } from '@/utils/errors';
 import { orderMoney } from '@/utils/money';
+
+const i18n = useI18n();
+const t = i18n.t;
+const te = (key: string) => i18n.te(key);
+
+function quoteStatusLabel(status: string): string {
+  return te(`quotes.status.${status}`) ? t(`quotes.status.${status}`) : status;
+}
 
 const router = useRouter();
 const cartStore = useCartStore();
@@ -113,7 +116,7 @@ async function load() {
   try {
     quotes.value = await listMyQuotes();
   } catch (err) {
-    error.value = apiErrorMessage(err) ?? 'Impossible de charger vos devis.';
+    error.value = apiErrorMessage(err) ?? t('quotes.load_failed');
   } finally {
     loading.value = false;
   }
@@ -124,7 +127,7 @@ async function onDownload(quote: MyQuote) {
   try {
     await downloadMyQuotePdf(quote);
   } catch (err) {
-    error.value = apiErrorMessage(err) ?? 'Le PDF du devis est indisponible.';
+    error.value = apiErrorMessage(err) ?? t('quotes.pdf_failed');
   }
 }
 
@@ -148,7 +151,7 @@ async function onOrder(quote: MyQuote) {
     );
     await router.push({ name: 'checkout', query: { quote: quote.id } });
   } catch (err) {
-    error.value = apiErrorMessage(err) ?? 'Ce devis ne peut pas être commandé.';
+    error.value = apiErrorMessage(err) ?? t('quotes.order_failed');
   } finally {
     orderingId.value = null;
   }

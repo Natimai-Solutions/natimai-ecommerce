@@ -32,7 +32,9 @@ def test_token_is_bound_to_the_order() -> None:
     assert verify_order_tracking_token(order_id, token)
     assert verify_order_tracking_token(order_id, f" {token} ")
     assert not verify_order_tracking_token(other_id, token)
-    assert not verify_order_tracking_token(order_id, token[:-1] + "x")
+    # Tamper with the last character (never replaced by itself: 1 in 64 flake).
+    tampered = token[:-1] + ("x" if token[-1] != "x" else "y")
+    assert not verify_order_tracking_token(order_id, tampered)
     assert not verify_order_tracking_token(order_id, None)
     assert not verify_order_tracking_token(order_id, "")
     assert order_tracking_url(order_id).endswith(f"/suivi/{order_id}?t={token}")

@@ -10,11 +10,11 @@ from __future__ import annotations
 import uuid
 from decimal import Decimal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlmodel import col, select
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentSuperUser, SessionDep, module_required
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.departure.crud import crud_grouped_departure, utcnow
@@ -50,7 +50,9 @@ from app.features.departure.services import (
 from app.features.order.services.status import propagate_departure_status
 
 router = APIRouter(
-    prefix="/admin/grouped-departures", tags=["admin-grouped-departures"]
+    prefix="/admin/grouped-departures",
+    tags=["admin-grouped-departures"],
+    dependencies=[Depends(module_required("grouped_departures"))],
 )
 
 

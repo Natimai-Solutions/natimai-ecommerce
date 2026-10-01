@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { accessToken, api } from '@/boot/api';
+import { gt } from '@/i18n/global';
 
 interface AccessTokenResponse {
   access_token: string;
@@ -26,7 +27,7 @@ export const useAuthStore = defineStore('auth', () => {
       accessToken.value = data.access_token;
       return true;
     } catch (err: unknown) {
-      loginError.value = extractErrorMessage(err) ?? 'Échec de connexion';
+      loginError.value = extractErrorMessage(err) ?? gt('stores.login_failed');
       return false;
     } finally {
       loggingIn.value = false;
@@ -84,7 +85,7 @@ export const useAuthStore = defineStore('auth', () => {
       });
       return { ok: true, signupToken: data.signup_token };
     } catch (err) {
-      return { ok: false, error: extractErrorMessage(err) ?? 'Code invalide.' };
+      return { ok: false, error: extractErrorMessage(err) ?? gt('stores.code_invalid') };
     }
   }
 
@@ -103,7 +104,7 @@ export const useAuthStore = defineStore('auth', () => {
       accessToken.value = data.access_token;
       return { ok: true };
     } catch (err) {
-      return { ok: false, error: extractErrorMessage(err) ?? 'Création du compte impossible.' };
+      return { ok: false, error: extractErrorMessage(err) ?? gt('stores.signup_failed') };
     }
   }
 

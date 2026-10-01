@@ -18,7 +18,8 @@ from arq import cron
 from sqlmodel import and_, col, or_
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
+from app.core import runtime_settings
+from app.core.alerting import send_alert
 from app.core.db import engine
 from app.features.integrations.crud.supplier_sync import supplier_sync_log_crud
 from app.features.integrations.models.supplier_sync import SyncStatus, SyncType
@@ -37,6 +38,7 @@ from app.features.product.services.pricing import (
     CurrencyRateMissing,
     convert_to_reference_currency,
 )
+from app.features.system.modules import module_enabled
 from app.services.suppliers import api_suppliers, resolve_adapter
 from app.services.suppliers.base import SupplierAdapter
 from app.tasks.enqueue import enqueue_with_dedup
@@ -123,6 +125,10 @@ async def sync_supplier_products_task(
                     status=SyncStatus.FAILED,
                     error_message=str(e),
                 )
+                await send_alert(
+                    f"Synchronisation catalogue {supplier_name} en échec : {e}",
+                    source="supplier_sync",
+                )
                 raise
 
             sync_end = _now()
@@ -193,7 +199,9 @@ async def _handle_missing_skus(
         )
         return 0, 0
 
-    grace_hours = int(settings.SUPPLIER_DELISTING_GRACE_HOURS)
+    grace_hours = int(
+        await runtime_settings.get("supplier_delisting_grace_hours", session)
+    )
     now = _now()
     cutoff = now - timedelta(hours=grace_hours) if grace_hours > 0 else None
 
@@ -297,6 +305,9 @@ async def sync_supplier_inventory_task(
                 logger.info("Fetched %s SKUs for inventory update", len(skus))
 
             batch_size = adapter.price_batch_size
+            own_settings = dict(
+                getattr(getattr(adapter, "config", None), "settings", None) or {}
+            )
             total_updated = 0
             total_flagged = 0
             total_delisted = 0
@@ -374,7 +385,10 @@ async def sync_supplier_inventory_task(
                                 "supplier_price_currency": snapshot.supplier_price_currency,
                                 "supplier_quantity": snapshot.supplier_quantity,
                                 "is_active": meets_sync_thresholds(
-                                    snapshot, price_in_xpf=price_in_xpf
+                                    snapshot,
+                                    price_in_xpf=price_in_xpf,
+                                    min_quantity=own_settings.get("sync_min_quantity"),
+                                    min_price=own_settings.get("sync_min_price"),
                                 ),
                                 "last_supplier_sync": _now(),
                                 # The SKU answered: any pending delisting
@@ -491,11 +505,19 @@ def _catalog_sync_due(
 async def _due_suppliers(
     session: AsyncSession, *, catalog: bool
 ) -> list[tuple[str, list[str]]]:
-    """Codes (and default categories) of the API suppliers to enqueue."""
+    """Codes (and default categories) of the API suppliers to enqueue.
+
+    None while the suppliers module is off (Admin → Modules).
+    """
     due: list[tuple[str, list[str]]] = []
+    if not await module_enabled(session, "suppliers"):
+        return due
     now = _now()
     for supplier, adapter in await api_suppliers(session):
         if not adapter.is_sync_enabled() or not adapter.is_configured():
+            continue
+        if not catalog and not getattr(adapter, "supports_live_availability", True):
+            # A file feed refreshes its stock with the catalogue sync.
             continue
         if catalog:
             recent = await supplier_sync_log_crud.get_recent_syncs(

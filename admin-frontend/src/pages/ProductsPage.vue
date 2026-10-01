@@ -1,15 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader
-      title="Produits"
-      hint="Articles du catalogue, manuels ou synchronisés depuis un fournisseur."
-    >
+    <PageHeader :title="$t('products.title')" :hint="$t('products.hint')">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="store.loading"
           @click="store.fetchPage()"
         />
@@ -18,7 +15,7 @@
           unelevated
           no-caps
           icon="ph:plus"
-          label="Nouveau produit"
+          :label="$t('products.new')"
           @click="openCreate"
         />
       </template>
@@ -27,7 +24,7 @@
     <div class="admin-toolbar">
       <q-input
         v-model="searchInput"
-        label="Rechercher (nom, SKU, MPN)"
+        :label="$t('products.search')"
         outlined
         dense
         clearable
@@ -42,13 +39,25 @@
       <q-select
         v-model="activeFilter"
         :options="filterOptions"
-        label="Statut"
+        :label="$t('common.status')"
         outlined
         dense
         emit-value
         map-options
         style="min-width: 260px"
         @update:model-value="onFilterChange"
+      />
+      <q-select
+        v-model="sort"
+        :options="sortOptions"
+        :label="$t('products.sort')"
+        outlined
+        dense
+        emit-value
+        map-options
+        style="min-width: 220px"
+        data-testid="products-sort"
+        @update:model-value="onSortChange"
       />
     </div>
 
@@ -58,14 +67,14 @@
     </div>
 
     <div v-if="selected.length" class="admin-toolbar">
-      <span class="text-body2">{{ selected.length }} article(s) sélectionné(s)</span>
+      <span class="text-body2">{{ $t('products.n_selected', { n: selected.length }) }}</span>
       <q-btn
         v-if="selectedDrafts.length"
         color="primary"
         unelevated
         no-caps
         icon="ph:upload-simple"
-        :label="`Publier ${selectedDrafts.length} brouillon(s)`"
+        :label="$t('products.publish_n', { n: selectedDrafts.length })"
         :loading="publishing"
         data-testid="publish-selected"
         @click="publish(selectedDrafts.map((p) => p.id))"
@@ -76,20 +85,19 @@
         color="primary"
         no-caps
         icon="ph:eye"
-        label="Publier tel quel"
+        :label="$t('products.publish_as_is')"
         :loading="publishing"
         @click="publishSelected(true)"
       >
         <q-tooltip>
-          Afficher en boutique sans attendre l'enrichissement Icecat (qui pourra toujours compléter
-          la fiche ensuite)
+          {{ $t('products.publish_as_is_hint') }}
         </q-tooltip>
       </q-btn>
       <q-btn
         flat
         no-caps
         icon="ph:eye-slash"
-        label="Remettre en attente"
+        :label="$t('products.back_pending')"
         :loading="publishing"
         @click="publishSelected(false)"
       />
@@ -131,7 +139,7 @@
           <div class="text-body2 ellipsis" :title="props.row.name">
             <StatusTag
               v-if="props.row.is_draft"
-              label="Brouillon"
+              :label="$t('products.draft')"
               tone="warn"
               icon="ph:pencil-simple"
               class="q-mr-xs"
@@ -145,7 +153,7 @@
               dense
               size="sm"
               icon="ph:stack"
-              :label="`${props.row.variants_count ?? 0} variante(s)`"
+              :label="$t('products.n_variants', { n: props.row.variants_count ?? 0 })"
             />
             <q-chip
               v-else-if="props.row.parent_product_id"
@@ -161,8 +169,7 @@
               class="q-ml-xs text-warning"
             >
               <q-tooltip>
-                {{ props.row.overridden_fields.length }} champ(s) verrouillé(s) contre la
-                synchronisation
+                {{ $t('products.locked', { n: props.row.overridden_fields.length }) }}
               </q-tooltip>
             </q-icon>
           </div>
@@ -190,23 +197,56 @@
         </q-td>
       </template>
 
+      <template #body-cell-price="props">
+        <q-td :props="props" class="font-mono text-right">
+          {{ money(props.row.sale_price_cached) }}
+        </q-td>
+      </template>
+
+      <template #body-cell-cost="props">
+        <q-td :props="props" class="font-mono text-right">
+          {{ money(props.row.unit_cost_cached) }}
+        </q-td>
+      </template>
+
+      <template #body-cell-margin="props">
+        <q-td :props="props" class="text-right" data-testid="product-margin">
+          <template v-if="props.row.margin_cached != null">
+            <div
+              class="font-mono"
+              :class="{ 'text-negative': Number(props.row.margin_cached) < 0 }"
+            >
+              {{ money(props.row.margin_cached) }}
+            </div>
+            <div class="text-caption text-subtle">{{ pct(props.row.margin_pct_cached) }}</div>
+          </template>
+          <span v-else class="text-subtle">
+            —
+            <q-tooltip>{{ $t('products.unknown_cost') }}</q-tooltip>
+          </span>
+        </q-td>
+      </template>
+
       <template #body-cell-storefront="props">
         <q-td :props="props" align="center">
           <span v-if="isVisible(props.row)">
             <StatusTag
-              :label="props.row.published_without_enrichment ? 'Publié tel quel' : 'Visible'"
+              :label="
+                props.row.published_without_enrichment
+                  ? $t('products.published_as_is')
+                  : $t('products.visible')
+              "
               :tone="props.row.published_without_enrichment ? 'warn' : 'ok'"
               icon="ph:eye"
             />
             <q-tooltip v-if="props.row.published_without_enrichment">
-              Affiché sans enrichissement Icecat, sur décision admin
+              {{ $t('products.shown_as_is') }}
             </q-tooltip>
           </span>
           <span v-else>
-            <StatusTag label="Masqué" tone="neutral" icon="ph:eye-slash" />
+            <StatusTag :label="$t('products.hidden')" tone="neutral" icon="ph:eye-slash" />
             <q-tooltip>
-              Ligne fournisseur en attente d'enrichissement Icecat : invisible en boutique.
-              Sélectionnez-la et « Publier tel quel » pour l'afficher.
+              {{ $t('products.pending_hint') }}
             </q-tooltip>
           </span>
         </q-td>
@@ -235,7 +275,7 @@
             data-testid="product-publish"
             @click="publish([props.row.id])"
           >
-            <q-tooltip>Publier (sortir du brouillon)</q-tooltip>
+            <q-tooltip>{{ $t('products.publish') }}</q-tooltip>
           </q-btn>
           <q-btn
             flat
@@ -245,16 +285,23 @@
             data-testid="product-price-history"
             @click="openHistory(props.row)"
           >
-            <q-tooltip>Journal des prix</q-tooltip>
+            <q-tooltip>{{ $t('products.price_log') }}</q-tooltip>
           </q-btn>
-          <q-btn flat dense round icon="ph:pencil-simple" @click="openEdit(props.row)">
-            <q-tooltip>Modifier</q-tooltip>
+          <q-btn
+            flat
+            dense
+            round
+            icon="ph:pencil-simple"
+            :aria-label="$t('products.edit_aria')"
+            @click="openEdit(props.row)"
+          >
+            <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
           </q-btn>
         </q-td>
       </template>
 
       <template #no-data>
-        <div class="full-width text-center text-subtle q-pa-md">Aucun produit.</div>
+        <div class="full-width text-center text-subtle q-pa-md">{{ $t('products.none') }}</div>
       </template>
     </q-table>
 
@@ -262,11 +309,11 @@
     <q-dialog v-model="historyOpen">
       <q-card class="app-dialog app-dialog--wide">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Journal des prix — {{ historyProduct?.name }}</h2>
+          <h2 class="app-dialog__title">
+            {{ $t('products.price_log_of', { name: historyProduct?.name }) }}
+          </h2>
           <p class="app-dialog__text">
-            Chaque changement du prix de vente affiché en vitrine, avec sa cause : édition ou
-            synchronisation de l'article, taux de change ou de taxe, marge de catégorie, paramètre
-            de prix, recalcul nocturne.
+            {{ $t('products.price_log_hint') }}
           </p>
         </q-card-section>
         <q-card-section>
@@ -275,15 +322,15 @@
             <q-spinner size="2em" />
           </div>
           <div v-else-if="!history.length" class="text-subtle q-pa-md text-center">
-            Aucun changement de prix enregistré.
+            {{ $t('products.no_change') }}
           </div>
           <q-markup-table v-else dense flat bordered>
             <thead>
               <tr>
-                <th class="text-left">Date</th>
-                <th class="text-right">Ancien prix</th>
-                <th class="text-right">Nouveau prix</th>
-                <th class="text-left">Cause</th>
+                <th class="text-left">{{ $t('products.h_date') }}</th>
+                <th class="text-right">{{ $t('products.h_old') }}</th>
+                <th class="text-right">{{ $t('products.h_new') }}</th>
+                <th class="text-left">{{ $t('products.h_cause') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -297,7 +344,7 @@
           </q-markup-table>
         </q-card-section>
         <q-card-actions align="right" class="app-dialog__actions">
-          <q-btn flat no-caps label="Fermer" v-close-popup />
+          <q-btn flat no-caps :label="$t('common.close')" v-close-popup />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -317,21 +364,29 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { labels } from '@/i18n/global';
 import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import PageHeader from '@/components/PageHeader.vue';
+import { formatMoney, intlLocale } from '@app/utils';
+import { useShopConfigStore } from '@/stores/shopConfig';
 import {
   useProductsStore,
   type ActiveFilter,
   type PriceHistoryEntry,
+  type ProductSort,
   type ProductPublic,
 } from '@/stores/products';
 import { listPlaces, type Place } from '@/api/logistics';
 import ProductFormDialog from '@/components/ProductFormDialog.vue';
 
+const { t } = useI18n();
+
 const store = useProductsStore();
+const shopConfig = useShopConfigStore();
 
 const formOpen = ref(false);
 const editingProduct = ref<ProductPublic | null>(null);
@@ -360,20 +415,49 @@ function onOriginChange(product: Parameters<typeof store.updateOriginPlace>[0], 
 const placeholderImg =
   'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"/>';
 
+const sort = ref<ProductSort>(store.sort);
+const sortOptions = computed<{ label: string; value: ProductSort }[]>(() => [
+  { label: t('products.s_recent'), value: '' },
+  { label: t('products.s_margin_desc'), value: 'margin_desc' },
+  { label: t('products.s_margin_asc'), value: 'margin_asc' },
+  { label: t('products.s_rate_desc'), value: 'margin_pct_desc' },
+  { label: t('products.s_rate_asc'), value: 'margin_pct_asc' },
+  { label: t('products.s_price_desc'), value: 'price_desc' },
+  { label: t('products.s_price_asc'), value: 'price_asc' },
+  { label: t('products.s_cost_desc'), value: 'cost_desc' },
+]);
+
+function onSortChange(value: ProductSort) {
+  store.applyFilters({ sort: value ?? '' });
+  currentPage.value = 1;
+}
+
+function money(value: string | null | undefined): string {
+  return value == null ? '—' : formatMoney(value, shopConfig.currency);
+}
+
+function pct(value: string | null | undefined): string {
+  return value == null
+    ? '—'
+    : `${Number(value).toLocaleString(intlLocale(), { maximumFractionDigits: 1 })} %`;
+}
+
 const filterOptions = [
-  { label: 'Tous', value: 'all' as const },
-  { label: 'Actifs', value: 'active' as const },
-  { label: 'Enrichis', value: 'enriched' as const },
-  { label: 'Masqués (en attente d’enrichissement)', value: 'hidden' as const },
-  { label: 'Inactifs', value: 'inactive' as const },
-  { label: 'Brouillons (à publier)', value: 'draft' as const },
+  { label: t('products.f_all'), value: 'all' as const },
+  { label: t('products.f_active'), value: 'active' as const },
+  { label: t('products.f_enriched'), value: 'enriched' as const },
+  { label: t('products.f_hidden'), value: 'hidden' as const },
+  { label: t('products.f_inactive'), value: 'inactive' as const },
+  { label: t('products.f_drafts'), value: 'draft' as const },
 ];
 
 const selected = ref<ProductPublic[]>([]);
 
 function variantLabel(product: ProductPublic): string {
   const options = Object.entries(product.variant_options ?? {}).map(([k, v]) => `${k} ${v}`);
-  return options.length ? `Variante · ${options.join(' / ')}` : 'Variante';
+  return options.length
+    ? t('products.variant_of', { options: options.join(' / ') })
+    : t('products.variant');
 }
 const publishing = ref(false);
 const notice = ref<string | null>(null);
@@ -401,7 +485,7 @@ async function publishSelected(published: boolean) {
       : `${updated} article(s) remis en attente d’enrichissement.`;
     selected.value = [];
   } catch (err: unknown) {
-    store.error = err instanceof Error ? err.message : 'Publication impossible.';
+    store.error = err instanceof Error ? err.message : t('products.publish_failed');
   } finally {
     publishing.value = false;
   }
@@ -416,26 +500,27 @@ const history = ref<PriceHistoryEntry[]>([]);
 const historyLoading = ref(false);
 const historyError = ref<string | null>(null);
 
-const REASON_LABELS: Record<string, string> = {
-  product_write: "Édition ou synchronisation de l'article",
-  nightly: 'Recalcul nocturne (dates de validité)',
-  admin_inline: 'Recalcul manuel',
-  scheduled: 'Recalcul planifié',
-  refresh: 'Recalcul',
-};
+const REASON_LABELS: Record<string, string> = labels({
+  product_write: 'products.r_product',
+  nightly: 'products.r_nightly',
+  admin_inline: 'products.r_manual',
+  scheduled: 'products.r_scheduled',
+  refresh: 'products.r_refresh',
+});
 
 function reasonLabel(reason: string): string {
   const [kind, detail] = reason.split(':', 2);
-  if (kind === 'currency_rate') return `Taux de change ${detail ?? ''}`.trim();
-  if (kind === 'system_setting') return `Paramètre de prix ${detail ?? ''}`.trim();
-  if (kind?.startsWith('tax_rate')) return `Taux de taxe ${detail ?? ''}`.trim();
-  if (kind?.startsWith('category')) return `Catégorie (${kind.replace('category_', '')})`;
+  if (kind === 'currency_rate') return t('products.r_currency', { detail: detail ?? '' }).trim();
+  if (kind === 'system_setting') return t('products.r_setting', { detail: detail ?? '' }).trim();
+  if (kind?.startsWith('tax_rate')) return t('products.r_tax', { detail: detail ?? '' }).trim();
+  if (kind?.startsWith('category'))
+    return t('products.r_category', { kind: kind.replace('category_', '') });
   return REASON_LABELS[reason] ?? reason;
 }
 
 function formatDateTime(raw: string): string {
   const d = new Date(raw);
-  return Number.isNaN(d.getTime()) ? raw : d.toLocaleString('fr-FR');
+  return Number.isNaN(d.getTime()) ? raw : d.toLocaleString(intlLocale());
 }
 
 async function openHistory(product: ProductPublic) {
@@ -447,7 +532,7 @@ async function openHistory(product: ProductPublic) {
   try {
     history.value = await store.priceHistory(product.id);
   } catch (err: unknown) {
-    historyError.value = err instanceof Error ? err.message : 'Chargement impossible';
+    historyError.value = err instanceof Error ? err.message : t('common.load_failed');
   } finally {
     historyLoading.value = false;
   }
@@ -459,36 +544,46 @@ async function publish(ids: string[]) {
   try {
     const res = await store.publishDrafts(ids);
     selected.value = [];
-    notice.value = `${res.published} article(s) publié(s)${
-      res.already_published ? `, ${res.already_published} déjà publié(s)` : ''
-    }. La vitrine les montre dès qu'ils sont actifs, enrichis et tarifables.`;
+    notice.value = t('products.published_n', {
+      n: res.published,
+      already: res.already_published ? t('products.already_n', { n: res.already_published }) : '',
+    });
   } catch (err: unknown) {
-    store.error = err instanceof Error ? err.message : 'Publication impossible';
+    store.error = err instanceof Error ? err.message : t('products.publish_failed');
   } finally {
     publishing.value = false;
   }
 }
 
-const columns: QTableColumn[] = [
+const columns = computed<QTableColumn[]>(() => [
   { name: 'image', label: '', field: 'image_url', align: 'left' },
   {
     name: 'sku',
-    label: 'SKU',
+    label: t('products.col_sku'),
     field: (row) => row.supplier_sku || row.vendor_part_number || '—',
     align: 'left',
     classes: 'font-mono',
   },
-  { name: 'name', label: 'Nom', field: 'name', align: 'left', style: 'max-width: 480px' },
+  {
+    name: 'name',
+    label: t('products.col_name'),
+    field: 'name',
+    align: 'left',
+    style: 'max-width: 480px',
+  },
   {
     name: 'origin',
-    label: 'Origine (fournisseur)',
+    label: t('products.col_origin'),
     field: 'supplier_place_id',
     align: 'left',
   },
-  { name: 'storefront', label: 'Vitrine', field: 'is_enriched', align: 'center' },
-  { name: 'active', label: 'Actif admin', field: 'is_admin_active', align: 'center' },
+  { name: 'price', label: t('products.col_price'), field: 'sale_price_cached', align: 'right' },
+  { name: 'cost', label: t('products.col_cost'), field: 'unit_cost_cached', align: 'right' },
+  { name: 'margin', label: t('products.col_margin'), field: 'margin_cached', align: 'right' },
+  { name: 'storefront', label: t('products.col_shop'), field: 'is_enriched', align: 'center' },
+  { name: 'active', label: t('products.col_active'), field: 'is_admin_active', align: 'center' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-];
+]);
 
 const totalPages = computed(() => Math.max(1, Math.ceil(store.totalCount / store.pageSize)));
 

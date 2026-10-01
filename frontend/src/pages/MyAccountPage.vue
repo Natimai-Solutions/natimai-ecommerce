@@ -2,9 +2,11 @@
   <q-page class="account page-container app-page">
     <header class="account__head">
       <div>
-        <h1 class="page-title">Mon compte</h1>
+        <h1 class="page-title">{{ $t('account.title') }}</h1>
         <p class="account__greeting">
-          <template v-if="profile?.full_name">Bonjour {{ firstName }}.</template>
+          <template v-if="profile?.full_name">{{
+            $t('account.hello', { name: firstName })
+          }}</template>
           <span v-if="profile" class="account__email">{{ profile.email }}</span>
         </p>
       </div>
@@ -12,16 +14,16 @@
         flat
         no-caps
         icon="ph:sign-out"
-        label="Se déconnecter"
+        :label="$t('account.logout')"
         class="account__logout"
         @click="onLogout"
       />
     </header>
 
     <div v-if="ready" class="account__layout">
-      <nav class="account-nav" aria-label="Sections du compte">
+      <nav class="account-nav" :aria-label="$t('account.sections_aria')">
         <router-link
-          v-for="section in SECTIONS"
+          v-for="section in sections"
           :key="section.key"
           :to="{ name: 'account', query: section.key === 'overview' ? {} : { tab: section.key } }"
           class="account-nav__link"
@@ -29,7 +31,7 @@
           :data-testid="`account-nav-${section.key}`"
         >
           <q-icon :name="section.icon" size="20px" class="account-nav__icon" />
-          <span>{{ section.label }}</span>
+          <span>{{ $t(section.labelKey) }}</span>
         </router-link>
       </nav>
 
@@ -43,6 +45,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { computed, onMounted, ref, type Component } from 'vue';
 import { useMeta } from 'quasar';
 import { useRoute, useRouter } from 'vue-router';
@@ -57,10 +60,13 @@ import AccountQuotes from '@/components/account/AccountQuotes.vue';
 import AccountWishlist from '@/components/account/AccountWishlist.vue';
 import { getMyProfile, type MyProfile } from '@/api/profile';
 import { useAuthStore } from '@/stores/auth';
+import { useShopModulesStore } from '@/stores/shopModules';
+
+const { t } = useI18n();
 
 interface AccountSection {
   key: string;
-  label: string;
+  labelKey: string;
   icon: string;
   component: Component;
 }
@@ -68,19 +74,54 @@ interface AccountSection {
 // L'ordre suit la fréquence d'usage. `?tab=` reste la clé d'URL : les liens
 // existants (checkout, suivi, e-mails) y pointent déjà.
 const SECTIONS: AccountSection[] = [
-  { key: 'overview', label: "Vue d'ensemble", icon: 'ph:house', component: AccountOverview },
-  { key: 'orders', label: 'Commandes', icon: 'ph:receipt', component: AccountOrders },
-  { key: 'quotes', label: 'Devis', icon: 'ph:file-text', component: AccountQuotes },
-  { key: 'wishlist', label: 'Favoris et alertes', icon: 'ph:heart', component: AccountWishlist },
-  { key: 'addresses', label: 'Adresses', icon: 'ph:map-pin', component: AccountAddresses },
-  { key: 'profile', label: 'Profil et sécurité', icon: 'ph:user', component: AccountProfile },
+  {
+    key: 'overview',
+    labelKey: 'account.section.overview',
+    icon: 'ph:house',
+    component: AccountOverview,
+  },
+  {
+    key: 'orders',
+    labelKey: 'account.section.orders',
+    icon: 'ph:receipt',
+    component: AccountOrders,
+  },
+  {
+    key: 'quotes',
+    labelKey: 'account.section.quotes',
+    icon: 'ph:file-text',
+    component: AccountQuotes,
+  },
+  {
+    key: 'wishlist',
+    labelKey: 'account.section.wishlist',
+    icon: 'ph:heart',
+    component: AccountWishlist,
+  },
+  {
+    key: 'addresses',
+    labelKey: 'account.section.addresses',
+    icon: 'ph:map-pin',
+    component: AccountAddresses,
+  },
+  {
+    key: 'profile',
+    labelKey: 'account.section.profile',
+    icon: 'ph:user',
+    component: AccountProfile,
+  },
   {
     key: 'preferences',
-    label: 'Préférences',
+    labelKey: 'account.section.preferences',
     icon: 'ph:sliders-horizontal',
     component: AccountPreferences,
   },
-  { key: 'group', label: 'Groupe tarifaire', icon: 'ph:seal-check', component: AccountGroup },
+  {
+    key: 'group',
+    labelKey: 'account.section.group',
+    icon: 'ph:seal-check',
+    component: AccountGroup,
+  },
 ];
 
 const route = useRoute();
@@ -90,14 +131,24 @@ const authStore = useAuthStore();
 const ready = ref(false);
 const profile = ref<MyProfile | null>(null);
 
+/** Tabs of a module switched off in the back-office are left out. */
+const SECTION_MODULES: Record<string, string> = { quotes: 'quotes', group: 'price_groups' };
+const shopModules = useShopModulesStore();
+const sections = computed<AccountSection[]>(() =>
+  SECTIONS.filter((s) => {
+    const module = SECTION_MODULES[s.key];
+    return !module || shopModules.isOn(module);
+  }),
+);
+
 const current = computed<AccountSection>(() => {
   const tab = route.query.tab;
-  return SECTIONS.find((s) => s.key === tab) ?? SECTIONS[0]!;
+  return sections.value.find((s) => s.key === tab) ?? sections.value[0]!;
 });
 
 const firstName = computed(() => (profile.value?.full_name ?? '').trim().split(/\s+/)[0] ?? '');
 
-useMeta(() => ({ title: `${current.value.label} | Mon compte` }));
+useMeta(() => ({ title: t('account.meta', { section: t(current.value.labelKey) }) }));
 
 function onProfileUpdated(updated: MyProfile) {
   profile.value = updated;
@@ -114,6 +165,7 @@ onMounted(async () => {
     return;
   }
   ready.value = true;
+  void shopModules.load();
   profile.value = await getMyProfile().catch(() => null);
 });
 </script>

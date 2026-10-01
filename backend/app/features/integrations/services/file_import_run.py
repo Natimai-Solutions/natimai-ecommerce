@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -20,6 +21,7 @@ from app.features.integrations.crud.supplier_sync import supplier_sync_log_crud
 from app.features.integrations.models.supplier import SupplierKind
 from app.features.integrations.models.supplier_sync import SyncStatus
 from app.features.integrations.services.supplier_sync_orchestrator import (
+    ImportThresholds,
     SupplierSyncOrchestrator,
 )
 from app.services.suppliers import SupplierAdapter, adapter_for_supplier, has_adapter
@@ -75,6 +77,51 @@ def orchestrator_for_file_import(supplier: Any) -> SupplierSyncOrchestrator:
     return SupplierSyncOrchestrator(adapter)
 
 
+def thresholds_for(
+    supplier: Any,
+    *,
+    min_quantity: Decimal | None = None,
+    min_price: Decimal | None = None,
+) -> ImportThresholds:
+    """The minimums of an import: the ones given for this run, else the
+    supplier's (``Supplier.min_quantity`` / ``min_price``). ``0`` given for a
+    run disables that threshold for it."""
+    return ImportThresholds(
+        min_quantity=(
+            min_quantity
+            if min_quantity is not None
+            else getattr(supplier, "min_quantity", None)
+        ),
+        min_price=(
+            min_price if min_price is not None else getattr(supplier, "min_price", None)
+        ),
+    )
+
+
+def thresholds_payload(thresholds: ImportThresholds) -> dict[str, str | None]:
+    """JSON-safe form for an ARQ job (Decimal as text)."""
+    return {
+        "min_quantity": (
+            str(thresholds.min_quantity)
+            if thresholds.min_quantity is not None
+            else None
+        ),
+        "min_price": (
+            str(thresholds.min_price) if thresholds.min_price is not None else None
+        ),
+    }
+
+
+def thresholds_from_payload(payload: dict[str, Any]) -> ImportThresholds:
+    def _dec(value: Any) -> Decimal | None:
+        return Decimal(str(value)) if value not in (None, "") else None
+
+    return ImportThresholds(
+        min_quantity=_dec(payload.get("min_quantity")),
+        min_price=_dec(payload.get("min_price")),
+    )
+
+
 @dataclass(slots=True)
 class FileImportOutcome:
     """What an import run produced, for the response and the sync log."""
@@ -94,6 +141,7 @@ async def run_file_import(
     filename: str,
     total_rows: int,
     publish_new: bool,
+    thresholds: ImportThresholds | None = None,
 ) -> FileImportOutcome:
     """Import parsed rows under an existing sync log and close it.
 
@@ -111,6 +159,7 @@ async def run_file_import(
             products,
             errors=sync_errors,
             publish_without_enrichment=publish_new,
+            thresholds=thresholds,
         )
     except Exception as exc:
         await supplier_sync_log_crud.complete_sync(
@@ -135,6 +184,11 @@ async def run_file_import(
             "filename": filename,
             "total_rows": total_rows,
             "parsed_products": len(products),
+            **(
+                {"thresholds": thresholds_payload(thresholds)}
+                if thresholds is not None and thresholds.active
+                else {}
+            ),
             "row_errors": [
                 {"row_number": e.row_number, "message": e.message}
                 for e in row_errors[:ERROR_SAMPLE_SIZE]

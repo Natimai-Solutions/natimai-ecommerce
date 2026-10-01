@@ -40,6 +40,29 @@ def override_dependencies(
     app.dependency_overrides.clear()
 
 
+@pytest.fixture(autouse=True)
+def icecat_module_on(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """The fake session cannot be queried: the module switch is stubbed."""
+    switch = AsyncMock(return_value=True)
+    monkeypatch.setattr(icecat_routes, "module_enabled", switch)
+    return switch
+
+
+def test_icecat_enrich_switched_off_in_admin_returns_error_payload(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    icecat_module_on: AsyncMock,
+) -> None:
+    monkeypatch.setattr(settings, "ICECAT_ENABLED", True)
+    icecat_module_on.return_value = False
+
+    response = client.post("/api/v1/icecat/enrich", json={"product_id": "P1"})
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "icecat.disabled"
+    assert response.json()["error"]["details"] == {"setting": "module.icecat"}
+
+
 def test_icecat_enrich_disabled_returns_error_payload(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

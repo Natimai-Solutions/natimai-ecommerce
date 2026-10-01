@@ -1,18 +1,20 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader title="Paniers abandonnés">
+    <PageHeader :title="$t('abandoned.title')">
       <template #hint>
-        Paniers ouverts (jamais commandés) des clients connectés. Un panier sans activité depuis
-        {{ response?.reminder_delay_hours ?? '—' }} h reçoit un rappel par e-mail, une seule fois,
-        si le client accepte les rappels commerciaux ; au-delà de
-        {{ response?.reminder_max_age_days ?? '—' }} jours il n'est plus relancé.
+        {{
+          $t('abandoned.hint', {
+            hours: response?.reminder_delay_hours ?? '—',
+            days: response?.reminder_max_age_days ?? '—',
+          })
+        }}
       </template>
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -51,7 +53,7 @@
             {{ line.quantity }} × {{ line.name }}
           </div>
           <div v-if="props.row.items.length > 3" class="text-caption text-muted">
-            + {{ props.row.items.length - 3 }} autre(s)
+            {{ $t('abandoned.more', { n: props.row.items.length - 3 }) }}
           </div>
         </q-td>
       </template>
@@ -64,19 +66,21 @@
             v-if="props.row.reminded_at"
             tone="ok"
             icon="ph:paper-plane-tilt"
-            :label="`Relancé le ${formatDate(props.row.reminded_at)}`"
+            :label="$t('abandoned.reminded_on', { date: formatDate(props.row.reminded_at) })"
           />
-          <StatusTag v-else tone="neutral" icon="ph:clock" label="En attente" />
+          <StatusTag v-else tone="neutral" icon="ph:clock" :label="$t('common.pending')" />
         </q-td>
       </template>
       <template #no-data>
-        <span class="text-subtle">Aucun panier abandonné.</span>
+        <span class="text-subtle">{{ $t('abandoned.none') }}</span>
       </template>
     </q-table>
   </q-page>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { decimalsOf, intlLocale } from '@app/utils';
 import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -89,6 +93,8 @@ import {
 } from '@/api/abandonedCarts';
 import { extractApiError } from '@/api/errors';
 
+const { t } = useI18n();
+
 const response = ref<AbandonedCartsResponse | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -98,12 +104,12 @@ const rows = computed(() => response.value?.data ?? []);
 const tiles = computed(() => {
   const c = response.value?.counters ?? { open: 0, reminded: 0, recovered: 0 };
   return [
-    { label: 'Paniers ouverts', value: c.open, hint: 'jamais commandés, avec au moins un article' },
-    { label: 'Rappels envoyés', value: c.reminded, hint: 'depuis la mise en service' },
+    { label: t('abandoned.open'), value: c.open, hint: t('abandoned.open_hint') },
+    { label: t('abandoned.reminded'), value: c.reminded, hint: t('abandoned.reminded_hint') },
     {
-      label: 'Récupérés',
+      label: t('abandoned.recovered'),
       value: c.recovered,
-      hint: 'commandés après le rappel — le seul chiffre qui compte',
+      hint: t('abandoned.recovered_hint'),
     },
   ];
 });
@@ -111,8 +117,8 @@ const tiles = computed(() => {
 function formatAmount(value: string, currency: string): string {
   const amount = Number(value);
   if (Number.isNaN(amount)) return value;
-  const digits = currency === 'XPF' ? 0 : 2;
-  return `${amount.toLocaleString('fr-FR', {
+  const digits = decimalsOf(currency);
+  return `${amount.toLocaleString(intlLocale(), {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   })} ${currency}`;
@@ -121,28 +127,28 @@ function formatAmount(value: string, currency: string): string {
 function formatDate(value: string | null): string {
   if (!value) return '—';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('fr-FR');
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString(intlLocale());
 }
 
-const columns: QTableColumn<AbandonedCart>[] = [
-  { name: 'customer', label: 'Client', field: 'user_email', align: 'left' },
-  { name: 'items', label: 'Articles', field: 'items_count', align: 'left' },
+const columns = computed<QTableColumn<AbandonedCart>[]>(() => [
+  { name: 'customer', label: t('abandoned.col_customer'), field: 'user_email', align: 'left' },
+  { name: 'items', label: t('abandoned.col_items'), field: 'items_count', align: 'left' },
   {
     name: 'total',
-    label: 'Total',
+    label: t('abandoned.col_total'),
     field: (row) => formatAmount(row.total_amount, row.currency),
     align: 'right',
     sortable: true,
   },
   {
     name: 'last_activity_at',
-    label: 'Dernière activité',
+    label: t('abandoned.col_activity'),
     field: (row) => formatDate(row.last_activity_at),
     align: 'left',
     sortable: true,
   },
-  { name: 'reminded', label: 'Rappel', field: 'reminded_at', align: 'center' },
-];
+  { name: 'reminded', label: t('abandoned.col_reminder'), field: 'reminded_at', align: 'center' },
+]);
 
 async function load() {
   loading.value = true;
@@ -150,7 +156,7 @@ async function load() {
   try {
     response.value = await listAbandonedCarts({ limit: 200 });
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Impossible de charger les paniers.';
+    error.value = extractApiError(err) ?? t('abandoned.load_failed');
   } finally {
     loading.value = false;
   }

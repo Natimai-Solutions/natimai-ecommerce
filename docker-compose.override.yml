@@ -4,6 +4,11 @@
 services:
   # Override du service API pour le développement
   api:
+    # Image de dev : pytest & co inclus (`docker compose exec api pytest`) ;
+    # l'image de production n'embarque jamais le groupe dev.
+    build:
+      args:
+        INSTALL_DEV: "true"
     command: ["api", "--reload"]  # Active le reload automatique de FastAPI
     volumes:
       # Monte le code source pour le développement en temps réel
@@ -23,6 +28,9 @@ services:
 
   # Override du service ARQ Worker pour le développement
   arq-worker:
+    build:
+      args:
+        INSTALL_DEV: "true"
     volumes:
       # Monte le code source pour le développement en temps réel
       - ./backend/app:/app/app  # Read-write pour les changements en temps réel
@@ -34,6 +42,9 @@ services:
 
   # Override du service Outbox Poller pour le développement
   outbox-poller:
+    build:
+      args:
+        INSTALL_DEV: "true"
     volumes:
       # Monte le code source pour le développement en temps réel
       - ./backend/app:/app/app  # Read-write pour les changements en temps réel

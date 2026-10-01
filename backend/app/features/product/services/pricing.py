@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import inspect
+import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -17,11 +18,13 @@ from app.features.product.models.currency_rate import CurrencyRate
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.product import PricingMode, Product
 from app.features.product.models.tax_rate import TaxRate
+from app.features.product.services.margin import MarginFigures, compute_margin
 from app.features.product.services.pricing_parameters import (
     apply_fx_safety_margin,
     apply_payment_commission,
     load_pricing_parameters,
 )
+from app.features.product.services.tax_settings import load_tax_codes, normalize_code
 from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.services.origin import (
     OriginContext,
@@ -35,13 +38,27 @@ from app.features.shipping.services.pricing import (
     resolve_billable_weight,
 )
 
+logger = logging.getLogger(__name__)
+
 _MONEY_QUANT = Decimal("0.01")
 _DEFAULT_MARGIN_RATE_PCT = Decimal("30.00")
 
 
 def default_tax_code() -> str:
-    """Rate applied when neither the product nor its category says otherwise."""
-    return settings.DEFAULT_TAX_CODE
+    """Environment starting point of the default rate (see tax_settings)."""
+    return normalize_code(settings.DEFAULT_TAX_CODE)
+
+
+async def resolve_default_tax_code(session: AsyncSession) -> str:
+    """Rate applied when neither the product nor its category says otherwise:
+    the admin's choice (``tax_default_code``), else the environment."""
+    try:
+        return (await load_tax_codes(session)).default_code
+    except Exception as exc:  # noqa: BLE001 - mocked sessions in unit tests
+        logger.warning(
+            "Tax settings unreadable, falling back to %s: %s", default_tax_code(), exc
+        )
+        return default_tax_code()
 
 
 def default_territory_code() -> str:
@@ -204,7 +221,7 @@ async def resolve_tax_rate(
     Resolution order:
     1) Product.tax_rate_id
     2) Category.default_tax_rate_id
-    3) Territory default tax code (``DEFAULT_TAX_CODE``: TGC_NORMAL, TVA_NORMALE…)
+    3) The shop's default rate code (admin choice, else ``DEFAULT_TAX_CODE``)
     """
     reference_date: date = at_date if at_date is not None else date.today()
     product_tax_rate_id = getattr(product, "tax_rate_id", None)
@@ -234,10 +251,11 @@ async def resolve_tax_rate(
             if _is_tax_rate_candidate_active(category_rate, at_date=reference_date):
                 return category_rate
 
+    fallback_code = await resolve_default_tax_code(session)
     fallback_statement = (
         select(TaxRate)
         .where(
-            TaxRate.code == default_tax_code(),
+            TaxRate.code == fallback_code,
             TaxRate.territory_code == (territory or default_territory_code()),
             col(TaxRate.is_active).is_(True),
             TaxRate.valid_from <= reference_date,
@@ -538,7 +556,7 @@ async def calculate_sale_price(
     # only under-recovers on exactly the items where the freight weighs most —
     # the heavy and the far-shipped. There is no circularity: the variable
     # freight is known before the customs base is assembled.
-    insurance_rate = Decimal(str(settings.INSURANCE_RATE_PCT)) / Decimal("100")
+    insurance_rate = parameters.insurance_rate_pct / Decimal("100")
     insurance = (cost_in_reference + freight_variable) * insurance_rate
 
     caf = cost_in_reference + freight_variable + insurance
@@ -629,6 +647,19 @@ class _CategoryPricing:
     default_tax_rate_id: uuid.UUID | None
 
 
+@dataclass(frozen=True)
+class _TaxRateSnapshot:
+    """What the context reads of a :class:`TaxRate`, detached from the ORM."""
+
+    id: uuid.UUID
+    code: str
+    territory_code: str
+    rate_pct: Decimal
+    valid_from: date
+    valid_until: date | None
+    is_active: bool
+
+
 @dataclass
 class PricingContext:
     """Referentials of :func:`calculate_sale_price` loaded once, prices in memory.
@@ -645,7 +676,7 @@ class PricingContext:
     """
 
     group_margin_rate_pct: Decimal | None
-    tax_rates_by_id: dict[uuid.UUID, TaxRate]
+    tax_rates_by_id: dict[uuid.UUID, Any]
     default_tax_rate_pct: Decimal
     fx_rates: dict[str, Decimal]
     categories: dict[uuid.UUID, _CategoryPricing]
@@ -689,13 +720,28 @@ class PricingContext:
             else None
         )
 
-        tax_rows = list((await session.exec(select(TaxRate))).all())
+        # Plain values, not ORM rows: the context outlives the caller's
+        # commits (cached on the session), and an expired row would reload
+        # lazily — impossible outside the async greenlet.
+        tax_rows = [
+            _TaxRateSnapshot(
+                id=row.id,
+                code=row.code,
+                territory_code=row.territory_code,
+                rate_pct=row.rate_pct,
+                valid_from=row.valid_from,
+                valid_until=row.valid_until,
+                is_active=row.is_active,
+            )
+            for row in (await session.exec(select(TaxRate))).all()
+        ]
         tax_by_id = {row.id: row for row in tax_rows}
+        fallback_code = await resolve_default_tax_code(session)
         default_candidates = sorted(
             (
                 row
                 for row in tax_rows
-                if row.code == default_tax_code()
+                if row.code == fallback_code
                 and row.territory_code == (territory or default_territory_code())
                 and _is_tax_rate_candidate_active(row, at_date=reference_date)
             ),
@@ -776,7 +822,7 @@ class PricingContext:
             default_tax_rate_pct=default_tax_pct,
             fx_rates=fx,
             categories=categories,
-            insurance_rate_pct=Decimal(str(settings.INSURANCE_RATE_PCT)),
+            insurance_rate_pct=parameters.insurance_rate_pct,
             reference_currency=settings.REFERENCE_CURRENCY,
             at_date=reference_date,
             places=places,
@@ -891,6 +937,52 @@ class PricingContext:
         if rate is None:
             raise CurrencyRateMissing(currency)
         return _quantize_money(amount * rate)
+
+    def unit_cost(
+        self, product: Product, *, import_route: ShippingRoute | None = None
+    ) -> Decimal | None:
+        """Cost price excl. tax in the reference currency (see margin.py).
+
+        The purchase cost converted — without the FX safety cushion, a pricing
+        reserve rather than a cost — plus insurance and customs for an
+        import-mode product. None when no cost is entered or its currency has
+        no rate.
+        """
+        raw = getattr(product, "cost_amount", None)
+        if raw is None or _as_decimal(raw) <= 0:
+            return None
+        currency = getattr(product, "cost_currency", None) or self.reference_currency
+        try:
+            cost = self.to_reference(_as_decimal(raw), currency)
+        except CurrencyRateMissing:
+            return None
+        if self.effective_mode(product) is not PricingMode.IMPORT:
+            return _quantize_money(cost)
+        freight = Decimal("0")
+        if import_route is not None:
+            billable = resolve_billable_weight(
+                _as_decimal(getattr(product, "weight", None)),
+                _compute_volume_m3(product),
+                metadata=_route_metadata_to_dict(import_route),
+                mode=getattr(import_route, "mode", None),
+            )
+            freight = _as_decimal(import_route.price_per_kg) * billable
+        insurance = (cost + freight) * (self.insurance_rate_pct / Decimal("100"))
+        customs = _as_decimal(self.customs_rate_pct(product))
+        return _quantize_money(
+            (cost + freight + insurance) * (Decimal("1.00") + customs / Decimal("100"))
+        )
+
+    def margin(
+        self, product: Product, price_incl_tax: Decimal | None
+    ) -> MarginFigures | None:
+        """Margin of one unit sold at ``price_incl_tax`` (None: cost unknown)."""
+        return compute_margin(
+            price_incl_tax=price_incl_tax,
+            tax_rate_pct=self.tax_rate_pct(product),
+            unit_cost=self.unit_cost(product),
+            commission_pct=self.payment_commission_pct,
+        )
 
     def price(
         self, product: Product, *, import_route: ShippingRoute | None = None

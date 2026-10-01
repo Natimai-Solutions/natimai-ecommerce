@@ -1,0 +1,17 @@
+{% extends "_layout.html" %}
+{% block title %}Instalment received{% endblock %}
+{% block heading %}Instalment received{% endblock %}
+{% block content %}
+      <p>Hello {{ full_name }},</p>
+      <p>We have received your instalment. Your order will be confirmed as soon as the remaining amount is received.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Order number</td><td>{{ order_ref or (order_id | short_ref) }}</td></tr>
+          <tr><td>Instalment received</td><td>{{ amount }} {{ currency }}</td></tr>
+          <tr><td>Total paid so far</td><td>{{ received_amount }} {{ currency }}</td></tr>
+          <tr><td>Left to pay</td><td><strong>{{ remaining_amount }} {{ currency }}</strong></td></tr>
+        </table>
+      </div>
+      {% if tracking_url %}<p><a href="{{ tracking_url }}">Track my order</a></p>{% endif %}
+      <p>Thank you for your trust,<br><strong>The {{ shop_name }} team</strong></p>
+{% endblock %}

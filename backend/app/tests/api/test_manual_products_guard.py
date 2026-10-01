@@ -19,6 +19,7 @@ from app.features.integrations.services.supplier_sync_orchestrator import (
     SupplierSyncOrchestrator,
 )
 from app.features.place.crud import crud_place
+from app.features.product.crud.category import crud_category
 from app.features.product.crud.product import crud_product
 from app.features.product.models.product import PricingMode
 from app.services.suppliers import NormalizedProductData
@@ -65,6 +66,12 @@ def _wire(
     )
     monkeypatch.setattr(
         crud_product, "list_by_supplier_sku", AsyncMock(return_value=by_sku)
+    )
+    # The row's category (no subcategory) names its shop category.
+    monkeypatch.setattr(
+        crud_category,
+        "get_or_create_by_name",
+        AsyncMock(return_value=(SimpleNamespace(id=uuid.uuid4(), name="Info"), True)),
     )
     monkeypatch.setattr(
         crud_product, "find_by_identity", AsyncMock(return_value=by_identity)

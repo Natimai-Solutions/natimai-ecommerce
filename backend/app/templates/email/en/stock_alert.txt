@@ -1,0 +1,9 @@
+Hello,
+
+Good news: “{{ product_name }}” can be ordered again.
+
+{{ product_url }}
+
+This alert is sent only once; remember to order before the product is gone again.
+
+The {{ shop_name }} team

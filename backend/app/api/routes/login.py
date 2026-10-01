@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Never
 
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, Form, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from jwt.exceptions import InvalidTokenError
 from pydantic import ValidationError
@@ -18,12 +18,14 @@ from app.core.config import settings
 from app.core.errors import AppError
 from app.core.rate_limit import get_client_ip, hit_rate_limit
 from app.features.base.crud import RecordNotFoundError
+from app.features.system import audit
 from app.features.user.crud.refresh_token import crud_user_refresh_token
 from app.features.user.crud.user import AccountLockedError, crud_user, mark_logged_in
 from app.features.user.models.user import (
     AccessTokenResponse,
     TokenPayload,
 )
+from app.features.user.services.two_factor import verify_second_factor
 
 router = APIRouter()
 
@@ -74,12 +76,24 @@ async def login_access_token(
     response: Response,
     session: SessionDep,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    # Annotated so a direct call (tests) gets a real default, not the marker.
+    totp_code: Annotated[
+        str | None,
+        Form(
+            description=(
+                "Administrators with two-factor authentication: the code of "
+                "their app, or one of their recovery codes"
+            )
+        ),
+    ] = None,
 ) -> AccessTokenResponse:
     """OAuth2 compatible password login.
 
     Returns the access token in the body (held in SPA memory) and sets the
     refresh token as an HttpOnly cookie. Per-IP throttled + per-account
-    lockout against brute force.
+    lockout against brute force. A superuser with two-factor authentication
+    also sends ``totp_code`` (``login.totp.required`` without it); a wrong
+    code counts towards the lockout like a wrong password.
     """
     client_ip = get_client_ip(request)
     if await hit_rate_limit(
@@ -94,6 +108,7 @@ async def login_access_token(
             details={"retry_after_seconds": settings.LOGIN_RATE_LIMIT_WINDOW_SECONDS},
         )
 
+    user_agent = request.headers.get("user-agent")
     try:
         user = await crud_user.authenticate(
             session=session, email=form_data.username, password=form_data.password
@@ -109,6 +124,9 @@ async def login_access_token(
             details={"locked_until": exc.locked_until.isoformat()},
         ) from exc
     if not user:
+        await _audit_failed_admin_login(
+            session, form_data.username, ip=client_ip, user_agent=user_agent
+        )
         raise AppError(
             code="login.credentials.invalid",
             status_code=400,
@@ -123,9 +141,49 @@ async def login_access_token(
             details={"user_id": str(user.id)},
         )
 
+    second_factor: str | None = None
+    if getattr(user, "is_superuser", False) and getattr(user, "totp_enabled", False):
+        user_id, user_email = user.id, user.email
+        if not (totp_code or "").strip():
+            raise AppError(
+                code="login.totp.required",
+                status_code=401,
+                message="Saisissez le code de votre application d'authentification.",
+                details={"reason": "totp_required"},
+            )
+        second_factor = verify_second_factor(user, totp_code)
+        if second_factor is None:
+            await audit.record(
+                event="auth.login.totp_failed",
+                actor_id=user_id,
+                actor_email=user_email,
+                ip=client_ip,
+                user_agent=user_agent,
+            )
+            try:
+                await crud_user.register_failed_attempt(session, user)
+            except AccountLockedError as exc:
+                raise AppError(
+                    code="login.account.locked",
+                    status_code=429,
+                    message=(
+                        "Compte temporairement verrouillé après trop de tentatives. "
+                        "Réessayez plus tard."
+                    ),
+                    details={"locked_until": exc.locked_until.isoformat()},
+                ) from exc
+            raise AppError(
+                code="login.totp.invalid",
+                status_code=401,
+                message="Code de vérification incorrect.",
+                details={"reason": "totp_invalid"},
+            )
+
     access_token, refresh_token, refresh_jti, refresh_expires_at = _build_token_bundle(
         user.id
     )
+    is_admin = bool(getattr(user, "is_superuser", False))
+    admin_id, admin_email = user.id, getattr(user, "email", None)
 
     # Trace de connexion : le back-office s'en sert pour distinguer un compte
     # invité jamais ouvert d'un client actif. L'instance est déjà suivie par la
@@ -141,10 +199,40 @@ async def login_access_token(
     )
 
     set_refresh_cookie(response, refresh_token)
+    if is_admin:
+        await audit.record(
+            event="auth.login.success",
+            actor_id=admin_id,
+            actor_email=admin_email,
+            details={"second_factor": second_factor} if second_factor else None,
+            ip=client_ip,
+            user_agent=user_agent,
+        )
     return AccessTokenResponse(
         access_token=access_token,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # seconds
     )
+
+
+async def _audit_failed_admin_login(
+    session: SessionDep, email: str, *, ip: str | None, user_agent: str | None
+) -> None:
+    """A wrong password on an administrator account is journaled.
+
+    Best effort: the journal never changes the outcome of a sign-in.
+    """
+    try:
+        admin = await crud_user.get_by_email(session, email=email)
+    except Exception:  # noqa: BLE001
+        return
+    if admin is not None and getattr(admin, "is_superuser", False):
+        await audit.record(
+            event="auth.login.failed",
+            actor_id=admin.id,
+            actor_email=admin.email,
+            ip=ip,
+            user_agent=user_agent,
+        )
 
 
 @router.post("/login/refresh-token")

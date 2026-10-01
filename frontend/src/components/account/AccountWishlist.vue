@@ -2,8 +2,8 @@
   <div>
     <section class="app-section">
       <div class="app-section__head">
-        <h2 class="app-section__title">Favoris</h2>
-        <p class="app-section__hint">Les produits mis de côté depuis leur fiche.</p>
+        <h2 class="app-section__title">{{ $t('wishlist.title') }}</h2>
+        <p class="app-section__hint">{{ $t('wishlist.hint') }}</p>
       </div>
 
       <AppNotice v-if="error" tone="error" class="q-mb-md">{{ error }}</AppNotice>
@@ -18,9 +18,14 @@
 
       <div v-else-if="!products.length" class="app-empty">
         <q-icon name="ph:heart" size="36px" class="text-subtle" />
-        <h3>Aucun favori</h3>
-        <p>Sur une fiche produit, « Ajouter aux favoris » le garde ici pour plus tard.</p>
-        <q-btn outline color="primary" label="Voir le catalogue" :to="{ name: 'catalogue' }" />
+        <h3>{{ $t('wishlist.none') }}</h3>
+        <p>{{ $t('wishlist.none_text') }}</p>
+        <q-btn
+          outline
+          color="primary"
+          :label="$t('wishlist.see_catalogue')"
+          :to="{ name: 'catalogue' }"
+        />
       </div>
 
       <div v-else class="product-grid" data-testid="account-wishlist">
@@ -32,7 +37,7 @@
             :disabled="removingId === product.id"
             @click="remove(product.id)"
           >
-            Retirer des favoris
+            {{ $t('wishlist.remove') }}
           </button>
         </div>
       </div>
@@ -40,16 +45,16 @@
 
     <section class="app-section">
       <div class="app-section__head">
-        <h2 class="app-section__title">Alertes de disponibilité</h2>
+        <h2 class="app-section__title">{{ $t('wishlist.alerts') }}</h2>
         <p class="app-section__hint">
-          Un e-mail vous prévient quand un produit épuisé revient en stock.
+          {{ $t('wishlist.alerts_hint') }}
         </p>
       </div>
 
       <div v-if="!alerts.length" class="app-empty">
         <q-icon name="ph:bell" size="36px" class="text-subtle" />
-        <h3>Aucune alerte</h3>
-        <p>Sur un produit épuisé, « Me prévenir » crée une alerte.</p>
+        <h3>{{ $t('wishlist.no_alerts') }}</h3>
+        <p>{{ $t('wishlist.no_alerts_text') }}</p>
       </div>
 
       <ul v-else class="app-rows" data-testid="account-stock-alerts">
@@ -64,13 +69,13 @@
               :to="{ name: 'product-detail', params: { id: alert.product_id } }"
               class="app-row__title"
             >
-              {{ alert.product_name ?? 'Produit' }}
+              {{ alert.product_name ?? $t('wishlist.product') }}
             </router-link>
             <span class="app-row__meta">
               {{
                 alert.status === 'sent'
-                  ? `Prévenu le ${formatDate(alert.notified_at)}`
-                  : 'En attente du retour en stock'
+                  ? $t('wishlist.notified', { date: formatDate(alert.notified_at) })
+                  : $t('wishlist.waiting')
               }}
             </span>
           </div>
@@ -80,7 +85,7 @@
             class="text-link"
             @click="cancelAlert(alert)"
           >
-            Annuler
+            {{ $t('wishlist.cancel') }}
           </button>
         </li>
       </ul>
@@ -89,6 +94,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { onMounted, ref } from 'vue';
 import { formatDate } from '@app/utils';
 import type { components } from '@app/api-types';
@@ -101,6 +107,8 @@ import { getMyWishlist, removeFromMyWishlist } from '@/api/wishlist';
 import { useCartStore } from '@/stores/cart';
 import { useUiStore } from '@/stores/ui';
 import { apiErrorMessage } from '@/utils/errors';
+
+const { t } = useI18n();
 
 type ProductPublic = components['schemas']['ProductPublic'];
 
@@ -131,7 +139,7 @@ async function load() {
       .filter((r): r is PromiseFulfilledResult<ProductPublic> => r.status === 'fulfilled')
       .map((r) => r.value);
   } catch (err) {
-    error.value = apiErrorMessage(err) ?? 'Impossible de charger vos favoris.';
+    error.value = apiErrorMessage(err) ?? t('wishlist.load_failed');
   } finally {
     loading.value = false;
   }
@@ -143,7 +151,7 @@ async function remove(productId: string) {
     await removeFromMyWishlist(productId);
     products.value = products.value.filter((p) => p.id !== productId);
   } catch (err) {
-    error.value = apiErrorMessage(err) ?? 'Impossible de retirer ce favori.';
+    error.value = apiErrorMessage(err) ?? t('wishlist.remove_failed');
   } finally {
     removingId.value = null;
   }
@@ -154,7 +162,7 @@ async function cancelAlert(alert: StockAlert) {
     await cancelStockAlert(alert.id);
     alerts.value = alerts.value.filter((a) => a.id !== alert.id);
   } catch (err) {
-    error.value = apiErrorMessage(err) ?? "Impossible d'annuler cette alerte.";
+    error.value = apiErrorMessage(err) ?? t('wishlist.cancel_failed');
   }
 }
 
@@ -165,7 +173,7 @@ async function onAddToCart(product: ProductPublic) {
     uiStore.openCartDrawer(product.id);
     return;
   }
-  cartError.value = cartStore.error ?? "Impossible d'ajouter cet article au panier.";
+  cartError.value = cartStore.error ?? t('wishlist.add_failed');
 }
 
 onMounted(load);

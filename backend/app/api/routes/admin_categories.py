@@ -2,6 +2,7 @@
 
 GET   /admin/categories               — toutes les catégories, fusionnées comprises,
                                         avec le nombre de produits
+POST  /admin/categories               — créer une catégorie
 PATCH /admin/categories/{id}          — titre vitrine, description, image, activation
 POST  /admin/categories/{id}/merge    — fusionner dans une autre catégorie
 
@@ -28,6 +29,8 @@ from sqlmodel import col, select
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.errors import AppError
 from app.features.discount.models import Discount
+from app.features.integrations.services.category_mapping import retarget_after_merge
+from app.features.product.crud.category import crud_category
 from app.features.product.models.category import Category
 from app.features.product.models.product import Product
 from app.tasks.pricing_tasks import schedule_price_refresh
@@ -173,6 +176,50 @@ async def list_categories(
     return AdminCategoriesPublic(data=data, count=len(data))
 
 
+class AdminCategoryCreate(BaseModel):
+    """Une catégorie créée à la main (le nom devient sa clé de rapprochement)."""
+
+    name: str = Field(min_length=1, max_length=100)
+    display_name: str | None = Field(default=None, max_length=100)
+    description: str | None = Field(default=None, max_length=500)
+
+
+@router.post("", response_model=AdminCategoryItem, status_code=201)
+async def create_category(
+    payload: AdminCategoryCreate,
+    session: SessionDep,
+    current_user: CurrentSuperUser,
+) -> AdminCategoryItem:
+    """Créer une catégorie (cible d'un mappage fournisseur, rayon manuel…).
+
+    Le nom est unique sans tenir compte de la casse, catégories fusionnées ou
+    inactives comprises : la synchronisation les résout par leur nom.
+    """
+    name = " ".join(payload.name.split())
+    existing = await crud_category.get_by_name_ilike_any(session, name)
+    if existing is not None:
+        raise AppError(
+            code="category.name.conflict",
+            status_code=409,
+            message=f"Une catégorie « {existing.name} » existe déjà",
+            details={"category_id": str(existing.id)},
+        )
+    display = (payload.display_name or "").strip()
+    category = Category(
+        name=name,
+        display_name=display if display and display != name else None,
+        description=payload.description,
+        is_active=True,
+        is_admin_active=True,
+    )
+    category.created_by_id = current_user.id
+    session.add(category)
+    await session.commit()
+    await session.refresh(category)
+    logger.info("Admin created category %s (%s)", category.id, name)
+    return await _item_for(session, category)
+
+
 @router.patch("/{category_id}", response_model=AdminCategoryItem)
 async def update_category(
     category_id: uuid.UUID,
@@ -281,6 +328,8 @@ async def merge_category(
         )
     ).rowcount
 
+    # Supplier category rules aiming at the source now aim at the target.
+    await retarget_after_merge(session, source_id, target_id)
     source.is_active = False
     source.merged_into_id = target_id
     source.modify_by_id = admin_id

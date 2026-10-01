@@ -24,11 +24,13 @@ from app.features.integrations.models.supplier_sync import SyncStatus
 from app.features.integrations.services.file_import_run import (
     orchestrator_for_file_import,
     run_file_import,
+    thresholds_for,
+    thresholds_from_payload,
 )
 from app.services.suppliers import load_supplier
 from app.services.suppliers.file_import import (
-    MAX_ROWS,
     FileImportError,
+    max_rows_setting,
     read_tabular_file,
     rows_to_products,
     validate_mapping,
@@ -58,6 +60,8 @@ async def trigger_file_import(
     filename: str,
     mapping: dict[str, str],
     publish_new: bool,
+    thresholds: dict[str, str | None] | None = None,
+    default_category_id: str | None = None,
 ) -> str:
     """Queue the import of a stored file; returns the ARQ job id."""
     return await enqueue_with_dedup(
@@ -72,6 +76,8 @@ async def trigger_file_import(
             "filename": filename,
             "mapping": mapping,
             "publish_new": publish_new,
+            "thresholds": thresholds,
+            "default_category_id": default_category_id,
         },
     )
 
@@ -93,8 +99,14 @@ async def run_queued_file_import(
     filename: str,
     mapping: dict[str, str],
     publish_new: bool,
+    thresholds: dict[str, str | None] | None = None,
+    default_category_id: str | None = None,
 ) -> dict[str, Any]:
-    """Import the stored file under ``sync_log_id`` (the task body, testable)."""
+    """Import the stored file under ``sync_log_id`` (the task body, testable).
+
+    ``thresholds`` are the minimums chosen when the file was sent; a job
+    queued without them (older version) uses the supplier's.
+    """
     storage = get_file_storage()
     try:
         supplier = await load_supplier(session, supplier_code, include_inactive=True)
@@ -103,12 +115,24 @@ async def run_queued_file_import(
         # Attributes are read before any commit expires the instance.
         orchestrator = orchestrator_for_file_import(supplier)
         default_currency = supplier.price_currency
+        run_thresholds = (
+            thresholds_from_payload(thresholds)
+            if thresholds is not None
+            else thresholds_for(supplier)
+        )
+        await orchestrator.load_category_rules(
+            session,
+            default_category_id=(
+                uuid.UUID(default_category_id) if default_category_id else None
+            ),
+        )
 
         content = await storage.get_bytes(key=storage_key)
-        parsed = read_tabular_file(content, filename, max_rows=MAX_ROWS)
-        if parsed.total_rows > MAX_ROWS:
+        max_rows = await max_rows_setting(session)
+        parsed = read_tabular_file(content, filename, max_rows=max_rows)
+        if parsed.total_rows > max_rows:
             raise FileImportError(
-                f"Le fichier compte {parsed.total_rows} lignes ; la limite est {MAX_ROWS}"
+                f"Le fichier compte {parsed.total_rows} lignes ; la limite est {max_rows}"
             )
         problems = validate_mapping(mapping, parsed.headers)
         if problems:
@@ -144,6 +168,7 @@ async def run_queued_file_import(
             filename=filename,
             total_rows=parsed.total_rows,
             publish_new=publish_new,
+            thresholds=run_thresholds,
         )
     finally:
         await _discard(storage, storage_key)
@@ -165,6 +190,8 @@ async def import_supplier_file_task(
     filename: str,
     mapping: dict[str, str],
     publish_new: bool = True,
+    thresholds: dict[str, str | None] | None = None,
+    default_category_id: str | None = None,
     **_kwargs: Any,
 ) -> dict[str, Any]:
     """ARQ entry point: see :func:`run_queued_file_import`."""
@@ -177,4 +204,6 @@ async def import_supplier_file_task(
             filename=filename,
             mapping=mapping,
             publish_new=publish_new,
+            thresholds=thresholds,
+            default_category_id=default_category_id,
         )
