@@ -5,14 +5,14 @@
         <q-card-section class="app-dialog__head">
           <div class="product-form__head">
             <h2 class="app-dialog__title">
-              {{ isEdit ? 'Modifier le produit' : 'Nouveau produit' }}
+              {{ isEdit ? $t('product_form.edit_title') : $t('product_form.new_title') }}
             </h2>
             <StatusTag
               v-if="isEdit && product?.is_supplier_managed"
-              label="Fournisseur"
+              :label="$t('product_form.supplier')"
               icon="ph:truck"
             />
-            <StatusTag v-else-if="isEdit" label="Manuel" icon="ph:hand" />
+            <StatusTag v-else-if="isEdit" :label="$t('product_form.manual')" icon="ph:hand" />
           </div>
         </q-card-section>
 
@@ -20,16 +20,13 @@
           <div v-if="error || (isEdit && product?.is_supplier_managed)" class="admin-notices">
             <AppNotice v-if="error" tone="error" dense>{{ error }}</AppNotice>
             <AppNotice v-if="isEdit && product?.is_supplier_managed" tone="info" dense>
-              Produit synchronisé depuis un fournisseur. Les champs que vous modifiez ici seront
-              <strong>verrouillés</strong> : ni la synchronisation ni l'enrichissement Icecat ne les
-              réécriront.
+              {{ $t('product_form.synced_notice') }}
             </AppNotice>
           </div>
 
           <div v-if="isEdit && lockedFields.length" class="q-mb-md">
             <p class="admin-hint q-mb-xs">
-              Champs verrouillés — cliquez pour libérer (la valeur fournisseur reviendra à la
-              prochaine synchronisation ou au prochain enrichissement) :
+              {{ $t('product_form.locked') }}
             </p>
             <q-chip
               v-for="field in lockedFields"
@@ -43,17 +40,24 @@
             />
           </div>
 
-          <q-input v-model="form.name" label="Nom *" outlined dense bottom-slots :rules="req" />
+          <q-input
+            v-model="form.name"
+            :label="$t('product_form.name')"
+            outlined
+            dense
+            bottom-slots
+            :rules="req"
+          />
           <q-input
             v-model="form.description"
-            label="Description courte"
+            :label="$t('product_form.short')"
             outlined
             dense
             bottom-slots
           />
           <q-input
             v-model="form.long_description"
-            label="Description longue"
+            :label="$t('product_form.long')"
             type="textarea"
             autogrow
             outlined
@@ -63,13 +67,13 @@
 
           <div class="product-form__grid">
             <div>
-              <h3 v-if="suppliersOn" class="admin-subtitle">Approvisionnement</h3>
+              <h3 v-if="suppliersOn" class="admin-subtitle">{{ $t('product_form.supply') }}</h3>
               <div v-if="suppliersOn" class="row" style="gap: 8px">
                 <q-select
                   v-model="form.supplier_name"
                   :options="supplierOptions"
-                  label="Fournisseur"
-                  hint="Vide = article de votre entrepôt, sans fournisseur"
+                  :label="$t('product_form.supplier')"
+                  :hint="$t('product_form.supplier_hint')"
                   outlined
                   dense
                   bottom-slots
@@ -82,7 +86,7 @@
                 />
                 <q-input
                   v-model="form.supplier_sku"
-                  label="Référence chez le fournisseur"
+                  :label="$t('product_form.supplier_ref')"
                   outlined
                   dense
                   bottom-slots
@@ -100,15 +104,14 @@
                   dense
                   no-caps
                   icon="ph:link"
-                  label="Rattacher maintenant"
+                  :label="$t('product_form.attach')"
                   :disable="!form.supplier_name || !form.supplier_sku.trim()"
                   :loading="linking === 'attach'"
                   data-testid="product-attach-supplier"
                   @click="onAttach"
                 >
                   <q-tooltip>
-                    Interroge le fournisseur sur cette référence et reprend coût et stock tout de
-                    suite ; vos textes restent verrouillés
+                    {{ $t('product_form.attach_tip') }}
                   </q-tooltip>
                 </q-btn>
                 <q-btn
@@ -117,13 +120,13 @@
                   dense
                   no-caps
                   icon="ph:link-break"
-                  label="Détacher"
+                  :label="$t('product_form.detach')"
                   :loading="linking === 'detach'"
                   data-testid="product-detach-supplier"
                   @click="onDetach"
                 >
                   <q-tooltip>
-                    L'article redevient manuel : plus de synchronisation, stock fournisseur à zéro
+                    {{ $t('product_form.detach_tip') }}
                   </q-tooltip>
                 </q-btn>
               </div>
@@ -133,8 +136,8 @@
               <q-input
                 v-if="suppliersOn && form.supplier_name && !product?.is_supplier_managed"
                 v-model="form.supplier_quantity"
-                label="Stock disponible chez le fournisseur"
-                hint="Tenu à jour à la main (ou par import fichier) — 0 = indisponible"
+                :label="$t('product_form.supplier_stock')"
+                :hint="$t('product_form.supplier_stock_hint')"
                 type="number"
                 step="1"
                 min="0"
@@ -144,7 +147,7 @@
               />
               <q-input
                 v-model="form.local_quantity"
-                label="Stock entrepôt (unités physiquement chez vous)"
+                :label="$t('product_form.local_stock')"
                 :hint="localStockHint"
                 type="number"
                 step="1"
@@ -156,13 +159,13 @@
             </div>
 
             <div>
-              <h3 class="admin-subtitle">État</h3>
+              <h3 class="admin-subtitle">{{ $t('product_form.condition') }}</h3>
               <q-option-group v-model="form.condition" :options="conditionOptions" inline dense />
               <div v-if="form.condition === 'refurbished'" class="row q-col-gutter-sm q-mb-sm">
                 <q-input
                   v-model="form.condition_grade"
                   class="col-6"
-                  label="Grade"
+                  :label="$t('product_form.grade')"
                   hint="A, B, C…"
                   outlined
                   dense
@@ -174,14 +177,14 @@
                   type="number"
                   min="0"
                   max="100"
-                  label="Batterie (%)"
+                  :label="$t('product_form.battery')"
                   outlined
                   dense
                 />
                 <q-input
                   v-model="form.os_licence"
                   class="col-6"
-                  label="Licence OS"
+                  :label="$t('product_form.os')"
                   outlined
                   dense
                 />
@@ -190,13 +193,13 @@
                   class="col-6"
                   type="number"
                   min="0"
-                  label="Garantie (mois)"
+                  :label="$t('product_form.warranty')"
                   outlined
                   dense
                 />
               </div>
 
-              <h3 class="admin-subtitle q-mt-md">Disponibilité</h3>
+              <h3 class="admin-subtitle q-mt-md">{{ $t('product_form.availability') }}</h3>
               <q-option-group
                 v-model="form.availability_mode"
                 :options="availabilityModeOptions"
@@ -207,7 +210,7 @@
             </div>
 
             <div>
-              <h3 class="admin-subtitle">Prix &amp; taxes</h3>
+              <h3 class="admin-subtitle">{{ $t('product_form.pricing') }}</h3>
               <q-option-group
                 v-model="form.pricing_mode"
                 :options="pricingModeOptions"
@@ -219,8 +222,8 @@
               <q-input
                 v-if="form.pricing_mode === 'fixed'"
                 v-model="form.base_price"
-                label="Prix de vente TTC *"
-                hint="Prix affiché tel quel, taxes comprises"
+                :label="$t('product_form.price')"
+                :hint="$t('product_form.price_hint')"
                 type="number"
                 step="0.01"
                 min="0"
@@ -232,10 +235,12 @@
               <div class="row" style="gap: 8px">
                 <q-input
                   v-model="form.cost_amount"
-                  :label="form.pricing_mode === 'fixed' ? 'Coût d\'achat HT' : 'Coût d\'achat'"
-                  :hint="
-                    form.pricing_mode === 'fixed' ? 'Sert au calcul de la marge (0 = inconnu)' : ''
+                  :label="
+                    form.pricing_mode === 'fixed'
+                      ? $t('product_form.cost_ht')
+                      : $t('product_form.cost')
                   "
+                  :hint="form.pricing_mode === 'fixed' ? $t('product_form.cost_hint') : ''"
                   type="number"
                   step="0.01"
                   min="0"
@@ -248,7 +253,7 @@
                 <q-select
                   v-model="form.cost_currency"
                   :options="currencyOptions"
-                  label="Devise du coût"
+                  :label="$t('product_form.cost_currency')"
                   outlined
                   dense
                   bottom-slots
@@ -261,8 +266,8 @@
                 <q-input
                   v-if="form.pricing_mode === 'import'"
                   v-model="form.customs_rate_pct"
-                  label="Douane (%)"
-                  hint="Vide = taux par défaut de la catégorie"
+                  :label="$t('product_form.customs')"
+                  :hint="$t('product_form.customs_hint')"
                   type="number"
                   step="0.01"
                   outlined
@@ -272,8 +277,8 @@
                 />
                 <q-input
                   v-model="form.margin_rate_pct"
-                  label="Marge (%)"
-                  hint="Vide = marge de la catégorie, sinon du groupe tarifaire"
+                  :label="$t('product_form.margin')"
+                  :hint="$t('product_form.margin_hint')"
                   type="number"
                   step="0.01"
                   outlined
@@ -286,7 +291,7 @@
                 <q-select
                   v-model="form.category_id"
                   :options="categoryOptions"
-                  label="Catégorie"
+                  :label="$t('product_form.category')"
                   outlined
                   dense
                   bottom-slots
@@ -298,8 +303,8 @@
                 <q-select
                   v-model="form.tax_rate_id"
                   :options="taxRateOptions"
-                  label="Taux de TVA"
-                  hint="Vide = taux de la catégorie, sinon taux par défaut"
+                  :label="$t('product_form.vat')"
+                  :hint="$t('product_form.vat_hint')"
                   outlined
                   dense
                   bottom-slots
@@ -317,11 +322,11 @@
             </div>
 
             <div>
-              <h3 class="admin-subtitle">Logistique</h3>
+              <h3 class="admin-subtitle">{{ $t('product_form.logistics') }}</h3>
               <q-select
                 v-model="form.supplier_place_id"
                 :options="placeOptions"
-                label="Origine (fournisseur)"
+                :label="$t('product_form.origin')"
                 outlined
                 dense
                 bottom-slots
@@ -332,7 +337,7 @@
               <div class="row" style="gap: 8px">
                 <q-input
                   v-model.number="form.weight"
-                  label="Poids (kg)"
+                  :label="$t('product_form.weight')"
                   type="number"
                   step="0.001"
                   outlined
@@ -342,7 +347,7 @@
                 />
                 <q-input
                   v-model.number="form.dimensions_length"
-                  label="Long. (cm)"
+                  :label="$t('product_form.length')"
                   type="number"
                   outlined
                   dense
@@ -351,7 +356,7 @@
                 />
                 <q-input
                   v-model.number="form.dimensions_width"
-                  label="Larg. (cm)"
+                  :label="$t('product_form.width')"
                   type="number"
                   outlined
                   dense
@@ -360,7 +365,7 @@
                 />
                 <q-input
                   v-model.number="form.dimensions_height"
-                  label="Haut. (cm)"
+                  :label="$t('product_form.height')"
                   type="number"
                   outlined
                   dense
@@ -371,11 +376,11 @@
             </div>
 
             <div>
-              <h3 class="admin-subtitle">Affichage</h3>
+              <h3 class="admin-subtitle">{{ $t('product_form.display') }}</h3>
               <q-input
                 v-model="form.image_url"
-                label="Image"
-                hint="Choisissez une image de la médiathèque ou collez une URL"
+                :label="$t('product_form.image')"
+                :hint="$t('product_form.image_hint')"
                 outlined
                 dense
                 bottom-slots
@@ -389,17 +394,17 @@
                     dense
                     no-caps
                     icon="ph:images"
-                    label="Médiathèque"
+                    :label="$t('product_form.media')"
                     @click="mediaPickerOpen = true"
                   />
                 </template>
               </q-input>
               <div class="row items-center" style="gap: 16px">
-                <q-toggle v-model="form.is_featured" label="Produit en vedette" />
+                <q-toggle v-model="form.is_featured" :label="$t('product_form.featured')" />
                 <q-input
                   v-if="form.is_featured"
                   v-model.number="form.featured_position"
-                  label="Position vedette"
+                  :label="$t('product_form.featured_pos')"
                   type="number"
                   outlined
                   dense
@@ -414,7 +419,7 @@
             <ProductVariantsPanel :product-id="product.id" @changed="emit('saved')" />
           </template>
           <p v-else-if="isEdit && product?.parent_product_id" class="admin-hint q-mt-md q-mb-none">
-            Variante d'un autre article
+            {{ $t('product_form.variant_of') }}
             <span v-if="product.variant_options">
               ({{
                 Object.entries(product.variant_options)
@@ -422,7 +427,7 @@
                   .join(', ')
               }})
             </span>
-            — les options se modifient depuis la fiche parente.
+            {{ $t('product_form.variant_hint') }}
           </p>
         </q-card-section>
 
@@ -430,7 +435,7 @@
           <q-btn
             flat
             no-caps
-            label="Annuler"
+            :label="$t('common.cancel')"
             :disable="saving"
             @click="emit('update:modelValue', false)"
           />
@@ -439,7 +444,7 @@
             color="primary"
             unelevated
             no-caps
-            :label="isEdit ? 'Enregistrer' : 'Créer'"
+            :label="isEdit ? $t('product_form.save') : $t('product_form.create')"
             :loading="saving"
           />
         </q-card-actions>
@@ -454,6 +459,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { labels } from '@/i18n/global';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -475,6 +482,8 @@ import { getGroupPrices, setGroupPrices, type MarginPreviewRequest } from '@/api
 import ProductVariantsPanel from '@/components/ProductVariantsPanel.vue';
 import { useProductsStore, type ProductPublic } from '@/stores/products';
 import { useShopConfigStore } from '@/stores/shopConfig';
+
+const { t } = useI18n();
 
 const props = defineProps<{ modelValue: boolean; product: ProductPublic | null }>();
 const mediaPickerOpen = ref(false);
@@ -579,7 +588,7 @@ let original: FormState = emptyForm();
 
 const saving = ref(false);
 const error = ref<string | null>(null);
-const req = [(v: string) => (!!v && v.trim().length > 0) || 'Requis'];
+const req = [(v: string) => (!!v && v.trim().length > 0) || t('common.required')];
 
 const currencyOptions = computed(() => {
   const codes = Array.from(new Set([shopConfig.currency, 'XPF', 'USD', 'EUR']));
@@ -591,44 +600,39 @@ const places = ref<Place[]>([]);
 const suppliers = ref<Supplier[]>([]);
 const supplierOptions = ref<{ label: string; value: string }[]>([]);
 
-const allPricingModeOptions: { label: string; value: PricingMode }[] = [
-  { label: 'Import (CAF + douane)', value: 'import' },
-  { label: 'Local (coût + marge)', value: 'domestic' },
-  { label: 'Prix TTC fixé', value: 'fixed' },
-];
+const allPricingModeOptions = computed<{ label: string; value: PricingMode }[]>(() => [
+  { label: t('product_form.pm_import'), value: 'import' },
+  { label: t('product_form.pm_domestic'), value: 'domestic' },
+  { label: t('product_form.pm_fixed'), value: 'fixed' },
+]);
 const pricingModeOptions = computed(() =>
   isSimpleShop.value
-    ? allPricingModeOptions.filter((o) => o.value !== 'import')
-    : allPricingModeOptions,
+    ? allPricingModeOptions.value.filter((o) => o.value !== 'import')
+    : allPricingModeOptions.value,
 );
-const PRICING_MODE_HINTS: Record<PricingMode, string> = {
-  import:
-    'Coût + fret import + assurance, puis douane, marge et taxe. Douane et poids obligatoires pour la publication.',
-  domestic:
-    'Article de votre entrepôt ou d’un fournisseur du même territoire douanier : coût, marge, taxe — ni douane ni fret import.',
-  fixed: 'Vous saisissez le prix de vente TTC ; rien n’est recalculé.',
-};
+const PRICING_MODE_HINTS: Record<PricingMode, string> = labels({
+  import: 'product_form.pm_hint_import',
+  domestic: 'product_form.pm_hint_domestic',
+  fixed: 'product_form.pm_hint_fixed',
+});
 const pricingModeHint = computed(() => PRICING_MODE_HINTS[form.pricing_mode]);
 
-const availabilityModeOptions: { label: string; value: AvailabilityMode }[] = [
-  { label: 'Selon le stock', value: 'stock' },
-  { label: 'Sur commande', value: 'on_demand' },
-  { label: 'Toujours commandable', value: 'continuous' },
-  { label: 'Lot (quantité fixe)', value: 'lot' },
-];
-const conditionOptions: { label: string; value: ProductCondition }[] = [
-  { label: 'Neuf', value: 'new' },
-  { label: 'Reconditionné', value: 'refurbished' },
-];
-const AVAILABILITY_MODE_HINTS: Record<AvailabilityMode, string> = {
-  stock:
-    'Commandable seulement si le stock (local + fournisseur) couvre la quantité ; réservé au checkout.',
-  on_demand:
-    'Précommande : commandable tant que le fournisseur affiche du stock, sans réservation — acheté à la clôture du départ groupé.',
-  continuous:
-    'Toujours commandable, même sans stock connu ; expédié avec le prochain départ groupé.',
-  lot: 'Lot reconditionné : le « stock fournisseur » est la taille du lot, décrémentée à chaque commande ; à zéro le lot est épuisé. Saisi ici, il n’est pas écrasé par la synchronisation.',
-};
+const availabilityModeOptions = computed<{ label: string; value: AvailabilityMode }[]>(() => [
+  { label: t('product_form.am_stock'), value: 'stock' },
+  { label: t('product_form.am_on_demand'), value: 'on_demand' },
+  { label: t('product_form.am_continuous'), value: 'continuous' },
+  { label: t('product_form.am_lot'), value: 'lot' },
+]);
+const conditionOptions = computed<{ label: string; value: ProductCondition }[]>(() => [
+  { label: t('product_form.c_new'), value: 'new' },
+  { label: t('product_form.c_refurbished'), value: 'refurbished' },
+]);
+const AVAILABILITY_MODE_HINTS: Record<AvailabilityMode, string> = labels({
+  stock: 'product_form.am_hint_stock',
+  on_demand: 'product_form.am_hint_on_demand',
+  continuous: 'product_form.am_hint_continuous',
+  lot: 'product_form.am_hint_lot',
+});
 const availabilityModeHint = computed(() => AVAILABILITY_MODE_HINTS[form.availability_mode]);
 
 /**
@@ -638,8 +642,8 @@ const availabilityModeHint = computed(() => AVAILABILITY_MODE_HINTS[form.availab
  */
 const localStockHint = computed(() =>
   form.supplier_name || props.product?.is_supplier_managed
-    ? 'Servi en premier au checkout, avant la dispo fournisseur. Un mouvement de stock est tracé.'
-    : 'Sans fournisseur, c’est le seul stock vendable en boutique. Un mouvement de stock est tracé.',
+    ? t('product_form.local_hint_supplier')
+    : t('product_form.local_hint_own'),
 );
 
 /**
@@ -716,36 +720,36 @@ const placeOptions = ref<{ label: string; value: string }[]>([]);
 const isEdit = ref(false);
 
 /** Libellés des champs verrouillables, pour les puces de verrous. */
-const FIELD_LABELS: Record<string, string> = {
-  name: 'Nom',
-  description: 'Description courte',
-  long_description: 'Description longue',
-  supplier_name: 'Fournisseur',
-  supplier_sku: 'Référence fournisseur',
-  supplier_quantity: 'Stock fournisseur',
-  pricing_mode: 'Mode de prix',
-  availability_mode: 'Disponibilité',
-  condition: 'État',
-  condition_grade: 'Grade',
-  battery_health_pct: 'Batterie (%)',
-  os_licence: 'Licence OS',
-  warranty_months: 'Garantie (mois)',
-  margin_rate_pct: 'Marge',
-  cost_amount: 'Coût',
-  cost_currency: 'Devise du coût',
-  customs_rate_pct: 'Douane',
-  base_price: 'Prix de vente',
-  category_id: 'Catégorie',
-  tax_rate_id: 'Taux de TVA',
-  supplier_place_id: 'Origine',
-  weight: 'Poids',
-  dimensions_length: 'Longueur',
-  dimensions_width: 'Largeur',
-  dimensions_height: 'Hauteur',
-  image_url: 'Image',
-  is_featured: 'Vedette',
-  featured_position: 'Position vedette',
-};
+const FIELD_LABELS: Record<string, string> = labels({
+  name: 'product_form.f_name',
+  description: 'product_form.f_description',
+  long_description: 'product_form.f_long_description',
+  supplier_name: 'product_form.f_supplier_name',
+  supplier_sku: 'product_form.f_supplier_sku',
+  supplier_quantity: 'product_form.f_supplier_quantity',
+  pricing_mode: 'product_form.f_pricing_mode',
+  availability_mode: 'product_form.f_availability_mode',
+  condition: 'product_form.f_condition',
+  condition_grade: 'product_form.f_condition_grade',
+  battery_health_pct: 'product_form.f_battery_health_pct',
+  os_licence: 'product_form.f_os_licence',
+  warranty_months: 'product_form.f_warranty_months',
+  margin_rate_pct: 'product_form.f_margin_rate_pct',
+  cost_amount: 'product_form.f_cost_amount',
+  cost_currency: 'product_form.f_cost_currency',
+  customs_rate_pct: 'product_form.f_customs_rate_pct',
+  base_price: 'product_form.f_base_price',
+  category_id: 'product_form.f_category_id',
+  tax_rate_id: 'product_form.f_tax_rate_id',
+  supplier_place_id: 'product_form.f_supplier_place_id',
+  weight: 'product_form.f_weight',
+  dimensions_length: 'product_form.f_dimensions_length',
+  dimensions_width: 'product_form.f_dimensions_width',
+  dimensions_height: 'product_form.f_dimensions_height',
+  image_url: 'product_form.f_image_url',
+  is_featured: 'product_form.f_is_featured',
+  featured_position: 'product_form.f_featured_position',
+});
 function fieldLabel(field: string): string {
   return FIELD_LABELS[field] ?? field;
 }
@@ -777,7 +781,7 @@ async function onAttach() {
     lockedFields.value = [...(res.product.overridden_fields ?? [])];
     emit('saved');
   } catch (err: unknown) {
-    error.value = extractApiError(err) ?? 'Rattachement impossible.';
+    error.value = extractApiError(err) ?? t('product_form.attach_failed');
   } finally {
     linking.value = null;
   }
@@ -787,13 +791,10 @@ function onDetach() {
   const product = props.product;
   if (!product) return;
   $q.dialog({
-    title: 'Détacher du fournisseur ?',
-    message:
-      "L'article redevient manuel : plus aucune synchronisation, son stock fournisseur passe à " +
-      'zéro. Vos champs verrouillés restent tels quels. Un prochain import contenant la même ' +
-      'référence créera un nouvel article.',
-    cancel: { flat: true, noCaps: true, label: 'Annuler' },
-    ok: { color: 'negative', unelevated: true, noCaps: true, label: 'Détacher' },
+    title: t('product_form.detach_q'),
+    message: t('product_form.detach_msg'),
+    cancel: { flat: true, noCaps: true, label: t('common.cancel') },
+    ok: { color: 'negative', unelevated: true, noCaps: true, label: t('product_form.detach') },
   }).onOk(() => {
     void (async () => {
       linking.value = 'detach';
@@ -803,10 +804,10 @@ function onDetach() {
         await detachProductFromSupplier(product.id);
         form.supplier_name = null;
         managedAfterLink.value = false;
-        linkNotice.value = 'Article détaché : il est désormais géré à la main.';
+        linkNotice.value = t('product_form.detached');
         emit('saved');
       } catch (err: unknown) {
-        error.value = extractApiError(err) ?? 'Détachement impossible.';
+        error.value = extractApiError(err) ?? t('product_form.detach_failed');
       } finally {
         linking.value = null;
       }
@@ -823,7 +824,7 @@ async function onRelease(field: string) {
     lockedFields.value = [...(refreshed.overridden_fields ?? [])];
     emit('saved');
   } catch (err: unknown) {
-    error.value = err instanceof Error ? err.message : 'Libération impossible.';
+    error.value = err instanceof Error ? err.message : t('product_form.release_failed');
   } finally {
     releasing.value = null;
   }
@@ -931,7 +932,7 @@ async function onSubmit() {
     emit('saved');
     emit('update:modelValue', false);
   } catch (err: unknown) {
-    error.value = err instanceof Error ? err.message : 'Enregistrement impossible.';
+    error.value = err instanceof Error ? err.message : t('common.save_failed');
   } finally {
     saving.value = false;
   }
@@ -951,9 +952,7 @@ async function saveLocalStock(productId: string) {
     product_id: productId,
     place_id: null,
     quantity: next,
-    reason: isEdit.value
-      ? 'Modification depuis la fiche produit'
-      : 'Stock initial saisi à la création',
+    reason: isEdit.value ? t('product_form.reason_edit') : t('product_form.reason_initial'),
   });
 }
 
@@ -969,7 +968,7 @@ async function loadLookups() {
     supplierOptions.value = suppliers.value
       .filter((s) => s.is_active)
       .map((s) => ({
-        label: `${s.name}${s.is_domestic ? ' (local)' : ''} — ${s.code}`,
+        label: `${s.name}${s.is_domestic ? t('product_form.local') : ''} — ${s.code}`,
         value: s.code,
       }));
     categoryOptions.value = categories.value.map((c) => ({ label: categoryLabel(c), value: c.id }));
@@ -982,7 +981,7 @@ async function loadLookups() {
       value: p.id,
     }));
   } catch (err: unknown) {
-    error.value = err instanceof Error ? err.message : 'Chargement des listes impossible.';
+    error.value = err instanceof Error ? err.message : t('product_form.lists_failed');
   }
 }
 

@@ -1,16 +1,13 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader
-      title="Expéditions"
-      hint="Colis en cours d'acheminement, tronçon par tronçon, et consolidations."
-    >
+    <PageHeader :title="$t('shipping.title')" :hint="$t('shipping.hint')">
       <template #actions>
-        <q-toggle v-model="showCompleted" label="Afficher les terminés" dense />
+        <q-toggle v-model="showCompleted" :label="$t('shipping.show_done')" dense />
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -25,10 +22,9 @@
     <!-- Colis à grouper / traiter -->
     <section class="app-section" aria-labelledby="pending-title">
       <div class="app-section__head">
-        <h2 id="pending-title" class="app-section__title">Colis à grouper / traiter</h2>
+        <h2 id="pending-title" class="app-section__title">{{ $t('shipping.to_group') }}</h2>
         <p class="app-section__hint">
-          Tronçons d'acheminement non encore regroupés. Sélectionnez-en pour créer une
-          consolidation, ou traitez-les individuellement.
+          {{ $t('shipping.to_group_hint') }}
         </p>
       </div>
 
@@ -38,7 +34,7 @@
           unelevated
           no-caps
           icon="ph:package"
-          :label="`Créer une consolidation (${selected.length})`"
+          :label="$t('shipping.create_n', { n: selected.length })"
           @click="openCreate"
         />
       </div>
@@ -84,7 +80,7 @@
               dense
               no-caps
               icon="ph:path"
-              label="Parcours"
+              :label="$t('shipping.route')"
               @click="openJourney(props.row)"
             />
             <q-btn
@@ -92,13 +88,12 @@
               dense
               no-caps
               icon="ph:truck"
-              label="Remettre au transporteur"
+              :label="$t('shipping.hand_over')"
               :disable="isTerminal(props.row) || isShipped(props.row)"
               @click="openShipTracking(props.row)"
             >
               <q-tooltip max-width="320px">
-                Marque ce tronçon comme remis au transporteur et enregistre le n° de suivi (notifie
-                le client). Ne fait pas passer au tronçon suivant.
+                {{ $t('shipping.hand_over_tip') }}
               </q-tooltip>
             </q-btn>
             <q-btn
@@ -106,12 +101,12 @@
               dense
               no-caps
               icon="ph:skip-forward"
-              label="Tronçon suivant"
+              :label="$t('shipping.next_leg')"
               :disable="isTerminal(props.row) || props.row.is_final_leg"
               @click="advanceTrackingRow(props.row)"
             >
               <q-tooltip v-if="props.row.is_final_leg" max-width="280px">
-                Dernier tronçon du parcours — confirmez la livraison avec « Livrer ».
+                {{ $t('shipping.last_leg') }}
               </q-tooltip>
             </q-btn>
             <q-btn
@@ -119,19 +114,18 @@
               dense
               no-caps
               icon="ph:check-circle"
-              label="Livrer"
+              :label="$t('shipping.deliver')"
               :disable="isTerminal(props.row) || !props.row.is_final_leg"
               @click="deliver(props.row)"
             >
               <q-tooltip v-if="!props.row.is_final_leg" max-width="280px">
-                Réservé au dernier tronçon — faites d'abord progresser le colis avec « Tronçon
-                suivant ».
+                {{ $t('shipping.last_only') }}
               </q-tooltip>
             </q-btn>
           </q-td>
         </template>
         <template #no-data>
-          <div class="full-width text-center text-subtle q-pa-md">Aucun colis à traiter.</div>
+          <div class="full-width text-center text-subtle q-pa-md">{{ $t('shipping.none') }}</div>
         </template>
       </q-table>
     </section>
@@ -139,7 +133,9 @@
     <!-- Consolidations -->
     <section class="app-section" aria-labelledby="consolidations-title">
       <div class="app-section__head">
-        <h2 id="consolidations-title" class="app-section__title">Consolidations</h2>
+        <h2 id="consolidations-title" class="app-section__title">
+          {{ $t('shipping.consolidations') }}
+        </h2>
       </div>
       <q-table
         :rows="visibleConsolidations"
@@ -176,13 +172,12 @@
               dense
               no-caps
               icon="ph:truck"
-              label="Tout remettre au transporteur"
+              :label="$t('shipping.hand_over_all')"
               :disable="isTerminal(props.row) || isShipped(props.row)"
               @click="openShipConsolidation(props.row)"
             >
               <q-tooltip max-width="320px">
-                Marque tous les colis du lot comme remis au transporteur et enregistre le n° de
-                suivi (notifie les clients). Ne fait pas passer au tronçon suivant.
+                {{ $t('shipping.hand_over_all_tip') }}
               </q-tooltip>
             </q-btn>
             <q-btn
@@ -190,7 +185,7 @@
               dense
               no-caps
               icon="ph:skip-forward"
-              label="Tronçon suivant"
+              :label="$t('shipping.next_leg')"
               :disable="isTerminal(props.row)"
               @click="advanceConsolidationRow(props.row)"
             />
@@ -199,14 +194,16 @@
               dense
               no-caps
               icon="ph:check-circle"
-              label="Livrer"
+              :label="$t('shipping.deliver')"
               :disable="isTerminal(props.row)"
               @click="deliverConsolidationRow(props.row)"
             />
           </q-td>
         </template>
         <template #no-data>
-          <div class="full-width text-center text-subtle q-pa-md">Aucune consolidation.</div>
+          <div class="full-width text-center text-subtle q-pa-md">
+            {{ $t('shipping.no_consolidation') }}
+          </div>
         </template>
       </q-table>
     </section>
@@ -215,7 +212,7 @@
     <q-dialog v-model="shipDialog">
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Remise au transporteur</h2>
+          <h2 class="app-dialog__title">{{ $t('shipping.hand_over_title') }}</h2>
         </q-card-section>
         <q-form @submit.prevent="submitShip">
           <q-card-section class="q-gutter-sm">
@@ -223,7 +220,7 @@
             <q-select
               v-model="shipCarrierId"
               :options="carrierOptions"
-              label="Transporteur"
+              :label="$t('shipping.carrier')"
               outlined
               dense
               emit-value
@@ -231,21 +228,21 @@
             />
             <q-input
               v-model="shipRef"
-              label="Numéro de suivi (optionnel)"
-              hint="Laisser vide si vous n'avez pas de numéro (suivi géré en interne)."
+              :label="$t('shipping.tracking')"
+              :hint="$t('shipping.tracking_hint')"
               outlined
               dense
               autofocus
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              label="Remettre au transporteur"
+              :label="$t('shipping.hand_over')"
               :loading="saving"
             />
           </q-card-actions>
@@ -257,29 +254,28 @@
     <q-dialog v-model="ungroupDialog">
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Passage au tronçon suivant</h2>
+          <h2 class="app-dialog__title">{{ $t('shipping.next_title') }}</h2>
           <p class="app-dialog__text">
-            Conserver le groupage pour le prochain tronçon, ou dégrouper les colis pour qu'ils
-            continuent individuellement (livraisons séparées) ?
+            {{ $t('shipping.keep_q') }}
           </p>
         </q-card-section>
         <q-card-section>
           <q-option-group
             v-model="ungroupChoice"
             :options="[
-              { label: 'Garder le groupage', value: 'keep' },
-              { label: 'Dégrouper (colis individuels)', value: 'ungroup' },
+              { label: $t('shipping.keep'), value: 'keep' },
+              { label: $t('shipping.ungroup'), value: 'ungroup' },
             ]"
             color="primary"
           />
         </q-card-section>
         <q-card-actions align="right" class="app-dialog__actions">
-          <q-btn flat no-caps label="Annuler" v-close-popup />
+          <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
           <q-btn
             color="primary"
             unelevated
             no-caps
-            label="Valider"
+            :label="$t('shipping.validate')"
             :loading="ungroupBusy"
             @click="submitAdvanceConsolidation"
           />
@@ -291,9 +287,10 @@
     <q-dialog v-model="journeyDialog">
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Parcours du colis</h2>
+          <h2 class="app-dialog__title">{{ $t('shipping.route_title') }}</h2>
           <p class="app-dialog__text">
-            Commande <span class="font-mono">#{{ journeyOrderId?.slice(0, 8) }}</span>
+            {{ $t('shipping.order') }}
+            <span class="font-mono">#{{ journeyOrderId?.slice(0, 8) }}</span>
           </p>
         </q-card-section>
         <q-card-section>
@@ -302,13 +299,13 @@
             <q-spinner size="2em" />
           </div>
           <div v-else-if="journey.length === 0" class="text-subtle q-pa-md text-center">
-            Aucun tronçon.
+            {{ $t('shipping.no_leg') }}
           </div>
           <q-timeline v-else layout="comfortable">
             <q-timeline-entry
               v-for="leg in journey"
               :key="leg.tracking_id"
-              :title="`Tronçon ${leg.sequence_order} — ${legPath(leg)}`"
+              :title="$t('shipping.leg_title', { n: leg.sequence_order, path: legPath(leg) })"
               :subtitle="leg.route_name || ''"
               :icon="leg.is_current ? 'ph:crosshair' : 'ph:map-pin'"
             >
@@ -320,15 +317,21 @@
                 />
                 <span v-if="leg.mode" class="text-caption text-muted">{{ leg.mode }}</span>
                 <span v-if="leg.tracking_ref" class="text-caption"
-                  >réf. <span class="font-mono">{{ leg.tracking_ref }}</span></span
+                  >{{ $t('shipping.ref') }}
+                  <span class="font-mono">{{ leg.tracking_ref }}</span></span
                 >
-                <StatusTag v-if="leg.is_current" tone="warn" icon="ph:crosshair" label="en cours" />
+                <StatusTag
+                  v-if="leg.is_current"
+                  tone="warn"
+                  icon="ph:crosshair"
+                  :label="$t('shipping.current')"
+                />
               </div>
             </q-timeline-entry>
           </q-timeline>
         </q-card-section>
         <q-card-actions align="right" class="app-dialog__actions">
-          <q-btn flat no-caps label="Fermer" v-close-popup />
+          <q-btn flat no-caps :label="$t('common.close')" v-close-popup />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -337,29 +340,29 @@
     <q-dialog v-model="createDialog">
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Nouvelle consolidation</h2>
-          <p class="app-dialog__text">{{ selected.length }} colis sélectionné(s).</p>
+          <h2 class="app-dialog__title">{{ $t('shipping.new_consolidation') }}</h2>
+          <p class="app-dialog__text">{{ $t('shipping.n_selected', { n: selected.length }) }}</p>
         </q-card-section>
         <q-form @submit.prevent="submitCreate">
           <q-card-section class="q-gutter-sm">
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="createName"
-              label="Nom de la consolidation *"
+              :label="$t('shipping.consolidation_name')"
               outlined
               dense
               autofocus
-              :rules="[(v) => (!!v && v.trim().length > 0) || 'Nom requis']"
+              :rules="[(v) => (!!v && v.trim().length > 0) || $t('shipping.name_rule')]"
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              label="Créer"
+              :label="$t('shipping.create')"
               :loading="saving"
             />
           </q-card-actions>
@@ -370,6 +373,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { computed, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import type { QTableColumn } from 'quasar';
@@ -398,6 +402,8 @@ import {
 } from '@/api/shipping';
 import { extractApiError } from '@/api/errors';
 
+const { t } = useI18n();
+
 const $q = useQuasar();
 
 const pending = ref<PendingTracking[]>([]);
@@ -410,28 +416,28 @@ const notice = ref<string | null>(null);
 const saving = ref(false);
 const dialogError = ref<string | null>(null);
 
-const pendingColumns: QTableColumn[] = [
-  { name: 'order', label: 'Commande', field: 'order_id', align: 'left' },
+const pendingColumns = computed<QTableColumn[]>(() => [
+  { name: 'order', label: t('shipping.col_order'), field: 'order_id', align: 'left' },
   {
     name: 'sequence',
-    label: 'Tronçon',
+    label: t('shipping.col_leg'),
     field: 'sequence_order',
     align: 'left',
-    format: (v: number) => `Tronçon ${v}`,
+    format: (v: number) => t('shipping.leg_n', { n: v }),
   },
-  { name: 'status', label: 'Statut', field: 'status_code', align: 'left' },
-  { name: 'ref', label: 'Référence', field: 'tracking_ref', align: 'left' },
+  { name: 'status', label: t('shipping.col_status'), field: 'status_code', align: 'left' },
+  { name: 'ref', label: t('shipping.col_ref'), field: 'tracking_ref', align: 'left' },
   { name: 'actions', label: '', field: 'tracking_id', align: 'right' },
-];
+]);
 
-const consolidationColumns: QTableColumn[] = [
-  { name: 'name', label: 'Nom', field: 'name', align: 'left' },
-  { name: 'code', label: 'Code', field: 'consolidation_code', align: 'left' },
-  { name: 'status', label: 'Statut', field: 'status_code', align: 'left' },
-  { name: 'total_orders', label: 'Colis', field: 'total_orders', align: 'left' },
-  { name: 'ref', label: 'Référence', field: 'tracking_ref', align: 'left' },
+const consolidationColumns = computed<QTableColumn[]>(() => [
+  { name: 'name', label: t('shipping.col_name'), field: 'name', align: 'left' },
+  { name: 'code', label: t('shipping.col_code'), field: 'consolidation_code', align: 'left' },
+  { name: 'status', label: t('shipping.col_status'), field: 'status_code', align: 'left' },
+  { name: 'total_orders', label: t('shipping.col_parcels'), field: 'total_orders', align: 'left' },
+  { name: 'ref', label: t('shipping.col_ref'), field: 'tracking_ref', align: 'left' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-];
+]);
 
 async function load() {
   loading.value = true;
@@ -444,7 +450,7 @@ async function load() {
     ]);
     selected.value = [];
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -475,7 +481,7 @@ const shipCarrierId = ref<string | null>(null);
 const shipTarget = ref<{ type: 'tracking' | 'consolidation'; id: string } | null>(null);
 
 const carrierOptions = computed<{ label: string; value: string | null }[]>(() => [
-  { label: '— Suivi interne (sans transporteur) —', value: null },
+  { label: t('shipping.internal'), value: null },
   ...carriers.value.map((c) => ({ label: c.name, value: c.id })),
 ]);
 
@@ -509,10 +515,10 @@ async function submitShip() {
       await shipConsolidation(shipTarget.value.id, ref, carrierId);
     }
     shipDialog.value = false;
-    notice.value = 'Remise au transporteur enregistrée.';
+    notice.value = t('shipping.handed_over');
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Expédition impossible.';
+    dialogError.value = extractApiError(err) ?? t('shipping.ship_failed');
   } finally {
     saving.value = false;
   }
@@ -522,10 +528,10 @@ async function deliver(row: PendingTracking) {
   error.value = null;
   try {
     await deliverTracking(row.tracking_id);
-    notice.value = 'Colis marqué livré.';
+    notice.value = t('shipping.delivered');
     await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Opération impossible.';
+    error.value = extractApiError(err) ?? t('common.op_failed');
   }
 }
 
@@ -537,7 +543,7 @@ async function advanceTrackingRow(row: PendingTracking) {
     notice.value = res.message;
     await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Opération impossible.';
+    error.value = extractApiError(err) ?? t('common.op_failed');
   }
 }
 
@@ -573,7 +579,7 @@ async function submitAdvanceConsolidation() {
     ungroupDialog.value = false;
     await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Opération impossible.';
+    error.value = extractApiError(err) ?? t('common.op_failed');
   } finally {
     ungroupBusy.value = false;
   }
@@ -581,10 +587,10 @@ async function submitAdvanceConsolidation() {
 
 function deliverConsolidationRow(c: Consolidation) {
   $q.dialog({
-    title: 'Livrer le lot',
-    message: 'Chaque colis sera dégroupé et marqué « livré ». Continuer ?',
+    title: t('shipping.deliver_batch'),
+    message: t('shipping.deliver_batch_msg'),
     cancel: true,
-    ok: { label: 'Livrer', color: 'positive' },
+    ok: { label: t('shipping.deliver'), color: 'positive' },
   }).onOk(() => {
     void (async () => {
       error.value = null;
@@ -593,7 +599,7 @@ function deliverConsolidationRow(c: Consolidation) {
         notice.value = res.message;
         await load();
       } catch (err) {
-        error.value = extractApiError(err) ?? 'Opération impossible.';
+        error.value = extractApiError(err) ?? t('common.op_failed');
       }
     })();
   });
@@ -632,7 +638,7 @@ async function openJourney(row: PendingTracking) {
   try {
     journey.value = await getOrderJourney(row.order_id);
   } catch (err) {
-    journeyError.value = extractApiError(err) ?? 'Chargement du parcours impossible.';
+    journeyError.value = extractApiError(err) ?? t('shipping.route_failed');
   } finally {
     journeyLoading.value = false;
   }
@@ -653,7 +659,7 @@ async function submitCreate() {
   // A consolidation groups trackings of a single route.
   const routeIds = new Set(selected.value.map((t) => t.route_id));
   if (routeIds.size > 1) {
-    dialogError.value = 'Les colis sélectionnés doivent appartenir au même tronçon (route).';
+    dialogError.value = t('shipping.same_leg');
     return;
   }
   const first = selected.value[0];
@@ -670,10 +676,10 @@ async function submitCreate() {
       selected.value.map((t) => t.tracking_id),
     );
     createDialog.value = false;
-    notice.value = 'Consolidation créée.';
+    notice.value = t('shipping.created');
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Création impossible.';
+    dialogError.value = extractApiError(err) ?? t('common.create_failed');
   } finally {
     saving.value = false;
   }

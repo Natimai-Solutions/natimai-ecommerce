@@ -1,9 +1,9 @@
 <template>
   <q-page class="admin-page">
     <PageHeader
-      :title="order?.order_number ?? `Commande #${orderId.slice(0, 8)}`"
-      :back="{ to: '/orders', label: 'Commandes' }"
-      :hint="order ? `Passée le ${formatDate(order.created_at)}` : undefined"
+      :title="order?.order_number ?? $t('order.order_n', { id: orderId.slice(0, 8) })"
+      :back="{ to: '/orders', label: $t('order.orders') }"
+      :hint="order ? $t('order.placed_on', { date: formatDate(order.created_at) }) : undefined"
     >
       <template v-if="order" #tags>
         <StatusTag
@@ -17,15 +17,15 @@
             v-if="order.balance_paid_at"
             tone="ok"
             icon="ph:hand-coins"
-            label="Solde réglé"
+            :label="$t('order.balance_paid')"
           />
           <StatusTag
             v-else-if="order.balance_requested_at"
             tone="warn"
             icon="ph:hand-coins"
-            label="Solde demandé"
+            :label="$t('order.balance_requested')"
           />
-          <StatusTag v-else tone="neutral" icon="ph:hand-coins" label="Acompte" />
+          <StatusTag v-else tone="neutral" icon="ph:hand-coins" :label="$t('order.deposit')" />
         </template>
       </template>
       <template #actions>
@@ -33,7 +33,7 @@
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           data-testid="order-refresh"
           :loading="loading"
           @click="load"
@@ -54,18 +54,18 @@
           <!-- Lines -->
           <section class="app-section" aria-labelledby="order-lines-title">
             <div class="app-section__head">
-              <h2 id="order-lines-title" class="app-section__title">Articles</h2>
+              <h2 id="order-lines-title" class="app-section__title">{{ $t('order.items') }}</h2>
             </div>
             <q-markup-table flat bordered dense>
               <thead>
                 <tr>
-                  <th class="text-left">Produit</th>
-                  <th class="text-right">Qté</th>
-                  <th class="text-right">PU TTC</th>
-                  <th class="text-right">Total TTC</th>
-                  <th class="text-right">Total HT</th>
-                  <th class="text-right">Coût</th>
-                  <th class="text-right">Marge HT</th>
+                  <th class="text-left">{{ $t('order.product') }}</th>
+                  <th class="text-right">{{ $t('order.qty') }}</th>
+                  <th class="text-right">{{ $t('order.unit_ttc') }}</th>
+                  <th class="text-right">{{ $t('order.total_ttc') }}</th>
+                  <th class="text-right">{{ $t('order.total_ht') }}</th>
+                  <th class="text-right">{{ $t('order.cost') }}</th>
+                  <th class="text-right">{{ $t('order.margin_ht') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -93,17 +93,17 @@
                     </template>
                     <span v-else class="text-subtle">
                       —
-                      <q-tooltip>Coût d'achat inconnu à la commande</q-tooltip>
+                      <q-tooltip>{{ $t('order.unknown_cost') }}</q-tooltip>
                     </span>
                   </td>
                 </tr>
                 <tr v-if="order.lines.length === 0">
-                  <td colspan="7" class="text-center text-subtle">Aucun article.</td>
+                  <td colspan="7" class="text-center text-subtle">{{ $t('order.no_items') }}</td>
                 </tr>
               </tbody>
             </q-markup-table>
             <div v-if="order.margin" class="order-margin" data-testid="order-margin">
-              <span class="text-muted">Marge brute sur les articles</span>
+              <span class="text-muted">{{ $t('order.gross_margin') }}</span>
               <strong
                 class="font-mono"
                 :class="{ 'text-negative': order.margin.margin < 0 }"
@@ -111,13 +111,16 @@
                 >{{ formatMoney(order.margin.margin) }}</strong
               >
               <span v-if="order.margin.margin_pct != null" class="text-muted">
-                soit {{ formatPct(order.margin.margin_pct) }} du CA HT ({{
-                  formatMoney(order.margin.goods_excl_tax)
+                {{
+                  $t('order.margin_pct', {
+                    pct: formatPct(order.margin.margin_pct),
+                    revenue: formatMoney(order.margin.goods_excl_tax),
+                    cost: formatMoney(order.margin.goods_cost),
+                  })
                 }}
-                − coût {{ formatMoney(order.margin.goods_cost) }})
               </span>
               <span v-if="!order.margin.complete" class="text-caption text-warning">
-                {{ order.margin.lines_without_cost }} ligne(s) sans coût connu, non comptée(s)
+                {{ $t('order.no_cost_lines', { n: order.margin.lines_without_cost }) }}
               </span>
             </div>
           </section>
@@ -125,7 +128,9 @@
           <!-- Payments -->
           <section class="app-section" aria-labelledby="order-payments-title">
             <div class="app-section__head">
-              <h2 id="order-payments-title" class="app-section__title">Paiements</h2>
+              <h2 id="order-payments-title" class="app-section__title">
+                {{ $t('order.payments') }}
+              </h2>
             </div>
             <AppNotice v-if="refundNotice" tone="success" dense class="q-mb-sm">
               {{ refundNotice }}
@@ -133,12 +138,12 @@
             <q-markup-table flat bordered dense>
               <thead>
                 <tr>
-                  <th class="text-left">Type</th>
-                  <th class="text-left">Référence</th>
-                  <th class="text-left">Statut</th>
-                  <th class="text-right">Montant</th>
-                  <th class="text-left">Date</th>
-                  <th class="text-right">Actions</th>
+                  <th class="text-left">{{ $t('order.type') }}</th>
+                  <th class="text-left">{{ $t('order.reference') }}</th>
+                  <th class="text-left">{{ $t('order.status') }}</th>
+                  <th class="text-right">{{ $t('order.amount') }}</th>
+                  <th class="text-left">{{ $t('order.date') }}</th>
+                  <th class="text-right">{{ $t('order.actions') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -161,7 +166,8 @@
                       v-if="p.accepts_receipts && (p.received_amount ?? 0) > 0"
                       class="text-caption text-warning"
                     >
-                      reçu <span class="font-mono">{{ formatMoney(p.received_amount ?? 0) }}</span>
+                      {{ $t('order.received') }}
+                      <span class="font-mono">{{ formatMoney(p.received_amount ?? 0) }}</span>
                     </div>
                   </td>
                   <td class="text-left">{{ formatDate(p.created_at) }}</td>
@@ -172,7 +178,7 @@
                       dense
                       no-caps
                       icon="ph:hand-coins"
-                      label="Encaisser"
+                      :label="$t('order.collect')"
                       data-testid="order-payment-receipt"
                       @click="openPaymentReceipt(p)"
                     />
@@ -182,7 +188,7 @@
                       dense
                       no-caps
                       icon="ph:money"
-                      label="Capturer"
+                      :label="$t('order.capture')"
                       :loading="capturingId === p.payment_id"
                       @click="captureRow(p)"
                     />
@@ -193,27 +199,27 @@
                       no-caps
                       color="negative"
                       icon="ph:arrow-u-up-left"
-                      label="Rembourser"
+                      :label="$t('order.refund')"
                       @click="openRefund(p)"
                     />
                   </td>
                 </tr>
                 <tr v-if="order.payments.length === 0">
-                  <td colspan="6" class="text-center text-subtle">Aucun paiement.</td>
+                  <td colspan="6" class="text-center text-subtle">{{ $t('order.no_payment') }}</td>
                 </tr>
               </tbody>
             </q-markup-table>
 
             <div v-if="order.receipts?.length" class="order-receipts">
-              <h3 class="admin-subtitle">Versements reçus</h3>
+              <h3 class="admin-subtitle">{{ $t('order.receipts') }}</h3>
               <q-markup-table flat bordered dense data-testid="order-receipts">
                 <thead>
                   <tr>
-                    <th class="text-left">Reçu le</th>
-                    <th class="text-right">Montant</th>
-                    <th class="text-left">Mode</th>
-                    <th class="text-left">Référence</th>
-                    <th class="text-left">Note</th>
+                    <th class="text-left">{{ $t('order.received_on') }}</th>
+                    <th class="text-right">{{ $t('order.amount') }}</th>
+                    <th class="text-left">{{ $t('order.mode') }}</th>
+                    <th class="text-left">{{ $t('order.reference') }}</th>
+                    <th class="text-left">{{ $t('order.note') }}</th>
                     <th class="text-right"></th>
                   </tr>
                 </thead>
@@ -233,7 +239,11 @@
                         v-if="!r.is_active"
                         tone="danger"
                         icon="ph:x-circle"
-                        :label="`Annulé${r.cancel_reason ? ` : ${r.cancel_reason}` : ''}`"
+                        :label="
+                          $t('order.cancelled', {
+                            reason: r.cancel_reason ? ` : ${r.cancel_reason}` : '',
+                          })
+                        "
                       />
                       <q-btn
                         v-else-if="receiptCancellable(r)"
@@ -242,10 +252,10 @@
                         no-caps
                         color="negative"
                         icon="ph:arrow-counter-clockwise"
-                        label="Annuler"
+                        :label="$t('order.cancel')"
                         @click="openCancelReceipt(r)"
                       >
-                        <q-tooltip>Chèque impayé, somme rendue…</q-tooltip>
+                        <q-tooltip>{{ $t('order.cancel_hint') }}</q-tooltip>
                       </q-btn>
                     </td>
                   </tr>
@@ -257,16 +267,18 @@
           <!-- Transport (journey legs, carrier hand-over) -->
           <section class="app-section" aria-labelledby="order-transport-title">
             <div class="app-section__head">
-              <h2 id="order-transport-title" class="app-section__title">Transport</h2>
+              <h2 id="order-transport-title" class="app-section__title">
+                {{ $t('order.transport') }}
+              </h2>
               <p v-if="order.delivery_type" class="app-section__hint">
-                Mode choisi par le client : {{ prettifyMode(order.delivery_type) }}
+                {{ $t('order.chosen_mode', { mode: prettifyMode(order.delivery_type) }) }}
               </p>
               <q-btn
                 flat
                 dense
                 no-caps
                 icon="ph:package"
-                label="Page Logistique"
+                :label="$t('order.logistics_page')"
                 to="/shipping"
                 class="app-section__action"
               />
@@ -279,11 +291,11 @@
               <thead>
                 <tr>
                   <th class="text-left">#</th>
-                  <th class="text-left">Tronçon</th>
-                  <th class="text-left">Statut</th>
-                  <th class="text-left">Transporteur</th>
-                  <th class="text-left">N° de suivi</th>
-                  <th class="text-right">Actions</th>
+                  <th class="text-left">{{ $t('order.leg') }}</th>
+                  <th class="text-left">{{ $t('order.status') }}</th>
+                  <th class="text-left">{{ $t('order.carrier_h') }}</th>
+                  <th class="text-left">{{ $t('order.tracking_no') }}</th>
+                  <th class="text-right">{{ $t('order.actions') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -314,7 +326,7 @@
                     />
                   </td>
                   <td class="text-left">
-                    {{ leg.carrier_name || (leg.tracking_ref ? 'Suivi interne' : '—') }}
+                    {{ leg.carrier_name || (leg.tracking_ref ? $t('order.internal') : '—') }}
                   </td>
                   <td class="text-left font-mono">
                     <a
@@ -333,13 +345,12 @@
                       dense
                       no-caps
                       icon="ph:truck"
-                      label="Remettre au transporteur"
+                      :label="$t('order.hand_over')"
                       :disable="leg.is_terminal || leg.status_code === 'shipped'"
                       @click="openShip(leg)"
                     >
                       <q-tooltip max-width="320px">
-                        Enregistre le transporteur et le n° de suivi, marque le tronçon expédié et
-                        notifie le client.
+                        {{ $t('order.hand_over_tip') }}
                       </q-tooltip>
                     </q-btn>
                     <q-btn
@@ -348,7 +359,7 @@
                       dense
                       no-caps
                       icon="ph:skip-forward"
-                      label="Tronçon suivant"
+                      :label="$t('order.next_leg')"
                       :disable="leg.is_terminal"
                       @click="advanceLeg(leg)"
                     />
@@ -359,7 +370,7 @@
                       no-caps
                       icon="ph:check-circle"
                       color="positive"
-                      label="Livrer"
+                      :label="$t('order.deliver')"
                       :disable="leg.is_terminal"
                       @click="deliverLeg(leg)"
                     />
@@ -367,7 +378,7 @@
                 </tr>
                 <tr v-if="journey.length === 0">
                   <td colspan="6" class="text-center text-subtle">
-                    {{ journeyLoading ? 'Chargement…' : 'Aucun tronçon de transport.' }}
+                    {{ journeyLoading ? $t('common.loading') : $t('order.no_leg') }}
                   </td>
                 </tr>
               </tbody>
@@ -380,19 +391,16 @@
           <!-- Amounts -->
           <div class="app-panel">
             <div class="order-panel__head">
-              <h2 class="admin-subtitle q-mb-none">Récapitulatif</h2>
+              <h2 class="admin-subtitle q-mb-none">{{ $t('order.summary') }}</h2>
               <q-btn
                 flat
                 dense
                 no-caps
                 icon="ph:piggy-bank"
-                label="Avoir-crédit"
+                :label="$t('order.credit')"
                 @click="openCredit"
               >
-                <q-tooltip
-                  >Accorder (ou reprendre) un avoir au client, utilisable sur sa prochaine
-                  commande</q-tooltip
-                >
+                <q-tooltip>{{ $t('order.credit_tip') }}</q-tooltip>
               </q-btn>
             </div>
             <AppNotice
@@ -401,51 +409,52 @@
               dense
               class="q-mb-md"
             >
-              Avoir disponible du client :
+              {{ $t('order.credit_available') }}
               <span class="font-mono">{{ formatMoney(Number(storeCredit.balance)) }}</span>
             </AppNotice>
             <div class="app-kv">
-              <span>Sous-total</span>
+              <span>{{ $t('order.subtotal') }}</span>
               <span class="font-mono">{{ formatMoney(order.subtotal_amount) }}</span>
             </div>
             <div class="app-kv">
-              <span>Frais de port</span>
+              <span>{{ $t('order.shipping') }}</span>
               <span class="font-mono">{{ formatMoney(order.shipping_fee_amount) }}</span>
             </div>
             <div class="app-kv">
-              <span>Frais de paiement</span>
+              <span>{{ $t('order.payment_fee') }}</span>
               <span class="font-mono">{{ formatMoney(order.payment_fee_amount) }}</span>
             </div>
             <div v-if="order.discount_code" class="app-kv app-kv--credit">
               <span
-                >Remise <span class="font-mono">{{ order.discount_code }}</span></span
+                >{{ $t('order.discount') }}
+                <span class="font-mono">{{ order.discount_code }}</span></span
               >
               <span class="font-mono">-{{ formatMoney(order.discount_amount ?? 0) }}</span>
             </div>
             <div v-if="order.deposit_fee_amount > 0" class="app-kv">
-              <span>Frais option acompte</span>
+              <span>{{ $t('order.deposit_fee') }}</span>
               <span class="font-mono">{{ formatMoney(order.deposit_fee_amount) }}</span>
             </div>
             <div class="app-kv app-kv--total">
-              <span>Total</span>
+              <span>{{ $t('order.total') }}</span>
               <span class="font-mono">{{ formatMoney(order.total_amount) }}</span>
             </div>
             <div v-if="order.payment_plan === 'deposit'" class="order-deposit">
               <div class="app-kv">
-                <span>Acompte à la commande</span>
+                <span>{{ $t('order.deposit_at_order') }}</span>
                 <span class="font-mono">{{ formatMoney(order.deposit_amount) }}</span>
               </div>
               <div class="app-kv">
                 <span>
-                  Solde
+                  {{ $t('order.balance') }}
                   <span class="order-deposit__caption">
-                    <template v-if="order.balance_paid_at"
-                      >réglé le {{ formatDate(order.balance_paid_at) }}</template
-                    >
-                    <template v-else-if="order.balance_requested_at"
-                      >demandé le {{ formatDate(order.balance_requested_at) }}</template
-                    >
-                    <template v-else>demandé automatiquement à la réception</template>
+                    <template v-if="order.balance_paid_at">{{
+                      $t('order.paid_on', { date: formatDate(order.balance_paid_at) })
+                    }}</template>
+                    <template v-else-if="order.balance_requested_at">{{
+                      $t('order.requested_on', { date: formatDate(order.balance_requested_at) })
+                    }}</template>
+                    <template v-else>{{ $t('order.auto_requested') }}</template>
                   </span>
                 </span>
                 <span class="font-mono">{{ formatMoney(order.balance_amount) }}</span>
@@ -458,7 +467,9 @@
                 size="sm"
                 icon="ph:envelope-simple"
                 class="q-mt-sm"
-                :label="order.balance_requested_at ? 'Renvoyer la demande' : 'Demander le solde'"
+                :label="
+                  order.balance_requested_at ? $t('order.resend') : $t('order.request_balance')
+                "
                 :loading="requestingBalance"
                 @click="sendBalanceRequest"
               />
@@ -467,15 +478,15 @@
 
           <!-- Encaissé / reste dû -->
           <div class="app-panel" data-testid="order-money">
-            <h2 class="admin-subtitle">Encaissements</h2>
+            <h2 class="admin-subtitle">{{ $t('order.collections') }}</h2>
             <div class="app-kv">
-              <span>Encaissé</span>
+              <span>{{ $t('order.collected') }}</span>
               <span class="font-mono" data-testid="order-amount-paid">{{
                 formatMoney(order.amount_paid ?? 0)
               }}</span>
             </div>
             <div class="app-kv app-kv--total">
-              <span>Reste dû</span>
+              <span>{{ $t('order.due') }}</span>
               <span class="font-mono" data-testid="order-amount-due">{{
                 formatMoney(order.amount_due ?? 0)
               }}</span>
@@ -487,7 +498,7 @@
               no-caps
               icon="ph:hand-coins"
               class="full-width q-mt-md"
-              label="Enregistrer un encaissement"
+              :label="$t('order.record_payment')"
               data-testid="order-counter-payment"
               @click="openCounterPayment"
             />
@@ -495,21 +506,23 @@
               v-if="(order.next_part_due ?? 0) > 0 && order.next_part_kind !== 'full'"
               class="admin-hint q-mt-sm q-mb-none"
             >
-              Part due maintenant :
-              {{ PAYMENT_KIND_LABELS[order.next_part_kind ?? 'full']?.toLowerCase() }}
-              (<span class="font-mono">{{ formatMoney(order.next_part_due ?? 0) }}</span
-              >).
+              {{
+                $t('order.part_due', {
+                  kind: PAYMENT_KIND_LABELS[order.next_part_kind ?? 'full']?.toLowerCase(),
+                  amount: formatMoney(order.next_part_due ?? 0),
+                })
+              }}
             </p>
           </div>
 
           <!-- Status + grouped departure -->
           <div class="app-panel">
-            <h2 class="admin-subtitle">Suivi</h2>
+            <h2 class="admin-subtitle">{{ $t('order.follow_up') }}</h2>
             <div class="order-panel__fields">
               <q-select
                 :model-value="order.status"
                 :options="statusOptions"
-                label="Changer le statut"
+                :label="$t('order.change_status')"
                 dense
                 outlined
                 emit-value
@@ -520,7 +533,7 @@
               <q-select
                 :model-value="order.grouped_departure_id"
                 :options="departureOptions"
-                label="Départ groupé"
+                :label="$t('order.departure')"
                 dense
                 outlined
                 emit-value
@@ -533,18 +546,18 @@
 
           <!-- Client -->
           <div class="app-panel">
-            <h2 class="admin-subtitle">Client</h2>
+            <h2 class="admin-subtitle">{{ $t('order.customer') }}</h2>
             <dl class="admin-dl">
-              <dt>Client</dt>
+              <dt>{{ $t('order.customer') }}</dt>
               <dd>{{ order.user_name || order.user_email || order.user_id.slice(0, 8) }}</dd>
               <template v-if="order.user_email">
-                <dt>Email</dt>
+                <dt>{{ $t('order.email') }}</dt>
                 <dd class="order-panel__wrap">{{ order.user_email }}</dd>
               </template>
-              <dt>Livraison</dt>
+              <dt>{{ $t('order.delivery') }}</dt>
               <dd class="order-panel__wrap">{{ order.shipping_address || '—' }}</dd>
               <template v-if="order.notes">
-                <dt>Notes</dt>
+                <dt>{{ $t('order.notes') }}</dt>
                 <dd class="order-panel__wrap">{{ order.notes }}</dd>
               </template>
             </dl>
@@ -556,7 +569,7 @@
       <q-dialog v-model="shipDialog">
         <q-card class="app-dialog">
           <q-card-section class="app-dialog__head">
-            <h2 class="app-dialog__title">Remise au transporteur</h2>
+            <h2 class="app-dialog__title">{{ $t('order.hand_over_title') }}</h2>
           </q-card-section>
           <q-form @submit.prevent="submitShip">
             <q-card-section class="q-gutter-sm">
@@ -564,7 +577,7 @@
               <q-select
                 v-model="shipCarrierId"
                 :options="carrierOptions"
-                label="Transporteur"
+                :label="$t('order.carrier')"
                 outlined
                 dense
                 emit-value
@@ -572,21 +585,21 @@
               />
               <q-input
                 v-model="shipRef"
-                label="Numéro de suivi (optionnel)"
-                hint="Laisser vide si vous n'avez pas de numéro (suivi géré en interne)."
+                :label="$t('order.tracking')"
+                :hint="$t('order.tracking_hint')"
                 outlined
                 dense
                 autofocus
               />
             </q-card-section>
             <q-card-actions align="right" class="app-dialog__actions">
-              <q-btn flat no-caps label="Annuler" v-close-popup />
+              <q-btn flat no-caps :label="$t('order.cancel')" v-close-popup />
               <q-btn
                 type="submit"
                 color="primary"
                 unelevated
                 no-caps
-                label="Remettre au transporteur"
+                :label="$t('order.hand_over')"
                 :loading="shipping"
               />
             </q-card-actions>
@@ -598,13 +611,13 @@
       <q-dialog v-model="creditDialog">
         <q-card class="app-dialog">
           <q-card-section class="app-dialog__head">
-            <h2 class="app-dialog__title">Avoir-crédit client</h2>
+            <h2 class="app-dialog__title">{{ $t('order.credit_title') }}</h2>
             <p class="app-dialog__text">
-              Solde actuel :
+              {{ $t('order.current_balance') }}
               <span class="font-mono">{{
                 storeCredit ? formatMoney(Number(storeCredit.balance)) : '—'
               }}</span
-              >. Un montant négatif reprend de l'avoir.
+              >{{ $t('order.negative') }}
             </p>
           </q-card-section>
           <q-form @submit.prevent="submitCredit">
@@ -614,17 +627,17 @@
                 v-model="creditAmount"
                 type="number"
                 step="1"
-                label="Montant (XPF) *"
+                :label="$t('order.credit_amount', { currency: shopConfig.currency })"
                 outlined
                 dense
                 autofocus
               />
               <q-input
                 v-model="creditReason"
-                label="Motif *"
+                :label="$t('order.reason')"
                 outlined
                 dense
-                :rules="[(v: string) => !!v.trim() || 'Requis']"
+                :rules="[(v: string) => !!v.trim() || $t('common.required')]"
               />
               <q-list v-if="storeCredit?.entries.length" dense bordered class="q-mt-sm">
                 <q-item v-for="e in storeCredit.entries.slice(0, 5)" :key="e.id">
@@ -642,13 +655,13 @@
               </q-list>
             </q-card-section>
             <q-card-actions align="right" class="app-dialog__actions">
-              <q-btn flat no-caps label="Annuler" v-close-popup />
+              <q-btn flat no-caps :label="$t('order.cancel')" v-close-popup />
               <q-btn
                 type="submit"
                 color="primary"
                 unelevated
                 no-caps
-                label="Enregistrer"
+                :label="$t('common.save')"
                 :loading="creditSaving"
               />
             </q-card-actions>
@@ -669,12 +682,12 @@
       <q-dialog v-model="cancelReceiptDialog">
         <q-card class="app-dialog app-dialog--narrow">
           <q-card-section class="app-dialog__head">
-            <h2 class="app-dialog__title">Annuler le versement</h2>
+            <h2 class="app-dialog__title">{{ $t('order.cancel_receipt_title') }}</h2>
             <p class="app-dialog__text">
               <span class="font-mono">{{
                 cancelTarget ? formatMoney(Number(cancelTarget.amount)) : ''
               }}</span>
-              ne comptera plus dans ce qui a été encaissé. Le versement reste dans l'historique.
+              {{ $t('order.cancel_receipt_hint') }}
             </p>
           </q-card-section>
           <q-card-section>
@@ -683,7 +696,7 @@
             }}</AppNotice>
             <q-input
               v-model="cancelReason"
-              label="Motif (chèque impayé, somme rendue…)"
+              :label="$t('order.cancel_reason')"
               outlined
               dense
               autofocus
@@ -691,12 +704,12 @@
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Retour" v-close-popup />
+            <q-btn flat no-caps :label="$t('order.back')" v-close-popup />
             <q-btn
               color="negative"
               unelevated
               no-caps
-              label="Annuler le versement"
+              :label="$t('order.cancel_receipt')"
               :disable="!cancelReason.trim()"
               :loading="cancelling"
               @click="submitCancelReceipt"
@@ -708,13 +721,13 @@
       <q-dialog v-model="refundDialog">
         <q-card class="app-dialog">
           <q-card-section class="app-dialog__head">
-            <h2 class="app-dialog__title">Rembourser le paiement</h2>
+            <h2 class="app-dialog__title">{{ $t('order.refund_title') }}</h2>
             <p class="app-dialog__text">
-              Montant du paiement :
+              {{ $t('order.payment_amount') }}
               <span class="font-mono">{{
                 refundTarget ? formatMoney(refundTarget.amount) : ''
               }}</span
-              >. Laissez le montant vide pour un remboursement total.
+              >{{ $t('order.refund_hint') }}
             </p>
           </q-card-section>
           <q-form @submit.prevent="submitRefund">
@@ -722,7 +735,7 @@
               <AppNotice v-if="refundError" tone="error" dense>{{ refundError }}</AppNotice>
               <q-input
                 v-model.number="refundAmount"
-                label="Montant à rembourser (optionnel)"
+                :label="$t('order.refund_amount')"
                 type="number"
                 step="0.01"
                 outlined
@@ -731,7 +744,7 @@
               />
               <q-input
                 v-model="refundReason"
-                label="Motif (optionnel)"
+                :label="$t('order.reason_opt')"
                 type="textarea"
                 autogrow
                 outlined
@@ -739,13 +752,13 @@
               />
             </q-card-section>
             <q-card-actions align="right" class="app-dialog__actions">
-              <q-btn flat no-caps label="Annuler" v-close-popup />
+              <q-btn flat no-caps :label="$t('order.cancel')" v-close-popup />
               <q-btn
                 type="submit"
                 color="negative"
                 unelevated
                 no-caps
-                label="Rembourser"
+                :label="$t('order.refund')"
                 :loading="refunding"
               />
             </q-card-actions>
@@ -757,6 +770,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { providerLabel } from '@/utils/payments';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
@@ -812,9 +826,11 @@ async function submitCredit() {
       order_id: order.value.order_id,
     });
     creditDialog.value = false;
-    refundNotice.value = `Avoir enregistré. Solde du client : ${formatMoney(Number(storeCredit.value.balance))}.`;
+    refundNotice.value = t('order.credit_saved', {
+      amount: formatMoney(Number(storeCredit.value.balance)),
+    });
   } catch (err) {
-    creditError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    creditError.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     creditSaving.value = false;
   }
@@ -827,10 +843,10 @@ async function sendBalanceRequest() {
     const result = await requestBalance(order.value.order_id);
     order.value.balance_requested_at = new Date().toISOString();
     refundNotice.value = result.sent
-      ? `Demande de solde (${formatMoney(result.balance_amount)}) envoyée au client.`
-      : "Demande enregistrée, mais l'e-mail n'a pas pu partir (notifications désactivées ?).";
+      ? t('order.balance_sent', { amount: formatMoney(result.balance_amount) })
+      : t('order.balance_no_mail');
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Demande de solde impossible.';
+    error.value = extractApiError(err) ?? t('order.balance_failed');
   } finally {
     requestingBalance.value = false;
   }
@@ -863,6 +879,8 @@ import {
   type StoreCreditBalance,
 } from '@/api/storeCredit';
 
+const { t } = useI18n();
+
 // --- Order status (one order by hand; the departure handles the bulk case) ---
 const statusNames = ref<string[]>([]);
 const statusSaving = ref(false);
@@ -878,7 +896,7 @@ async function changeStatus(status: string) {
     await setOrderStatus(order.value.order_id, status);
     order.value.status = status;
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Changement de statut impossible.';
+    error.value = extractApiError(err) ?? t('order.status_failed');
   } finally {
     statusSaving.value = false;
   }
@@ -893,7 +911,7 @@ const order = ref<AdminOrderDetail | null>(null);
 const departures = ref<Departure[]>([]);
 const departureSaving = ref(false);
 const departureOptions = computed(() => [
-  { label: '— Aucun (commande classique)', value: null },
+  { label: t('order.no_departure'), value: null },
   ...departures.value.map((d) => ({
     label: `${d.name} (${formatDate(d.order_cutoff_at)})`,
     value: d.id,
@@ -908,7 +926,7 @@ async function setDeparture(departureId: string | null) {
     await assignOrders([order.value.order_id], departureId);
     order.value.grouped_departure_id = departureId;
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Rattachement impossible.';
+    error.value = extractApiError(err) ?? t('order.attach_failed');
   } finally {
     departureSaving.value = false;
   }
@@ -948,7 +966,7 @@ const receiptDialog = ref(false);
 const receiptTarget = ref<{ paymentId: string } | { orderId: string } | null>(null);
 const receiptRemaining = ref(0);
 const receiptMethod = ref<ReceiptMethod>('cash');
-const receiptTitle = ref('Encaisser un versement');
+const receiptTitle = ref('');
 
 function methodForProvider(code: string | null): ReceiptMethod {
   if (code === 'manual_check') return 'check';
@@ -960,7 +978,7 @@ function openPaymentReceipt(p: AdminOrderPaymentItem) {
   receiptTarget.value = { paymentId: p.payment_id };
   receiptRemaining.value = p.amount - (p.received_amount ?? 0);
   receiptMethod.value = methodForProvider(p.provider_code);
-  receiptTitle.value = `Encaisser — ${providerLabel(p.provider_code)}`;
+  receiptTitle.value = t('order.collect_provider', { provider: providerLabel(p.provider_code) });
   receiptDialog.value = true;
 }
 
@@ -970,14 +988,14 @@ function openCounterPayment() {
   receiptRemaining.value = order.value.next_part_due ?? 0;
   const pending = order.value.payments.find((p) => p.accepts_receipts);
   receiptMethod.value = pending ? methodForProvider(pending.provider_code) : 'cash';
-  receiptTitle.value = 'Enregistrer un encaissement';
+  receiptTitle.value = t('order.record_title');
   receiptDialog.value = true;
 }
 
 async function onReceiptDone(result: ReceiptResult) {
   refundNotice.value = result.payment_settled
-    ? 'Encaissement enregistré : le paiement est validé.'
-    : `Versement enregistré — reste ${formatMoney(Number(result.remaining_amount))}.`;
+    ? t('order.validated')
+    : t('order.partial', { amount: formatMoney(Number(result.remaining_amount)) });
   await load();
 }
 
@@ -1009,10 +1027,10 @@ async function submitCancelReceipt() {
   try {
     await cancelReceipt(cancelTarget.value.id, cancelReason.value.trim());
     cancelReceiptDialog.value = false;
-    refundNotice.value = 'Versement annulé.';
+    refundNotice.value = t('order.receipt_cancelled');
     await load();
   } catch (err) {
-    cancelError.value = extractApiError(err) ?? 'Annulation impossible.';
+    cancelError.value = extractApiError(err) ?? t('order.cancel_failed');
   } finally {
     cancelling.value = false;
   }
@@ -1027,7 +1045,7 @@ async function load() {
     departures.value = await listDepartures().catch(() => []);
     statusNames.value = await listOrderStatuses().catch(() => []);
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -1069,7 +1087,7 @@ const shipping = ref(false);
 const shipError = ref<string | null>(null);
 
 const carrierOptions = computed<{ label: string; value: string | null }[]>(() => [
-  { label: '— Suivi interne (sans transporteur) —', value: null },
+  { label: t('order.internal_carrier'), value: null },
   ...carriers.value.map((c) => ({ label: c.name, value: c.id })),
 ]);
 
@@ -1099,10 +1117,10 @@ async function submitShip() {
       shipCarrierId.value,
     );
     shipDialog.value = false;
-    journeyNotice.value = 'Remise au transporteur enregistrée (client notifié).';
+    journeyNotice.value = t('order.handed_over');
     await loadJourney();
   } catch (err) {
-    shipError.value = extractApiError(err) ?? 'Expédition impossible.';
+    shipError.value = extractApiError(err) ?? t('order.ship_failed');
   } finally {
     shipping.value = false;
   }
@@ -1115,7 +1133,7 @@ async function advanceLeg(leg: JourneyLeg) {
     journeyNotice.value = result.message;
     await loadJourney();
   } catch (err) {
-    journeyError.value = extractApiError(err) ?? 'Progression impossible.';
+    journeyError.value = extractApiError(err) ?? t('order.progress_failed');
   }
 }
 
@@ -1123,10 +1141,10 @@ async function deliverLeg(leg: JourneyLeg) {
   journeyError.value = null;
   try {
     await deliverTracking(leg.tracking_id);
-    journeyNotice.value = 'Colis marqué livré (client notifié).';
+    journeyNotice.value = t('order.delivered');
     await loadJourney();
   } catch (err) {
-    journeyError.value = extractApiError(err) ?? 'Livraison impossible.';
+    journeyError.value = extractApiError(err) ?? t('order.deliver_failed');
   }
 }
 
@@ -1171,11 +1189,10 @@ async function submitRefund() {
     });
     refundDialog.value = false;
     refundNotice.value =
-      result.message ??
-      (result.fully_refunded ? 'Remboursement total effectué.' : 'Remboursement effectué.');
+      result.message ?? (result.fully_refunded ? t('order.refunded_full') : t('order.refunded'));
     await load();
   } catch (err) {
-    refundError.value = extractApiError(err) ?? 'Remboursement impossible.';
+    refundError.value = extractApiError(err) ?? t('order.refund_failed');
   } finally {
     refunding.value = false;
   }
@@ -1194,10 +1211,10 @@ async function captureRow(p: AdminOrderPaymentItem) {
   error.value = null;
   try {
     const result = await capturePayment(p.payment_id);
-    refundNotice.value = result.message ?? 'Paiement capturé.';
+    refundNotice.value = result.message ?? t('order.captured');
     await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Capture impossible.';
+    error.value = extractApiError(err) ?? t('order.capture_failed');
   } finally {
     capturingId.value = null;
   }

@@ -1,15 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader
-      title="Demandes de devis"
-      hint="Demandes envoyées depuis le panier : chiffrez le devis, émettez-le et suivez-le."
-    >
+    <PageHeader :title="$t('quotes.title')" :hint="$t('quotes.hint')">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -23,13 +20,13 @@
         outlined
         clearable
         debounce="300"
-        placeholder="Email ou nom du client"
+        :placeholder="$t('quotes.search')"
         style="min-width: 240px"
         @update:model-value="load"
       >
         <template #prepend><q-icon name="ph:magnifying-glass" /></template>
       </q-input>
-      <q-toggle v-model="openOnly" label="À traiter uniquement" @update:model-value="load" />
+      <q-toggle v-model="openOnly" :label="$t('quotes.todo_only')" @update:model-value="load" />
     </div>
 
     <AppNotice v-if="error" tone="error" class="q-mb-md">{{ error }}</AppNotice>
@@ -40,13 +37,9 @@
 
     <div v-else-if="rows.length === 0" class="app-empty">
       <q-icon name="ph:chat-text" size="28px" class="text-subtle" />
-      <h3>Aucune demande de devis</h3>
+      <h3>{{ $t('quotes.none') }}</h3>
       <p>
-        {{
-          search || openOnly
-            ? 'Aucune demande pour ces critères.'
-            : 'Aucune demande de devis pour le moment.'
-        }}
+        {{ search || openOnly ? $t('quotes.none_filtered') : $t('quotes.none_yet') }}
       </p>
     </div>
 
@@ -76,7 +69,7 @@
         <q-td :props="props">
           <StatusTag
             :icon="props.row.is_registered_customer ? 'ph:user-check' : 'ph:user'"
-            :label="props.row.is_registered_customer ? 'Client' : 'Visiteur'"
+            :label="props.row.is_registered_customer ? $t('quotes.customer') : $t('quotes.visitor')"
           />
         </q-td>
       </template>
@@ -99,7 +92,7 @@
             dense
             no-caps
             icon="ph:arrow-right"
-            label="Détail"
+            :label="$t('quotes.detail')"
             :loading="openingId === props.row.quote_request_id"
             @click="openDetail(props.row.quote_request_id)"
           />
@@ -112,7 +105,9 @@
       <q-card class="app-dialog app-dialog--wide">
         <q-card-section class="app-dialog__head">
           <div class="quote-head">
-            <h2 class="app-dialog__title">Demande de {{ detail?.full_name || detail?.email }}</h2>
+            <h2 class="app-dialog__title">
+              {{ $t('quotes.request_of', { name: detail?.full_name || detail?.email }) }}
+            </h2>
             <StatusTag
               v-if="detail"
               :label="quoteStatusLabel(detail.status)"
@@ -121,40 +116,41 @@
             />
           </div>
           <p v-if="detail" class="app-dialog__text">
-            Reçue le {{ formatDate(detail.created_at) }} —
-            {{ detail.is_registered_customer ? 'client identifié' : 'visiteur non connecté' }}
+            {{ $t('quotes.received_on', { date: formatDate(detail.created_at) }) }}
+            {{ detail.is_registered_customer ? $t('quotes.registered') : $t('quotes.anonymous') }}
             <span v-if="detail.phone"> — {{ detail.phone }}</span>
           </p>
         </q-card-section>
 
         <q-card-section v-if="detail">
           <AppNotice v-if="detail.status === 'email_failed'" tone="error" dense class="q-mb-md">
-            L'email vers le support n'a pas pu être transmis : cette demande n'a été vue que par cet
-            écran.
+            {{ $t('quotes.mail_failed') }}
           </AppNotice>
 
           <dl v-if="detail.shipping_address || detail.notes" class="admin-dl q-mb-md">
             <template v-if="detail.shipping_address">
-              <dt>Adresse de livraison</dt>
+              <dt>{{ $t('quotes.address') }}</dt>
               <dd>{{ detail.shipping_address }}</dd>
             </template>
             <template v-if="detail.notes">
-              <dt>Message du client</dt>
+              <dt>{{ $t('quotes.customer_message') }}</dt>
               <dd style="white-space: pre-line">{{ detail.notes }}</dd>
             </template>
           </dl>
 
           <h3 class="admin-subtitle">
-            Panier au moment de la demande
-            <span class="text-muted text-weight-regular">({{ detail.item_count }} article(s))</span>
+            {{ $t('quotes.cart') }}
+            <span class="text-muted text-weight-regular">{{
+              $t('quotes.n_items', { n: detail.item_count })
+            }}</span>
           </h3>
           <q-markup-table flat bordered dense class="q-mb-sm">
             <thead>
               <tr>
-                <th class="text-left">Produit</th>
-                <th class="text-right">Qté</th>
-                <th class="text-right">PU</th>
-                <th class="text-right">Total</th>
+                <th class="text-left">{{ $t('quotes.product') }}</th>
+                <th class="text-right">{{ $t('quotes.qty') }}</th>
+                <th class="text-right">{{ $t('quotes.unit') }}</th>
+                <th class="text-right">{{ $t('quotes.total') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -167,7 +163,7 @@
             </tbody>
           </q-markup-table>
           <div v-if="detail.subtotal_amount" class="app-kv q-mb-md">
-            <span>Sous-total</span>
+            <span>{{ $t('quotes.subtotal') }}</span>
             <span class="font-mono">{{ detail.subtotal_amount }} {{ detail.currency }}</span>
           </div>
 
@@ -176,10 +172,10 @@
           <!-- Le devis : lignes au prix consenti, livraison, validité, PDF -->
           <div class="quote-head q-mb-sm">
             <h3 class="admin-subtitle q-mb-none">
-              Devis
+              {{ $t('quotes.quote') }}
               <span v-if="detail.quote_number" class="font-mono">{{ detail.quote_number }}</span>
               <span v-if="detail.quoted_at" class="text-caption text-muted text-weight-regular">
-                — émis le {{ formatDate(detail.quoted_at) }}
+                {{ $t('quotes.issued_on', { date: formatDate(detail.quoted_at) }) }}
               </span>
             </h3>
             <q-btn
@@ -193,19 +189,20 @@
             />
           </div>
           <AppNotice v-if="detail.order_id" tone="success" dense class="q-mb-sm">
-            Devis commandé par le client :
-            <router-link :to="`/orders/${detail.order_id}`" class="admin-link"
-              >voir la commande</router-link
+            {{ $t('quotes.ordered') }}
+            <router-link :to="`/orders/${detail.order_id}`" class="admin-link">{{
+              $t('quotes.see_order')
+            }}</router-link
             >.
           </AppNotice>
           <template v-else>
             <q-markup-table flat bordered dense class="q-mb-sm">
               <thead>
                 <tr>
-                  <th class="text-left">Désignation</th>
-                  <th class="text-right">Qté</th>
-                  <th class="text-right">PU TTC</th>
-                  <th class="text-right">Total</th>
+                  <th class="text-left">{{ $t('quotes.designation') }}</th>
+                  <th class="text-right">{{ $t('quotes.qty') }}</th>
+                  <th class="text-right">{{ $t('quotes.unit_ttc') }}</th>
+                  <th class="text-right">{{ $t('quotes.total') }}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -214,7 +211,7 @@
                   <td>
                     <q-input v-model="line.product_name" dense outlined />
                     <div v-if="!line.product_id" class="text-caption text-warning">
-                      Hors catalogue : non commandable en ligne
+                      {{ $t('quotes.off_catalogue') }}
                     </div>
                   </td>
                   <td>
@@ -240,7 +237,7 @@
                   <td class="text-right font-mono">{{ lineTotal(line) }}</td>
                   <td>
                     <q-btn flat round dense icon="ph:x" @click="issueLines.splice(index, 1)">
-                      <q-tooltip>Retirer la ligne</q-tooltip>
+                      <q-tooltip>{{ $t('quotes.remove_line') }}</q-tooltip>
                     </q-btn>
                   </td>
                 </tr>
@@ -251,7 +248,7 @@
               dense
               no-caps
               icon="ph:plus"
-              label="Ligne libre"
+              :label="$t('quotes.free_line')"
               class="q-mb-sm"
               @click="
                 issueLines.push({
@@ -268,7 +265,7 @@
                 class="col-4"
                 type="number"
                 min="0"
-                label="Livraison (TTC)"
+                :label="$t('quotes.shipping')"
                 dense
                 outlined
               />
@@ -276,14 +273,15 @@
                 v-model="issueForm.valid_until"
                 class="col-4"
                 type="date"
-                label="Valable jusqu'au"
+                :label="$t('quotes.valid_until')"
                 dense
                 outlined
                 clearable
-                hint="Défaut : 30 jours"
+                :hint="$t('quotes.valid_hint')"
               />
               <div class="col-4 text-right text-weight-medium q-pt-sm">
-                Total : <span class="font-mono">{{ issueTotal }} {{ detail.currency ?? '' }}</span>
+                {{ $t('quotes.total_label') }}
+                <span class="font-mono">{{ issueTotal }} {{ detail.currency ?? '' }}</span>
               </div>
             </div>
             <q-input
@@ -292,22 +290,18 @@
               autogrow
               dense
               outlined
-              label="Message au client (imprimé sur le devis)"
+              :label="$t('quotes.message')"
               class="q-mt-sm"
             />
             <div class="row items-center q-mt-sm q-gutter-sm">
-              <q-toggle
-                v-model="issueForm.send_email"
-                label="Envoyer le PDF au client par e-mail"
-                dense
-              />
+              <q-toggle v-model="issueForm.send_email" :label="$t('quotes.send_pdf')" dense />
               <q-space />
               <q-btn
                 color="primary"
                 unelevated
                 no-caps
                 icon="ph:paper-plane-tilt"
-                :label="detail.quote_number ? 'Ré-émettre le devis' : 'Émettre le devis'"
+                :label="detail.quote_number ? $t('quotes.reissue') : $t('quotes.issue')"
                 :loading="issuing"
                 :disable="issueLines.length === 0"
                 @click="issue"
@@ -317,7 +311,7 @@
 
           <q-separator class="q-my-lg" />
 
-          <h3 class="admin-subtitle">Suivi</h3>
+          <h3 class="admin-subtitle">{{ $t('quotes.follow_up') }}</h3>
           <q-select
             v-model="editStatus"
             :options="QUOTE_STATUS_OPTIONS"
@@ -325,7 +319,7 @@
             map-options
             outlined
             dense
-            label="Statut"
+            :label="$t('common.status')"
             class="q-mb-sm"
           />
           <q-input
@@ -334,7 +328,7 @@
             outlined
             dense
             autogrow
-            label="Suivi interne (non visible du client)"
+            :label="$t('quotes.internal')"
           />
           <AppNotice v-if="issueNotice" tone="success" dense class="q-mt-sm">
             {{ issueNotice }}
@@ -345,12 +339,12 @@
         </q-card-section>
 
         <q-card-actions align="right" class="app-dialog__actions">
-          <q-btn flat no-caps label="Fermer" @click="dialog = false" />
+          <q-btn flat no-caps :label="$t('common.close')" @click="dialog = false" />
           <q-btn
             color="primary"
             unelevated
             no-caps
-            label="Enregistrer"
+            :label="$t('common.save')"
             :loading="saving"
             @click="save"
           />
@@ -361,6 +355,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { intlLocale } from '@app/utils';
 import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
@@ -383,6 +378,8 @@ import {
   type QuoteRequestStatus,
 } from '@/api/quoteRequests';
 import { extractApiError } from '@/api/errors';
+
+const { t } = useI18n();
 
 // --- Issuing the quote (lines at the granted price, delivery, validity) ---
 const issueLines = ref<QuoteLine[]>([]);
@@ -428,7 +425,7 @@ async function issue() {
     const result = await issueQuote(detail.value.quote_request_id, {
       lines: issueLines.value.map((l) => ({
         product_id: l.product_id,
-        product_name: l.product_name.trim() || 'Article',
+        product_name: l.product_name.trim() || t('quotes.item'),
         quantity: Math.max(1, Math.floor(Number(l.quantity) || 1)),
         unit_price: String(Number(l.unit_price) || 0),
       })),
@@ -441,11 +438,11 @@ async function issue() {
     editStatus.value = result.status;
     prefillIssue(result);
     issueNotice.value = result.email_sent
-      ? `Devis ${result.quote_number} émis et envoyé au client.`
-      : `Devis ${result.quote_number} émis (sans e-mail).`;
+      ? t('quotes.issued_sent', { number: result.quote_number })
+      : t('quotes.issued_no_mail', { number: result.quote_number });
     await load();
   } catch (err) {
-    saveError.value = extractApiError(err) ?? 'Émission du devis impossible.';
+    saveError.value = extractApiError(err) ?? t('quotes.issue_failed');
   } finally {
     issuing.value = false;
   }
@@ -480,34 +477,34 @@ function formatDate(raw: string | null): string {
       });
 }
 
-const columns: QTableColumn[] = [
+const columns = computed<QTableColumn[]>(() => [
   {
     name: 'created_at',
-    label: 'Reçue le',
+    label: t('quotes.col_received'),
     field: 'created_at',
     align: 'left',
     format: (v: string | null) => formatDate(v),
   },
-  { name: 'client', label: 'Client', field: 'email', align: 'left' },
+  { name: 'client', label: t('quotes.col_customer'), field: 'email', align: 'left' },
   {
     name: 'number',
-    label: 'Devis',
+    label: t('quotes.col_quote'),
     field: (r: AdminQuoteRequestListItem) => r.quote_number ?? '—',
     align: 'left',
   },
-  { name: 'origin', label: 'Origine', field: 'is_registered_customer', align: 'left' },
-  { name: 'items', label: 'Articles', field: 'item_count', align: 'right' },
+  { name: 'origin', label: t('quotes.col_origin'), field: 'is_registered_customer', align: 'left' },
+  { name: 'items', label: t('quotes.col_items'), field: 'item_count', align: 'right' },
   {
     name: 'total',
-    label: 'Sous-total',
+    label: t('quotes.col_subtotal'),
     field: 'subtotal_amount',
     align: 'right',
     format: (v: string | null, row: AdminQuoteRequestListItem) =>
       v ? `${v} ${row.currency ?? ''}`.trim() : '—',
   },
-  { name: 'status', label: 'Statut', field: 'status', align: 'left' },
+  { name: 'status', label: t('quotes.col_status'), field: 'status', align: 'left' },
   { name: 'actions', label: '', field: 'quote_request_id', align: 'right' },
-];
+]);
 
 async function load() {
   loading.value = true;
@@ -518,7 +515,7 @@ async function load() {
       openOnly: openOnly.value,
     });
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -536,7 +533,7 @@ async function openDetail(id: string) {
     issueNotice.value = null;
     dialog.value = true;
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     openingId.value = null;
   }
@@ -556,7 +553,7 @@ async function save() {
     // plutôt que de patcher la ligne en place.
     await load();
   } catch (err) {
-    saveError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    saveError.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     saving.value = false;
   }
