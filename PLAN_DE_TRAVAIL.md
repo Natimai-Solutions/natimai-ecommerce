@@ -43,7 +43,7 @@ Section issue de la revue du 30/09/2026 (état du dépôt, documents de travail,
 | **3** ✅ | Paiements : espèces, versements partiels (`payment_receipts`), acompte pour tous les moyens, PSP activables en base, **PayPal** — **livrée le 30/09/2026** ; **Stripe (P6) reporté** à la demande du propriétaire | 14 à 18 j | R3 |
 | **4** ✅ | Fournisseurs : seuil de quantité à l'import fichier, **mappage catégories fournisseur → boutique** (fichier et Ingram), mode simple avec Ingram / Icecat désactivés par défaut et réactivables, **modules activables en base**, rattachement immédiat d'un article manuel, flux fichier automatisé (Foxway, Picata) avec identifiants chiffrés | 15 à 20 j — **livrée le 01/10/2026** (S1 à S8) | R4 |
 | 5 | Configuration en base (version complète) | 12 à 16 j | R5 |
-| 6 | Bloquants production (sécurité, sauvegardes, images, sandbox PayZen, juridique, comptable) | 5 à 8 j + validations externes | R6 |
+| 6 ⏳ | Bloquants production (sécurité, sauvegardes, images, sandbox PayZen, juridique, comptable) — **partie logicielle livrée le 01/10/2026** (OAuth, 2FA admin + journal d'audit, images durcies, S3 imposé) ; restent les actions hors code : sauvegardes planifiées et restauration testée sur le serveur, sandbox PayZen, relectures juridique et comptable, données catalogue | 5 à 8 j + validations externes | R6 |
 | 7 | Version publique : multilingue FR + EN et devises (périmètre minimal) | 20 à 30 j | R7 |
 | 8 | Ajouts à forte valeur et confort | à arbitrer | R8 |
 
@@ -242,7 +242,7 @@ Inventaire de [config.py](backend/app/core/config.py) : **148 réglages**. À ga
 
 Nettoyages au passage : `INVOICE_SELLER_*` et `INGRAM_SYNC_INTERVAL_HOURS` ne servent plus qu'à l'amorçage (à retirer plutôt qu'à migrer) ; le `deposit_enabled` global mentionné l.809 **n'existe pas** dans le code (l'acompte est piloté par `PriceGroup` seul, l.723). Risques : priorité base > env silencieuse (d'où `source`), fenêtre d'incohérence entre réplicas jusqu'au TTL (lecture sans cache sur le chemin du checkout pour `CGV_VERSION` et `INSURANCE_RATE_PCT`), recalcul des prix matérialisés, `Literal` strict conservé pour les fournisseurs de notifications (N13).
 
-### R6 — Bloquants avant production (priorité 6, chiffrage de la revue du 30/09)
+### R6 — Bloquants avant production (priorité 6, chiffrage de la revue du 30/09) — ⏳ code livré le 01/10/2026 (1, 2, 6, 7) ; restent 3, 4, 5, 8 (hors code)
 
 Reprend et précise le « Reste à faire (non couvert le 02/09/2026) » et PP-*. Ordre conseillé :
 

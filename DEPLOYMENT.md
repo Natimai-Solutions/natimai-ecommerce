@@ -715,6 +715,8 @@ curl -fsS $API/api/v1/healthz/ready
 **Database** — migrations applied and the full‑text search extension present:
 ```bash
 docker compose exec api alembic current     # should be at head
+# (exec runs as root by default; prefix `--user app` for anything that writes
+#  into the storage volume)
 docker compose exec postgres psql -U postgres -d fastapi_ecommerce \
   -c "SELECT extname FROM pg_extension WHERE extname='pg_trgm';"   # 1 row
 ```
@@ -834,7 +836,9 @@ $COMPOSE exec -T postgres pg_restore -U postgres -d fastapi_ecommerce \
 # 3. Restore the uploads volume
 #    --index : `api` runs with replicas: 2 in production, so a bare `exec` is
 #    ambiguous. Both replicas share the same volume, index 1 is fine.
-$COMPOSE exec --index 1 -T api tar xzf - -C /tmp < backups/storage_<STAMP>.tar.gz
+#    --user app : the application runs unprivileged (uid 10001); files
+#    restored as root could not be replaced by it afterwards.
+$COMPOSE exec --index 1 -T --user app api tar xzf - -C /tmp < backups/storage_<STAMP>.tar.gz
 
 # 4. Restart and check
 $COMPOSE up -d
