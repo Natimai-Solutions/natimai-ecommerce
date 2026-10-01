@@ -6,7 +6,7 @@
     behavior="mobile"
     :width="420"
     class="cart-drawer"
-    aria-label="Panier"
+    :aria-label="$t('cart_drawer.aria')"
   >
     <div class="cart-drawer__inner">
       <header class="cart-drawer__head">
@@ -17,14 +17,14 @@
           class="cart-drawer__check"
         />
         <h2 class="cart-drawer__title">
-          {{ uiStore.lastAddedProductId ? 'Ajouté au panier' : 'Panier' }}
+          {{ uiStore.lastAddedProductId ? $t('cart_drawer.added') : $t('cart_drawer.title') }}
         </h2>
-        <q-btn flat round dense icon="ph:x" aria-label="Fermer le panier" @click="close" />
+        <q-btn flat round dense icon="ph:x" :aria-label="$t('cart_drawer.close')" @click="close" />
       </header>
 
       <div v-if="lines.length === 0" class="cart-drawer__empty">
         <q-icon name="ph:shopping-bag" size="40px" class="text-subtle" />
-        <p>Votre panier est vide.</p>
+        <p>{{ $t('cart_drawer.empty') }}</p>
       </div>
 
       <ul v-else class="cart-drawer__lines">
@@ -32,14 +32,18 @@
           <div class="cart-drawer__thumb">
             <ProductImage
               :src="entry.product?.image_url ?? entry.product?.supplier_image_url"
-              :alt="entry.product?.name ?? 'Article'"
+              :alt="entry.product?.name ?? $t('cart_drawer.item')"
               glyph-size="28px"
             />
           </div>
           <div class="cart-drawer__desc">
             <span class="cart-drawer__brand">{{ entry.product?.manufacturer ?? '' }}</span>
-            <span class="cart-drawer__name">{{ entry.product?.name ?? 'Article' }}</span>
-            <span class="cart-drawer__qty font-mono">Qté {{ entry.item.quantity }}</span>
+            <span class="cart-drawer__name">{{
+              entry.product?.name ?? $t('cart_drawer.item')
+            }}</span>
+            <span class="cart-drawer__qty font-mono">{{
+              $t('cart_drawer.qty', { n: entry.item.quantity })
+            }}</span>
           </div>
           <span class="cart-drawer__price font-mono">
             {{ currencyStore.format(entry.item.line_total) }}
@@ -49,19 +53,19 @@
 
       <footer class="cart-drawer__foot">
         <div class="cart-drawer__total">
-          <span>Sous-total TTC</span>
+          <span>{{ $t('cart_drawer.subtotal') }}</span>
           <span class="font-mono">{{ currencyStore.format(cartStore.totalAmount) }}</span>
         </div>
-        <p class="cart-drawer__note">Frais de livraison calculés à la commande.</p>
+        <p class="cart-drawer__note">{{ $t('cart_drawer.shipping_note') }}</p>
         <div class="cart-drawer__actions">
           <q-btn
             unelevated
             color="primary"
-            label="Voir le panier"
+            :label="$t('cart_drawer.view_cart')"
             :to="{ name: 'cart' }"
             @click="close"
           />
-          <q-btn outline color="primary" label="Continuer mes achats" @click="close" />
+          <q-btn outline color="primary" :label="$t('cart_drawer.continue')" @click="close" />
         </div>
       </footer>
     </div>

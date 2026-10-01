@@ -30,6 +30,12 @@ def parse_cors(v: Any) -> list[str] | str:
     raise ValueError(v)
 
 
+def reference_currency() -> str:
+    """Default currency of amounts: the deployment's reference currency
+    (``default_factory`` of the models, so a FR shop does not default to XPF)."""
+    return settings.REFERENCE_CURRENCY
+
+
 def secret_is_set(value: str | None) -> bool:
     """Whether an integration secret holds a real value.
 
@@ -491,6 +497,16 @@ class Settings(BaseSettings):
     # shop: it then starts with carriers and statuses only, and the admin
     # creates its warehouse and its warehouse → customer routes.
     SEED_FRENCH_POLYNESIA_LOGISTICS: bool = True
+    # Languages and time zone of the shop (R7 / L5). Filled by the territory
+    # profile; each can be set on its own (a PF shop in English, a FR shop
+    # adding Spanish…) without touching the code. SHOP_LOCALES lists the
+    # languages offered to the visitor; the interface ships fr and en.
+    SHOP_DEFAULT_LOCALE: str = "fr"
+    SHOP_LOCALES: Annotated[list[str] | str, BeforeValidator(parse_cors)] = [
+        "fr",
+        "en",
+    ]
+    SHOP_TIMEZONE: str = "Pacific/Tahiti"
 
     # --- Facturation (M3) : identité du vendeur imprimée sur les factures ---
     # OBLIGATOIRE légalement avant d'émettre une facture réelle : une facture
@@ -539,11 +555,30 @@ class Settings(BaseSettings):
             "INVOICE_FEES_TAX_CODE": profile.default_tax_code,
             "PAYZEN_CURRENCY": profile.currency,
             "SEED_FRENCH_POLYNESIA_LOGISTICS": profile.seed_french_polynesia_logistics,
+            "SHOP_DEFAULT_LOCALE": profile.default_locale,
+            "SHOP_LOCALES": list(profile.available_locales),
+            "SHOP_TIMEZONE": profile.timezone,
         }
         for name, value in defaults.items():
             if name not in self.model_fields_set:
                 object.__setattr__(self, name, value)
         return self
+
+    @property
+    def shop_locales(self) -> list[str]:
+        """Offered languages, normalized (lower-case, default first, unique)."""
+        default = self.SHOP_DEFAULT_LOCALE.strip().lower() or "fr"
+        seen = [default]
+        codes = (
+            self.SHOP_LOCALES.split(",")
+            if isinstance(self.SHOP_LOCALES, str)
+            else self.SHOP_LOCALES
+        )
+        for code in codes:
+            value = str(code).strip().lower()
+            if value and value not in seen:
+                seen.append(value)
+        return seen
 
     @property
     def territory_profile(self) -> Any:

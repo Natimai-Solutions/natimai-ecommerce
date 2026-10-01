@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlmodel import Field, SQLModel, UniqueConstraint
 
+from app.core.config import reference_currency
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
@@ -20,7 +21,7 @@ class CartBase(Base):
         description="ID of the user owning the cart",
     )
     currency: str = Field(
-        default="XPF",
+        default_factory=reference_currency,
         max_length=3,
         description="Currency used for cart amounts",
     )

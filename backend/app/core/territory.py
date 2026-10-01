@@ -44,6 +44,12 @@ class TerritoryProfile:
     #: Wording of the legal identity screen.
     registration_label: str
     registry_label: str
+    #: Language of the shop when the visitor states none (BCP 47, R7 / L5).
+    default_locale: str = "fr"
+    #: Languages offered to the visitor, default first.
+    available_locales: tuple[str, ...] = ("fr", "en")
+    #: IANA time zone of dates shown to customers (order dates, departures).
+    timezone: str = "Europe/Paris"
 
 
 PF = TerritoryProfile(
@@ -65,6 +71,9 @@ PF = TerritoryProfile(
     seed_french_polynesia_logistics=True,
     registration_label="Numéro TAHITI (équivalent local du SIRET)",
     registry_label="Numéro au Registre du commerce de Papeete",
+    default_locale="fr",
+    available_locales=("fr", "en"),
+    timezone="Pacific/Tahiti",
 )
 
 FR = TerritoryProfile(
@@ -85,6 +94,9 @@ FR = TerritoryProfile(
     seed_french_polynesia_logistics=False,
     registration_label="Numéro SIRET",
     registry_label="Numéro RCS (registre du commerce et des sociétés)",
+    default_locale="fr",
+    available_locales=("fr", "en"),
+    timezone="Europe/Paris",
 )
 
 TERRITORY_PROFILES: dict[str, TerritoryProfile] = {PF.code: PF, FR.code: FR}

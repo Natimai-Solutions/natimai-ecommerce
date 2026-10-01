@@ -84,7 +84,7 @@
       </template>
       <template #body-cell-total="props">
         <q-td :props="props" class="font-mono text-weight-medium">
-          {{ formatMoney(props.row.total_amount) }}
+          {{ formatMoney(props.row.total_amount, props.row.currency) }}
         </q-td>
       </template>
       <template #body-cell-actions="props">
@@ -109,7 +109,8 @@ import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import { toneIcon, toneOf } from '@app/ui/statusTone';
-import { formatXpf } from '@app/utils';
+import { formatMoney as money } from '@app/utils';
+import { useShopConfigStore } from '@/stores/shopConfig';
 import PageHeader from '@/components/PageHeader.vue';
 import {
   listOrders,
@@ -134,8 +135,11 @@ const departureOptions = computed(() => [
 const loading = ref(false);
 const error = ref<string | null>(null);
 
-function formatMoney(amount: number): string {
-  return Number.isFinite(amount) ? formatXpf(amount) : String(amount);
+const shopConfig = useShopConfigStore();
+
+/** Amount in its own currency (the order's), else the reference currency. */
+function formatMoney(amount: number, currency?: string | null): string {
+  return Number.isFinite(amount) ? money(amount, currency || shopConfig.currency) : String(amount);
 }
 
 function formatDate(raw: string | null): string {

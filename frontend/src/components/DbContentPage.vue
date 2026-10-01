@@ -12,7 +12,7 @@
       </div>
       <slot v-else name="fallback">
         <h1>{{ fallbackTitle }}</h1>
-        <p class="text-muted">Cette page n'est pas encore rédigée.</p>
+        <p class="text-muted">{{ $t('content.not_written') }}</p>
       </slot>
     </article>
   </q-page>

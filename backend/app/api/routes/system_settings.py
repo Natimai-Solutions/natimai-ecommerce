@@ -65,6 +65,14 @@ class ShopConfigPublic(BaseModel):
     shop_name: str
     #: Effective state of every switchable module (Admin → Modules).
     modules: dict[str, bool] = {}
+    #: Language when the visitor states none, and the languages offered
+    #: (BCP 47, default first) — R7 / L5.
+    default_locale: str = "fr"
+    available_locales: list[str] = ["fr", "en"]
+    #: IANA time zone of the dates shown to customers.
+    timezone: str = "Pacific/Tahiti"
+    #: Display currency proposed to a visitor who chose none.
+    default_display_currency: str = "XPF"
 
 
 class RuntimeSettingPublic(BaseModel):
@@ -155,6 +163,13 @@ async def get_shop_config(session: SessionDep) -> ShopConfigPublic:
         tax_territory_code=settings.TAX_TERRITORY_CODE,
         shop_name=await rs.get("shop_name", session),
         modules=await enabled_modules(session),
+        default_locale=settings.shop_locales[0],
+        available_locales=settings.shop_locales,
+        timezone=settings.SHOP_TIMEZONE,
+        default_display_currency=str(
+            await rs.get("default_display_currency", session)
+            or settings.REFERENCE_CURRENCY
+        ),
     )
 
 

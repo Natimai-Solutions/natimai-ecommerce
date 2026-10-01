@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel
 
+from app.core.config import reference_currency
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
@@ -156,7 +157,7 @@ class GuestQuoteRequestSubmit(SQLModel):
     customer_phone: str | None = Field(default=None, max_length=255)
     shipping_address: str | None = Field(default=None, max_length=500)
     notes: str | None = Field(default=None, max_length=1000)
-    currency: str = Field(default="XPF", max_length=8)
+    currency: str = Field(default_factory=reference_currency, max_length=8)
     items: list[GuestQuoteRequestItem] = Field(default_factory=list)
 
 

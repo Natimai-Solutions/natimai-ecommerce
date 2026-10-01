@@ -4,24 +4,26 @@
       <q-icon name="ph:calendar-check" size="18px" class="departure-strip__icon" />
       <p class="departure-strip__text">
         <span class="departure-strip__name">
-          <span class="gt-sm">Prochain départ groupé</span><span class="lt-md">Départ</span> «
-          {{ store.next.name }} »
+          <span class="gt-sm">{{ $t('departure.next_long') }}</span
+          ><span class="lt-md">{{ $t('departure.next_short') }}</span> « {{ store.next.name }} »
         </span>
-        <span>{{ store.cutoffLabel }}</span>
-        <span v-if="store.deliveryLabel" class="departure-strip__delivery">
-          {{ store.deliveryLabel }}
+        <span>{{ nextCutoff }}</span>
+        <span v-if="nextDelivery" class="departure-strip__delivery">
+          {{ nextDelivery }}
         </span>
       </p>
-      <span class="departure-strip__link">Comment ça marche ?</span>
+      <span class="departure-strip__link">{{ $t('departure.how') }}</span>
       <q-icon name="ph:caret-right" size="16px" class="departure-strip__chevron" />
     </router-link>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useDepartureLabels } from '@/composables/useDepartureLabels';
 import { useDepartureStore } from '@/stores/departure';
 
 const store = useDepartureStore();
+const { nextCutoff, nextDelivery } = useDepartureLabels();
 </script>
 
 <style scoped lang="scss">

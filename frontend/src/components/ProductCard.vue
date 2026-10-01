@@ -11,7 +11,7 @@
           class="product-card__condition"
           :class="{ 'product-card__condition--refurbished': refurbished }"
           data-testid="product-condition"
-          >{{ conditionLabel(product) }}</span
+          >{{ conditionLabel(product, tr) }}</span
         >
       </span>
       <router-link :to="productRoute" class="product-card__name">{{ product.name }}</router-link>
@@ -22,13 +22,13 @@
 
     <div class="product-card__buy">
       <div class="product-card__meta">
-        <span v-if="isQuote" class="product-card__price">Prix sur devis</span>
+        <span v-if="isQuote" class="product-card__price">{{ $t('card.on_quote') }}</span>
         <span v-else class="product-card__price">
-          <span v-if="product.has_variants" class="product-card__from">À partir de</span>
+          <span v-if="product.has_variants" class="product-card__from">{{ $t('card.from') }}</span>
           <span class="font-mono" :class="{ 'product-card__promo-price': regularPrice }">{{
             displayPrice
           }}</span>
-          <span class="product-card__tax">TTC</span>
+          <span class="product-card__tax">{{ $t('card.incl_tax') }}</span>
         </span>
         <span v-if="regularPrice" class="product-card__promo" data-testid="product-card-promo">
           <s class="font-mono">{{ regularPrice }}</s>
@@ -56,15 +56,15 @@
           {{ availability.note }}
         </span>
         <span v-if="showDeparture" class="product-card__offers">
-          {{ departureStore.deliveryLabel }}
+          {{ nextDelivery }}
         </span>
 
         <span v-if="variantsCount > 1" class="product-card__offers">
-          {{ variantsCount }} déclinaisons
+          {{ $t('card.variants', { n: variantsCount }) }}
         </span>
 
         <span v-if="offersCount > 1" class="product-card__offers">
-          {{ offersCount }} offres, meilleur prix affiché
+          {{ $t('card.offers', { n: offersCount }) }}
         </span>
       </div>
 
@@ -73,7 +73,7 @@
         :to="productRoute"
         class="product-card__add"
         data-testid="product-choose-variant"
-        :aria-label="`Choisir une déclinaison de ${product.name}`"
+        :aria-label="$t('card.choose_variant', { name: product.name })"
       >
         <q-icon name="ph:arrow-right" size="20px" />
       </router-link>
@@ -85,8 +85,8 @@
         :disabled="!availability.orderable"
         :aria-label="
           availability.orderable
-            ? `Ajouter ${product.name} au panier`
-            : 'Indisponible pour le moment'
+            ? $t('card.add', { name: product.name })
+            : $t('card.unavailable_now')
         "
         @click="emit('add-to-cart', product)"
       >
@@ -102,7 +102,8 @@ import type { components } from '@app/api-types';
 import ProductImage from '@/components/ProductImage.vue';
 import { getProductRoute } from '@/utils/productRoute';
 import { useCurrencyStore } from '@/stores/currency';
-import { useDepartureStore } from '@/stores/departure';
+import { useDepartureLabels } from '@/composables/useDepartureLabels';
+import { useTranslate } from '@/composables/useTranslate';
 import { conditionLabel, isRefurbished, productAvailability } from '@/utils/availability';
 
 // `offers_count` is served by the backend (search grouping of the same item
@@ -119,15 +120,14 @@ const productRoute = computed(() => getProductRoute(props.product));
 const imageUrl = computed(() => props.product.image_url ?? props.product.supplier_image_url);
 const brand = computed(() => props.product.manufacturer ?? props.product.supplier_name ?? '');
 
-const departureStore = useDepartureStore();
-const availability = computed(() => productAvailability(props.product));
+const tr = useTranslate();
+const { nextDelivery } = useDepartureLabels();
+const availability = computed(() => productAvailability(props.product, tr));
 const refurbished = computed(() => isRefurbished(props.product));
 // Our warehouse stock does not wait for the grouped departure's date.
 const showDeparture = computed(
   () =>
-    !!departureStore.deliveryLabel &&
-    availability.value.orderable &&
-    availability.value.source !== 'local',
+    !!nextDelivery.value && availability.value.orderable && availability.value.source !== 'local',
 );
 const variantsCount = computed(() => props.product.variants_count ?? 0);
 
@@ -142,7 +142,7 @@ const regularPrice = computed(() => {
 const promoBadge = computed(() => {
   const regular = parseFloat(props.product.regular_price ?? '0');
   const price = parseFloat(props.product.base_price);
-  if (!(regular > 0) || !(price < regular)) return 'Promo';
+  if (!(regular > 0) || !(price < regular)) return tr('card.promo');
   return `−${Math.round((1 - price / regular) * 100)} %`;
 });
 </script>

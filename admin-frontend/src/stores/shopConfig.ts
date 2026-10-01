@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
+import { configureFormatting } from '@app/utils';
 import { getShopConfig, type ShopConfig } from '@/api/shopConfig';
 
 /**
@@ -33,6 +34,7 @@ export const useShopConfigStore = defineStore('shopConfig', () => {
     if (loaded.value) return;
     try {
       config.value = await getShopConfig();
+      if (config.value.timezone) configureFormatting({ timeZone: config.value.timezone });
     } catch {
       config.value = null;
     } finally {

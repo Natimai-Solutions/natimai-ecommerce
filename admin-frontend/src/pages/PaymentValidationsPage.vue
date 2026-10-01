@@ -51,13 +51,18 @@
       </template>
       <template #body-cell-amount="props">
         <q-td :props="props">
-          <div class="font-mono text-weight-medium">{{ formatMoney(props.row.amount) }}</div>
+          <div class="font-mono text-weight-medium">
+            {{ formatMoney(props.row.amount, props.row.currency) }}
+          </div>
           <div
             v-if="(props.row.received_amount ?? 0) > 0"
             class="text-caption text-warning"
             data-testid="payment-received"
           >
-            déjà reçu <span class="font-mono">{{ formatMoney(props.row.received_amount) }}</span>
+            déjà reçu
+            <span class="font-mono">{{
+              formatMoney(props.row.received_amount, props.row.currency)
+            }}</span>
           </div>
         </q-td>
       </template>
@@ -126,7 +131,7 @@
       v-model="receiptDialog"
       :target="current ? { paymentId: current.payment_id } : null"
       :remaining="current ? current.amount - (current.received_amount ?? 0) : 0"
-      :currency="current?.currency ?? 'XPF'"
+      :currency="current?.currency ?? shopConfig.currency"
       :default-method="defaultReceiptMethod(current?.provider_code)"
       :title="`Encaisser — ${providerLabel(current?.provider_code ?? '')}`"
       confirm-testid="payment-approve-confirm"
@@ -140,7 +145,9 @@
           <h2 class="app-dialog__title">Approuver le paiement</h2>
           <p class="app-dialog__text">
             {{ providerLabel(current?.provider_code ?? '') }} —
-            <strong class="font-mono">{{ current ? formatMoney(current.amount) : '' }}</strong>
+            <strong class="font-mono">{{
+              current ? formatMoney(current.amount, current.currency) : ''
+            }}</strong>
           </p>
         </q-card-section>
         <q-card-section class="q-gutter-sm">
@@ -276,7 +283,8 @@ import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import { toneIcon, toneOf } from '@app/ui/statusTone';
-import { formatXpf } from '@app/utils';
+import { formatMoney as money } from '@app/utils';
+import { useShopConfigStore } from '@/stores/shopConfig';
 import PageHeader from '@/components/PageHeader.vue';
 import {
   approvePayment,
@@ -310,8 +318,11 @@ const columns: QTableColumn[] = [
   { name: 'actions', label: '', field: 'payment_id', align: 'right' },
 ];
 
-function formatMoney(amount: number): string {
-  return Number.isFinite(amount) ? formatXpf(amount) : String(amount);
+const shopConfig = useShopConfigStore();
+
+/** Amount in its own currency (the order's), else the reference currency. */
+function formatMoney(amount: number, currency?: string | null): string {
+  return Number.isFinite(amount) ? money(amount, currency || shopConfig.currency) : String(amount);
 }
 
 async function load() {

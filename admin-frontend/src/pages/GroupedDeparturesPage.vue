@@ -849,7 +849,7 @@ import {
   departureStatusLabel,
   formatDate,
   formatDateTime,
-  formatXpf,
+  formatMoney as formatMoneyIn,
   nextDepartureStatus,
 } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
@@ -892,6 +892,7 @@ import {
 } from '@/api/orders';
 import { extractApiError } from '@/api/errors';
 import { listSystemSettings, updateSystemSetting } from '@/api/systemSettings';
+import { useShopConfigStore } from '@/stores/shopConfig';
 import { setOrderStatus } from '@/api/orders';
 
 const departures = ref<Departure[]>([]);
@@ -899,7 +900,9 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
 
-const formatMoney = (n: number) => (Number.isFinite(n) ? formatXpf(n) : String(n));
+const shopConfig = useShopConfigStore();
+const formatMoney = (n: number) =>
+  Number.isFinite(n) ? formatMoneyIn(n, shopConfig.currency) : String(n);
 const cutoffLabel = (d: Departure) => departureCutoffLabel(d);
 const departureTone = (status: string): StatusTone => (status === 'open' ? 'ok' : 'neutral');
 

@@ -1,11 +1,30 @@
 import { describe, expect, it } from 'vitest';
 
+import { makeTranslate } from '../i18n/translate';
 import {
-  conditionLabel,
+  conditionLabel as conditionLabelIn,
   isRefurbished,
-  productAvailability,
-  refurbishedDetails,
+  productAvailability as productAvailabilityIn,
+  refurbishedDetails as refurbishedDetailsIn,
+  type AvailabilityInput,
+  type ConditionInput,
 } from './availability';
+
+// The labels are message keys: the historical assertions read the French ones.
+const fr = makeTranslate('fr');
+const productAvailability = (p: AvailabilityInput) => productAvailabilityIn(p, fr);
+const conditionLabel = (p: ConditionInput) => conditionLabelIn(p, fr);
+const refurbishedDetails = (p: ConditionInput) => refurbishedDetailsIn(p, fr);
+
+describe('labels in English', () => {
+  it('follow the translator', () => {
+    const en = makeTranslate('en');
+    expect(productAvailabilityIn({ supplier_quantity: '3' }, en).label).toBe('3 in stock');
+    expect(conditionLabelIn({ condition: 'refurbished', condition_grade: 'b' }, en)).toBe(
+      'Refurbished · Grade B',
+    );
+  });
+});
 
 describe('productAvailability', () => {
   it('keeps the historical behaviour for stock products', () => {

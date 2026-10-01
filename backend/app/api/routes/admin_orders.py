@@ -156,6 +156,8 @@ class AdminOrderDetail(BaseModel):
     discount_code: str | None = None
     discount_amount: float = 0.0
     total_amount: float
+    #: Currency of every amount of the order (frozen at checkout).
+    currency: str | None = None
     shipping_address: str | None = None
     delivery_type: str | None = None
     grouped_departure_id: uuid.UUID | None = None
@@ -714,6 +716,7 @@ async def get_order_detail(
         user_name=user.full_name if user else None,
         user_email=user.email if user else None,
         status=status_name,
+        currency=getattr(order, "currency", None),
         subtotal_amount=float(order.subtotal_amount),
         shipping_fee_amount=float(order.shipping_fee_amount),
         payment_fee_amount=float(order.payment_fee_amount),

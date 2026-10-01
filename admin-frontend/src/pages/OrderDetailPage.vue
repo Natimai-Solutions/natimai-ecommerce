@@ -763,7 +763,8 @@ import { useRoute } from 'vue-router';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import { toneIcon, toneOf } from '@app/ui/statusTone';
-import { formatXpf } from '@app/utils';
+import { formatMoney as money } from '@app/utils';
+import { useShopConfigStore } from '@/stores/shopConfig';
 import PageHeader from '@/components/PageHeader.vue';
 import {
   getOrder,
@@ -919,8 +920,13 @@ function formatPct(value: number): string {
   return `${value.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`;
 }
 
-function formatMoney(amount: number): string {
-  return Number.isFinite(amount) ? formatXpf(amount) : String(amount);
+const shopConfig = useShopConfigStore();
+
+/** Amount in its own currency (the order's), else the reference currency. */
+function formatMoney(amount: number, currency?: string | null): string {
+  return Number.isFinite(amount)
+    ? money(amount, currency || order.value?.currency || shopConfig.currency)
+    : String(amount);
 }
 
 function formatDate(raw: string | null): string {

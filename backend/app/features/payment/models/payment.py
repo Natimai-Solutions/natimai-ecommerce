@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel
 
+from app.core.config import reference_currency
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
@@ -21,7 +22,8 @@ class PaymentBase(Base):
         description="Amount to be paid expressed in the payment currency",
     )
     currency: str = Field(
-        default="XPF", description="Currency of the payment (XPF, EUR, etc.)"
+        default_factory=reference_currency,
+        description="Currency of the payment (XPF, EUR, etc.)",
     )
     provider_code: str = Field(
         default="payzen",

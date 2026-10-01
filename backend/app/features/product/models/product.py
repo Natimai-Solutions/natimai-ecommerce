@@ -11,6 +11,7 @@ from sqlalchemy import JSON, Column, event
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, Relationship, SQLModel
 
+from app.core.config import reference_currency
 from app.core.field_visibility import redact
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 from app.features.product.models.category import Category
@@ -193,7 +194,7 @@ class ProductBase(Base):
         description="Product cost amount used to compute selling price",
     )
     cost_currency: str = Field(
-        default="XPF",
+        default_factory=reference_currency,
         max_length=10,
         description="Currency of the product cost amount",
     )

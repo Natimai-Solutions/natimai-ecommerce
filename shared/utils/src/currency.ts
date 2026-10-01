@@ -1,11 +1,15 @@
 /**
- * Formatting for XPF (Franc Pacifique).
+ * Money formatting.
  *
- * XPF has no decimal places.
- * Format: "12 500 F" (non-breaking space as thousands separator)
+ * `formatMoney(amount, currency)` is the one to use: it follows the language
+ * of the interface (`configureFormatting`) and the decimals of the currency
+ * (declared by the backend, else ISO 4217). XPF has no decimals and keeps its
+ * conventional " F" suffix in every language.
+ *
+ * `formatXpf` / `formatPrice` remain for amounts that are XPF by nature.
  */
 
-const XPF_LOCALE = 'fr-PF'
+import { decimalsOf, intlLocale } from './format'
 
 /**
  * Format a number or string amount as XPF.
@@ -20,7 +24,7 @@ export function formatXpf(amount: number | string): string {
   if (!isFinite(n)) return '— F'
 
   return (
-    new Intl.NumberFormat(XPF_LOCALE, {
+    new Intl.NumberFormat(intlLocale(), {
       style: 'decimal',
       maximumFractionDigits: 0,
       minimumFractionDigits: 0,
@@ -46,29 +50,30 @@ export function formatPrice(decimalStr: string | number | null | undefined): str
 }
 
 /**
- * Format an amount in an arbitrary display currency.
+ * Format an amount in a currency, in the language of the interface.
  *
- * XPF (the reference / billing currency) has no decimals and a " F" suffix;
- * other currencies use the standard `Intl` currency formatting (2 decimals).
- *
- * @example
+ * @example (French)
  *   formatMoney(12500, 'XPF')  // "12 500 F"
  *   formatMoney(105.04, 'USD') // "105,04 $US"
  *   formatMoney(96.2, 'EUR')   // "96,20 €"
+ * @example (English)
+ *   formatMoney(96.2, 'EUR')   // "€96.20"
  */
 export function formatMoney(amount: number | string, currency: string): string {
   const n = typeof amount === 'string' ? parseFloat(amount) : amount
-  if (!isFinite(n)) return currency === 'XPF' ? '— F' : '—'
-  if (currency === 'XPF') return formatXpf(n)
+  const code = (currency || 'XPF').toUpperCase()
+  if (!isFinite(n)) return code === 'XPF' ? '— F' : '—'
+  if (code === 'XPF') return formatXpf(n)
 
+  const decimals = decimalsOf(code)
   try {
-    return new Intl.NumberFormat('fr-FR', {
+    return new Intl.NumberFormat(intlLocale(), {
       style: 'currency',
-      currency,
-      maximumFractionDigits: 2,
-      minimumFractionDigits: 2,
+      currency: code,
+      maximumFractionDigits: decimals,
+      minimumFractionDigits: decimals,
     }).format(n)
   } catch {
-    return `${n.toFixed(2)} ${currency}`
+    return `${n.toFixed(decimals)} ${code}`
   }
 }

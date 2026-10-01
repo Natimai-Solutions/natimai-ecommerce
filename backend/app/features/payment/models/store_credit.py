@@ -13,6 +13,7 @@ from decimal import Decimal
 from pydantic import field_validator
 from sqlmodel import Field, SQLModel
 
+from app.core.config import reference_currency
 from app.features.base.models import Base, BasePublic
 
 STORE_CREDIT_KINDS: tuple[str, ...] = ("grant", "use", "revoke")
@@ -27,7 +28,7 @@ class StoreCreditEntryBase(Base):
         decimal_places=2,
         description="Signé : positif pour un octroi, négatif pour une utilisation",
     )
-    currency: str = Field(default="XPF", max_length=8)
+    currency: str = Field(default_factory=reference_currency, max_length=8)
     kind: str = Field(max_length=20, description="grant | use | revoke")
     reason: str | None = Field(default=None, max_length=500)
     order_id: uuid.UUID | None = Field(

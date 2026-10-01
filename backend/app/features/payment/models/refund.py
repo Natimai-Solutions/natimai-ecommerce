@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from sqlmodel import Field
 
+from app.core.config import reference_currency
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
@@ -29,7 +30,7 @@ class RefundBase(Base):
         decimal_places=2,
         description="Refunded amount, expressed in the payment currency",
     )
-    currency: str = Field(default="XPF", max_length=50)
+    currency: str = Field(default_factory=reference_currency, max_length=50)
     reason: str | None = Field(default=None, max_length=1024)
     status: str = Field(
         default="pending",

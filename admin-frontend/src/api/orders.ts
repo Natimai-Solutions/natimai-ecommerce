@@ -102,6 +102,8 @@ export interface AdminOrderDetail {
   /** Marge brute des articles (null : aucun coût connu). */
   margin?: OrderMarginSummary | null;
   subtotal_amount: number;
+  /** Currency of every amount of the order. */
+  currency?: string | null;
   shipping_fee_amount: number;
   payment_fee_amount: number;
   total_fees_amount: number;
