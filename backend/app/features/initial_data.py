@@ -8,7 +8,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.features.content.crud import crud_content_page
 from app.features.content.models import ContentPageCreate
-from app.features.departure.services import SOCIAL_WEBHOOK_SETTING_KEY
 from app.features.order.services.status import (
     ALL_ORDER_STATUSES,
     get_or_create_order_status,
@@ -30,25 +29,16 @@ from app.features.payment.providers.manual import (
     MANUAL_STATUS_COMPLETED,
     MANUAL_STATUS_FAILED,
 )
-from app.features.payment.services.provider_settings import (
-    seed_rows as payment_provider_seed_rows,
-)
 from app.features.place.models import Place, PlacePostalCode
 from app.features.product.models.currency_rate import CurrencyRate, CurrencyRateSource
 from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.tax_rate import TaxRate
-from app.features.product.services.pricing_parameters import PRICING_SETTINGS
 from app.features.shipping.models.carrier import Carrier
 from app.features.shipping.models.route import ShippingRoute
 from app.features.shipping.models.status import StatusDefinition, StatusTransition
-from app.features.shipping.services.origin import (
-    CUSTOMS_FREE_COUNTRIES_DESCRIPTION,
-    CUSTOMS_FREE_COUNTRIES_KEY,
-)
-from app.features.system.legal_identity import LEGAL_SETTINGS, seed_value_for
 from app.features.system.models.system_setting import SystemSetting
 from app.features.system.modules import seed_rows as module_seed_rows
-from app.features.system.payment_instructions import PAYMENT_INSTRUCTION_SETTINGS
+from app.features.system.settings_service import seed_settings
 from app.features.user.models.group import Group
 from app.features.user.models.group_security import GroupSecurity
 
@@ -660,27 +650,6 @@ HOW_IT_WORKS_HTML = """<h2>Des commandes groupées, un prix rendu tout compris</
 """
 
 
-async def _seed_social_webhook_setting(session: AsyncSession) -> None:
-    """Empty ``social_webhook_url`` so the reminders tab has a row to edit."""
-    existing = (
-        await session.exec(
-            select(SystemSetting).where(SystemSetting.key == SOCIAL_WEBHOOK_SETTING_KEY)
-        )
-    ).first()
-    if existing is not None:
-        return
-    session.add(
-        SystemSetting(
-            key=SOCIAL_WEBHOOK_SETTING_KEY,
-            value="",
-            description=(
-                "URL https d'un webhook (Make, Zapier, Buffer…) recevant les rappels "
-                "des départs groupés : {text, link, image_url, departure}"
-            ),
-        )
-    )
-
-
 async def _seed_content_pages(session: AsyncSession) -> None:
     """Seed the « Comment ça marche » page once (idempotent, never overwrites)."""
     if await crud_content_page.get_by_slug(session, "comment-ca-marche") is not None:
@@ -850,100 +819,15 @@ async def _seed_security_groups(session: AsyncSession) -> None:
             )
 
 
-async def _seed_pricing_settings(session: AsyncSession) -> None:
-    """Créer les paramètres de prix éditables (commission de paiement…) à
-    leur valeur par défaut, description rafraîchie, valeur saisie jamais
-    réécrite — même règle que l'identité légale."""
-    for spec in PRICING_SETTINGS:
-        result = await session.exec(
-            select(SystemSetting).where(SystemSetting.key == spec.key)
-        )
-        existing = result.first()
-        if existing is not None:
-            if existing.description != spec.description:
-                existing.description = spec.description
-                session.add(existing)
-            continue
-        session.add(
-            SystemSetting(
-                key=spec.key, value=str(spec.default), description=spec.description
-            )
-        )
-    await session.commit()
+async def _seed_runtime_settings(session: AsyncSession) -> None:
+    """Copier dans la base, au premier démarrage, les valeurs d'environnement
+    qui amorcent un réglage (identité légale ← ``INVOICE_SELLER_*``).
 
-
-async def _seed_legal_identity_settings(session: AsyncSession) -> None:
-    """Créer les clés d'identité légale, vides, pour qu'elles soient éditables.
-
-    Le back-office ne montre que les lignes existantes : sans ce seed, les
-    champs n'apparaîtraient nulle part et personne ne saurait qu'ils sont à
-    remplir. Les valeurs sont amorcées depuis les réglages ``INVOICE_SELLER_*``
-    quand ils existent, pour qu'un déploiement antérieur ne reparte pas de
-    zéro.
-
-    Idempotent, et **ne réécrit jamais une valeur déjà saisie** : ce seed
-    tourne à chaque déploiement, écraser le texte légal saisi par le
-    propriétaire avec la valeur d'une variable d'environnement oubliée serait
-    exactement le genre de régression silencieuse à éviter.
+    Les autres réglages n'ont pas besoin de ligne : sans valeur en base, le
+    registre lit l'environnement puis le défaut, et l'écran Paramètres les
+    liste tous. Ne réécrit jamais une ligne existante.
     """
-    for spec in LEGAL_SETTINGS:
-        result = await session.exec(
-            select(SystemSetting).where(SystemSetting.key == spec.key)
-        )
-        existing = result.first()
-        if existing is not None:
-            # Seule la description est rafraîchie : elle sert d'aide de saisie
-            # dans l'écran admin et peut être améliorée d'une version à l'autre.
-            if existing.description != spec.description:
-                existing.description = spec.description
-                session.add(existing)
-            continue
-
-        session.add(
-            SystemSetting(
-                key=spec.key,
-                value=seed_value_for(spec),
-                description=spec.description,
-            )
-        )
-
-
-async def _seed_payment_instruction_settings(session: AsyncSession) -> None:
-    """Créer, vides, les clés d'instructions des paiements manuels.
-
-    Vides, elles gardent le texte par défaut du moyen de paiement ; créées,
-    elles apparaissent dans l'écran Paramètres où le propriétaire saisit
-    l'adresse du bureau, l'ordre des chèques ou l'IBAN. Ne réécrit jamais une
-    valeur saisie (même règle que l'identité légale).
-    """
-    for spec in PAYMENT_INSTRUCTION_SETTINGS:
-        existing = (
-            await session.exec(
-                select(SystemSetting).where(SystemSetting.key == spec.key)
-            )
-        ).first()
-        if existing is not None:
-            if existing.description != spec.description:
-                existing.description = spec.description
-                session.add(existing)
-            continue
-        session.add(SystemSetting(key=spec.key, value="", description=spec.description))
-
-
-async def _seed_payment_provider_switches(session: AsyncSession) -> None:
-    """Créer les interrupteurs des prestataires (PayZen, PayPal, Stripe) à
-    leur valeur par défaut ; ne réécrit jamais un choix déjà fait."""
-    for row in payment_provider_seed_rows():
-        existing = (
-            await session.exec(
-                select(SystemSetting).where(SystemSetting.key == row.key)
-            )
-        ).first()
-        if existing is None:
-            session.add(row)
-        elif existing.description != row.description:
-            existing.description = row.description
-            session.add(existing)
+    await seed_settings(session)
 
 
 async def _seed_suppliers(session: AsyncSession) -> None:
@@ -1057,26 +941,6 @@ async def _seed_module_switches(session: AsyncSession) -> None:
             session.add(existing)
 
 
-async def _seed_customs_free_countries_setting(session: AsyncSession) -> None:
-    """Create the (empty) customs-free countries key so it is editable in admin."""
-    result = await session.exec(
-        select(SystemSetting).where(SystemSetting.key == CUSTOMS_FREE_COUNTRIES_KEY)
-    )
-    existing = result.first()
-    if existing is not None:
-        if existing.description != CUSTOMS_FREE_COUNTRIES_DESCRIPTION:
-            existing.description = CUSTOMS_FREE_COUNTRIES_DESCRIPTION
-            session.add(existing)
-        return
-    session.add(
-        SystemSetting(
-            key=CUSTOMS_FREE_COUNTRIES_KEY,
-            value="",
-            description=CUSTOMS_FREE_COUNTRIES_DESCRIPTION,
-        )
-    )
-
-
 async def initial_data(session: AsyncSession) -> None:
     """Execute initial data."""
     await _seed_payment_statuses(session)
@@ -1099,11 +963,6 @@ async def initial_data(session: AsyncSession) -> None:
     await _seed_shipping_statuses(session)
     await _seed_order_statuses(session)
     await _seed_content_pages(session)
-    await _seed_social_webhook_setting(session)
     await _seed_security_groups(session)
-    await _seed_legal_identity_settings(session)
-    await _seed_payment_instruction_settings(session)
-    await _seed_payment_provider_switches(session)
+    await _seed_runtime_settings(session)
     await _seed_module_switches(session)
-    await _seed_pricing_settings(session)
-    await _seed_customs_free_countries_setting(session)

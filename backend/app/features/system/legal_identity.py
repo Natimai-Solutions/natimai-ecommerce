@@ -23,11 +23,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.features.system.models.system_setting import SystemSetting
 
 
 @dataclass(frozen=True)
@@ -143,10 +141,12 @@ async def load_legal_identity(session: AsyncSession) -> dict[str, str]:
     comment signaler un manque (placeholder rouge sur la vitrine, marqueur sur
     le PDF), ce qui vaut mieux qu'une chaîne vide silencieuse.
     """
-    result = await session.exec(
-        select(SystemSetting).where(col(SystemSetting.key).in_(LEGAL_SETTING_KEYS))
-    )
-    return {row.key: row.value for row in result.all() if row.value.strip()}
+    from app.core import runtime_settings
+
+    values = await runtime_settings.get_many(sorted(LEGAL_SETTING_KEYS), session)
+    return {
+        key: str(value) for key, value in values.items() if str(value or "").strip()
+    }
 
 
 def missing_for_invoicing(identity: dict[str, str]) -> list[str]:

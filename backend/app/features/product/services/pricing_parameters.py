@@ -22,10 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
-from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
-
-from app.features.system.models.system_setting import SystemSetting
 
 
 @dataclass(frozen=True)
@@ -94,19 +91,11 @@ class PricingParameters:
 
 
 async def load_pricing_parameters(session: AsyncSession) -> PricingParameters:
-    """Read the pricing settings; an absent or unparsable row is its default."""
-    result = await session.exec(
-        select(SystemSetting).where(col(SystemSetting.key).in_(PRICING_SETTING_KEYS))
-    )
-    values: dict[str, Decimal] = {s.key: s.default for s in PRICING_SETTINGS}
-    for row in result.all():
-        key = getattr(row, "key", None)
-        if key not in _SPEC_BY_KEY:
-            continue
-        try:
-            values[key] = parse_pricing_value(key, str(getattr(row, "value", "")))
-        except ValueError:
-            continue
+    """Read the pricing settings (runtime registry); an absent or unparsable
+    row is its default."""
+    from app.core import runtime_settings
+
+    values = await runtime_settings.get_many(PRICING_SETTING_KEYS, session)
     return PricingParameters(
         payment_commission_pct=values[PAYMENT_COMMISSION_KEY],
         fx_safety_margin_pct=values[FX_SAFETY_MARGIN_KEY],

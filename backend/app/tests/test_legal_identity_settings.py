@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from app.api.routes.system_settings import _PUBLIC_KEYS
 from app.core.config import settings
+from app.core.runtime_settings import public_keys
 from app.features.system.legal_identity import (
     LEGAL_SETTING_KEYS,
     LEGAL_SETTINGS,
@@ -42,7 +42,7 @@ def test_keys_are_unique_and_namespaced() -> None:
 def test_every_key_is_readable_without_authentication() -> None:
     """Publier ces informations est une obligation légale : la vitrine les rend
     sans connexion."""
-    assert LEGAL_SETTING_KEYS <= _PUBLIC_KEYS
+    assert LEGAL_SETTING_KEYS <= public_keys()
 
 
 def test_the_storefront_and_the_backend_agree_on_the_keys() -> None:

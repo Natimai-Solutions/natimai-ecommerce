@@ -49,24 +49,18 @@ class TaxCodes:
     fees_code: str
 
 
-async def _stored(session: AsyncSession) -> dict[str, str]:
-    rows = await session.exec(
-        select(SystemSetting).where(
-            col(SystemSetting.key).in_([DEFAULT_CODE_KEY, FEES_CODE_KEY])
-        )
-    )
-    return {row.key: row.value for row in rows.all() if (row.value or "").strip()}
-
-
 async def load_tax_codes(session: AsyncSession) -> TaxCodes:
-    """The default and fees rate codes: the admin's choice, else the env."""
-    stored = await _stored(session)
+    """The default and fees rate codes: the admin's choice, else the env
+    (runtime registry)."""
+    from app.core import runtime_settings
+
+    values = await runtime_settings.get_many([DEFAULT_CODE_KEY, FEES_CODE_KEY], session)
     return TaxCodes(
         default_code=normalize_code(
-            stored.get(DEFAULT_CODE_KEY) or settings.DEFAULT_TAX_CODE
+            values[DEFAULT_CODE_KEY] or settings.DEFAULT_TAX_CODE
         ),
         fees_code=normalize_code(
-            stored.get(FEES_CODE_KEY) or settings.INVOICE_FEES_TAX_CODE
+            values[FEES_CODE_KEY] or settings.INVOICE_FEES_TAX_CODE
         ),
     )
 

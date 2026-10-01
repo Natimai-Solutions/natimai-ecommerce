@@ -11,10 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
-
-from app.features.system.models.system_setting import SystemSetting
 
 
 @dataclass(frozen=True)
@@ -54,12 +51,10 @@ async def load_payment_instructions(
     session: AsyncSession, provider_code: str
 ) -> str | None:
     """The shop's own instructions for ``provider_code``, or None (default)."""
-    setting = (
-        await session.exec(
-            select(SystemSetting).where(
-                col(SystemSetting.key) == instruction_key(provider_code)
-            )
-        )
-    ).first()
-    value = (setting.value if setting else "").strip()
+    from app.core import runtime_settings
+
+    key = instruction_key(provider_code)
+    if runtime_settings.spec_for(key) is None:
+        return None
+    value = str(await runtime_settings.get(key, session) or "").strip()
     return value or None

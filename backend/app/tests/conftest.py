@@ -64,6 +64,37 @@ def _fresh_module_switches(
     modules.invalidate_cache()
 
 
+@pytest.fixture(autouse=True)
+def _fresh_runtime_settings(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> Generator[None, None, None]:
+    """Runtime settings: no snapshot carried across tests, no Redis.
+
+    Outside the integration suite the database is a stand-in: no row is
+    stored, every setting reads its environment value or default (so
+    ``monkeypatch.setattr(settings, …)`` keeps working). The integration
+    tests read the real table, without cache (a row a test inserts is seen
+    at once).
+    """
+    from app.core import runtime_settings
+
+    async def _no_redis() -> None:
+        return None
+
+    monkeypatch.setattr(runtime_settings, "_remote_version", _no_redis)
+    monkeypatch.setattr(runtime_settings, "bump_version", _no_redis)
+    monkeypatch.setattr(runtime_settings, "CACHE_TTL_SECONDS", 0.0)
+    runtime_settings.invalidate_cache()
+    if "/integration/" not in str(request.node.path).replace("\\", "/"):
+
+        async def _no_rows(_session: object) -> dict[str, str]:
+            return {}
+
+        monkeypatch.setattr(runtime_settings, "_load_rows", _no_rows)
+    yield
+    runtime_settings.invalidate_cache()
+
+
 @pytest_asyncio.fixture(scope="session")
 async def db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSession(engine) as session:
