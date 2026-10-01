@@ -7,6 +7,7 @@ import {
   getCategorySpecFacets,
   type CategoryPublic,
 } from '@/api/products';
+import { gt } from '@/i18n/global';
 
 type ProductPublic = components['schemas']['ProductPublic'];
 type ProductSearchRequest = components['schemas']['ProductSearchRequest'];
@@ -57,7 +58,7 @@ export const useProductsStore = defineStore('products', () => {
       count.value = resp.count;
       facets.value = resp.facets ?? null;
     } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Erreur inconnue';
+      error.value = e instanceof Error ? e.message : gt('stores.unknown');
     } finally {
       loading.value = false;
     }

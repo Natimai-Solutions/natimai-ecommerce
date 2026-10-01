@@ -3,73 +3,82 @@
     <div class="app-result" aria-live="polite">
       <template v-if="state === 'polling'">
         <q-spinner size="44px" class="app-result__icon" />
-        <h1>Vérification du paiement</h1>
+        <h1>{{ $t('payment_return.checking') }}</h1>
         <p>
-          Merci de patienter, nous confirmons la transaction auprès
-          {{ viaPaypal ? 'de PayPal' : 'de la banque' }}.
+          {{ viaPaypal ? $t('payment_return.wait_paypal') : $t('payment_return.wait_bank') }}
         </p>
       </template>
 
       <template v-else-if="state === 'success'">
         <q-icon name="ph:check-circle" size="52px" class="app-result__icon app-result__icon--ok" />
-        <h1>{{ authorizedOnly ? 'Paiement autorisé' : 'Paiement accepté' }}</h1>
+        <h1>
+          {{ authorizedOnly ? $t('payment_return.authorized') : $t('payment_return.accepted') }}
+        </h1>
         <p>
           <template v-if="authorizedOnly">
-            Votre paiement est accepté ; le débit aura lieu à l'expédition de la commande.
+            {{ $t('payment_return.authorized_text') }}
           </template>
-          <template v-else>Votre commande est enregistrée.</template>
-          Une confirmation vous est envoyée par e-mail.
+          <template v-else>{{ $t('payment_return.order_saved') }}</template>
+          {{ $t('payment_return.confirmation_sent') }}
         </p>
         <div class="app-result__actions">
           <q-btn
             v-if="orderId"
             unelevated
             color="primary"
-            label="Voir ma commande"
-            :to="{ name: 'order-tracking', params: { id: orderId } }"
-          />
-          <q-btn outline color="primary" label="Continuer mes achats" :to="{ name: 'catalogue' }" />
-        </div>
-      </template>
-
-      <template v-else-if="state === 'failure'">
-        <q-icon name="ph:x-circle" size="52px" class="app-result__icon app-result__icon--danger" />
-        <h1>Paiement refusé</h1>
-        <p>
-          La transaction n'a pas abouti et rien n'a été débité. Vous pouvez réessayer, choisir un
-          autre moyen de paiement ou contacter notre équipe.
-        </p>
-        <div class="app-result__actions">
-          <q-btn
-            v-if="orderId"
-            unelevated
-            color="primary"
-            label="Voir la commande"
-            :to="{ name: 'order-tracking', params: { id: orderId } }"
-          />
-          <q-btn outline color="primary" label="Retour au panier" :to="{ name: 'cart' }" />
-        </div>
-      </template>
-
-      <template v-else-if="state === 'cancelled'">
-        <q-icon name="ph:arrow-u-up-left" size="52px" class="app-result__icon" />
-        <h1>Paiement annulé</h1>
-        <p data-testid="payment-cancelled">
-          Vous avez quitté la page de paiement : rien n'a été débité. Votre commande reste
-          enregistrée, en attente de paiement.
-        </p>
-        <div class="app-result__actions">
-          <q-btn
-            v-if="orderId"
-            unelevated
-            color="primary"
-            label="Voir la commande"
+            :label="$t('payment_return.see_my_order')"
             :to="{ name: 'order-tracking', params: { id: orderId } }"
           />
           <q-btn
             outline
             color="primary"
-            label="Mes commandes"
+            :label="$t('payment_return.continue')"
+            :to="{ name: 'catalogue' }"
+          />
+        </div>
+      </template>
+
+      <template v-else-if="state === 'failure'">
+        <q-icon name="ph:x-circle" size="52px" class="app-result__icon app-result__icon--danger" />
+        <h1>{{ $t('payment_return.refused') }}</h1>
+        <p>
+          {{ $t('payment_return.refused_text') }}
+        </p>
+        <div class="app-result__actions">
+          <q-btn
+            v-if="orderId"
+            unelevated
+            color="primary"
+            :label="$t('payment_return.see_order')"
+            :to="{ name: 'order-tracking', params: { id: orderId } }"
+          />
+          <q-btn
+            outline
+            color="primary"
+            :label="$t('payment_return.back_to_cart')"
+            :to="{ name: 'cart' }"
+          />
+        </div>
+      </template>
+
+      <template v-else-if="state === 'cancelled'">
+        <q-icon name="ph:arrow-u-up-left" size="52px" class="app-result__icon" />
+        <h1>{{ $t('payment_return.cancelled') }}</h1>
+        <p data-testid="payment-cancelled">
+          {{ $t('payment_return.cancelled_text') }}
+        </p>
+        <div class="app-result__actions">
+          <q-btn
+            v-if="orderId"
+            unelevated
+            color="primary"
+            :label="$t('payment_return.see_order')"
+            :to="{ name: 'order-tracking', params: { id: orderId } }"
+          />
+          <q-btn
+            outline
+            color="primary"
+            :label="$t('payment_return.my_orders')"
             :to="{ name: 'account', query: { tab: 'orders' } }"
           />
         </div>
@@ -77,16 +86,21 @@
 
       <template v-else>
         <q-icon name="ph:warning" size="52px" class="app-result__icon app-result__icon--warn" />
-        <h1>Vérification impossible</h1>
+        <h1>{{ $t('payment_return.check_failed') }}</h1>
         <p>{{ errorMessage }}</p>
         <div class="app-result__actions">
           <q-btn
             unelevated
             color="primary"
-            label="Mes commandes"
+            :label="$t('payment_return.my_orders')"
             :to="{ name: 'account', query: { tab: 'orders' } }"
           />
-          <q-btn outline color="primary" label="Retour au panier" :to="{ name: 'cart' }" />
+          <q-btn
+            outline
+            color="primary"
+            :label="$t('payment_return.back_to_cart')"
+            :to="{ name: 'cart' }"
+          />
         </div>
       </template>
     </div>
@@ -94,10 +108,13 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { confirmMyPayment, getMyPaymentStatus, type PaymentStatusResponse } from '@/api/payments';
 import { PENDING_PAYMENT_KEY } from '@/utils/payzen';
+
+const { t } = useI18n();
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 120_000; // 2 minutes max
 
@@ -140,8 +157,7 @@ onMounted(() => {
 
   if (!paymentId) {
     state.value = 'error';
-    errorMessage.value =
-      "Aucune transaction en attente trouvée. Si vous venez d'effectuer un paiement, veuillez contacter notre équipe.";
+    errorMessage.value = t('payment_return.none_pending');
     return;
   }
 
@@ -192,8 +208,7 @@ function startPolling(paymentId: string) {
     stopPolling();
     if (state.value === 'polling') {
       state.value = 'error';
-      errorMessage.value =
-        'La vérification du paiement a pris trop longtemps. Veuillez vérifier votre email de confirmation ou contacter notre équipe.';
+      errorMessage.value = t('payment_return.too_long');
     }
   }, POLL_TIMEOUT_MS);
 }

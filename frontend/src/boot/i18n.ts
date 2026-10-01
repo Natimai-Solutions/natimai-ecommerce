@@ -1,12 +1,13 @@
 import { defineBoot } from '#q-app';
 import { Cookies, Lang } from 'quasar';
-import langEn from 'quasar/lang/en-GB';
-import langFr from 'quasar/lang/fr';
+import langEn from 'quasar/lang/en-GB.js';
+import langFr from 'quasar/lang/fr.js';
 import { createI18n } from 'vue-i18n';
 import { configureFormatting } from '@app/utils';
 
 import { apiLocale } from '@/boot/api';
 import messages, { type MessageSchema } from '@/i18n';
+import { setGlobalI18n } from '@/i18n/global';
 import { LOCALE_COOKIE, resolveLocale, type AppLocale } from '@/i18n/locale';
 
 /* eslint-disable @typescript-eslint/no-empty-object-type */
@@ -52,6 +53,7 @@ export default defineBoot(({ app, ssrContext }) => {
     fallbackWarn: false,
   });
   app.use(i18n);
+  setGlobalI18n(i18n.global as unknown as Parameters<typeof setGlobalI18n>[0]);
 
   Lang.set(QUASAR_LANGS[locale], server ? ssrContext : undefined);
   configureFormatting({ locale });

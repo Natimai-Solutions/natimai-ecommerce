@@ -20,12 +20,6 @@ export interface StoreCreditBalance {
   entries: StoreCreditEntry[];
 }
 
-export const STORE_CREDIT_KIND_LABELS: Record<string, string> = {
-  grant: 'Avoir accordé',
-  use: 'Utilisé sur une commande',
-  revoke: 'Avoir repris',
-};
-
 export async function getMyStoreCredit(): Promise<StoreCreditBalance> {
   const { data } = await api.get<StoreCreditBalance>('/store-credit/me');
   return data;

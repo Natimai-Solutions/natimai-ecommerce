@@ -1,6 +1,15 @@
 <template>
   <q-page class="legal-page page-container">
     <article class="prose">
+      <AppNotice
+        v-if="frenchOnly && !loading"
+        tone="info"
+        icon="ph:translate"
+        class="q-mb-md"
+        data-testid="content-french-only"
+      >
+        {{ $t('content.french_only') }}
+      </AppNotice>
       <template v-if="page">
         <h1>{{ page.title }}</h1>
         <!-- eslint-disable-next-line vue/no-v-html -- sanitised by DOMPurify -->
@@ -23,25 +32,48 @@
  * Renders the editable page `slug` when the back-office published one, else
  * the `fallback` slot (the hard-coded legal text, for instance). Fetched
  * during SSR so the page arrives complete.
+ *
+ * In another language than French, the page `<slug>-<locale>` (e.g.
+ * `cgv-en`) is served when the back-office published it; otherwise the French
+ * text shows with a notice that it is the reference version (R7).
  */
 import DOMPurify from 'isomorphic-dompurify';
-import { computed, onMounted, onServerPrefetch, ref } from 'vue';
+import { computed, onMounted, onServerPrefetch, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import AppNotice from '@app/ui/AppNotice.vue';
 import { getPage, type ContentPage } from '@/api/pages';
 
 const props = defineProps<{ slug: string; fallbackTitle?: string }>();
 
+const { locale } = useI18n({ useScope: 'global' });
 const page = ref<ContentPage | null>(null);
 const loading = ref(true);
+/** Shown in French although the interface is in another language. */
+const translated = ref(false);
+const frenchOnly = computed(() => locale.value !== 'fr' && !translated.value);
+
+async function fetchPage(slug: string): Promise<ContentPage | null> {
+  try {
+    return await getPage(slug);
+  } catch {
+    return null; // not published
+  }
+}
 
 async function load(): Promise<void> {
+  loading.value = true;
   try {
-    page.value = await getPage(props.slug);
-  } catch {
-    page.value = null; // not published: the fallback slot shows
+    const localized =
+      locale.value !== 'fr' ? await fetchPage(`${props.slug}-${locale.value}`) : null;
+    translated.value = localized !== null;
+    // Not published: the fallback slot shows.
+    page.value = localized ?? (await fetchPage(props.slug));
   } finally {
     loading.value = false;
   }
 }
+
+watch(locale, () => void load());
 
 const safeHtml = computed(() => (page.value ? DOMPurify.sanitize(page.value.body_html) : ''));
 

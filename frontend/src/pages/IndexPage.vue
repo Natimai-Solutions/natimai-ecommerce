@@ -8,14 +8,14 @@
     >
       <div class="home-hero__copy">
         <h1 id="home-hero-title" class="home-hero__title">
-          {{ home.hero?.title ?? 'Le bon matériel, au prix affiché.' }}
+          {{ home.hero?.title ?? $t('home.hero_title') }}
         </h1>
         <p v-if="heroLead" class="home-hero__lead">{{ heroLead }}</p>
         <div class="home-hero__actions">
           <q-btn
             unelevated
             color="primary"
-            :label="home.hero?.cta_label || 'Voir le catalogue'"
+            :label="home.hero?.cta_label || $t('home.see_catalogue')"
             icon-right="ph:arrow-right"
             v-bind="linkProps(home.hero?.cta_link || '/catalogue')"
             class="home-hero__cta"
@@ -40,7 +40,7 @@
     <section
       v-if="home.banners.length"
       class="home-section page-container"
-      aria-label="À la une"
+      :aria-label="$t('home.featured_aria')"
       data-testid="home-banners"
     >
       <ul class="banners" :class="`banners--${Math.min(home.banners.length, 3)}`">
@@ -66,7 +66,7 @@
               <span class="banner__title">{{ banner.title }}</span>
               <span v-if="banner.subtitle" class="banner__subtitle">{{ banner.subtitle }}</span>
               <span v-if="banner.cta_link" class="banner__cta">
-                {{ banner.cta_label || 'Découvrir' }}
+                {{ banner.cta_label || $t('home.discover') }}
                 <q-icon name="ph:arrow-right" size="16px" />
               </span>
             </span>
@@ -85,9 +85,9 @@
       aria-labelledby="home-categories-title"
     >
       <div class="home-section__head">
-        <h2 id="home-categories-title" class="home-section__title">Catégories</h2>
+        <h2 id="home-categories-title" class="home-section__title">{{ $t('home.categories') }}</h2>
         <router-link :to="{ name: 'catalogue' }" class="home-section__link">
-          Tout le catalogue
+          {{ $t('home.all') }}
           <q-icon name="ph:arrow-right" size="16px" />
         </router-link>
       </div>
@@ -121,7 +121,7 @@
       aria-labelledby="home-featured-title"
     >
       <div class="home-section__head">
-        <h2 id="home-featured-title" class="home-section__title">Nos coups de cœur</h2>
+        <h2 id="home-featured-title" class="home-section__title">{{ $t('home.favourites') }}</h2>
       </div>
       <div class="product-grid" data-testid="home-featured">
         <ProductCard
@@ -139,8 +139,8 @@
       aria-labelledby="home-popular-title"
     >
       <div class="home-section__head">
-        <h2 id="home-popular-title" class="home-section__title">Les plus consultés</h2>
-        <span class="home-section__hint">ces 30 derniers jours</span>
+        <h2 id="home-popular-title" class="home-section__title">{{ $t('home.popular') }}</h2>
+        <span class="home-section__hint">{{ $t('home.last_30') }}</span>
       </div>
       <div class="product-grid" data-testid="home-popular">
         <ProductCard
@@ -165,6 +165,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { useShopModulesStore } from '@/stores/shopModules';
 import { computed, onMounted, onServerPrefetch, ref } from 'vue';
 import { useMeta } from 'quasar';
 import type { components } from '@app/api-types';
@@ -175,6 +177,9 @@ import { useCartStore } from '@/stores/cart';
 import { categoryTitle, useHomeStore } from '@/stores/home';
 import { useUiStore } from '@/stores/ui';
 
+const { t } = useI18n();
+const shopModules = useShopModulesStore();
+
 type ProductPublic = components['schemas']['ProductPublic'];
 
 const home = useHomeStore();
@@ -182,23 +187,21 @@ const cartStore = useCartStore();
 const uiStore = useUiStore();
 const cartError = ref<string | null>(null);
 
-useMeta({
-  title: 'Accueil | Natimai',
+useMeta(() => ({
+  title: t('home.meta_title', { shop: shopModules.config.shop_name || 'Natimai' }),
   meta: {
     description: {
       name: 'description',
-      content:
-        'Matériel informatique : prix, disponibilité et délai affichés sur chaque fiche. Commande en ligne ou sur devis.',
+      content: t('home.meta_description'),
     },
   },
-});
+}));
 
 // Tant que rien n'est arrivé, des squelettes gardent la place des produits.
-const FALLBACK_LEAD =
-  'Prix, disponibilité et délai figurent sur chaque fiche. Commandez en ligne ou demandez un devis depuis votre panier.';
+const FALLBACK_LEAD = computed(() => t('home.lead'));
 
 const heroImage = computed(() => home.hero?.image ?? null);
-const heroLead = computed(() => (home.hero ? home.hero.subtitle : FALLBACK_LEAD));
+const heroLead = computed(() => (home.hero ? home.hero.subtitle : FALLBACK_LEAD.value));
 
 /** Lien d'un bloc : chemin du site (routeur) ou adresse https (nouvel onglet). */
 function isInternal(link: string): boolean {
@@ -225,7 +228,7 @@ async function onAddToCart(product: ProductPublic) {
     uiStore.openCartDrawer(product.id);
     return;
   }
-  cartError.value = cartStore.error ?? "Impossible d'ajouter cet article au panier.";
+  cartError.value = cartStore.error ?? t('home.add_failed');
 }
 
 onServerPrefetch(() => home.load());

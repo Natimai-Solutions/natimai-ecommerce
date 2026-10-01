@@ -1,9 +1,9 @@
 <template>
   <main class="not-found">
     <span class="not-found__code font-mono">404</span>
-    <h1 class="not-found__title">Page introuvable</h1>
-    <p class="not-found__text">Ce lien ne mène à aucune page. Le produit a peut-être été retiré.</p>
-    <q-btn unelevated color="primary" label="Voir le catalogue" to="/catalogue" />
+    <h1 class="not-found__title">{{ $t('not_found.title') }}</h1>
+    <p class="not-found__text">{{ $t('not_found.text') }}</p>
+    <q-btn unelevated color="primary" :label="$t('not_found.see_catalogue')" to="/catalogue" />
   </main>
 </template>
 

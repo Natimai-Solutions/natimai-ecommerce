@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { deliveryFacet, orderStatusLabel, paymentFacet } from './orderStatus';
+import { makeTranslate } from '../i18n/translate';
+import {
+  deliveryFacet as deliveryFacetIn,
+  orderStatusLabel as orderStatusLabelIn,
+  paymentFacet as paymentFacetIn,
+} from './orderStatus';
+
+const fr = makeTranslate('fr');
+const paymentFacet = (s: string | null | undefined) => paymentFacetIn(s, fr);
+const deliveryFacet = (s: string | null | undefined) => deliveryFacetIn(s, fr);
+const orderStatusLabel = (s: string | null | undefined) => orderStatusLabelIn(s, fr);
 
 describe('paymentFacet', () => {
   it('traduit tous les statuts de paiement du backend', () => {

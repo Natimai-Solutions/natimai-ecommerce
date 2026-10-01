@@ -7,24 +7,27 @@
           size="52px"
           class="app-result__icon app-result__icon--danger"
         />
-        <h1>Connexion impossible</h1>
+        <h1>{{ $t('oauth.failed_title') }}</h1>
         <p>{{ errorMessage }}</p>
         <div class="app-result__actions">
-          <q-btn unelevated color="primary" label="Réessayer" :to="{ name: 'login' }" />
+          <q-btn unelevated color="primary" :label="$t('oauth.retry')" :to="{ name: 'login' }" />
         </div>
       </template>
       <template v-else>
         <q-spinner size="44px" class="app-result__icon" />
-        <h1>Connexion en cours</h1>
+        <h1>{{ $t('oauth.in_progress') }}</h1>
       </template>
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+
+const { t } = useI18n();
 
 const route = useRoute();
 const router = useRouter();
@@ -32,26 +35,24 @@ const authStore = useAuthStore();
 
 const errorMessage = ref<string | null>(null);
 
-const OAUTH_ERROR_LABELS: Record<string, string> = {
-  user_inactive: 'Votre compte est désactivé. Contactez notre équipe.',
-  invalid_state: 'La session de connexion a expiré. Veuillez réessayer.',
-  provider_error: "Le fournisseur d'identité a renvoyé une erreur.",
-  missing_user_info: 'Profil incomplet renvoyé par le fournisseur.',
-  missing_code_or_state: 'Réponse de connexion incomplète.',
-  server_error: 'Une erreur interne est survenue pendant la connexion.',
-  email_not_verified:
-    "Votre fournisseur d'identité ne garantit pas cette adresse e-mail. Connectez-vous avec votre mot de passe ou créez un compte.",
-  account_exists:
-    'Un compte existe déjà avec cette adresse. Connectez-vous avec votre mot de passe.',
-  superuser_oauth_disabled:
-    'Les comptes administrateur se connectent uniquement avec leur mot de passe.',
-};
+const OAUTH_ERRORS = new Set([
+  'user_inactive',
+  'invalid_state',
+  'provider_error',
+  'missing_user_info',
+  'missing_code_or_state',
+  'server_error',
+  'email_not_verified',
+  'account_exists',
+  'superuser_oauth_disabled',
+]);
 
 onMounted(async () => {
   const oauthError = route.query.oauth_error;
   if (typeof oauthError === 'string') {
-    errorMessage.value =
-      OAUTH_ERROR_LABELS[oauthError] ?? 'La connexion a échoué. Veuillez réessayer.';
+    errorMessage.value = OAUTH_ERRORS.has(oauthError)
+      ? t(`oauth.${oauthError}`)
+      : t('oauth.failed');
     return;
   }
 
@@ -59,7 +60,7 @@ onMounted(async () => {
   // Exchange it for an in-memory access token (no token ever travels in the URL).
   const restored = await authStore.tryRestore();
   if (!restored) {
-    errorMessage.value = 'La connexion a échoué. Veuillez réessayer.';
+    errorMessage.value = t('oauth.failed');
     return;
   }
 

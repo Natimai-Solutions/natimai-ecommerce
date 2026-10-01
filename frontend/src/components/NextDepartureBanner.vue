@@ -5,7 +5,8 @@
       <p class="departure-strip__text">
         <span class="departure-strip__name">
           <span class="gt-sm">{{ $t('departure.next_long') }}</span
-          ><span class="lt-md">{{ $t('departure.next_short') }}</span> « {{ store.next.name }} »
+          ><span class="lt-md">{{ $t('departure.next_short') }}</span>
+          {{ $t('departure.quoted_name', { name: store.next.name }) }}
         </span>
         <span>{{ nextCutoff }}</span>
         <span v-if="nextDelivery" class="departure-strip__delivery">

@@ -9,37 +9,37 @@
 
       <section class="app-section">
         <div class="app-section__head">
-          <h2 class="app-section__title">E-mails</h2>
+          <h2 class="app-section__title">{{ $t('prefs.emails') }}</h2>
         </div>
         <ul class="app-rows prefs__toggles">
           <li class="app-row">
             <div class="app-row__main">
-              <span class="app-row__title">Commande et paiement</span>
-              <span class="app-row__meta">Confirmation, paiement reçu, facture.</span>
+              <span class="app-row__title">{{ $t('prefs.order') }}</span>
+              <span class="app-row__meta">{{ $t('prefs.order_meta') }}</span>
             </div>
             <q-toggle
               v-model="prefs.notification_email_enabled"
-              aria-label="E-mails de commande et paiement"
+              :aria-label="$t('prefs.order_aria')"
             />
           </li>
           <li class="app-row">
             <div class="app-row__main">
-              <span class="app-row__title">Suivi de livraison</span>
-              <span class="app-row__meta">Chaque étape de l'acheminement.</span>
+              <span class="app-row__title">{{ $t('prefs.shipping') }}</span>
+              <span class="app-row__meta">{{ $t('prefs.shipping_meta') }}</span>
             </div>
             <q-toggle
               v-model="prefs.notification_shipping_steps"
-              aria-label="E-mails de suivi de livraison"
+              :aria-label="$t('prefs.shipping_aria')"
             />
           </li>
           <li class="app-row">
             <div class="app-row__main">
-              <span class="app-row__title">Rappels et offres</span>
-              <span class="app-row__meta">Panier oublié, offres ponctuelles.</span>
+              <span class="app-row__title">{{ $t('prefs.marketing') }}</span>
+              <span class="app-row__meta">{{ $t('prefs.marketing_meta') }}</span>
             </div>
             <q-toggle
               v-model="prefs.marketing_email_enabled"
-              aria-label="Rappels commerciaux et offres"
+              :aria-label="$t('prefs.marketing_aria')"
             />
           </li>
         </ul>
@@ -47,14 +47,14 @@
 
       <section class="app-section">
         <div class="app-section__head">
-          <h2 class="app-section__title">Livraison et affichage</h2>
+          <h2 class="app-section__title">{{ $t('prefs.display') }}</h2>
         </div>
         <div class="app-form">
           <q-select
             v-model="prefs.preferred_shipping_mode"
             :options="shippingModeOptions"
-            label="Niveau de service import"
-            hint="Proposé par défaut à la commande."
+            :label="$t('prefs.service')"
+            :hint="$t('prefs.service_hint')"
             outlined
             emit-value
             map-options
@@ -64,7 +64,7 @@
           <q-select
             v-model="prefs.default_shipping_preference"
             :options="shippingPreferenceOptions"
-            label="Préférence de livraison"
+            :label="$t('prefs.preference')"
             outlined
             emit-value
             map-options
@@ -72,11 +72,24 @@
             bottom-slots
           />
           <q-select
+            v-if="localeOptions.length > 1"
+            :model-value="currentLocale"
+            :options="localeOptions"
+            :label="$t('common.language')"
+            :hint="$t('prefs.lang_hint')"
+            outlined
+            emit-value
+            map-options
+            bottom-slots
+            data-testid="prefs-locale"
+            @update:model-value="onLocaleChange"
+          />
+          <q-select
             v-if="currencyStore.available.length > 1"
             :model-value="currencyStore.currency"
             :options="currencyStore.available"
-            label="Devise d'affichage"
-            :hint="`Affichage seulement : le paiement reste en ${currencyStore.reference}.`"
+            :label="$t('prefs.currency')"
+            :hint="$t('prefs.currency_hint', { currency: currencyStore.reference })"
             outlined
             bottom-slots
             @update:model-value="onCurrencyChange"
@@ -88,12 +101,12 @@
         <q-btn
           unelevated
           color="primary"
-          label="Enregistrer les préférences"
+          :label="$t('prefs.save')"
           :loading="saving"
           @click="save"
         />
         <span v-if="saved" class="prefs__saved" role="status">
-          <q-icon name="ph:check" size="16px" /> Enregistré
+          <q-icon name="ph:check" size="16px" /> {{ $t('prefs.saved') }}
         </span>
       </div>
     </template>
@@ -101,12 +114,22 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { useLocale } from '@/composables/useLocale';
 import { computed, onMounted, reactive, ref } from 'vue';
 
 import AppNotice from '@app/ui/AppNotice.vue';
 import { getMyPreferences, updateMyPreferences, type UserPreferences } from '@/api/account';
 import { useCurrencyStore } from '@/stores/currency';
 import { apiErrorMessage } from '@/utils/errors';
+
+const { t } = useI18n();
+const { current: currentLocale, options: localeOptions, setLocale, adoptPreference } = useLocale();
+
+function onLocaleChange(code: string) {
+  prefs.locale = code;
+  void setLocale(code);
+}
 
 const currencyStore = useCurrencyStore();
 
@@ -126,19 +149,19 @@ const prefs = reactive<Omit<UserPreferences, 'user_id'>>({
 
 // Les options « écologiques » ne correspondent à aucune offre documentée :
 // elles ne restent proposées qu'au client qui les avait déjà choisies. La
-// langue n'est plus proposée tant que l'interface n'est pas traduite.
+// langue s'applique tout de suite (cookie) et est gardée sur le compte.
 const shippingModeOptions = computed(() => [
-  { label: 'Rapide (avion)', value: 'rapide' },
-  { label: 'Économique (bateau)', value: 'economique' },
+  { label: t('prefs.mode.rapide'), value: 'rapide' },
+  { label: t('prefs.mode.economique'), value: 'economique' },
   ...(prefs.preferred_shipping_mode === 'ecologique'
-    ? [{ label: 'Écologique', value: 'ecologique' }]
+    ? [{ label: t('prefs.mode.ecologique'), value: 'ecologique' }]
     : []),
 ]);
 const shippingPreferenceOptions = computed(() => [
-  { label: 'La plus rapide', value: 'fastest' },
-  { label: 'La moins chère', value: 'cheapest' },
+  { label: t('prefs.pref.fastest'), value: 'fastest' },
+  { label: t('prefs.pref.cheapest'), value: 'cheapest' },
   ...(prefs.default_shipping_preference === 'eco_friendly'
-    ? [{ label: 'La plus écologique', value: 'eco_friendly' }]
+    ? [{ label: t('prefs.pref.eco'), value: 'eco_friendly' }]
     : []),
 ]);
 
@@ -152,10 +175,11 @@ async function load() {
     prefs.marketing_email_enabled = data.marketing_email_enabled ?? true;
     prefs.default_shipping_preference = data.default_shipping_preference;
     prefs.locale = data.locale;
+    adoptPreference(data.locale);
     prefs.currency_pref = data.currency_pref;
     prefs.preferred_shipping_mode = data.preferred_shipping_mode;
   } catch (err) {
-    error.value = apiErrorMessage(err) ?? 'Impossible de charger vos préférences.';
+    error.value = apiErrorMessage(err) ?? t('prefs.load_failed');
   } finally {
     loading.value = false;
   }
@@ -173,10 +197,11 @@ async function save() {
     // La devise d'affichage se règle aussi depuis l'en-tête : on enregistre la
     // valeur en cours plutôt qu'une copie périmée.
     prefs.currency_pref = currencyStore.currency;
+    prefs.locale = currentLocale.value;
     await updateMyPreferences({ ...prefs });
     saved.value = true;
   } catch (err) {
-    error.value = apiErrorMessage(err) ?? "Échec de l'enregistrement.";
+    error.value = apiErrorMessage(err) ?? t('prefs.save_failed');
   } finally {
     saving.value = false;
   }

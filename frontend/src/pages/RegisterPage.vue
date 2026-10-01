@@ -2,9 +2,9 @@
   <q-page class="auth-page flex flex-center">
     <q-card flat class="auth-card">
       <q-card-section>
-        <h1 class="auth-title">Créer un compte</h1>
+        <h1 class="auth-title">{{ $t('auth.register_title') }}</h1>
         <div class="auth-lead">
-          Vérifiez votre email avec un code, puis choisissez un mot de passe.
+          {{ $t('auth.register_lead') }}
         </div>
       </q-card-section>
 
@@ -15,21 +15,26 @@
 
         <q-stepper v-model="step" flat animated color="primary" header-nav>
           <!-- Step 1 — email -->
-          <q-step :name="1" title="Email" icon="ph:envelope-simple" :done="step > 1">
+          <q-step
+            :name="1"
+            :title="$t('auth.step_email')"
+            icon="ph:envelope-simple"
+            :done="step > 1"
+          >
             <q-form @submit.prevent="onSendOtp">
               <q-input
                 v-model="email"
                 type="email"
                 outlined
                 stack-label
-                label="Email"
+                :label="$t('auth.email')"
                 autocomplete="email"
-                :rules="[(v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || 'Email invalide']"
+                :rules="[(v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || $t('auth.email_invalid')]"
               />
               <q-btn
                 type="submit"
                 color="primary"
-                label="Recevoir mon code"
+                :label="$t('auth.get_code')"
                 class="full-width q-mt-md"
                 :loading="loading"
               />
@@ -38,14 +43,14 @@
             <template v-if="oauthEnabled">
               <div class="row items-center q-my-md">
                 <q-separator class="col" />
-                <span class="q-mx-sm auth-or">ou</span>
+                <span class="q-mx-sm auth-or">{{ $t('auth.or') }}</span>
                 <q-separator class="col" />
               </div>
               <q-btn
                 outline
                 color="primary"
                 icon="img:https://www.google.com/favicon.ico"
-                label="Continuer avec Google"
+                :label="$t('auth.with_google')"
                 class="full-width q-mb-sm"
                 @click="oauthSignup('google')"
               />
@@ -53,7 +58,7 @@
                 outline
                 color="primary"
                 icon="ph:windows-logo"
-                label="Continuer avec Microsoft"
+                :label="$t('auth.with_microsoft')"
                 class="full-width"
                 @click="oauthSignup('microsoft')"
               />
@@ -61,26 +66,29 @@
           </q-step>
 
           <!-- Step 2 — OTP code -->
-          <q-step :name="2" title="Code" icon="ph:password" :done="step > 2">
+          <q-step :name="2" :title="$t('auth.step_code')" icon="ph:password" :done="step > 2">
             <div class="auth-lead q-mb-sm">
-              Un code à 6 chiffres a été envoyé à <strong>{{ email }}</strong
-              >.
+              <i18n-t keypath="auth.code_sent" tag="span"
+                ><template #email
+                  ><strong>{{ email }}</strong></template
+                ></i18n-t
+              >
             </div>
             <q-form @submit.prevent="onVerifyOtp">
               <q-input
                 v-model="code"
                 outlined
                 stack-label
-                label="Code de vérification"
+                :label="$t('auth.code_label')"
                 mask="######"
                 inputmode="numeric"
                 autofocus
-                :rules="[(v) => (v && v.length === 6) || 'Code à 6 chiffres requis']"
+                :rules="[(v) => (v && v.length === 6) || $t('auth.code_required')]"
               />
               <q-btn
                 type="submit"
                 color="primary"
-                label="Valider le code"
+                :label="$t('auth.validate_code')"
                 class="full-width q-mt-md"
                 :loading="loading"
               />
@@ -90,7 +98,7 @@
               dense
               no-caps
               color="primary"
-              label="Renvoyer un code"
+              :label="$t('auth.resend_code')"
               class="q-mt-sm"
               :disable="loading"
               @click="onSendOtp"
@@ -98,13 +106,13 @@
           </q-step>
 
           <!-- Step 3 — password -->
-          <q-step :name="3" title="Mot de passe" icon="ph:lock-simple">
+          <q-step :name="3" :title="$t('auth.step_password')" icon="ph:lock-simple">
             <q-form @submit.prevent="onComplete">
               <q-input
                 v-model="fullName"
                 outlined
                 stack-label
-                label="Nom complet (optionnel)"
+                :label="$t('auth.full_name')"
                 autocomplete="name"
                 class="q-mb-sm"
               />
@@ -113,10 +121,10 @@
                 :type="showPassword ? 'text' : 'password'"
                 outlined
                 stack-label
-                label="Mot de passe"
+                :label="$t('auth.password')"
                 autocomplete="new-password"
                 class="q-mb-sm"
-                :rules="[(v) => (v && v.length >= 8) || 'Au moins 8 caractères']"
+                :rules="[(v) => (v && v.length >= 8) || $t('auth.min_8')]"
               >
                 <template #append>
                   <q-icon
@@ -131,14 +139,14 @@
                 :type="showPassword ? 'text' : 'password'"
                 outlined
                 stack-label
-                label="Confirmer le mot de passe"
+                :label="$t('auth.password_confirm')"
                 autocomplete="new-password"
-                :rules="[(v) => v === password || 'Les mots de passe ne correspondent pas']"
+                :rules="[(v) => v === password || $t('auth.password_mismatch')]"
               />
               <q-btn
                 type="submit"
                 color="primary"
-                label="Créer mon compte"
+                :label="$t('auth.create_my_account')"
                 class="full-width q-mt-md"
                 :loading="loading"
               />
@@ -148,8 +156,15 @@
       </q-card-section>
 
       <q-card-section class="text-center q-pt-none">
-        <span class="auth-lead">Déjà un compte ?</span>
-        <q-btn flat dense no-caps color="primary" label="Se connecter" :to="{ name: 'login' }" />
+        <span class="auth-lead">{{ $t('auth.have_account') }}</span>
+        <q-btn
+          flat
+          dense
+          no-caps
+          color="primary"
+          :label="$t('auth.sign_in')"
+          :to="{ name: 'login' }"
+        />
       </q-card-section>
     </q-card>
   </q-page>

@@ -18,16 +18,6 @@ export interface MyQuote {
   can_order: boolean;
 }
 
-export const QUOTE_STATUS_LABELS: Record<string, string> = {
-  requested: 'Demande reçue',
-  email_failed: 'Demande reçue',
-  in_progress: 'En cours de traitement',
-  quoted: 'Devis émis',
-  won: 'Commandé',
-  lost: 'Sans suite',
-  cancelled: 'Annulé',
-};
-
 export async function listMyQuotes(): Promise<MyQuote[]> {
   const { data } = await api.get<MyQuote[]>('/cart/quote-requests/me');
   return data;

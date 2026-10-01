@@ -1,15 +1,15 @@
 <template>
   <section class="app-section">
     <div class="app-section__head">
-      <h2 class="app-section__title">Adresses</h2>
+      <h2 class="app-section__title">{{ $t('addresses.title') }}</h2>
       <p class="app-section__hint">
-        Utilisables tout de suite au paiement. Notre équipe les vérifie pour préparer la livraison.
+        {{ $t('addresses.hint') }}
       </p>
       <q-btn
         unelevated
         color="primary"
         icon="ph:plus"
-        label="Ajouter une adresse"
+        :label="$t('addresses.add')"
         class="app-section__action"
         @click="openAddressDialog()"
       />
@@ -25,8 +25,8 @@
 
     <div v-else-if="addresses.length === 0" class="app-empty">
       <q-icon name="ph:map-pin" size="36px" class="text-subtle" />
-      <h3>Aucune adresse enregistrée</h3>
-      <p>Ajoutez une adresse de livraison pour aller plus vite au moment de commander.</p>
+      <h3>{{ $t('addresses.none') }}</h3>
+      <p>{{ $t('addresses.none_text') }}</p>
     </div>
 
     <ul v-else class="address-grid">
@@ -36,7 +36,7 @@
           <StatusTag
             :tone="address.is_validated ? 'ok' : 'neutral'"
             :icon="address.is_validated ? 'ph:seal-check' : 'ph:clock'"
-            :label="address.is_validated ? 'Vérifiée' : 'En cours de vérification'"
+            :label="address.is_validated ? $t('addresses.verified') : $t('addresses.verifying')"
           />
         </div>
         <address class="address-card__body">
@@ -47,9 +47,11 @@
         </address>
         <div class="address-card__actions">
           <button type="button" class="text-link" @click="openAddressDialog(address)">
-            Modifier
+            {{ $t('addresses.edit') }}
           </button>
-          <button type="button" class="text-link" @click="confirmDelete(address)">Supprimer</button>
+          <button type="button" class="text-link" @click="confirmDelete(address)">
+            {{ $t('addresses.delete') }}
+          </button>
         </div>
       </li>
     </ul>
@@ -59,7 +61,7 @@
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
-            {{ editingId ? "Modifier l'adresse" : 'Nouvelle adresse' }}
+            {{ editingId ? $t('addresses.edit_title') : $t('addresses.new_title') }}
           </h2>
         </q-card-section>
         <q-form @submit.prevent="saveAddress">
@@ -70,7 +72,7 @@
             <q-select
               v-model="addressForm.type"
               :options="addressTypeOptions"
-              label="Type *"
+              :label="$t('addresses.type_label')"
               emit-value
               map-options
               outlined
@@ -80,7 +82,7 @@
             <q-select
               v-model="addressForm.country"
               :options="filteredCountryOptions"
-              label="Pays *"
+              :label="$t('addresses.country')"
               outlined
               dense
               class="q-mb-sm"
@@ -88,14 +90,14 @@
               map-options
               use-input
               input-debounce="0"
-              :rules="[(v) => !!v || 'Champ requis']"
+              :rules="[(v) => !!v || $t('addresses.field_required')]"
               @filter="filterCountries"
             />
             <div class="row q-col-gutter-sm">
               <q-select
                 v-model="addressForm.postal_code"
                 :options="filteredPostalOptions"
-                label="Code postal *"
+                :label="$t('addresses.postal_code')"
                 outlined
                 dense
                 class="col-5"
@@ -122,7 +124,7 @@
               </q-select>
               <q-input
                 v-model="addressForm.city"
-                :label="cityRequired ? 'Ville *' : 'Ville'"
+                :label="cityRequired ? $t('addresses.city_req') : $t('addresses.city')"
                 outlined
                 dense
                 class="col-7"
@@ -132,16 +134,16 @@
             </div>
             <q-input
               v-model="addressForm.street"
-              label="Adresse (rue) *"
+              :label="$t('addresses.street')"
               outlined
               dense
               class="q-mb-sm"
               :disable="!postalFilled"
-              :rules="[(v) => !!v || 'Champ requis']"
+              :rules="[(v) => !!v || $t('addresses.field_required')]"
             />
             <q-input
               v-model="addressForm.state"
-              label="État / Région / Île"
+              :label="$t('addresses.state')"
               outlined
               dense
               class="q-mb-sm"
@@ -154,16 +156,16 @@
               icon="ph:map-pin"
               class="q-mt-sm"
             >
-              Zone de livraison détectée : {{ detectedZoneLabel }}
+              {{ $t('addresses.zone_detected', { zone: detectedZoneLabel }) }}
             </AppNotice>
             <template v-else-if="zoneLookupDone && zoneOptions.length > 0">
               <AppNotice dense tone="warning" class="q-mt-sm q-mb-sm">
-                Code postal non reconnu. Indiquez votre île ou zone de livraison.
+                {{ $t('addresses.zone_unknown') }}
               </AppNotice>
               <q-select
                 v-model="manualPlaceId"
                 :options="zoneOptions"
-                label="Île / zone de livraison"
+                :label="$t('addresses.zone')"
                 outlined
                 dense
                 emit-value
@@ -173,12 +175,12 @@
             </template>
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat label="Annuler" v-close-popup />
+            <q-btn flat :label="$t('addresses.cancel')" v-close-popup />
             <q-btn
               type="submit"
               unelevated
               color="primary"
-              :label="editingId ? 'Enregistrer' : 'Créer'"
+              :label="editingId ? $t('addresses.save') : $t('addresses.create')"
               :loading="savingAddress"
               :disable="savingAddress || !postalFilled"
             />
@@ -191,14 +193,14 @@
     <q-dialog v-model="deleteDialog">
       <q-card class="app-dialog app-dialog--narrow">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Supprimer cette adresse ?</h2>
-          <p class="app-dialog__text">Elle ne sera plus proposée au moment de la commande.</p>
+          <h2 class="app-dialog__title">{{ $t('addresses.delete_title') }}</h2>
+          <p class="app-dialog__text">{{ $t('addresses.delete_text') }}</p>
         </q-card-section>
         <q-card-actions align="right" class="app-dialog__actions">
-          <q-btn flat label="Annuler" v-close-popup />
+          <q-btn flat :label="$t('addresses.cancel')" v-close-popup />
           <q-btn
             flat
-            label="Supprimer"
+            :label="$t('addresses.delete_btn')"
             color="negative"
             :loading="deleting"
             @click="performDelete"
@@ -210,6 +212,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { countryLabel, countryOptions, type CountryOption } from '@app/utils';
 
@@ -231,14 +234,16 @@ import {
 } from '@/api/addresses';
 import { apiErrorMessage } from '@/utils/errors';
 
-const addressTypeOptions = [
-  { label: 'Livraison', value: 'shipping' },
-  { label: 'Facturation', value: 'billing' },
-  { label: 'Autre', value: 'other' },
-];
+const { t } = useI18n();
+
+const addressTypeOptions = computed(() => [
+  { label: t('addresses.type.shipping'), value: 'shipping' },
+  { label: t('addresses.type.billing'), value: 'billing' },
+  { label: t('addresses.type.other'), value: 'other' },
+]);
 
 function typeLabel(type: string): string {
-  return addressTypeOptions.find((o) => o.value === type)?.label ?? type;
+  return addressTypeOptions.value.find((o) => o.value === type)?.label ?? type;
 }
 
 const loadingAddresses = ref(true);
@@ -363,7 +368,7 @@ const manualPlaceId = ref<string | null>(null);
 // livraison (code inconnu et aucune île choisie à la main).
 const cityRequired = computed(() => !detectedZoneLabel.value && !manualPlaceId.value);
 const cityRules = computed(() =>
-  cityRequired.value ? [(v: string) => !!v?.trim() || 'Requis : code postal non reconnu'] : [],
+  cityRequired.value ? [(v: string) => !!v?.trim() || t('addresses.city_rule')] : [],
 );
 
 // Valeurs posées par l'auto-remplissage : on ne les efface / remplace que si
@@ -464,7 +469,7 @@ async function loadAddresses() {
   try {
     addresses.value = await listMyAddresses();
   } catch (err) {
-    addressesError.value = apiErrorMessage(err) ?? 'Impossible de charger vos adresses.';
+    addressesError.value = apiErrorMessage(err) ?? t('addresses.load_failed');
   } finally {
     loadingAddresses.value = false;
   }
@@ -529,7 +534,7 @@ async function saveAddress() {
     addressDialog.value = false;
     await loadAddresses();
   } catch (err) {
-    dialogError.value = apiErrorMessage(err) ?? "Échec de l'enregistrement de l'adresse.";
+    dialogError.value = apiErrorMessage(err) ?? t('addresses.save_failed');
   } finally {
     savingAddress.value = false;
   }
@@ -549,7 +554,7 @@ async function performDelete() {
     addressToDelete.value = null;
     await loadAddresses();
   } catch (err) {
-    addressesError.value = apiErrorMessage(err) ?? 'Échec de la suppression.';
+    addressesError.value = apiErrorMessage(err) ?? t('addresses.delete_failed');
     deleteDialog.value = false;
   } finally {
     deleting.value = false;
