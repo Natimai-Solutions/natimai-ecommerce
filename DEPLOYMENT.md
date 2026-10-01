@@ -646,15 +646,57 @@ in-memory access token. Inactive users are rejected with `?oauth_error=user_inac
 
 ---
 
-## 8. Deployment chain — docker compose on the server (the single supported path)
+## 8. Deployment chain — docker compose on the server
 
-**Decision (2026‑08‑25 production audit):** the stack is built and run **on the
-server** with docker compose. The GHCR images pushed by
-`.github/workflows/deploy.yml` are generic build artifacts (frontends built
-without a real `VITE_API_URL`) and are **not** consumed by this path. The
-Kubernetes manifests under `infra/k8s/` are **unmaintained** — do not deploy
-from them (their secrets do not match `config.py` and `FIRST_SUPERUSER` is
-missing, which crash‑loops the pods).
+The stack runs on the server with docker compose. Two ways to get the images
+there; both run the same migrations and the same compose files.
+
+### 8.1 GitHub Actions — manual deploy from GHCR images (recommended)
+
+`.github/workflows/deploy.yml` is triggered **by hand** (Actions → *Deploy* →
+*Run workflow*: a branch, tag or sha, and `staging` or `production`). It:
+
+1. resolves the commit and refuses it unless the *CI* workflow is green on it
+   (`skip_ci_check` overrides);
+2. builds `api`, `frontend` and `admin` and pushes them to
+   `ghcr.io/<owner>/<repo>/<image>:<environment>-<sha>`. The frontends are
+   built with the environment's `VITE_API_URL`, hence the environment in the
+   tag: a staging image never lands in production;
+3. connects over SSH, checks the repository out at that commit and runs
+   [`scripts/release/deploy.sh`](scripts/release/deploy.sh): `pull` → `run
+   --rm migrate` → `up -d --no-build` with
+   [`docker-compose.images.yml`](docker-compose.images.yml) on top of the
+   production files, then waits for `/api/v1/healthz/ready` (fails after
+   5 minutes, printing the API logs).
+
+One deployment at a time per environment. **Rollback**: run it again on the
+previous commit (its images are rebuilt from cache if needed). Migrations do
+not go down by themselves — see below.
+
+**GitHub setup** — Settings → Environments → `staging` / `production`
+(add *Required reviewers* on `production` to approve each run):
+
+| Kind | Name | Value |
+|---|---|---|
+| variable | `VITE_API_URL` | `https://api.<domain>` (also used for the health check) |
+| variable | `APP_DIR` | repository path on the server (default `/home/deploy/natimai-ecommerce`) |
+| variable | `SSH_PORT` | default `22` |
+| secret | `SSH_HOST`, `SSH_USER` | server address, deploy user |
+| secret | `SSH_PRIVATE_KEY` | private key whose public half is in the deploy user's `authorized_keys` |
+| secret | `SSH_KNOWN_HOSTS` | output of `ssh-keyscan -p <port> <host>` (host key pinned, no trust on first use) |
+
+The application `.env` never goes through GitHub: it stays in `APP_DIR` on the
+server. The GHCR token of the run is sent to the server on stdin, used for
+`docker login` and logged out at the end.
+
+**Server setup (once)**: Docker with the compose plugin ≥ 2.24, a `deploy`
+user in the `docker` group, the repository cloned in `APP_DIR` (deploy key
+with read access for a private repository), the root `.env` filled in
+(§2, §3, §9 prerequisites), DNS and ports 80/443 (§9), backups (§12).
+
+### 8.2 By hand — build on the server
+
+Without GitHub Actions (or to debug a deploy), build on the server:
 
 ```bash
 # 0. Prerequisites: root .env complete — including VITE_API_URL=https://api.<DOMAIN>
@@ -709,8 +751,9 @@ point on `80`/`443`, **automatic Let's Encrypt TLS termination** and per‑subdo
 routing.
 
 > ⚠️ The Kubernetes manifests (`infra/k8s/`, [`infra/DEPLOY.md`](infra/DEPLOY.md))
-> are **unmaintained and currently broken** (see section 8) — docker‑compose is
-> the only supported deployment path.
+> are **unmaintained and currently broken** (their secrets do not match
+> `config.py` and `FIRST_SUPERUSER` is missing, which crash‑loops the pods) —
+> docker‑compose (section 8) is the only supported deployment path.
 
 ### Routing
 

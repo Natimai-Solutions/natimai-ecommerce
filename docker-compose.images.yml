@@ -1,0 +1,26 @@
+# Images GHCR construites par .github/workflows/deploy.yml (déploiement manuel).
+#
+# Ajouté à la pile de production, il remplace la construction sur le serveur :
+# les services applicatifs tournent sur les images du commit déployé.
+#
+#   IMAGE_PREFIX=ghcr.io/<owner>/<repo> IMAGE_TAG=<sha> \
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     -f docker-compose.proxy.yml -f docker-compose.images.yml up -d --no-build
+#
+# Les frontends embarquent VITE_API_URL au moment du build (variable
+# d'environnement GitHub `VITE_API_URL`) : une image ne sert qu'au domaine pour
+# lequel elle a été construite.
+
+x-api-image: &api-image
+  image: ${IMAGE_PREFIX:?IMAGE_PREFIX manquant}/api:${IMAGE_TAG:?IMAGE_TAG manquant}
+
+services:
+  api: *api-image
+  arq-worker: *api-image
+  outbox-poller: *api-image
+  outbox-health-checker: *api-image
+  migrate: *api-image
+  frontend:
+    image: ${IMAGE_PREFIX:?IMAGE_PREFIX manquant}/frontend:${IMAGE_TAG:?IMAGE_TAG manquant}
+  admin-frontend:
+    image: ${IMAGE_PREFIX:?IMAGE_PREFIX manquant}/admin:${IMAGE_TAG:?IMAGE_TAG manquant}
