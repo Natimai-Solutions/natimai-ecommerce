@@ -26,6 +26,9 @@ services:
       # Plages autorisées sur l'admin (Caddyfile) ; jamais vide : une liste
       # vide refuserait tout le monde.
       - "ADMIN_ALLOWED_IPS=${ADMIN_ALLOWED_IPS:-0.0.0.0/0 ::/0}"
+      # Proxies amont dont on croit l'en-tête d'adresse (plages Cloudflare si
+      # le domaine passe par Cloudflare). Jamais vide : défaut = aucun.
+      - "CADDY_TRUSTED_PROXIES=${CADDY_TRUSTED_PROXIES:-127.0.0.1/32}"
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data # certificats Let's Encrypt — À PERSISTER (évite le rate-limit ACME)
@@ -38,6 +41,11 @@ services:
   # Le proxy fronte ces services : plus d'exposition directe sur l'hôte.
   api:
     ports: !reset []
+    environment:
+      # Caddy est ici l'unique entrée et réécrit X-Forwarded-For avec l'adresse
+      # réelle du visiteur : sans cela l'API ne voit que l'adresse Docker de
+      # Caddy (journal d'audit, throttle de connexion par IP).
+      - CLIENT_IP_HEADER=X-Forwarded-For
   frontend:
     ports: !reset []
   admin-frontend:

@@ -436,7 +436,7 @@ superuser's request; the public storefront API never returns them.
 | `CLAMAV_PORT` | `3310` | ClamAV daemon port |
 | `ENABLE_GROUP_PERMISSIONS` | `false` | Enable RBAC group checks (turn on after security groups are seeded and verified) |
 | `SEED_FRENCH_POLYNESIA_LOGISTICS` | `true` | Seed the French Polynesia starter logistics (France → Papeete import corridor, PF zone tree + postal codes) on `initial_data`. Set `false` for a classic one-warehouse shop: only carriers and shipping statuses are seeded; create your warehouse and warehouse → customer routes (grid by weight band, franco) in *Trajets & Lieux* and your carriers in *Transporteurs* |
-| `CLIENT_IP_HEADER` | *(empty)* | **Set this whenever the API sits behind Cloudflare or a reverse proxy.** Name of the trusted header carrying the real client IP: `CF-Connecting-IP` (Cloudflare) or `X-Forwarded-For` (Caddy/nginx/traefik — the **last**, proxy-appended entry of the chain is used; earlier entries are client-forgeable). Used by the login rate limiter — left empty, all requests share the proxy's IP and the per-IP throttle (10 login attempts/min) becomes a **global** throttle for every customer. Leave empty **only** when the API is directly exposed (a forged header would otherwise bypass the throttle). |
+| `CLIENT_IP_HEADER` | *(empty)* | **Set automatically to `X-Forwarded-For` by `docker-compose.proxy.yml`** (Caddy in front; for Cloudflare see `CADDY_TRUSTED_PROXIES`, §9). Set it yourself only for another proxy setup. Name of the trusted header carrying the real client IP: `CF-Connecting-IP` (Cloudflare) or `X-Forwarded-For` (Caddy/nginx/traefik — the **last**, proxy-appended entry of the chain is used; earlier entries are client-forgeable). Used by the login rate limiter — left empty, all requests share the proxy's IP and the per-IP throttle (10 login attempts/min) becomes a **global** throttle for every customer. Leave empty **only** when the API is directly exposed (a forged header would otherwise bypass the throttle). |
 | `LOGIN_RATE_LIMIT_ATTEMPTS` | `10` | Login attempts per IP per window (Redis-backed, fail-open) |
 | `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | `60` | Throttle window |
 | `LOGIN_LOCKOUT_MAX_FAILURES` | `5` | Consecutive wrong passwords before the account locks |
@@ -764,16 +764,27 @@ routing.
 | `api.${DOMAIN}` | `api` (FastAPI) | 8000 |
 | `admin.${DOMAIN}` | `admin-frontend` (nginx) | 80 |
 
-> **Real client IP behind the proxy** — once the API is served through Caddy
-> (or Cloudflare in front of it), set `CLIENT_IP_HEADER=X-Forwarded-For`
-> (`CF-Connecting-IP` with Cloudflare) in the backend environment so the login
-> rate limiter throttles the actual client, not the proxy. See §3.10.
+> **Real client IP behind the proxy** — the API only sees Caddy's Docker
+> address (e.g. `172.18.0.10`) unless told where the real one is. With the
+> `proxy` overlay this is automatic: Caddy rewrites `X-Forwarded-For` with
+> the visitor's address (`header_up X-Forwarded-For {client_ip}`, replacing
+> any chain the client sent), and `docker-compose.proxy.yml` sets
+> `CLIENT_IP_HEADER=X-Forwarded-For` on the API. The login throttle and the
+> audit log then record the visitor.
 >
-> The `api.` site sets `header_up X-Forwarded-For {remote_host}`, which
-> **replaces** any chain sent by the client instead of appending to it — a
-> caller cannot pad the header to push its real address out of the trusted hop
-> window. Keep `TRUSTED_PROXY_HOPS=1` with this setup; if you put a CDN in
-> front of Caddy, drop that `header_up` line and set `TRUSTED_PROXY_HOPS=2`.
+> **Behind Cloudflare** (proxied, orange cloud), Caddy's peer is a Cloudflare
+> server, so list Cloudflare's ranges in the root `.env` — Caddy then reads
+> `CF-Connecting-IP`, **only** on connections coming from those ranges (a
+> request sent straight to the server cannot forge its address):
+>
+> ```bash
+> # https://www.cloudflare.com/ips/ — check the list is current
+> CADDY_TRUSTED_PROXIES="173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32"
+> ```
+>
+> Then `docker compose … up -d caddy` (Caddy reads it at start). The same
+> setting makes `ADMIN_ALLOWED_IPS` match the visitor rather than Cloudflare.
+> Entries recorded before the fix keep the proxy address.
 
 ### Prerequisites
 
