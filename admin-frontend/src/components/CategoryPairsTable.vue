@@ -3,11 +3,11 @@
     <q-markup-table flat bordered dense data-testid="category-pairs">
       <thead>
         <tr>
-          <th class="text-left">Chez le fournisseur</th>
+          <th class="text-left">{{ $t('pairs.at_supplier') }}</th>
           <th class="text-right">{{ countLabel }}</th>
-          <th class="text-left">Catégorie boutique</th>
-          <th class="text-left">Action</th>
-          <th class="text-left">Résultat</th>
+          <th class="text-left">{{ $t('pairs.shop_category') }}</th>
+          <th class="text-left">{{ $t('pairs.action') }}</th>
+          <th class="text-left">{{ $t('pairs.result') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -62,19 +62,18 @@
               size="14px"
               class="text-subtle q-ml-xs"
             >
-              <q-tooltip>Règle enregistrée</q-tooltip>
+              <q-tooltip>{{ $t('pairs.saved') }}</q-tooltip>
             </q-icon>
           </td>
         </tr>
         <tr v-if="!pairs.length">
-          <td colspan="5" class="text-center text-subtle">Aucune catégorie.</td>
+          <td colspan="5" class="text-center text-subtle">{{ $t('pairs.none') }}</td>
         </tr>
       </tbody>
     </q-markup-table>
     <div class="row items-center q-mt-sm" style="gap: 8px">
       <span class="text-caption text-subtle">
-        « Au nom de la source » : une catégorie boutique portant le nom de la sous-catégorie (ou de
-        la catégorie), créée au besoin.
+        {{ $t('pairs.source_hint') }}
       </span>
       <q-space />
       <q-btn
@@ -83,7 +82,7 @@
         no-caps
         dense
         icon="ph:floppy-disk"
-        :label="`Enregistrer ${changedCount} règle(s)`"
+        :label="$t('pairs.save_n', { n: changedCount })"
         :disable="!changedCount"
         :loading="saving"
         data-testid="category-pairs-save"
@@ -94,6 +93,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { computed, reactive, ref, watch } from 'vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import { categoryLabel, type Category } from '@/api/categories';
@@ -105,6 +105,8 @@ import {
   type ObservedCategory,
 } from '@/api/suppliers';
 
+const { t } = useI18n();
+
 const props = withDefaults(
   defineProps<{
     pairs: ObservedCategory[];
@@ -112,7 +114,7 @@ const props = withDefaults(
     saving?: boolean;
     countLabel?: string;
   }>(),
-  { saving: false, countLabel: 'Articles' },
+  { saving: false, countLabel: t('pairs.items') },
 );
 const emit = defineEmits<{ save: [rules: CategoryMappingWrite[]] }>();
 
@@ -162,11 +164,11 @@ const changedCount = computed(() => changed.value.size);
 
 function autoLabel(pair: ObservedCategory): string {
   const name = (pair.source_subcategory || pair.source_category || '').trim();
-  return name ? `Au nom de la source (${name})` : 'Au nom de la source';
+  return name ? t('pairs.source_named', { name }) : t('pairs.source');
 }
 
 const allOptions = computed(() => [
-  { label: 'Au nom de la source', value: null as string | null },
+  { label: t('pairs.source'), value: null as string | null },
   ...props.categories.map((c) => ({ label: categoryLabel(c), value: c.id })),
 ]);
 const categoryOptions = ref(allOptions.value);

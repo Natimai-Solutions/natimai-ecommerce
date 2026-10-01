@@ -1,12 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader title="Tableau de bord" :hint="today">
+    <PageHeader :title="$t('dashboard.title')" :hint="today">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -16,19 +16,15 @@
     <AppNotice v-if="error" tone="error" class="q-mb-lg">
       {{ error }}
       <template #action>
-        <q-btn flat dense no-caps label="Réessayer" @click="load" />
+        <q-btn flat dense no-caps :label="$t('common.retry')" @click="load" />
       </template>
     </AppNotice>
 
     <section class="app-section" aria-labelledby="todo-title">
       <div class="app-section__head">
-        <h2 id="todo-title" class="app-section__title">À traiter</h2>
+        <h2 id="todo-title" class="app-section__title">{{ $t('dashboard.todo') }}</h2>
         <p v-if="data" class="app-section__hint">
-          {{
-            pendingTotal
-              ? `${pendingTotal} élément${pendingTotal > 1 ? 's' : ''} en attente`
-              : 'Tout est à jour'
-          }}
+          {{ pendingTotal ? $t('dashboard.pending', pendingTotal) : $t('dashboard.up_to_date') }}
         </p>
       </div>
       <div class="todo-grid" data-testid="dashboard-todo">
@@ -48,7 +44,7 @@
             <span class="todo-tile__count font-mono">{{ item.count }}</span>
             <span class="todo-tile__hint">
               <template v-if="item.count === 0">
-                <q-icon name="ph:check" size="14px" /> Rien en attente
+                <q-icon name="ph:check" size="14px" /> {{ $t('dashboard.nothing') }}
               </template>
               <template v-else>{{ item.hint }}</template>
             </span>
@@ -63,7 +59,7 @@
     <div class="dashboard-columns">
       <section class="app-section" aria-labelledby="activity-title">
         <div class="app-section__head">
-          <h2 id="activity-title" class="app-section__title">Activité</h2>
+          <h2 id="activity-title" class="app-section__title">{{ $t('dashboard.activity') }}</h2>
         </div>
         <div v-if="data" class="kpi-grid">
           <div v-for="kpi in kpis" :key="kpi.label" class="kpi">
@@ -80,9 +76,11 @@
         aria-labelledby="departure-title"
       >
         <div class="app-section__head">
-          <h2 id="departure-title" class="app-section__title">Prochain départ</h2>
+          <h2 id="departure-title" class="app-section__title">
+            {{ $t('dashboard.next_departure') }}
+          </h2>
           <router-link to="/grouped-departures" class="app-section__action text-link">
-            Tous les départs
+            {{ $t('dashboard.all_departures') }}
           </router-link>
         </div>
         <div v-if="data?.next_departure" class="app-panel departure">
@@ -92,22 +90,22 @@
               v-if="data.next_departure.status === 'draft'"
               tone="neutral"
               icon="ph:pencil-simple"
-              label="Brouillon"
+              :label="$t('dashboard.draft')"
             />
-            <StatusTag v-else tone="ok" icon="ph:check-circle" label="Ouvert" />
+            <StatusTag v-else tone="ok" icon="ph:check-circle" :label="$t('dashboard.open')" />
           </div>
           <dl class="admin-dl">
-            <dt>Clôture des commandes</dt>
+            <dt>{{ $t('dashboard.cutoff') }}</dt>
             <dd>{{ formatDateTime(data.next_departure.cutoff_at) || '—' }}</dd>
-            <dt>Départ</dt>
+            <dt>{{ $t('dashboard.departure') }}</dt>
             <dd>{{ formatDate(data.next_departure.departure_at) || '—' }}</dd>
-            <dt>Commandes rattachées</dt>
+            <dt>{{ $t('dashboard.linked_orders') }}</dt>
             <dd class="font-mono">{{ data.next_departure.orders_count }}</dd>
           </dl>
         </div>
         <div v-else-if="data" class="app-empty">
           <q-icon name="ph:calendar-blank" size="28px" class="text-subtle" />
-          <p>Aucun départ groupé ouvert ou programmé.</p>
+          <p>{{ $t('dashboard.no_departure') }}</p>
         </div>
         <q-skeleton v-else-if="loading" type="rect" height="120px" />
       </section>
@@ -115,7 +113,7 @@
 
     <section class="app-section" aria-labelledby="shortcuts-title">
       <div class="app-section__head">
-        <h2 id="shortcuts-title" class="app-section__title">Raccourcis</h2>
+        <h2 id="shortcuts-title" class="app-section__title">{{ $t('dashboard.shortcuts') }}</h2>
       </div>
       <nav class="shortcuts">
         <router-link v-for="link in shortcuts" :key="link.to" :to="link.to" class="shortcut">
@@ -129,6 +127,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { computed, onMounted, ref } from 'vue';
 
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -138,6 +137,8 @@ import PageHeader from '@/components/PageHeader.vue';
 import { extractApiError } from '@/api/errors';
 import { getDashboard, type AdminDashboard, type DashboardTodo } from '@/api/dashboard';
 import { useShopConfigStore } from '@/stores/shopConfig';
+
+const { t } = useI18n();
 
 const shopConfig = useShopConfigStore();
 const data = ref<AdminDashboard | null>(null);
@@ -161,62 +162,64 @@ interface TodoItem {
   module?: string;
 }
 
-const TODO: TodoItem[] = [
+const TODO = computed<TodoItem[]>(() => [
   {
     key: 'orders_to_process',
-    label: 'Commandes à préparer',
-    hint: 'Payées, pas encore expédiées',
+    label: t('dashboard.t_orders'),
+    hint: t('dashboard.t_orders_hint'),
     icon: 'ph:receipt',
     to: '/orders',
   },
   {
     key: 'payments_to_validate',
-    label: 'Paiements à valider',
-    hint: 'Virements, chèques ou espèces à confirmer',
+    label: t('dashboard.t_payments'),
+    hint: t('dashboard.t_payments_hint'),
     icon: 'ph:check-square-offset',
     to: '/payment-validations',
   },
   {
     key: 'quote_requests_open',
-    label: 'Demandes de devis',
-    hint: 'Demandes ouvertes sans réponse finale',
+    label: t('dashboard.t_quotes'),
+    hint: t('dashboard.t_quotes_hint'),
     icon: 'ph:note-pencil',
     to: '/quote-requests',
     module: 'quotes',
   },
   {
     key: 'group_upgrade_requests_pending',
-    label: 'Demandes de groupe',
-    hint: 'Clients qui demandent un tarif professionnel',
+    label: t('dashboard.t_groups'),
+    hint: t('dashboard.t_groups_hint'),
     icon: 'ph:user-plus',
     to: '/group-upgrade-requests',
     module: 'price_groups',
   },
   {
     key: 'supplier_orders_draft',
-    label: 'Commandes fournisseurs',
-    hint: 'Brouillons pas encore envoyés',
+    label: t('dashboard.t_supplier'),
+    hint: t('dashboard.t_supplier_hint'),
     icon: 'ph:clipboard-text',
     to: '/supplier-orders',
     module: 'supplier_orders',
   },
   {
     key: 'product_drafts',
-    label: 'Produits à relire',
-    hint: 'Brouillons issus des fournisseurs',
+    label: t('dashboard.t_review'),
+    hint: t('dashboard.t_review_hint'),
     icon: 'ph:package',
     to: '/products',
     module: 'suppliers',
   },
-];
+]);
 
 const todoItems = computed(() => {
   const todo = data.value?.todo;
   if (!todo) return [];
-  return TODO.filter((item) => !item.module || shopConfig.moduleOn(item.module)).map((item) => ({
-    ...item,
-    count: todo[item.key] ?? 0,
-  }));
+  return TODO.value
+    .filter((item) => !item.module || shopConfig.moduleOn(item.module))
+    .map((item) => ({
+      ...item,
+      count: todo[item.key] ?? 0,
+    }));
 });
 
 const pendingTotal = computed(() => todoItems.value.reduce((sum, item) => sum + item.count, 0));
@@ -226,19 +229,19 @@ const kpis = computed(() => {
   if (!activity) return [];
   const money = (value: string) => formatMoney(value, activity.currency);
   return [
-    { label: "Commandes aujourd'hui", value: String(activity.orders_today) },
-    { label: 'Commandes sur 7 jours', value: String(activity.orders_7d) },
-    { label: "Chiffre d'affaires 7 jours", value: money(activity.revenue_7d) },
-    { label: "Chiffre d'affaires 30 jours", value: money(activity.revenue_30d) },
+    { label: t('dashboard.k_today'), value: String(activity.orders_today) },
+    { label: t('dashboard.k_7d'), value: String(activity.orders_7d) },
+    { label: t('dashboard.k_rev7'), value: money(activity.revenue_7d) },
+    { label: t('dashboard.k_rev30'), value: money(activity.revenue_30d) },
   ];
 });
 
-const shortcuts = [
-  { label: 'Produits', icon: 'ph:package', to: '/products' },
-  { label: 'Commandes', icon: 'ph:receipt', to: '/orders' },
-  { label: 'Accueil du site', icon: 'ph:house', to: '/homepage' },
-  { label: 'Paramètres', icon: 'ph:gear', to: '/system-settings' },
-];
+const shortcuts = computed(() => [
+  { label: t('dashboard.s_products'), icon: 'ph:package', to: '/products' },
+  { label: t('dashboard.s_orders'), icon: 'ph:receipt', to: '/orders' },
+  { label: t('dashboard.s_home'), icon: 'ph:house', to: '/homepage' },
+  { label: t('dashboard.s_settings'), icon: 'ph:gear', to: '/system-settings' },
+]);
 
 async function load() {
   loading.value = true;
@@ -246,7 +249,7 @@ async function load() {
   try {
     data.value = await getDashboard();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Le tableau de bord ne peut pas être chargé.';
+    error.value = extractApiError(err) ?? t('dashboard.load_failed');
   } finally {
     loading.value = false;
   }

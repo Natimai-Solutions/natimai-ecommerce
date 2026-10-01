@@ -1,23 +1,23 @@
 <template>
   <section class="margin-panel" aria-live="polite" data-testid="margin-panel">
     <div class="margin-panel__head">
-      <h4 class="margin-panel__title">Marge</h4>
+      <h4 class="margin-panel__title">{{ $t('margin.title') }}</h4>
       <q-spinner v-if="loading" size="14px" />
     </div>
     <p v-if="error" class="margin-panel__note text-negative">{{ error }}</p>
     <template v-else-if="preview">
       <dl class="margin-panel__grid">
-        <dt>Prix de vente TTC</dt>
+        <dt>{{ $t('margin.price_ttc') }}</dt>
         <dd class="font-mono">{{ money(preview.price_incl_tax) }}</dd>
-        <dt>TVA {{ pct(preview.tax_rate_pct) }}</dt>
+        <dt>{{ $t('margin.vat', { pct: pct(preview.tax_rate_pct) }) }}</dt>
         <dd class="font-mono">− {{ money(preview.tax_amount) }}</dd>
-        <dt>Prix HT</dt>
+        <dt>{{ $t('margin.price_ht') }}</dt>
         <dd class="font-mono">{{ money(preview.price_excl_tax) }}</dd>
         <template v-if="Number(preview.commission_amount ?? 0) > 0">
-          <dt>Commission de paiement</dt>
+          <dt>{{ $t('margin.commission') }}</dt>
           <dd class="font-mono">− {{ money(preview.commission_amount) }}</dd>
         </template>
-        <dt>Coût de revient HT</dt>
+        <dt>{{ $t('margin.cost') }}</dt>
         <dd class="font-mono">
           {{ preview.unit_cost === null ? '—' : `− ${money(preview.unit_cost)}` }}
         </dd>
@@ -27,14 +27,16 @@
         class="margin-panel__result"
         :class="{ 'margin-panel__result--loss': Number(preview.margin_amount) < 0 }"
       >
-        <span>Marge HT</span>
+        <span>{{ $t('margin.margin_ht') }}</span>
         <strong class="font-mono" data-testid="margin-amount">{{
           money(preview.margin_amount)
         }}</strong>
         <span class="margin-panel__rates">
-          <span data-testid="margin-pct">taux de marque {{ pct(preview.margin_pct) }}</span>
+          <span data-testid="margin-pct">{{
+            $t('margin.margin_rate', { pct: pct(preview.margin_pct) })
+          }}</span>
           ·
-          <span>taux de marge {{ pct(preview.markup_pct) }}</span>
+          <span>{{ $t('margin.markup_rate', { pct: pct(preview.markup_pct) }) }}</span>
         </span>
       </div>
       <p v-if="preview.note" class="margin-panel__note">
@@ -42,14 +44,14 @@
       </p>
 
       <div v-if="preview.groups.length > 1" class="margin-panel__groups" data-testid="group-prices">
-        <h4 class="margin-panel__title">Prix par groupe de clients</h4>
+        <h4 class="margin-panel__title">{{ $t('margin.group_prices') }}</h4>
         <table class="margin-panel__table">
           <thead>
             <tr>
-              <th>Groupe</th>
-              <th>Prix TTC saisi</th>
-              <th>Prix payé</th>
-              <th>Marge HT</th>
+              <th>{{ $t('margin.group') }}</th>
+              <th>{{ $t('margin.entered') }}</th>
+              <th>{{ $t('margin.paid') }}</th>
+              <th>{{ $t('margin.margin_ht') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -61,11 +63,11 @@
               <td>
                 {{ line.label }}
                 <div class="text-caption text-subtle">
-                  <template v-if="line.is_default">prix de référence</template>
+                  <template v-if="line.is_default">{{ $t('margin.reference') }}</template>
                   <template v-else-if="Number(line.discount_pct) > 0">
-                    remise {{ pct(line.discount_pct) }}
+                    {{ $t('margin.discount', { pct: pct(line.discount_pct) }) }}
                   </template>
-                  <template v-else>sans remise</template>
+                  <template v-else>{{ $t('margin.no_discount') }}</template>
                 </div>
               </td>
               <td>
@@ -101,7 +103,7 @@
           </tbody>
         </table>
         <p class="margin-panel__note">
-          Vide = prix de référence moins la remise du groupe (Groupes tarifaires).
+          {{ $t('margin.group_hint') }}
         </p>
       </div>
     </template>
@@ -109,11 +111,14 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { onBeforeUnmount, ref, watch } from 'vue';
 
 import { formatMoney, intlLocale } from '@app/utils';
 import { extractApiError } from '@/api/errors';
 import { previewMargin, type MarginPreview, type MarginPreviewRequest } from '@/api/margin';
+
+const { t } = useI18n();
 
 /**
  * Prix HT, coût de revient et marge des valeurs du formulaire article,
@@ -159,7 +164,7 @@ async function refresh() {
     error.value = null;
   } catch (err) {
     if (current !== sequence) return;
-    error.value = extractApiError(err) ?? 'Marge indisponible.';
+    error.value = extractApiError(err) ?? t('margin.unavailable');
   } finally {
     if (current === sequence) loading.value = false;
   }

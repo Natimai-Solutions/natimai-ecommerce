@@ -1,15 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader
-      title="Taux de TVA"
-      hint="Vos taux de TVA, librement définis : code, libellé, pourcentage, dates. Un pourcentage ne se modifie pas : on clôture le taux et on en crée un nouveau (les factures passées restent justes)."
-    >
+    <PageHeader :title="$t('tax.title')" :hint="$t('tax.hint')">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -18,7 +15,7 @@
           unelevated
           no-caps
           icon="ph:plus"
-          label="Nouveau taux"
+          :label="$t('tax.new')"
           @click="openCreate"
         />
       </template>
@@ -26,12 +23,11 @@
 
     <section class="app-section" aria-labelledby="tax-settings-title">
       <div class="app-section__head">
-        <h2 id="tax-settings-title" class="app-section__title">Taux appliqués</h2>
+        <h2 id="tax-settings-title" class="app-section__title">{{ $t('tax.applied') }}</h2>
       </div>
       <p class="admin-hint">
-        Le <strong>taux par défaut</strong> s'applique à un article dont ni la fiche ni la catégorie
-        ne précisent de taux. Le <strong>taux des frais</strong> ventile la livraison, les frais de
-        paiement et d'acompte sur les factures.
+        <!-- eslint-disable-next-line vue/no-v-html -- trusted message -->
+        <span v-html="$t('tax.intro')"></span>
       </p>
       <AppNotice v-if="settingsNotice" tone="success" dense class="q-mb-sm">
         {{ settingsNotice }}
@@ -43,7 +39,7 @@
         <q-select
           v-model="settingsForm.default_code"
           :options="codeOptions"
-          label="Taux par défaut"
+          :label="$t('tax.default_rate')"
           outlined
           dense
           emit-value
@@ -53,7 +49,7 @@
         <q-select
           v-model="settingsForm.fees_code"
           :options="codeOptions"
-          label="Taux des frais"
+          :label="$t('tax.fees_rate')"
           outlined
           dense
           emit-value
@@ -64,7 +60,7 @@
           color="primary"
           unelevated
           no-caps
-          label="Enregistrer"
+          :label="$t('common.save')"
           :loading="savingSettings"
           :disable="!settingsChanged"
           data-testid="tax-settings-save"
@@ -74,12 +70,12 @@
     </section>
 
     <div class="app-section__head q-mt-lg">
-      <h2 class="app-section__title">Tous les taux</h2>
+      <h2 class="app-section__title">{{ $t('tax.all') }}</h2>
     </div>
     <div class="admin-toolbar">
       <q-input
         v-model="territory"
-        label="Territoire (ex: PF)"
+        :label="$t('tax.territory_filter')"
         outlined
         dense
         clearable
@@ -88,7 +84,7 @@
       <q-select
         v-model="validFilter"
         :options="validOptions"
-        label="Validité"
+        :label="$t('tax.validity')"
         outlined
         dense
         emit-value
@@ -114,14 +110,14 @@
           <span class="font-mono">{{ props.row.code }}</span>
           <StatusTag
             v-if="settings && props.row.code === settings.default_code"
-            label="Par défaut"
+            :label="$t('tax.default')"
             tone="ok"
             icon="ph:star"
             class="q-ml-xs"
           />
           <StatusTag
             v-if="settings && props.row.code === settings.fees_code"
-            label="Frais"
+            :label="$t('tax.fees')"
             tone="neutral"
             icon="ph:receipt"
             class="q-ml-xs"
@@ -133,19 +129,24 @@
       </template>
       <template #body-cell-valid_until="props">
         <q-td :props="props">
-          <StatusTag v-if="!props.row.valid_until" label="Actif" tone="ok" icon="ph:check-circle" />
+          <StatusTag
+            v-if="!props.row.valid_until"
+            :label="$t('tax.active')"
+            tone="ok"
+            icon="ph:check-circle"
+          />
           <span v-else>{{ props.row.valid_until }}</span>
         </q-td>
       </template>
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
           <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
-            <q-tooltip>Modifier (libellé / clôture)</q-tooltip>
+            <q-tooltip>{{ $t('tax.edit') }}</q-tooltip>
           </q-btn>
         </q-td>
       </template>
       <template #no-data>
-        <div class="full-width text-center text-subtle q-pa-md">Aucun taux.</div>
+        <div class="full-width text-center text-subtle q-pa-md">{{ $t('tax.none') }}</div>
       </template>
     </q-table>
 
@@ -153,23 +154,23 @@
     <q-dialog v-model="createDialog">
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Nouveau taux</h2>
+          <h2 class="app-dialog__title">{{ $t('tax.new_title') }}</h2>
         </q-card-section>
         <q-form @submit.prevent="submitCreate">
           <q-card-section class="q-gutter-sm">
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="form.code"
-              label="Code (ex : TVA_NORMALE) *"
-              hint="Identifiant interne, en majuscules"
+              :label="$t('tax.code')"
+              :hint="$t('tax.code_hint')"
               outlined
               dense
               :rules="req"
             />
-            <q-input v-model="form.label" label="Libellé *" outlined dense :rules="req" />
+            <q-input v-model="form.label" :label="$t('tax.label')" outlined dense :rules="req" />
             <q-input
               v-model="form.rate_pct"
-              label="Taux (%) *"
+              :label="$t('tax.rate')"
               type="number"
               step="0.01"
               outlined
@@ -178,14 +179,14 @@
             />
             <q-input
               v-model="form.territory_code"
-              label="Territoire *"
+              :label="$t('tax.territory')"
               outlined
               dense
               :rules="req"
             />
             <q-input
               v-model="form.valid_from"
-              label="Valide à partir du *"
+              :label="$t('tax.valid_from')"
               type="date"
               outlined
               dense
@@ -193,20 +194,20 @@
             />
             <q-input
               v-model="form.valid_until"
-              label="Valide jusqu'au (optionnel)"
+              :label="$t('tax.valid_until')"
               type="date"
               outlined
               dense
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              label="Créer"
+              :label="$t('tax.create')"
               :loading="saving"
             />
           </q-card-actions>
@@ -218,19 +219,18 @@
     <q-dialog v-model="editDialog">
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Modifier {{ editing?.code }}</h2>
+          <h2 class="app-dialog__title">{{ $t('tax.edit_title', { code: editing?.code }) }}</h2>
           <p class="app-dialog__text">
-            Le taux ({{ editing?.rate_pct }} %) est immuable. Pour le changer, créez un nouveau taux
-            et clôturez celui-ci.
+            {{ $t('tax.immutable', { rate: editing?.rate_pct }) }}
           </p>
         </q-card-section>
         <q-form @submit.prevent="submitEdit">
           <q-card-section class="q-gutter-sm">
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
-            <q-input v-model="editForm.label" label="Libellé" outlined dense />
+            <q-input v-model="editForm.label" :label="$t('tax.label_short')" outlined dense />
             <q-input
               v-model="editForm.valid_until"
-              label="Clôturer le (valid_until)"
+              :label="$t('tax.close_on')"
               type="date"
               outlined
               dense
@@ -238,13 +238,13 @@
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              label="Enregistrer"
+              :label="$t('common.save')"
               :loading="saving"
             />
           </q-card-actions>
@@ -255,6 +255,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { intlLocale } from '@app/utils';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
@@ -272,6 +273,8 @@ import {
 } from '@/api/taxRates';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import { extractApiError } from '@/api/errors';
+
+const { t } = useI18n();
 
 const shopConfig = useShopConfigStore();
 const shopTerritory = computed(() => shopConfig.config?.tax_territory_code ?? 'PF');
@@ -313,7 +316,7 @@ async function loadSettings() {
     settingsForm.default_code = current.default_code;
     settingsForm.fees_code = current.fees_code;
   } catch (err) {
-    settingsError.value = extractApiError(err) ?? 'Chargement impossible.';
+    settingsError.value = extractApiError(err) ?? t('common.load_failed');
   }
 }
 
@@ -323,10 +326,9 @@ async function saveSettings() {
   settingsError.value = null;
   try {
     settings.value = await updateTaxSettings({ ...settingsForm });
-    settingsNotice.value =
-      'Taux enregistrés. Les prix des articles concernés sont recalculés en arrière-plan.';
+    settingsNotice.value = t('tax.saved');
   } catch (err) {
-    settingsError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    settingsError.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     savingSettings.value = false;
   }
@@ -338,26 +340,26 @@ const error = ref<string | null>(null);
 const territory = ref<string | null>(null);
 const validFilter = ref<boolean | null>(null);
 
-const validOptions = [
-  { label: 'Tous', value: null },
-  { label: 'Actifs', value: true },
-  { label: 'Expirés', value: false },
-];
+const validOptions = computed(() => [
+  { label: t('tax.opt_all'), value: null },
+  { label: t('tax.opt_active'), value: true },
+  { label: t('tax.opt_expired'), value: false },
+]);
 
 const req = [
   (v: string | number | null | undefined) =>
-    (v !== null && v !== undefined && String(v).length > 0) || 'Requis',
+    (v !== null && v !== undefined && String(v).length > 0) || t('common.required'),
 ];
 
-const columns: QTableColumn[] = [
-  { name: 'code', label: 'Code', field: 'code', align: 'left' },
-  { name: 'label', label: 'Libellé', field: 'label', align: 'left' },
-  { name: 'rate', label: 'Taux', field: 'rate_pct', align: 'left' },
-  { name: 'territory_code', label: 'Territoire', field: 'territory_code', align: 'left' },
-  { name: 'valid_from', label: 'Valide depuis', field: 'valid_from', align: 'left' },
-  { name: 'valid_until', label: 'Clôture', field: 'valid_until', align: 'left' },
+const columns = computed<QTableColumn[]>(() => [
+  { name: 'code', label: t('tax.col_code'), field: 'code', align: 'left' },
+  { name: 'label', label: t('tax.col_label'), field: 'label', align: 'left' },
+  { name: 'rate', label: t('tax.col_rate'), field: 'rate_pct', align: 'left' },
+  { name: 'territory_code', label: t('tax.col_territory'), field: 'territory_code', align: 'left' },
+  { name: 'valid_from', label: t('tax.col_from'), field: 'valid_from', align: 'left' },
+  { name: 'valid_until', label: t('tax.col_until'), field: 'valid_until', align: 'left' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-];
+]);
 
 async function load() {
   loading.value = true;
@@ -368,7 +370,7 @@ async function load() {
     if (validFilter.value !== null) params.valid = validFilter.value;
     rows.value = await listTaxRates(params);
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -413,7 +415,7 @@ async function submitCreate() {
     createDialog.value = false;
     await Promise.all([load(), loadSettings()]);
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Création impossible.';
+    dialogError.value = extractApiError(err) ?? t('tax.create_failed');
   } finally {
     saving.value = false;
   }
@@ -447,7 +449,7 @@ async function submitEdit() {
     editDialog.value = false;
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Modification impossible.';
+    dialogError.value = extractApiError(err) ?? t('tax.edit_failed');
   } finally {
     saving.value = false;
   }

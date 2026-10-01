@@ -1,18 +1,16 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader title="Promotions">
+    <PageHeader :title="$t('promotions.title')">
       <template #hint>
-        Une promotion baisse automatiquement le prix d'un article ou de toute une catégorie, entre
-        deux dates, pour tous les clients. Règle du <strong>meilleur prix</strong> : elle ne se
-        cumule pas avec la remise ou le prix d'un groupe tarifaire — chaque client paie le plus bas
-        des deux, et la boutique affiche son prix habituel barré.
+        <!-- eslint-disable-next-line vue/no-v-html -- trusted message -->
+        <span v-html="$t('promotions.hint')"></span>
       </template>
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -21,7 +19,7 @@
           unelevated
           no-caps
           icon="ph:plus"
-          label="Nouvelle promotion"
+          :label="$t('promotions.new')"
           data-testid="promotion-create"
           @click="openCreate"
         />
@@ -66,10 +64,10 @@
             dense
             round
             icon="ph:pencil-simple"
-            aria-label="Modifier"
+            :aria-label="$t('promotions.edit')"
             @click="openEdit(props.row)"
           >
-            <q-tooltip>Modifier</q-tooltip>
+            <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
           </q-btn>
           <q-toggle
             :model-value="props.row.is_active"
@@ -78,12 +76,12 @@
             :disable="togglingId === props.row.id"
             @update:model-value="(val) => toggleActive(props.row, val)"
           >
-            <q-tooltip>Active</q-tooltip>
+            <q-tooltip>{{ $t('promotions.active') }}</q-tooltip>
           </q-toggle>
         </q-td>
       </template>
       <template #no-data>
-        <div class="full-width text-center text-subtle q-pa-md">Aucune promotion.</div>
+        <div class="full-width text-center text-subtle q-pa-md">{{ $t('promotions.none') }}</div>
       </template>
     </q-table>
 
@@ -91,7 +89,11 @@
       <q-card class="app-dialog" data-testid="promotion-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
-            {{ editing ? `Modifier « ${editing.name} »` : 'Nouvelle promotion' }}
+            {{
+              editing
+                ? $t('promotions.edit_title', { name: editing.name })
+                : $t('promotions.new_title')
+            }}
           </h2>
         </q-card-section>
         <q-form @submit.prevent="submit">
@@ -99,8 +101,8 @@
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="form.name"
-              label="Nom (affiché au client) *"
-              hint="Ex. : Rentrée −20 %"
+              :label="$t('promotions.name')"
+              :hint="$t('promotions.name_hint')"
               outlined
               dense
               maxlength="100"
@@ -111,7 +113,7 @@
               v-if="form.target === 'product'"
               v-model="form.product"
               :options="productOptions"
-              label="Article *"
+              :label="$t('promotions.product')"
               outlined
               dense
               use-input
@@ -119,13 +121,15 @@
               clearable
               option-label="label"
               option-value="value"
-              hint="Tapez un nom, un SKU ou une référence"
+              :hint="$t('promotions.product_hint')"
               data-testid="promotion-product"
               @filter="filterProducts"
             >
               <template #no-option>
                 <q-item>
-                  <q-item-section class="text-subtle">Aucun article trouvé</q-item-section>
+                  <q-item-section class="text-subtle">{{
+                    $t('promotions.no_product')
+                  }}</q-item-section>
                 </q-item>
               </template>
             </q-select>
@@ -133,7 +137,7 @@
               v-else
               v-model="form.category_id"
               :options="categoryOptions"
-              label="Catégorie *"
+              :label="$t('promotions.category')"
               outlined
               dense
               emit-value
@@ -143,7 +147,7 @@
             <div class="promotion-form__row">
               <q-input
                 v-model="form.percentage"
-                label="Remise en %"
+                :label="$t('promotions.percent')"
                 type="number"
                 step="any"
                 min="0.01"
@@ -155,7 +159,7 @@
               />
               <q-input
                 v-model="form.amount"
-                :label="`ou remise en montant (${currency})`"
+                :label="$t('promotions.amount', { currency })"
                 type="number"
                 step="1"
                 min="1"
@@ -165,22 +169,33 @@
               />
             </div>
             <div class="promotion-form__row">
-              <q-input v-model="form.start_date" label="Du" type="date" outlined dense />
-              <q-input v-model="form.end_date" label="Au (inclus)" type="date" outlined dense />
+              <q-input
+                v-model="form.start_date"
+                :label="$t('promotions.from')"
+                type="date"
+                outlined
+                dense
+              />
+              <q-input
+                v-model="form.end_date"
+                :label="$t('promotions.to')"
+                type="date"
+                outlined
+                dense
+              />
             </div>
             <p class="text-caption text-muted q-mb-none">
-              La remise porte sur le prix de référence (celui du groupe par défaut). Sans date de
-              fin, la promotion dure jusqu'à ce que vous la désactiviez.
+              {{ $t('promotions.reference_hint') }}
             </p>
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              :label="editing ? 'Enregistrer' : 'Créer la promotion'"
+              :label="editing ? $t('promotions.save') : $t('promotions.create')"
               :loading="saving"
               data-testid="promotion-save"
             />
@@ -192,6 +207,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { intlLocale } from '@app/utils';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
@@ -212,6 +228,8 @@ import { listCategories } from '@/api/categories';
 import { extractApiError } from '@/api/errors';
 import { useShopConfigStore } from '@/stores/shopConfig';
 
+const { t } = useI18n();
+
 type PromotionTarget = 'product' | 'category';
 interface Choice {
   label: string;
@@ -228,23 +246,23 @@ const productNames = ref<Record<string, string>>({});
 const categoryOptions = ref<Choice[]>([]);
 const productOptions = ref<Choice[]>([]);
 
-const targetOptions = [
-  { label: 'Un article', value: 'product' },
-  { label: 'Une catégorie', value: 'category' },
-];
+const targetOptions = computed(() => [
+  { label: t('promotions.one_product'), value: 'product' },
+  { label: t('promotions.one_category'), value: 'category' },
+]);
 
-const columns: QTableColumn<Discount>[] = [
-  { name: 'name', label: 'Promotion', field: 'name', align: 'left' },
-  { name: 'value', label: 'Remise', field: 'percentage', align: 'left' },
+const columns = computed<QTableColumn<Discount>[]>(() => [
+  { name: 'name', label: t('promotions.col_promotion'), field: 'name', align: 'left' },
+  { name: 'value', label: t('promotions.col_discount'), field: 'percentage', align: 'left' },
   {
     name: 'validity',
-    label: 'Période',
+    label: t('promotions.col_period'),
     field: (row) => `${fmtDate(row.start_date)} → ${fmtDate(row.end_date)}`,
     align: 'left',
   },
-  { name: 'state', label: 'État', field: 'is_active', align: 'center' },
+  { name: 'state', label: t('promotions.col_state'), field: 'is_active', align: 'center' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-];
+]);
 
 function fmtDate(value: string | null): string {
   if (!value) return '∞';
@@ -261,19 +279,21 @@ function valueLabel(d: Discount): string {
 function targetLabel(d: Discount): string {
   if (d.target === 'category') {
     const category = categoryOptions.value.find((c) => c.value === d.category_id);
-    return `Catégorie ${category?.label ?? '—'}`;
+    return t('promotions.target_category', { name: category?.label ?? '—' });
   }
-  return `Article ${d.product_id ? (productNames.value[d.product_id] ?? '…') : '—'}`;
+  return t('promotions.target_product', {
+    name: d.product_id ? (productNames.value[d.product_id] ?? '…') : '—',
+  });
 }
 
 function stateOf(d: Discount): { label: string; tone: StatusTone } {
-  if (!d.is_active) return { label: 'Désactivée', tone: 'neutral' };
+  if (!d.is_active) return { label: t('promotions.st_disabled'), tone: 'neutral' };
   const now = Date.now();
   if (d.start_date && new Date(d.start_date).getTime() > now)
-    return { label: 'Programmée', tone: 'neutral' };
+    return { label: t('promotions.st_scheduled'), tone: 'neutral' };
   if (d.end_date && new Date(d.end_date).getTime() < now)
-    return { label: 'Terminée', tone: 'warn' };
-  return { label: 'En cours', tone: 'ok' };
+    return { label: t('promotions.st_ended'), tone: 'warn' };
+  return { label: t('promotions.st_running'), tone: 'ok' };
 }
 
 async function load() {
@@ -290,7 +310,7 @@ async function load() {
       ...Object.fromEntries(names.map(([id, name]) => [id, name ?? 'introuvable'])),
     };
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -369,12 +389,12 @@ function openEdit(promotion: Discount) {
 }
 
 function validate(): string | null {
-  if (!form.name.trim()) return 'Donnez un nom à la promotion.';
-  if (form.target === 'product' && !form.product) return 'Choisissez un article.';
-  if (form.target === 'category' && !form.category_id) return 'Choisissez une catégorie.';
-  if (!form.percentage && !form.amount) return 'Indiquez un pourcentage ou un montant.';
+  if (!form.name.trim()) return t('promotions.err_name');
+  if (form.target === 'product' && !form.product) return t('promotions.err_product');
+  if (form.target === 'category' && !form.category_id) return t('promotions.err_category');
+  if (!form.percentage && !form.amount) return t('promotions.err_value');
   if (form.start_date && form.end_date && form.end_date < form.start_date)
-    return 'La date de fin précède la date de début.';
+    return t('promotions.err_dates');
   return null;
 }
 
@@ -409,7 +429,7 @@ async function submit() {
     dialog.value = false;
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    dialogError.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     saving.value = false;
   }
@@ -422,7 +442,7 @@ async function toggleActive(promotion: Discount, value: boolean) {
     await updateDiscount(promotion.id, { is_active: value });
     promotion.is_active = value;
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Mise à jour impossible.';
+    error.value = extractApiError(err) ?? t('common.update_failed');
   } finally {
     togglingId.value = null;
   }

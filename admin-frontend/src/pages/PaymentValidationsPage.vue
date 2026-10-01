@@ -1,15 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader
-      title="Validation des paiements"
-      hint="Paiements manuels (chèque / virement) et bons de commande en attente de validation."
-    >
+    <PageHeader :title="$t('payments.title')" :hint="$t('payments.hint')">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -27,9 +24,9 @@
 
     <div v-else-if="rows.length === 0" class="app-empty">
       <q-icon name="ph:check-circle" size="28px" class="text-subtle" />
-      <h3>Aucun paiement en attente</h3>
+      <h3>{{ $t('payments.none') }}</h3>
       <p>
-        Les paiements en espèces, chèques, virements et bons de commande à valider apparaîtront ici.
+        {{ $t('payments.none_hint') }}
       </p>
     </div>
 
@@ -59,7 +56,7 @@
             class="text-caption text-warning"
             data-testid="payment-received"
           >
-            déjà reçu
+            {{ $t('payments.received') }}
             <span class="font-mono">{{
               formatMoney(props.row.received_amount, props.row.currency)
             }}</span>
@@ -100,7 +97,7 @@
             dense
             no-caps
             icon="ph:file-text"
-            label="Pièces"
+            :label="$t('payments.documents')"
             @click="openAttachments(props.row)"
           />
           <q-btn
@@ -109,7 +106,7 @@
             no-caps
             icon="ph:check"
             color="positive"
-            :label="props.row.is_document ? 'Approuver' : 'Encaisser'"
+            :label="props.row.is_document ? $t('payments.approve') : $t('payments.collect')"
             data-testid="payment-approve"
             @click="props.row.is_document ? openApprove(props.row) : openReceipt(props.row)"
           />
@@ -119,7 +116,7 @@
             no-caps
             icon="ph:x"
             color="negative"
-            label="Rejeter"
+            :label="$t('payments.reject')"
             @click="openReject(props.row)"
           />
         </q-td>
@@ -133,7 +130,9 @@
       :remaining="current ? current.amount - (current.received_amount ?? 0) : 0"
       :currency="current?.currency ?? shopConfig.currency"
       :default-method="defaultReceiptMethod(current?.provider_code)"
-      :title="`Encaisser — ${providerLabel(current?.provider_code ?? '')}`"
+      :title="
+        $t('payments.collect_title', { provider: providerLabel(current?.provider_code ?? '') })
+      "
       confirm-testid="payment-approve-confirm"
       @done="onReceipt"
     />
@@ -142,7 +141,7 @@
     <q-dialog v-model="approveDialog">
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Approuver le paiement</h2>
+          <h2 class="app-dialog__title">{{ $t('payments.approve_title') }}</h2>
           <p class="app-dialog__text">
             {{ providerLabel(current?.provider_code ?? '') }} —
             <strong class="font-mono">{{
@@ -155,17 +154,16 @@
           <q-input
             v-if="!current?.is_document"
             v-model="approveForm.reference"
-            label="Référence (n° de chèque, réf. virement…)"
+            :label="$t('payments.reference')"
             outlined
             dense
           />
           <p v-else class="admin-hint q-mb-none">
-            Bon de commande : aucune référence de transaction n'est requise — vérifiez la pièce
-            jointe puis approuvez.
+            {{ $t('payments.po_hint') }}
           </p>
           <q-input
             v-model="approveForm.comment"
-            label="Commentaire (optionnel)"
+            :label="$t('payments.comment')"
             outlined
             dense
             type="textarea"
@@ -173,12 +171,12 @@
           />
         </q-card-section>
         <q-card-actions align="right" class="app-dialog__actions">
-          <q-btn flat no-caps label="Annuler" v-close-popup />
+          <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
           <q-btn
             color="primary"
             unelevated
             no-caps
-            label="Approuver"
+            :label="$t('payments.approve')"
             :loading="saving"
             data-testid="payment-approve-confirm"
             @click="submitApprove"
@@ -191,29 +189,29 @@
     <q-dialog v-model="rejectDialog">
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Rejeter le paiement</h2>
+          <h2 class="app-dialog__title">{{ $t('payments.reject_title') }}</h2>
         </q-card-section>
         <q-form @submit.prevent="submitReject">
           <q-card-section class="q-gutter-sm">
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="rejectReason"
-              label="Motif du rejet *"
+              :label="$t('payments.reason')"
               outlined
               dense
               type="textarea"
               autogrow
-              :rules="[(v) => (!!v && v.trim().length > 0) || 'Motif requis']"
+              :rules="[(v) => (!!v && v.trim().length > 0) || $t('payments.reason_rule')]"
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="negative"
               unelevated
               no-caps
-              label="Rejeter"
+              :label="$t('payments.reject')"
               :loading="saving"
             />
           </q-card-actions>
@@ -225,7 +223,7 @@
     <q-dialog v-model="attachmentsDialog">
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Bon(s) de commande</h2>
+          <h2 class="app-dialog__title">{{ $t('payments.po_title') }}</h2>
         </q-card-section>
         <q-card-section>
           <AppNotice v-if="dialogError" tone="error" dense class="q-mb-sm">{{
@@ -235,7 +233,7 @@
             <q-spinner size="1.5em" />
           </div>
           <div v-else-if="attachments.length === 0" class="text-subtle text-body2">
-            Aucune pièce jointe pour ce paiement.
+            {{ $t('payments.no_attachment') }}
           </div>
           <q-list v-else separator>
             <q-item v-for="att in attachments" :key="att.id">
@@ -261,14 +259,14 @@
                   :disable="att.av_scanned && att.av_clean === false"
                   @click="download(att)"
                 >
-                  <q-tooltip>Télécharger</q-tooltip>
+                  <q-tooltip>{{ $t('payments.download') }}</q-tooltip>
                 </q-btn>
               </q-item-section>
             </q-item>
           </q-list>
         </q-card-section>
         <q-card-actions align="right" class="app-dialog__actions">
-          <q-btn flat no-caps label="Fermer" v-close-popup />
+          <q-btn flat no-caps :label="$t('common.close')" v-close-popup />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -276,9 +274,10 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import ReceiptDialog from '@/components/ReceiptDialog.vue';
 import { providerLabel } from '@/utils/payments';
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
@@ -299,24 +298,26 @@ import {
 } from '@/api/paymentValidations';
 import { extractApiError } from '@/api/errors';
 
+const { t } = useI18n();
+
 const rows = ref<PendingPayment[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
 
-const columns: QTableColumn[] = [
-  { name: 'provider', label: 'Type', field: 'provider_code', align: 'left' },
-  { name: 'amount', label: 'Montant', field: 'amount', align: 'right' },
+const columns = computed<QTableColumn[]>(() => [
+  { name: 'provider', label: t('payments.col_type'), field: 'provider_code', align: 'left' },
+  { name: 'amount', label: t('payments.col_amount'), field: 'amount', align: 'right' },
   {
     name: 'reference',
-    label: 'Référence',
+    label: t('payments.col_reference'),
     field: (r) => r.provider_reference ?? '—',
     align: 'left',
   },
-  { name: 'user_id', label: 'Client', field: 'user_id', align: 'left' },
-  { name: 'order_id', label: 'Commande', field: 'order_id', align: 'left' },
+  { name: 'user_id', label: t('payments.col_customer'), field: 'user_id', align: 'left' },
+  { name: 'order_id', label: t('payments.col_order'), field: 'order_id', align: 'left' },
   { name: 'actions', label: '', field: 'payment_id', align: 'right' },
-];
+]);
 
 const shopConfig = useShopConfigStore();
 
@@ -331,7 +332,7 @@ async function load() {
   try {
     rows.value = await listPendingValidation();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -369,8 +370,8 @@ function defaultReceiptMethod(code: string | undefined): ReceiptMethod {
 
 async function onReceipt(result: ReceiptResult) {
   notice.value = result.payment_settled
-    ? 'Paiement encaissé et validé.'
-    : `Versement enregistré — reste ${formatMoney(Number(result.remaining_amount))}.`;
+    ? t('payments.collected')
+    : t('payments.partial', { amount: formatMoney(Number(result.remaining_amount)) });
   await load();
 }
 
@@ -384,10 +385,10 @@ async function submitApprove() {
       comment: approveForm.comment || null,
     });
     approveDialog.value = false;
-    notice.value = 'Paiement approuvé.';
+    notice.value = t('payments.approved');
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Approbation impossible.';
+    dialogError.value = extractApiError(err) ?? t('payments.approve_failed');
   } finally {
     saving.value = false;
   }
@@ -410,10 +411,10 @@ async function submitReject() {
   try {
     await rejectPayment(current.value.payment_id, rejectReason.value.trim());
     rejectDialog.value = false;
-    notice.value = 'Paiement rejeté.';
+    notice.value = t('payments.rejected');
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Rejet impossible.';
+    dialogError.value = extractApiError(err) ?? t('payments.reject_failed');
   } finally {
     saving.value = false;
   }
@@ -434,7 +435,7 @@ async function openAttachments(p: PendingPayment) {
   try {
     attachments.value = await listPaymentAttachments(p.payment_id);
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Chargement des pièces impossible.';
+    dialogError.value = extractApiError(err) ?? t('payments.docs_failed');
   } finally {
     loadingAttachments.value = false;
   }
@@ -448,16 +449,16 @@ async function download(att: PaymentAttachment) {
     const url = await getAttachmentDownloadUrl(current.value.payment_id, att.id);
     window.open(url, '_blank', 'noopener');
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Téléchargement impossible.';
+    dialogError.value = extractApiError(err) ?? t('payments.download_failed');
   } finally {
     downloadingId.value = null;
   }
 }
 
 function avLabel(att: PaymentAttachment): string {
-  if (!att.av_scanned) return 'analyse…';
-  if (att.av_clean) return 'sain';
-  return 'infecté';
+  if (!att.av_scanned) return t('payments.av_scanning');
+  if (att.av_clean) return t('payments.av_clean');
+  return t('payments.av_infected');
 }
 function avColor(att: PaymentAttachment): string {
   if (!att.av_scanned) return 'orange';

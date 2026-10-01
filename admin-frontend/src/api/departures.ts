@@ -1,3 +1,4 @@
+import { labels } from '@/i18n/global';
 import { api } from '@/boot/api';
 import type { DepartureLike } from '@app/utils';
 
@@ -282,8 +283,8 @@ export async function getDashboard(departureId: string): Promise<DepartureDashbo
   return data;
 }
 
-export const FULFILMENT_LABELS: Record<string, string> = {
-  served: 'Servie',
-  partial: 'Partielle',
-  unserved: 'Non servie',
-};
+export const FULFILMENT_LABELS: Record<string, string> = labels({
+  served: 'api.fulfilment.served',
+  partial: 'api.fulfilment.partial',
+  unserved: 'api.fulfilment.unserved',
+});

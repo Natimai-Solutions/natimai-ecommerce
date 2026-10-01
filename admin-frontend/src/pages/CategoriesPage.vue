@@ -1,20 +1,16 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader title="Catégories">
+    <PageHeader :title="$t('categories.title')">
       <template #hint>
-        Les catégories viennent de la synchronisation fournisseur ou sont créées ici : leur nom
-        d'origine sert de clé de rapprochement et ne se modifie pas. Personnalisez le titre vitrine,
-        la description, l'image, la marge et le taux de TVA par défaut ; fusionnez les doublons.
-        Pour ranger les catégories d'un fournisseur dans les vôtres : Fournisseurs → icône «
-        Catégories ».
+        {{ $t('categories.hint') }}
       </template>
       <template #actions>
-        <q-toggle v-model="showMerged" label="Afficher les fusionnées" />
+        <q-toggle v-model="showMerged" :label="$t('categories.show_merged')" />
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -23,7 +19,7 @@
           unelevated
           no-caps
           icon="ph:plus"
-          label="Nouvelle catégorie"
+          :label="$t('categories.new')"
           data-testid="category-create"
           @click="openCreate"
         />
@@ -49,7 +45,7 @@
         <q-td :props="props">
           <div class="text-body2">{{ props.row.title }}</div>
           <div v-if="props.row.display_name" class="text-caption text-muted">
-            Nom fournisseur : {{ props.row.name }}
+            {{ $t('categories.supplier_name', { name: props.row.name }) }}
           </div>
         </q-td>
       </template>
@@ -59,15 +55,20 @@
             v-if="props.row.merged_into_id"
             tone="neutral"
             icon="ph:git-merge"
-            :label="`Fusionnée dans ${props.row.merged_into_name ?? '?'}`"
+            :label="$t('categories.merged_into', { name: props.row.merged_into_name ?? '?' })"
           />
           <StatusTag
             v-else-if="props.row.is_active"
             tone="ok"
             icon="ph:check-circle"
-            label="Active"
+            :label="$t('categories.active')"
           />
-          <StatusTag v-else tone="neutral" icon="ph:minus-circle" label="Inactive" />
+          <StatusTag
+            v-else
+            tone="neutral"
+            icon="ph:minus-circle"
+            :label="$t('categories.inactive')"
+          />
         </q-td>
       </template>
       <template #body-cell-customs="props">
@@ -82,10 +83,10 @@
         <q-td :props="props" align="right" class="no-wrap">
           <template v-if="!props.row.merged_into_id">
             <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
-              <q-tooltip>Titre vitrine, description, image</q-tooltip>
+              <q-tooltip>{{ $t('categories.edit') }}</q-tooltip>
             </q-btn>
             <q-btn flat round dense icon="ph:git-merge" @click="openMerge(props.row)">
-              <q-tooltip>Fusionner dans une autre catégorie</q-tooltip>
+              <q-tooltip>{{ $t('categories.merge_into') }}</q-tooltip>
             </q-btn>
             <q-btn
               flat
@@ -96,39 +97,43 @@
               :loading="busyIds.has(props.row.id)"
               @click="onToggleActive(props.row)"
             >
-              <q-tooltip>{{ props.row.is_active ? 'Désactiver' : 'Réactiver' }}</q-tooltip>
+              <q-tooltip>{{
+                props.row.is_active ? $t('categories.disable') : $t('categories.enable')
+              }}</q-tooltip>
             </q-btn>
           </template>
         </q-td>
       </template>
       <template #no-data>
-        <div class="full-width text-center text-subtle q-pa-md">Aucune catégorie.</div>
+        <div class="full-width text-center text-subtle q-pa-md">{{ $t('categories.none') }}</div>
       </template>
     </q-table>
 
-    <div class="text-caption text-muted q-mt-sm">{{ visibleRows.length }} catégorie(s)</div>
+    <div class="text-caption text-muted q-mt-sm">
+      {{ $t('categories.count', { n: visibleRows.length }) }}
+    </div>
 
     <!-- Édition -->
     <q-dialog v-model="editDialog">
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">{{ editing?.name }}</h2>
-          <p class="app-dialog__text">Ces champs ne sont jamais réécrits par la synchronisation.</p>
+          <p class="app-dialog__text">{{ $t('categories.sync_safe') }}</p>
         </q-card-section>
         <q-form @submit.prevent="submitEdit">
           <q-card-section class="q-gutter-sm">
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="editForm.display_name"
-              label="Titre vitrine"
-              :hint="`Vide = « ${editing?.name ?? ''} » (nom fournisseur)`"
+              :label="$t('categories.shop_title')"
+              :hint="$t('categories.title_hint', { name: editing?.name ?? '' })"
               outlined
               dense
               clearable
             />
             <q-input
               v-model="editForm.description"
-              label="Description"
+              :label="$t('categories.description')"
               type="textarea"
               autogrow
               outlined
@@ -136,8 +141,8 @@
             />
             <q-input
               v-model="editForm.image_url"
-              label="Image de la tuile vitrine"
-              hint="Affichée sur l'accueil ; médiathèque ou URL"
+              :label="$t('categories.tile')"
+              :hint="$t('categories.tile_hint')"
               outlined
               dense
             >
@@ -150,7 +155,7 @@
                   dense
                   no-caps
                   icon="ph:images"
-                  label="Médiathèque"
+                  :label="$t('categories.media')"
                   @click="mediaPickerOpen = true"
                 />
               </template>
@@ -158,8 +163,8 @@
             <q-select
               v-model="editForm.default_tax_rate_id"
               :options="taxRateOptions"
-              label="Taux de TVA par défaut"
-              hint="Vide = taux par défaut de la boutique ; un article peut le surcharger"
+              :label="$t('categories.vat')"
+              :hint="$t('categories.vat_hint')"
               outlined
               dense
               emit-value
@@ -169,8 +174,8 @@
             />
             <q-input
               v-model="editForm.default_margin_rate_pct"
-              label="Marge par défaut (%)"
-              hint="Vide = marge du groupe tarifaire du client ; un article peut la surcharger"
+              :label="$t('categories.margin')"
+              :hint="$t('categories.margin_hint')"
               type="number"
               step="0.01"
               min="0"
@@ -179,13 +184,13 @@
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              label="Enregistrer"
+              :label="$t('common.save')"
               :loading="saving"
             />
           </q-card-actions>
@@ -197,7 +202,9 @@
     <q-dialog v-model="mergeDialog">
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Fusionner « {{ merging?.title }} »</h2>
+          <h2 class="app-dialog__title">
+            {{ $t('categories.merge_title', { title: merging?.title }) }}
+          </h2>
         </q-card-section>
         <q-form @submit.prevent="submitMerge">
           <q-card-section class="q-gutter-sm">
@@ -205,7 +212,7 @@
             <q-select
               v-model="mergeTarget"
               :options="mergeTargets"
-              label="Catégorie cible *"
+              :label="$t('categories.target')"
               outlined
               dense
               emit-value
@@ -215,20 +222,20 @@
               @filter="filterTargets"
             />
             <AppNotice tone="warning" dense>
-              Les {{ merging?.product_count ?? 0 }} produit(s) et les remises de cette catégorie
-              passent sur la cible. La catégorie devient inactive mais reste connue : la prochaine
-              synchronisation continuera d'envoyer ses produits vers la cible.
-              <strong>Irréversible.</strong>
+              <!-- eslint-disable-next-line vue/no-v-html -- trusted message -->
+              <span
+                v-html="$t('categories.merge_notice', { n: merging?.product_count ?? 0 })"
+              ></span>
             </AppNotice>
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="negative"
               unelevated
               no-caps
-              label="Fusionner"
+              :label="$t('categories.merge')"
               :loading="saving"
               :disable="!mergeTarget"
             />
@@ -239,37 +246,37 @@
     <q-dialog v-model="createDialog">
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Nouvelle catégorie</h2>
+          <h2 class="app-dialog__title">{{ $t('categories.new_title') }}</h2>
         </q-card-section>
         <q-form @submit.prevent="submitCreate">
           <q-card-section class="q-gutter-sm">
             <AppNotice v-if="createError" tone="error" dense>{{ createError }}</AppNotice>
             <q-input
               v-model="createForm.name"
-              label="Nom *"
-              hint="Clé de rapprochement : ne se modifie plus ensuite (le titre vitrine, si)"
+              :label="$t('categories.name')"
+              :hint="$t('categories.key_hint')"
               outlined
               dense
               autofocus
-              :rules="[(v: string) => !!v?.trim() || 'Requis']"
+              :rules="[(v: string) => !!v?.trim() || $t('common.required')]"
               data-testid="category-create-name"
             />
             <q-input
               v-model="createForm.display_name"
-              label="Titre vitrine"
-              hint="Vide = le nom"
+              :label="$t('categories.shop_title')"
+              :hint="$t('categories.name_hint')"
               outlined
               dense
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn v-close-popup flat no-caps label="Annuler" />
+            <q-btn v-close-popup flat no-caps :label="$t('common.cancel')" />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              label="Créer"
+              :label="$t('categories.create')"
               :loading="creating"
             />
           </q-card-actions>
@@ -285,6 +292,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { intlLocale } from '@app/utils';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
@@ -302,6 +310,8 @@ import {
 import { extractApiError } from '@/api/errors';
 import { listTaxRates, setCategoryTaxRate, type TaxRate } from '@/api/taxRates';
 
+const { t } = useI18n();
+
 const rows = ref<AdminCategory[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -312,31 +322,36 @@ const visibleRows = computed(() =>
   showMerged.value ? rows.value : rows.value.filter((c) => !c.merged_into_id),
 );
 
-const columns: QTableColumn[] = [
-  { name: 'title', label: 'Catégorie', field: 'title', align: 'left' },
-  { name: 'status', label: 'Statut', field: 'is_active', align: 'left' },
+const columns = computed<QTableColumn[]>(() => [
+  { name: 'title', label: t('categories.col_category'), field: 'title', align: 'left' },
+  { name: 'status', label: t('categories.col_status'), field: 'is_active', align: 'left' },
   {
     name: 'product_count',
-    label: 'Produits',
+    label: t('categories.col_products'),
     field: 'product_count',
     align: 'right',
     classes: 'font-mono',
   },
-  { name: 'customs', label: 'Douane', field: 'default_customs_rate_pct', align: 'left' },
+  {
+    name: 'customs',
+    label: t('categories.col_customs'),
+    field: 'default_customs_rate_pct',
+    align: 'left',
+  },
   {
     name: 'tax',
-    label: 'TVA',
+    label: t('categories.col_vat'),
     field: (r) => taxLabel(r.default_tax_rate_id),
     align: 'left',
   },
   {
     name: 'margin',
-    label: 'Marge',
+    label: t('categories.col_margin'),
     field: (r) => (r.default_margin_rate_pct ? `${r.default_margin_rate_pct} %` : '—'),
     align: 'left',
   },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-];
+]);
 
 const createDialog = ref(false);
 const creating = ref(false);
@@ -359,10 +374,10 @@ async function submitCreate() {
       display_name: createForm.display_name.trim() || null,
     });
     createDialog.value = false;
-    notice.value = `Catégorie « ${created.title} » créée.`;
+    notice.value = t('categories.created', { title: created.title });
     await load();
   } catch (err) {
-    createError.value = extractApiError(err) ?? 'Création impossible.';
+    createError.value = extractApiError(err) ?? t('categories.create_failed');
   } finally {
     creating.value = false;
   }
@@ -374,7 +389,7 @@ async function load() {
   try {
     rows.value = await listAdminCategories();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -391,7 +406,7 @@ async function onToggleActive(category: AdminCategory) {
     await updateAdminCategory(category.id, { is_active: !category.is_active });
     await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Modification impossible.';
+    error.value = extractApiError(err) ?? t('categories.edit_failed');
   } finally {
     const next = new Set(busyIds.value);
     next.delete(category.id);
@@ -469,7 +484,7 @@ async function submitEdit() {
     editDialog.value = false;
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    dialogError.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     saving.value = false;
   }
@@ -509,10 +524,15 @@ async function submitMerge() {
   try {
     const result = await mergeCategory(merging.value.id, mergeTarget.value);
     mergeDialog.value = false;
-    notice.value = `« ${result.source.title} » fusionnée dans « ${result.target.title} » : ${result.moved_products} produit(s) et ${result.moved_discounts} remise(s) déplacés.`;
+    notice.value = t('categories.merged', {
+      source: result.source.title,
+      target: result.target.title,
+      products: result.moved_products,
+      discounts: result.moved_discounts,
+    });
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Fusion impossible.';
+    dialogError.value = extractApiError(err) ?? t('categories.merge_failed');
   } finally {
     saving.value = false;
   }

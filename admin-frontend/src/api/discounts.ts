@@ -1,13 +1,14 @@
+import { labels } from '@/i18n/global';
 import { api } from '@/boot/api';
 
 export type DiscountType = 'coupon' | 'promotion';
 export type DiscountTarget = 'product' | 'category' | 'order';
 
-export const DISCOUNT_TARGET_LABELS: Record<DiscountTarget, string> = {
-  order: 'Toute la commande',
-  product: 'Un produit',
-  category: 'Une catégorie',
-};
+export const DISCOUNT_TARGET_LABELS: Record<DiscountTarget, string> = labels({
+  order: 'api.discount_target.order',
+  product: 'api.discount_target.product',
+  category: 'api.discount_target.category',
+});
 
 /** `DiscountPublic` — the generic `/discount` CRUD (superuser). */
 export interface Discount {

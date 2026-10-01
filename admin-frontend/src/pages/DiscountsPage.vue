@@ -1,17 +1,15 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader title="Codes promo">
+    <PageHeader :title="$t('discounts.title')">
       <template #hint>
-        Un code est saisi par le client au checkout ; le serveur le valide (dates, quotas, minimum,
-        articles concernés) et déduit la remise des articles. Un pourcentage ou un montant fixe,
-        jamais les deux. Le compteur d'utilisations est pris à la commande.
+        {{ $t('discounts.intro') }}
       </template>
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -20,7 +18,7 @@
           unelevated
           no-caps
           icon="ph:plus"
-          label="Nouveau code"
+          :label="$t('discounts.new')"
           @click="openCreate"
         />
       </template>
@@ -54,7 +52,7 @@
             }}<span v-if="props.row.max_uses"> / {{ props.row.max_uses }}</span></span
           >
           <div v-if="props.row.max_uses_per_customer" class="text-caption text-muted">
-            max {{ props.row.max_uses_per_customer }} / client
+            {{ $t('discounts.per_customer', { n: props.row.max_uses_per_customer }) }}
           </div>
         </q-td>
       </template>
@@ -70,7 +68,7 @@
       <template #body-cell-actions="props">
         <q-td :props="props" align="right" class="no-wrap">
           <q-btn flat dense round icon="ph:pencil-simple" @click="openEdit(props.row)">
-            <q-tooltip>Modifier</q-tooltip>
+            <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
           </q-btn>
           <q-toggle
             :model-value="props.row.is_active"
@@ -79,12 +77,12 @@
             :disable="togglingId === props.row.id"
             @update:model-value="(val) => toggleActive(props.row, val)"
           >
-            <q-tooltip>Actif</q-tooltip>
+            <q-tooltip>{{ $t('discounts.active') }}</q-tooltip>
           </q-toggle>
         </q-td>
       </template>
       <template #no-data>
-        <div class="full-width text-center text-subtle q-pa-md">Aucun code promo.</div>
+        <div class="full-width text-center text-subtle q-pa-md">{{ $t('discounts.none') }}</div>
       </template>
     </q-table>
 
@@ -92,17 +90,27 @@
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
-            {{ editing ? `Modifier ${editing.code ?? editing.name}` : 'Nouveau code promo' }}
+            {{
+              editing
+                ? $t('discounts.edit_title', { name: editing.code ?? editing.name })
+                : $t('discounts.new_title')
+            }}
           </h2>
         </q-card-section>
         <q-form @submit.prevent="submit">
           <q-card-section class="q-gutter-sm">
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
-            <q-input v-model="form.name" label="Nom *" outlined dense :rules="req" />
+            <q-input
+              v-model="form.name"
+              :label="$t('discounts.name')"
+              outlined
+              dense
+              :rules="req"
+            />
             <q-input
               v-model="form.code"
-              label="Code (saisi par le client) *"
-              hint="Insensible à la casse, sans espaces"
+              :label="$t('discounts.code')"
+              :hint="$t('discounts.code_hint')"
               outlined
               dense
               :rules="req"
@@ -110,7 +118,7 @@
             <div class="row q-col-gutter-sm">
               <q-input
                 v-model="form.percentage"
-                label="Remise en %"
+                :label="$t('discounts.percent')"
                 type="number"
                 step="0.01"
                 min="0.01"
@@ -122,7 +130,7 @@
               />
               <q-input
                 v-model="form.amount"
-                :label="`Remise en montant (${currency})`"
+                :label="$t('discounts.amount', { currency })"
                 type="number"
                 step="1"
                 min="1"
@@ -135,7 +143,7 @@
             <q-select
               v-model="form.target"
               :options="targetOptions"
-              label="S'applique à *"
+              :label="$t('discounts.applies')"
               outlined
               dense
               emit-value
@@ -144,7 +152,7 @@
             <q-input
               v-if="form.target === 'product'"
               v-model="form.product_id"
-              label="Identifiant du produit *"
+              :label="$t('discounts.product_id')"
               outlined
               dense
               :rules="req"
@@ -153,7 +161,7 @@
               v-if="form.target === 'category'"
               v-model="form.category_id"
               :options="categoryOptions"
-              label="Catégorie *"
+              :label="$t('discounts.category')"
               outlined
               dense
               emit-value
@@ -162,7 +170,7 @@
             />
             <q-input
               v-model="form.min_order_amount"
-              :label="`Minimum d'articles concernés (${currency})`"
+              :label="$t('discounts.minimum', { currency })"
               type="number"
               min="0"
               outlined
@@ -171,7 +179,7 @@
             <div class="row q-col-gutter-sm">
               <q-input
                 v-model.number="form.max_uses"
-                label="Utilisations max (total)"
+                :label="$t('discounts.max_uses')"
                 type="number"
                 min="1"
                 outlined
@@ -180,7 +188,7 @@
               />
               <q-input
                 v-model.number="form.max_uses_per_customer"
-                label="Max par client"
+                :label="$t('discounts.max_per_customer')"
                 type="number"
                 min="1"
                 outlined
@@ -191,7 +199,7 @@
             <div class="row q-col-gutter-sm">
               <q-input
                 v-model="form.start_date"
-                label="Valide du"
+                :label="$t('discounts.valid_from')"
                 type="date"
                 outlined
                 dense
@@ -208,23 +216,22 @@
             </div>
             <q-toggle
               v-model="form.applies_to_promoted"
-              label="S'applique aussi aux articles en promotion"
+              :label="$t('discounts.promoted')"
               data-testid="coupon-applies-to-promoted"
             />
             <div class="text-caption text-muted">
-              Désactivé : les articles concernés par une promotion en cours sont exclus du code (non
-              cumulable).
+              {{ $t('discounts.promoted_off') }}
             </div>
-            <q-input v-model="form.description" label="Description interne" outlined dense />
+            <q-input v-model="form.description" :label="$t('discounts.internal')" outlined dense />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              :label="editing ? 'Enregistrer' : 'Créer'"
+              :label="editing ? $t('discounts.save') : $t('discounts.create')"
               :loading="saving"
             />
           </q-card-actions>
@@ -235,6 +242,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { intlLocale } from '@app/utils';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
@@ -255,6 +263,8 @@ import { listCategories, type Category } from '@/api/categories';
 import { extractApiError } from '@/api/errors';
 import { useShopConfigStore } from '@/stores/shopConfig';
 
+const { t } = useI18n();
+
 const shopConfig = useShopConfigStore();
 const currency = computed(() => shopConfig.currency);
 const rows = ref<Discount[]>([]);
@@ -264,7 +274,7 @@ const togglingId = ref<string | null>(null);
 
 const req = [
   (v: string | number | null | undefined) =>
-    (v !== null && v !== undefined && String(v).trim().length > 0) || 'Requis',
+    (v !== null && v !== undefined && String(v).trim().length > 0) || t('common.required'),
 ];
 
 const targetOptions = (Object.keys(DISCOUNT_TARGET_LABELS) as DiscountTarget[]).map((value) => ({
@@ -281,37 +291,39 @@ function valueLabel(d: Discount): string {
       : '—';
   const scope = DISCOUNT_TARGET_LABELS[d.target] ?? d.target;
   const min = d.min_order_amount
-    ? ` dès ${Number(d.min_order_amount).toLocaleString(intlLocale())} ${currency.value}`
+    ? t('discounts.from_amount', {
+        amount: `${Number(d.min_order_amount).toLocaleString(intlLocale())} ${currency.value}`,
+      })
     : '';
-  const stack = d.applies_to_promoted === false ? ' · hors promotions' : '';
+  const stack = d.applies_to_promoted === false ? t('discounts.not_promoted') : '';
   return `${base} · ${scope}${min}${stack}`;
 }
 
 function stateOf(d: Discount): { label: string; color: string } {
-  if (!d.is_active) return { label: 'Désactivé', color: 'grey-6' };
+  if (!d.is_active) return { label: t('discounts.st_disabled'), color: 'grey-6' };
   const now = Date.now();
   if (d.start_date && new Date(d.start_date).getTime() > now)
-    return { label: 'À venir', color: 'blue-6' };
+    return { label: t('discounts.st_upcoming'), color: 'blue-6' };
   if (d.end_date && new Date(d.end_date).getTime() < now)
-    return { label: 'Expiré', color: 'orange-8' };
+    return { label: t('discounts.st_expired'), color: 'orange-8' };
   if (d.max_uses !== null && d.current_uses >= d.max_uses)
-    return { label: 'Épuisé', color: 'orange-8' };
-  return { label: 'Actif', color: 'positive' };
+    return { label: t('discounts.st_exhausted'), color: 'orange-8' };
+  return { label: t('discounts.st_active'), color: 'positive' };
 }
 
-const columns: QTableColumn<Discount>[] = [
-  { name: 'code', label: 'Code', field: 'code', align: 'left', sortable: true },
-  { name: 'value', label: 'Remise', field: 'percentage', align: 'left' },
-  { name: 'uses', label: 'Utilisations', field: 'current_uses', align: 'center' },
+const columns = computed<QTableColumn<Discount>[]>(() => [
+  { name: 'code', label: t('discounts.col_code'), field: 'code', align: 'left', sortable: true },
+  { name: 'value', label: t('discounts.col_discount'), field: 'percentage', align: 'left' },
+  { name: 'uses', label: t('discounts.col_uses'), field: 'current_uses', align: 'center' },
   {
     name: 'validity',
-    label: 'Validité',
+    label: t('discounts.col_validity'),
     field: (row) => `${fmtDate(row.start_date)} → ${fmtDate(row.end_date)}`,
     align: 'left',
   },
-  { name: 'state', label: 'État', field: 'is_active', align: 'center' },
+  { name: 'state', label: t('discounts.col_state'), field: 'is_active', align: 'center' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-];
+]);
 
 function fmtDate(value: string | null): string {
   if (!value) return '∞';
@@ -325,7 +337,7 @@ async function load() {
   try {
     rows.value = (await listDiscounts()).filter((d) => d.discount_type === 'coupon');
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -432,7 +444,7 @@ async function submit() {
   saving.value = true;
   dialogError.value = null;
   if (!form.percentage && !form.amount) {
-    dialogError.value = 'Indiquez un pourcentage ou un montant.';
+    dialogError.value = t('discounts.err_value');
     saving.value = false;
     return;
   }
@@ -443,7 +455,7 @@ async function submit() {
     dialog.value = false;
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    dialogError.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     saving.value = false;
   }
@@ -456,7 +468,7 @@ async function toggleActive(discount: Discount, value: boolean) {
     await updateDiscount(discount.id, { is_active: value });
     discount.is_active = value;
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Mise à jour impossible.';
+    error.value = extractApiError(err) ?? t('common.update_failed');
   } finally {
     togglingId.value = null;
   }

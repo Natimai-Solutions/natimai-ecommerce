@@ -2,11 +2,10 @@
   <q-dialog :model-value="modelValue" @update:model-value="emit('update:modelValue', $event)">
     <q-card class="app-dialog">
       <q-card-section class="app-dialog__head">
-        <h2 class="app-dialog__title">{{ title }}</h2>
+        <h2 class="app-dialog__title">{{ title || $t('receipt.title') }}</h2>
         <p class="app-dialog__text">
-          Reste à encaisser :
-          <strong class="font-mono">{{ money(remaining) }}</strong
-          >. Le paiement est validé dès que les versements atteignent ce montant.
+          <!-- eslint-disable-next-line vue/no-v-html -- trusted message -->
+          <span v-html="$t('receipt.remaining', { amount: money(remaining) })"></span>
         </p>
       </q-card-section>
       <q-form @submit.prevent="submit">
@@ -19,20 +18,20 @@
               :step="currencyStep"
               min="0"
               :max="remaining"
-              :label="`Montant reçu (${currency})`"
+              :label="$t('receipt.amount', { currency })"
               outlined
               dense
               class="font-mono"
               data-testid="receipt-amount"
               :rules="[
-                (v: number) => v > 0 || 'Montant requis',
-                (v: number) => v <= remaining || 'Plus que le reste à encaisser',
+                (v: number) => v > 0 || $t('receipt.amount_rule'),
+                (v: number) => v <= remaining || $t('receipt.max_rule'),
               ]"
             />
             <q-input
               v-model="form.receivedOn"
               type="date"
-              label="Reçu le"
+              :label="$t('receipt.received_on')"
               outlined
               dense
               :max="today"
@@ -42,7 +41,7 @@
           <q-select
             v-model="form.method"
             :options="methodOptions"
-            label="Mode"
+            :label="$t('receipt.mode')"
             outlined
             dense
             emit-value
@@ -51,14 +50,14 @@
           />
           <q-input
             v-model="form.reference"
-            label="Référence (n° de chèque, réf. virement, n° de reçu…)"
+            :label="$t('receipt.reference')"
             outlined
             dense
             maxlength="100"
           />
           <q-input
             v-model="form.note"
-            label="Note (facultative)"
+            :label="$t('receipt.note')"
             outlined
             dense
             type="textarea"
@@ -67,23 +66,22 @@
           />
           <p class="receipt-form__outcome text-muted">
             <template v-if="form.amount >= remaining && remaining > 0">
-              <q-icon name="ph:check-circle" class="text-positive" /> Ce versement solde le
-              paiement.
+              <q-icon name="ph:check-circle" class="text-positive" /> {{ $t('receipt.settles') }}
             </template>
             <template v-else-if="form.amount > 0">
-              Restera à encaisser :
+              {{ $t('receipt.will_remain') }}
               <span class="font-mono">{{ money(remaining - form.amount) }}</span>
             </template>
           </p>
         </q-card-section>
         <q-card-actions align="right" class="app-dialog__actions">
-          <q-btn flat no-caps label="Annuler" v-close-popup />
+          <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
           <q-btn
             type="submit"
             color="primary"
             unelevated
             no-caps
-            :label="form.amount >= remaining ? 'Encaisser et valider' : 'Enregistrer le versement'"
+            :label="form.amount >= remaining ? $t('receipt.collect_validate') : $t('receipt.save')"
             :loading="saving"
             :data-testid="confirmTestid"
           />
@@ -94,10 +92,11 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { computed, reactive, ref, watch } from 'vue';
 
 import AppNotice from '@app/ui/AppNotice.vue';
-import { formatMoney } from '@app/utils';
+import { decimalsOf, formatMoney } from '@app/utils';
 import { extractApiError } from '@/api/errors';
 import {
   RECEIPT_METHOD_LABELS,
@@ -106,6 +105,8 @@ import {
   type ReceiptMethod,
   type ReceiptResult,
 } from '@/api/paymentValidations';
+
+const { t } = useI18n();
 
 /**
  * Enregistre un versement reçu : sur un paiement manuel en attente
@@ -125,7 +126,7 @@ const props = withDefaults(
   {
     currency: 'XPF',
     defaultMethod: 'cash',
-    title: 'Encaisser un versement',
+    title: '',
     confirmTestid: 'receipt-confirm',
   },
 );
@@ -152,7 +153,7 @@ const methodOptions = computed(() =>
     .filter(([value]) => !counter.value || ['cash', 'check', 'transfer'].includes(value))
     .map(([value, label]) => ({ value, label })),
 );
-const currencyStep = computed(() => (props.currency === 'XPF' ? 1 : 0.01));
+const currencyStep = computed(() => 10 ** -decimalsOf(props.currency));
 
 function money(value: number): string {
   return formatMoney(value, props.currency);
@@ -197,7 +198,7 @@ async function submit() {
     emit('done', result);
     emit('update:modelValue', false);
   } catch (err) {
-    error.value = extractApiError(err) ?? "Le versement n'a pas pu être enregistré.";
+    error.value = extractApiError(err) ?? t('receipt.failed');
   } finally {
     saving.value = false;
   }

@@ -1,15 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader
-      title="Paramètres"
-      hint="Les réglages de la boutique, modifiables sans redéploiement. Une valeur laissée vide reprend celle de l'environnement ou le défaut."
-    >
+    <PageHeader :title="$t('settings.title')" :hint="$t('settings.hint')">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -25,7 +22,7 @@
         outlined
         dense
         clearable
-        placeholder="Rechercher un réglage"
+        :placeholder="$t('settings.search')"
         style="min-width: 260px"
         data-testid="settings-search"
       >
@@ -38,7 +35,7 @@
     </div>
 
     <div v-else class="settings-layout">
-      <nav v-if="!search" class="settings-nav" aria-label="Catégories">
+      <nav v-if="!search" class="settings-nav" :aria-label="$t('settings.categories')">
         <button
           v-for="cat in visibleCategories"
           :key="cat.key"
@@ -69,31 +66,36 @@
               <div class="setting__label">
                 {{ setting.label }}
                 <StatusTag
-                  :label="SOURCE_LABELS[setting.source]"
+                  :label="$t(SOURCE_LABELS[setting.source])"
                   :tone="setting.source === 'db' ? 'ok' : 'neutral'"
                 />
-                <StatusTag v-if="setting.reprices" label="Recalcule les prix" tone="warn" />
-                <StatusTag v-if="setting.restart_required" label="Redémarrage requis" tone="warn" />
-                <StatusTag v-if="setting.public" label="Public" tone="neutral" />
+                <StatusTag v-if="setting.reprices" :label="$t('settings.reprices')" tone="warn" />
+                <StatusTag
+                  v-if="setting.restart_required"
+                  :label="$t('settings.restart')"
+                  tone="warn"
+                />
+                <StatusTag v-if="setting.public" :label="$t('settings.public')" tone="neutral" />
               </div>
               <div v-if="setting.description" class="setting__help">{{ setting.description }}</div>
               <div class="setting__meta text-subtle">
                 <span class="font-mono">{{ setting.key }}</span>
                 <template v-if="setting.env_var">
-                  · variable <span class="font-mono">{{ setting.env_var }}</span></template
+                  {{ $t('settings.env_var') }}
+                  <span class="font-mono">{{ setting.env_var }}</span></template
                 >
                 <template v-if="setting.source === 'db' && setting.fallback">
-                  · sans valeur saisie : {{ setting.fallback || '—' }}</template
+                  {{ $t('settings.fallback', { value: setting.fallback || '—' }) }}</template
                 >
                 <template v-if="setting.updated_at && setting.source === 'db'">
-                  · modifié le {{ formatDate(setting.updated_at) }}
+                  {{ $t('settings.modified', { date: formatDate(setting.updated_at) }) }}
                   <template v-if="setting.updated_by_email">
-                    par {{ setting.updated_by_email }}</template
+                    {{ $t('settings.by', { email: setting.updated_by_email }) }}</template
                   >
                 </template>
               </div>
               <AppNotice v-if="setting.stored_invalid" tone="warning" dense class="q-mt-xs">
-                La valeur enregistrée n'est plus valable : la valeur de repli s'applique.
+                {{ $t('settings.invalid') }}
               </AppNotice>
             </div>
 
@@ -123,7 +125,7 @@
                   :type="inputType(setting)"
                   :autogrow="setting.type === 'text'"
                   :inputmode="isNumeric(setting) ? 'decimal' : undefined"
-                  :placeholder="setting.secret ? 'Non renseigné' : setting.fallback"
+                  :placeholder="setting.secret ? $t('settings.not_set') : setting.fallback"
                   :suffix="setting.unit ?? undefined"
                   :maxlength="setting.max_length ?? undefined"
                   :hint="rangeHint(setting)"
@@ -135,7 +137,7 @@
                   color="primary"
                   unelevated
                   no-caps
-                  label="Enregistrer"
+                  :label="$t('common.save')"
                   :disable="!isDirty(setting)"
                   :loading="busy === setting.key"
                   class="setting__save"
@@ -149,13 +151,13 @@
                 dense
                 size="sm"
                 icon="ph:arrow-counter-clockwise"
-                label="Valeur par défaut"
+                :label="$t('settings.reset')"
                 :disable="busy === setting.key"
                 @click="reset(setting)"
               />
             </div>
           </div>
-          <p v-if="!filtered(cat.key).length" class="text-subtle">Aucun réglage.</p>
+          <p v-if="!filtered(cat.key).length" class="text-subtle">{{ $t('settings.none') }}</p>
         </section>
       </div>
     </div>
@@ -163,6 +165,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { intlLocale } from '@app/utils';
 import { computed, onMounted, reactive, ref } from 'vue';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -178,10 +181,12 @@ import {
 } from '@/api/systemSettings';
 import { extractApiError } from '@/api/errors';
 
+const { t } = useI18n();
+
 const SOURCE_LABELS: Record<RuntimeSetting['source'], string> = {
-  db: 'Saisi ici',
-  env: 'Environnement',
-  default: 'Défaut',
+  db: 'settings.src_db',
+  env: 'settings.src_env',
+  default: 'settings.src_default',
 };
 
 const rows = ref<RuntimeSetting[]>([]);
@@ -235,7 +240,7 @@ function inputType(setting: RuntimeSetting): 'text' | 'textarea' | 'password' {
 }
 
 function rangeHint(setting: RuntimeSetting): string | undefined {
-  if (!isNumeric(setting)) return setting.type === 'list' ? 'Séparés par des virgules' : undefined;
+  if (!isNumeric(setting)) return setting.type === 'list' ? t('settings.comma') : undefined;
   const parts: string[] = [];
   if (setting.minimum !== null) parts.push(`min ${Number(setting.minimum)}`);
   if (setting.maximum !== null) parts.push(`max ${Number(setting.maximum)}`);
@@ -269,7 +274,7 @@ async function load() {
       activeCategory.value = visibleCategories.value[0]?.key ?? '';
     }
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -283,10 +288,10 @@ async function save(setting: RuntimeSetting, value: string) {
     const updated = await updateSystemSetting(setting.key, { value });
     apply(updated);
     notice.value = updated.reprices
-      ? `« ${updated.label} » enregistré : les prix du catalogue sont en cours de recalcul.`
-      : `« ${updated.label} » enregistré.`;
+      ? t('settings.saved_reprice', { label: updated.label })
+      : t('settings.saved', { label: updated.label });
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    error.value = extractApiError(err) ?? t('common.save_failed');
     draft[setting.key] = editable(setting);
   } finally {
     busy.value = null;
@@ -299,9 +304,9 @@ async function reset(setting: RuntimeSetting) {
   notice.value = null;
   try {
     apply(await resetSystemSetting(setting.key));
-    notice.value = `« ${setting.label} » : retour à la valeur par défaut.`;
+    notice.value = t('settings.reset_done', { label: setting.label });
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Réinitialisation impossible.';
+    error.value = extractApiError(err) ?? t('settings.reset_failed');
   } finally {
     busy.value = null;
   }

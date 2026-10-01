@@ -1,3 +1,4 @@
+import { labels } from '@/i18n/global';
 import { api } from '@/boot/api';
 
 export interface StoreCreditEntry {
@@ -19,11 +20,11 @@ export interface StoreCreditBalance {
   entries: StoreCreditEntry[];
 }
 
-export const STORE_CREDIT_KIND_LABELS: Record<string, string> = {
-  grant: 'Octroi',
-  use: 'Utilisation',
-  revoke: 'Reprise',
-};
+export const STORE_CREDIT_KIND_LABELS: Record<string, string> = labels({
+  grant: 'api.store_credit_kind.grant',
+  use: 'api.store_credit_kind.use',
+  revoke: 'api.store_credit_kind.revoke',
+});
 
 export async function getUserStoreCredit(userId: string): Promise<StoreCreditBalance> {
   const { data } = await api.get<StoreCreditBalance>(`/admin/users/${userId}/store-credit`);

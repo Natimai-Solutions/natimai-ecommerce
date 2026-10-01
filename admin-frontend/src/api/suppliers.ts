@@ -1,14 +1,15 @@
+import { labels } from '@/i18n/global';
 import { api } from '@/boot/api';
 import type { ProductPublic } from '@/stores/products';
 
 /** Méthode d'approvisionnement d'un fournisseur (voir backend `SupplierKind`). */
 export type SupplierKind = 'manual' | 'file' | 'api';
 
-export const SUPPLIER_KIND_LABELS: Record<SupplierKind, string> = {
-  manual: 'Générique (saisie manuelle)',
-  file: 'Fichier CSV / Excel',
-  api: 'API (intégration)',
-};
+export const SUPPLIER_KIND_LABELS: Record<SupplierKind, string> = labels({
+  manual: 'api.supplier_kind.manual',
+  file: 'api.supplier_kind.file',
+  api: 'api.supplier_kind.api',
+});
 
 export interface Supplier {
   id: string;
@@ -116,20 +117,20 @@ export interface FileImportResolutionRow {
   message: string | null;
 }
 
-export const MATCH_KEY_LABELS: Record<ImportMatchKey, string> = {
-  mapping: 'référence (déjà liée)',
-  supplier_sku: 'référence fournisseur',
-  gtin: 'code-barres EAN/UPC',
-  manufacturer_part: 'marque + réf. fabricant',
-};
+export const MATCH_KEY_LABELS: Record<ImportMatchKey, string> = labels({
+  mapping: 'api.match_key.mapping',
+  supplier_sku: 'api.match_key.supplier_sku',
+  gtin: 'api.match_key.gtin',
+  manufacturer_part: 'api.match_key.manufacturer_part',
+});
 
-export const RESOLUTION_ACTION_LABELS: Record<ImportResolutionAction, string> = {
-  new: 'Nouveau',
-  updated: 'Mise à jour',
-  adopted: 'Adopté (article saisi à la main)',
-  ambiguous: 'Ambigu — non traité',
-  skipped: 'Ignoré',
-};
+export const RESOLUTION_ACTION_LABELS: Record<ImportResolutionAction, string> = labels({
+  new: 'api.resolution_action.new',
+  updated: 'api.resolution_action.updated',
+  adopted: 'api.resolution_action.adopted',
+  ambiguous: 'api.resolution_action.ambiguous',
+  skipped: 'api.resolution_action.skipped',
+});
 
 export interface FileImportResponse {
   supplier_name: string;
@@ -196,23 +197,23 @@ export interface HealthResponse {
 }
 
 /** Libellés des champs internes qu'un mapping de colonnes peut viser. */
-export const MAPPING_TARGET_LABELS: Record<string, string> = {
-  supplier_sku: 'Référence fournisseur (SKU) *',
-  name: 'Désignation *',
-  description: 'Description',
-  manufacturer: 'Marque / fabricant',
-  vendor_part_number: 'Référence fabricant',
-  category: 'Catégorie fournisseur',
-  subcategory: 'Sous-catégorie (→ catégorie interne)',
-  price: 'Prix d’achat (coût)',
-  currency: 'Devise du prix',
-  quantity: 'Stock disponible',
-  weight: 'Poids (kg)',
-  image_url: 'URL image',
-  spec_url: 'URL fiche technique',
-  upc: 'UPC',
-  ean: 'EAN',
-};
+export const MAPPING_TARGET_LABELS: Record<string, string> = labels({
+  supplier_sku: 'api.mapping_target.supplier_sku',
+  name: 'api.mapping_target.name',
+  description: 'api.mapping_target.description',
+  manufacturer: 'api.mapping_target.manufacturer',
+  vendor_part_number: 'api.mapping_target.vendor_part_number',
+  category: 'api.mapping_target.category',
+  subcategory: 'api.mapping_target.subcategory',
+  price: 'api.mapping_target.price',
+  currency: 'api.mapping_target.currency',
+  quantity: 'api.mapping_target.quantity',
+  weight: 'api.mapping_target.weight',
+  image_url: 'api.mapping_target.image_url',
+  spec_url: 'api.mapping_target.spec_url',
+  upc: 'api.mapping_target.upc',
+  ean: 'api.mapping_target.ean',
+});
 
 export async function listSuppliers(): Promise<Supplier[]> {
   const { data } = await api.get<{ data: Supplier[]; count: number }>('/admin/suppliers');
@@ -369,28 +370,28 @@ export async function detachProductFromSupplier(productId: string): Promise<Prod
 export type CategoryMappingAction = 'import' | 'draft' | 'deactivate' | 'skip';
 export type UnmappedCategoryAction = 'auto' | 'draft' | 'deactivate' | 'skip';
 
-export const CATEGORY_ACTION_LABELS: Record<CategoryMappingAction, string> = {
-  import: 'Importer',
-  draft: 'Nouveaux en brouillon',
-  deactivate: 'Importer hors vitrine',
-  skip: 'Ignorer',
-};
+export const CATEGORY_ACTION_LABELS: Record<CategoryMappingAction, string> = labels({
+  import: 'api.category_action.import',
+  draft: 'api.category_action.draft',
+  deactivate: 'api.category_action.deactivate',
+  skip: 'api.category_action.skip',
+});
 
-export const UNMAPPED_ACTION_LABELS: Record<UnmappedCategoryAction, string> = {
-  auto: 'Catégorie au nom de la sous-catégorie (automatique)',
-  draft: 'Idem, nouveaux articles en brouillon',
-  deactivate: 'Idem, articles hors vitrine',
-  skip: 'Ignorer (ni créés ni mis à jour)',
-};
+export const UNMAPPED_ACTION_LABELS: Record<UnmappedCategoryAction, string> = labels({
+  auto: 'api.unmapped_action.auto',
+  draft: 'api.unmapped_action.draft',
+  deactivate: 'api.unmapped_action.deactivate',
+  skip: 'api.unmapped_action.skip',
+});
 
 /** Ce que l'import fera d'un couple (import | draft | deactivate | skip | filtered). */
-export const CATEGORY_EFFECT_LABELS: Record<string, string> = {
-  import: 'Importé',
-  draft: 'Brouillon',
-  deactivate: 'Hors vitrine',
-  skip: 'Ignoré',
-  filtered: 'Écarté (filtre global)',
-};
+export const CATEGORY_EFFECT_LABELS: Record<string, string> = labels({
+  import: 'api.category_effect.import',
+  draft: 'api.category_effect.draft',
+  deactivate: 'api.category_effect.deactivate',
+  skip: 'api.category_effect.skip',
+  filtered: 'api.category_effect.filtered',
+});
 
 export interface CategoryMapping {
   id: string;

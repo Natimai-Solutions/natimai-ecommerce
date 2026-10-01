@@ -1,3 +1,4 @@
+import { labels } from '@/i18n/global';
 import type { PaymentReceipt } from '@/api/paymentValidations';
 import { api } from '@/boot/api';
 
@@ -85,11 +86,11 @@ export interface AdminOrderPaymentItem {
   accepts_receipts?: boolean;
 }
 
-export const PAYMENT_KIND_LABELS: Record<string, string> = {
-  full: 'Total',
-  deposit: 'Acompte',
-  balance: 'Solde',
-};
+export const PAYMENT_KIND_LABELS: Record<string, string> = labels({
+  full: 'api.payment_kind.full',
+  deposit: 'api.payment_kind.deposit',
+  balance: 'api.payment_kind.balance',
+});
 
 export interface AdminOrderDetail {
   order_id: string;
@@ -191,29 +192,29 @@ export async function getOrder(orderId: string): Promise<AdminOrderDetail> {
   return data;
 }
 
-const ORDER_STATUS_LABELS: Record<string, string> = {
-  Pending: 'En attente',
-  AwaitingPayment: 'En attente de paiement',
-  PartiallyPaid: 'Partiellement payée',
-  Paid: 'Payée',
-  DepositPaid: 'Acompte versé',
-  PaymentFailed: 'Paiement refusé',
-  PaymentReview: 'Encaissement à vérifier',
-  Refunded: 'Remboursée',
-  PartiallyRefunded: 'Remboursée en partie',
+const ORDER_STATUS_LABELS: Record<string, string> = labels({
+  Pending: 'api.order_status.Pending',
+  AwaitingPayment: 'api.order_status.AwaitingPayment',
+  PartiallyPaid: 'api.order_status.PartiallyPaid',
+  Paid: 'api.order_status.Paid',
+  DepositPaid: 'api.order_status.DepositPaid',
+  PaymentFailed: 'api.order_status.PaymentFailed',
+  PaymentReview: 'api.order_status.PaymentReview',
+  Refunded: 'api.order_status.Refunded',
+  PartiallyRefunded: 'api.order_status.PartiallyRefunded',
   // Fulfilment steps (set by hand or by the grouped departure).
-  OrderedFromSupplier: 'Commandée au fournisseur',
-  InTransit: 'En transit',
-  AtCustoms: 'En douane',
-  Received: 'Reçue, contrôle en cours',
-  ReadyForPickup: 'Disponible',
-  Delivered: 'Livrée',
-  Backordered: 'Rupture / report',
-  Cancelled: 'Annulée',
+  OrderedFromSupplier: 'api.order_status.OrderedFromSupplier',
+  InTransit: 'api.order_status.InTransit',
+  AtCustoms: 'api.order_status.AtCustoms',
+  Received: 'api.order_status.Received',
+  ReadyForPickup: 'api.order_status.ReadyForPickup',
+  Delivered: 'api.order_status.Delivered',
+  Backordered: 'api.order_status.Backordered',
+  Cancelled: 'api.order_status.Cancelled',
   // Legacy labels never set by the backend.
-  Processing: 'En préparation',
-  Shipped: 'Expédiée',
-};
+  Processing: 'api.order_status.Processing',
+  Shipped: 'api.order_status.Shipped',
+});
 
 export function orderStatusLabel(name: string | null): string {
   if (!name) return '—';
