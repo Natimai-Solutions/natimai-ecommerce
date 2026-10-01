@@ -128,7 +128,7 @@ jobs:
 
       - name: Backend coverage badge (gist)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.GIST_SECRET != ''
-        uses: schneegans/dynamic-badges-action@v1.8.0
+        uses: schneegans/dynamic-badges-action@v1.9.0
         with:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: 9a9268773f32888a2eae4d1b9567efe0
@@ -187,7 +187,7 @@ jobs:
 
       - name: Frontend coverage badge (gist)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.GIST_SECRET != ''
-        uses: schneegans/dynamic-badges-action@v1.8.0
+        uses: schneegans/dynamic-badges-action@v1.9.0
         with:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: 9a9268773f32888a2eae4d1b9567efe0
