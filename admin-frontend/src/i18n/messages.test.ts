@@ -27,7 +27,7 @@ describe('admin messages', () => {
       fallbackWarn: false,
       warnHtmlMessage: false,
     });
-    for (const key of leaves(fr as Tree)) {
+    for (const key of leaves(fr)) {
       try {
         const text = i18n.global.t(key, { n: 2 }, { locale });
         if (!text || text === key) errors.push(key);
