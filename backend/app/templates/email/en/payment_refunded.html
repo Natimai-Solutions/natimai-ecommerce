@@ -1,0 +1,17 @@
+{% extends "_layout.html" %}
+{% block title %}Refund issued{% endblock %}
+{% block header_color %}#1a5e9e{% endblock %}
+{% block heading %}Refund issued{% endblock %}
+{% block content %}
+      <p>Hello {{ full_name }},</p>
+      <p>A refund has been issued for your order <strong>{{ order_ref or (order_id | short_ref) }}</strong>.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Amount refunded</td><td>{{ amount }} {{ currency }}</td></tr>
+          <tr><td>Type</td><td>{% if fully_refunded %}Full refund{% else %}Partial refund{% endif %}</td></tr>
+        </table>
+      </div>
+      {% if reason %}<p>Reason: {{ reason }}</p>{% endif %}
+      <p>How long it takes to reach you depends on your payment method.</p>
+      <p>The {{ shop_name }} team</p>
+{% endblock %}

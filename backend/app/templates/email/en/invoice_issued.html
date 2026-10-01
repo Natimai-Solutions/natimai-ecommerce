@@ -1,0 +1,22 @@
+{% extends "_layout.html" %}
+{% block title %}Your invoice{% endblock %}
+{% block header_color %}#1a4a7a{% endblock %}
+{% block extra_style %}.badge { background: #e6eef4; color: #1a4a7a; }{% endblock %}
+{% block heading %}Your invoice is available{% endblock %}
+{% block content %}
+      <p>Hello {{ full_name }},</p>
+      <span class="badge">Invoice {{ invoice_number }}</span>
+      <p>Your invoice is available for order {{ order_ref or (order_id | short_ref) }}.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Invoice number</td><td>{{ invoice_number }}</td></tr>
+          <tr><td>Order number</td><td>{{ order_ref or (order_id | short_ref) }}</td></tr>
+          <tr><td>Total amount</td><td>{{ total_incl_tax }} {{ currency }}</td></tr>
+          <tr><td>of which taxes</td><td>{{ total_tax }} {{ currency }}</td></tr>
+        </table>
+      </div>
+      <p>You can download it from your account, “My orders” section:<br>
+        <a href="{{ invoice_url }}">{{ invoice_url }}</a></p>
+      <p>Keep this document: it is your proof of purchase.</p>
+      <p>Thank you for your trust,<br><strong>The {{ shop_name }} team</strong></p>
+{% endblock %}

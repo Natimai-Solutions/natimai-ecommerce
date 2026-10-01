@@ -1,0 +1,16 @@
+Hello {{ full_name }},
+
+Good news: the items of your order {{ order_ref or (order_id | short_ref) }} have arrived.
+
+To collect them, the balance is left to pay:
+
+Order total: {{ total_amount }} {{ currency }}
+Deposit already paid: {{ deposit_amount }} {{ currency }}
+Balance due: {{ balance_amount }} {{ currency }}
+
+Pay your balance online from your account:
+{{ pay_url }}
+
+Your invoice will be sent as soon as the balance is received.
+
+The {{ shop_name }} team

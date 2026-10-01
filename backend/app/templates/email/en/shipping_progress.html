@@ -1,0 +1,15 @@
+{% extends "_layout.html" %}
+{% block title %}Your order is moving on{% endblock %}
+{% block header_color %}#3949ab{% endblock %}
+{% block heading %}Your parcel is moving on 📦{% endblock %}
+{% block content %}
+      <p>Hello {{ full_name }},</p>
+      <p>Your order <strong>{{ order_ref or (order_id | short_ref) }}</strong> has just reached the next shipping step.</p>
+      <div class="summary">
+        <table>
+          {% if tracking_ref %}<tr><td>Tracking reference</td><td>{{ tracking_ref }}</td></tr>{% endif %}
+        </table>
+      </div>
+      {% if tracking_url %}<p><a href="{{ tracking_url }}">Track my order</a></p>{% endif %}
+      <p>The {{ shop_name }} team</p>
+{% endblock %}

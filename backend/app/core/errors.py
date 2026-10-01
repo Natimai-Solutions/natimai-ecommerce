@@ -42,10 +42,22 @@ def _app_error_payload(exc: AppError) -> dict[str, Any]:
     }
 
 
-async def app_error_handler(_request: Request, exc: Exception) -> JSONResponse:
-    """Handle application errors with a stable payload contract."""
+async def app_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Handle application errors with a stable payload contract.
+
+    The message follows the caller's ``Accept-Language`` (R7 / L3); the code
+    never changes.
+    """
     assert isinstance(exc, AppError)
-    return JSONResponse(status_code=exc.status_code, content=_app_error_payload(exc))
+    from app.core.error_messages import localized_message
+    from app.core.i18n import from_accept_language, request_locale
+
+    locale = from_accept_language(request.headers.get("accept-language")) or (
+        request_locale()
+    )
+    payload = _app_error_payload(exc)
+    payload["error"]["message"] = localized_message(exc.code, exc.message, locale)
+    return JSONResponse(status_code=exc.status_code, content=payload)
 
 
 async def record_not_found_handler(_request: Request, exc: Exception) -> JSONResponse:

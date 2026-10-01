@@ -1,0 +1,17 @@
+Hello {{ full_name }},
+
+Your order has been placed.
+
+Order number    : {{ order_ref or (order_id | short_ref) }}
+Total amount    : {{ total_amount }} {{ currency }}
+Number of items : {{ item_count }}
+
+{% if payment_instructions %}To pay for your order{% if amount_due_now and amount_due_now != total_amount %} ({{ amount_due_now }} {{ currency }} now){% endif %}:
+{{ payment_instructions }}
+
+{% endif %}You will receive a confirmation as soon as your payment is validated.
+{% if tracking_url %}Track my order: {{ tracking_url }}
+{% endif %}
+
+Thank you for your order,
+The {{ shop_name }} team

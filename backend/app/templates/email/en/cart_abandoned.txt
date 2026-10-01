@@ -1,0 +1,17 @@
+Hello {{ full_name }},
+
+You left items in your cart:
+{% for item in items %}
+- {{ item.name }} × {{ item.quantity }} — {{ item.line_total }} {{ currency }}
+{%- endfor %}
+
+Total: {{ total_amount }} {{ currency }}
+
+They are still available. Find your cart here:
+{{ cart_url }}
+
+You receive this message because commercial reminders are enabled on your account.
+To stop receiving them: {{ preferences_url }} (Preferences section).
+
+See you soon,
+The {{ shop_name }} team

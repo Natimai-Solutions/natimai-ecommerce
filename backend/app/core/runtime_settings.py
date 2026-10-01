@@ -416,6 +416,15 @@ async def get(key: str, session: Any | None = None, *, fresh: bool = False) -> A
     return (await resolve(key, session, fresh=fresh)).value
 
 
+def peek(key: str) -> Any:
+    """Synchronous read for code that cannot await (e-mail rendering): the
+    value from this process's last snapshot, else the environment / default.
+    Never touches the database."""
+    spec = require_spec(key)
+    snap = _snapshot
+    return resolve_row(spec, snap.rows.get(key) if snap else None).value
+
+
 async def get_many(
     keys: Iterable[str], session: Any | None = None, *, fresh: bool = False
 ) -> dict[str, Any]:
@@ -436,6 +445,7 @@ __all__ = [
     "get_many",
     "hook",
     "invalidate_cache",
+    "peek",
     "parse",
     "public_keys",
     "register",

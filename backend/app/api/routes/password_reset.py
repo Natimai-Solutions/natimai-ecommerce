@@ -29,6 +29,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlmodel import col, select
 
 from app.api.deps import SessionDep
+from app.core import runtime_settings
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.rate_limit import get_client_ip, hit_rate_limit
@@ -90,7 +91,7 @@ async def _send_reset_email(email: str, token: str) -> None:
         "password_reset",
         reset_url=reset_url,
         valid_minutes=RESET_TOKEN_TTL_MINUTES,
-        shop_name=getattr(settings, "SHOP_NAME", "Natimai"),
+        shop_name=runtime_settings.peek("shop_name"),
     )
     try:
         provider = get_notification_provider(

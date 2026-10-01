@@ -1,0 +1,9 @@
+Hello {{ full_name }},
+
+A refund has been issued for your order {{ order_ref or (order_id | short_ref) }}.
+
+Amount refunded: {{ amount }} {{ currency }}{% if fully_refunded %} (full refund){% else %} (partial refund){% endif %}
+{% if reason %}Reason: {{ reason }}
+{% endif %}How long it takes to reach you depends on your payment method.
+
+The {{ shop_name }} team

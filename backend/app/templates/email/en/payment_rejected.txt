@@ -1,0 +1,9 @@
+Hello {{ full_name }},
+
+Your payment for order {{ order_ref or (order_id | short_ref) }} could not be processed.
+{% if reason %}
+Reason: {{ reason }}
+{% endif %}
+Please try again or contact our support if the problem persists.
+
+The {{ shop_name }} team

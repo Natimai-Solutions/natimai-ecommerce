@@ -1,0 +1,1 @@
+Your quote {{ quote_number }} — {{ total_amount }} {{ currency }}, valid until {{ valid_until }}

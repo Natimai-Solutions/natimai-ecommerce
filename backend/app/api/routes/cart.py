@@ -17,6 +17,7 @@ from app.api.deps import CurrentUser, SessionDep, module_required
 from app.core import runtime_settings
 from app.core.config import settings
 from app.core.errors import AppError
+from app.core.i18n import request_locale
 from app.core.observability import log_structured_event, observe_checkout_result
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
 from app.features.cart.crud.quote_request import crud_quote_request
@@ -1707,7 +1708,7 @@ def _render_quote_email(
         items=_quote_items(item_snapshots),
         currency=currency.strip().upper() or settings.REFERENCE_CURRENCY,
         subtotal=str(subtotal_amount),
-        shop_name=getattr(settings, "SHOP_NAME", "Natimai"),
+        shop_name=runtime_settings.peek("shop_name"),
     )
     return email.subject, email.text, email.html
 
@@ -2932,6 +2933,7 @@ async def checkout_my_cart(
                 grouped_departure_id=departure.id if departure else None,
                 cgv_accepted_at=cgv_accepted_at,
                 cgv_version=cgv_version,
+                locale=request_locale(),
                 payment_plan=quote.payment_plan,
                 deposit_amount=quote.deposit_amount,
                 deposit_fee_amount=quote.deposit_fee_amount,

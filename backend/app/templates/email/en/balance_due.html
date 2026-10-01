@@ -1,0 +1,20 @@
+{% extends "_layout.html" %}
+{% block title %}Balance due{% endblock %}
+{% block header_color %}#3949ab{% endblock %}
+{% block heading %}Your items have arrived{% endblock %}
+{% block content %}
+      <p>Hello {{ full_name }},</p>
+      <p>Good news: the items of your order <strong>{{ order_ref or (order_id | short_ref) }}</strong> have arrived. To collect them, the balance is left to pay.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Order total</td><td>{{ total_amount }} {{ currency }}</td></tr>
+          <tr><td>Deposit already paid</td><td>{{ deposit_amount }} {{ currency }}</td></tr>
+          <tr><td><strong>Balance due</strong></td><td><strong>{{ balance_amount }} {{ currency }}</strong></td></tr>
+        </table>
+      </div>
+      <p style="text-align:center;margin:24px 0">
+        <a href="{{ pay_url }}" style="background:#3949ab;color:#fff;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold">Pay the balance</a>
+      </p>
+      <p>Your invoice will be sent as soon as the balance is received.</p>
+      <p>The {{ shop_name }} team</p>
+{% endblock %}

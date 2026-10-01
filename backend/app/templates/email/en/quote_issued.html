@@ -1,0 +1,24 @@
+{% extends "_layout.html" %}
+{% block title %}Your quote {{ quote_number }}{% endblock %}
+{% block header_color %}#3949ab{% endblock %}
+{% block heading %}Your quote {{ quote_number }}{% endblock %}
+{% block content %}
+      <p>Hello {{ full_name }},</p>
+      <p>Please find attached your quote <strong>{{ quote_number }}</strong>.</p>
+      <div class="summary">
+        <table>
+          <tr><td>Total amount incl. tax</td><td>{{ total_amount }} {{ currency }}</td></tr>
+          <tr><td>Valid until</td><td>{{ valid_until }}</td></tr>
+        </table>
+      </div>
+      {% if customer_message %}<p style="white-space:pre-line">{{ customer_message }}</p>{% endif %}
+      {% if has_account %}
+      <p>To accept it, click “Order this quote” in your account: the quote's prices apply to your order.</p>
+      <p style="text-align:center;margin:24px 0">
+        <a href="{{ accept_url }}" style="background:#3949ab;color:#fff;padding:12px 24px;border-radius:4px;text-decoration:none;font-weight:bold">See my quotes</a>
+      </p>
+      {% else %}
+      <p>To accept it, simply reply to this message: we will guide you through finalising the order.</p>
+      {% endif %}
+      <p>The {{ shop_name }} team</p>
+{% endblock %}

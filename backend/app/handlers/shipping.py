@@ -125,16 +125,20 @@ async def on_tracking_status_changed(
         return
 
     full_name = user.full_name or user.email or ""
-    shop_name = getattr(settings, "SHOP_NAME", "Natimai")
+    shop_name = runtime_settings.peek("shop_name")
     order_id_display = str(order_id_raw or "")
     # Customer-facing reference (M5): CMD-2026-00042, short-ref fallback.
     order_ref = await resolve_order_ref(session, payload)
     tracking_url = tracking_url_from_payload(order_id_raw)
+    from app.handlers.order import _email_lang
+
+    lang = await _email_lang(session, {**payload, "order_id": order_id_raw})
 
     email: RenderedEmail
     if status_code in _SHIPPED_CODES:
         email = render_email(
             "shipping_shipped",
+            lang=lang,
             full_name=full_name or "client",
             order_id=order_id_display,
             order_ref=order_ref,
@@ -147,6 +151,7 @@ async def on_tracking_status_changed(
     elif status_code in _DELIVERED_CODES:
         email = render_email(
             "shipping_delivered",
+            lang=lang,
             full_name=full_name or "client",
             order_id=order_id_display,
             order_ref=order_ref,
@@ -157,6 +162,7 @@ async def on_tracking_status_changed(
     else:  # progress milestone (next-leg activation)
         email = render_email(
             "shipping_progress",
+            lang=lang,
             full_name=full_name or "client",
             order_id=order_id_display,
             order_ref=order_ref,

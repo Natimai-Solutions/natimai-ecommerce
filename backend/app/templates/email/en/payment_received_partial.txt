@@ -1,0 +1,13 @@
+Hello {{ full_name }},
+
+We have received your instalment for order {{ order_ref or (order_id | short_ref) }}.
+
+Instalment received : {{ amount }} {{ currency }}
+Total paid so far   : {{ received_amount }} {{ currency }}
+Left to pay         : {{ remaining_amount }} {{ currency }}
+
+Your order will be confirmed as soon as the remaining amount is received.
+{% if tracking_url %}Track my order: {{ tracking_url }}
+{% endif %}
+Thank you for your trust,
+The {{ shop_name }} team

@@ -97,7 +97,7 @@ def _build_admin_email_context(
         "currency": _as_non_empty_str(payload.get("currency")) or "",
         "reference": _as_non_empty_str(payload.get("provider_reference")) or "",
         "reason": _as_non_empty_str(payload.get("reason")) or "",
-        "shop_name": getattr(settings, "SHOP_NAME", "Natimai"),
+        "shop_name": runtime_settings.peek("shop_name"),
     }
 
 

@@ -68,6 +68,27 @@ register_error_handlers(app)
 
 
 @app.middleware("http")
+async def request_locale_middleware(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    """Language of the request (``Accept-Language``), for the code that sends
+    e-mails or freezes the order's language (R7 / L3)."""
+    from app.core.i18n import (
+        from_accept_language,
+        reset_request_locale,
+        set_request_locale,
+    )
+
+    token = set_request_locale(
+        from_accept_language(request.headers.get("accept-language"))
+    )
+    try:
+        return await call_next(request)
+    finally:
+        reset_request_locale(token)
+
+
+@app.middleware("http")
 async def security_headers_middleware(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:

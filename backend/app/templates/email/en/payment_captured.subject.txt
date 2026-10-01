@@ -1,0 +1,1 @@
+{% if payment_kind == 'deposit' %}Deposit received for order {{ order_ref or (order_id | short_ref) }}{% elif payment_kind == 'balance' %}Balance received for order {{ order_ref or (order_id | short_ref) }}{% else %}Your payment for order {{ order_ref or (order_id | short_ref) }} has been validated{% endif %}

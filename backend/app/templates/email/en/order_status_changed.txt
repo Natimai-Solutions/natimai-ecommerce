@@ -1,0 +1,13 @@
+Hello {{ full_name }},
+
+Your order {{ order_ref or (order_id | short_ref) }}: {{ status_title }}.
+
+{{ status_message }}
+{% if departure_name %}
+Grouped departure: {{ departure_name }}{% if estimated_delivery %} — estimated delivery on {{ estimated_delivery }}{% endif %}.
+{% endif %}
+You can follow your order's progress in your account.
+{% if tracking_url %}Track my order: {{ tracking_url }}
+{% endif %}
+
+The {{ shop_name }} team

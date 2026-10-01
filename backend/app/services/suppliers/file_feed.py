@@ -250,7 +250,7 @@ class FileFeedAdapter(SupplierAdapter):
             transport=self.transport,
             follow_redirects=False,
             timeout=httpx.Timeout(float(settings.SUPPLIER_FEED_TIMEOUT_SECONDS)),
-            headers={"User-Agent": f"{settings.SHOP_NAME} catalogue sync"},
+            headers={"User-Agent": "catalogue-sync"},
         ) as client:
             try:
                 if self.auth_mode == "form":

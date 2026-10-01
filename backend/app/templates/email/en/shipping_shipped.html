@@ -1,0 +1,16 @@
+{% extends "_layout.html" %}
+{% block title %}Order shipped{% endblock %}
+{% block header_color %}#1a5e9e{% endblock %}
+{% block heading %}Your order has shipped 🚚{% endblock %}
+{% block content %}
+      <p>Hello {{ full_name }},</p>
+      <p>Good news! Your order <strong>{{ order_ref or (order_id | short_ref) }}</strong> is now on its way.</p>
+      <div class="summary">
+        <table>
+          {% if tracking_ref %}<tr><td>Tracking reference</td><td>{{ tracking_ref }}</td></tr>{% endif %}
+          {% if estimated_delivery %}<tr><td>Estimated delivery</td><td>{{ estimated_delivery }}</td></tr>{% endif %}
+        </table>
+      </div>
+      {% if tracking_url %}<p><a href="{{ tracking_url }}">Track my order</a></p>{% endif %}
+      <p>The {{ shop_name }} team</p>
+{% endblock %}

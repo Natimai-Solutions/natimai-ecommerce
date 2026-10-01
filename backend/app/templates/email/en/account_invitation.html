@@ -1,0 +1,14 @@
+{% extends "_layout.html" %}
+{% block title %}Your {{ shop_name }} account is ready{% endblock %}
+{% block heading %}Your account is ready{% endblock %}
+{% block content %}
+      <p>Hello{% if full_name %} {{ full_name }}{% endif %},</p>
+      <p>A {{ shop_name }} account has just been created for you. To activate it, choose your password:</p>
+      <p style="text-align:center;margin:28px 0;">
+        <a href="{{ invitation_url }}" style="display:inline-block;background:#1976d2;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 24px;border-radius:6px;">Activate my account</a>
+      </p>
+      <p style="font-size:13px;color:#555;">If the button does not work, copy this link into your browser:<br /><span style="word-break:break-all;">{{ invitation_url }}</span></p>
+      <p>This link is valid for <strong>{{ valid_hours }} hours</strong> and works only once. After that, ask us for a new link or use “forgot password” on the sign-in page.</p>
+      <p>If you were not expecting this message, ignore it: no access is possible without following the link.</p>
+      <p>The {{ shop_name }} team</p>
+{% endblock %}

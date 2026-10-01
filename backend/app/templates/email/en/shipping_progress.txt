@@ -1,0 +1,10 @@
+Hello {{ full_name }},
+
+Your order {{ order_ref or (order_id | short_ref) }} is moving on: it has just reached the next shipping step.
+
+{% if tracking_ref %}Tracking reference: {{ tracking_ref }}
+{% endif %}You can follow your delivery's progress in your account.
+{% if tracking_url %}Track my order: {{ tracking_url }}
+{% endif %}
+
+The {{ shop_name }} team

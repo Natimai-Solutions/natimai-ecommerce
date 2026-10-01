@@ -17,6 +17,7 @@ from app.features.user.models.user_preference import (
 
 router = APIRouter(prefix="/users/me/preferences", tags=["user"])
 
+
 async def valid_currencies(session: SessionDep) -> set[str]:
     """The reference currency and every currency with an active rate (R7 / L4):
     a currency the shop cannot convert to is not offered."""
@@ -34,9 +35,7 @@ async def valid_currencies(session: SessionDep) -> set[str]:
     return {settings.REFERENCE_CURRENCY, *(str(c).upper() for c in codes)}
 
 
-def _validate_update(
-    data: UserPreferenceUpdate, allowed_currencies: set[str]
-) -> None:
+def _validate_update(data: UserPreferenceUpdate, allowed_currencies: set[str]) -> None:
     """Raise AppError on invalid enum-like string fields."""
     if (
         data.default_shipping_preference is not None

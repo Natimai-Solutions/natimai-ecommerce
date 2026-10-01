@@ -16,7 +16,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
 
 from app.features.invoice.models.credit_note import CreditNote
 from app.features.invoice.models.invoice import Invoice
@@ -65,9 +65,25 @@ _env = Environment(
 _env.filters["amount"] = _format_amount
 
 
+def _template(lang: str, name: str) -> Template:
+    """``<lang>/<name>``, else the French one (R7 / L3).
+
+    Only the quote has an English version: invoices and credit notes stay in
+    French, the legal language of invoices in France and French Polynesia.
+    """
+    from jinja2 import TemplateNotFound
+
+    for candidate in dict.fromkeys((lang, DEFAULT_LANG)):
+        try:
+            return _env.get_template(f"{candidate}/{name}")
+        except TemplateNotFound:
+            continue
+    raise TemplateNotFound(f"{lang}/{name}")
+
+
 def render_invoice_html(invoice: Invoice, *, lang: str = DEFAULT_LANG) -> str:
     """Render the invoice HTML from its frozen snapshot."""
-    template = _env.get_template(f"{lang}/invoice.html")
+    template = _template(lang, "invoice.html")
     # Snapshot first, then the columns that are authoritative on the row
     # (they also live in the snapshot; the persisted values win).
     context: dict[str, Any] = dict(invoice.snapshot)
@@ -112,7 +128,7 @@ def render_credit_note_html(
     credit_note: CreditNote, *, lang: str = DEFAULT_LANG
 ) -> str:
     """Render the credit note HTML from its frozen snapshot."""
-    template = _env.get_template(f"{lang}/credit_note.html")
+    template = _template(lang, "credit_note.html")
     context: dict[str, Any] = dict(credit_note.snapshot)
     context.update(
         credit_note_number=credit_note.credit_note_number,
@@ -167,7 +183,7 @@ def _html_to_pdf(html: str) -> bytes:
 
 def render_quote_html(quote: Any, *, lang: str = DEFAULT_LANG) -> str:
     """Render a quote (« devis ») from its frozen ``quote_snapshot``."""
-    template = _env.get_template(f"{lang}/quote.html")
+    template = _template(lang, "quote.html")
     return template.render(**dict(quote.quote_snapshot or {}))
 
 

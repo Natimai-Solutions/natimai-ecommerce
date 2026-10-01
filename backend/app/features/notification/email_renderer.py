@@ -1,7 +1,9 @@
 """Central renderer for transactional email templates.
 
 Templates live under ``app/templates/email/<lang>/<name>.{subject.txt,txt,html}``
-so they can be edited without touching Python and translated per language later.
+(``fr`` and ``en``, R7 / L3), with a fallback to French for a template not yet
+translated. Every template receives ``lang`` and the filters ``money`` and
+``date`` that format in that language.
 HTML templates are auto-escaped (``{{ value }}`` interpolations are XSS-safe);
 text and subject templates are not.
 
@@ -14,6 +16,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -55,21 +58,45 @@ class RenderedEmail:
     html: str
 
 
+def _money(amount: Any, currency: str | None = None, *, lang: str) -> str:
+    from app.core.i18n import format_money
+
+    return format_money(amount, currency, lang)
+
+
 def _render_part(name: str, suffix: str, lang: str, context: dict[str, Any]) -> str:
     """Render ``<lang>/<name>.<suffix>``, falling back to the default language."""
+    from app.core.i18n import format_date
+
     for candidate in dict.fromkeys((lang, DEFAULT_LANG)):
         try:
             template = _env.get_template(f"{candidate}/{name}.{suffix}")
         except TemplateNotFound:
             continue
-        return template.render(**context)
+        return template.render(
+            **{
+                "lang": candidate,
+                "money": partial(_money, lang=candidate),
+                "date": partial(format_date, locale=candidate),
+                **context,
+            }
+        )
     raise TemplateNotFound(f"{lang}/{name}.{suffix}")
 
 
 def render_email(
-    name: str, *, lang: str = DEFAULT_LANG, **context: Any
+    name: str, *, lang: str | None = None, **context: Any
 ) -> RenderedEmail:
-    """Render the subject/text/html parts of email template ``name``."""
+    """Render the subject/text/html parts of email template ``name``.
+
+    ``lang``: the customer's language (order, preference); defaults to the
+    language of the current request, else the shop's.
+    """
+    from app.core import runtime_settings
+    from app.core.i18n import request_locale, resolve_locale
+
+    lang = resolve_locale(lang, request_locale())
+    context.setdefault("shop_name", runtime_settings.peek("shop_name"))
     return RenderedEmail(
         subject=_render_part(name, "subject.txt", lang, context).strip(),
         text=_render_part(name, "txt", lang, context),

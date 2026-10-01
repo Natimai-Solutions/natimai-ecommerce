@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Quote {{ quote_number }}</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 18mm 16mm 22mm 16mm;
+        @bottom-center {
+          content: "Quote {{ quote_number }} — page " counter(page) "/" counter(pages);
+          font-family: Helvetica, Arial, sans-serif;
+          font-size: 8pt;
+          color: #666;
+        }
+      }
+      body { font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; color: #1a1a1a; line-height: 1.45; }
+      h1 { font-size: 18pt; margin: 0 0 2mm 0; }
+      .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1a1a; padding-bottom: 4mm; margin-bottom: 6mm; }
+      .header__meta { text-align: right; font-size: 9pt; }
+      .parties { display: flex; justify-content: space-between; gap: 10mm; margin-bottom: 7mm; }
+      .party { width: 48%; }
+      .party__title { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.06em; color: #666; margin-bottom: 1.5mm; }
+      .party__name { font-weight: bold; }
+      table { width: 100%; border-collapse: collapse; }
+      .lines th { text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.04em; color: #444; border-bottom: 1px solid #999; padding: 2mm 1.5mm; }
+      .lines td { padding: 2mm 1.5mm; border-bottom: 1px solid #e5e5e5; vertical-align: top; }
+      .num { text-align: right; white-space: nowrap; }
+      .lines__reference { display: block; font-size: 8pt; color: #666; }
+      .totals { width: 44%; margin-left: auto; margin-top: 6mm; }
+      .totals td { padding: 1.5mm; }
+      .totals tr.grand td { border-top: 2px solid #1a1a1a; font-weight: bold; font-size: 11pt; padding-top: 2.5mm; }
+      .message { margin-top: 7mm; padding: 3mm; background: #f5f5f5; border-radius: 2mm; white-space: pre-line; }
+      .footer { margin-top: 9mm; padding-top: 3mm; border-top: 1px solid #ccc; font-size: 8pt; color: #555; }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div>
+        <h1>Quote</h1>
+        <div>{{ quote_number }}</div>
+      </div>
+      <div class="header__meta">
+        <div><strong>Date</strong>: {{ issued_at }}</div>
+        <div><strong>Valid until</strong>: {{ valid_until }}</div>
+      </div>
+    </div>
+
+    <div class="parties">
+      <div class="party">
+        <div class="party__title">Seller</div>
+        <div class="party__name">{{ seller.name }}</div>
+        {% if seller.address %}<div>{{ seller.address }}</div>{% endif %}
+        {% if seller.registration %}<div>{{ seller.registration }}</div>{% endif %}
+        {% if seller.email %}<div>{{ seller.email }}</div>{% endif %}
+        {% if seller.phone %}<div>{{ seller.phone }}</div>{% endif %}
+      </div>
+      <div class="party">
+        <div class="party__title">Customer</div>
+        <div class="party__name">{{ buyer.name or buyer.email }}</div>
+        {% if buyer.address %}<div>{{ buyer.address }}</div>{% endif %}
+        {% if buyer.name %}<div>{{ buyer.email }}</div>{% endif %}
+        {% if buyer.phone %}<div>{{ buyer.phone }}</div>{% endif %}
+      </div>
+    </div>
+
+    <table class="lines">
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th class="num">Qty</th>
+          <th class="num">Unit price incl. tax</th>
+          <th class="num">Total incl. tax</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in lines %}
+        <tr>
+          <td>
+            {{ line.product_name }}
+            {% if line.reference %}<span class="lines__reference">Ref. {{ line.reference }}</span>{% endif %}
+          </td>
+          <td class="num">{{ line.quantity }}</td>
+          <td class="num">{{ line.unit_price | amount(currency) }}</td>
+          <td class="num">{{ line.line_total | amount(currency) }}</td>
+        </tr>
+        {% endfor %}
+        {% if shipping_fee_amount and shipping_fee_amount != '0.00' and shipping_fee_amount != '0' %}
+        <tr>
+          <td>Delivery</td>
+          <td class="num">1</td>
+          <td class="num">{{ shipping_fee_amount | amount(currency) }}</td>
+          <td class="num">{{ shipping_fee_amount | amount(currency) }}</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+    <table class="totals">
+      <tbody>
+        <tr>
+          <td>Items</td>
+          <td class="num">{{ subtotal_amount | amount(currency) }}</td>
+        </tr>
+        <tr class="grand">
+          <td>Total incl. tax</td>
+          <td class="num">{{ total_amount | amount(currency) }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    {% if customer_message %}
+    <div class="message">{{ customer_message }}</div>
+    {% endif %}
+
+    <div class="footer">
+      <div>Quote valid until {{ valid_until }}. Prices include all taxes, delivered, under the terms and conditions of sale in force.</div>
+      <div>To accept it and order: {{ accept_url }}</div>
+      {% if seller.legal_footer %}<div>{{ seller.legal_footer }}</div>{% endif %}
+    </div>
+  </body>
+</html>

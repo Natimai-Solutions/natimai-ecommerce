@@ -11,6 +11,9 @@ import type { AxiosInstance } from '@app/api-client';
  */
 export const accessToken = ref<string | null>(null);
 
+/** Interface language, sent as `Accept-Language` (API messages follow it). */
+export const apiLocale = ref<string>('fr');
+
 export const api: AxiosInstance = createApiClient({
   baseUrl: import.meta.env.VITE_API_URL,
   getAccessToken: () => accessToken.value,
@@ -20,6 +23,7 @@ export const api: AxiosInstance = createApiClient({
   clearTokens: () => {
     accessToken.value = null;
   },
+  getLocale: () => apiLocale.value,
   onUnauthorized: () => {
     if (typeof window !== 'undefined' && !window.location.hash.includes('/login')) {
       window.location.hash = '#/login';
