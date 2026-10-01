@@ -21,6 +21,7 @@ import datetime
 import logging
 import secrets
 
+from app.core import runtime_settings
 from app.core.config import settings
 from app.core.security import get_password_hash, hash_reset_token
 from app.features.notification.email_renderer import render_email
@@ -88,7 +89,7 @@ async def send_invitation_email(
         invitation_url=invitation_url,
         full_name=full_name,
         valid_hours=INVITATION_TOKEN_TTL_HOURS,
-        shop_name=settings.SHOP_NAME,
+        shop_name=await runtime_settings.get("shop_name"),
     )
     try:
         provider = get_notification_provider(

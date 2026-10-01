@@ -22,6 +22,7 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import runtime_settings
 from app.core.config import settings
 from app.features.departure.models import GroupedDeparture
 from app.features.invoice.models.credit_note import CreditNote
@@ -120,7 +121,7 @@ async def _send_order_email(
     Returns whether the message actually reached the provider, so a caller
     that must not lose the notification (the invoice) can fail and be retried.
     """
-    if not settings.PAYMENT_NOTIFICATIONS_EMAIL_ENABLED:
+    if not await runtime_settings.get("notifications_email_enabled", session):
         return False
 
     if not user_id_raw:

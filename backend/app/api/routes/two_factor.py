@@ -83,7 +83,10 @@ async def setup(
     session: SessionDep, current_user: CurrentSuperUserEnrolling
 ) -> TwoFactorSetup:
     """A new secret to scan (replaces a pending one). Active after /confirm."""
-    enrollment = two_factor.start_enrollment(current_user)
+    from app.core import runtime_settings
+
+    shop_name = await runtime_settings.get("shop_name", session)
+    enrollment = two_factor.start_enrollment(current_user, shop_name=shop_name)
     session.add(current_user)
     await session.commit()
     return TwoFactorSetup(

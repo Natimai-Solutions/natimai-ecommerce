@@ -18,8 +18,8 @@ from arq import cron
 from sqlmodel import and_, col, or_
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import runtime_settings
 from app.core.alerting import send_alert
-from app.core.config import settings
 from app.core.db import engine
 from app.features.integrations.crud.supplier_sync import supplier_sync_log_crud
 from app.features.integrations.models.supplier_sync import SyncStatus, SyncType
@@ -199,7 +199,9 @@ async def _handle_missing_skus(
         )
         return 0, 0
 
-    grace_hours = int(settings.SUPPLIER_DELISTING_GRACE_HOURS)
+    grace_hours = int(
+        await runtime_settings.get("supplier_delisting_grace_hours", session)
+    )
     now = _now()
     cutoff = now - timedelta(hours=grace_hours) if grace_hours > 0 else None
 
@@ -303,6 +305,9 @@ async def sync_supplier_inventory_task(
                 logger.info("Fetched %s SKUs for inventory update", len(skus))
 
             batch_size = adapter.price_batch_size
+            own_settings = dict(
+                getattr(getattr(adapter, "config", None), "settings", None) or {}
+            )
             total_updated = 0
             total_flagged = 0
             total_delisted = 0
@@ -380,7 +385,10 @@ async def sync_supplier_inventory_task(
                                 "supplier_price_currency": snapshot.supplier_price_currency,
                                 "supplier_quantity": snapshot.supplier_quantity,
                                 "is_active": meets_sync_thresholds(
-                                    snapshot, price_in_xpf=price_in_xpf
+                                    snapshot,
+                                    price_in_xpf=price_in_xpf,
+                                    min_quantity=own_settings.get("sync_min_quantity"),
+                                    min_price=own_settings.get("sync_min_price"),
                                 ),
                                 "last_supplier_sync": _now(),
                                 # The SKU answered: any pending delisting

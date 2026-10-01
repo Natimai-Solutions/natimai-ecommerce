@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.api.deps import SessionDep, get_current_active_superuser
+from app.core import runtime_settings
 from app.core.config import settings
 from app.core.errors import AppError
 from app.features.system.modules import module_enabled
@@ -224,7 +225,7 @@ async def get_enrichment_status(
         "enabled": await module_enabled(session, "icecat"),
         "env_enabled": settings.ICECAT_ENABLED,
         "configured": icecat_credentials_present(),
-        "language": settings.ICECAT_LANGUAGE,
+        "language": await runtime_settings.get("icecat_language", session),
         "api_url": icecat_service.base_url,
     }
 

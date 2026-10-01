@@ -361,3 +361,7 @@ class AdapterDescriptor(BaseModel):
         default=False,
         description="L'intégration sait passer une commande fournisseur",
     )
+    settings_schema: dict[str, Any] = PydanticField(
+        default_factory=dict,
+        description="Schéma JSON de Supplier.settings (formulaire admin)",
+    )

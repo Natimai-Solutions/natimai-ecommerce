@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import httpx
 
-from app.core.config import settings
 from app.features.notification.providers.base import (
     NotificationMessage,
     NotificationProvider,
@@ -17,7 +16,11 @@ class SlackWebhookNotificationProvider(NotificationProvider):
 
     async def send(self, message: NotificationMessage) -> NotificationResult:
         """Execute send."""
-        webhook_url = settings.PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL
+        from app.core import runtime_settings
+
+        webhook_url = (
+            await runtime_settings.get("notifications_slack_webhook_url") or None
+        )
         if webhook_url is None:
             return NotificationResult(
                 provider_code=self.code,

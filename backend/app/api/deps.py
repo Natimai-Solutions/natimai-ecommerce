@@ -171,7 +171,9 @@ async def get_current_logistics_admin(
     if current_user.is_superuser:
         return current_user
 
-    if settings.ENABLE_GROUP_PERMISSIONS:
+    from app.core import runtime_settings
+
+    if await runtime_settings.get("enable_group_permissions", session):
         from sqlmodel import col, select
 
         from app.features.user.models.group import Group

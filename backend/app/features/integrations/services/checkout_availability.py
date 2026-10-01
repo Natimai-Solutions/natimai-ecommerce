@@ -25,7 +25,6 @@ from decimal import Decimal
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
 from app.features.product.models.product import Product
 from app.services.suppliers import resolve_adapter
 
@@ -56,7 +55,16 @@ async def refresh_supplier_availability(
     check is disabled, when no line is eligible, or when the supplier could not
     be reached. Does not commit: the caller owns the checkout transaction.
     """
-    if not settings.CHECKOUT_SUPPLIER_AVAILABILITY_CHECK:
+    from app.core import runtime_settings
+
+    check = await runtime_settings.get_many(
+        [
+            "checkout_supplier_availability_check",
+            "checkout_supplier_check_timeout_seconds",
+        ],
+        session,
+    )
+    if not check["checkout_supplier_availability_check"]:
         return {}
 
     by_supplier: dict[str, dict[str, Product]] = {}
@@ -108,7 +116,7 @@ async def refresh_supplier_availability(
         try:
             pricing = await asyncio.wait_for(
                 adapter.fetch_price_and_availability(list(products_by_sku)),
-                timeout=settings.CHECKOUT_SUPPLIER_CHECK_TIMEOUT_SECONDS,
+                timeout=float(check["checkout_supplier_check_timeout_seconds"]),
             )
         except Exception as exc:  # noqa: BLE001
             # Deliberately broad and deliberately non-fatal: the checkout must

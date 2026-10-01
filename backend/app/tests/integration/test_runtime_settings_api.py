@@ -12,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.tasks.pricing_tasks as pricing_tasks
 from app.api.routes.system_settings import (
+    RuntimeSettingPublic,
     admin_get_setting,
     admin_list_settings,
     admin_reset_setting,
@@ -88,6 +89,7 @@ async def test_a_value_is_typed_attributed_journaled_and_resettable(
         db_session,
         admin,
     )
+    assert isinstance(saved, RuntimeSettingPublic)
     assert (saved.value, saved.source, saved.type) == ("6", "db", "int")
     assert saved.updated_by_email == admin_email
     assert await rs.get("stock_reservation_ttl_hours", db_session) == 6

@@ -556,7 +556,7 @@ async def calculate_sale_price(
     # only under-recovers on exactly the items where the freight weighs most —
     # the heavy and the far-shipped. There is no circularity: the variable
     # freight is known before the customs base is assembled.
-    insurance_rate = Decimal(str(settings.INSURANCE_RATE_PCT)) / Decimal("100")
+    insurance_rate = parameters.insurance_rate_pct / Decimal("100")
     insurance = (cost_in_reference + freight_variable) * insurance_rate
 
     caf = cost_in_reference + freight_variable + insurance
@@ -822,7 +822,7 @@ class PricingContext:
             default_tax_rate_pct=default_tax_pct,
             fx_rates=fx,
             categories=categories,
-            insurance_rate_pct=Decimal(str(settings.INSURANCE_RATE_PCT)),
+            insurance_rate_pct=parameters.insurance_rate_pct,
             reference_currency=settings.REFERENCE_CURRENCY,
             at_date=reference_date,
             places=places,

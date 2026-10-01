@@ -35,10 +35,11 @@ import ipaddress
 import logging
 import socket
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urljoin, urlsplit
 
 import httpx
+from pydantic import Field
 
 from app.core.config import settings
 from app.services.suppliers.base import (
@@ -46,6 +47,7 @@ from app.services.suppliers.base import (
     NormalizedProductData,
     SupplierAdapter,
     SupplierHealth,
+    SupplierSettings,
 )
 from app.services.suppliers.file_import import (
     FileImportError,
@@ -97,20 +99,40 @@ async def check_public_https_url(url: str) -> None:
         raise FeedError(f"Adresse refusée (réseau privé) : {parts.hostname}")
 
 
+class FileFeedSettings(SupplierSettings):
+    """``Supplier.settings`` of a file feed (R5 / C4)."""
+
+    feed_url: str | None = Field(
+        default=None,
+        max_length=1000,
+        pattern=r"^[Hh][Tt][Tt][Pp][Ss]://",
+        title="Adresse du fichier",
+        description="Lien https du fichier catalogue.",
+    )
+    auth_mode: Literal["none", "basic", "form"] | None = Field(
+        default=None, title="Authentification"
+    )
+    login_url: str | None = Field(
+        default=None, max_length=1000, title="Page de connexion (mode formulaire)"
+    )
+    username_field: str | None = Field(
+        default=None, max_length=100, title="Champ identifiant du formulaire"
+    )
+    password_field: str | None = Field(
+        default=None, max_length=100, title="Champ mot de passe du formulaire"
+    )
+    file_format: Literal["auto", "csv", "xlsx"] | None = Field(
+        default=None, title="Format du fichier"
+    )
+    sheet_name: str | None = Field(default=None, max_length=100, title="Feuille")
+
+
 class FileFeedAdapter(SupplierAdapter):
     """Catalogue file fetched from a URL, optionally behind a login."""
 
     adapter_key = "file_feed"
     display_name = "Fichier en ligne (lien)"
-    settings_keys = (
-        "feed_url",
-        "auth_mode",
-        "login_url",
-        "username_field",
-        "password_field",
-        "file_format",
-        "sheet_name",
-    )
+    settings_schema = FileFeedSettings
     supports_live_availability = False
     single_source = True
     applies_file_thresholds = True

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentSuperUser, SessionDep, module_required
-from app.core.config import settings
+from app.core import runtime_settings
 from app.features.cart.services.abandonment import open_carts_overview
 
 router = APIRouter(
@@ -40,9 +40,13 @@ async def list_abandoned_carts(
     number that tells whether the reminder pays.
     """
     page, counters = await open_carts_overview(session, skip=skip, limit=limit)
+    values = await runtime_settings.get_many(
+        ["cart_abandonment_reminder_delay_hours", "cart_abandonment_max_age_days"],
+        session,
+    )
     return AbandonedCartsResponse(
         data=page,
         counters=counters,
-        reminder_delay_hours=int(settings.CART_ABANDONMENT_REMINDER_DELAY_HOURS),
-        reminder_max_age_days=int(settings.CART_ABANDONMENT_MAX_AGE_DAYS),
+        reminder_delay_hours=int(values["cart_abandonment_reminder_delay_hours"]),
+        reminder_max_age_days=int(values["cart_abandonment_max_age_days"]),
     )

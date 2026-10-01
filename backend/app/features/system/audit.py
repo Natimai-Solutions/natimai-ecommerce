@@ -16,7 +16,6 @@ from sqlalchemy import delete as sa_delete
 from sqlmodel import col
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
 from app.features.system.models.audit_log import AdminAuditEntry
 
 logger = logging.getLogger(__name__)
@@ -133,13 +132,13 @@ async def purge_older_than(session: AsyncSession, days: int) -> int:
 
 
 async def purge_audit_log_task(_ctx: dict[str, Any]) -> dict[str, int]:
-    """Daily cron: apply ``AUDIT_LOG_RETENTION_DAYS``."""
+    """Daily cron: apply the ``audit_log_retention_days`` runtime setting."""
+    from app.core import runtime_settings
     from app.core.db import engine
 
     async with AsyncSession(engine) as session:
-        deleted = await purge_older_than(
-            session, int(settings.AUDIT_LOG_RETENTION_DAYS)
-        )
+        days = await runtime_settings.get("audit_log_retention_days", session)
+        deleted = await purge_older_than(session, int(days))
     return {"deleted": deleted}
 
 

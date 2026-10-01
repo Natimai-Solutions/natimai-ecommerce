@@ -22,7 +22,6 @@ from sqlalchemy import func
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
 from app.core.db import engine
 from app.features.payment.models.payment_attachment import PaymentAttachment
 from app.features.place.models import Place
@@ -228,18 +227,21 @@ async def _check_import_cost_parameters(session: AsyncSession) -> Check:
         if place.customs_declaration_fee and place.customs_declaration_fee > 0
     ]
 
+    from app.core import runtime_settings
+
+    insurance = await runtime_settings.get("insurance_rate_pct", session)
     return Check(
         "Coûts d'import paramétrés",
         (
             f"frais de déclaration : {len(configured)}/{len(customs_places)} "
             f"lieu(x) de dédouanement ; assurance : "
-            f"{settings.INSURANCE_RATE_PCT} % (0 = non facturée)"
+            f"{insurance} % (0 = non facturée)"
         ),
         True,
         (
             "Renseigner places.customs_declaration_fee sur le lieu de "
             "dédouanement (facturé une fois par expédition) et "
-            "INSURANCE_RATE_PCT au taux réel de la police."
+            "l'assurance transport (Paramètres → Prix) au taux réel de la police."
         ),
     )
 

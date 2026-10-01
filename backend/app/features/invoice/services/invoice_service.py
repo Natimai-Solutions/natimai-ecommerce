@@ -27,6 +27,7 @@ from typing import Any
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import runtime_settings
 from app.core.alerting import send_alert
 from app.core.config import settings
 from app.features.invoice.models.invoice import Invoice
@@ -138,7 +139,9 @@ async def _seller_identity(session: AsyncSession) -> dict[str, str]:
         ),
         "email": legal.get("legal_contact_email") or settings.INVOICE_SELLER_EMAIL,
         "phone": legal.get("legal_contact_phone") or settings.INVOICE_SELLER_PHONE,
-        "legal_footer": settings.INVOICE_LEGAL_FOOTER,
+        "legal_footer": str(
+            await runtime_settings.get("invoice_legal_footer", session) or ""
+        ),
     }
     missing = [key for key in ("name", "address", "registration") if not identity[key]]
     if not missing:

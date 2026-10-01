@@ -16,6 +16,7 @@ from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import runtime_settings
 from app.core.config import settings
 from app.features.notification.email_renderer import RenderedEmail, render_email
 from app.features.notification.providers import (
@@ -65,7 +66,7 @@ async def _send_shipping_email(
     payload: dict[str, Any],
 ) -> None:
     """Check notification preference and send the email if enabled."""
-    if not settings.PAYMENT_NOTIFICATIONS_EMAIL_ENABLED:
+    if not await runtime_settings.get("notifications_email_enabled", session):
         return
 
     pref = await get_preference_for_user(session, user_id=user.id)

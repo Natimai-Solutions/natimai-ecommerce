@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 import aiohttp
@@ -35,6 +35,7 @@ from app.services.suppliers.base import (
     SupplierAdapter,
     SupplierConfig,
     SupplierHealth,
+    SupplierSettings,
 )
 
 logger = logging.getLogger(__name__)
@@ -498,6 +499,33 @@ def _to_normalized_product(item: IngramProductData) -> NormalizedProductData:
     )
 
 
+class IngramSettings(SupplierSettings):
+    """``Supplier.settings`` of an Ingram Micro row (R5 / C4)."""
+
+    environment: Literal["sandbox", "production"] | None = Field(
+        default=None, title="Environnement", description="Vide : INGRAM_ENVIRONMENT."
+    )
+    country_code: str | None = Field(
+        default=None,
+        min_length=2,
+        max_length=2,
+        title="Pays du compte",
+        description="Vide : INGRAM_COUNTRY_CODE.",
+    )
+    ship_to_company_name: str | None = Field(
+        default=None,
+        max_length=150,
+        title="Société destinataire des commandes",
+        description="Vide : INGRAM_SHIP_TO_COMPANY_NAME, sinon le nom de la boutique.",
+    )
+    ship_to_contact: str | None = Field(
+        default=None, max_length=150, title="Contact de livraison"
+    )
+    ship_to_phone: str | None = Field(
+        default=None, max_length=50, title="Téléphone de livraison"
+    )
+
+
 class IngramMicroAdapter(SupplierAdapter):
     """Supplier adapter wrapping :class:`IngramMicroService`.
 
@@ -510,7 +538,7 @@ class IngramMicroAdapter(SupplierAdapter):
 
     adapter_key = "ingram_micro"
     display_name = "Ingram Micro"
-    settings_keys = ("environment", "country_code", "origin_place_code")
+    settings_schema = IngramSettings
     price_batch_size = 50
     # Enforced by the shared limiter in this module, which every
     # IngramMicroService call goes through.

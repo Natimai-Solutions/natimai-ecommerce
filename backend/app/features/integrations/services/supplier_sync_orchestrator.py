@@ -30,6 +30,7 @@ from app.features.integrations.services.category_mapping import CategoryMapper
 from app.features.integrations.services.sku_allowlist import allowed_sku
 from app.features.integrations.services.supplier_data_normalization import (
     DEFAULT_CURRENCY,
+    ProductFilterRule,
     evaluate_product_filters,
     normalize_supplier_snapshot,
 )
@@ -201,24 +202,39 @@ def global_filter_action(
     subcategory: str | None,
     name: str | None = None,
     supplier_has_rules: bool = False,
+    supplier_settings: dict[str, Any] | None = None,
 ) -> Literal["skip", "deactivate"] | None:
-    """The environment's filter rules and subcategory allowlist, for a row.
+    """The filter rules and subcategory allowlist, for a row.
 
-    The global allowlist (``SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST``) steps aside
-    for a supplier that curates its own categories (mapping, whole-file
-    category or a non-``auto`` unmapped action): both at once would contradict
-    each other.
+    The supplier's own ``filter_rules`` / ``subcategory_allowlist``
+    (``Supplier.settings``, R5 / C4) replace the environment's when set.
+    The allowlist steps aside for a supplier that curates its own categories
+    (mapping, whole-file category or a non-``auto`` unmapped action): both at
+    once would contradict each other.
     """
     from app.core.config import settings
 
+    own = supplier_settings or {}
+    rules = own.get("filter_rules")
+    allowlist = own.get("subcategory_allowlist")
     return evaluate_product_filters(
         supplier_name=supplier_name,
         supplier_subcategory=subcategory,
         supplier_category=category,
         name=name,
-        rules=settings.SUPPLIER_PRODUCT_FILTER_RULES,
+        rules=(
+            [ProductFilterRule.model_validate(rule) for rule in rules]
+            if rules is not None
+            else settings.SUPPLIER_PRODUCT_FILTER_RULES
+        ),
         subcategory_allowlist=(
-            None if supplier_has_rules else settings.SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST
+            None
+            if supplier_has_rules
+            else (
+                list(allowlist)
+                if allowlist is not None
+                else settings.SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST
+            )
         ),
     )
 
@@ -673,6 +689,9 @@ class SupplierSyncOrchestrator:
             name=item.name,
             supplier_has_rules=bool(
                 self.category_mapper and self.category_mapper.has_rules
+            ),
+            supplier_settings=dict(
+                getattr(getattr(self.adapter, "config", None), "settings", None) or {}
             ),
         )
 

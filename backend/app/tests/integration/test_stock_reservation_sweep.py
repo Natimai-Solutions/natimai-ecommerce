@@ -270,9 +270,16 @@ def test_cron_job_is_registered_when_enabled(
     assert len(jobs) == 1
 
 
-def test_cron_job_absent_when_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.asyncio
+async def test_cron_always_scheduled_and_inert_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """R5 / C5: the TTL is read at each tick — 0 makes it a no-op, and
+    setting it back needs no worker restart."""
     monkeypatch.setattr(settings, "STOCK_RESERVATION_TTL_HOURS", 0, raising=False)
-    assert inventory_tasks.get_stock_reservation_cron_jobs() == []
+    assert len(inventory_tasks.get_stock_reservation_cron_jobs()) == 1
+    result = await inventory_tasks.release_expired_stock_reservations_task({})
+    assert result["status"] == "disabled"
 
 
 async def _run_sweep(

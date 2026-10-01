@@ -41,8 +41,8 @@ class Enrollment:
     qr_svg_data_uri: str
 
 
-def _issuer() -> str:
-    return f"{settings.SHOP_NAME} admin"
+def _issuer(shop_name: str | None = None) -> str:
+    return f"{shop_name or settings.SHOP_NAME} admin"
 
 
 def _qr_data_uri(content: str) -> str:
@@ -70,8 +70,11 @@ def _secret(user: User) -> str | None:
     return decrypt_json(user.totp_secret_encrypted).get("secret")
 
 
-def start_enrollment(user: User) -> Enrollment:
-    """Store a new pending secret (replacing any pending one)."""
+def start_enrollment(user: User, *, shop_name: str | None = None) -> Enrollment:
+    """Store a new pending secret (replacing any pending one).
+
+    ``shop_name`` (runtime setting) names the account in the authenticator.
+    """
     if user.totp_enabled:
         raise AppError(
             code="auth.totp.already_enabled",
@@ -82,7 +85,7 @@ def start_enrollment(user: User) -> Enrollment:
     secret = totp.generate_secret()
     user.totp_secret_encrypted = encrypt_json({"secret": secret})
     user.totp_last_step = None
-    uri = totp.provisioning_uri(secret, account=user.email, issuer=_issuer())
+    uri = totp.provisioning_uri(secret, account=user.email, issuer=_issuer(shop_name))
     return Enrollment(secret=secret, otpauth_uri=uri, qr_svg_data_uri=_qr_data_uri(uri))
 
 

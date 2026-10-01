@@ -27,7 +27,14 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any
+from typing import Any, ClassVar
+
+from pydantic import BaseModel, ConfigDict
+from pydantic import Field as PydanticField
+
+from app.features.integrations.services.supplier_data_normalization import (
+    ProductFilterRule,
+)
 
 
 @dataclass(slots=True)
@@ -192,6 +199,57 @@ class SupplierConfig:
         )
 
 
+class SupplierSettings(BaseModel):
+    """What ``Supplier.settings`` may hold, common to every adapter (R5 / C4).
+
+    Each adapter extends it with its own fields (:attr:`SupplierAdapter.
+    settings_schema`); the admin validates against it (unknown key or wrong
+    type: 400) and builds its form from its JSON schema. A field left empty
+    keeps the environment's value, where one exists.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    origin_place_code: str | None = PydanticField(
+        default=None,
+        max_length=50,
+        title="Lieu d'origine (code)",
+        description="Code du lieu d'expédition, quand la colonne n'est pas renseignée.",
+    )
+    subcategory_allowlist: list[str] | None = PydanticField(
+        default=None,
+        title="Sous-catégories autorisées",
+        description=(
+            "Seules ces sous-catégories du fournisseur sont publiées (les autres "
+            "sont créées désactivées). Vide : la liste de l'environnement "
+            "(SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST) ; [] : tout est autorisé."
+        ),
+    )
+    filter_rules: list[ProductFilterRule] | None = PydanticField(
+        default=None,
+        title="Règles de filtrage",
+        description=(
+            "Règles propres à ce fournisseur, à la place de celles de "
+            "l'environnement (SUPPLIER_PRODUCT_FILTER_RULES)."
+        ),
+    )
+    sync_min_quantity: Decimal | None = PydanticField(
+        default=None,
+        ge=0,
+        title="Quantité minimale (synchro de stock)",
+        description=(
+            "Sous ce stock fournisseur, l'article est retiré de la vente à la "
+            "synchro d'inventaire. Vide : SUPPLIER_SYNC_MIN_QUANTITY."
+        ),
+    )
+    sync_min_price: Decimal | None = PydanticField(
+        default=None,
+        ge=0,
+        title="Prix minimal (synchro de stock, devise de référence)",
+        description="Vide : SUPPLIER_SYNC_MIN_PRICE.",
+    )
+
+
 class SupplierAdapter(ABC):
     """Contract implemented by every supplier integration.
 
@@ -207,8 +265,15 @@ class SupplierAdapter(ABC):
     adapter_key: str = ""
     #: Human friendly label of the implementation, e.g. ``"Ingram Micro"``.
     display_name: str = ""
-    #: Keys the implementation reads in ``Supplier.settings`` (for the admin UI).
-    settings_keys: tuple[str, ...] = ()
+    #: Schema of ``Supplier.settings`` for this implementation (R5 / C4).
+    settings_schema: ClassVar[type[SupplierSettings]] = SupplierSettings
+    #: Keys of :attr:`settings_schema` (derived, kept for the admin UI).
+    settings_keys: ClassVar[tuple[str, ...]] = tuple(SupplierSettings.model_fields)
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        cls.settings_keys = tuple(cls.settings_schema.model_fields)
+
     #: Max number of SKUs accepted per price/availability request.
     price_batch_size: int = 50
     #: Soft client-side rate limit hint (requests / minute). ``None`` = unknown.

@@ -416,16 +416,6 @@ register(
         maximum=_d(5_000_000),
         order=30,
     ),
-    SettingSpec(
-        "ingram_order_creation_enabled",
-        "bool",
-        "suppliers",
-        "Commandes Ingram Micro automatiques",
-        "Passe la commande chez Ingram Micro quand une commande client payée "
-        "en contient des articles.",
-        env="INGRAM_ORDER_CREATION_ENABLED",
-        order=40,
-    ),
 )
 
 # --------------------------------------------------------------------------

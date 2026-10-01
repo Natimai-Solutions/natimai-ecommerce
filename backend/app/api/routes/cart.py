@@ -14,6 +14,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 from sqlmodel import col, or_, select
 
 from app.api.deps import CurrentUser, SessionDep, module_required
+from app.core import runtime_settings
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.observability import log_structured_event, observe_checkout_result
@@ -1808,7 +1809,9 @@ async def create_quote_request(
     payload: QuoteRequestSubmit,
 ) -> QuoteRequestResponse:
     """Create a quote request from the active cart and notify support."""
-    support_email = (settings.EMAIL_SUPPORT or "").strip()
+    support_email = str(
+        await runtime_settings.get("email_support", session) or ""
+    ).strip()
     if not support_email:
         raise AppError(
             code="cart.quote.unavailable",
@@ -2083,7 +2086,9 @@ async def create_guest_quote_request(
     sous forme d'email, et un échec d'envoi la perdait définitivement alors que
     l'endpoint répondait 201. Le back-office (A11) est désormais le filet.
     """
-    support_email = (settings.EMAIL_SUPPORT or "").strip()
+    support_email = str(
+        await runtime_settings.get("email_support", session) or ""
+    ).strip()
     if not support_email:
         raise AppError(
             code="cart.quote.unavailable",
@@ -2882,12 +2887,14 @@ async def checkout_my_cart(
 
     # Acceptation des CGV : refusée ici et pas seulement grisée dans le front,
     # sinon un appel direct à l'API commande sans jamais les accepter.
+    # Lue sans cache : la version figée sur la commande est celle en vigueur.
+    cgv_version = str(await runtime_settings.get("cgv_version", session, fresh=True))
     if not payload.cgv_accepted:
         raise AppError(
             code="cart.cgv.not_accepted",
             status_code=400,
             message="Les conditions générales de vente doivent être acceptées",
-            details={"cart_id": str(cart.id), "cgv_version": settings.CGV_VERSION},
+            details={"cart_id": str(cart.id), "cgv_version": cgv_version},
         )
     cgv_accepted_at = datetime.now(timezone.utc)
 
@@ -2924,7 +2931,7 @@ async def checkout_my_cart(
                 delivery_type=payload.delivery_type,
                 grouped_departure_id=departure.id if departure else None,
                 cgv_accepted_at=cgv_accepted_at,
-                cgv_version=settings.CGV_VERSION,
+                cgv_version=cgv_version,
                 payment_plan=quote.payment_plan,
                 deposit_amount=quote.deposit_amount,
                 deposit_fee_amount=quote.deposit_fee_amount,

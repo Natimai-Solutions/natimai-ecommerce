@@ -31,7 +31,7 @@ from decimal import Decimal
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import update as sa_update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, func, select
@@ -169,7 +169,8 @@ async def _validate(session: SessionDep, supplier: Supplier) -> None:
                 message="L'adresse du fichier doit commencer par https://",
                 details={"feed_url": str(feed_url)},
             )
-        allowed = set(ADAPTERS[str(supplier.adapter_key)].settings_keys)
+        adapter_cls = ADAPTERS[str(supplier.adapter_key)]
+        allowed = set(adapter_cls.settings_keys)
         unknown = sorted(set(supplier.settings or {}) - allowed)
         if unknown:
             raise AppError(
@@ -178,6 +179,25 @@ async def _validate(session: SessionDep, supplier: Supplier) -> None:
                 message=f"Unknown settings for {supplier.adapter_key}: {', '.join(unknown)}",
                 details={"unknown": unknown, "allowed": sorted(allowed)},
             )
+        # Typed per adapter (R5 / C4): stored normalized, empty values dropped.
+        try:
+            typed = adapter_cls.settings_schema.model_validate(supplier.settings or {})
+        except ValidationError as exc:
+            raise AppError(
+                code="supplier.settings.invalid",
+                status_code=400,
+                message="Réglages du fournisseur invalides",
+                details={
+                    "errors": [
+                        {
+                            "field": ".".join(str(p) for p in err["loc"]),
+                            "message": err["msg"],
+                        }
+                        for err in exc.errors()
+                    ]
+                },
+            ) from exc
+        supplier.settings = typed.model_dump(mode="json", exclude_none=True) or None
     if supplier.kind in (SupplierKind.FILE, SupplierKind.API) and (
         supplier.column_mapping
     ):
@@ -482,11 +502,11 @@ async def get_observed_categories(
         session,
         supplier.code,
         await observed_pairs(session, supplier.code),
-        global_effect=_global_effect(supplier.code),
+        global_effect=_global_effect(supplier.code, supplier.settings),
     )
 
 
-def _global_effect(code: str) -> Any:
+def _global_effect(code: str, supplier_settings: dict[str, Any] | None = None) -> Any:
     def _effect(
         category: str | None, subcategory: str | None, has_rules: bool
     ) -> str | None:
@@ -495,6 +515,7 @@ def _global_effect(code: str) -> Any:
             category=category,
             subcategory=subcategory,
             supplier_has_rules=has_rules,
+            supplier_settings=supplier_settings,
         )
 
     return _effect

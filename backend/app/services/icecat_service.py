@@ -51,15 +51,48 @@ class IcecatService:
         # For Full Icecat, use: https://live.icecat.biz/api
         """Initialize the icecat service instance."""
         self.base_url = "https://live.icecat.biz/api"
-        self.use_open_icecat = getattr(settings, "ICECAT_USE_OPEN", True)
-        self.username = settings.ICECAT_USERNAME
-        self.api_key = settings.ICECAT_API_KEY
-        self.language = settings.ICECAT_LANGUAGE or "fr"
+        # Runtime settings (R5), refreshed before each request: nothing is
+        # captured at import, a change in the back-office applies at once.
+        self._language: str | None = None
+        self._use_open: bool | None = None
+
+    @property
+    def username(self) -> str | None:
+        return settings.ICECAT_USERNAME
+
+    @property
+    def api_key(self) -> str | None:
+        return settings.ICECAT_API_KEY
+
+    @property
+    def language(self) -> str:
+        return self._language or settings.ICECAT_LANGUAGE or "fr"
+
+    @property
+    def use_open_icecat(self) -> bool:
+        if self._use_open is not None:
+            return self._use_open
+        return bool(getattr(settings, "ICECAT_USE_OPEN", True))
+
+    async def refresh_settings(self) -> None:
+        """Read the language and the Open / Full choice from the registry."""
+        from app.core import runtime_settings
+
+        try:
+            values = await runtime_settings.get_many(
+                ["icecat_language", "icecat_use_open"]
+            )
+        except Exception:  # noqa: BLE001 - keep the last known values
+            logger.warning("Icecat: runtime settings unreadable, keeping defaults")
+            return
+        self._language = values["icecat_language"]
+        self._use_open = values["icecat_use_open"]
 
     async def _make_api_request(
         self, endpoint: str, params: dict | None = None
     ) -> dict[str, Any]:
         """Make authenticated request to Icecat API"""
+        await self.refresh_settings()
 
         # Check if credentials are configured
         if not self.username or not self.api_key:

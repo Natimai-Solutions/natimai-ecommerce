@@ -76,6 +76,7 @@ def describe_adapters() -> list[AdapterDescriptor]:
             configured=cls.credentials_present(),
             settings_keys=list(cls.settings_keys),
             supports_purchase_orders=bool(cls.supports_purchase_orders),
+            settings_schema=cls.settings_schema.model_json_schema(),
         )
         for key, cls in sorted(ADAPTERS.items())
     ]

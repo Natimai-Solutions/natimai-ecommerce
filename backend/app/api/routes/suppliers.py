@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, File, Form, Path, Query, UploadFile
 from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentSuperUser, SessionDep, module_required
-from app.core.config import settings
+from app.core import runtime_settings
 from app.core.errors import AppError
 from app.features.attachment.storage.factory import get_file_storage
 from app.features.base.crud import RecordNotFoundError
@@ -61,8 +61,8 @@ from app.services.suppliers import (
 )
 from app.services.suppliers.base import SupplierConfig
 from app.services.suppliers.file_import import (
-    MAX_ROWS,
     FileImportError,
+    max_rows_setting,
     read_tabular_file,
     rows_to_products,
     validate_mapping,
@@ -533,7 +533,7 @@ async def _ensure_category(session: SessionDep, category_id: uuid.UUID) -> None:
         )
 
 
-def _global_effect(code: str) -> Any:
+def _global_effect(code: str, supplier_settings: dict[str, Any] | None = None) -> Any:
     """The environment's filter rules for a couple (dry run, no I/O)."""
 
     def _effect(
@@ -544,6 +544,7 @@ def _global_effect(code: str) -> Any:
             category=category,
             subcategory=subcategory,
             supplier_has_rules=has_rules,
+            supplier_settings=supplier_settings,
         )
 
     return _effect
@@ -664,14 +665,16 @@ async def import_catalog_file(
     actor_id = current_user.id
     supplier_code = supplier.code
     supplier_currency = supplier.price_currency
+    supplier_settings = dict(getattr(supplier, "settings", None) or {})
     orchestrator = orchestrator_for_file_import(supplier)
     thresholds = thresholds_for(
         supplier, min_quantity=min_quantity, min_price=min_price
     )
     effective_mapping = _parse_mapping_field(mapping) or supplier.column_mapping
 
+    max_rows = await max_rows_setting(session)
     try:
-        parsed = read_tabular_file(content, filename, max_rows=MAX_ROWS)
+        parsed = read_tabular_file(content, filename, max_rows=max_rows)
     except FileImportError as exc:
         raise AppError(
             code="supplier.import.unreadable",
@@ -688,15 +691,17 @@ async def import_catalog_file(
             message="; ".join(problems) or "Aucun mapping de colonnes défini",
             details={"problems": problems, "headers": parsed.headers},
         )
-    if parsed.total_rows > MAX_ROWS:
+    if parsed.total_rows > max_rows:
         raise AppError(
             code="supplier.import.too_many_rows",
             status_code=413,
-            message=f"File has {parsed.total_rows} rows; the limit is {MAX_ROWS}",
-            details={"total_rows": parsed.total_rows, "limit": MAX_ROWS},
+            message=f"File has {parsed.total_rows} rows; the limit is {max_rows}",
+            details={"total_rows": parsed.total_rows, "limit": max_rows},
         )
 
-    inline_limit = settings.SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS
+    inline_limit = int(
+        await runtime_settings.get("supplier_file_import_inline_max_rows", session)
+    )
     if not dry_run and parsed.total_rows > inline_limit:
         if default_category_id is not None:
             await _ensure_category(session, default_category_id)
@@ -756,7 +761,7 @@ async def import_catalog_file(
             session,
             supplier_code,
             pairs,
-            global_effect=_global_effect(supplier_code),
+            global_effect=_global_effect(supplier_code, supplier_settings),
             default_category_id=default_category_id,
         )
         return FileImportResponse(

@@ -194,6 +194,8 @@ def meets_sync_thresholds(
     snapshot: NormalizedSupplierSnapshot,
     *,
     price_in_xpf: Decimal | None = None,
+    min_quantity: Decimal | None = None,
+    min_price: Decimal | None = None,
 ) -> bool:
     """Check whether a snapshot's price and quantity meet configured minimums.
 
@@ -209,8 +211,18 @@ def meets_sync_thresholds(
     # Imported here to avoid circular dependency at module load time.
     from app.core.config import settings
 
-    min_qty = settings.SUPPLIER_SYNC_MIN_QUANTITY
-    min_price = settings.SUPPLIER_SYNC_MIN_PRICE
+    # The supplier's own thresholds (``Supplier.settings.sync_min_*``,
+    # R5 / C4) win over the environment's.
+    min_qty = (
+        Decimal(str(min_quantity))
+        if min_quantity is not None
+        else settings.SUPPLIER_SYNC_MIN_QUANTITY
+    )
+    min_price = (
+        Decimal(str(min_price))
+        if min_price is not None
+        else settings.SUPPLIER_SYNC_MIN_PRICE
+    )
     if min_qty > 0 and snapshot.supplier_quantity < min_qty:
         return False
     if min_price > 0:

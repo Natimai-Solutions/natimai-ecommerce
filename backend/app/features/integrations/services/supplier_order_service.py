@@ -31,6 +31,7 @@ from typing import Any
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import runtime_settings
 from app.core.config import settings
 from app.features.integrations.models.supplier import Supplier
 from app.features.integrations.models.supplier_order import (
@@ -75,11 +76,21 @@ def _legacy_ship_to() -> ShipTo | None:
     )
 
 
-async def build_ship_to(session: AsyncSession) -> ShipTo | None:
+async def build_ship_to(
+    session: AsyncSession, supplier_settings: dict[str, Any] | None = None
+) -> ShipTo | None:
     """Our delivery address: the main warehouse, else the ``INGRAM_SHIP_TO_*``.
 
-    ``None`` when neither carries an address line and a city.
+    The company name, contact and phone given to the supplier come from its
+    row (``Supplier.settings.ship_to_*``, R5 / C4), else the environment, else
+    the shop name. ``None`` when neither carries an address line and a city.
     """
+    row = supplier_settings or {}
+
+    def _pick(key: str, env_value: str | None) -> str | None:
+        value = str(row.get(key) or "").strip()
+        return value or env_value
+
     warehouse = await get_main_warehouse(session)
     if warehouse is not None and warehouse.address_line1 and warehouse.city:
         return ShipTo(
@@ -92,9 +103,12 @@ async def build_ship_to(session: AsyncSession) -> ShipTo | None:
                 or settings.INGRAM_SHIP_TO_COUNTRY_CODE
                 or settings.SHOP_COUNTRY_CODE
             ),
-            company_name=settings.INGRAM_SHIP_TO_COMPANY_NAME or settings.SHOP_NAME,
-            contact=settings.INGRAM_SHIP_TO_CONTACT,
-            phone=settings.INGRAM_SHIP_TO_PHONE,
+            company_name=_pick(
+                "ship_to_company_name", settings.INGRAM_SHIP_TO_COMPANY_NAME
+            )
+            or str(await runtime_settings.get("shop_name", session)),
+            contact=_pick("ship_to_contact", settings.INGRAM_SHIP_TO_CONTACT),
+            phone=_pick("ship_to_phone", settings.INGRAM_SHIP_TO_PHONE),
         )
     return _legacy_ship_to()
 
@@ -263,7 +277,7 @@ async def process_supplier_purchase_order(
             ),
         )
 
-    ship_to = await build_ship_to(session)
+    ship_to = await build_ship_to(session, dict(adapter.config.settings))
     if ship_to is None:
         logger.error(
             "No delivery address (main warehouse or INGRAM_SHIP_TO_*): cannot "

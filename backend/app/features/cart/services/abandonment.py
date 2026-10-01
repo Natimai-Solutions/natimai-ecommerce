@@ -22,7 +22,6 @@ from sqlalchemy import exists, func
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
 from app.features.cart.models.cart import Cart, CartItem
 from app.features.product.models.product import Product
 from app.features.user.crud.user_preference import get_preference_for_user
@@ -119,7 +118,16 @@ async def remind_abandoned_carts(
     A customer who opted out is stamped too (nothing to send, nothing to
     re-evaluate next hour) and counted as ``skipped_opt_out``.
     """
-    delay_hours = int(settings.CART_ABANDONMENT_REMINDER_DELAY_HOURS)
+    from app.core import runtime_settings
+
+    values = await runtime_settings.get_many(
+        [
+            "cart_abandonment_reminder_delay_hours",
+            "cart_abandonment_max_age_days",
+        ],
+        session,
+    )
+    delay_hours = int(values["cart_abandonment_reminder_delay_hours"])
     if delay_hours <= 0:
         return {"disabled": 1, "reminded": 0, "skipped_opt_out": 0, "scanned": 0}
     current = now or _now()
@@ -127,7 +135,7 @@ async def remind_abandoned_carts(
         abandoned_carts_statement(
             now=current,
             delay_hours=delay_hours,
-            max_age_days=int(settings.CART_ABANDONMENT_MAX_AGE_DAYS),
+            max_age_days=int(values["cart_abandonment_max_age_days"]),
             limit=SWEEP_BATCH_SIZE,
         )
     )

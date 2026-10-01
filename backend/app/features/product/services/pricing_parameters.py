@@ -39,6 +39,7 @@ class PricingParameterSpec:
 
 PAYMENT_COMMISSION_KEY = "pricing_payment_commission_pct"
 FX_SAFETY_MARGIN_KEY = "pricing_fx_safety_margin_pct"
+INSURANCE_RATE_KEY = "insurance_rate_pct"
 
 PRICING_SETTINGS: tuple[PricingParameterSpec, ...] = (
     PricingParameterSpec(
@@ -88,6 +89,9 @@ class PricingParameters:
 
     payment_commission_pct: Decimal = Decimal("0")
     fx_safety_margin_pct: Decimal = Decimal("0")
+    #: Transport insurance, % of the goods + freight (runtime setting
+    #: ``insurance_rate_pct``, fallback ``INSURANCE_RATE_PCT``).
+    insurance_rate_pct: Decimal = Decimal("0")
 
 
 async def load_pricing_parameters(session: AsyncSession) -> PricingParameters:
@@ -95,8 +99,11 @@ async def load_pricing_parameters(session: AsyncSession) -> PricingParameters:
     row is its default."""
     from app.core import runtime_settings
 
-    values = await runtime_settings.get_many(PRICING_SETTING_KEYS, session)
+    values = await runtime_settings.get_many(
+        [*PRICING_SETTING_KEYS, INSURANCE_RATE_KEY], session
+    )
     return PricingParameters(
+        insurance_rate_pct=Decimal(str(values[INSURANCE_RATE_KEY] or 0)),
         payment_commission_pct=values[PAYMENT_COMMISSION_KEY],
         fx_safety_margin_pct=values[FX_SAFETY_MARGIN_KEY],
     )
