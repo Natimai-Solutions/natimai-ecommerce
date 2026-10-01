@@ -45,7 +45,7 @@ CSV = "ref;nom;prix;stock\nFX-1;iPhone 12;30000;8\nFX-2;iPhone 11;20000;1\n"
 @pytest.fixture(autouse=True)
 def _env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        settings, "SUPPLIER_SECRETS_KEY", Fernet.generate_key().decode()
+        settings, "SECRETS_ENCRYPTION_KEY", Fernet.generate_key().decode()
     )
     monkeypatch.setattr(settings, "SUPPLIER_SYNC_SUBCATEGORY_ALLOWLIST", [])
     monkeypatch.setattr(file_feed, "check_public_https_url", AsyncMock())
@@ -152,7 +152,7 @@ async def test_credentials_need_the_key_and_can_be_cleared(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     await _declare(db_session)
-    monkeypatch.setattr(settings, "SUPPLIER_SECRETS_KEY", None)
+    monkeypatch.setattr(settings, "SECRETS_ENCRYPTION_KEY", None)
     with pytest.raises(AppError) as refused:
         await put_supplier_credentials(
             "foxway",
@@ -160,7 +160,7 @@ async def test_credentials_need_the_key_and_can_be_cleared(
             db_session,
             ADMIN,
         )
-    assert refused.value.code == "supplier.credentials.no_key"
+    assert refused.value.code == "secrets.no_key"
     await db_session.rollback()
 
     cleared = await delete_supplier_credentials("foxway", db_session, ADMIN)

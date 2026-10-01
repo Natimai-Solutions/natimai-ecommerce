@@ -111,19 +111,48 @@ async def get_current_user_optional(
 CurrentUserOptional = Annotated[User | None, Depends(get_current_user_optional)]
 
 
-async def get_current_active_superuser(current_user: CurrentUser) -> User:
-    """Get current active superuser."""
-    if not current_user.is_superuser:
+def _require_superuser(user: User) -> User:
+    if not user.is_superuser:
         raise AppError(
             code="auth.superuser.required",
             status_code=403,
             message="The user doesn't have enough privileges",
+            details={"user_id": str(user.id)},
+        )
+    return user
+
+
+async def get_current_active_superuser(current_user: CurrentUser) -> User:
+    """Get current active superuser.
+
+    Where two-factor authentication is required (``ADMIN_2FA_REQUIRED``,
+    production by default), a superuser who has not set it up is refused
+    with ``auth.totp.enrollment_required``: the admin sends them to the
+    enrolment screen, the only one they can reach.
+    """
+    _require_superuser(current_user)
+    if settings.admin_2fa_required and not current_user.totp_enabled:
+        raise AppError(
+            code="auth.totp.enrollment_required",
+            status_code=403,
+            message=(
+                "La double authentification est obligatoire pour l'administration : "
+                "activez-la pour continuer"
+            ),
             details={"user_id": str(current_user.id)},
         )
     return current_user
 
 
 CurrentSuperUser = Annotated[User, Depends(get_current_active_superuser)]
+
+
+async def get_current_superuser_enrolling(current_user: CurrentUser) -> User:
+    """A superuser, two-factor set up or not (the enrolment endpoints)."""
+    return _require_superuser(current_user)
+
+
+CurrentSuperUserEnrolling = Annotated[User, Depends(get_current_superuser_enrolling)]
 
 
 async def get_current_logistics_admin(

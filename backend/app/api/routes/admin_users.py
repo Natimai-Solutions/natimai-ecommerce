@@ -35,6 +35,7 @@ from app.features.user.services.invitation import (
     send_invitation_email,
     unusable_password_hash,
 )
+from app.features.user.services.two_factor import disable as disable_two_factor
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,8 @@ class AdminUserItem(BaseModel):
     created_at: datetime.datetime | None
     last_login: datetime.datetime | None
     locked_until: datetime.datetime | None
+    #: Double authentification active (administrateurs).
+    totp_enabled: bool = False
     #: Vrai tant que personne ne s'est jamais connecté avec ce compte.
     invitation_pending: bool
     invitation_expires_at: datetime.datetime | None
@@ -140,6 +143,7 @@ def _to_item(user: User, group: PriceGroup | None) -> AdminUserItem:
         created_at=user.created_at,
         last_login=user.last_login,
         locked_until=user.locked_until,
+        totp_enabled=bool(getattr(user, "totp_enabled", False)),
         invitation_pending=pending,
         invitation_expires_at=user.password_reset_token_expires if pending else None,
     )
@@ -412,4 +416,36 @@ async def update_user(
         user.modify_by_id,
     )
     group = await _group_of(session, user)
+    return _to_item(user, group)
+
+
+@router.post("/{user_id}/2fa/reset", response_model=AdminUserItem)
+async def reset_two_factor(
+    user_id: uuid.UUID,
+    session: SessionDep,
+    current_user: CurrentSuperUser,
+) -> AdminUserItem:
+    """Turn off another administrator's two-factor authentication (lost
+    phone, no recovery code left): they enrol again at their next sign-in.
+
+    Never one's own — that goes through ``/users/me/2fa/disable``, which asks
+    for the password and a code. Journaled like every admin action.
+    """
+    if user_id == current_user.id:
+        raise AppError(
+            code="auth.totp.reset_self",
+            status_code=400,
+            message="Désactivez votre propre double authentification depuis « Sécurité »",
+            details={},
+        )
+    user = await _load_user(session, user_id)
+    disable_two_factor(user)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    group = (
+        await session.get(PriceGroup, user.price_group_id)
+        if user.price_group_id
+        else None
+    )
     return _to_item(user, group)

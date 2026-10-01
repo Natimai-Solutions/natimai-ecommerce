@@ -52,6 +52,12 @@
                 </q-item-section>
               </q-item>
               <q-separator v-if="me" />
+              <q-item v-close-popup clickable to="/security" data-testid="admin-security">
+                <q-item-section avatar
+                  ><q-icon name="ph:shield-check" size="18px"
+                /></q-item-section>
+                <q-item-section>Sécurité du compte</q-item-section>
+              </q-item>
               <q-item v-close-popup clickable data-testid="admin-logout" @click="onLogout">
                 <q-item-section avatar><q-icon name="ph:sign-out" size="18px" /></q-item-section>
                 <q-item-section>Se déconnecter</q-item-section>
@@ -205,6 +211,7 @@ const allNav: NavSection[] = [
       { label: 'Accueil du site', icon: 'ph:house', to: '/homepage' },
       { label: 'Pages du site', icon: 'ph:article', to: '/pages' },
       { label: 'Modules', icon: 'ph:toggle-right', to: '/modules' },
+      { label: "Journal d'audit", icon: 'ph:clipboard-text', to: '/audit-log' },
       { label: 'Paramètres', icon: 'ph:gear', to: '/system-settings' },
     ],
   },

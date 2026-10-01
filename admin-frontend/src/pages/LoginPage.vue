@@ -14,6 +14,7 @@
             <q-input
               v-model="email"
               type="email"
+              :readonly="auth.needsSecondFactor"
               label="Adresse e-mail"
               data-testid="admin-login-email"
               outlined
@@ -44,6 +45,23 @@
               </template>
             </q-input>
 
+            <template v-if="auth.needsSecondFactor">
+              <AppNotice tone="info" dense>
+                Saisissez le code à 6 chiffres de votre application d'authentification (ou un code
+                de secours).
+              </AppNotice>
+              <q-input
+                v-model="totpCode"
+                label="Code de vérification"
+                data-testid="admin-login-totp"
+                outlined
+                autofocus
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                :rules="[(v) => !!v || 'Code requis']"
+              />
+            </template>
+
             <AppNotice v-if="auth.loginError" tone="error" dense data-testid="admin-login-error">{{
               auth.loginError
             }}</AppNotice>
@@ -53,7 +71,7 @@
               color="primary"
               unelevated
               no-caps
-              label="Se connecter"
+              :label="auth.needsSecondFactor ? 'Vérifier' : 'Se connecter'"
               class="full-width login-submit"
               data-testid="admin-login-submit"
               :loading="auth.loggingIn"
@@ -75,12 +93,17 @@ import { useAuthStore } from '@/stores/auth';
 const email = ref('');
 const password = ref('');
 const showPassword = ref(false);
+const totpCode = ref('');
 const auth = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 
 async function onSubmit() {
-  const ok = await auth.login(email.value, password.value);
+  const ok = await auth.login(
+    email.value,
+    password.value,
+    auth.needsSecondFactor ? totpCode.value : undefined,
+  );
   if (ok) {
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/';
     await router.replace(redirect);

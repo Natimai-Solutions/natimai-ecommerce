@@ -1,17 +1,17 @@
-"""Supplier credentials encrypted at rest (R4 / S3).
+"""Secrets encrypted at rest: supplier logins (R4 / S3), admin 2FA (R6).
 
 The integration secrets of the historical suppliers (Ingram, Icecat) stay in
 the environment. A supplier fed by a **file URL** (Foxway, Picata…) is
 declared from the admin, with its portal login: those credentials are
 stored in ``suppliers.credentials_encrypted``, encrypted with Fernet
-(AES-128-CBC + HMAC-SHA256) under ``SUPPLIER_SECRETS_KEY``.
+(AES-128-CBC + HMAC-SHA256) under ``SECRETS_ENCRYPTION_KEY``.
 
 * The API never returns them: it only says whether some are stored.
 * Without the key nothing can be stored (explicit error), and stored values
   read as absent (logged) rather than crashing a sync.
 * Rotating the key: decrypt with the old one, re-encrypt with the new one —
   :func:`encrypt_json` accepts a ``MultiFernet`` ring through
-  ``SUPPLIER_SECRETS_KEY`` holding several comma-separated keys, the first
+  ``SECRETS_ENCRYPTION_KEY`` holding several comma-separated keys, the first
   one encrypting.
 
 Generate a key: ``python -c "from cryptography.fernet import Fernet;
@@ -31,20 +31,20 @@ logger = logging.getLogger(__name__)
 
 
 class SecretsKeyMissing(RuntimeError):
-    """``SUPPLIER_SECRETS_KEY`` is not set (or not a valid Fernet key)."""
+    """``SECRETS_ENCRYPTION_KEY`` is not set (or not a valid Fernet key)."""
 
 
 def _fernet() -> Any:
     from cryptography.fernet import Fernet, MultiFernet
 
-    raw = (settings.SUPPLIER_SECRETS_KEY or "").strip()
+    raw = (settings.SECRETS_ENCRYPTION_KEY or "").strip()
     keys = [k.strip() for k in raw.split(",") if k.strip()]
     if not keys:
-        raise SecretsKeyMissing("SUPPLIER_SECRETS_KEY is not set")
+        raise SecretsKeyMissing("SECRETS_ENCRYPTION_KEY is not set")
     try:
         return MultiFernet([Fernet(key.encode()) for key in keys])
     except (ValueError, TypeError) as exc:
-        raise SecretsKeyMissing(f"SUPPLIER_SECRETS_KEY is invalid: {exc}") from exc
+        raise SecretsKeyMissing(f"SECRETS_ENCRYPTION_KEY is invalid: {exc}") from exc
 
 
 def secrets_key_configured() -> bool:
@@ -61,13 +61,13 @@ def encrypt_json(values: dict[str, str]) -> str:
         box = _fernet()
     except SecretsKeyMissing as exc:
         raise AppError(
-            code="supplier.credentials.no_key",
+            code="secrets.no_key",
             status_code=400,
             message=(
-                "Les identifiants ne peuvent pas être enregistrés : "
-                "SUPPLIER_SECRETS_KEY n'est pas configurée sur le serveur"
+                "Ce secret ne peut pas être enregistré : "
+                "SECRETS_ENCRYPTION_KEY n'est pas configurée sur le serveur"
             ),
-            details={"setting": "SUPPLIER_SECRETS_KEY"},
+            details={"setting": "SECRETS_ENCRYPTION_KEY"},
         ) from exc
     token: bytes = box.encrypt(json.dumps(values).encode())
     return token.decode()
@@ -83,7 +83,7 @@ def decrypt_json(token: str | None) -> dict[str, str]:
         data = json.loads(_fernet().decrypt(token.encode()))
     except SecretsKeyMissing:
         logger.error(
-            "Stored supplier credentials cannot be read: no SUPPLIER_SECRETS_KEY"
+            "Stored supplier credentials cannot be read: no SECRETS_ENCRYPTION_KEY"
         )
         return {}
     except (InvalidToken, ValueError):

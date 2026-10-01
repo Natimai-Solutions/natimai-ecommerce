@@ -19,7 +19,9 @@ export interface paths {
          *
          *     Returns the access token in the body (held in SPA memory) and sets the
          *     refresh token as an HttpOnly cookie. Per-IP throttled + per-account
-         *     lockout against brute force.
+         *     lockout against brute force. A superuser with two-factor authentication
+         *     also sends ``totp_code`` (``login.totp.required`` without it); a wrong
+         *     code counts towards the lockout like a wrong password.
          */
         post: operations["login-login_access_token"];
         delete?: never;
@@ -66,6 +68,100 @@ export interface paths {
          *     missing or already invalid.
          */
         post: operations["login-logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/2fa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Status */
+        get: operations["user-get_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/2fa/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Setup
+         * @description A new secret to scan (replaces a pending one). Active after /confirm.
+         */
+        post: operations["user-setup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/2fa/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm
+         * @description Turn 2FA on; the recovery codes are shown this once.
+         */
+        post: operations["user-confirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/2fa/recovery-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Regenerate Recovery Codes */
+        post: operations["user-regenerate_recovery_codes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/2fa/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disable
+         * @description Turn 2FA off: the password and a current (or recovery) code.
+         */
+        post: operations["user-disable"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2733,6 +2829,30 @@ export interface paths {
         patch: operations["admin-users-update_user"];
         trace?: never;
     };
+    "/api/v1/admin/users/{user_id}/2fa/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Two Factor
+         * @description Turn off another administrator's two-factor authentication (lost
+         *     phone, no recovery code left): they enrol again at their next sign-in.
+         *
+         *     Never one's own — that goes through ``/users/me/2fa/disable``, which asks
+         *     for the password and a code. Journaled like every admin action.
+         */
+        post: operations["admin-users-reset_two_factor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/carts/abandoned": {
         parameters: {
             query?: never;
@@ -3166,6 +3286,23 @@ export interface paths {
          * @description Turn a module on or off. Nothing is deleted either way.
          */
         put: operations["admin-modules-switch_module"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Audit Entries */
+        get: operations["admin-audit-list_audit_entries"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -7863,6 +8000,46 @@ export interface components {
              */
             count: number;
         };
+        /** AdminAuditEntryPublic */
+        AdminAuditEntryPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Actor Id */
+            actor_id: string | null;
+            /** Actor Email */
+            actor_email: string | null;
+            /** Event */
+            event: string;
+            /** Method */
+            method: string | null;
+            /** Path */
+            path: string | null;
+            /** Route */
+            route: string | null;
+            /** Status Code */
+            status_code: number | null;
+            /** Ip */
+            ip: string | null;
+            /** Details */
+            details?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** AdminAuditPage */
+        AdminAuditPage: {
+            /** Data */
+            data: components["schemas"]["AdminAuditEntryPublic"][];
+            /** Count */
+            count: number;
+        };
         /**
          * AdminCategoriesPublic
          * @description Liste complète (pas de pagination : quelques dizaines de lignes).
@@ -8537,6 +8714,11 @@ export interface components {
             last_login: string | null;
             /** Locked Until */
             locked_until: string | null;
+            /**
+             * Totp Enabled
+             * @default false
+             */
+            totp_enabled: boolean;
             /** Invitation Pending */
             invitation_pending: boolean;
             /** Invitation Expires At */
@@ -9235,6 +9417,11 @@ export interface components {
         };
         /** Body_login-login_access_token */
         "Body_login-login_access_token": {
+            /**
+             * Totp Code
+             * @description Administrators with two-factor authentication: the code of their app, or one of their recovery codes
+             */
+            totp_code?: string | null;
             /** Grant Type */
             grant_type?: string | null;
             /** Username */
@@ -17878,6 +18065,11 @@ export interface components {
             /** Payment Settled */
             payment_settled: boolean;
         };
+        /** RecoveryCodes */
+        RecoveryCodes: {
+            /** Recovery Codes */
+            recovery_codes: string[];
+        };
         /**
          * RefundPublic
          * @description Represents refund public.
@@ -20985,6 +21177,39 @@ export interface components {
              */
             tracking_ref?: string | null;
         };
+        /** TwoFactorCode */
+        TwoFactorCode: {
+            /** Code */
+            code: string;
+        };
+        /** TwoFactorDisable */
+        TwoFactorDisable: {
+            /** Code */
+            code: string;
+            /** Password */
+            password: string;
+        };
+        /** TwoFactorSetup */
+        TwoFactorSetup: {
+            /** Secret */
+            secret: string;
+            /** Otpauth Uri */
+            otpauth_uri: string;
+            /** Qr Svg Data Uri */
+            qr_svg_data_uri: string;
+        };
+        /** TwoFactorStatus */
+        TwoFactorStatus: {
+            /** Enabled */
+            enabled: boolean;
+            /** Required */
+            required: boolean;
+            /**
+             * Recovery Codes Left
+             * @default 0
+             */
+            recovery_codes_left: number;
+        };
         /**
          * UngroupHintResponse
          * @description Smart default for the « garder / dégrouper » popup.
@@ -21551,6 +21776,145 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    "user-get_status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TwoFactorStatus"];
+                };
+            };
+        };
+    };
+    "user-setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TwoFactorSetup"];
+                };
+            };
+        };
+    };
+    "user-confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TwoFactorCode"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryCodes"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "user-regenerate_recovery_codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TwoFactorCode"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryCodes"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "user-disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TwoFactorDisable"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TwoFactorStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
@@ -26441,6 +26805,37 @@ export interface operations {
             };
         };
     };
+    "admin-users-reset_two_factor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-cart-list_abandoned_carts": {
         parameters: {
             query?: {
@@ -27230,6 +27625,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModuleState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-audit-list_audit_entries": {
+        parameters: {
+            query?: {
+                actor_id?: string | null;
+                event?: string | null;
+                path_contains?: string | null;
+                since?: string | null;
+                until?: string | null;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAuditPage"];
                 };
             };
             /** @description Validation Error */

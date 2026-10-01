@@ -15,6 +15,8 @@ export interface AdminUser {
   created_at: string | null;
   last_login: string | null;
   locked_until: string | null;
+  /** Double authentification active (administrateurs). */
+  totp_enabled?: boolean;
   /** Vrai tant que la personne n'a ni suivi le lien d'invitation ni ouvert de session. */
   invitation_pending: boolean;
   invitation_expires_at: string | null;

@@ -44,6 +44,13 @@ api.{$DOMAIN} {
 	request_body {
 		max_size 16MB
 	}
+	# Même restriction facultative que admin.{$DOMAIN}, sur les routes
+	# d'administration de l'API (ADMIN_ALLOWED_IPS vide = tout le monde).
+	@admin_api_denied {
+		path /api/v1/admin/*
+		not client_ip {$ADMIN_ALLOWED_IPS:0.0.0.0/0 ::/0}
+	}
+	respond @admin_api_denied "Accès réservé" 403
 	# X-Forwarded-For est *remplacé* (et non complété) par l'IP du pair réel :
 	# le backend lit la chaîne par la droite, et réécrire ici garantit qu'un
 	# client ne peut pas l'allonger pour repousser sa vraie IP hors de portée
@@ -72,8 +79,16 @@ api.{$DOMAIN} {
 }
 
 # Back-office admin (SPA servie par nginx, écoute sur :80)
+#
+# Restriction réseau facultative (R6), en plus de la double authentification
+# des administrateurs : ADMIN_ALLOWED_IPS = plages autorisées, séparées par des
+# espaces (ex. « 203.0.113.0/24 2001:db8::/32 »). Vide = tout le monde (défaut).
+# Derrière Cloudflare, déclarer ses plages en `trusted_proxies` (bloc global)
+# pour que client_ip soit l'adresse réelle du visiteur.
 admin.{$DOMAIN} {
 	import security_headers
+	@admin_denied not client_ip {$ADMIN_ALLOWED_IPS:0.0.0.0/0 ::/0}
+	respond @admin_denied "Accès réservé" 403
 	encode zstd gzip
 	reverse_proxy admin-frontend:80
 }

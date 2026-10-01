@@ -6,7 +6,7 @@ Create Date: 2026-10-01 14:00:00.000000
 
 ``suppliers.credentials_encrypted`` : identifiants du portail d'un
 fournisseur dont le catalogue se télécharge par lien (Foxway, Picata…),
-chiffrés par ``SUPPLIER_SECRETS_KEY`` (Fernet). Vide pour l'existant.
+chiffrés par ``SECRETS_ENCRYPTION_KEY`` (Fernet). Vide pour l'existant.
 """
 
 import sqlalchemy as sa

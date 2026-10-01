@@ -1,3 +1,4 @@
+import uuid
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
@@ -7,8 +8,11 @@ from fastapi.routing import APIRoute
 from starlette.middleware.cors import CORSMiddleware
 
 from app.api import api_router
+from app.core import security
 from app.core.config import settings
 from app.core.errors import register_error_handlers
+from app.core.rate_limit import get_client_ip
+from app.features.system import audit
 from app.outbox.loader import load_handlers
 
 
@@ -80,6 +84,53 @@ async def security_headers_middleware(
         response.headers.setdefault(
             "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
         )
+    return response
+
+
+@app.middleware("http")
+async def admin_audit_middleware(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    """Journal every state-changing request made by an administrator (R6).
+
+    Only POST / PUT / PATCH / DELETE under the API carrying a bearer token
+    are looked at; the author is resolved after the response, and only a
+    superuser's request is written (no body: see ``AdminAuditEntry``). The
+    sign-in itself is journaled by the login route.
+    """
+    method = request.method.upper()
+    path = request.url.path
+    authorization = request.headers.get("authorization", "")
+    if (
+        method not in audit.MUTATING_METHODS
+        or not path.startswith(settings.API_V1_STR)
+        or path.startswith(f"{settings.API_V1_STR}/login/")
+        or not authorization.lower().startswith("bearer ")
+    ):
+        return await call_next(request)
+    try:
+        payload = security.decode_token(authorization.split(" ", 1)[1].strip())
+        user_id = uuid.UUID(str(payload.get("sub")))
+        if payload.get("type") not in (None, "access"):
+            raise ValueError("not an access token")
+    except Exception:  # noqa: BLE001 - not ours to judge: the route will
+        return await call_next(request)
+    response = await call_next(request)
+    # The matched route's template, relative to the API router it lives in.
+    template = getattr(request.scope.get("route"), "path", None)
+    if template and not template.startswith(settings.API_V1_STR):
+        template = f"{settings.API_V1_STR}{template}"
+    await audit.record_admin_request(
+        user_id=user_id,
+        method=method,
+        path=path,
+        route=template,
+        status_code=response.status_code,
+        path_params=dict(request.path_params),
+        query=dict(request.query_params),
+        ip=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
     return response
 
 

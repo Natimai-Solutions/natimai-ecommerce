@@ -13,6 +13,17 @@ from app.tests.utils.user import authentication_token_from_email
 from app.tests.utils.utils import get_superuser_token_headers
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _generous_login_throttle() -> Generator[None, None, None]:
+    """The per-IP login throttle (Redis) would count every login the suite
+    makes from the test client's single address. The tests of the throttle
+    use their own keys or mock it; everything else logs in freely."""
+    previous = settings.LOGIN_RATE_LIMIT_ATTEMPTS
+    settings.LOGIN_RATE_LIMIT_ATTEMPTS = 100_000
+    yield
+    settings.LOGIN_RATE_LIMIT_ATTEMPTS = previous
+
+
 @pytest.fixture(autouse=True)
 def arq_queue(monkeypatch: pytest.MonkeyPatch) -> FakeArqRedis:
     """Every job enqueued through ``enqueue_with_dedup`` lands here, not in Redis.

@@ -40,6 +40,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'suppliers', component: () => import('@/pages/SuppliersPage.vue') },
       { path: 'system-settings', component: () => import('@/pages/SystemSettingsPage.vue') },
       { path: 'modules', component: () => import('@/pages/ModulesPage.vue') },
+      { path: 'security', component: () => import('@/pages/SecurityPage.vue') },
+      { path: 'audit-log', component: () => import('@/pages/AuditLogPage.vue') },
       { path: 'pages', component: () => import('@/pages/PagesPage.vue') },
       { path: 'homepage', component: () => import('@/pages/HomepagePage.vue') },
       {

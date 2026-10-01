@@ -7,6 +7,7 @@ from arq.connections import RedisSettings, create_pool
 from arq.worker import func
 
 from app.core.config import settings
+from app.features.system.audit import get_audit_cron_jobs, purge_audit_log_task
 from app.outbox.consumer import OUTBOX_HANDLER_MAX_TRIES, execute_outbox_handler
 from app.tasks.cart_tasks import (
     get_cart_abandonment_cron_jobs,
@@ -125,6 +126,8 @@ class WorkerSettings:
         publish_departure_reminders_task,
         # Alertes « me prévenir »
         notify_stock_alerts_task,
+        # Rétention du journal d'audit des administrateurs
+        purge_audit_log_task,
         # ... tes autres handlers
     ]
 
@@ -142,6 +145,7 @@ class WorkerSettings:
         + get_cart_abandonment_cron_jobs()
         + get_departure_cron_jobs()
         + get_stock_alert_cron_jobs()
+        + get_audit_cron_jobs()
     )
 
     # NOTE: Le polling de l'outbox est géré par un service dédié (outbox-poller)

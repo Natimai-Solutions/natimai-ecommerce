@@ -26,6 +26,8 @@ _VALID_BASE_SETTINGS: dict[str, Any] = {
     "S3_BUCKET_NAME": "unit-test-bucket",
     "S3_ACCESS_KEY_ID": "unit-test-key",
     "S3_SECRET_KEY_ID": "unit-test-secret",
+    # Production requires the administrators' 2FA, hence its encryption key.
+    "SECRETS_ENCRYPTION_KEY": "unit-test-fernet-key",
 }
 
 
@@ -187,3 +189,35 @@ def test_s3_needs_its_bucket_and_keys() -> None:
         S3_SECRET_KEY_ID="s",
     )
     Settings._check_file_storage(cast(Settings, complete))
+
+
+# -- administrators' 2FA (R6) -------------------------------------------------
+
+
+def test_required_2fa_needs_the_encryption_key() -> None:
+    def fake(env: str, key: str | None, required: bool | None = None) -> Any:
+        return SimpleNamespace(
+            ENVIRONMENT=env,
+            SECRETS_ENCRYPTION_KEY=key,
+            admin_2fa_required=required
+            if required is not None
+            else env == "production",
+        )
+
+    with pytest.raises(ValueError, match="SECRETS_ENCRYPTION_KEY"):
+        Settings._check_secrets_key_for_2fa(cast(Settings, fake("production", None)))
+    Settings._check_secrets_key_for_2fa(cast(Settings, fake("production", "k")))
+    # Not required (staging by default): nothing to check.
+    Settings._check_secrets_key_for_2fa(cast(Settings, fake("staging", None)))
+    with pytest.warns(UserWarning, match="SECRETS_ENCRYPTION_KEY"):
+        Settings._check_secrets_key_for_2fa(
+            cast(Settings, fake("local", None, required=True))
+        )
+
+
+def test_2fa_is_required_in_production_by_default() -> None:
+    base = {**_VALID_BASE_SETTINGS, "CLAMAV_ENABLED": True}
+    assert Settings(ENVIRONMENT="production", **base).admin_2fa_required is True
+    assert Settings(ENVIRONMENT="staging", **base).admin_2fa_required is False
+    forced = Settings(ENVIRONMENT="staging", ADMIN_2FA_REQUIRED=True, **base)
+    assert forced.admin_2fa_required is True

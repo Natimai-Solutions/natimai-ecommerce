@@ -27,6 +27,24 @@ export const api: AxiosInstance = createApiClient({
   },
 });
 
+/**
+ * Two-factor authentication required and not set up yet: every admin call
+ * answers `auth.totp.enrollment_required` — send the person to the one
+ * screen they can use, where they enrol.
+ */
+api.interceptors.response.use(undefined, (error: unknown) => {
+  const code = (error as { response?: { data?: { error?: { code?: unknown } } } }).response?.data
+    ?.error?.code;
+  if (
+    code === 'auth.totp.enrollment_required' &&
+    typeof window !== 'undefined' &&
+    !window.location.hash.includes('/security')
+  ) {
+    window.location.hash = '#/security';
+  }
+  return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+});
+
 export default defineBoot(() => {
   // api is a singleton — boot exists just to participate in the app lifecycle.
 });

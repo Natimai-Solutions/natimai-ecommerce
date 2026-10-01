@@ -60,25 +60,25 @@ def test_credentials_round_trip_and_key_rotation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     old, new = Fernet.generate_key().decode(), Fernet.generate_key().decode()
-    monkeypatch.setattr(settings, "SUPPLIER_SECRETS_KEY", old)
+    monkeypatch.setattr(settings, "SECRETS_ENCRYPTION_KEY", old)
     token = secrets_box.encrypt_json({"username": "u", "password": "s3cr3t-Pw"})
     assert "s3cr3t" not in token
     assert secrets_box.decrypt_json(token) == {"username": "u", "password": "s3cr3t-Pw"}
 
     # New key first, old one kept for reading: stored values still decrypt.
-    monkeypatch.setattr(settings, "SUPPLIER_SECRETS_KEY", f"{new},{old}")
+    monkeypatch.setattr(settings, "SECRETS_ENCRYPTION_KEY", f"{new},{old}")
     assert secrets_box.decrypt_json(token)["password"] == "s3cr3t-Pw"
     # Old key gone: unreadable reads as absent, never raises.
-    monkeypatch.setattr(settings, "SUPPLIER_SECRETS_KEY", new)
+    monkeypatch.setattr(settings, "SECRETS_ENCRYPTION_KEY", new)
     assert secrets_box.decrypt_json(token) == {}
 
 
 def test_no_key_refuses_to_store(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "SUPPLIER_SECRETS_KEY", None)
+    monkeypatch.setattr(settings, "SECRETS_ENCRYPTION_KEY", None)
     assert secrets_box.secrets_key_configured() is False
     with pytest.raises(AppError) as refused:
         secrets_box.encrypt_json({"username": "u", "password": "p"})
-    assert refused.value.code == "supplier.credentials.no_key"
+    assert refused.value.code == "secrets.no_key"
     assert secrets_box.decrypt_json("anything") == {}
 
 

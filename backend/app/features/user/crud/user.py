@@ -140,6 +140,25 @@ class CrudUser(CrudBase[User, UserCreate, UserUpdate]):
             await session.refresh(user)
         return user
 
+    async def register_failed_attempt(self, session: AsyncSession, user: User) -> None:
+        """Count a failed sign-in (wrong second factor too) towards the lockout.
+
+        Raises :class:`AccountLockedError` when this failure locks the account.
+        """
+        now = _utcnow()
+        user.failed_login_attempts += 1
+        locked_until: datetime.datetime | None = None
+        if user.failed_login_attempts >= settings.LOGIN_LOCKOUT_MAX_FAILURES:
+            locked_until = now + datetime.timedelta(
+                minutes=settings.LOGIN_LOCKOUT_MINUTES
+            )
+            user.locked_until = locked_until
+            user.failed_login_attempts = 0
+        session.add(user)
+        await session.commit()
+        if locked_until is not None:
+            raise AccountLockedError(locked_until)
+
     async def get_by_email(self, session: AsyncSession, *, email: str) -> User | None:
         """
         Get user by email address.

@@ -57,6 +57,7 @@ from app.features.shipping.models.route_tracking import (
     ShippingRouteTrackingLogs,
 )
 from app.features.shipping.models.status import StatusDefinition, StatusTransition
+from app.features.system.models.audit_log import AdminAuditEntry
 from app.features.system.models.system_setting import SystemSetting
 from app.features.user.models.address import Address
 from app.features.user.models.group import Group
@@ -72,6 +73,7 @@ from app.features.user.models.user_preference import UserPreference
 from app.features.user.models.wishlist import Wishlist, WishlistItem
 
 __all__ = [
+    "AdminAuditEntry",
     "Address",
     "AnalyticsProduct",
     "AnalyticsSale",

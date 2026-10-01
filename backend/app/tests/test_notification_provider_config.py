@@ -28,6 +28,8 @@ _VALID_BASE: dict[str, Any] = {
     "S3_BUCKET_NAME": "unit-test-bucket",
     "S3_ACCESS_KEY_ID": "unit-test-key",
     "S3_SECRET_KEY_ID": "unit-test-secret",
+    # Production requires the administrators' 2FA, hence its encryption key.
+    "SECRETS_ENCRYPTION_KEY": "unit-test-fernet-key",
 }
 
 

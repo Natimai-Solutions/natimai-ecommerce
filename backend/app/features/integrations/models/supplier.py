@@ -270,7 +270,7 @@ class Supplier(SupplierBase, table=True):
         sa_column=Column(Text, nullable=True),
         description=(
             "Identifiants du fournisseur (flux fichier), chiffrés par "
-            "SUPPLIER_SECRETS_KEY. Jamais renvoyés par l'API."
+            "SECRETS_ENCRYPTION_KEY. Jamais renvoyés par l'API."
         ),
     )
 

@@ -45,6 +45,8 @@ dependencies = [
     # Chiffrement (Fernet) des identifiants des fournisseurs par flux fichier
     # (app/core/secrets_box.py).
     "cryptography>=44.0.0",
+    # QR code (SVG) of the administrators' two-factor enrolment; pure Python.
+    "segno>=1.6.0",
 ]
 
 [dependency-groups]

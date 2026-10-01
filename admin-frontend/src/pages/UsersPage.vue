@@ -83,6 +83,14 @@
             <q-icon v-if="props.row.is_superuser" name="ph:shield-check" size="xs">
               <q-tooltip>Administrateur</q-tooltip>
             </q-icon>
+            <q-icon
+              v-if="props.row.is_superuser && props.row.totp_enabled"
+              name="ph:device-mobile"
+              size="xs"
+              data-testid="user-2fa"
+            >
+              <q-tooltip>Double authentification active</q-tooltip>
+            </q-icon>
           </div>
           <div class="text-caption text-muted">
             {{ [props.row.full_name, props.row.phone].filter(Boolean).join(' · ') || '—' }}
@@ -122,6 +130,17 @@
             @click="onResend(props.row)"
           >
             <q-tooltip>Renvoyer l'invitation</q-tooltip>
+          </q-btn>
+          <q-btn
+            v-if="props.row.is_superuser && props.row.totp_enabled"
+            flat
+            round
+            dense
+            icon="ph:shield-slash"
+            :loading="busyIds.has(props.row.id)"
+            @click="onResetTwoFactor(props.row)"
+          >
+            <q-tooltip>Réinitialiser sa double authentification (téléphone perdu)</q-tooltip>
           </q-btn>
           <q-btn
             flat
@@ -251,6 +270,7 @@ import StatusTag from '@app/ui/StatusTag.vue';
 import type { StatusTone } from '@app/ui/statusTone';
 import PageHeader from '@/components/PageHeader.vue';
 import { createUser, listUsers, resendInvitation, updateUser, type AdminUser } from '@/api/users';
+import { resetUserTwoFactor } from '@/api/security';
 import { listPriceGroups, type PriceGroup } from '@/api/eligibility';
 import { extractApiError } from '@/api/errors';
 
@@ -368,6 +388,20 @@ async function onResend(user: AdminUser) {
       await load();
     } catch (err) {
       error.value = extractApiError(err) ?? 'Renvoi impossible.';
+    }
+  });
+}
+
+async function onResetTwoFactor(user: AdminUser) {
+  notice.value = null;
+  error.value = null;
+  await withBusy(user.id, async () => {
+    try {
+      await resetUserTwoFactor(user.id);
+      notice.value = `${user.email} activera de nouveau la double authentification à sa prochaine connexion.`;
+      await load();
+    } catch (err) {
+      error.value = extractApiError(err) ?? 'Réinitialisation impossible.';
     }
   });
 }

@@ -273,9 +273,10 @@ class Settings(BaseSettings):
     ICECAT_USERNAME: str | None = None
     ICECAT_API_KEY: str | None = None
     ICECAT_LANGUAGE: str = "fr"  # Default language
-    # Fernet key(s) encrypting the credentials of file-feed suppliers
-    # (comma-separated for a rotation, the first one encrypts).
-    SUPPLIER_SECRETS_KEY: str | None = None
+    # Fernet key(s) encrypting secrets stored in the database: file-feed
+    # supplier logins, administrators' two-factor secrets (comma-separated for
+    # a rotation, the first one encrypts).
+    SECRETS_ENCRYPTION_KEY: str | None = None
     # Catalogue files downloaded from a supplier URL: size cap and timeout.
     SUPPLIER_FEED_MAX_BYTES: int = 25 * 1024 * 1024
     SUPPLIER_FEED_TIMEOUT_SECONDS: int = 60
@@ -316,6 +317,12 @@ class Settings(BaseSettings):
     SUPPLIER_FILE_IMPORT_MAX_ROWS: int = 250_000
 
     # File storage backend selection for payment attachments
+    # Two-factor authentication of the administrators: None = required in
+    # production, optional elsewhere. Required, a superuser without it only
+    # reaches the enrolment endpoints.
+    ADMIN_2FA_REQUIRED: bool | None = None
+    # Days the administrators' audit trail is kept (0 = forever).
+    AUDIT_LOG_RETENTION_DAYS: int = 400
     FILE_STORAGE_BACKEND: Literal["s3", "local"] = "local"
     # Escape hatch: a single-host production keeping its uploads on a local,
     # backed-up volume. Without it, production refuses to start on "local".
@@ -544,6 +551,13 @@ class Settings(BaseSettings):
         return get_profile(self.TERRITORY_PROFILE)
 
     @property
+    def admin_2fa_required(self) -> bool:
+        """Superusers must use two-factor authentication (default: production)."""
+        if self.ADMIN_2FA_REQUIRED is not None:
+            return bool(self.ADMIN_2FA_REQUIRED)
+        return self.ENVIRONMENT == "production"
+
+    @property
     def is_simple_shop(self) -> bool:
         """``SHOP_MODE=simple``: own stock, direct shipping, no supplier machinery."""
         return self.SHOP_MODE == "simple"
@@ -658,6 +672,28 @@ class Settings(BaseSettings):
             raise ValueError(message)
         warnings.warn(message, stacklevel=1)
 
+    def _check_secrets_key_for_2fa(self) -> None:
+        """Required 2FA needs the key that encrypts its secrets (R6).
+
+        Without SECRETS_ENCRYPTION_KEY no administrator could enrol, and
+        with 2FA required none could then reach the back-office.
+        """
+        if not self.admin_2fa_required:
+            return
+        if (self.SECRETS_ENCRYPTION_KEY or "").strip():
+            return
+        message = (
+            "Administrators' two-factor authentication is required "
+            "(ADMIN_2FA_REQUIRED, on by default in production) but "
+            "SECRETS_ENCRYPTION_KEY is empty: no administrator could enrol. "
+            'Generate one: python -c "from cryptography.fernet import Fernet; '
+            'print(Fernet.generate_key().decode())"'
+        )
+        if self.ENVIRONMENT == "local":
+            warnings.warn(message, stacklevel=1)
+        else:
+            raise ValueError(message)
+
     @model_validator(mode="after")
     def _enforce_non_default_secrets(self) -> Self:
         """Execute enforce non default secrets."""
@@ -674,6 +710,7 @@ class Settings(BaseSettings):
         )
         self._check_clamav_enabled()
         self._check_file_storage()
+        self._check_secrets_key_for_2fa()
 
         return self
 

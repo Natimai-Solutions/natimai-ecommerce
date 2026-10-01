@@ -23,6 +23,9 @@ services:
     environment:
       - "DOMAIN=${DOMAIN:?DOMAIN manquant dans .env, ex natimai.solutions}"
       - "ACME_EMAIL=${ACME_EMAIL:?ACME_EMAIL manquant dans .env, contact Let s Encrypt}"
+      # Plages autorisées sur l'admin (Caddyfile) ; jamais vide : une liste
+      # vide refuserait tout le monde.
+      - "ADMIN_ALLOWED_IPS=${ADMIN_ALLOWED_IPS:-0.0.0.0/0 ::/0}"
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data # certificats Let's Encrypt — À PERSISTER (évite le rate-limit ACME)

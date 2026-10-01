@@ -229,7 +229,7 @@ the supplier with *Intégration* = « Fichier en ligne (lien) » (`kind=api`,
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SUPPLIER_SECRETS_KEY` | — | Fernet key encrypting the portal logins (comma-separated keys for a rotation, the first encrypts). **Required** to store a login |
+| `SECRETS_ENCRYPTION_KEY` | — | Fernet key encrypting the portal logins (comma-separated keys for a rotation, the first encrypts). **Required** to store a login |
 | `SUPPLIER_FEED_MAX_BYTES` | `26214400` | Size cap of a downloaded file |
 | `SUPPLIER_FEED_TIMEOUT_SECONDS` | `60` | Download timeout |
 
@@ -386,6 +386,27 @@ superuser's request; the public storefront API never returns them.
 | `LOGIN_LOCKOUT_MINUTES` | `15` | Account lock duration |
 
 ---
+
+### 3.10bis Administration: two-factor authentication, audit trail, network (R6)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ADMIN_2FA_REQUIRED` | *(auto)* | Empty = **required in production**, optional elsewhere. Required, an administrator without two-factor authentication signs in but only reaches **Sécurité du compte** (QR code to scan, recovery codes shown once) until it is set up |
+| `SECRETS_ENCRYPTION_KEY` | — | Fernet key encrypting the 2FA secrets (and file-feed supplier logins). **The backend refuses to start in production without it** (2FA required, nobody could enrol) |
+| `AUDIT_LOG_RETENTION_DAYS` | `400` | Days the audit trail is kept (0 = forever), purged daily at 04:10 |
+| `ADMIN_ALLOWED_IPS` | *(everyone)* | Caddy (`docker-compose.proxy.yml`): space-separated ranges allowed on `admin.{DOMAIN}` and `/api/v1/admin/*`. Behind Cloudflare, declare its ranges as `trusted_proxies` first |
+
+* Sign-in of an administrator with 2FA: password, then the 6-digit code of
+  the app (or a recovery code, consumed). A wrong code counts towards the
+  account lockout like a wrong password; a code is accepted once.
+* Lost phone and no recovery code: another administrator resets it
+  (Utilisateurs → icône bouclier) — the person enrols again at the next
+  sign-in. Nobody resets their own: that is « Désactiver » in *Sécurité du
+  compte*, which asks for the password and a code.
+* **Journal d'audit** (Site et système): every POST / PUT / PATCH / DELETE of
+  an administrator (route, path parameters, query string with secrets masked,
+  status, IP — never the request body) and every administrator sign-in,
+  failed password, failed code and 2FA change.
 
 ## 4. Frontend (Vite, build‑time)
 
