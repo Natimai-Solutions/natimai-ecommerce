@@ -1,12 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader title="Adresses" hint="Adresses saisies par les clients, à valider par l'équipe.">
+    <PageHeader :title="$t('addresses.title')" :hint="$t('addresses.hint')">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('addresses.refresh')"
           :loading="loading"
           @click="reload"
         />
@@ -17,7 +17,7 @@
       <q-select
         v-model="filter"
         :options="filterOptions"
-        label="Statut de validation"
+        :label="$t('addresses.status_filter')"
         outlined
         dense
         emit-value
@@ -61,7 +61,9 @@
           <StatusTag
             :tone="props.row.is_validated ? 'ok' : 'neutral'"
             :icon="props.row.is_validated ? 'ph:seal-check' : 'ph:clock'"
-            :label="props.row.is_validated ? 'Validée' : 'Non validée'"
+            :label="
+              props.row.is_validated ? $t('addresses.validated') : $t('addresses.not_validated')
+            "
           />
         </q-td>
       </template>
@@ -74,7 +76,7 @@
             dense
             no-caps
             icon="ph:check"
-            label="Valider"
+            :label="$t('addresses.validate')"
             :loading="validatingIds.has(props.row.id)"
             @click="onValidate(props.row)"
           />
@@ -82,22 +84,27 @@
       </template>
 
       <template #no-data>
-        <span class="text-subtle">{{ loading ? 'Chargement…' : 'Aucune adresse.' }}</span>
+        <span class="text-subtle">{{
+          loading ? $t('addresses.loading') : $t('addresses.none')
+        }}</span>
       </template>
     </q-table>
 
-    <div class="text-caption text-muted q-mt-sm">{{ count }} adresse(s)</div>
+    <div class="text-caption text-muted q-mt-sm">{{ $t('addresses.count', { n: count }) }}</div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import { countryLabel } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import { listAddresses, validateAddress, type AdminAddress } from '@/api/addresses';
+
+const { t } = useI18n();
 
 type Filter = 'all' | 'pending' | 'validated';
 
@@ -108,19 +115,29 @@ const error = ref<string | null>(null);
 const filter = ref<Filter>('pending');
 const validatingIds = ref<Set<string>>(new Set());
 
-const filterOptions = [
-  { label: 'Non validées', value: 'pending' as const },
-  { label: 'Validées', value: 'validated' as const },
-  { label: 'Toutes', value: 'all' as const },
-];
+const filterOptions = computed(() => [
+  { label: t('addresses.f_pending'), value: 'pending' as const },
+  { label: t('addresses.f_validated'), value: 'validated' as const },
+  { label: t('addresses.f_all'), value: 'all' as const },
+]);
 
-const columns: QTableColumn[] = [
-  { name: 'email', label: 'Client', field: (row) => row.user_email || row.user_id, align: 'left' },
-  { name: 'address', label: 'Adresse', field: 'street', align: 'left' },
-  { name: 'type', label: 'Type', field: 'type', align: 'left' },
-  { name: 'validated', label: 'Validation', field: 'is_validated', align: 'center' },
+const columns = computed<QTableColumn[]>(() => [
+  {
+    name: 'email',
+    label: t('addresses.col_customer'),
+    field: (row) => row.user_email || row.user_id,
+    align: 'left',
+  },
+  { name: 'address', label: t('addresses.col_address'), field: 'street', align: 'left' },
+  { name: 'type', label: t('addresses.col_type'), field: 'type', align: 'left' },
+  {
+    name: 'validated',
+    label: t('addresses.col_validation'),
+    field: 'is_validated',
+    align: 'center',
+  },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-];
+]);
 
 async function reload() {
   loading.value = true;
@@ -131,7 +148,7 @@ async function reload() {
     rows.value = data.data;
     count.value = data.count;
   } catch (err: unknown) {
-    error.value = err instanceof Error ? err.message : 'Erreur de chargement';
+    error.value = err instanceof Error ? err.message : t('addresses.load_failed');
   } finally {
     loading.value = false;
   }
@@ -150,7 +167,7 @@ async function onValidate(address: AdminAddress) {
       address.is_validated = true;
     }
   } catch (err: unknown) {
-    error.value = err instanceof Error ? err.message : 'Échec de la validation';
+    error.value = err instanceof Error ? err.message : t('addresses.validate_failed');
   } finally {
     validatingIds.value.delete(address.id);
     validatingIds.value = new Set(validatingIds.value);

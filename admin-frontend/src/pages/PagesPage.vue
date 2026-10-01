@@ -1,12 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader title="Pages du site">
+    <PageHeader :title="$t('pages.title')">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -15,16 +15,14 @@
           unelevated
           no-caps
           icon="ph:plus"
-          label="Nouvelle page"
+          :label="$t('pages.new')"
           @click="openCreate"
         />
       </template>
     </PageHeader>
 
     <p class="admin-hint">
-      « comment-ca-marche » explique le principe des départs groupés (lien dans le bandeau et le
-      pied de page). Une page « cgv » publiée remplace le texte par défaut des CGV ; supprimez-la
-      pour y revenir. Une page en brouillon n'est pas visible sur le site.
+      {{ $t('pages.intro') }}
     </p>
 
     <div v-if="error || notice" class="admin-notices">
@@ -50,22 +48,22 @@
           <StatusTag
             :tone="props.row.is_published ? 'ok' : 'neutral'"
             :icon="props.row.is_published ? 'ph:check-circle' : 'ph:pencil-simple-line'"
-            :label="props.row.is_published ? 'Publiée' : 'Brouillon'"
+            :label="props.row.is_published ? $t('pages.st_published') : $t('pages.st_draft')"
           />
         </q-td>
       </template>
       <template #body-cell-actions="props">
         <q-td :props="props" align="right">
           <q-btn flat round dense icon="ph:pencil-simple" @click="openEdit(props.row)">
-            <q-tooltip>Modifier</q-tooltip>
+            <q-tooltip>{{ $t('common.edit') }}</q-tooltip>
           </q-btn>
           <q-btn flat round dense icon="ph:trash" color="negative" @click="remove(props.row)">
-            <q-tooltip>Supprimer (une page légale revient à son texte par défaut)</q-tooltip>
+            <q-tooltip>{{ $t('pages.delete') }}</q-tooltip>
           </q-btn>
         </q-td>
       </template>
       <template #no-data>
-        <div class="full-width text-center text-subtle q-pa-md">Aucune page.</div>
+        <div class="full-width text-center text-subtle q-pa-md">{{ $t('pages.none') }}</div>
       </template>
     </q-table>
 
@@ -73,10 +71,10 @@
       <q-card>
         <q-card-section class="app-dialog__head row items-center no-wrap q-gutter-x-sm">
           <h2 class="app-dialog__title col">
-            {{ editing ? `Modifier « ${form.slug} »` : 'Nouvelle page' }}
+            {{ editing ? $t('pages.edit_title', { slug: form.slug }) : $t('pages.new_title') }}
           </h2>
           <q-btn flat round dense icon="ph:x" v-close-popup>
-            <q-tooltip>Fermer</q-tooltip>
+            <q-tooltip>{{ $t('common.close') }}</q-tooltip>
           </q-btn>
         </q-card-section>
         <q-form @submit.prevent="submit">
@@ -86,22 +84,28 @@
               <q-input
                 v-model="form.slug"
                 class="col-12 col-sm-4"
-                label="Adresse (slug) *"
-                hint="minuscules, chiffres, tirets — ex. comment-ca-marche, cgv"
+                :label="$t('pages.slug')"
+                :hint="$t('pages.slug_hint')"
                 outlined
                 dense
                 :readonly="editing"
-                :rules="[(v: string) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v) || 'Slug invalide']"
+                :rules="[
+                  (v: string) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v) || $t('pages.slug_rule'),
+                ]"
               />
               <q-input
                 v-model="form.title"
                 class="col-12 col-sm-6"
-                label="Titre *"
+                :label="$t('pages.page_title')"
                 outlined
                 dense
-                :rules="[(v: string) => !!v.trim() || 'Titre requis']"
+                :rules="[(v: string) => !!v.trim() || $t('pages.title_rule')]"
               />
-              <q-toggle v-model="form.is_published" class="col-12 col-sm-2" label="Publiée" />
+              <q-toggle
+                v-model="form.is_published"
+                class="col-12 col-sm-2"
+                :label="$t('pages.published')"
+              />
             </div>
             <q-editor
               ref="editorRef"
@@ -112,13 +116,13 @@
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              label="Enregistrer"
+              :label="$t('common.save')"
               :loading="saving"
             />
           </q-card-actions>
@@ -130,7 +134,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { computed, onMounted, reactive, ref } from 'vue';
 import type { QEditor, QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
@@ -141,28 +146,30 @@ import type { MediaAsset } from '@/api/media';
 import { deletePage, listPages, savePage, type ContentPage } from '@/api/pages';
 import { extractApiError } from '@/api/errors';
 
+const { t } = useI18n();
+
 const pages = ref<ContentPage[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
 
-const columns: QTableColumn[] = [
-  { name: 'slug', label: 'Adresse', field: 'slug', align: 'left' },
-  { name: 'title', label: 'Titre', field: 'title', align: 'left' },
-  { name: 'published', label: 'État', field: 'is_published', align: 'left' },
+const columns = computed<QTableColumn[]>(() => [
+  { name: 'slug', label: t('pages.col_slug'), field: 'slug', align: 'left' },
+  { name: 'title', label: t('pages.col_title'), field: 'title', align: 'left' },
+  { name: 'published', label: t('pages.col_state'), field: 'is_published', align: 'left' },
   {
     name: 'modified',
-    label: 'Modifiée',
+    label: t('pages.col_modified'),
     field: 'modify_at',
     align: 'left',
     format: (v: string | null) => formatDateTime(v),
   },
   { name: 'actions', label: '', field: 'slug', align: 'right' },
-];
+]);
 
 const toolbar = [
   ['bold', 'italic', 'underline'],
-  [{ label: 'Titre', icon: 'title', list: 'no-icons', options: ['h2', 'h3', 'p'] }],
+  [{ label: t('pages.heading'), icon: 'title', list: 'no-icons', options: ['h2', 'h3', 'p'] }],
   ['unordered', 'ordered'],
   ['link', 'image', 'hr'],
   ['undo', 'redo'],
@@ -173,9 +180,9 @@ const editorRef = ref<QEditor | null>(null);
 const mediaPickerOpen = ref(false);
 const editorDefinitions = {
   image: {
-    tip: 'Insérer une image de la médiathèque',
+    tip: t('pages.insert_image'),
     icon: 'image',
-    label: 'Image',
+    label: t('pages.image'),
     handler: () => {
       // La position du curseur est gardée pour y insérer l'image au retour.
       editorRef.value?.caret.savePosition();
@@ -209,7 +216,7 @@ async function load() {
   try {
     pages.value = await listPages();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -251,10 +258,10 @@ async function submit() {
       is_published: form.is_published,
     });
     dialog.value = false;
-    notice.value = 'Page enregistrée.';
+    notice.value = t('pages.saved');
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    dialogError.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     saving.value = false;
   }
@@ -264,10 +271,10 @@ async function remove(p: ContentPage) {
   error.value = null;
   try {
     await deletePage(p.slug);
-    notice.value = `« ${p.slug} » supprimée.`;
+    notice.value = t('pages.deleted', { slug: p.slug });
     await load();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Suppression impossible.';
+    error.value = extractApiError(err) ?? t('common.delete_failed');
   }
 }
 

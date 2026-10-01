@@ -361,6 +361,7 @@
 </template>
 
 <script setup lang="ts">
+import { intlLocale } from '@app/utils';
 import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -470,7 +471,7 @@ function formatDate(raw: string | null): string {
   const parsed = new Date(raw);
   return Number.isNaN(parsed.getTime())
     ? raw
-    : parsed.toLocaleString('fr-FR', {
+    : parsed.toLocaleString(intlLocale(), {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',

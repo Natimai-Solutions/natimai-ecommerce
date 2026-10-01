@@ -371,7 +371,7 @@ import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import PageHeader from '@/components/PageHeader.vue';
-import { formatMoney } from '@app/utils';
+import { formatMoney, intlLocale } from '@app/utils';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import {
   useProductsStore,
@@ -437,7 +437,7 @@ function money(value: string | null | undefined): string {
 function pct(value: string | null | undefined): string {
   return value == null
     ? '—'
-    : `${Number(value).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`;
+    : `${Number(value).toLocaleString(intlLocale(), { maximumFractionDigits: 1 })} %`;
 }
 
 const filterOptions = [
@@ -515,7 +515,7 @@ function reasonLabel(reason: string): string {
 
 function formatDateTime(raw: string): string {
   const d = new Date(raw);
-  return Number.isNaN(d.getTime()) ? raw : d.toLocaleString('fr-FR');
+  return Number.isNaN(d.getTime()) ? raw : d.toLocaleString(intlLocale());
 }
 
 async function openHistory(product: ProductPublic) {

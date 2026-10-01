@@ -1,17 +1,15 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader title="Douane par catégorie">
+    <PageHeader :title="$t('customs.title')">
       <template #hint>
-        Taux effectif de l'ensemble des droits et taxes à l'import, appliqué sur la valeur CAF (voir
-        DEPLOYMENT.md §15). Un produit dont le taux ne se résout ni sur lui-même ni sur sa catégorie
-        est masqué de la vitrine.
+        {{ $t('customs.hint') }}
       </template>
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -22,31 +20,31 @@
 
     <div v-if="report" class="customs-kpis">
       <div class="app-panel customs-kpi">
-        <span class="customs-kpi__label">Publiables</span>
+        <span class="customs-kpi__label">{{ $t('customs.kpi_publishable') }}</span>
         <span class="customs-kpi__value font-mono"
           >{{ report.publishable_count }} / {{ report.enriched_count }}</span
         >
-        <span class="customs-kpi__hint">produits enrichis</span>
+        <span class="customs-kpi__hint">{{ $t('customs.kpi_publishable_hint') }}</span>
       </div>
       <div class="app-panel customs-kpi">
-        <span class="customs-kpi__label">Sans taux de douane</span>
+        <span class="customs-kpi__label">{{ $t('customs.kpi_no_rate') }}</span>
         <span
           class="customs-kpi__value font-mono"
           :class="report.blocked_customs_rate_unresolved ? 'text-negative' : 'text-positive'"
         >
           {{ report.blocked_customs_rate_unresolved }}
         </span>
-        <span class="customs-kpi__hint">à traiter ci-dessous</span>
+        <span class="customs-kpi__hint">{{ $t('customs.kpi_no_rate_hint') }}</span>
       </div>
       <div class="app-panel customs-kpi">
-        <span class="customs-kpi__label">Sans poids</span>
+        <span class="customs-kpi__label">{{ $t('customs.kpi_no_weight') }}</span>
         <span
           class="customs-kpi__value font-mono"
           :class="report.blocked_weight_missing ? 'text-negative' : 'text-positive'"
         >
           {{ report.blocked_weight_missing }}
         </span>
-        <span class="customs-kpi__hint">fret incalculable — fiche produit</span>
+        <span class="customs-kpi__hint">{{ $t('customs.kpi_no_weight_hint') }}</span>
       </div>
     </div>
 
@@ -63,7 +61,7 @@
       <template #body-cell-category_name="props">
         <q-td :props="props">
           <span v-if="props.row.category_name">{{ props.row.category_name }}</span>
-          <span v-else class="text-subtle text-italic">Sans catégorie</span>
+          <span v-else class="text-subtle text-italic">{{ $t('customs.no_category') }}</span>
         </q-td>
       </template>
       <template #body-cell-rate="props">
@@ -71,7 +69,12 @@
           <span v-if="props.row.default_customs_rate_pct" class="font-mono"
             >{{ props.row.default_customs_rate_pct }} %</span
           >
-          <StatusTag v-else label="Non défini" tone="danger" icon="ph:warning-circle" />
+          <StatusTag
+            v-else
+            :label="$t('customs.undefined')"
+            tone="danger"
+            icon="ph:warning-circle"
+          />
         </q-td>
       </template>
       <template #body-cell-product_count="props">
@@ -96,65 +99,55 @@
             icon="ph:pencil-simple"
             @click="openEdit(props.row)"
           >
-            <q-tooltip>Définir le taux de douane</q-tooltip>
+            <q-tooltip>{{ $t('customs.set_rate') }}</q-tooltip>
           </q-btn>
           <q-tooltip v-else>
-            Ces produits n'ont pas de catégorie : leur taux ne peut pas être hérité.
+            {{ $t('customs.no_category_hint') }}
           </q-tooltip>
         </q-td>
       </template>
       <template #no-data>
-        <div class="full-width text-center text-subtle q-pa-md">Aucune catégorie.</div>
+        <div class="full-width text-center text-subtle q-pa-md">{{ $t('customs.none') }}</div>
       </template>
     </q-table>
 
     <q-dialog v-model="editDialog">
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">{{ editing?.category_name ?? 'Catégorie' }}</h2>
+          <h2 class="app-dialog__title">{{ editing?.category_name ?? $t('customs.category') }}</h2>
         </q-card-section>
         <q-form @submit.prevent="submitEdit">
           <q-card-section class="q-gutter-sm">
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="editRate"
-              label="Taux de douane (%)"
-              hint="Vide = aucun taux : les produits de cette catégorie restent masqués"
+              :label="$t('customs.rate')"
+              :hint="$t('customs.rate_hint')"
               type="number"
               step="0.01"
               outlined
               dense
             />
             <p class="admin-hint q-mb-none">
-              Saisir le <strong>taux effectif</strong> : l'ensemble des droits et taxes à l'import
-              (droits de douane, TDL et les autres prélèvements de la position tarifaire) ramené à
-              un seul pourcentage de la valeur CAF — pas le seul droit de douane. Le dériver du
-              <a
-                href="https://simulateur-douane-polynesie.com/"
-                target="_blank"
-                rel="noopener"
-                class="admin-link"
-                >simulateur des douanes PF</a
-              >
-              en simulant une valeur représentative, origine UE pour le corridor France → Papeete.
+              <!-- eslint-disable-next-line vue/no-v-html -- trusted message -->
+              <span v-html="$t('customs.help')"></span>
             </p>
             <AppNotice tone="warning" dense>
-              <strong>Retirer la TVA du total du simulateur.</strong> Elle est déjà appliquée
-              séparément via le taux de TVA du produit : l'inclure ici la compterait deux fois sur
-              chaque prix.
+              <!-- eslint-disable-next-line vue/no-v-html -- trusted message -->
+              <span v-html="$t('customs.vat_warning')"></span>
             </AppNotice>
             <p class="admin-hint q-mb-none">
-              Procédure complète, règle en cas de positions multiples et tableau de suivi :
-              <code>DEPLOYMENT.md</code> §15.
+              <!-- eslint-disable-next-line vue/no-v-html -- trusted message -->
+              <span v-html="$t('customs.procedure')"></span>
             </p>
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               color="primary"
               unelevated
               no-caps
-              label="Enregistrer"
+              :label="$t('common.save')"
               type="submit"
               :loading="saving"
             />
@@ -166,7 +159,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
@@ -179,17 +173,29 @@ import {
 } from '@/api/taxRates';
 import { extractApiError } from '@/api/errors';
 
+const { t } = useI18n();
+
 const report = ref<PublicationReport | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
-const columns: QTableColumn[] = [
-  { name: 'category_name', label: 'Catégorie', field: 'category_name', align: 'left' },
-  { name: 'rate', label: 'Douane', field: 'default_customs_rate_pct', align: 'left' },
-  { name: 'product_count', label: 'Produits', field: 'product_count', align: 'right' },
-  { name: 'blocked', label: 'Masqués', field: 'blocked_count', align: 'left' },
+const columns = computed<QTableColumn[]>(() => [
+  {
+    name: 'category_name',
+    label: t('customs.col_category'),
+    field: 'category_name',
+    align: 'left',
+  },
+  { name: 'rate', label: t('customs.col_rate'), field: 'default_customs_rate_pct', align: 'left' },
+  {
+    name: 'product_count',
+    label: t('customs.col_products'),
+    field: 'product_count',
+    align: 'right',
+  },
+  { name: 'blocked', label: t('customs.col_hidden'), field: 'blocked_count', align: 'left' },
   { name: 'actions', label: '', field: 'category_id', align: 'right' },
-];
+]);
 
 async function load() {
   loading.value = true;
@@ -197,7 +203,7 @@ async function load() {
   try {
     report.value = await getPublicationReport();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -226,7 +232,7 @@ async function submitEdit() {
     editDialog.value = false;
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    dialogError.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     saving.value = false;
   }

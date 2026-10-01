@@ -263,6 +263,7 @@
 </template>
 
 <script setup lang="ts">
+import { intlLocale } from '@app/utils';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -317,7 +318,7 @@ const columns: QTableColumn[] = [
 
 function formatDate(value: string | null): string {
   if (!value) return '—';
-  return new Date(value).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+  return new Date(value).toLocaleString(intlLocale(), { dateStyle: 'short', timeStyle: 'short' });
 }
 
 function statusOf(user: AdminUser): { label: string; tone: StatusTone; icon: string } {

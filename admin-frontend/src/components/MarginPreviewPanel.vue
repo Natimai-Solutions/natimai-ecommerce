@@ -111,7 +111,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue';
 
-import { formatMoney } from '@app/utils';
+import { formatMoney, intlLocale } from '@app/utils';
 import { extractApiError } from '@/api/errors';
 import { previewMargin, type MarginPreview, type MarginPreviewRequest } from '@/api/margin';
 
@@ -146,7 +146,7 @@ function money(value: string | null): string {
 
 function pct(value: string | null): string {
   if (value === null) return '—';
-  return `${Number(value).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} %`;
+  return `${Number(value).toLocaleString(intlLocale(), { maximumFractionDigits: 2 })} %`;
 }
 
 async function refresh() {

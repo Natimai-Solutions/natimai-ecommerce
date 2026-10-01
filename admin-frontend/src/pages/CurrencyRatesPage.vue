@@ -1,17 +1,16 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader title="Taux de change">
+    <PageHeader :title="$t('currency_rates.title')">
       <template #hint>
-        Taux de conversion vers la devise de référence : 1 unité de la devise =
-        <em>taux</em> unités de la référence. Mettre à jour clôture le taux courant et en ouvre un
-        nouveau.
+        <!-- eslint-disable-next-line vue/no-v-html -- trusted message -->
+        <span v-html="$t('currency_rates.explain')"></span>
       </template>
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -46,7 +45,12 @@
       </template>
       <template #body-cell-valid_until="props">
         <q-td :props="props">
-          <StatusTag v-if="!props.row.valid_until" label="Actif" tone="ok" icon="ph:check-circle" />
+          <StatusTag
+            v-if="!props.row.valid_until"
+            :label="$t('currency_rates.active')"
+            tone="ok"
+            icon="ph:check-circle"
+          />
           <span v-else>{{ props.row.valid_until }}</span>
         </q-td>
       </template>
@@ -57,27 +61,31 @@
             dense
             no-caps
             icon="ph:pencil-simple"
-            label="Mettre à jour"
+            :label="$t('currency_rates.update')"
             @click="openEdit(props.row)"
           />
         </q-td>
       </template>
       <template #no-data>
-        <div class="full-width text-center text-subtle q-pa-md">Aucun taux de change.</div>
+        <div class="full-width text-center text-subtle q-pa-md">
+          {{ $t('currency_rates.none') }}
+        </div>
       </template>
     </q-table>
 
     <q-dialog v-model="editDialog">
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
-          <h2 class="app-dialog__title">Nouveau taux — {{ editing?.currency_code }}</h2>
+          <h2 class="app-dialog__title">
+            {{ $t('currency_rates.new_rate', { code: editing?.currency_code }) }}
+          </h2>
         </q-card-section>
         <q-form @submit.prevent="submitEdit">
           <q-card-section class="q-gutter-sm">
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
             <q-input
               v-model="editForm.rate_to_reference"
-              label="Taux vers référence *"
+              :label="$t('currency_rates.rate')"
               type="number"
               step="0.000001"
               outlined
@@ -86,7 +94,7 @@
             />
             <q-input
               v-model="editForm.valid_from"
-              label="Valide à partir du *"
+              :label="$t('currency_rates.valid_from')"
               type="date"
               outlined
               dense
@@ -94,13 +102,13 @@
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps label="Annuler" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
             <q-btn
               type="submit"
               color="primary"
               unelevated
               no-caps
-              label="Enregistrer"
+              :label="$t('common.save')"
               :loading="saving"
             />
           </q-card-actions>
@@ -111,7 +119,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
@@ -119,28 +128,40 @@ import PageHeader from '@/components/PageHeader.vue';
 import { listCurrencyRates, upsertCurrencyRate, type CurrencyRate } from '@/api/currencyRates';
 import { extractApiError } from '@/api/errors';
 
+const { t } = useI18n();
+
 const rows = ref<CurrencyRate[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
 const req = [
   (v: string | number | null | undefined) =>
-    (v !== null && v !== undefined && String(v).length > 0) || 'Requis',
+    (v !== null && v !== undefined && String(v).length > 0) || t('common.required'),
 ];
 
-const columns: QTableColumn[] = [
-  { name: 'currency_code', label: 'Devise', field: 'currency_code', align: 'left' },
+const columns = computed<QTableColumn[]>(() => [
+  {
+    name: 'currency_code',
+    label: t('currency_rates.col_currency'),
+    field: 'currency_code',
+    align: 'left',
+  },
   {
     name: 'rate_to_reference',
-    label: 'Taux → référence',
+    label: t('currency_rates.col_rate'),
     field: 'rate_to_reference',
     align: 'left',
   },
-  { name: 'valid_from', label: 'Valide depuis', field: 'valid_from', align: 'left' },
-  { name: 'valid_until', label: 'Clôture', field: 'valid_until', align: 'left' },
-  { name: 'source', label: 'Source', field: 'source', align: 'left' },
+  { name: 'valid_from', label: t('currency_rates.col_from'), field: 'valid_from', align: 'left' },
+  {
+    name: 'valid_until',
+    label: t('currency_rates.col_until'),
+    field: 'valid_until',
+    align: 'left',
+  },
+  { name: 'source', label: t('currency_rates.col_source'), field: 'source', align: 'left' },
   { name: 'actions', label: '', field: 'id', align: 'right' },
-];
+]);
 
 async function load() {
   loading.value = true;
@@ -148,7 +169,7 @@ async function load() {
   try {
     rows.value = await listCurrencyRates();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -180,7 +201,7 @@ async function submitEdit() {
     editDialog.value = false;
     await load();
   } catch (err) {
-    dialogError.value = extractApiError(err) ?? 'Mise à jour impossible.';
+    dialogError.value = extractApiError(err) ?? t('common.update_failed');
   } finally {
     saving.value = false;
   }

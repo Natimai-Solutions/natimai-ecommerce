@@ -177,6 +177,7 @@
 </template>
 
 <script setup lang="ts">
+import { intlLocale } from '@app/utils';
 import { onMounted, reactive, ref, watch } from 'vue';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
@@ -198,7 +199,7 @@ const busyId = ref<string | null>(null);
 
 function money(value: unknown): string {
   const n = Number(value);
-  return Number.isFinite(n) ? `${n.toLocaleString('fr-FR')} ${shopConfig.currency}` : '—';
+  return Number.isFinite(n) ? `${n.toLocaleString(intlLocale())} ${shopConfig.currency}` : '—';
 }
 function qty(value: unknown): string {
   const n = Number(value);

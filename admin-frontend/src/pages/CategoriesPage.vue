@@ -285,6 +285,7 @@
 </template>
 
 <script setup lang="ts">
+import { intlLocale } from '@app/utils';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -422,14 +423,14 @@ const taxRates = ref<TaxRate[]>([]);
 const taxRateOptions = computed(() =>
   taxRates.value.map((rate) => ({
     value: rate.id,
-    label: `${rate.label} — ${Number(rate.rate_pct).toLocaleString('fr-FR')} %`,
+    label: `${rate.label} — ${Number(rate.rate_pct).toLocaleString(intlLocale())} %`,
   })),
 );
 
 function taxLabel(taxRateId: string | null | undefined): string {
   if (!taxRateId) return '—';
   const rate = taxRates.value.find((r) => r.id === taxRateId);
-  return rate ? `${Number(rate.rate_pct).toLocaleString('fr-FR')} %` : '—';
+  return rate ? `${Number(rate.rate_pct).toLocaleString(intlLocale())} %` : '—';
 }
 
 async function loadTaxRates() {

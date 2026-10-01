@@ -255,6 +255,7 @@
 </template>
 
 <script setup lang="ts">
+import { intlLocale } from '@app/utils';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -293,7 +294,7 @@ const codeOptions = computed(() => {
   }
   return [...seen.values()].map((rate) => ({
     value: rate.code,
-    label: `${rate.label} — ${Number(rate.rate_pct).toLocaleString('fr-FR')} %`,
+    label: `${rate.label} — ${Number(rate.rate_pct).toLocaleString(intlLocale())} %`,
   }));
 });
 const settingsChanged = computed(

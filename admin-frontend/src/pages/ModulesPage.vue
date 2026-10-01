@@ -1,15 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader
-      title="Modules"
-      hint="Allumer ou éteindre une partie de la boutique, sans redémarrage."
-    >
+    <PageHeader :title="$t('modules.title')" :hint="$t('modules.hint')">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('modules.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -24,10 +21,8 @@
 
     <template v-else>
       <p class="admin-hint">
-        Un module éteint masque ses écrans et ses options, refuse ses actions et met ses tâches
-        planifiées en pause. <strong>Rien n'est supprimé</strong> : ses données reviennent telles
-        quelles quand on le rallume. Le mode de la boutique ({{ modeLabel }}) ne fixe que la valeur
-        de départ d'une installation neuve.
+        <!-- eslint-disable-next-line vue/no-v-html -- trusted message -->
+        <span v-html="$t('modules.explain', { mode: modeLabel })"></span>
       </p>
 
       <section
@@ -51,22 +46,32 @@
                   v-if="module.blocked_by_env"
                   tone="warn"
                   icon="ph:lock"
-                  :label="`Bloqué par ${module.blocked_by_env}`"
+                  :label="$t('modules.blocked', { env: module.blocked_by_env })"
                 >
                 </StatusTag>
                 <StatusTag
                   v-else-if="module.enabled"
                   tone="ok"
                   icon="ph:check-circle"
-                  label="Actif"
+                  :label="$t('modules.on')"
                 />
-                <StatusTag v-else tone="neutral" icon="ph:minus-circle" label="Éteint" />
+                <StatusTag
+                  v-else
+                  tone="neutral"
+                  icon="ph:minus-circle"
+                  :label="$t('modules.off')"
+                />
               </td>
               <td class="text-center" style="width: 90px">
                 <q-toggle
                   :model-value="module.switched_on"
                   :disable="updating === module.key"
-                  :aria-label="`${module.label} : ${module.switched_on ? 'allumé' : 'éteint'}`"
+                  :aria-label="
+                    $t('modules.switch_aria', {
+                      label: module.label,
+                      state: module.switched_on ? $t('modules.state_on') : $t('modules.state_off'),
+                    })
+                  "
                   :data-testid="`module-${module.key}`"
                   @update:model-value="(val) => toggle(module, val)"
                 />
@@ -80,6 +85,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { computed, onMounted, ref } from 'vue';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
@@ -88,13 +94,17 @@ import { listModules, setModuleEnabled, type ModuleState } from '@/api/modules';
 import { extractApiError } from '@/api/errors';
 import { useShopConfigStore } from '@/stores/shopConfig';
 
+const { t } = useI18n();
+
 const shopConfig = useShopConfigStore();
 const modules = ref<ModuleState[]>([]);
 const loading = ref(false);
 const updating = ref<string | null>(null);
 const error = ref<string | null>(null);
 
-const modeLabel = computed(() => (shopConfig.isSimple ? 'simple' : 'complet'));
+const modeLabel = computed(() =>
+  shopConfig.isSimple ? t('modules.mode_simple') : t('modules.mode_full'),
+);
 
 const groups = computed(() => {
   const byGroup = new Map<string, ModuleState[]>();
@@ -110,7 +120,7 @@ async function load() {
   try {
     modules.value = await listModules();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('modules.load_failed');
   } finally {
     loading.value = false;
   }
@@ -124,7 +134,7 @@ async function toggle(module: ModuleState, value: boolean) {
     modules.value = modules.value.map((m) => (m.key === saved.key ? saved : m));
     await shopConfig.reload();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Mise à jour impossible.';
+    error.value = extractApiError(err) ?? t('modules.update_failed');
   } finally {
     updating.value = null;
   }

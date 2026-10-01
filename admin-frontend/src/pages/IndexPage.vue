@@ -133,7 +133,7 @@ import { computed, onMounted, ref } from 'vue';
 
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
-import { formatDate, formatDateTime, formatMoney } from '@app/utils';
+import { formatDate, formatDateTime, formatMoney, intlLocale } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import { extractApiError } from '@/api/errors';
 import { getDashboard, type AdminDashboard, type DashboardTodo } from '@/api/dashboard';
@@ -144,7 +144,7 @@ const data = ref<AdminDashboard | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
-const today = new Intl.DateTimeFormat('fr-FR', {
+const today = new Intl.DateTimeFormat(intlLocale(), {
   weekday: 'long',
   day: 'numeric',
   month: 'long',

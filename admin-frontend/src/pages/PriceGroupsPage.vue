@@ -1,15 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader
-      title="Groupes tarifaires"
-      hint="Le prix de référence est celui du groupe par défaut. Chaque autre groupe paie ce prix moins sa remise, sur tous les articles ; un prix saisi pour le groupe sur un article passe avant."
-    >
+    <PageHeader :title="$t('price_groups.title')" :hint="$t('price_groups.hint')">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -22,9 +19,9 @@
     <q-markup-table flat bordered data-testid="price-groups">
       <thead>
         <tr>
-          <th class="text-left">Groupe</th>
-          <th class="text-left">Remise sur le prix de référence</th>
-          <th class="text-left">Marge des prix calculés</th>
+          <th class="text-left">{{ $t('price_groups.col_group') }}</th>
+          <th class="text-left">{{ $t('price_groups.col_discount') }}</th>
+          <th class="text-left">{{ $t('price_groups.col_margin') }}</th>
           <th class="text-right"></th>
         </tr>
       </thead>
@@ -35,7 +32,7 @@
               {{ g.label }}
               <StatusTag
                 v-if="g.default"
-                label="Référence"
+                :label="$t('price_groups.reference')"
                 tone="ok"
                 icon="ph:star"
                 class="q-ml-xs"
@@ -44,7 +41,7 @@
             <div class="text-caption text-subtle font-mono">{{ g.code }}</div>
           </td>
           <td class="text-left">
-            <span v-if="g.default" class="text-muted">— (prix de référence)</span>
+            <span v-if="g.default" class="text-muted">{{ $t('price_groups.is_reference') }}</span>
             <q-input
               v-else
               v-model="edit(g).discount_pct"
@@ -72,9 +69,9 @@
               class="price-groups__input font-mono"
             />
             <div v-if="g.default" class="text-caption text-subtle q-mt-xs">
-              Appliquée si ni l'article ni sa catégorie n'ont de marge
+              {{ $t('price_groups.margin_applied') }}
             </div>
-            <span v-else class="text-muted">celle du prix de référence</span>
+            <span v-else class="text-muted">{{ $t('price_groups.margin_same') }}</span>
           </td>
           <td class="text-right">
             <q-btn
@@ -87,7 +84,7 @@
               :data-testid="`price-group-save-${g.code}`"
               @click="save(g)"
             >
-              <q-tooltip>Enregistrer</q-tooltip>
+              <q-tooltip>{{ $t('common.save') }}</q-tooltip>
             </q-btn>
           </td>
         </tr>
@@ -95,20 +92,22 @@
     </q-markup-table>
 
     <p class="admin-hint q-mt-md">
-      Exemple : remise Professionnel de 10 % → un article à 11 600 F est vendu 10 440 F aux clients
-      professionnels. Le groupe d'un client se règle dans <strong>Utilisateurs</strong> ; un
-      visiteur non connecté paie le prix de référence.
+      <!-- eslint-disable-next-line vue/no-v-html -- trusted message -->
+      <span v-html="$t('price_groups.example')"></span>
     </p>
   </q-page>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { onMounted, reactive, ref } from 'vue';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import { extractApiError } from '@/api/errors';
 import { listPriceGroups, updatePriceGroup, type PriceGroup } from '@/api/eligibility';
+
+const { t } = useI18n();
 
 const groups = ref<PriceGroup[]>([]);
 const loading = ref(false);
@@ -148,7 +147,7 @@ async function load() {
     groups.value = [...list].sort((a, b) => Number(b.default) - Number(a.default));
     for (const key of Object.keys(edits)) delete edits[key];
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -169,10 +168,10 @@ async function save(g: PriceGroup) {
     Object.assign(g, updated);
     delete edits[g.id];
     notice.value = g.default
-      ? `Marge par défaut enregistrée (${num(updated.margin_rate_pct)} %).`
-      : `Remise « ${g.label} » enregistrée : ${num(updated.discount_pct)} %.`;
+      ? t('price_groups.margin_saved', { pct: num(updated.margin_rate_pct) })
+      : t('price_groups.discount_saved', { label: g.label, pct: num(updated.discount_pct) });
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Enregistrement impossible.';
+    error.value = extractApiError(err) ?? t('common.save_failed');
   } finally {
     saving.value = null;
   }

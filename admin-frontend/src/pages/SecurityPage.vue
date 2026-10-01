@@ -1,15 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader
-      title="Sécurité du compte"
-      hint="Double authentification : un code de votre téléphone en plus du mot de passe."
-    />
+    <PageHeader :title="$t('security.title')" :hint="$t('security.hint')" />
 
     <AppNotice v-if="error" tone="error" class="q-mb-md">{{ error }}</AppNotice>
     <AppNotice v-if="notice" tone="success" class="q-mb-md">{{ notice }}</AppNotice>
     <AppNotice v-if="status?.required && !status.enabled" tone="warning" class="q-mb-md">
-      La double authentification est <strong>obligatoire</strong> pour administrer la boutique : les
-      autres écrans restent fermés tant qu'elle n'est pas activée.
+      <!-- eslint-disable-next-line vue/no-v-html -- trusted message -->
+      <span v-html="$t('security.required')"></span>
     </AppNotice>
 
     <div v-if="loading && !status" class="text-center q-pa-xl"><q-spinner size="2.5em" /></div>
@@ -18,11 +15,10 @@
       <!-- Codes de secours affichés une seule fois -->
       <section v-if="recoveryCodes.length" class="app-section" data-testid="recovery-codes">
         <div class="app-section__head">
-          <h2 class="app-section__title">Vos codes de secours</h2>
+          <h2 class="app-section__title">{{ $t('security.codes_title') }}</h2>
         </div>
         <AppNotice tone="warning" dense class="q-mb-sm">
-          Notez-les ou imprimez-les maintenant : ils ne seront plus jamais affichés. Chacun permet
-          une connexion si vous n'avez plus votre téléphone.
+          {{ $t('security.codes_hint') }}
         </AppNotice>
         <div class="recovery-grid font-mono">
           <span v-for="code in recoveryCodes" :key="code">{{ code }}</span>
@@ -31,7 +27,7 @@
           flat
           no-caps
           icon="ph:check"
-          label="Je les ai notés"
+          :label="$t('security.noted')"
           class="q-mt-sm"
           @click="recoveryCodes = []"
         />
@@ -39,22 +35,21 @@
 
       <section class="app-section">
         <div class="app-section__head">
-          <h2 class="app-section__title">Double authentification</h2>
+          <h2 class="app-section__title">{{ $t('security.heading') }}</h2>
           <StatusTag
             v-if="status.enabled"
             tone="ok"
             icon="ph:shield-check"
-            label="Active"
+            :label="$t('common.active_f')"
             data-testid="2fa-active"
           />
-          <StatusTag v-else tone="warn" icon="ph:shield-warning" label="Inactive" />
+          <StatusTag v-else tone="warn" icon="ph:shield-warning" :label="$t('common.inactive_f')" />
         </div>
 
         <!-- Activation -->
         <template v-if="!status.enabled">
           <p v-if="!setup" class="admin-hint">
-            Installez une application d'authentification (Google Authenticator, Microsoft
-            Authenticator, 1Password, Aegis…), puis générez le code à scanner.
+            {{ $t('security.install') }}
           </p>
           <q-btn
             v-if="!setup"
@@ -62,26 +57,26 @@
             unelevated
             no-caps
             icon="ph:qr-code"
-            label="Activer la double authentification"
+            :label="$t('security.enable')"
             :loading="busy"
             data-testid="2fa-start"
             @click="onStart"
           />
           <div v-else class="setup">
-            <img :src="setup.qr_svg_data_uri" alt="QR code à scanner" class="setup__qr" />
+            <img :src="setup.qr_svg_data_uri" :alt="$t('security.qr_alt')" class="setup__qr" />
             <div class="setup__steps">
               <ol>
-                <li>Scannez ce QR code avec l'application.</li>
+                <li>{{ $t('security.scan') }}</li>
                 <li>
-                  Pas d'appareil photo ? Saisissez cette clé :
+                  {{ $t('security.no_camera') }}
                   <span class="font-mono setup__secret">{{ groupedSecret }}</span>
                 </li>
-                <li>Tapez le code à 6 chiffres affiché par l'application.</li>
+                <li>{{ $t('security.type_code') }}</li>
               </ol>
               <q-form class="row items-start" style="gap: 8px" @submit.prevent="onConfirm">
                 <q-input
                   v-model="code"
-                  label="Code"
+                  :label="$t('security.code')"
                   outlined
                   dense
                   inputmode="numeric"
@@ -94,7 +89,7 @@
                   color="primary"
                   unelevated
                   no-caps
-                  label="Confirmer"
+                  :label="$t('security.confirm')"
                   :loading="busy"
                   :disable="!code.trim()"
                   data-testid="2fa-confirm"
@@ -107,13 +102,12 @@
         <!-- Gestion -->
         <template v-else>
           <p class="admin-hint">
-            Chaque connexion à l'administration demande le code de votre application.
-            {{ status.recovery_codes_left }} code(s) de secours restant(s).
+            {{ $t('security.codes_left', { n: status.recovery_codes_left }) }}
           </p>
           <q-form class="q-gutter-sm" style="max-width: 420px" @submit.prevent>
             <q-input
               v-model="code"
-              label="Code actuel (ou code de secours)"
+              :label="$t('security.current_code')"
               outlined
               dense
               inputmode="numeric"
@@ -124,7 +118,7 @@
                 outline
                 no-caps
                 icon="ph:arrows-clockwise"
-                label="Nouveaux codes de secours"
+                :label="$t('security.new_codes')"
                 :disable="!code.trim()"
                 :loading="busy"
                 @click="onRegenerate"
@@ -134,7 +128,7 @@
             <q-input
               v-model="password"
               type="password"
-              label="Mot de passe (pour désactiver)"
+              :label="$t('security.password')"
               outlined
               dense
               autocomplete="current-password"
@@ -144,7 +138,7 @@
               no-caps
               color="negative"
               icon="ph:shield-slash"
-              label="Désactiver la double authentification"
+              :label="$t('security.disable')"
               :disable="!code.trim() || !password"
               :loading="busy"
               @click="onDisable"
@@ -157,6 +151,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { computed, onMounted, ref } from 'vue';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
@@ -171,6 +166,8 @@ import {
   type TwoFactorSetup,
   type TwoFactorStatus,
 } from '@/api/security';
+
+const { t } = useI18n();
 
 const status = ref<TwoFactorStatus | null>(null);
 const setup = ref<TwoFactorSetup | null>(null);
@@ -190,7 +187,7 @@ async function load() {
   try {
     status.value = await getTwoFactorStatus();
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
@@ -213,7 +210,7 @@ function onStart() {
   void run(async () => {
     setup.value = await startTwoFactorSetup();
     code.value = '';
-  }, 'Génération impossible.');
+  }, t('security.gen_failed'));
 }
 
 function onConfirm() {
@@ -221,18 +218,18 @@ function onConfirm() {
     recoveryCodes.value = await confirmTwoFactor(code.value.trim());
     setup.value = null;
     code.value = '';
-    notice.value = 'Double authentification activée.';
+    notice.value = t('security.enabled');
     await load();
-  }, 'Code refusé.');
+  }, t('security.code_refused'));
 }
 
 function onRegenerate() {
   void run(async () => {
     recoveryCodes.value = await regenerateRecoveryCodes(code.value.trim());
     code.value = '';
-    notice.value = 'Nouveaux codes de secours générés : les anciens ne fonctionnent plus.';
+    notice.value = t('security.regenerated');
     await load();
-  }, 'Code refusé.');
+  }, t('security.code_refused'));
 }
 
 function onDisable() {
@@ -240,8 +237,8 @@ function onDisable() {
     status.value = await disableTwoFactor(code.value.trim(), password.value);
     code.value = '';
     password.value = '';
-    notice.value = 'Double authentification désactivée.';
-  }, 'Désactivation refusée.');
+    notice.value = t('security.disabled');
+  }, t('security.disable_refused'));
 }
 
 onMounted(() => void load());

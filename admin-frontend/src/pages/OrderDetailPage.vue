@@ -763,7 +763,7 @@ import { useRoute } from 'vue-router';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import { toneIcon, toneOf } from '@app/ui/statusTone';
-import { formatMoney as money } from '@app/utils';
+import { formatMoney as money, intlLocale } from '@app/utils';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import PageHeader from '@/components/PageHeader.vue';
 import {
@@ -917,7 +917,7 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 
 function formatPct(value: number): string {
-  return `${value.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`;
+  return `${value.toLocaleString(intlLocale(), { maximumFractionDigits: 1 })} %`;
 }
 
 const shopConfig = useShopConfigStore();
@@ -934,7 +934,7 @@ function formatDate(raw: string | null): string {
   const d = new Date(raw);
   return Number.isNaN(d.getTime())
     ? raw
-    : d.toLocaleString('fr-FR', {
+    : d.toLocaleString(intlLocale(), {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',

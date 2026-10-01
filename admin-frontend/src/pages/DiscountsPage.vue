@@ -235,6 +235,7 @@
 </template>
 
 <script setup lang="ts">
+import { intlLocale } from '@app/utils';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -276,11 +277,11 @@ function valueLabel(d: Discount): string {
   const base = d.percentage
     ? `-${Number(d.percentage)} %`
     : d.amount
-      ? `-${Number(d.amount).toLocaleString('fr-FR')} ${currency.value}`
+      ? `-${Number(d.amount).toLocaleString(intlLocale())} ${currency.value}`
       : '—';
   const scope = DISCOUNT_TARGET_LABELS[d.target] ?? d.target;
   const min = d.min_order_amount
-    ? ` dès ${Number(d.min_order_amount).toLocaleString('fr-FR')} ${currency.value}`
+    ? ` dès ${Number(d.min_order_amount).toLocaleString(intlLocale())} ${currency.value}`
     : '';
   const stack = d.applies_to_promoted === false ? ' · hors promotions' : '';
   return `${base} · ${scope}${min}${stack}`;
@@ -315,7 +316,7 @@ const columns: QTableColumn<Discount>[] = [
 function fmtDate(value: string | null): string {
   if (!value) return '∞';
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('fr-FR');
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString(intlLocale());
 }
 
 async function load() {

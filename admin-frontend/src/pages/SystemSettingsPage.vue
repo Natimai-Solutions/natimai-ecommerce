@@ -163,6 +163,7 @@
 </template>
 
 <script setup lang="ts">
+import { intlLocale } from '@app/utils';
 import { computed, onMounted, reactive, ref } from 'vue';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
@@ -247,7 +248,7 @@ function isDirty(setting: RuntimeSetting): boolean {
 }
 
 function formatDate(value: string): string {
-  return new Date(value).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+  return new Date(value).toLocaleString(intlLocale(), { dateStyle: 'short', timeStyle: 'short' });
 }
 
 function apply(updated: RuntimeSetting) {

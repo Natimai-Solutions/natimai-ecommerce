@@ -192,6 +192,7 @@
 </template>
 
 <script setup lang="ts">
+import { intlLocale } from '@app/utils';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -248,12 +249,12 @@ const columns: QTableColumn<Discount>[] = [
 function fmtDate(value: string | null): string {
   if (!value) return '∞';
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('fr-FR');
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString(intlLocale());
 }
 
 function valueLabel(d: Discount): string {
-  if (d.percentage) return `−${Number(d.percentage).toLocaleString('fr-FR')} %`;
-  if (d.amount) return `−${Number(d.amount).toLocaleString('fr-FR')} ${currency.value}`;
+  if (d.percentage) return `−${Number(d.percentage).toLocaleString(intlLocale())} %`;
+  if (d.amount) return `−${Number(d.amount).toLocaleString(intlLocale())} ${currency.value}`;
   return '—';
 }
 

@@ -1,15 +1,12 @@
 <template>
   <q-page class="admin-page">
-    <PageHeader
-      title="Journal d'audit"
-      hint="Ce que font les administrateurs : chaque modification, chaque connexion."
-    >
+    <PageHeader :title="$t('audit.title')" :hint="$t('audit.hint')">
       <template #actions>
         <q-btn
           flat
           no-caps
           icon="ph:arrow-clockwise"
-          label="Actualiser"
+          :label="$t('common.refresh')"
           :loading="loading"
           @click="load"
         />
@@ -22,7 +19,7 @@
       <q-select
         v-model="event"
         :options="eventOptions"
-        label="Type"
+        :label="$t('audit.type')"
         outlined
         dense
         emit-value
@@ -33,7 +30,7 @@
       />
       <q-input
         v-model="pathContains"
-        label="Adresse contient"
+        :label="$t('audit.path_contains')"
         outlined
         dense
         clearable
@@ -72,20 +69,24 @@
         </q-td>
       </template>
       <template #no-data>
-        <div class="full-width text-center text-subtle q-pa-md">Aucune entrée.</div>
+        <div class="full-width text-center text-subtle q-pa-md">{{ $t('audit.none') }}</div>
       </template>
     </q-table>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { intlLocale } from '@app/utils';
+import { useI18n } from 'vue-i18n';
+import { computed, onMounted, ref } from 'vue';
 import type { QTableColumn, QTableProps } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import { extractApiError } from '@/api/errors';
 import { listAuditEntries, type AuditEntry } from '@/api/security';
+
+const { t } = useI18n();
 
 const PAGE_SIZE = 50;
 const rows = ref<AuditEntry[]>([]);
@@ -97,37 +98,38 @@ const pathContains = ref<string | null>(null);
 const pagination = ref({ page: 1, rowsPerPage: PAGE_SIZE, rowsNumber: 0 });
 
 const EVENT_LABELS: Record<string, string> = {
-  http: 'Modification',
-  'auth.login.success': 'Connexion',
-  'auth.login.failed': 'Mot de passe refusé',
-  'auth.login.totp_failed': 'Code refusé',
-  'auth.2fa.enabled': '2FA activée',
-  'auth.2fa.disabled': '2FA désactivée',
-  'auth.2fa.recovery_codes': 'Codes de secours régénérés',
+  http: 'audit.ev.http',
+  'auth.login.success': 'audit.ev.login_success',
+  'auth.login.failed': 'audit.ev.login_failed',
+  'auth.login.totp_failed': 'audit.ev.totp_failed',
+  'auth.2fa.enabled': 'audit.ev.2fa_on',
+  'auth.2fa.disabled': 'audit.ev.2fa_off',
+  'auth.2fa.recovery_codes': 'audit.ev.recovery',
 };
-const eventOptions = [
-  { label: 'Modifications', value: 'http' },
-  { label: 'Connexions et 2FA', value: 'auth' },
-  { label: 'Échecs de connexion', value: 'auth.login.failed' },
-];
+const eventOptions = computed(() => [
+  { label: t('audit.opt.changes'), value: 'http' },
+  { label: t('audit.opt.auth'), value: 'auth' },
+  { label: t('audit.opt.failed'), value: 'auth.login.failed' },
+]);
 
-const columns: QTableColumn[] = [
+const columns = computed<QTableColumn[]>(() => [
   {
     name: 'created_at',
-    label: 'Date',
+    label: t('audit.col_date'),
     field: 'created_at',
     align: 'left',
-    format: (v: string) => new Date(v).toLocaleString('fr-FR'),
+    format: (v: string) => new Date(v).toLocaleString(intlLocale()),
   },
-  { name: 'actor', label: 'Administrateur', field: 'actor_email', align: 'left' },
-  { name: 'event', label: 'Type', field: 'event', align: 'left' },
-  { name: 'action', label: 'Action', field: 'path', align: 'left' },
-  { name: 'status', label: 'Résultat', field: 'status_code', align: 'right' },
-  { name: 'ip', label: 'Adresse IP', field: 'ip', align: 'left', classes: 'font-mono' },
-];
+  { name: 'actor', label: t('audit.col_admin'), field: 'actor_email', align: 'left' },
+  { name: 'event', label: t('audit.col_type'), field: 'event', align: 'left' },
+  { name: 'action', label: t('audit.col_action'), field: 'path', align: 'left' },
+  { name: 'status', label: t('audit.col_result'), field: 'status_code', align: 'right' },
+  { name: 'ip', label: t('audit.col_ip'), field: 'ip', align: 'left', classes: 'font-mono' },
+]);
 
 function eventLabel(row: AuditEntry): string {
-  return EVENT_LABELS[row.event] ?? row.event;
+  const key = EVENT_LABELS[row.event];
+  return key ? t(key) : row.event;
 }
 
 function eventTone(row: AuditEntry): 'ok' | 'warn' | 'danger' | 'neutral' {
@@ -165,7 +167,7 @@ async function load() {
     count.value = page.count;
     pagination.value = { ...pagination.value, rowsNumber: page.count };
   } catch (err) {
-    error.value = extractApiError(err) ?? 'Chargement impossible.';
+    error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
   }
