@@ -1,80 +1,203 @@
-# NOTE (audit 25/08/2026) : ce workflow ne DÉPLOIE rien — il build et pousse des
-# images GHCR génériques. La voie de déploiement supportée est docker compose
-# AVEC BUILD SUR LE SERVEUR (DEPLOYMENT.md §8) : les images frontends poussées
-# ici embarquent le VITE_API_URL par défaut (localhost:8000) et ne sont pas
-# utilisables en production telles quelles.
+# Déploiement manuel : construit les images du commit choisi, les pousse sur
+# GHCR, puis les met en service sur le serveur par SSH.
 #
-# Gating (audit Q1) : déclenché à la FIN du workflow CI sur main, et le job ne
-# tourne que si la CI est verte — plus de push d'images `:latest` cassées.
-name: Build & Deploy
+# Actions → « Deploy » → Run workflow → choisir la référence (branche, tag ou
+# sha) et l'environnement. Pour revenir en arrière : relancer avec le commit
+# précédent (les migrations, elles, ne redescendent pas : DEPLOYMENT.md §8).
+#
+# Configuration, dans Settings → Environments → staging / production :
+#   variables  VITE_API_URL   https://api.<domaine> (figée dans les frontends)
+#              APP_DIR        dossier du dépôt sur le serveur
+#                             (défaut /home/deploy/natimai-ecommerce)
+#              SSH_PORT       défaut 22
+#   secrets    SSH_HOST, SSH_USER, SSH_PRIVATE_KEY,
+#              SSH_KNOWN_HOSTS (sortie de `ssh-keyscan -p <port> <hôte>`)
+# Le .env de l'application reste sur le serveur ; il ne passe pas par GitHub.
+name: Deploy
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branche, tag ou sha à déployer
+        required: true
+        default: main
+      environment:
+        description: Environnement cible
+        type: choice
+        options: [staging, production]
+        default: staging
+      skip_ci_check:
+        description: Déployer même si la CI n'est pas verte sur ce commit
+        type: boolean
+        default: false
 
-env:
-  REGISTRY: ghcr.io
-  # Default value; the build job overrides it with a lowercased version. GHCR
-  # repository names must be lowercase, and Actions expressions can't lowercase.
-  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
+# Un seul déploiement à la fois par environnement, jamais interrompu en cours.
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
-  build:
-    name: Build & push Docker images
-    # Ne tourne que si la CI (workflow déclencheur) est verte.
-    if: github.event.workflow_run.conclusion == 'success'
+  resolve:
+    name: Commit et CI
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
-
+      actions: read
+    outputs:
+      sha: ${{ steps.sha.outputs.sha }}
+      image_prefix: ${{ steps.sha.outputs.image_prefix }}
+      image_tag: ${{ steps.sha.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
-          # Le commit exact validé par la CI (github.sha pointerait sur le
-          # dernier commit de main au moment du déclenchement, pas forcément lui).
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ inputs.ref }}
 
-      - name: Compute lowercase image prefix
-        run: echo "IMAGE_PREFIX=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - name: Résoudre le commit
+        id: sha
+        env:
+          TARGET_ENV: ${{ inputs.environment }}
+        run: |
+          sha="$(git rev-parse HEAD)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          # GHCR n'accepte que des noms en minuscules.
+          echo "image_prefix=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          # Les frontends embarquent l'URL de l'API de l'environnement : le
+          # tag porte l'environnement pour que staging et production ne
+          # s'écrasent pas.
+          echo "image_tag=${TARGET_ENV}-${sha}" >> "$GITHUB_OUTPUT"
+          echo "Commit : $sha"
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
+      - name: Vérifier que la CI est verte
+        if: ${{ !inputs.skip_ci_check }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.sha.outputs.sha }}
+        run: |
+          count="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SHA&status=success" --jq '.total_count')"
+          if [[ "$count" == "0" ]]; then
+            echo "::error::Aucune CI verte pour $SHA. Attendre la CI, ou relancer avec « skip_ci_check »."
+            exit 1
+          fi
+
+  build:
+    name: Image ${{ matrix.image }}
+    needs: resolve
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - image: api
+            context: ./backend
+            file: ./backend/Dockerfile
+          - image: frontend
+            context: .
+            file: ./frontend/Dockerfile
+          - image: admin
+            context: .
+            file: ./admin-frontend/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
         with:
-          registry: ${{ env.REGISTRY }}
+          ref: ${{ needs.resolve.outputs.sha }}
+
+      - name: Vérifier VITE_API_URL
+        if: matrix.image != 'api'
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        run: |
+          if [[ "$VITE_API_URL" != https://* ]]; then
+            echo "::error::Variable d'environnement GitHub VITE_API_URL absente ou pas en https (ex. https://api.exemple.pf)."
+            exit 1
+          fi
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Build & push api
-        uses: docker/build-push-action@v7
+      - uses: docker/build-push-action@v7
         with:
-          context: ./backend
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
           push: true
-          tags: ${{ env.IMAGE_PREFIX }}/api:latest,${{ env.IMAGE_PREFIX }}/api:${{ github.event.workflow_run.head_sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # --pull : les images de base sont des tags flottants.
+          pull: true
+          build-args: |
+            VITE_API_URL=${{ vars.VITE_API_URL }}
+          tags: ${{ needs.resolve.outputs.image_prefix }}/${{ matrix.image }}:${{ needs.resolve.outputs.image_tag }}
+          labels: |
+            org.opencontainers.image.revision=${{ needs.resolve.outputs.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=${{ inputs.environment }}-${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.environment }}-${{ matrix.image }}
 
-      - name: Build & push frontend
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: frontend/Dockerfile
-          push: true
-          tags: ${{ env.IMAGE_PREFIX }}/frontend:latest,${{ env.IMAGE_PREFIX }}/frontend:${{ github.event.workflow_run.head_sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+  deploy:
+    name: Mise en service (${{ inputs.environment }})
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ vars.VITE_API_URL }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Préparer SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          if [[ -z "$SSH_PRIVATE_KEY" || -z "$SSH_KNOWN_HOSTS" ]]; then
+            echo "::error::Secrets SSH_PRIVATE_KEY et SSH_KNOWN_HOSTS requis dans l'environnement."
+            exit 1
+          fi
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
 
-      - name: Build & push admin
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: admin-frontend/Dockerfile
-          push: true
-          tags: ${{ env.IMAGE_PREFIX }}/admin:latest,${{ env.IMAGE_PREFIX }}/admin:${{ github.event.workflow_run.head_sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Déployer
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ vars.SSH_PORT || '22' }}
+          APP_DIR: ${{ vars.APP_DIR || '/home/deploy/natimai-ecommerce' }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+          IMAGE_PREFIX: ${{ needs.resolve.outputs.image_prefix }}
+          IMAGE_TAG: ${{ needs.resolve.outputs.image_tag }}
+          API_URL: ${{ vars.VITE_API_URL }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Le dépôt passe d'abord sur le commit déployé (fichiers compose,
+          # Caddyfile, script), puis le script de ce commit fait le reste.
+          remote="set -euo pipefail
+          cd $(printf %q "$APP_DIR")
+          # </dev/null : le transport SSH de git lirait sinon le jeton.
+          git fetch --quiet --tags origin </dev/null
+          git checkout --quiet --detach $(printf %q "$SHA") </dev/null
+          IMAGE_PREFIX=$(printf %q "$IMAGE_PREFIX") \
+          IMAGE_TAG=$(printf %q "$IMAGE_TAG") \
+          API_URL=$(printf %q "$API_URL") \
+          GHCR_USER=$(printf %q "$GHCR_USER") \
+          ./scripts/release/deploy.sh"
+          # Le jeton GHCR passe par l'entrée standard, jamais en argument.
+          printf '%s' "$GHCR_TOKEN" | ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" "bash -c $(printf %q "$remote")"
+
+      - name: Nettoyer
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
