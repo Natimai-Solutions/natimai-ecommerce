@@ -367,6 +367,7 @@ truth. All three are safe to leave at their defaults.
 | `CHECKOUT_SUPPLIER_AVAILABILITY_CHECK` | `true` | Re-ask the supplier what it actually has before reserving, instead of trusting a snapshot up to two hours old. One request per order, on supplier-managed lines only. A supplier that answers "out of stock" refuses the order; a supplier that cannot be reached never blocks a sale — the snapshot stands. |
 | `CHECKOUT_SUPPLIER_CHECK_TIMEOUT_SECONDS` | `8` | Deliberately short: this runs on the checkout critical path, unlike the 60 s the background sync can afford. |
 | `TERRITORY_PROFILE` | `PF` | Where the shop sells: `PF` (Polynésie française: XPF, TVA 16 / 13 / 5 / 0 %, Papeete customs corridor and island tree) or `FR` (France métropolitaine: EUR, TVA, no Polynesian starter data). Fills `REFERENCE_CURRENCY`, `SHOP_COUNTRY_CODE`, `TAX_TERRITORY_CODE`, `DEFAULT_TAX_CODE`, `INVOICE_FEES_TAX_CODE`, `PAYZEN_CURRENCY` and `SEED_FRENCH_POLYNESIA_LOGISTICS` unless each is set explicitly. The seed creates the profile's tax rates and starter FX rates. |
+| `SHOP_DEFAULT_LOCALE` / `SHOP_LOCALES` / `SHOP_TIMEZONE` | from profile (`fr` / `fr,en` / `Pacific/Tahiti` for PF, `Europe/Paris` for FR) | Language used when nothing else decides, languages offered to visitors (comma list; the interface ships `fr` and `en`), and the time zone of displayed dates. See §3.11. |
 | `SHOP_MODE` | `full` | `simple` for a one-warehouse shop selling its own stock, shipped directly to the customer: the admin hides suppliers, customs, exchange rates, spec catalog and multi-leg logistics, the product form defaults to a fixed price, and the supplier sync / Icecat crons are not scheduled. Nothing is deleted: switching back to `full` shows everything again. |
 | `SHOP_COUNTRY_CODE` | from profile | ISO country of the shop (address fallback, root of the place tree). |
 | `TAX_TERRITORY_CODE` / `DEFAULT_TAX_CODE` | from profile | Territory of the shop's own tax rates and the starting point of the rate applied when neither the product nor its category says otherwise. The rates themselves (code, label, percentage, validity) are created freely in the admin (**Taux de TVA**), and the default rate is chosen there too — a shop outside Polynesia and France defines its own set without redeploying. |
@@ -463,6 +464,44 @@ superuser's request; the public storefront API never returns them.
   an administrator (route, path parameters, query string with secrets masked,
   status, IP — never the request body) and every administrator sign-in,
   failed password, failed code and 2FA change.
+
+### 3.11 Languages and currencies (R7)
+
+The storefront and the admin speak **French and English**. Nothing to deploy
+beyond the three variables above; what decides the language:
+
+- **Storefront**: the visitor's choice (language switch in the header or the
+  account preferences, saved in the `locale` cookie and, once signed in, in the
+  customer's preferences), else the browser's
+  `Accept-Language`, else `SHOP_DEFAULT_LOCALE`. Rendered server-side in that
+  language (`<html lang>`, Quasar strings, dates and amounts).
+- **Admin**: the toggle in the account menu (kept in the browser), else the
+  browser language, else French.
+- **API**: every call carries `Accept-Language`; error messages (`message`
+  field) come back in that language, the `code` never changes.
+- **Orders**: the language is frozen on the order at checkout
+  (`orders.locale`). Every e-mail about the order — confirmation, payment,
+  status changes, balance request, quote — uses it, even when the worker sends
+  it days later. E-mails not tied to an order use the customer's saved
+  preference. Templates live in `backend/app/templates/email/<lang>/`; a
+  missing English template falls back to French.
+
+**Stays in French on purpose**: invoices and credit notes (French legal
+documents — the quote PDF follows the customer's language), the internal
+e-mails to the shop (payment events, quote requests), the labels of the
+runtime settings and of the backend catalogue, and **shop content** (products,
+categories, home page blocks). Content pages are the exception: create
+`<slug>-en` next to `<slug>` (e.g. `cgv-en`) in **Pages du site**; an English
+visitor gets it, or the French page with a notice when it is missing.
+
+**Currencies**: amounts are displayed with the decimals of their currency
+(`/currency/display-rates` returns them; XPF has none, EUR has two), in the
+currency the order was placed in for everything that is binding (orders,
+invoices, payments), and converted to the visitor's display currency
+(`default_display_currency` in `/system/config`, then the visitor's choice)
+for catalogue prices only. The display currencies offered are the active
+exchange rates (**Taux de change**). PayZen's payment page follows the order
+language.
 
 ## 4. Frontend (Vite, build‑time)
 
