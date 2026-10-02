@@ -282,6 +282,10 @@ Hors périmètre, documenté comme feuille de route : contenu multilingue en bas
 
 **Confort** : avis (avec modération) et notifications internes en vitrine ; newsletter double opt-in ; analytics sans cookie (Plausible / Matomo) ; vouchers, cartes cadeaux, cross-sell, comparateur, fidélité ; auto-capture à l'expédition, void d'autorisation, alerte d'expiration des autorisations ; DX : Makefile / justfile, `.pre-commit-config.yaml` (ruff, eslint, prettier), `.editorconfig`, seed « démo » avec catalogue d'exemple, README des fronts (encore les README Quasar génériques), réhabiliter ou supprimer `infra/k8s` (marqué obsolète) ; dette : garde de longueur sur `SECRET_KEY`, comparaison en temps constant du bearer Ingram ([webhooks.py](backend/app/api/routes/webhooks.py) l.94), docstrings OAuth périmées (« tokens appended as query params »), bornes hautes Python, httpx2.
 
+**Livraison R8 (dans l'ordre de la liste « forte valeur », depuis le 02/10/2026)**
+
+- ✅ **U1 — Scans de sécurité en CI** (02/10/2026) : workflow `security.yml` (PR, push `main`, hebdomadaire) — gitleaks sur tout l'historique (`.gitleaks.toml` : jeux de test, `.env.example`, verrous en liste blanche), `pip-audit` sur le verrou de production exporté par `uv`, `pnpm audit --prod` bloquant dès « moderate » (outillage dev indicatif), CodeQL Python + JavaScript conditionné à la variable de dépôt `CODEQL_ENABLED` (Code Security requis sur un dépôt privé), build des trois images avec la recette du déploiement puis Trivy (CRITICAL / HIGH corrigées en amont bloquantes, sans correctif indicatives). Vulnérabilités corrigées au passage par `pnpm.overrides` : `undici` (via jsdom / isomorphic-dompurify), `qs` (express du serveur SSR), `esbuild`, `js-yaml` ; audit vide à la livraison.
+
 ### R9 — Retours de recette du 02/10/2026 (priorité 9) — ✅ livré le 02/10/2026 (T1 à T8)
 
 Recette du premier déploiement. **Corrigé le 02/10/2026** (petits changements) :
