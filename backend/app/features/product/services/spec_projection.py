@@ -19,7 +19,10 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.product.models.product import Product
-from app.features.product.models.product_spec import ProductSpec
+from app.features.product.models.product_spec import (
+    SPEC_SOURCE_MANUAL,
+    ProductSpec,
+)
 
 _YAML_PATH = Path(__file__).parent.parent / "spec_definitions.yaml"
 _DECIMAL_PATTERN = re.compile(r"[-+]?\d*\.?\d+")
@@ -249,6 +252,9 @@ async def upsert_product_specs(
     for spec_key, (value_text, value_numeric, unit) in projected.items():
         if spec_key in existing_by_key:
             row = existing_by_key[spec_key]
+            if row.source == SPEC_SOURCE_MANUAL:
+                # Typed by the admin (R9 / T4): the projection never rewrites it.
+                continue
             row.value_text = value_text
             row.value_numeric = value_numeric
             row.unit = unit

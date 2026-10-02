@@ -408,6 +408,56 @@
               </div>
             </div>
 
+            <div v-if="specsOn" data-testid="product-specs">
+              <h3 class="admin-subtitle">{{ $t('product_form.specs') }}</h3>
+              <p class="admin-hint">{{ $t('product_form.specs_hint') }}</p>
+              <p v-if="specRows.length === 0" class="text-subtle">
+                {{ $t('product_form.specs_none') }}
+              </p>
+              <div v-for="row in specRows" :key="row.key" class="product-form__spec">
+                <q-input
+                  v-if="row.type === 'numeric'"
+                  v-model="specValues[row.key]"
+                  :label="row.label"
+                  :suffix="row.unit ?? undefined"
+                  inputmode="decimal"
+                  outlined
+                  dense
+                  clearable
+                  :data-testid="`product-spec-${row.key}`"
+                />
+                <q-select
+                  v-else
+                  :model-value="specValues[row.key] || null"
+                  :options="specOptions(row)"
+                  :label="row.label"
+                  use-input
+                  fill-input
+                  hide-selected
+                  input-debounce="0"
+                  new-value-mode="add-unique"
+                  outlined
+                  dense
+                  clearable
+                  :data-testid="`product-spec-${row.key}`"
+                  @filter="
+                    (needle: string, update: (fn: () => void) => void) =>
+                      update(() => (specFilter[row.key] = needle))
+                  "
+                  @input-value="(value: string) => (specValues[row.key] = value)"
+                  @update:model-value="
+                    (value: string | null) => (specValues[row.key] = value ?? '')
+                  "
+                />
+                <StatusTag
+                  v-if="row.source === 'icecat' && specValues[row.key] === specOriginal[row.key]"
+                  :label="$t('product_form.spec_icecat')"
+                  tone="neutral"
+                  class="product-form__spec-source"
+                />
+              </div>
+            </div>
+
             <div>
               <h3 class="admin-subtitle">{{ $t('product_form.display') }}</h3>
               <q-input
@@ -526,6 +576,7 @@ import {
 } from '@/composables/useContentTranslations';
 import { intlLocale } from '@app/utils';
 import { getGroupPrices, setGroupPrices, type MarginPreviewRequest } from '@/api/margin';
+import { getSpecForm, setProductSpecs, type SpecFormRow } from '@/api/productSpecs';
 import ProductVariantsPanel from '@/components/ProductVariantsPanel.vue';
 import { useProductsStore, type ProductPublic } from '@/stores/products';
 import { useShopConfigStore } from '@/stores/shopConfig';
@@ -545,6 +596,8 @@ const shopConfig = useShopConfigStore();
 const isSimpleShop = computed(() => shopConfig.isSimple);
 /** Supply block (supplier, reference, attach): the suppliers module. */
 const suppliersOn = computed(() => shopConfig.moduleOn('suppliers'));
+/** « Caractéristiques » block (storefront filters typed by hand, R9 / T4). */
+const specsOn = computed(() => shopConfig.moduleOn('specs'));
 
 type PricingMode = 'import' | 'domestic' | 'fixed';
 type AvailabilityMode = 'stock' | 'on_demand' | 'continuous' | 'lot';
@@ -739,6 +792,67 @@ function onSupplierChange(code: string | null) {
 }
 const categoryOptions = ref<{ label: string; value: string }[]>([]);
 const taxRateOptions = ref<{ label: string; value: string }[]>([]);
+
+// Caractéristiques (R9 / T4) : une ligne par définition de la catégorie ;
+// la valeur saisie part dans product_specs en source « manual ».
+const specRows = ref<SpecFormRow[]>([]);
+const specValues = reactive<Record<string, string>>({});
+const specFilter = reactive<Record<string, string>>({});
+let specOriginal: Record<string, string> = {};
+
+function specValueOf(row: SpecFormRow): string {
+  if (row.value_numeric != null) return String(Number(row.value_numeric));
+  return row.value_text ?? '';
+}
+
+function specOptions(row: SpecFormRow): string[] {
+  const needle = (specFilter[row.key] ?? '').toLowerCase();
+  return row.suggestions.filter((s) => !needle || s.toLowerCase().includes(needle));
+}
+
+async function loadSpecs(productId: string | null, categoryId: string | null) {
+  if (!specsOn.value || (!productId && !categoryId)) {
+    specRows.value = [];
+    return;
+  }
+  try {
+    const response = await getSpecForm({ productId, categoryId });
+    specRows.value = response.specs;
+    // Keep what the admin already typed for a key the new category still has.
+    const typed = { ...specValues };
+    for (const key of Object.keys(specValues)) delete specValues[key];
+    specOriginal = {};
+    for (const row of response.specs) {
+      specOriginal[row.key] = specValueOf(row);
+      const kept = typed[row.key];
+      specValues[row.key] =
+        kept !== undefined && kept !== specOriginal[row.key] ? kept : (specOriginal[row.key] ?? '');
+    }
+  } catch {
+    specRows.value = [];
+  }
+}
+
+async function saveSpecs(productId: string) {
+  if (!specsOn.value) return;
+  const changed = specRows.value
+    .filter((row) => (specValues[row.key] ?? '') !== (specOriginal[row.key] ?? ''))
+    .map((row) => ({ key: row.key, value: (specValues[row.key] ?? '').trim() || null }));
+  if (changed.length === 0) return;
+  try {
+    await setProductSpecs(productId, changed);
+  } catch (err) {
+    throw new Error(extractApiError(err) ?? t('product_form.specs_failed'), { cause: err });
+  }
+}
+
+watch(
+  () => form.category_id,
+  (categoryId, previous) => {
+    if (categoryId === previous) return;
+    void loadSpecs(isEdit.value ? (props.product?.id ?? null) : null, categoryId);
+  },
+);
 
 // Prix saisis par groupe de clients (group id → prix TTC) ; null tant que ceux
 // de l'article ne sont pas chargés (l'aperçu prend alors ceux enregistrés).
@@ -1014,6 +1128,7 @@ async function onSubmit() {
     }
     await saveLocalStock(productId);
     await saveGroupPrices(productId);
+    await saveSpecs(productId);
     emit('saved');
     emit('update:modelValue', false);
   } catch (err: unknown) {
@@ -1087,6 +1202,8 @@ watch(
       managedAfterLink.value = null;
       lockedFields.value = [...(props.product?.overridden_fields ?? [])];
       loadFromProduct(props.product);
+      for (const key of Object.keys(specValues)) delete specValues[key];
+      void loadSpecs(props.product?.id ?? null, props.product?.category_id ?? null);
       void loadGroupPrices(props.product);
     }
   },
@@ -1135,5 +1252,20 @@ onMounted(() => {
   height: 32px;
   object-fit: cover;
   border-radius: 4px;
+}
+
+.product-form__spec {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+
+  > :first-child {
+    flex: 1;
+  }
+}
+
+.product-form__spec-source {
+  flex: none;
 }
 </style>

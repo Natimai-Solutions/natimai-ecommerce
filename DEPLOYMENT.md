@@ -489,10 +489,13 @@ beyond the three variables above; what decides the language:
 **Stays in French on purpose**: invoices and credit notes (French legal
 documents — the quote PDF follows the customer's language), the internal
 e-mails to the shop (payment events, quote requests), the labels of the
-runtime settings and of the backend catalogue, and **shop content** (products,
-categories, home page blocks). Content pages are the exception: create
-`<slug>-en` next to `<slug>` (e.g. `cgv-en`) in **Pages du site**; an English
-visitor gets it, or the French page with a notice when it is missing.
+runtime settings and of the backend catalogue. **Shop content** (products,
+categories, site pages, home page blocks, characteristic labels) is translated
+from the back-office: every form has language tabs (the default language
+first, then the languages the shop offers — Paramètres → Affichage); the
+storefront serves a visitor the translation when there is one, else the
+default-language text (a content page then says so). A translation whose
+source text changed since is flagged « à relire » until someone reviews it.
 
 **Currencies**: amounts are displayed with the decimals of their currency
 (`/currency/display-rates` returns them; XPF has none, EUR has two), in the

@@ -19,11 +19,11 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlmodel import col, select
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentSuperUser, SessionDep, module_required
 from app.core.config import settings
 from app.core.content_i18n import (
     PRODUCT_FIELDS,
@@ -53,6 +53,12 @@ from app.features.product.models.product import (
 )
 from app.features.product.models.product_group_price import ProductGroupPrice
 from app.features.product.services.group_pricing import apply_discount
+from app.features.product.services.manual_specs import (
+    SpecFormResponse,
+    SpecValueWrite,
+    apply_manual_specs,
+    spec_form_rows,
+)
 from app.features.product.services.overrides import merge_locks, release_lock
 from app.features.product.services.pricing import CurrencyRateMissing, PricingContext
 from app.features.product.services.variants import (
@@ -165,6 +171,59 @@ def _product_translations(
             message=f"Traductions invalides : {exc}",
             details={"field": "translations"},
         ) from exc
+
+
+@router.get(
+    "/specs-form",
+    response_model=SpecFormResponse,
+    dependencies=[Depends(module_required("specs"))],
+)
+async def admin_product_specs_form(
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+    product_id: uuid.UUID | None = None,
+    category_id: uuid.UUID | None = None,
+) -> SpecFormResponse:
+    """The characteristics the product form offers to type (R9 / T4): one row
+    per spec definition of the product's (or the chosen) category, with the
+    current value and its source."""
+    product = await _read_product(session, product_id) if product_id else None
+    return await spec_form_rows(session, product=product, category_id=category_id)
+
+
+@router.put(
+    "/{product_id}/specs",
+    response_model=SpecFormResponse,
+    dependencies=[Depends(module_required("specs"))],
+)
+async def admin_set_product_specs(
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+    product_id: uuid.UUID,
+    payload: list[SpecValueWrite],
+) -> SpecFormResponse:
+    """Write the typed characteristics as ``manual`` rows of ``product_specs``
+    (the Icecat projection never rewrites them); a blank value removes the row."""
+    product = await _read_product(session, product_id)
+    try:
+        await apply_manual_specs(session, product, payload)
+    except KeyError as exc:
+        raise AppError(
+            code="product.spec.unknown",
+            status_code=400,
+            message=f"Caractéristique inconnue : {exc.args[0]}",
+            details={"key": exc.args[0]},
+        ) from exc
+    except ValueError as exc:
+        raise AppError(
+            code="product.spec.invalid",
+            status_code=400,
+            message=str(exc),
+            details={"field": "specs"},
+        ) from exc
+    await session.commit()
+    await session.refresh(product)
+    return await spec_form_rows(session, product=product, category_id=None)
 
 
 @router.post("", response_model=ProductPublic)
