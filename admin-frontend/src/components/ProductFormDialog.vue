@@ -503,7 +503,11 @@
 
           <template v-if="isEdit && product && !product.parent_product_id">
             <q-separator class="q-my-lg" />
-            <ProductVariantsPanel :product-id="product.id" @changed="emit('saved')" />
+            <ProductVariantsPanel
+              :product-id="product.id"
+              :parent-price="form.pricing_mode === 'fixed' ? form.base_price : null"
+              @changed="emit('saved')"
+            />
           </template>
           <p v-else-if="isEdit && product?.parent_product_id" class="admin-hint q-mt-md q-mb-none">
             {{ $t('product_form.variant_of') }}

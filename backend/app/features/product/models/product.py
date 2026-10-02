@@ -236,6 +236,18 @@ class ProductBase(Base):
         default=False,
         description="Indicates if the product has variants",
     )
+    price_extra: Decimal | None = Field(
+        default=None,
+        decimal_places=2,
+        max_digits=12,
+        description=(
+            "Variant only (R9 / T6): supplement over the parent's fixed price "
+            "(« i7 : + 10 000 »). When set, base_price = parent.base_price + "
+            "price_extra, recomputed whenever the parent price changes; the "
+            "storefront shows « + 10 000 » in the selector. None: the variant "
+            "has a price of its own."
+        ),
+    )
 
     # Generic supplier/vendor integration fields
     supplier_sku: str | None = Field(
@@ -516,6 +528,7 @@ class ProductUpdate(ProductBase, BaseUpdate):
     has_variants: bool | None = None
     parent_product_id: uuid.UUID | None = None
     variant_options: dict[str, str] | None = None
+    price_extra: Decimal | None = None
     category_id: uuid.UUID | None = None
     supplier_quantity: Decimal | None = None
     supplier_price: Decimal | None = None

@@ -185,6 +185,12 @@
                   @click="selectOption(axis, value)"
                 >
                   {{ value }}
+                  <span
+                    v-if="optionExtra(axis, value)"
+                    class="variants__extra font-mono"
+                    data-testid="variant-extra"
+                    >{{ optionExtra(axis, value) }}</span
+                  >
                 </button>
               </div>
             </div>
@@ -597,6 +603,25 @@ function isValueAvailable(axis: string, value: string): boolean {
     }
     return sellableQuantity(v) > 0;
   });
+}
+
+/**
+ * « + 10 000 F » next to an option whose variant carries a supplement over the
+ * parent's price (R9 / T6). The variant considered is the one this value would
+ * select given the other axes already chosen.
+ */
+function optionExtra(axis: string, value: string): string | null {
+  const list = variants.value?.variants ?? [];
+  const candidate = list.find((v) => {
+    if (v.variant_options?.[axis] !== value) return false;
+    for (const [other, chosen] of Object.entries(selectedOptions.value)) {
+      if (other !== axis && chosen && v.variant_options?.[other] !== chosen) return false;
+    }
+    return true;
+  });
+  const extra = candidate?.price_extra == null ? null : Number(candidate.price_extra);
+  if (extra === null || !Number.isFinite(extra) || extra <= 0) return null;
+  return `+ ${currencyStore.format(extra)}`;
 }
 
 function selectOption(axis: string, value: string) {
@@ -1236,6 +1261,12 @@ watch(
   font-size: 13px;
   font-weight: 500;
   color: var(--n-ink-2);
+}
+
+.variants__extra {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--n-ink-3);
 }
 
 .variants__options {

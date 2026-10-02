@@ -82,13 +82,52 @@ async def refresh_parent_from_variants(
     if priced:
         cheapest = min(priced, key=lambda v: v.sale_price_cached or ZERO)
         parent.sale_price_cached = cheapest.sale_price_cached
-        parent.base_price = cheapest.sale_price_cached or ZERO
+        if not any(v.price_extra is not None for v in variants):
+            # Variants priced on their own: the parent shows the cheapest.
+            # With supplements (R9 / T6) the parent's base_price is the
+            # reference the supplements add to: it stays as the admin typed it.
+            parent.base_price = cheapest.sale_price_cached or ZERO
         # The listing shows the parent: its margin is the « à partir de » one.
         parent.unit_cost_cached = cheapest.unit_cost_cached
         parent.margin_cached = cheapest.margin_cached
         parent.margin_pct_cached = cheapest.margin_pct_cached
     session.add(parent)
     return parent
+
+
+def supplemented_price(parent: Product, price_extra: Decimal | None) -> Decimal | None:
+    """``parent.base_price + price_extra`` (never negative), None without supplement."""
+    if price_extra is None:
+        return None
+    return max(ZERO, (parent.base_price or ZERO) + price_extra).quantize(
+        Decimal("0.01")
+    )
+
+
+async def apply_price_extras(session: AsyncSession, parent: Product) -> int:
+    """Re-derive the price of every variant carrying a supplement (R9 / T6),
+    after the parent's price changed. Returns how many variants moved. The
+    caller commits (and rolls the parent up afterwards)."""
+    from app.features.product.crud.product import crud_product
+    from app.features.product.services.pricing import PricingContext
+
+    variants = [
+        v
+        for v in await list_variants(session, parent.id, include_inactive=True)
+        if v.price_extra is not None
+    ]
+    changed = []
+    for variant in variants:
+        price = supplemented_price(parent, variant.price_extra)
+        if price is not None and variant.base_price != price:
+            variant.base_price = price
+            changed.append(variant)
+    if changed:
+        context = await PricingContext.load(session)
+        await crud_product.refresh_cached_prices(
+            session, changed, context=context, reason="variant_price_extra"
+        )
+    return len(changed)
 
 
 async def refresh_all_parents(session: AsyncSession) -> int:

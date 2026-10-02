@@ -2254,6 +2254,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/products/specs-form": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Product Specs Form
+         * @description The characteristics the product form offers to type (R9 / T4): one row
+         *     per spec definition of the product's (or the chosen) category, with the
+         *     current value and its source.
+         */
+        get: operations["admin-product-admin_product_specs_form"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/products/{product_id}/specs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Admin Set Product Specs
+         * @description Write the typed characteristics as ``manual`` rows of ``product_specs``
+         *     (the Icecat projection never rewrites them); a blank value removes the row.
+         */
+        put: operations["admin-product-admin_set_product_specs"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/products": {
         parameters: {
             query?: never;
@@ -16950,6 +16993,11 @@ export interface components {
              */
             has_variants: boolean;
             /**
+             * Price Extra
+             * @description Variant only (R9 / T6): supplement over the parent's fixed price (« i7 : + 10 000 »). When set, base_price = parent.base_price + price_extra, recomputed whenever the parent price changes; the storefront shows « + 10 000 » in the selector. None: the variant has a price of its own.
+             */
+            price_extra?: number | string | null;
+            /**
              * Supplier Sku
              * @description Supplier/vendor SKU identifier
              */
@@ -17431,6 +17479,11 @@ export interface components {
              * @default false
              */
             has_variants: boolean;
+            /**
+             * Price Extra
+             * @description Variant only (R9 / T6): supplement over the parent's fixed price (« i7 : + 10 000 »). When set, base_price = parent.base_price + price_extra, recomputed whenever the parent price changes; the storefront shows « + 10 000 » in the selector. None: the variant has a price of its own.
+             */
+            price_extra?: string | null;
             /** Supplier Sku */
             supplier_sku?: string | null;
             /** Vendor Part Number */
@@ -17844,6 +17897,8 @@ export interface components {
             } | null;
             /** Has Variants */
             has_variants?: boolean | null;
+            /** Price Extra */
+            price_extra?: number | string | null;
             /** Supplier Sku */
             supplier_sku?: string | null;
             /** Vendor Part Number */
@@ -20315,6 +20370,47 @@ export interface components {
              */
             count: number;
         };
+        /** SpecFormResponse */
+        SpecFormResponse: {
+            /** Product Id */
+            product_id?: string | null;
+            /** Category Id */
+            category_id?: string | null;
+            /** Specs */
+            specs?: components["schemas"]["SpecFormRow"][];
+        };
+        /**
+         * SpecFormRow
+         * @description One characteristic of the form: its definition and the current value.
+         */
+        SpecFormRow: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Type */
+            type: string;
+            /** Unit */
+            unit?: string | null;
+            /** Value Text */
+            value_text?: string | null;
+            /** Value Numeric */
+            value_numeric?: string | null;
+            /** Source */
+            source?: string | null;
+            /** Suggestions */
+            suggestions?: string[];
+        };
+        /**
+         * SpecValueWrite
+         * @description A value typed in the form; blank removes the product's row.
+         */
+        SpecValueWrite: {
+            /** Key */
+            key: string;
+            /** Value */
+            value?: string | null;
+        };
         /**
          * StatusDefinitionCreate
          * @description Represents status definition create.
@@ -21924,6 +22020,8 @@ export interface components {
             ean?: string | null;
             /** Base Price */
             base_price?: number | string | null;
+            /** Price Extra */
+            price_extra?: number | string | null;
             /** Cost Amount */
             cost_amount?: number | string | null;
             /** Supplier Quantity */
@@ -26218,6 +26316,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductPublishResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-admin_product_specs_form": {
+        parameters: {
+            query?: {
+                product_id?: string | null;
+                category_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecFormResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-admin_set_product_specs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpecValueWrite"][];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecFormResponse"];
                 };
             };
             /** @description Validation Error */

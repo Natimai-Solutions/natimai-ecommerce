@@ -62,9 +62,11 @@ from app.features.product.services.manual_specs import (
 from app.features.product.services.overrides import merge_locks, release_lock
 from app.features.product.services.pricing import CurrencyRateMissing, PricingContext
 from app.features.product.services.variants import (
+    apply_price_extras,
     list_variants,
     option_axes,
     refresh_parent_from_variants,
+    supplemented_price,
     variant_display_name,
 )
 from app.services.suppliers import load_supplier
@@ -619,6 +621,16 @@ async def admin_update_product(
             _apply_supplier_defaults(changed, supplier)
     merged = merge_locks(product.overridden_fields, changed)
 
+    if product.parent_product_id is not None and (
+        "price_extra" in changed or "base_price" in changed
+    ):
+        # A variant with a supplement (R9 / T6) has a derived price.
+        extra = changed.get("price_extra", product.price_extra)
+        if extra is not None:
+            parent = await session.get(Product, product.parent_product_id)
+            if parent is not None:
+                changed["base_price"] = supplemented_price(parent, extra)
+
     update_data: dict[str, Any] = {**changed, "overridden_fields": merged}
     updated = await crud_product.update(
         session=session,
@@ -627,6 +639,11 @@ async def admin_update_product(
         user=current_user,
         record=product,
     )
+    if updated.has_variants and "base_price" in changed:
+        # The parent's price moved: the supplements follow (R9 / T6).
+        await apply_price_extras(session, updated)
+        await session.commit()
+        await session.refresh(updated)
     await _refresh_parent_of(session, updated)
     return ProductPublic.model_validate(updated)
 
@@ -782,6 +799,8 @@ class VariantCreateRequest(BaseModel):
     vendor_part_number: str | None = Field(default=None, max_length=100)
     ean: str | None = Field(default=None, max_length=32)
     base_price: Decimal | None = Field(default=None, ge=0)
+    #: Supplement over the parent's price (R9 / T6): the price is then derived.
+    price_extra: Decimal | None = None
     cost_amount: Decimal | None = Field(default=None, ge=0)
     supplier_quantity: Decimal | None = Field(default=None, ge=0)
     image_url: str | None = None
@@ -894,10 +913,13 @@ async def admin_create_variant(
             "vendor_part_number": payload.vendor_part_number,
             "ean": payload.ean,
             "base_price": (
-                payload.base_price
+                supplemented_price(parent, payload.price_extra)
+                if payload.price_extra is not None
+                else payload.base_price
                 if payload.base_price is not None
                 else parent.base_price
             ),
+            "price_extra": payload.price_extra,
             "cost_amount": (
                 payload.cost_amount
                 if payload.cost_amount is not None
