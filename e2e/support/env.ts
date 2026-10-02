@@ -3,6 +3,12 @@
  * Defaults match the CI stack (docker compose, see e2e/README.md).
  */
 export const STOREFRONT_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
+/**
+ * The interface follows the browser language (R7): the suite pins French, the
+ * language its assertions are written in, whatever the runner's locale.
+ */
+export const LOCALE = 'fr-FR'
+
 export const ADMIN_URL = process.env.E2E_ADMIN_URL ?? 'http://localhost:3001'
 
 export const CUSTOMER_EMAIL = process.env.E2E_EMAIL ?? 'e2e-customer@example.com'

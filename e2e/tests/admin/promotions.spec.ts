@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { loginAdmin } from '../../support/admin'
-import { STOREFRONT_URL } from '../../support/env'
+import { LOCALE, STOREFRONT_URL } from '../../support/env'
 import { gotoHydrated } from '../../support/storefront'
 
 /**
@@ -34,7 +34,7 @@ test('a promotion shows the struck-through price on the storefront', async ({
   await expect(row).toContainText('En cours')
   await expect(row).toContainText('Station de travail E2E')
 
-  const shopContext = await browser.newContext({ baseURL: STOREFRONT_URL })
+  const shopContext = await browser.newContext({ baseURL: STOREFRONT_URL, locale: LOCALE })
   const shop = await shopContext.newPage()
   try {
     await gotoHydrated(shop, '/catalogue')

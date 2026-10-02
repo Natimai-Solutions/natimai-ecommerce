@@ -55,15 +55,39 @@
             dense
             bottom-slots
           />
-          <q-input
+          <RichTextEditor
             v-model="form.long_description"
             :label="$t('product_form.long')"
-            type="textarea"
-            autogrow
-            outlined
-            dense
-            bottom-slots
+            media-kind="product"
           />
+
+          <!-- Identification : toujours saisissable, article manuel compris.
+               La référence (SKU) est dans « Approvisionnement » quand les
+               fournisseurs sont activés. -->
+          <h3 class="admin-subtitle q-mt-md">{{ $t('product_form.identification') }}</h3>
+          <div class="product-form__ids">
+            <q-input
+              v-if="!suppliersOn"
+              v-model="form.supplier_sku"
+              :label="$t('product_form.sku')"
+              outlined
+              dense
+            />
+            <q-input
+              v-model="form.manufacturer"
+              :label="$t('product_form.manufacturer')"
+              outlined
+              dense
+            />
+            <q-input
+              v-model="form.vendor_part_number"
+              :label="$t('product_form.mpn')"
+              :hint="$t('product_form.mpn_hint')"
+              outlined
+              dense
+            />
+            <q-input v-model="form.ean" :label="$t('product_form.ean')" outlined dense />
+          </div>
 
           <div class="product-form__grid">
             <div>
@@ -278,7 +302,7 @@
                 <q-input
                   v-model="form.margin_rate_pct"
                   :label="$t('product_form.margin')"
-                  :hint="$t('product_form.margin_hint')"
+                  :hint="marginHint"
                   type="number"
                   step="0.01"
                   outlined
@@ -465,7 +489,12 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
-import { categoryLabel, listCategories, type Category } from '@/api/categories';
+import {
+  categoryLabel,
+  listAdminCategories,
+  listCategories,
+  type Category,
+} from '@/api/categories';
 import { listTaxRates, type TaxRate } from '@/api/taxRates';
 import { listPlaces, type Place } from '@/api/logistics';
 import {
@@ -478,6 +507,8 @@ import { extractApiError } from '@/api/errors';
 import { adjustInventory } from '@/api/inventory';
 import MarginPreviewPanel from '@/components/MarginPreviewPanel.vue';
 import MediaPicker from '@/components/MediaPicker.vue';
+import RichTextEditor from '@/components/RichTextEditor.vue';
+import { intlLocale } from '@app/utils';
 import { getGroupPrices, setGroupPrices, type MarginPreviewRequest } from '@/api/margin';
 import ProductVariantsPanel from '@/components/ProductVariantsPanel.vue';
 import { useProductsStore, type ProductPublic } from '@/stores/products';
@@ -509,6 +540,9 @@ interface FormState {
   long_description: string;
   supplier_name: string | null;
   supplier_sku: string;
+  manufacturer: string;
+  vendor_part_number: string;
+  ean: string;
   supplier_quantity: string;
   /** Stock entrepôt — pas un champ produit : enregistré par un ajustement d'inventaire. */
   local_quantity: string;
@@ -556,6 +590,9 @@ function emptyForm(): FormState {
     long_description: '',
     supplier_name: null,
     supplier_sku: '',
+    manufacturer: '',
+    vendor_part_number: '',
+    ean: '',
     supplier_quantity: '0',
     local_quantity: '0',
     pricing_mode: isSimpleShop.value ? 'fixed' : 'import',
@@ -595,6 +632,21 @@ const currencyOptions = computed(() => {
   return codes.map((code) => ({ label: code, value: code }));
 });
 const categories = ref<Category[]>([]);
+/** Marge par défaut de chaque catégorie (écran Catégories), pour montrer ce
+ * qu'un champ « Marge » laissé vide appliquera. */
+const categoryMargins = ref<Record<string, string | null>>({});
+const marginHint = computed(() => {
+  if (str(form.margin_rate_pct).trim() !== '') return t('product_form.margin_hint');
+  const rate = form.category_id ? categoryMargins.value[form.category_id] : null;
+  if (rate != null) {
+    const category = categories.value.find((c) => c.id === form.category_id);
+    return t('product_form.margin_inherit_category', {
+      pct: Number(rate).toLocaleString(intlLocale()),
+      category: category ? categoryLabel(category) : '',
+    });
+  }
+  return t('product_form.margin_inherit_group');
+});
 const taxRates = ref<TaxRate[]>([]);
 const places = ref<Place[]>([]);
 const suppliers = ref<Supplier[]>([]);
@@ -726,6 +778,9 @@ const FIELD_LABELS: Record<string, string> = labels({
   long_description: 'product_form.f_long_description',
   supplier_name: 'product_form.f_supplier_name',
   supplier_sku: 'product_form.f_supplier_sku',
+  manufacturer: 'product_form.f_manufacturer',
+  vendor_part_number: 'product_form.f_vendor_part_number',
+  ean: 'product_form.f_ean',
   supplier_quantity: 'product_form.f_supplier_quantity',
   pricing_mode: 'product_form.f_pricing_mode',
   availability_mode: 'product_form.f_availability_mode',
@@ -856,6 +911,9 @@ function loadFromProduct(p: ProductPublic | null) {
     base.long_description = str(rec.long_description);
     base.supplier_name = (rec.supplier_name as string | null) ?? null;
     base.supplier_sku = str(rec.supplier_sku);
+    base.manufacturer = str(rec.manufacturer);
+    base.vendor_part_number = str(rec.vendor_part_number);
+    base.ean = str(rec.ean);
     base.supplier_quantity = str(rec.supplier_quantity) || '0';
     base.local_quantity = formatQty(rec.local_quantity);
     const mode = str(rec.pricing_mode);
@@ -972,6 +1030,13 @@ async function loadLookups() {
         value: s.code,
       }));
     categoryOptions.value = categories.value.map((c) => ({ label: categoryLabel(c), value: c.id }));
+    void listAdminCategories()
+      .then((rows) => {
+        categoryMargins.value = Object.fromEntries(
+          rows.map((c) => [c.id, c.default_margin_rate_pct]),
+        );
+      })
+      .catch(() => undefined);
     taxRateOptions.value = taxRates.value.map((t) => ({
       label: `${t.label} (${t.rate_pct}%)`,
       value: t.id,
@@ -1011,6 +1076,13 @@ onMounted(() => {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
+}
+
+.product-form__ids {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  align-items: start;
 }
 
 .product-form__grid {

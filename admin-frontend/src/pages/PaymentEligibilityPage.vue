@@ -253,15 +253,14 @@
               <td><q-toggle v-model="depositEdit(g).deposit_required" dense /></td>
               <td class="text-right">
                 <q-btn
-                  flat
-                  round
+                  color="primary"
+                  unelevated
                   dense
-                  icon="ph:floppy-disk"
+                  no-caps
+                  :label="$t('common.save')"
                   :loading="savingDeposit === g.id"
                   @click="saveDeposit(g)"
-                >
-                  <q-tooltip>{{ $t('common.save') }}</q-tooltip>
-                </q-btn>
+                />
               </td>
             </tr>
           </tbody>

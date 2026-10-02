@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { loginAdmin } from '../../support/admin'
-import { STOREFRONT_URL } from '../../support/env'
+import { LOCALE, STOREFRONT_URL } from '../../support/env'
 
 /**
  * Homepage blocks cross the two apps: a banner published from the admin shows
@@ -24,7 +24,7 @@ test('a banner published from the admin shows on the storefront until deleted', 
     await expect(block).toHaveCount(1)
   })
 
-  const shop = await browser.newPage({ baseURL: STOREFRONT_URL })
+  const shop = await browser.newPage({ baseURL: STOREFRONT_URL, locale: LOCALE })
   try {
     await test.step('the storefront homepage shows it', async () => {
       await shop.goto('/')

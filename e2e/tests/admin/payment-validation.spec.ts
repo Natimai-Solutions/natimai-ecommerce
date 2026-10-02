@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { loginAdmin, openAdmin } from '../../support/admin'
-import { STOREFRONT_URL } from '../../support/env'
+import { LOCALE, STOREFRONT_URL } from '../../support/env'
 import { placeTransferOrder } from '../../support/storefront'
 
 /**
@@ -17,7 +17,7 @@ test('a transfer is approved from the dashboard and the order becomes paid', asy
   browser,
 }) => {
   const orderNumber = await test.step('a customer orders and pays by transfer', async () => {
-    const shop = await browser.newPage({ baseURL: STOREFRONT_URL })
+    const shop = await browser.newPage({ baseURL: STOREFRONT_URL, locale: LOCALE })
     try {
       return await placeTransferOrder(shop)
     } finally {

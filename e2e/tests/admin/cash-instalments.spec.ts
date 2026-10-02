@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 import { loginAdmin, openAdmin } from '../../support/admin'
-import { STOREFRONT_URL } from '../../support/env'
+import { LOCALE, STOREFRONT_URL } from '../../support/env'
 import { gotoHydrated, placeManualOrder } from '../../support/storefront'
 
 /**
@@ -25,7 +25,7 @@ async function waitForStatus(page: Page, status: RegExp) {
 }
 
 test('a cash order is paid in two instalments at the office', async ({ page, browser }) => {
-  const shopContext = await browser.newContext({ baseURL: STOREFRONT_URL })
+  const shopContext = await browser.newContext({ baseURL: STOREFRONT_URL, locale: LOCALE })
   const shop = await shopContext.newPage()
   try {
     const orderNumber = await test.step('the customer orders to pay in cash', () =>

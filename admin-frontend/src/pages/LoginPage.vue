@@ -9,6 +9,9 @@
           </div>
           <h1 class="login-title">{{ $t('login.title') }}</h1>
           <p class="login-lead">{{ $t('login.lead') }}</p>
+          <AppNotice v-if="route.query.password_changed" tone="success" dense class="q-mb-md">
+            {{ $t('login.password_changed') }}
+          </AppNotice>
 
           <q-form class="login-form" @submit.prevent="onSubmit">
             <q-input

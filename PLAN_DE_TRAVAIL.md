@@ -42,10 +42,11 @@ Section issue de la revue du 30/09/2026 (état du dépôt, documents de travail,
 | **2** ✅ | Refonte « Précision » — **admin-frontend** (lot séparé, après la vitrine) — **livrée le 30/09/2026** | 8 à 12 j | R1-admin |
 | **3** ✅ | Paiements : espèces, versements partiels (`payment_receipts`), acompte pour tous les moyens, PSP activables en base, **PayPal** — **livrée le 30/09/2026** ; **Stripe (P6) reporté** à la demande du propriétaire | 14 à 18 j | R3 |
 | **4** ✅ | Fournisseurs : seuil de quantité à l'import fichier, **mappage catégories fournisseur → boutique** (fichier et Ingram), mode simple avec Ingram / Icecat désactivés par défaut et réactivables, **modules activables en base**, rattachement immédiat d'un article manuel, flux fichier automatisé (Foxway, Picata) avec identifiants chiffrés | 15 à 20 j — **livrée le 01/10/2026** (S1 à S8) | R4 |
-| 5 | Configuration en base (version complète) | 12 à 16 j | R5 |
+| 5 ✅ | Configuration en base (version complète) — **livrée le 01/10/2026** | 12 à 16 j | R5 |
 | 6 ⏳ | Bloquants production (sécurité, sauvegardes, images, sandbox PayZen, juridique, comptable) — **partie logicielle livrée le 01/10/2026** (OAuth, 2FA admin + journal d'audit, images durcies, S3 imposé) ; restent les actions hors code : sauvegardes planifiées et restauration testée sur le serveur, sandbox PayZen, relectures juridique et comptable, données catalogue | 5 à 8 j + validations externes | R6 |
-| 7 | Version publique : multilingue FR + EN et devises (périmètre minimal) | 20 à 30 j | R7 |
+| 7 ✅ | Version publique : multilingue FR + EN et devises (périmètre minimal) — **livrée le 01/10/2026** | 20 à 30 j | R7 |
 | 8 | Ajouts à forte valeur et confort | à arbitrer | R8 |
+| 9 | Retours de recette du 02/10/2026 : traductions du contenu, pages légales depuis un modèle, langues et devises dans l'admin, caractéristiques saisies à la main, garde « modifications non enregistrées », articles liés, suppléments de variante | 25 à 35 j | R9 |
 
 ### Décisions du propriétaire (30/09/2026)
 
@@ -280,6 +281,59 @@ Hors périmètre, documenté comme feuille de route : contenu multilingue en bas
 **Forte valeur** : scans de sécurité en CI (Trivy sur les images, `pip-audit`, `pnpm audit`, CodeQL, gitleaks) et `docker build` des trois images sur PR ; vérification de dérive de `shared/api-types` ; Sentry sur la vitrine et l'admin, logs JSON unifiés (retirer les `logging.basicConfig` au niveau module et les `print` du lifespan), endpoint `/metrics` (latence, erreurs, file ARQ, âge de l'outbox), `SENTRY_TRACES_SAMPLE_RATE` 0.1, uptime externe ; CSP (Caddy et API) ; rate limiting sur alertes stock, devis, checkout + captcha (Turnstile) sur les formulaires publics ; SEO (`sitemap.xml`, `robots.txt` servis par le SSR, JSON-LD Product / Offer / Breadcrumb, `useMeta` sur toutes les pages) ; **tableau de bord admin avec KPI** (✅ 30/09/2026 : files « À traiter », commandes et CA 7 / 30 jours, prochain départ ; reste panier moyen, conversion, stocks bas — routes `analytics_*` existantes) ; **RGPD en libre-service** (export JSON, suppression / anonymisation du compte, la page confidentialité annonce ces droits) ; **panier invité serveur** avec fusion à la connexion (débloque les relances pour les visiteurs) ; tests : e2e inscription / OTP / login / reset / CB sandbox (parcours admin ✅ 30/09/2026 : accès, tableau de bord, tous les écrans du menu, validation d'un virement jusqu'à la commande payée, bannière d'accueil), premiers tests unitaires de l'admin-frontend, mesurer `app/tasks/*` (exclu de la coverage avec `ingram_micro.py`, `icecat_service.py`) ; déploiement reproductible (images GHCR réellement consommées avec `VITE_API_URL` par environnement, rollback par tag, staging) ; **A19** liste générale des paiements.
 
 **Confort** : avis (avec modération) et notifications internes en vitrine ; newsletter double opt-in ; analytics sans cookie (Plausible / Matomo) ; vouchers, cartes cadeaux, cross-sell, comparateur, fidélité ; auto-capture à l'expédition, void d'autorisation, alerte d'expiration des autorisations ; DX : Makefile / justfile, `.pre-commit-config.yaml` (ruff, eslint, prettier), `.editorconfig`, seed « démo » avec catalogue d'exemple, README des fronts (encore les README Quasar génériques), réhabiliter ou supprimer `infra/k8s` (marqué obsolète) ; dette : garde de longueur sur `SECRET_KEY`, comparaison en temps constant du bearer Ingram ([webhooks.py](backend/app/api/routes/webhooks.py) l.94), docstrings OAuth périmées (« tokens appended as query params »), bornes hautes Python, httpx2.
+
+### R9 — Retours de recette du 02/10/2026 (priorité 9)
+
+Recette du premier déploiement. **Corrigé le 02/10/2026** (petits changements) :
+changement de mot de passe dans l'admin (écran Sécurité du compte ; la vitrine l'avait déjà) ;
+description longue des articles en éditeur HTML (composant `RichTextEditor` partagé avec les
+pages, images de la médiathèque ; la vitrine l'affichait déjà en HTML nettoyé) ; décalages de
+16 px des lignes en colonnes et des sous-titres dans les formulaires de l'admin (règle globale) ;
+« État » et détails du reconditionné dans une seule grille sur la fiche produit, grade non
+répété ; tuile de catégorie plafonnée sur l'accueil (une catégorie seule occupait toute la
+largeur) ; boutons « Enregistrer » uniformes (groupes tarifaires, acomptes, pointage de réception :
+plus d'icône disquette seule) ; création d'une catégorie enchaînée sur sa fiche complète (image,
+description, marge, TVA) ; identification d'un article manuel (marque, référence fabricant /
+n° de modèle, EAN, et référence SKU quand les fournisseurs sont éteints) ; `Prix &amp; taxes`
+(entité HTML dans une traduction, test ajouté) ; marge héritée affichée sous le champ vide
+(« Vide : 25 %, marge de la catégorie … » ou celle du groupe tarifaire).
+
+| # | Chantier | Constat | Proposition | Effort |
+|---|---|---|---|---|
+| T1 | **Pages légales depuis un modèle** | Déjà modifiables : une page `cgv`, `mentions-legales` ou `confidentialite` publiée dans « Pages du site » remplace le texte embarqué. Mais elle part d'une page vide : le modèle n'existe que dans le code de la vitrine (`pages/legal/*.vue`), avec des variables `legal_*` | Bouton « Créer depuis le modèle » qui pré-remplit la page avec le texte du modèle, identité déjà substituée ; le modèle embarqué ne sert plus que tant qu'aucune page n'existe. **Garder** les réglages `legal_*` : ils impriment l'identité du vendeur sur les factures et avoirs (mentions obligatoires), pas seulement sur les pages | 1,5 à 2 j |
+| T2 | **Langues et devises dans l'admin** | Langues : seulement `SHOP_LOCALES` dans l'environnement. Devises : l'écran Taux de change met à jour une devise existante, sans ajout ni désactivation | Réglage `shop_locales` / `shop_default_locale` dans le registre (choix parmi les langues livrées : fr, en) ; « Ajouter une devise » et « Désactiver » sur Taux de change, la devise d'affichage par défaut choisie parmi les actives. Ajouter une **nouvelle** langue reste un travail de traduction de l'interface (fichiers `i18n/<lang>.ts`, modèles d'e-mails) | 2 à 3 j |
+| T3 | **Traduction du contenu** (articles, catégories, pages, blocs d'accueil, caractéristiques) | Contenu monolingue ; les pages ont un contournement `<slug>-en` | Voir l'étude ci-dessous | 10 à 15 j |
+| T4 | **Caractéristiques saisies à la main** (`cpu_brand`, `memory_gb`…) | Les filtres de recherche lisent `product_specs`, alimenté **uniquement** par la projection Icecat ; un article manuel n'en a aucune | Section « Caractéristiques » de la fiche produit : une ligne par définition (`spec_definitions`) des catégories de l'article, typée (numérique avec unité / liste), écrite dans `product_specs` avec une source `manual` que la projection Icecat ne réécrit pas | 2 à 3 j |
+| T5 | **Modifications non enregistrées** | On quitte Paramètres, Groupes tarifaires, Moyens de paiement, la fiche produit… sans avertissement | Composable `useUnsavedGuard(isDirty)` : `onBeforeRouteLeave` + `beforeunload`, et confirmation à la fermeture des dialogues modifiés ; appliqué écran par écran | 1,5 à 2 j |
+| T6 | **Suppléments de variante** | Les variantes existent (fiche parente + une fiche par variante, chacune avec **son** prix, coût, stock, image) : « i5 à 30 000 F, i7 à 40 000 F » se saisit déjà en donnant 40 000 F à la variante i7 | Confort : prix d'une variante « parent + supplément » (comme le `price_extra` des attributs Odoo), recalculé quand le prix parent change ; affichage « + 10 000 F » dans le sélecteur de la vitrine | 2 j |
+| T7 | **Articles liés et suggestions** | Rien n'existe (ni ventes croisées, ni accessoires) | Table `product_links` (article → article, type `accessoire` / `alternative`) **et** règles par catégorie (« dans PC fixes, proposer Écrans et Claviers »), saisies dans la fiche produit et l'écran Catégories ; bloc « Complétez votre équipement » sur la fiche produit et au panier, en excluant l'indisponible ; ordre manuel puis meilleures ventes | 3 à 4 j |
+| T8 | **Uniformité de l'admin** (suite) | Corrigé pour les boutons « Enregistrer » ; reste à passer en revue icônes d'action, confirmations de suppression et placement des boutons de dialogue | Charte courte dans `admin-frontend/README.md` + revue écran par écran | 1 j |
+
+**T3 — étude : comment traduisent les autres**
+
+- **Odoo (16+)** : un champ `translate=True` est stocké en **JSONB** dans la colonne même
+  (`{"en_US": "...", "fr_FR": "..."}`) ; lecture dans la langue du contexte avec repli sur
+  l'anglais ; l'interface ouvre une fenêtre « traductions » par champ. Pas de table annexe,
+  requêtes simples, pas de jointure.
+- **PrestaShop / Magento** : tables `*_lang` (une ligne par entité et par langue) ou valeurs
+  d'attribut par « vue magasin ». Robuste mais lourd : chaque lecture joint la table de langue.
+- **Shopify** : ressources traduisibles exposées par une API de traductions (clé, langue,
+  valeur, empreinte du texte source pour repérer les traductions périmées).
+- **WooCommerce + WPML / Polylang** : une copie complète de l'article par langue, reliées
+  entre elles. Simple à afficher, mais prix et stock dupliqués à synchroniser — à éviter ici.
+
+**Recommandation** : le modèle Odoo, adapté. Une colonne JSONB `translations` par entité
+traduisible (`products`, `categories`, `content_pages`, `homepage_blocks`, `spec_definitions`),
+de forme `{"en": {"name": "...", "long_description": "..."}}` ; la colonne existante reste la
+langue par défaut (aucune migration de données, la synchronisation fournisseur et Icecat
+continuent d'écrire la langue par défaut). L'API publique résout la langue de la requête
+(`Accept-Language`, déjà en place) avec repli sur la langue par défaut ; la recherche plein
+texte indexe les deux langues. Dans l'admin, un sélecteur de langue au-dessus des champs
+traduisibles (article, catégorie, page, bloc) et un indicateur « à traduire » (texte source
+modifié depuis la traduction, empreinte comme Shopify). Icecat peut fournir l'anglais
+directement (deuxième appel `lang=EN` à l'enrichissement). Les `<slug>-en` des pages sont
+migrés vers ce modèle puis abandonnés. Les URL restent communes (pas de slug par langue
+dans un premier temps).
 
 ---
 
