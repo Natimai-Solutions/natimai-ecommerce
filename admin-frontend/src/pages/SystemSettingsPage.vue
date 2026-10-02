@@ -193,6 +193,7 @@ import {
   type SettingCategory,
 } from '@/api/systemSettings';
 import { extractApiError } from '@/api/errors';
+import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 
 const { t } = useI18n();
 
@@ -272,6 +273,9 @@ function rangeHint(setting: RuntimeSetting): string | undefined {
 function isDirty(setting: RuntimeSetting): boolean {
   return (draft[setting.key] ?? '') !== editable(setting);
 }
+
+// A value typed and not saved is lost on navigation: ask first (R9 / T5).
+useUnsavedGuard(() => rows.value.some((setting) => isDirty(setting)));
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleString(intlLocale(), { dateStyle: 'short', timeStyle: 'short' });

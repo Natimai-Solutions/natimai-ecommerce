@@ -114,7 +114,11 @@
     </div>
 
     <!-- Édition -->
-    <q-dialog v-model="editDialog">
+    <q-dialog
+      :model-value="editDialog"
+      :persistent="guard.persistent.value"
+      @update:model-value="guard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">{{ editing?.name }}</h2>
@@ -192,7 +196,7 @@
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="guard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -308,6 +312,7 @@ import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import MediaPicker from '@/components/MediaPicker.vue';
 import ContentLanguageTabs from '@/components/ContentLanguageTabs.vue';
+import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 import {
   cloneTranslations,
   useContentTranslations,
@@ -458,6 +463,13 @@ const content = useContentTranslations({
   status: () => editing.value?.translation_status,
 });
 const texts = content.texts;
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const snapshot = useFormSnapshot(() => editForm);
+const guard = useDialogGuard({
+  isOpen: () => editDialog.value,
+  close: () => (editDialog.value = false),
+  isDirty: snapshot.isDirty,
+});
 
 // Taux de TVA en vigueur, pour le taux par défaut d'une catégorie.
 const taxRates = ref<TaxRate[]>([]);
@@ -492,6 +504,7 @@ function openEdit(category: AdminCategory) {
   editForm.default_tax_rate_id = category.default_tax_rate_id ?? null;
   editForm.translations = cloneTranslations(category.translations);
   content.reset();
+  snapshot.take();
   editDialog.value = true;
 }
 

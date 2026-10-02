@@ -290,6 +290,10 @@ const fr = {
     save: 'Enregistrer',
     save_failed: 'Enregistrement impossible.',
     status: 'Statut',
+    unsaved_leave: 'Quitter sans enregistrer',
+    unsaved_message: 'Les modifications de cet écran ne sont pas enregistrées. Quitter et les perdre ?',
+    unsaved_stay: 'Rester',
+    unsaved_title: 'Modifications non enregistrées',
     update_failed: 'Mise à jour impossible.',
   },
   credit_notes: {

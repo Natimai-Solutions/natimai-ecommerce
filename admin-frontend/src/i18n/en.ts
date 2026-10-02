@@ -292,6 +292,10 @@ const en: MessageSchema = {
     save: 'Save',
     save_failed: 'Saving failed.',
     status: 'Status',
+    unsaved_leave: 'Leave without saving',
+    unsaved_message: 'The changes on this screen are not saved. Leave and lose them?',
+    unsaved_stay: 'Stay',
+    unsaved_title: 'Unsaved changes',
     update_failed: 'Update failed.',
   },
   credit_notes: {

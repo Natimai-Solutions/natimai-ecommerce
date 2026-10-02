@@ -141,13 +141,17 @@
       </section>
     </template>
 
-    <q-dialog v-model="dialog">
+    <q-dialog
+      :model-value="dialog"
+      :persistent="guard.persistent.value"
+      @update:model-value="guard.onToggle"
+    >
       <q-card class="app-dialog app-dialog--wide">
         <q-card-section class="app-dialog__head row items-center no-wrap q-gutter-x-sm">
           <h2 class="app-dialog__title col">
             {{ editingId ? $t('homepage.edit_title') : $t('homepage.new_title') }}
           </h2>
-          <q-btn flat round dense icon="ph:x" v-close-popup>
+          <q-btn flat round dense icon="ph:x" @click="guard.requestClose()">
             <q-tooltip>{{ $t('common.close') }}</q-tooltip>
           </q-btn>
         </q-card-section>
@@ -286,7 +290,7 @@
             </div>
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="guard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -316,6 +320,7 @@ import { formatDateTime } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import MediaPicker from '@/components/MediaPicker.vue';
 import ContentLanguageTabs from '@/components/ContentLanguageTabs.vue';
+import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 import {
   cloneTranslations,
   useContentTranslations,
@@ -426,6 +431,13 @@ const content = useContentTranslations({
   status: () => blocks.value.find((b) => b.id === editingId.value)?.translation_status,
 });
 const texts = content.texts;
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const snapshot = useFormSnapshot(() => form);
+const guard = useDialogGuard({
+  isOpen: () => dialog.value,
+  close: () => (dialog.value = false),
+  isDirty: snapshot.isDirty,
+});
 
 function emptyForm(kind: Kind): BlockForm {
   return {
@@ -473,6 +485,7 @@ function openCreate(kind: Kind = 'banner') {
   pickedPreview.value = null;
   dialogError.value = null;
   content.reset();
+  snapshot.take();
   dialog.value = true;
 }
 
@@ -494,6 +507,7 @@ function openEdit(block: HomepageBlock) {
     translations: cloneTranslations(block.translations),
   });
   content.reset();
+  snapshot.take();
   pickedPreview.value = null;
   dialogError.value = null;
   dialog.value = true;

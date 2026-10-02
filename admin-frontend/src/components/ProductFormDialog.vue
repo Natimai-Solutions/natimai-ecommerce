@@ -1,5 +1,9 @@
 <template>
-  <q-dialog :model-value="modelValue" @update:model-value="emit('update:modelValue', $event)">
+  <q-dialog
+    :model-value="modelValue"
+    :persistent="guard.persistent.value"
+    @update:model-value="guard.onToggle"
+  >
     <q-card class="app-dialog app-dialog--xl">
       <q-form @submit="onSubmit">
         <q-card-section class="app-dialog__head">
@@ -521,7 +525,7 @@
             :label="$t('common.cancel')"
             :disable="saving"
             data-testid="product-cancel"
-            @click="emit('update:modelValue', false)"
+            @click="guard.requestClose()"
           />
           <q-btn
             type="submit"
@@ -577,6 +581,7 @@ import {
 import { intlLocale } from '@app/utils';
 import { getGroupPrices, setGroupPrices, type MarginPreviewRequest } from '@/api/margin';
 import { getSpecForm, setProductSpecs, type SpecFormRow } from '@/api/productSpecs';
+import { useDialogGuard } from '@/composables/useUnsavedGuard';
 import ProductVariantsPanel from '@/components/ProductVariantsPanel.vue';
 import { useProductsStore, type ProductPublic } from '@/stores/products';
 import { useShopConfigStore } from '@/stores/shopConfig';
@@ -832,6 +837,25 @@ async function loadSpecs(productId: string | null, categoryId: string | null) {
     specRows.value = [];
   }
 }
+
+/** Anything typed since the form was filled (fields, group prices, specs). */
+function hasUnsavedChanges(): boolean {
+  const keys = Object.keys(form) as (keyof FormState)[];
+  if (keys.some((key) => JSON.stringify(form[key]) !== JSON.stringify(original[key]))) return true;
+  if (specRows.value.some((row) => (specValues[row.key] ?? '') !== (specOriginal[row.key] ?? '')))
+    return true;
+  return (
+    groupPrices.value !== null &&
+    JSON.stringify(groupPrices.value) !== JSON.stringify(storedGroupPrices)
+  );
+}
+
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const guard = useDialogGuard({
+  isOpen: () => props.modelValue,
+  close: () => emit('update:modelValue', false),
+  isDirty: hasUnsavedChanges,
+});
 
 async function saveSpecs(productId: string) {
   if (!specsOn.value) return;

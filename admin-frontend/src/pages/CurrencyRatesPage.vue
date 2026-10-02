@@ -132,7 +132,11 @@
       </template>
     </q-table>
 
-    <q-dialog v-model="editDialog">
+    <q-dialog
+      :model-value="editDialog"
+      :persistent="guard.persistent.value"
+      @update:model-value="guard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
@@ -178,7 +182,7 @@
             />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="guard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -210,6 +214,7 @@ import {
   type CurrencyRate,
 } from '@/api/currencyRates';
 import { extractApiError } from '@/api/errors';
+import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 
 const { t } = useI18n();
 
@@ -330,6 +335,13 @@ const editing = ref<CurrencyRate | null>(null);
 const saving = ref(false);
 const dialogError = ref<string | null>(null);
 const editForm = reactive({ currency_code: '', rate_to_reference: '', valid_from: '' });
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const snapshot = useFormSnapshot(() => editForm);
+const guard = useDialogGuard({
+  isOpen: () => editDialog.value,
+  close: () => (editDialog.value = false),
+  isDirty: snapshot.isDirty,
+});
 
 function openEdit(rate: CurrencyRate) {
   dialogError.value = null;
@@ -337,6 +349,7 @@ function openEdit(rate: CurrencyRate) {
   editForm.currency_code = rate.currency_code;
   editForm.rate_to_reference = rate.rate_to_reference;
   editForm.valid_from = new Date().toISOString().slice(0, 10);
+  snapshot.take();
   editDialog.value = true;
 }
 
@@ -347,6 +360,7 @@ function openAdd() {
   editForm.currency_code = '';
   editForm.rate_to_reference = '';
   editForm.valid_from = new Date().toISOString().slice(0, 10);
+  snapshot.take();
   editDialog.value = true;
 }
 

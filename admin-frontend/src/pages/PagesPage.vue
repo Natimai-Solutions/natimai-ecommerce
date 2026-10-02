@@ -97,13 +97,18 @@
       </template>
     </q-table>
 
-    <q-dialog v-model="dialog" maximized>
+    <q-dialog
+      :model-value="dialog"
+      :persistent="guard.persistent.value"
+      maximized
+      @update:model-value="guard.onToggle"
+    >
       <q-card>
         <q-card-section class="app-dialog__head row items-center no-wrap q-gutter-x-sm">
           <h2 class="app-dialog__title col">
             {{ editing ? $t('pages.edit_title', { slug: form.slug }) : $t('pages.new_title') }}
           </h2>
-          <q-btn flat round dense icon="ph:x" v-close-popup>
+          <q-btn flat round dense icon="ph:x" @click="guard.requestClose()">
             <q-tooltip>{{ $t('common.close') }}</q-tooltip>
           </q-btn>
         </q-card-section>
@@ -159,7 +164,7 @@
             <RichTextEditor v-model="texts.body_html" min-height="50vh" />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="guard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -200,6 +205,7 @@ import {
   type ContentPageTemplateSummary,
 } from '@/api/pages';
 import { extractApiError } from '@/api/errors';
+import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 
 const { t } = useI18n();
 
@@ -246,6 +252,7 @@ async function openFromTemplate(tpl: ContentPageTemplateSummary) {
   try {
     const rendered = await getPageTemplate(tpl.slug);
     const existing = pages.value.find((p) => p.slug === tpl.slug);
+    snapshot.take(); // before the fill: the template text is unsaved work
     editing.value = existing !== undefined;
     Object.assign(form, {
       slug: tpl.slug,
@@ -283,6 +290,13 @@ const content = useContentTranslations({
   status: () => pages.value.find((p) => p.slug === form.slug)?.translation_status,
 });
 const texts = content.texts;
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const snapshot = useFormSnapshot(() => form);
+const guard = useDialogGuard({
+  isOpen: () => dialog.value,
+  close: () => (dialog.value = false),
+  isDirty: snapshot.isDirty,
+});
 
 function openCreate() {
   editing.value = false;
@@ -295,6 +309,7 @@ function openCreate() {
     translations: {},
   });
   content.reset();
+  snapshot.take();
   dialogError.value = null;
   dialog.value = true;
 }
@@ -310,6 +325,7 @@ function openEdit(p: ContentPage) {
     translations: cloneTranslations(p.translations),
   });
   content.reset();
+  snapshot.take();
   dialogError.value = null;
   dialog.value = true;
 }
