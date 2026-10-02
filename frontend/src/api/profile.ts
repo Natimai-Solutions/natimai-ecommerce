@@ -38,3 +38,35 @@ export async function changeMyPassword(
     new_password: newPassword,
   });
 }
+
+/**
+ * Download everything the shop holds about me as a JSON file (R8 / U8). The
+ * file travels as a blob so the bearer token goes with the request.
+ */
+export async function downloadMyData(): Promise<void> {
+  const response = await api.get<Blob>('/users/me/export', { responseType: 'blob' });
+  const disposition = String(response.headers['content-disposition'] ?? '');
+  const match = /filename="([^"]+)"/.exec(disposition);
+  const url = URL.createObjectURL(response.data);
+  try {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = match?.[1] ?? 'mes-donnees.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * Erase my account (R8 / U8): the e-mail typed back, and the password when
+ * the account has one. Every session is closed afterwards.
+ */
+export async function deleteMyAccount(confirmation: string, password: string): Promise<void> {
+  await api.post('/users/me/delete', {
+    confirmation,
+    password: password || null,
+  });
+}

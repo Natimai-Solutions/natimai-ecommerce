@@ -10,6 +10,9 @@
         <AppNotice v-if="passwordChanged && !authStore.loginError" tone="success" class="q-mb-md">
           {{ $t('auth.password_changed') }}
         </AppNotice>
+        <AppNotice v-if="accountDeleted && !authStore.loginError" tone="success" class="q-mb-md">
+          {{ $t('auth.account_deleted') }}
+        </AppNotice>
         <AppNotice v-if="authStore.loginError" tone="error" class="q-mb-md">
           {{ authStore.loginError }}
         </AppNotice>
@@ -125,6 +128,7 @@ const password = ref('');
 const showPassword = ref(false);
 // Arrivée depuis « Profil et sécurité » : toutes les sessions ont été fermées.
 const passwordChanged = computed(() => route.query.motif === 'mot-de-passe-change');
+const accountDeleted = computed(() => route.query.motif === 'compte-supprime');
 
 // OAuth buttons are gated behind an explicit flag: they only work once the
 // backend has GOOGLE/MICROSOFT client credentials AND

@@ -129,6 +129,83 @@
         </div>
       </q-form>
     </section>
+
+    <!-- R8 / U8 : the customer's data rights, in self-service. -->
+    <section class="app-section" data-testid="account-privacy">
+      <div class="app-section__head">
+        <h2 class="app-section__title">{{ $t('profile.data_title') }}</h2>
+        <p class="app-section__hint">{{ $t('profile.data_hint') }}</p>
+      </div>
+      <AppNotice v-if="dataError" dense tone="error" class="q-mb-sm">
+        {{ dataError }}
+      </AppNotice>
+      <div class="app-form__actions">
+        <q-btn
+          outline
+          color="primary"
+          icon="ph:download-simple"
+          :label="$t('profile.data_download')"
+          :loading="downloading"
+          data-testid="account-export"
+          @click="downloadData"
+        />
+        <q-btn
+          flat
+          color="negative"
+          icon="ph:trash"
+          :label="$t('profile.delete_button')"
+          data-testid="account-delete"
+          @click="openDeletion"
+        />
+      </div>
+      <p class="text-muted q-mt-sm q-mb-none">{{ $t('profile.delete_hint') }}</p>
+    </section>
+
+    <q-dialog v-model="deletion.open">
+      <q-card flat class="delete-dialog">
+        <q-form @submit.prevent="confirmDeletion">
+          <q-card-section>
+            <h2 class="delete-dialog__title">{{ $t('profile.delete_title') }}</h2>
+            <p>{{ $t('profile.delete_text') }}</p>
+            <q-input
+              v-model="deletion.confirmation"
+              outlined
+              stack-label
+              type="email"
+              autocomplete="off"
+              :label="$t('profile.delete_confirm_label', { email: profile?.email ?? '' })"
+              data-testid="account-delete-email"
+            />
+            <q-input
+              v-model="deletion.password"
+              outlined
+              stack-label
+              type="password"
+              autocomplete="current-password"
+              class="q-mt-sm"
+              :label="$t('profile.delete_password')"
+              :hint="$t('profile.delete_password_hint')"
+              data-testid="account-delete-password"
+            />
+            <AppNotice v-if="deletion.error" dense tone="error" class="q-mt-sm">
+              {{ deletion.error }}
+            </AppNotice>
+          </q-card-section>
+          <q-card-actions align="right" class="q-px-md q-pb-md">
+            <q-btn v-close-popup flat :label="$t('common.cancel')" />
+            <q-btn
+              type="submit"
+              unelevated
+              color="negative"
+              :label="$t('profile.delete_confirm')"
+              :loading="deletion.saving"
+              :disable="!deletionReady"
+              data-testid="account-delete-confirm"
+            />
+          </q-card-actions>
+        </q-form>
+      </q-card>
+    </q-dialog>
   </div>
 </template>
 
@@ -139,7 +216,14 @@ import { useRouter } from 'vue-router';
 import { formatDate } from '@app/utils';
 
 import AppNotice from '@app/ui/AppNotice.vue';
-import { changeMyPassword, getMyProfile, updateMyProfile, type MyProfile } from '@/api/profile';
+import {
+  changeMyPassword,
+  deleteMyAccount,
+  downloadMyData,
+  getMyProfile,
+  updateMyProfile,
+  type MyProfile,
+} from '@/api/profile';
 import { useAuthStore } from '@/stores/auth';
 import { apiErrorCode, apiErrorMessage } from '@/utils/errors';
 
@@ -239,6 +323,60 @@ async function savePassword() {
 }
 
 onMounted(load);
+
+// --- Mes données (R8 / U8) ------------------------------------------------ //
+const downloading = ref(false);
+const dataError = ref<string | null>(null);
+
+async function downloadData() {
+  downloading.value = true;
+  dataError.value = null;
+  try {
+    await downloadMyData();
+  } catch (err) {
+    dataError.value = apiErrorMessage(err) ?? t('profile.data_download_failed');
+  } finally {
+    downloading.value = false;
+  }
+}
+
+const deletion = reactive({
+  open: false,
+  confirmation: '',
+  password: '',
+  saving: false,
+  error: null as string | null,
+});
+
+const deletionReady = computed(
+  () =>
+    !!profile.value &&
+    deletion.confirmation.trim().toLowerCase() === profile.value.email.toLowerCase(),
+);
+
+function openDeletion() {
+  deletion.confirmation = '';
+  deletion.password = '';
+  deletion.error = null;
+  deletion.open = true;
+}
+
+async function confirmDeletion() {
+  if (!deletionReady.value) return;
+  deletion.saving = true;
+  deletion.error = null;
+  try {
+    await deleteMyAccount(deletion.confirmation.trim(), deletion.password);
+    deletion.open = false;
+    // The account no longer exists: every session is closed server-side.
+    await authStore.logout();
+    await router.replace({ name: 'login', query: { motif: 'compte-supprime' } });
+  } catch (err) {
+    deletion.error = apiErrorMessage(err) ?? t('profile.delete_failed');
+  } finally {
+    deletion.saving = false;
+  }
+}
 </script>
 
 <style scoped lang="scss">
@@ -249,5 +387,15 @@ onMounted(load);
 .profile__since {
   font-size: 13px;
   color: var(--n-ink-3);
+}
+
+.delete-dialog {
+  width: min(480px, 92vw);
+  padding: 4px;
+}
+
+.delete-dialog__title {
+  font-size: 1.15rem;
+  margin: 0 0 8px;
 }
 </style>

@@ -530,6 +530,30 @@ for catalogue prices only. The display currencies offered are the active
 exchange rates (**Taux de change**). PayZen's payment page follows the order
 language.
 
+
+### 3.12 Customer data rights in self-service (R8 / U8)
+
+No configuration. From « Mon compte → Profil et sécurité » a customer can:
+
+- **download their data** — `GET /users/me/export` returns a JSON file
+  (profile, preferences, addresses, orders and lines, payments, quote
+  requests, stock alerts, favourites, reviews, group requests, notifications,
+  sign-in providers; never credentials or secrets), 5 exports an hour per
+  account;
+- **delete their account** — `POST /users/me/delete` with the e-mail typed
+  back and the password (not required for an account that only signs in with
+  Google / Microsoft). Addresses, favourites, preferences, notifications,
+  open carts, sign-in links and reviews are deleted; quote requests and stock
+  alerts are scrubbed; the user row becomes an anonymous, disabled shell
+  (`deleted-<id>@anonymised.invalid`) so that orders, invoices and payments
+  keep their reference for the legal retention period. Every session is
+  closed and an `account.deleted` entry is written to the audit log. An
+  order still in progress (neither delivered, cancelled nor refunded) blocks
+  the deletion (`409 account.delete.open_orders`); an administrator account
+  is removed from the back-office instead.
+
+The privacy page (`/confidentialite`) points to these two actions.
+
 ## 4. Frontend (Vite, build‑time)
 
 > **Docker build**: both frontend images accept a `VITE_API_URL` build arg

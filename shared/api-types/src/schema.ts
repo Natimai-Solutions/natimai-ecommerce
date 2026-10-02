@@ -5876,6 +5876,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export my data (JSON)
+         * @description Download everything the shop holds about me, as a JSON file (R8 / U8).
+         *
+         *     Five exports an hour per account: the file is cheap to build but it is
+         *     the whole history, and a leaked session must not drain it in a loop.
+         */
+        get: operations["user-export_my_data"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Erase my account
+         * @description Erase my personal data and close the account (R8 / U8).
+         *
+         *     The e-mail typed back guards against a stray click; the password proves
+         *     the person at the keyboard is the account holder (not required for an
+         *     account that only ever signed in through Google / Microsoft). Orders,
+         *     invoices and payments stay for the legal retention period, detached from
+         *     any name, e-mail or phone; an order still in progress blocks the erasure.
+         */
+        post: operations["user-delete_my_account"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/me/upgrade-group": {
         parameters: {
             query?: never;
@@ -13758,6 +13807,18 @@ export interface components {
         ModuleWrite: {
             /** Enabled */
             enabled: boolean;
+        };
+        /**
+         * MyAccountDeletion
+         * @description Erase my account: the e-mail typed back, and the password when the
+         *     account has one (an account opened with Google / Microsoft only may
+         *     leave it empty).
+         */
+        MyAccountDeletion: {
+            /** Confirmation */
+            confirmation: string;
+            /** Password */
+            password?: string | null;
         };
         /**
          * MyOrderDetail
@@ -34094,6 +34155,57 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["MyPasswordChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "user-export_my_data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    "user-delete_my_account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MyAccountDeletion"];
             };
         };
         responses: {

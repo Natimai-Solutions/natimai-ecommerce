@@ -422,6 +422,7 @@ const en: MessageSchema = {
     no_account: 'No account yet?',
     or: 'or',
     password: 'Password',
+    account_deleted: 'Your account has been deleted. Thank you for your trust.',
     password_changed: 'Password changed. Sign in again with the new one.',
     password_confirm: 'Confirm the password',
     password_mismatch: 'The passwords do not match',
@@ -663,6 +664,22 @@ const en: MessageSchema = {
   profile: {
     change: 'Change the password',
     change_failed: 'The password could not be changed.',
+    data_download: 'Download my data (JSON)',
+    data_download_failed: 'The download failed. Try again in a moment.',
+    data_hint:
+      'Your rights of access and erasure, without writing to us: a file with everything we keep, or the deletion of the account.',
+    data_title: 'My data',
+    delete_button: 'Delete my account',
+    delete_confirm: 'Delete permanently',
+    delete_confirm_label: 'Type your address ({email}) to confirm',
+    delete_failed: 'The deletion failed.',
+    delete_hint:
+      'Deleting erases your personal data; orders and invoices are kept, anonymised, for the legal retention period. An order in progress must first be delivered or cancelled.',
+    delete_password: 'Password',
+    delete_password_hint: 'Leave empty if you only sign in with Google or Microsoft.',
+    delete_text:
+      'This cannot be undone: addresses, favourites, preferences and access are removed, and you will be signed out of every device.',
+    delete_title: 'Delete my account?',
     confirm: 'Confirm the new password',
     current: 'Current password',
     email: 'E-mail address',

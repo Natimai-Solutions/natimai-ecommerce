@@ -82,8 +82,13 @@
         Conformément à la loi Informatique et Libertés applicable en Polynésie française, vous
         disposez de droits d'accès, de rectification, d'effacement, de limitation et d'opposition
         sur vos données. Vous pouvez les exercer en écrivant à
-        <LegalValue :value="legalEntity.contactEmail" />, en justifiant de votre identité. Vous
-        disposez également du droit d'introduire une réclamation auprès de la CNIL (<a
+        <LegalValue :value="legalEntity.contactEmail" />, en justifiant de votre identité. Depuis
+        votre espace client (<router-link :to="{ name: 'account', query: { tab: 'profile' } }"
+          >Profil et sécurité</router-link
+        >), vous pouvez aussi télécharger l'ensemble de vos données au format JSON et supprimer
+        votre compte : vos données personnelles sont alors effacées, seules les commandes et
+        factures sont conservées, anonymisées, pendant la durée légale. Vous disposez également du
+        droit d'introduire une réclamation auprès de la CNIL (<a
           href="https://www.cnil.fr"
           target="_blank"
           rel="noopener"
