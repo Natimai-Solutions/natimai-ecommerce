@@ -46,7 +46,7 @@ Section issue de la revue du 30/09/2026 (état du dépôt, documents de travail,
 | 6 ⏳ | Bloquants production (sécurité, sauvegardes, images, sandbox PayZen, juridique, comptable) — **partie logicielle livrée le 01/10/2026** (OAuth, 2FA admin + journal d'audit, images durcies, S3 imposé) ; restent les actions hors code : sauvegardes planifiées et restauration testée sur le serveur, sandbox PayZen, relectures juridique et comptable, données catalogue | 5 à 8 j + validations externes | R6 |
 | 7 ✅ | Version publique : multilingue FR + EN et devises (périmètre minimal) — **livrée le 01/10/2026** | 20 à 30 j | R7 |
 | 8 | Ajouts à forte valeur et confort | à arbitrer | R8 |
-| 9 | Retours de recette du 02/10/2026 : traductions du contenu, pages légales depuis un modèle, langues et devises dans l'admin, caractéristiques saisies à la main, garde « modifications non enregistrées », articles liés, suppléments de variante | 25 à 35 j | R9 |
+| 9 ✅ | Retours de recette du 02/10/2026 : traductions du contenu, pages légales depuis un modèle, langues et devises dans l'admin, caractéristiques saisies à la main, garde « modifications non enregistrées », articles liés, suppléments de variante — **livré le 02/10/2026** (T1 à T8 ; reste : Icecat en anglais, slugs par langue) | 25 à 35 j | R9 |
 
 ### Décisions du propriétaire (30/09/2026)
 
@@ -282,7 +282,7 @@ Hors périmètre, documenté comme feuille de route : contenu multilingue en bas
 
 **Confort** : avis (avec modération) et notifications internes en vitrine ; newsletter double opt-in ; analytics sans cookie (Plausible / Matomo) ; vouchers, cartes cadeaux, cross-sell, comparateur, fidélité ; auto-capture à l'expédition, void d'autorisation, alerte d'expiration des autorisations ; DX : Makefile / justfile, `.pre-commit-config.yaml` (ruff, eslint, prettier), `.editorconfig`, seed « démo » avec catalogue d'exemple, README des fronts (encore les README Quasar génériques), réhabiliter ou supprimer `infra/k8s` (marqué obsolète) ; dette : garde de longueur sur `SECRET_KEY`, comparaison en temps constant du bearer Ingram ([webhooks.py](backend/app/api/routes/webhooks.py) l.94), docstrings OAuth périmées (« tokens appended as query params »), bornes hautes Python, httpx2.
 
-### R9 — Retours de recette du 02/10/2026 (priorité 9)
+### R9 — Retours de recette du 02/10/2026 (priorité 9) — ✅ livré le 02/10/2026 (T1 à T8)
 
 Recette du premier déploiement. **Corrigé le 02/10/2026** (petits changements) :
 changement de mot de passe dans l'admin (écran Sécurité du compte ; la vitrine l'avait déjà) ;
