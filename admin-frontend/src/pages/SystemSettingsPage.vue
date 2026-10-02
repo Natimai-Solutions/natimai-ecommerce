@@ -109,7 +109,20 @@
               />
               <div v-else class="setting__row">
                 <q-select
-                  v-if="setting.choices"
+                  v-if="setting.choices && setting.type === 'list'"
+                  :model-value="listValue(setting)"
+                  :options="setting.choices"
+                  multiple
+                  use-chips
+                  outlined
+                  dense
+                  :placeholder="listValue(setting).length ? undefined : setting.fallback"
+                  :aria-label="setting.label"
+                  class="setting__input"
+                  @update:model-value="(items: string[]) => (draft[setting.key] = items.join(', '))"
+                />
+                <q-select
+                  v-else-if="setting.choices"
                   v-model="draft[setting.key]"
                   :options="setting.choices"
                   outlined
@@ -228,6 +241,14 @@ const shownCategories = computed(() => {
 function editable(setting: RuntimeSetting): string {
   if (setting.type === 'bool') return setting.value;
   return setting.source === 'db' ? setting.value : '';
+}
+
+/** A list setting with choices: the typed items (comma separated in the draft). */
+function listValue(setting: RuntimeSetting): string[] {
+  return (draft[setting.key] ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function isNumeric(setting: RuntimeSetting): boolean {

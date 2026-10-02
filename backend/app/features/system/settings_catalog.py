@@ -20,6 +20,7 @@ from decimal import Decimal
 from typing import Any
 
 from app.core.config import settings
+from app.core.i18n import SUPPORTED_LOCALES
 from app.core.runtime_settings import SettingSpec, register, register_hook
 from app.features.payment.services.provider_settings import (
     PSP_DEFAULTS,
@@ -57,7 +58,10 @@ CATEGORIES: dict[str, tuple[str, str]] = {
     "suppliers": ("Fournisseurs", "Synchronisation et import des catalogues."),
     "icecat": ("Icecat", "Enrichissement des fiches produit."),
     "logistics": ("Logistique", "Douane et départs groupés."),
-    "display": ("Affichage", "Préférences d'affichage de la vitrine."),
+    "display": (
+        "Affichage",
+        "Langues et devises proposées au visiteur de la vitrine.",
+    ),
     "security": ("Sécurité", "Permissions et conservation du journal d'audit."),
 }
 
@@ -517,16 +521,57 @@ register(
 
 register(
     SettingSpec(
+        "shop_default_locale",
+        "str",
+        "display",
+        "Langue par défaut",
+        "Langue de la vitrine, des e-mails et des documents quand le visiteur "
+        "n'en a pas choisi (ni préférence enregistrée, ni langue du navigateur "
+        "proposée).",
+        env="SHOP_DEFAULT_LOCALE",
+        public=True,
+        choices=SUPPORTED_LOCALES,
+        order=1,
+    ),
+    SettingSpec(
+        "shop_locales",
+        "list",
+        "display",
+        "Langues proposées",
+        "Langues offertes au visiteur dans le sélecteur de la vitrine, parmi "
+        "celles livrées avec l'interface (fr, en). La langue par défaut est "
+        "toujours proposée. Ajouter une nouvelle langue reste un travail de "
+        "traduction de l'interface (fichiers i18n, modèles d'e-mails).",
+        env="SHOP_LOCALES",
+        public=True,
+        choices=SUPPORTED_LOCALES,
+        order=2,
+    ),
+    SettingSpec(
         "default_display_currency",
         "str",
         "display",
         "Devise d'affichage par défaut",
-        "Devise proposée au visiteur qui n'en a pas choisi (code ISO, ex. XPF, EUR).",
+        "Devise proposée au visiteur qui n'en a pas choisi (code ISO, ex. XPF, "
+        "EUR) : la devise de référence ou une devise proposée au visiteur "
+        "(écran Taux de change).",
         default=settings.REFERENCE_CURRENCY,
         public=True,
         upper=True,
         max_length=3,
         order=10,
+    ),
+    SettingSpec(
+        "hidden_display_currencies",
+        "list",
+        "display",
+        "Devises non proposées au visiteur",
+        "Codes ISO des devises qui ont un taux de change (utile au calcul des "
+        "prix fournisseurs) mais que la vitrine ne propose pas comme devise "
+        "d'affichage. Géré depuis l'écran Taux de change (« Désactiver »).",
+        default=[],
+        upper=True,
+        order=20,
     ),
 )
 

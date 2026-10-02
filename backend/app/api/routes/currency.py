@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from sqlmodel import col, select
 
 from app.api.deps import SessionDep
+from app.core import runtime_settings
 from app.core.config import settings
 from app.features.product.models.currency_rate import CurrencyRate
 
@@ -68,8 +69,17 @@ async def get_display_rates(session: SessionDep) -> DisplayRatesResponse:
     )
     result = await session.exec(statement)
 
+    # A currency with a rate but not offered for display (Admin → Taux de
+    # change → « Désactiver ») keeps serving the supplier price conversions,
+    # the visitor just cannot pick it (R9 / T2).
+    hidden = {
+        str(code).upper()
+        for code in await runtime_settings.get("hidden_display_currencies", session)
+    }
     latest_by_code: dict[str, CurrencyRate] = {}
     for rate in result.all():
+        if rate.currency_code.upper() in hidden:
+            continue
         # Ordered by valid_from desc → first seen per code is the active one.
         latest_by_code.setdefault(rate.currency_code, rate)
 

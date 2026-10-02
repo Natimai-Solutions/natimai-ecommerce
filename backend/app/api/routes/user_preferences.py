@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.deps import CurrentUser, SessionDep
 from app.core.config import settings
 from app.core.errors import AppError
+from app.core.i18n import get_offered_locales
 from app.features.user.crud.user_preference import (
     get_preference_for_user,
     upsert_preference_for_user,
@@ -19,10 +20,12 @@ router = APIRouter(prefix="/users/me/preferences", tags=["user"])
 
 
 async def valid_currencies(session: SessionDep) -> set[str]:
-    """The reference currency and every currency with an active rate (R7 / L4):
-    a currency the shop cannot convert to is not offered."""
+    """The reference currency and every currency with an active rate (R7 / L4)
+    that the shop offers for display (R9 / T2): a currency the shop cannot
+    convert to, or chose not to propose, is not offered."""
     from sqlmodel import col, select
 
+    from app.core import runtime_settings
     from app.features.product.models.currency_rate import CurrencyRate
 
     codes = (
@@ -32,11 +35,24 @@ async def valid_currencies(session: SessionDep) -> set[str]:
             )
         )
     ).all()
-    return {settings.REFERENCE_CURRENCY, *(str(c).upper() for c in codes)}
+    hidden = {
+        str(c).upper()
+        for c in await runtime_settings.get("hidden_display_currencies", session)
+    }
+    return {
+        settings.REFERENCE_CURRENCY,
+        *(str(c).upper() for c in codes if str(c).upper() not in hidden),
+    }
 
 
-def _validate_update(data: UserPreferenceUpdate, allowed_currencies: set[str]) -> None:
+def _validate_update(
+    data: UserPreferenceUpdate,
+    allowed_currencies: set[str],
+    allowed_locales: set[str] | None = None,
+) -> None:
     """Raise AppError on invalid enum-like string fields."""
+    if allowed_locales is None:
+        allowed_locales = _VALID_LOCALES & set(settings.shop_locales)
     if (
         data.default_shipping_preference is not None
         and data.default_shipping_preference not in _VALID_SHIPPING_PREFERENCES
@@ -65,9 +81,7 @@ def _validate_update(data: UserPreferenceUpdate, allowed_currencies: set[str]) -
                 "allowed": sorted(_VALID_SHIPPING_MODES),
             },
         )
-    if data.locale is not None and data.locale not in (
-        _VALID_LOCALES & set(settings.shop_locales)
-    ):
+    if data.locale is not None and data.locale not in allowed_locales:
         raise AppError(
             code="user.preference.invalid",
             status_code=400,
@@ -75,7 +89,7 @@ def _validate_update(data: UserPreferenceUpdate, allowed_currencies: set[str]) -
             details={
                 "field": "locale",
                 "value": data.locale,
-                "allowed": sorted(_VALID_LOCALES & set(settings.shop_locales)),
+                "allowed": sorted(allowed_locales),
             },
         )
     if data.currency_pref is not None:
@@ -112,7 +126,11 @@ async def update_my_preferences(
     data: UserPreferenceUpdate,
 ) -> UserPreferencePublic:
     """Create or partially update the current user's preferences."""
-    _validate_update(data, await valid_currencies(session))
+    _validate_update(
+        data,
+        await valid_currencies(session),
+        _VALID_LOCALES & set(await get_offered_locales(session)),
+    )
     pref = await upsert_preference_for_user(session, user_id=current_user.id, data=data)
     await session.commit()
     await session.refresh(pref)
