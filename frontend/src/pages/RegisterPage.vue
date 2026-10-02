@@ -29,6 +29,7 @@
                 stack-label
                 :label="$t('auth.email')"
                 autocomplete="email"
+                data-testid="register-email"
                 :rules="[(v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || $t('auth.email_invalid')]"
               />
               <div v-if="captcha.enabled.value" ref="captchaEl" class="q-mt-md" />
@@ -39,6 +40,7 @@
                 class="full-width q-mt-md"
                 :loading="loading"
                 :disable="!captcha.ready.value"
+                data-testid="register-send-code"
               />
             </q-form>
 
@@ -82,6 +84,7 @@
                 outlined
                 stack-label
                 :label="$t('auth.code_label')"
+                data-testid="register-code"
                 mask="######"
                 inputmode="numeric"
                 autofocus
@@ -93,6 +96,7 @@
                 :label="$t('auth.validate_code')"
                 class="full-width q-mt-md"
                 :loading="loading"
+                data-testid="register-verify-code"
               />
             </q-form>
             <q-btn
@@ -116,6 +120,7 @@
                 stack-label
                 :label="$t('auth.full_name')"
                 autocomplete="name"
+                data-testid="register-name"
                 class="q-mb-sm"
               />
               <q-input
@@ -126,6 +131,7 @@
                 :label="$t('auth.password')"
                 autocomplete="new-password"
                 class="q-mb-sm"
+                data-testid="register-password"
                 :rules="[(v) => (v && v.length >= 8) || $t('auth.min_8')]"
               >
                 <template #append>
@@ -142,6 +148,7 @@
                 outlined
                 stack-label
                 :label="$t('auth.password_confirm')"
+                data-testid="register-password-confirm"
                 autocomplete="new-password"
                 :rules="[(v) => v === password || $t('auth.password_mismatch')]"
               />
@@ -149,6 +156,7 @@
                 type="submit"
                 color="primary"
                 :label="$t('auth.create_my_account')"
+                data-testid="register-submit"
                 class="full-width q-mt-md"
                 :loading="loading"
               />
