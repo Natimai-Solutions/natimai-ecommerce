@@ -73,7 +73,11 @@
     </q-table>
 
     <!-- Create / edit dialog -->
-    <q-dialog v-model="dialog">
+    <q-dialog
+      :model-value="dialog"
+      :persistent="guard.persistent.value"
+      @update:model-value="guard.onToggle"
+    >
       <q-card class="app-dialog">
         <q-card-section class="app-dialog__head">
           <h2 class="app-dialog__title">
@@ -91,12 +95,20 @@
               :readonly="!!editingKey"
               :rules="req"
             />
+            <ContentLanguageTabs
+              v-model="content.lang.value"
+              :source="content.source.value"
+              :locales="content.locales.value"
+              :status-of="content.statusOf"
+              :reviewed="content.reviewed.value"
+              @review="content.markReviewed"
+            />
             <q-input
-              v-model="form.label_fr"
+              v-model="texts.label_fr"
               :label="$t('specs.label_fr')"
               outlined
               dense
-              :rules="req"
+              :rules="content.isSource.value ? req : []"
             />
             <q-select
               v-model="form.type"
@@ -138,7 +150,7 @@
             <q-toggle v-if="editingKey" v-model="form.is_active" :label="$t('specs.active')" />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
-            <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+            <q-btn flat no-caps :label="$t('common.cancel')" @click="guard.requestClose()" />
             <q-btn
               type="submit"
               color="primary"
@@ -184,6 +196,13 @@ import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import PageHeader from '@/components/PageHeader.vue';
+import ContentLanguageTabs from '@/components/ContentLanguageTabs.vue';
+import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
+import {
+  cloneTranslations,
+  useContentTranslations,
+  type Translations,
+} from '@/composables/useContentTranslations';
 import {
   createSpecDefinition,
   deleteSpecDefinition,
@@ -235,14 +254,37 @@ const dialog = ref(false);
 const editingKey = ref<string | null>(null);
 const saving = ref(false);
 const dialogError = ref<string | null>(null);
-const form = reactive({
+const form = reactive<{
+  key: string;
+  label_fr: string;
+  type: string;
+  unit: string;
+  categories: string[];
+  aliases: string[];
+  is_active: boolean;
+  translations: Translations;
+}>({
   key: '',
   label_fr: '',
   type: 'numeric',
   unit: '',
-  categories: [] as string[],
-  aliases: [] as string[],
+  categories: [],
+  aliases: [],
   is_active: true,
+  translations: {},
+});
+const content = useContentTranslations({
+  form,
+  fields: ['label_fr'],
+  status: () => rows.value.find((r) => r.key === editingKey.value)?.translation_status,
+});
+const texts = content.texts;
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const snapshot = useFormSnapshot(() => form);
+const guard = useDialogGuard({
+  isOpen: () => dialog.value,
+  close: () => (dialog.value = false),
+  isDirty: snapshot.isDirty,
 });
 
 function openCreate() {
@@ -255,6 +297,9 @@ function openCreate() {
   form.categories = [];
   form.aliases = [];
   form.is_active = true;
+  form.translations = {};
+  content.reset();
+  snapshot.take();
   dialog.value = true;
 }
 
@@ -268,6 +313,9 @@ function openEdit(spec: SpecDefinition) {
   form.categories = [...spec.categories];
   form.aliases = [...spec.aliases];
   form.is_active = spec.is_active;
+  form.translations = cloneTranslations(spec.translations);
+  content.reset();
+  snapshot.take();
   dialog.value = true;
 }
 
@@ -283,6 +331,7 @@ async function submit() {
         categories: form.categories,
         aliases: form.aliases,
         is_active: form.is_active,
+        translations: form.translations,
       });
     } else {
       await createSpecDefinition({
@@ -292,6 +341,7 @@ async function submit() {
         unit: form.unit || null,
         categories: form.categories,
         aliases: form.aliases,
+        translations: form.translations,
       });
     }
     dialog.value = false;

@@ -8,12 +8,18 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Response
 from fastapi import status as http_status
 from sqlmodel import select
 
 from app.api.deps import CurrentSuperUser, SessionDep, module_required
+from app.core.content_i18n import (
+    SPEC_DEFINITION_FIELDS,
+    InvalidTranslations,
+    clean_translations,
+)
 from app.core.errors import AppError
 from app.features.product.models.spec_definition import (
     SpecDefinition,
@@ -78,6 +84,25 @@ async def get_spec_definition(
     return SpecDefinitionPublic.model_validate(spec)
 
 
+def _translations(
+    data: dict[str, Any], *, previous: dict[str, Any] | None, source: dict[str, Any]
+) -> dict[str, Any]:
+    """Validated, stamped translations of the label (R9 / T3)."""
+    try:
+        return clean_translations(
+            data.get("translations"),
+            previous=previous,
+            source_values=source,
+            fields=SPEC_DEFINITION_FIELDS,
+        )
+    except InvalidTranslations as exc:
+        raise AppError(
+            code="spec_definition.translations.invalid",
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            message=f"Traductions invalides : {exc}",
+        ) from exc
+
+
 @router.post("", response_model=SpecDefinitionPublic, status_code=201)
 async def create_spec_definition(
     data: SpecDefinitionCreate,
@@ -96,9 +121,11 @@ async def create_spec_definition(
             details={"key": data.key},
         )
 
+    fields = data.model_dump()
+    fields["translations"] = _translations(fields, previous=None, source=fields)
     spec = SpecDefinition(
         id=uuid.uuid4(),
-        **data.model_dump(),
+        **fields,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )
@@ -130,7 +157,13 @@ async def update_spec_definition(
             details={"key": key},
         )
 
-    for field, value in data.model_dump(exclude_unset=True).items():
+    changed = data.model_dump(exclude_unset=True)
+    if "translations" in changed:
+        source = {"label_fr": changed.get("label_fr", spec.label_fr)}
+        changed["translations"] = _translations(
+            changed, previous=spec.translations, source=source
+        )
+    for field, value in changed.items():
         setattr(spec, field, value)
     spec.updated_at = datetime.now(timezone.utc)
 

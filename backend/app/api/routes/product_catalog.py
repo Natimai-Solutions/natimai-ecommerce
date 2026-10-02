@@ -61,6 +61,7 @@ from app.features.product.services.publication import (
     has_storefront_content,
     publication_blockers,
 )
+from app.features.product.services.related import related_products
 from app.features.product.services.spec_projection import (
     get_effective_spec_definitions,
 )
@@ -366,6 +367,57 @@ async def get_product_key_specs(
     product = await _load_published_product(session, product_id, current_user)
     return ProductKeySpecsResponse(
         product_id=product_id, specs=await compute_key_specs(session, product)
+    )
+
+
+class RelatedProductsResponse(SQLModel):
+    """« Complétez votre équipement » (R9 / T7): accessories and alternatives."""
+
+    accessories: list[ProductPublic] = Field(default_factory=list)
+    alternatives: list[ProductPublic] = Field(default_factory=list)
+
+
+class RelatedToRequest(SQLModel):
+    """The cart: suggestions for several products at once."""
+
+    product_ids: list[uuid.UUID] = Field(min_length=1, max_length=50)
+    limit: int = Field(default=8, ge=1, le=24)
+
+
+@router.get("/{product_id}/related", response_model=RelatedProductsResponse)
+async def get_related_products(
+    product_id: uuid.UUID,
+    session: SessionDep,
+    limit: int = Query(default=8, ge=1, le=24),
+    current_user: object = Depends(get_current_user_optional),
+) -> RelatedProductsResponse:
+    """Accessories (manual links, then the suggested categories' best sellers)
+    and alternatives of a product; only sellable products."""
+    product = await _load_published_product(session, product_id, current_user)
+    related = await related_products(session, [product.id], limit=limit)
+    return RelatedProductsResponse(
+        accessories=await publish_with_availability(
+            session, related.accessories, customer=current_user
+        ),
+        alternatives=await publish_with_availability(
+            session, related.alternatives, customer=current_user
+        ),
+    )
+
+
+@router.post("/related-to", response_model=RelatedProductsResponse)
+async def get_related_to_products(
+    payload: RelatedToRequest,
+    session: SessionDep,
+    current_user: object = Depends(get_current_user_optional),
+) -> RelatedProductsResponse:
+    """Accessories for a set of products (the cart), the set itself excluded."""
+    related = await related_products(session, payload.product_ids, limit=payload.limit)
+    return RelatedProductsResponse(
+        accessories=await publish_with_availability(
+            session, related.accessories, customer=current_user
+        ),
+        alternatives=[],
     )
 
 

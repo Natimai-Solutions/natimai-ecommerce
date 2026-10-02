@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import uuid
 from decimal import Decimal
+from typing import Any
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
@@ -27,12 +28,22 @@ from sqlalchemy import update as sa_update
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.core.content_i18n import (
+    CATEGORY_FIELDS,
+    InvalidTranslations,
+    clean_translations,
+    translation_status,
+)
 from app.core.errors import AppError
 from app.features.discount.models import Discount
 from app.features.integrations.services.category_mapping import retarget_after_merge
 from app.features.product.crud.category import crud_category
 from app.features.product.models.category import Category
 from app.features.product.models.product import Product
+from app.features.product.services.related import (
+    replace_category_links,
+    suggested_categories_map,
+)
 from app.tasks.pricing_tasks import schedule_price_refresh
 
 logger = logging.getLogger(__name__)
@@ -61,6 +72,11 @@ class AdminCategoryItem(BaseModel):
     merged_into_id: uuid.UUID | None
     merged_into_name: str | None = None
     product_count: int = 0
+    #: Translated display_name / description per language (R9 / T3).
+    translations: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    translation_status: dict[str, str] = Field(default_factory=dict)
+    #: Categories suggested from this one's products (R9 / T7), in order.
+    suggested_category_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
 class AdminCategoriesPublic(BaseModel):
@@ -81,6 +97,10 @@ class AdminCategoryUpdate(BaseModel):
     #: Marge par défaut des articles de la catégorie (None = celle du groupe
     #: tarifaire du client). Un article peut la surcharger.
     default_margin_rate_pct: Decimal | None = Field(default=None, ge=0)
+    #: Traductions du titre vitrine et de la description (R9 / T3).
+    translations: dict[str, dict[str, Any]] | None = None
+    #: Catégories à proposer depuis les articles de celle-ci (R9 / T7).
+    suggested_category_ids: list[uuid.UUID] | None = None
 
 
 class MergeBody(BaseModel):
@@ -99,7 +119,11 @@ class MergeResult(BaseModel):
 
 
 def _to_item(
-    category: Category, *, product_count: int, merged_into_name: str | None
+    category: Category,
+    *,
+    product_count: int,
+    merged_into_name: str | None,
+    suggested: list[uuid.UUID] | None = None,
 ) -> AdminCategoryItem:
     return AdminCategoryItem(
         id=category.id,
@@ -115,6 +139,13 @@ def _to_item(
         merged_into_id=category.merged_into_id,
         merged_into_name=merged_into_name,
         product_count=product_count,
+        translations=dict(category.translations or {}),
+        translation_status=translation_status(
+            category.translations,
+            {f: getattr(category, f, None) for f in CATEGORY_FIELDS},
+            CATEGORY_FIELDS,
+        ),
+        suggested_category_ids=list(suggested or []),
     )
 
 
@@ -144,10 +175,12 @@ async def _item_for(session: SessionDep, category: Category) -> AdminCategoryIte
     if category.merged_into_id is not None:
         target = await session.get(Category, category.merged_into_id)
         merged_name = target.name if target is not None else None
+    suggested = await suggested_categories_map(session, [category.id])
     return _to_item(
         category,
         product_count=await _product_count(session, category.id),
         merged_into_name=merged_name,
+        suggested=suggested.get(category.id),
     )
 
 
@@ -164,12 +197,14 @@ async def list_categories(
     )
     counts = {row[0]: int(row[1]) for row in await session.exec(counts_stmt)}
     names = {c.id: c.name for c in categories}
+    suggested = await suggested_categories_map(session, [c.id for c in categories])
 
     data = [
         _to_item(
             c,
             product_count=counts.get(c.id, 0),
             merged_into_name=names.get(c.merged_into_id) if c.merged_into_id else None,
+            suggested=suggested.get(c.id),
         )
         for c in categories
     ]
@@ -248,6 +283,42 @@ async def update_category(
         fields["display_name"] = (
             cleaned if cleaned and cleaned != category.name else None
         )
+
+    if "translations" in fields:
+        source = {f: fields.get(f, getattr(category, f, None)) for f in CATEGORY_FIELDS}
+        try:
+            fields["translations"] = clean_translations(
+                fields["translations"],
+                previous=category.translations,
+                source_values=source,
+                fields=CATEGORY_FIELDS,
+            )
+        except InvalidTranslations as exc:
+            raise AppError(
+                code="category.translations.invalid",
+                status_code=400,
+                message=f"Traductions invalides : {exc}",
+                details={"field": "translations"},
+            ) from exc
+
+    suggested = fields.pop("suggested_category_ids", None)
+    if suggested is not None:
+        known = set(
+            (
+                await session.exec(
+                    select(Category.id).where(col(Category.id).in_(list(suggested)))
+                )
+            ).all()
+        )
+        unknown = [str(s) for s in suggested if s not in known]
+        if unknown:
+            raise AppError(
+                code="category.suggested.unknown",
+                status_code=400,
+                message=f"Catégorie introuvable : {unknown[0]}",
+                details={"field": "suggested_category_ids"},
+            )
+        await replace_category_links(session, category.id, list(suggested))
 
     for name, value in fields.items():
         setattr(category, name, value)

@@ -7,12 +7,19 @@ dates; the admin routes list, create, replace and delete blocks.
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Request
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.api.routes.media import request_origin
+from app.core.content_i18n import (
+    HOMEPAGE_BLOCK_FIELDS,
+    InvalidTranslations,
+    clean_translations,
+    localize_all,
+)
 from app.core.datetimes import as_utc, utcnow
 from app.core.errors import AppError
 from app.features.content.models import (
@@ -65,11 +72,33 @@ def _validate(body: HomepageBlockWrite) -> None:
         raise _invalid("La fin doit suivre le début.", "homepage.dates", "ends_at")
 
 
+def _with_translations(
+    body: HomepageBlockWrite, *, previous: dict[str, Any] | None
+) -> dict[str, Any]:
+    """The payload with its translations validated and stamped (R9 / T3)."""
+    data = body.model_dump()
+    try:
+        data["translations"] = clean_translations(
+            body.translations,
+            previous=previous,
+            source_values=data,
+            fields=HOMEPAGE_BLOCK_FIELDS,
+        )
+    except InvalidTranslations as exc:
+        raise _invalid(
+            f"Traductions invalides : {exc}", "homepage.translations", "translations"
+        )
+    return data
+
+
 async def _to_public(
-    session: SessionDep, block: HomepageBlock, base_url: str
+    session: SessionDep, block: HomepageBlock, base_url: str, *, localized: bool = False
 ) -> HomepageBlockPublic:
     item = HomepageBlockPublic.model_validate(block, from_attributes=True)
-    alt = block.alt or ""
+    if localized:
+        # Storefront: texts in the visitor's language (R9 / T3).
+        localize_all([item], HOMEPAGE_BLOCK_FIELDS)
+    alt = item.alt or ""
     if block.media_id:
         media = await session.get(MediaAsset, block.media_id)
         if media is not None and media.is_active:
@@ -109,9 +138,11 @@ async def get_homepage(request: Request, session: SessionDep) -> HomepagePublic:
     ]
     hero = next((b for b in visible if b.kind == "hero"), None)
     return HomepagePublic(
-        hero=await _to_public(session, hero, base) if hero else None,
+        hero=await _to_public(session, hero, base, localized=True) if hero else None,
         banners=[
-            await _to_public(session, b, base) for b in visible if b.kind == "banner"
+            await _to_public(session, b, base, localized=True)
+            for b in visible
+            if b.kind == "banner"
         ],
     )
 
@@ -156,9 +187,8 @@ async def create_block(
     """Add a hero or a banner."""
     _validate(body)
     await _check_media(session, body.media_id)
-    block = HomepageBlock(
-        **body.model_dump(), created_at=utcnow(), created_by_id=admin.id
-    )
+    data = _with_translations(body, previous=None)
+    block = HomepageBlock(**data, created_at=utcnow(), created_by_id=admin.id)
     session.add(block)
     await session.commit()
     await session.refresh(block)
@@ -189,7 +219,7 @@ async def replace_block(
     block = await _block_or_404(session, block_id)
     _validate(body)
     await _check_media(session, body.media_id)
-    for field, value in body.model_dump().items():
+    for field, value in _with_translations(body, previous=block.translations).items():
         setattr(block, field, value)
     block.modify_at = utcnow()
     block.modify_by_id = admin.id

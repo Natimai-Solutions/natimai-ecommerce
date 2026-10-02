@@ -30,6 +30,7 @@ from app.api.deps import CurrentSuperUser, SessionDep
 from app.core import runtime_settings as rs
 from app.core.config import settings
 from app.core.errors import AppError
+from app.core.i18n import get_default_locale, get_offered_locales
 from app.features.system.models.system_setting import (
     SystemSettingPublic,
     SystemSettingUpdate,
@@ -163,8 +164,8 @@ async def get_shop_config(session: SessionDep) -> ShopConfigPublic:
         tax_territory_code=settings.TAX_TERRITORY_CODE,
         shop_name=await rs.get("shop_name", session),
         modules=await enabled_modules(session),
-        default_locale=settings.shop_locales[0],
-        available_locales=settings.shop_locales,
+        default_locale=await get_default_locale(session),
+        available_locales=await get_offered_locales(session),
         timezone=settings.SHOP_TIMEZONE,
         default_display_currency=str(
             await rs.get("default_display_currency", session)

@@ -357,7 +357,7 @@ const store = useProductsStore();
 const cartStore = useCartStore();
 const currencyStore = useCurrencyStore();
 const uiStore = useUiStore();
-const { t } = useI18n();
+const { t, locale } = useI18n({ useScope: 'global' });
 const shopModules = useShopModulesStore();
 const route = useRoute();
 const router = useRouter();
@@ -735,6 +735,9 @@ watch(
     void loadCatalogueData();
   },
 );
+
+// Product names and category titles follow the visitor's language (R9 / T3).
+watch(locale, () => void loadCatalogueData());
 
 onServerPrefetch(loadCatalogueData);
 

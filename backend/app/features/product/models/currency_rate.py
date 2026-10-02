@@ -69,11 +69,34 @@ class CurrencyRatePublic(CurrencyRateBase, BasePublic):
     id: uuid.UUID
 
 
-class CurrencyRatesPublic(SQLModel):
+class CurrencyDisplaySettings(SQLModel):
+    """Which currencies the storefront offers for display (R9 / T2)."""
+
+    reference_currency: str
+    default_display_currency: str
+    #: Currencies with a rate that the visitor cannot pick.
+    hidden_display_currencies: list[str] = Field(default_factory=list)
+
+
+class CurrencyRatesPublic(CurrencyDisplaySettings):
     """Represents currency rates public."""
 
     data: list[CurrencyRatePublic] = Field(default_factory=list)
     count: int = Field(default=0)
+    reference_currency: str = ""
+    default_display_currency: str = ""
+
+
+class CurrencyDisplayRequest(SQLModel):
+    """Body of ``PATCH /admin/currency-rates/{code}/display``."""
+
+    offered: bool
+
+
+class CurrencyDisplayDefaultRequest(SQLModel):
+    """Body of ``PUT /admin/currency-rates/display-default``."""
+
+    currency_code: str = Field(min_length=3, max_length=8)
 
 
 class CurrencyRateUpsertRequest(SQLModel):

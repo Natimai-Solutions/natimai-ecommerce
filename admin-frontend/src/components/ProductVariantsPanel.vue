@@ -16,6 +16,7 @@
           <th v-for="axis in axes" :key="axis" class="text-left">{{ axis }}</th>
           <th class="text-left">{{ $t('variants.h_reference') }}</th>
           <th class="text-right">{{ $t('variants.h_price') }}</th>
+          <th class="text-right">{{ $t('variants.h_extra') }}</th>
           <th class="text-right">{{ $t('variants.h_stock') }}</th>
           <th class="text-center">{{ $t('variants.h_active') }}</th>
           <th></th>
@@ -26,6 +27,9 @@
           <td v-for="axis in axes" :key="axis">{{ v.variant_options?.[axis] ?? '—' }}</td>
           <td class="font-mono">{{ v.supplier_sku || v.vendor_part_number || '—' }}</td>
           <td class="text-right font-mono">{{ money(v.sale_price_cached ?? v.base_price) }}</td>
+          <td class="text-right font-mono text-muted">
+            {{ v.price_extra != null ? `+ ${money(v.price_extra)}` : '—' }}
+          </td>
           <td class="text-right">
             <span class="font-mono">{{ qty(v.available_quantity) }}</span>
             <span class="text-caption text-muted">
@@ -133,16 +137,31 @@
                 class="col-6"
               />
             </div>
+            <q-input
+              v-if="parentPrice != null"
+              v-model="form.price_extra"
+              :label="$t('variants.extra')"
+              :hint="$t('variants.extra_hint', { price: money(parentPrice) })"
+              type="number"
+              step="1"
+              outlined
+              dense
+              clearable
+              data-testid="variant-price-extra"
+            />
             <div class="row q-col-gutter-sm">
               <q-input
-                v-model="form.base_price"
+                :model-value="hasExtra ? derivedPrice : form.base_price"
                 :label="$t('variants.price')"
+                :hint="hasExtra ? $t('variants.price_derived') : undefined"
+                :readonly="hasExtra"
                 type="number"
                 step="1"
                 min="0"
                 outlined
                 dense
                 class="col-6"
+                @update:model-value="(value) => (form.base_price = String(value ?? ''))"
               />
               <q-input
                 v-model="form.cost_amount"
@@ -217,18 +236,24 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { intlLocale } from '@app/utils';
-import { onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import { createVariant, deactivateVariant, listVariants, updateVariant } from '@/api/variants';
 import { adjustInventory } from '@/api/inventory';
 import { extractApiError } from '@/api/errors';
+import { useConfirm } from '@/composables/useConfirm';
 import type { ProductPublic } from '@/stores/products';
 import { useShopConfigStore } from '@/stores/shopConfig';
 
 const { t } = useI18n();
+const { confirmDelete } = useConfirm();
 
-const props = defineProps<{ productId: string }>();
+const props = defineProps<{
+  productId: string;
+  /** The parent's fixed price (null: computed pricing, no supplement possible). */
+  parentPrice?: string | null;
+}>();
 const emit = defineEmits<{ changed: [] }>();
 
 const shopConfig = useShopConfigStore();
@@ -272,6 +297,7 @@ const form = reactive({
   supplier_sku: '',
   ean: '',
   base_price: '',
+  price_extra: '',
   cost_amount: '',
   supplier_quantity: '0',
   local_quantity: '0',
@@ -279,6 +305,16 @@ const form = reactive({
   weight: null as number | null,
 });
 let originalLocal = '0';
+
+/** Supplement typed (R9 / T6): the price is parent + supplement, read-only. */
+const hasExtra = computed(() => props.parentPrice != null && form.price_extra.trim() !== '');
+const derivedPrice = computed(() => {
+  const base = Number(props.parentPrice ?? 0);
+  const extra = Number(form.price_extra);
+  return String(
+    Math.max(0, (Number.isFinite(base) ? base : 0) + (Number.isFinite(extra) ? extra : 0)),
+  );
+});
 
 function str(v: unknown): string {
   if (v == null) return '';
@@ -296,6 +332,7 @@ function openCreate() {
     supplier_sku: '',
     ean: '',
     base_price: '',
+    price_extra: '',
     cost_amount: '',
     supplier_quantity: '0',
     local_quantity: '0',
@@ -319,6 +356,7 @@ function openEdit(variant: ProductPublic) {
     supplier_sku: str(rec.supplier_sku),
     ean: str(rec.ean),
     base_price: str(rec.base_price),
+    price_extra: rec.price_extra == null ? '' : String(Number(rec.price_extra)),
     cost_amount: str(rec.cost_amount),
     supplier_quantity: qty(rec.supplier_quantity),
     local_quantity: qty(rec.local_quantity),
@@ -368,6 +406,7 @@ async function submit() {
         supplier_sku: form.supplier_sku.trim() || null,
         ean: form.ean.trim() || null,
         base_price: form.base_price.trim() || '0.00',
+        price_extra: form.price_extra.trim() || null,
         cost_amount: form.cost_amount.trim() || '0.00',
         supplier_quantity: form.supplier_quantity.trim() || '0',
         image_url: form.image_url.trim() || null,
@@ -380,6 +419,7 @@ async function submit() {
         supplier_sku: form.supplier_sku.trim() || null,
         ean: form.ean.trim() || null,
         base_price: form.base_price.trim() || null,
+        price_extra: form.price_extra.trim() || null,
         cost_amount: form.cost_amount.trim() || null,
         supplier_quantity: form.supplier_quantity.trim() || null,
         image_url: form.image_url.trim() || null,
@@ -398,6 +438,7 @@ async function submit() {
 }
 
 async function onDeactivate(variant: ProductPublic) {
+  if (!(await confirmDelete(variant.name, t('variants.remove')))) return;
   busyId.value = variant.id;
   error.value = null;
   try {

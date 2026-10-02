@@ -1,5 +1,9 @@
 <template>
-  <q-dialog :model-value="modelValue" @update:model-value="emit('update:modelValue', $event)">
+  <q-dialog
+    :model-value="modelValue"
+    :persistent="guard.persistent.value"
+    @update:model-value="guard.onToggle"
+  >
     <q-card class="app-dialog app-dialog--xl">
       <q-form @submit="onSubmit">
         <q-card-section class="app-dialog__head">
@@ -40,23 +44,32 @@
             />
           </div>
 
+          <ContentLanguageTabs
+            v-model="content.lang.value"
+            :source="content.source.value"
+            :locales="content.locales.value"
+            :status-of="content.statusOf"
+            :reviewed="content.reviewed.value"
+            @review="content.markReviewed"
+          />
           <q-input
-            v-model="form.name"
+            v-model="texts.name"
             :label="$t('product_form.name')"
             outlined
             dense
             bottom-slots
-            :rules="req"
+            :rules="content.isSource.value ? req : []"
+            data-testid="product-name"
           />
           <q-input
-            v-model="form.description"
+            v-model="texts.description"
             :label="$t('product_form.short')"
             outlined
             dense
             bottom-slots
           />
           <RichTextEditor
-            v-model="form.long_description"
+            v-model="texts.long_description"
             :label="$t('product_form.long')"
             media-kind="product"
           />
@@ -399,6 +412,136 @@
               </div>
             </div>
 
+            <div v-if="isEdit" data-testid="product-links">
+              <h3 class="admin-subtitle">{{ $t('product_form.links') }}</h3>
+              <p class="admin-hint">{{ $t('product_form.links_hint') }}</p>
+              <div
+                v-for="(link, index) in links"
+                :key="link.linked_product_id"
+                class="product-form__link"
+              >
+                <q-btn-toggle
+                  v-model="link.kind"
+                  :options="[
+                    { value: 'accessory', label: $t('product_form.link_accessory') },
+                    { value: 'alternative', label: $t('product_form.link_alternative') },
+                  ]"
+                  no-caps
+                  dense
+                  unelevated
+                  toggle-color="primary"
+                  class="product-form__link-kind"
+                />
+                <span class="product-form__link-name" :class="{ 'text-subtle': !link.is_active }">
+                  {{ link.name }}
+                  <span v-if="link.vendor_part_number" class="font-mono text-subtle">
+                    {{ link.vendor_part_number }}
+                  </span>
+                </span>
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="ph:arrow-up"
+                  :disable="index === 0"
+                  :aria-label="$t('product_form.link_up')"
+                  @click="moveLink(index, -1)"
+                />
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="ph:arrow-down"
+                  :disable="index === links.length - 1"
+                  :aria-label="$t('product_form.link_down')"
+                  @click="moveLink(index, 1)"
+                />
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="ph:x"
+                  color="negative"
+                  :aria-label="$t('product_form.link_remove')"
+                  @click="links.splice(index, 1)"
+                />
+              </div>
+              <q-select
+                :model-value="null"
+                :options="linkCandidates"
+                option-value="id"
+                option-label="name"
+                :label="$t('product_form.link_add')"
+                :hint="$t('product_form.link_add_hint')"
+                use-input
+                input-debounce="300"
+                outlined
+                dense
+                hide-selected
+                data-testid="product-link-search"
+                @filter="filterLinkCandidates"
+                @update:model-value="addLink"
+              >
+                <template #no-option>
+                  <q-item>
+                    <q-item-section class="text-subtle">
+                      {{ $t('product_form.link_no_match') }}
+                    </q-item-section>
+                  </q-item>
+                </template>
+              </q-select>
+            </div>
+
+            <div v-if="specsOn" data-testid="product-specs">
+              <h3 class="admin-subtitle">{{ $t('product_form.specs') }}</h3>
+              <p class="admin-hint">{{ $t('product_form.specs_hint') }}</p>
+              <p v-if="specRows.length === 0" class="text-subtle">
+                {{ $t('product_form.specs_none') }}
+              </p>
+              <div v-for="row in specRows" :key="row.key" class="product-form__spec">
+                <q-input
+                  v-if="row.type === 'numeric'"
+                  v-model="specValues[row.key]"
+                  :label="row.label"
+                  :suffix="row.unit ?? undefined"
+                  inputmode="decimal"
+                  outlined
+                  dense
+                  clearable
+                  :data-testid="`product-spec-${row.key}`"
+                />
+                <q-select
+                  v-else
+                  :model-value="specValues[row.key] || null"
+                  :options="specOptions(row)"
+                  :label="row.label"
+                  use-input
+                  fill-input
+                  hide-selected
+                  input-debounce="0"
+                  new-value-mode="add-unique"
+                  outlined
+                  dense
+                  clearable
+                  :data-testid="`product-spec-${row.key}`"
+                  @filter="
+                    (needle: string, update: (fn: () => void) => void) =>
+                      update(() => (specFilter[row.key] = needle))
+                  "
+                  @input-value="(value: string) => (specValues[row.key] = value)"
+                  @update:model-value="
+                    (value: string | null) => (specValues[row.key] = value ?? '')
+                  "
+                />
+                <StatusTag
+                  v-if="row.source === 'icecat' && specValues[row.key] === specOriginal[row.key]"
+                  :label="$t('product_form.spec_icecat')"
+                  tone="neutral"
+                  class="product-form__spec-source"
+                />
+              </div>
+            </div>
+
             <div>
               <h3 class="admin-subtitle">{{ $t('product_form.display') }}</h3>
               <q-input
@@ -440,7 +583,11 @@
 
           <template v-if="isEdit && product && !product.parent_product_id">
             <q-separator class="q-my-lg" />
-            <ProductVariantsPanel :product-id="product.id" @changed="emit('saved')" />
+            <ProductVariantsPanel
+              :product-id="product.id"
+              :parent-price="form.pricing_mode === 'fixed' ? form.base_price : null"
+              @changed="emit('saved')"
+            />
           </template>
           <p v-else-if="isEdit && product?.parent_product_id" class="admin-hint q-mt-md q-mb-none">
             {{ $t('product_form.variant_of') }}
@@ -461,7 +608,8 @@
             no-caps
             :label="$t('common.cancel')"
             :disable="saving"
-            @click="emit('update:modelValue', false)"
+            data-testid="product-cancel"
+            @click="guard.requestClose()"
           />
           <q-btn
             type="submit"
@@ -508,8 +656,23 @@ import { adjustInventory } from '@/api/inventory';
 import MarginPreviewPanel from '@/components/MarginPreviewPanel.vue';
 import MediaPicker from '@/components/MediaPicker.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
+import ContentLanguageTabs from '@/components/ContentLanguageTabs.vue';
+import {
+  cloneTranslations,
+  useContentTranslations,
+  type Translations,
+} from '@/composables/useContentTranslations';
 import { intlLocale } from '@app/utils';
 import { getGroupPrices, setGroupPrices, type MarginPreviewRequest } from '@/api/margin';
+import { getSpecForm, setProductSpecs, type SpecFormRow } from '@/api/productSpecs';
+import {
+  listProductLinks,
+  searchProductsForLink,
+  setProductLinks,
+  type LinkCandidate,
+  type ProductLink,
+} from '@/api/productLinks';
+import { useDialogGuard } from '@/composables/useUnsavedGuard';
 import ProductVariantsPanel from '@/components/ProductVariantsPanel.vue';
 import { useProductsStore, type ProductPublic } from '@/stores/products';
 import { useShopConfigStore } from '@/stores/shopConfig';
@@ -529,6 +692,8 @@ const shopConfig = useShopConfigStore();
 const isSimpleShop = computed(() => shopConfig.isSimple);
 /** Supply block (supplier, reference, attach): the suppliers module. */
 const suppliersOn = computed(() => shopConfig.moduleOn('suppliers'));
+/** « Caractéristiques » block (storefront filters typed by hand, R9 / T4). */
+const specsOn = computed(() => shopConfig.moduleOn('specs'));
 
 type PricingMode = 'import' | 'domestic' | 'fixed';
 type AvailabilityMode = 'stock' | 'on_demand' | 'continuous' | 'lot';
@@ -538,6 +703,8 @@ interface FormState {
   name: string;
   description: string;
   long_description: string;
+  /** Translated texts per language (R9 / T3); the fields above are the source. */
+  translations: Translations;
   supplier_name: string | null;
   supplier_sku: string;
   manufacturer: string;
@@ -588,6 +755,7 @@ function emptyForm(): FormState {
     name: '',
     description: '',
     long_description: '',
+    translations: {},
     supplier_name: null,
     supplier_sku: '',
     manufacturer: '',
@@ -621,6 +789,12 @@ function emptyForm(): FormState {
 }
 
 const form = reactive<FormState>(emptyForm());
+const content = useContentTranslations({
+  form,
+  fields: ['name', 'description', 'long_description'],
+  status: () => props.product?.translation_status,
+});
+const texts = content.texts;
 let original: FormState = emptyForm();
 
 const saving = ref(false);
@@ -714,6 +888,158 @@ function onSupplierChange(code: string | null) {
 }
 const categoryOptions = ref<{ label: string; value: string }[]>([]);
 const taxRateOptions = ref<{ label: string; value: string }[]>([]);
+
+// Caractéristiques (R9 / T4) : une ligne par définition de la catégorie ;
+// la valeur saisie part dans product_specs en source « manual ».
+const specRows = ref<SpecFormRow[]>([]);
+const specValues = reactive<Record<string, string>>({});
+const specFilter = reactive<Record<string, string>>({});
+let specOriginal: Record<string, string> = {};
+
+function specValueOf(row: SpecFormRow): string {
+  if (row.value_numeric != null) return String(Number(row.value_numeric));
+  return row.value_text ?? '';
+}
+
+function specOptions(row: SpecFormRow): string[] {
+  const needle = (specFilter[row.key] ?? '').toLowerCase();
+  return row.suggestions.filter((s) => !needle || s.toLowerCase().includes(needle));
+}
+
+async function loadSpecs(productId: string | null, categoryId: string | null) {
+  if (!specsOn.value || (!productId && !categoryId)) {
+    specRows.value = [];
+    return;
+  }
+  try {
+    const response = await getSpecForm({ productId, categoryId });
+    specRows.value = response.specs;
+    // Keep what the admin already typed for a key the new category still has.
+    const typed = { ...specValues };
+    for (const key of Object.keys(specValues)) delete specValues[key];
+    specOriginal = {};
+    for (const row of response.specs) {
+      specOriginal[row.key] = specValueOf(row);
+      const kept = typed[row.key];
+      specValues[row.key] =
+        kept !== undefined && kept !== specOriginal[row.key] ? kept : (specOriginal[row.key] ?? '');
+    }
+  } catch {
+    specRows.value = [];
+  }
+}
+
+/** Anything typed since the form was filled (fields, group prices, specs). */
+function hasUnsavedChanges(): boolean {
+  const keys = Object.keys(form) as (keyof FormState)[];
+  if (keys.some((key) => JSON.stringify(form[key]) !== JSON.stringify(original[key]))) return true;
+  if (specRows.value.some((row) => (specValues[row.key] ?? '') !== (specOriginal[row.key] ?? '')))
+    return true;
+  if (isEdit.value && linksKey(links.value) !== linksOriginal) return true;
+  return (
+    groupPrices.value !== null &&
+    JSON.stringify(groupPrices.value) !== JSON.stringify(storedGroupPrices)
+  );
+}
+
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const guard = useDialogGuard({
+  isOpen: () => props.modelValue,
+  close: () => emit('update:modelValue', false),
+  isDirty: hasUnsavedChanges,
+});
+
+// Articles liés (R9 / T7) : accessoires et alternatives, dans l'ordre.
+const links = ref<ProductLink[]>([]);
+let linksOriginal = '';
+const linkCandidates = ref<LinkCandidate[]>([]);
+
+function linksKey(rows: ProductLink[]): string {
+  return JSON.stringify(rows.map((l) => [l.linked_product_id, l.kind]));
+}
+
+async function loadLinks(productId: string | null) {
+  links.value = [];
+  linksOriginal = linksKey([]);
+  if (!productId) return;
+  try {
+    links.value = await listProductLinks(productId);
+  } catch {
+    links.value = [];
+  }
+  linksOriginal = linksKey(links.value);
+}
+
+function moveLink(index: number, delta: number) {
+  const target = index + delta;
+  const row = links.value[index];
+  const other = links.value[target];
+  if (!row || !other) return;
+  links.value.splice(index, 1, other);
+  links.value.splice(target, 1, row);
+}
+
+function filterLinkCandidates(needle: string, update: (fn: () => void) => void) {
+  const term = needle.trim();
+  if (term.length < 2) {
+    update(() => (linkCandidates.value = []));
+    return;
+  }
+  void searchProductsForLink(term)
+    .then((rows) => {
+      const taken = new Set([props.product?.id, ...links.value.map((l) => l.linked_product_id)]);
+      update(() => (linkCandidates.value = rows.filter((r) => !taken.has(r.id))));
+    })
+    .catch(() => update(() => (linkCandidates.value = [])));
+}
+
+function addLink(candidate: LinkCandidate | null) {
+  if (!candidate) return;
+  links.value.push({
+    id: candidate.id,
+    linked_product_id: candidate.id,
+    kind: 'accessory',
+    position: links.value.length,
+    name: candidate.name,
+    vendor_part_number: candidate.vendor_part_number ?? null,
+    supplier_sku: null,
+    image_url: null,
+    is_active: true,
+  });
+}
+
+async function saveLinks(productId: string) {
+  if (!isEdit.value || linksKey(links.value) === linksOriginal) return;
+  await setProductLinks(
+    productId,
+    links.value.map((l, index) => ({
+      linked_product_id: l.linked_product_id,
+      kind: l.kind === 'alternative' ? 'alternative' : 'accessory',
+      position: index,
+    })),
+  );
+}
+
+async function saveSpecs(productId: string) {
+  if (!specsOn.value) return;
+  const changed = specRows.value
+    .filter((row) => (specValues[row.key] ?? '') !== (specOriginal[row.key] ?? ''))
+    .map((row) => ({ key: row.key, value: (specValues[row.key] ?? '').trim() || null }));
+  if (changed.length === 0) return;
+  try {
+    await setProductSpecs(productId, changed);
+  } catch (err) {
+    throw new Error(extractApiError(err) ?? t('product_form.specs_failed'), { cause: err });
+  }
+}
+
+watch(
+  () => form.category_id,
+  (categoryId, previous) => {
+    if (categoryId === previous) return;
+    void loadSpecs(isEdit.value ? (props.product?.id ?? null) : null, categoryId);
+  },
+);
 
 // Prix saisis par groupe de clients (group id → prix TTC) ; null tant que ceux
 // de l'article ne sont pas chargés (l'aperçu prend alors ceux enregistrés).
@@ -909,6 +1235,7 @@ function loadFromProduct(p: ProductPublic | null) {
     base.name = str(rec.name);
     base.description = str(rec.description);
     base.long_description = str(rec.long_description);
+    base.translations = cloneTranslations(rec.translations);
     base.supplier_name = (rec.supplier_name as string | null) ?? null;
     base.supplier_sku = str(rec.supplier_sku);
     base.manufacturer = str(rec.manufacturer);
@@ -946,6 +1273,7 @@ function loadFromProduct(p: ProductPublic | null) {
   }
   Object.assign(form, base);
   original = { ...base };
+  content.reset();
 }
 
 /** Build the payload: full for create, only changed fields for edit. */
@@ -987,6 +1315,8 @@ async function onSubmit() {
     }
     await saveLocalStock(productId);
     await saveGroupPrices(productId);
+    await saveSpecs(productId);
+    await saveLinks(productId);
     emit('saved');
     emit('update:modelValue', false);
   } catch (err: unknown) {
@@ -1060,6 +1390,9 @@ watch(
       managedAfterLink.value = null;
       lockedFields.value = [...(props.product?.overridden_fields ?? [])];
       loadFromProduct(props.product);
+      for (const key of Object.keys(specValues)) delete specValues[key];
+      void loadSpecs(props.product?.id ?? null, props.product?.category_id ?? null);
+      void loadLinks(props.product?.id ?? null);
       void loadGroupPrices(props.product);
     }
   },
@@ -1108,5 +1441,41 @@ onMounted(() => {
   height: 32px;
   object-fit: cover;
   border-radius: 4px;
+}
+
+.product-form__spec {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+
+  > :first-child {
+    flex: 1;
+  }
+}
+
+.product-form__spec-source {
+  flex: none;
+}
+
+.product-form__link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.product-form__link-kind {
+  flex: none;
+  border: 1px solid var(--n-border);
+  border-radius: 8px;
+}
+
+.product-form__link-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

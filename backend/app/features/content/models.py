@@ -10,9 +10,18 @@ seeded so the pre-order principle is explained from day one.
 
 import datetime
 import uuid
+from typing import Any
 
+from pydantic import computed_field
+from sqlalchemy import Column
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
+from app.core.content_i18n import (
+    CONTENT_PAGE_FIELDS,
+    HOMEPAGE_BLOCK_FIELDS,
+    translation_status,
+)
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 SLUG_MAX_LENGTH = 80
@@ -30,6 +39,14 @@ class ContentPageBase(Base):
     title: str = Field(max_length=200)
     body_html: str = Field(default="", description="HTML from the admin editor")
     is_published: bool = Field(default=False, index=True)
+    translations: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+        description=(
+            "Translated title / body_html per language (R9 / T3): "
+            '{"en": {"title": "…", "body_html": "…", "_source": "<digest>"}}'
+        ),
+    )
 
 
 class ContentPage(ContentPageBase, table=True):
@@ -51,6 +68,7 @@ class ContentPageUpdate(BaseUpdate):
     title: str | None = None
     body_html: str | None = None
     is_published: bool | None = None
+    translations: dict[str, dict[str, Any]] | None = None
 
 
 class ContentPageWrite(SQLModel):
@@ -59,6 +77,8 @@ class ContentPageWrite(SQLModel):
     title: str = Field(max_length=200)
     body_html: str = ""
     is_published: bool = False
+    #: Raw mapping from the editor; validated and stamped by the API.
+    translations: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
 
 class ContentPagePublic(ContentPageBase, BasePublic):
@@ -66,9 +86,39 @@ class ContentPagePublic(ContentPageBase, BasePublic):
 
     id: uuid.UUID
 
+    @computed_field
+    @property
+    def translation_status(self) -> dict[str, str]:
+        """Per offered language: ``ok`` / ``stale`` / ``missing`` (R9 / T3)."""
+        return translation_status(
+            self.translations,
+            {f: getattr(self, f, None) for f in CONTENT_PAGE_FIELDS},
+            CONTENT_PAGE_FIELDS,
+        )
+
 
 class ContentPageSummary(SQLModel):
     """Storefront view: what the page shows, nothing more."""
+
+    slug: str
+    title: str
+    body_html: str
+    #: Language of the texts served: the request's when a translation exists,
+    #: else the shop's default (the storefront then says so).
+    lang: str = "fr"
+
+
+class ContentPageTemplateSummary(SQLModel):
+    """A built-in legal page the admin can start a page from (R9 / T1)."""
+
+    slug: str
+    title: str
+    #: A page with this slug already exists (the template would replace its text).
+    page_exists: bool = False
+
+
+class ContentPageTemplate(SQLModel):
+    """The template text, seller identity substituted, ready for the editor."""
 
     slug: str
     title: str
@@ -104,6 +154,13 @@ class HomepageBlockBase(Base):
     is_published: bool = Field(default=False, index=True)
     starts_at: datetime.datetime | None = Field(default=None)
     ends_at: datetime.datetime | None = Field(default=None)
+    translations: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+        description=(
+            "Translated title / subtitle / cta_label / alt per language (R9 / T3)"
+        ),
+    )
 
 
 class HomepageBlock(HomepageBlockBase, table=True):
@@ -128,6 +185,8 @@ class HomepageBlockWrite(SQLModel):
     is_published: bool = False
     starts_at: datetime.datetime | None = None
     ends_at: datetime.datetime | None = None
+    #: Raw mapping from the editor; validated and stamped by the API.
+    translations: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
 
 class HomepageImage(SQLModel):
@@ -157,6 +216,18 @@ class HomepageBlockPublic(SQLModel):
     starts_at: datetime.datetime | None = None
     ends_at: datetime.datetime | None = None
     image: HomepageImage | None = None
+    #: Back-office only (the storefront gets the resolved texts).
+    translations: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+    @computed_field
+    @property
+    def translation_status(self) -> dict[str, str]:
+        """Per offered language: ``ok`` / ``stale`` / ``missing`` (R9 / T3)."""
+        return translation_status(
+            self.translations,
+            {f: getattr(self, f, None) for f in HOMEPAGE_BLOCK_FIELDS},
+            HOMEPAGE_BLOCK_FIELDS,
+        )
 
 
 class HomepagePublic(SQLModel):

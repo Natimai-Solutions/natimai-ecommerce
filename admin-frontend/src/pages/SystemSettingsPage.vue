@@ -109,7 +109,20 @@
               />
               <div v-else class="setting__row">
                 <q-select
-                  v-if="setting.choices"
+                  v-if="setting.choices && setting.type === 'list'"
+                  :model-value="listValue(setting)"
+                  :options="setting.choices"
+                  multiple
+                  use-chips
+                  outlined
+                  dense
+                  :placeholder="listValue(setting).length ? undefined : setting.fallback"
+                  :aria-label="setting.label"
+                  class="setting__input"
+                  @update:model-value="(items: string[]) => (draft[setting.key] = items.join(', '))"
+                />
+                <q-select
+                  v-else-if="setting.choices"
                   v-model="draft[setting.key]"
                   :options="setting.choices"
                   outlined
@@ -180,6 +193,7 @@ import {
   type SettingCategory,
 } from '@/api/systemSettings';
 import { extractApiError } from '@/api/errors';
+import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 
 const { t } = useI18n();
 
@@ -230,6 +244,14 @@ function editable(setting: RuntimeSetting): string {
   return setting.source === 'db' ? setting.value : '';
 }
 
+/** A list setting with choices: the typed items (comma separated in the draft). */
+function listValue(setting: RuntimeSetting): string[] {
+  return (draft[setting.key] ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function isNumeric(setting: RuntimeSetting): boolean {
   return ['int', 'float', 'decimal'].includes(setting.type);
 }
@@ -251,6 +273,9 @@ function rangeHint(setting: RuntimeSetting): string | undefined {
 function isDirty(setting: RuntimeSetting): boolean {
   return (draft[setting.key] ?? '') !== editable(setting);
 }
+
+// A value typed and not saved is lost on navigation: ask first (R9 / T5).
+useUnsavedGuard(() => rows.value.some((setting) => isDirty(setting)));
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleString(intlLocale(), { dateStyle: 'short', timeStyle: 'short' });

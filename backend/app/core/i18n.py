@@ -22,9 +22,53 @@ _request_locale: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 )
 
 
+def _normalize_many(codes: object, *, first: str | None = None) -> list[str]:
+    """Supported, lower-case, unique codes, ``first`` ahead when given."""
+    out: list[str] = []
+    if first:
+        out.append(first)
+    for code in codes if isinstance(codes, list | tuple) else []:
+        value = normalize_locale(code)
+        if value and value not in out:
+            out.append(value)
+    return out
+
+
 def default_locale() -> str:
-    code = normalize_locale(settings.shop_locales[0] if settings.shop_locales else None)
-    return code or "fr"
+    """The shop's default language (Admin → Paramètres → Affichage, else
+    ``SHOP_DEFAULT_LOCALE``): synchronous, from the settings snapshot."""
+    from app.core import runtime_settings
+
+    code = normalize_locale(runtime_settings.peek("shop_default_locale"))
+    return code or normalize_locale(settings.SHOP_DEFAULT_LOCALE) or "fr"
+
+
+def offered_locales() -> list[str]:
+    """Languages offered to the visitor, default first: synchronous, from the
+    settings snapshot (``shop_locales``, else ``SHOP_LOCALES``)."""
+    from app.core import runtime_settings
+
+    return _normalize_many(
+        runtime_settings.peek("shop_locales"), first=default_locale()
+    )
+
+
+async def get_default_locale(session: Any) -> str:
+    """``default_locale`` read from the base (R9 / T2)."""
+    from app.core import runtime_settings
+
+    code = normalize_locale(await runtime_settings.get("shop_default_locale", session))
+    return code or normalize_locale(settings.SHOP_DEFAULT_LOCALE) or "fr"
+
+
+async def get_offered_locales(session: Any) -> list[str]:
+    """``offered_locales`` read from the base (R9 / T2)."""
+    from app.core import runtime_settings
+
+    default = await get_default_locale(session)
+    return _normalize_many(
+        await runtime_settings.get("shop_locales", session), first=default
+    )
 
 
 def normalize_locale(value: object) -> str | None:
@@ -136,6 +180,9 @@ def format_date(value: Any, locale: str = "fr") -> str:
 __all__ = [
     "SUPPORTED_LOCALES",
     "default_locale",
+    "get_default_locale",
+    "get_offered_locales",
+    "offered_locales",
     "format_date",
     "format_money",
     "from_accept_language",

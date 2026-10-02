@@ -167,7 +167,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { useShopModulesStore } from '@/stores/shopModules';
-import { computed, onMounted, onServerPrefetch, ref } from 'vue';
+import { computed, onMounted, onServerPrefetch, ref, watch } from 'vue';
 import { useMeta } from 'quasar';
 import type { components } from '@app/api-types';
 
@@ -177,7 +177,7 @@ import { useCartStore } from '@/stores/cart';
 import { categoryTitle, useHomeStore } from '@/stores/home';
 import { useUiStore } from '@/stores/ui';
 
-const { t } = useI18n();
+const { t, locale } = useI18n({ useScope: 'global' });
 const shopModules = useShopModulesStore();
 
 type ProductPublic = components['schemas']['ProductPublic'];
@@ -233,6 +233,8 @@ async function onAddToCart(product: ProductPublic) {
 
 onServerPrefetch(() => home.load());
 onMounted(() => home.load());
+// Blocks, category tiles and product names follow the visitor's language (R9 / T3).
+watch(locale, () => void home.reload());
 </script>
 
 <style scoped lang="scss">

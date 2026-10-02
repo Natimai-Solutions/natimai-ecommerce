@@ -170,6 +170,8 @@ const fr = {
     unknown_error: 'Erreur inconnue',
     choose_variant: 'Choisissez une déclinaison.',
     add_failed: "Impossible d'ajouter cet article au panier.",
+    complete_setup: 'Complétez votre équipement',
+    alternatives: 'Alternatives',
   },
   checkout: {
     back_to_cart: 'Panier',
@@ -276,6 +278,7 @@ const fr = {
     continue: 'Continuer mes achats',
     clear: 'Vider le panier',
     product_n: 'Produit {id}',
+    complete_setup: 'Complétez votre équipement',
   },
   stores: {
     login_failed: 'Échec de connexion',

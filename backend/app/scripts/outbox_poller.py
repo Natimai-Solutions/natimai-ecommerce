@@ -34,6 +34,7 @@ import argparse
 import asyncio
 import logging
 import logging.handlers
+import os
 import signal
 import sys
 import time
@@ -53,9 +54,38 @@ from app.outbox.poller import OutboxPoller, poll_outbox_once
 # bornes il grossit tant que le service tourne — c'est-à-dire indéfiniment —
 # et remplit la couche inscriptible du conteneur. 5 Mo × 3 archives couvrent
 # largement la fenêtre de diagnostic d'un incident outbox.
-_LOG_FILE = "outbox_poller.log"
+_LOG_FILE = os.environ.get("OUTBOX_POLLER_LOG_FILE", "outbox_poller.log")
 _LOG_MAX_BYTES = 5 * 1024 * 1024
 _LOG_BACKUP_COUNT = 3
+
+
+def _log_handlers() -> list[logging.Handler]:
+    """stdout, plus the rotating file when the working directory allows it.
+
+    The hardened image runs as a non-root user with a read-only ``/app``: the
+    file handler then raises ``PermissionError`` at start-up and, without this
+    guard, the poller dies before polling anything — the payments approved in
+    the back-office never reached the worker (CI E2E, 02/10/2026). stdout is
+    what Docker collects anyway; the file is a convenience, never a requirement.
+    """
+    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
+    try:
+        handlers.append(
+            logging.handlers.RotatingFileHandler(
+                _LOG_FILE,
+                maxBytes=_LOG_MAX_BYTES,
+                backupCount=_LOG_BACKUP_COUNT,
+                encoding="utf-8",
+            )
+        )
+    except OSError as exc:
+        print(
+            f"outbox poller: log file {_LOG_FILE!r} not writable ({exc}); "
+            "logging to stdout only",
+            file=sys.stderr,
+        )
+    return handlers
+
 
 # `force=True` n'est pas décoratif : les imports ci-dessus finissent par
 # atteindre app.features.base.crud, qui appelle logging.basicConfig() au chargement
@@ -67,15 +97,7 @@ _LOG_BACKUP_COUNT = 3
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.handlers.RotatingFileHandler(
-            _LOG_FILE,
-            maxBytes=_LOG_MAX_BYTES,
-            backupCount=_LOG_BACKUP_COUNT,
-            encoding="utf-8",
-        ),
-    ],
+    handlers=_log_handlers(),
     force=True,
 )
 logger = logging.getLogger(__name__)

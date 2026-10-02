@@ -6,12 +6,14 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-from pydantic import SerializerFunctionWrapHandler, model_serializer
+from pydantic import SerializerFunctionWrapHandler, computed_field, model_serializer
 from sqlalchemy import JSON, Column, event
 from sqlalchemy import Enum as SAEnum
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.core.config import reference_currency
+from app.core.content_i18n import PRODUCT_FIELDS, translation_status
 from app.core.field_visibility import redact
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 from app.features.product.models.category import Category
@@ -101,6 +103,14 @@ class ProductBase(Base):
     long_description: str | None = Field(
         default=None,
         description="Long description of the product",
+    )
+    translations: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+        description=(
+            "Translated name / description / long_description per language "
+            '(R9 / T3): {"en": {"name": "…", "_source": "<digest>"}}'
+        ),
     )
     base_price: Decimal = Field(
         default=Decimal("0.00"),
@@ -225,6 +235,18 @@ class ProductBase(Base):
     has_variants: bool = Field(
         default=False,
         description="Indicates if the product has variants",
+    )
+    price_extra: Decimal | None = Field(
+        default=None,
+        decimal_places=2,
+        max_digits=12,
+        description=(
+            "Variant only (R9 / T6): supplement over the parent's fixed price "
+            "(« i7 : + 10 000 »). When set, base_price = parent.base_price + "
+            "price_extra, recomputed whenever the parent price changes; the "
+            "storefront shows « + 10 000 » in the selector. None: the variant "
+            "has a price of its own."
+        ),
     )
 
     # Generic supplier/vendor integration fields
@@ -506,6 +528,7 @@ class ProductUpdate(ProductBase, BaseUpdate):
     has_variants: bool | None = None
     parent_product_id: uuid.UUID | None = None
     variant_options: dict[str, str] | None = None
+    price_extra: Decimal | None = None
     category_id: uuid.UUID | None = None
     supplier_quantity: Decimal | None = None
     supplier_price: Decimal | None = None
@@ -578,6 +601,9 @@ PRODUCT_INTERNAL_FIELDS: frozenset[str] = frozenset(
         "unit_cost_cached",
         "margin_cached",
         "margin_pct_cached",
+        # The back-office edits them; the storefront gets the resolved texts.
+        "translations",
+        "translation_status",
     }
 )
 
@@ -636,6 +662,16 @@ class ProductPublic(ProductBase, BasePublic):
     regular_price: Decimal | None = None
     promotion_name: str | None = None
     promotion_ends_at: datetime | None = None
+
+    @computed_field
+    @property
+    def translation_status(self) -> dict[str, str]:
+        """Per offered language: ``ok`` / ``stale`` / ``missing`` (R9 / T3)."""
+        return translation_status(
+            self.translations,
+            {f: getattr(self, f, None) for f in PRODUCT_FIELDS},
+            PRODUCT_FIELDS,
+        )
 
 
 class ProductsPublic(SQLModel):

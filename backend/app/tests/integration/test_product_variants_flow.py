@@ -33,6 +33,7 @@ from app.features.product.models.product import (
     ProductCreate,
     ProductUpdate,
 )
+from app.features.product.services.variants import list_variants
 from app.features.user.models.user import User
 from app.tasks.pricing_tasks import refresh_sale_prices
 
@@ -213,3 +214,77 @@ async def test_variants_are_sold_and_listed_through_their_parent(
         == 1
     )
     assert large.id in {v.id for v in admin_view.variants}
+
+
+@pytest.mark.asyncio
+async def test_a_variant_supplement_follows_the_parent_price(
+    db_session: AsyncSession,
+) -> None:
+    """R9 / T6: « i5 à 30 000, i7 à + 10 000 » — the i7 price is derived from
+    the parent's and recomputed when the parent price changes; the parent
+    keeps its reference price instead of the cheapest variant."""
+    admin = await _admin(db_session)
+    parent = await admin_create_product(
+        session=db_session,
+        current_user=admin,
+        payload=ProductCreate(
+            name="PC fixe", pricing_mode=PricingMode.FIXED, base_price=Decimal("30000")
+        ),
+    )
+    parent_id = parent.id
+    i5 = await admin_create_variant(
+        session=db_session,
+        current_user=await _fresh(db_session, admin),
+        product_id=parent_id,
+        payload=VariantCreateRequest(
+            options={"Processeur": "i5"}, price_extra=Decimal("0")
+        ),
+    )
+    i7 = await admin_create_variant(
+        session=db_session,
+        current_user=await _fresh(db_session, admin),
+        product_id=parent_id,
+        payload=VariantCreateRequest(
+            options={"Processeur": "i7"}, price_extra=Decimal("10000")
+        ),
+    )
+    assert (i5.base_price, i7.base_price) == (Decimal("30000.00"), Decimal("40000.00"))
+    assert i7.price_extra == Decimal("10000.00")
+
+    parent_row = await db_session.get(Product, parent_id)
+    assert parent_row is not None
+    assert parent_row.base_price == Decimal("30000.00")  # reference, not rolled up
+    assert parent_row.sale_price_cached == Decimal("30000.00")  # « à partir de »
+
+    # The parent price moves: both supplements follow.
+    await admin_update_product(
+        session=db_session,
+        current_user=await _fresh(db_session, admin),
+        product_id=parent_id,
+        payload=ProductUpdate(base_price=Decimal("32000")),
+    )
+    prices = {
+        v.variant_options["Processeur"]: (v.base_price, v.sale_price_cached)
+        for v in await list_variants(db_session, parent_id)
+        if v.variant_options
+    }
+    assert prices == {
+        "i5": (Decimal("32000.00"), Decimal("32000.00")),
+        "i7": (Decimal("42000.00"), Decimal("42000.00")),
+    }
+
+    # Changing the supplement re-derives the price; dropping it frees the price.
+    changed = await admin_update_product(
+        session=db_session,
+        current_user=await _fresh(db_session, admin),
+        product_id=i7.id,
+        payload=ProductUpdate(price_extra=Decimal("5000")),
+    )
+    assert changed.base_price == Decimal("37000.00")
+    freed = await admin_update_product(
+        session=db_session,
+        current_user=await _fresh(db_session, admin),
+        product_id=i7.id,
+        payload=ProductUpdate(price_extra=None, base_price=Decimal("45000")),
+    )
+    assert (freed.price_extra, freed.base_price) == (None, Decimal("45000.00"))
