@@ -42,6 +42,8 @@ import { computed, onMounted, onServerPrefetch, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppNotice from '@app/ui/AppNotice.vue';
 import { getPage, type ContentPage } from '@/api/pages';
+import { usePageMeta } from '@/composables/usePageMeta';
+import { useShopModulesStore } from '@/stores/shopModules';
 
 const props = defineProps<{ slug: string; fallbackTitle?: string }>();
 
@@ -74,6 +76,20 @@ async function load(): Promise<void> {
 watch(locale, () => void load());
 
 const safeHtml = computed(() => (page.value ? DOMPurify.sanitize(page.value.body_html) : ''));
+
+// R8 / U6 : the page's own title and first words as description, canonical link.
+const shopModules = useShopModulesStore();
+usePageMeta(() => {
+  const title = page.value?.title ?? props.fallbackTitle ?? '';
+  const text = safeHtml.value
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return {
+    title: `${title} | ${shopModules.config.shop_name || 'Natimai'}`,
+    description: text ? text.slice(0, 157) + (text.length > 157 ? '…' : '') : null,
+  };
+});
 
 onServerPrefetch(load);
 onMounted(() => {

@@ -3,7 +3,6 @@ from typing import Any
 
 from app.outbox.decorators import outbox_handler
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

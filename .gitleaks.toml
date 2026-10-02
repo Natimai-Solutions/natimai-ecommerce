@@ -1,0 +1,28 @@
+# gitleaks — détection de secrets commis par erreur (R8 / U1).
+#
+# Lancé en CI sur tout l'historique (.github/workflows/security.yml) et
+# utilisable en local : `gitleaks git .`. Les règles par défaut s'appliquent ;
+# cette liste blanche écarte ce qui n'est pas un secret.
+
+title = "natimai-ecommerce"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Jeux de test et exemples : des valeurs forgées, jamais des identifiants réels."
+paths = [
+  # Jetons et mots de passe fabriqués par les tests.
+  '''backend/app/tests/.*''',
+  '''e2e/.*''',
+  # Fichier d'exemple : des valeurs à remplacer, documentées comme telles.
+  '''\.env\.example$''',
+  # Verrous de dépendances : des empreintes, pas des secrets.
+  '''pnpm-lock\.yaml$''',
+  '''uv\.lock$''',
+]
+regexes = [
+  # Valeurs CI explicitement factices.
+  '''ci-only-not-a-secret''',
+  '''ci-only-password''',
+]

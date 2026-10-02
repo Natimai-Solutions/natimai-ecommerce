@@ -336,6 +336,19 @@ register(
         extra={"unit": "h"},
     ),
     SettingSpec(
+        "dashboard_low_stock_threshold",
+        "int",
+        "orders",
+        "Seuil de stock bas (tableau de bord)",
+        "Un produit vendu sur stock dont il reste au plus ce nombre d'unités "
+        "vendables compte dans « Stocks bas » sur le tableau de bord.",
+        default=2,
+        minimum=ZERO,
+        maximum=_d(10_000),
+        order=15,
+        extra={"unit": "unités"},
+    ),
+    SettingSpec(
         "cart_abandonment_reminder_delay_hours",
         "int",
         "orders",
@@ -579,6 +592,31 @@ register(
 # Sécurité
 
 register(
+    SettingSpec(
+        "captcha_turnstile_site_key",
+        "str",
+        "security",
+        "Turnstile — clé de site",
+        "Clé publique du widget Cloudflare Turnstile affiché sur les formulaires "
+        "publics de la vitrine (inscription, alerte de stock d'un visiteur, "
+        "devis sans compte). Vide = pas de captcha.",
+        default="",
+        public=True,
+        max_length=100,
+        order=1,
+    ),
+    SettingSpec(
+        "captcha_turnstile_secret",
+        "str",
+        "security",
+        "Turnstile — clé secrète",
+        "Clé secrète vérifiée auprès de Cloudflare à chaque envoi d'un formulaire "
+        "public. Vide = aucune vérification (les limites de fréquence restent).",
+        default="",
+        secret=True,
+        max_length=100,
+        order=2,
+    ),
     SettingSpec(
         "enable_group_permissions",
         "bool",

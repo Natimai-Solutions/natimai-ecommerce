@@ -43,8 +43,10 @@
     >
       <template #body-cell-customer="props">
         <q-td :props="props">
-          <div>{{ props.row.user_name || '—' }}</div>
-          <div class="text-caption text-muted">{{ props.row.user_email }}</div>
+          <div>{{ props.row.guest ? $t('abandoned.guest') : props.row.user_name || '—' }}</div>
+          <div class="text-caption text-muted">
+            {{ props.row.user_email || $t('abandoned.guest_no_email') }}
+          </div>
         </q-td>
       </template>
       <template #body-cell-items="props">

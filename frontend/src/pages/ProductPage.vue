@@ -421,6 +421,11 @@
                     $t('product.invalid_email'),
                 ]"
               />
+              <div
+                v-if="captcha.enabled.value && !authStore.isAuthenticated"
+                ref="captchaEl"
+                class="q-mt-md"
+              />
               <AppNotice v-if="alertError" tone="error" dense class="q-mt-sm">
                 {{ alertError }}
               </AppNotice>
@@ -433,6 +438,7 @@
                 color="primary"
                 :label="$t('product.notify_me')"
                 :loading="alertSaving"
+                :disable="!authStore.isAuthenticated && !captcha.ready.value"
               />
             </q-card-actions>
           </q-form>
@@ -478,6 +484,8 @@ import { useI18n } from 'vue-i18n';
 import { formatDate } from '@app/utils';
 import { useDepartureLabels } from '@/composables/useDepartureLabels';
 import { useTranslate } from '@/composables/useTranslate';
+import { useTurnstile } from '@/composables/useTurnstile';
+import { absoluteUrl, breadcrumbList, jsonLd } from '@/utils/seo';
 import { useShopModulesStore } from '@/stores/shopModules';
 import { getProductRouteByIdAndName, slugifyProductName } from '@/utils/productRoute';
 
@@ -588,6 +596,11 @@ async function toggleWishlist() {
 }
 const alertDialog = ref(false);
 const alertEmail = ref('');
+// A visitor's alert goes through the captcha when the shop has one (R8 / U5);
+// the dialog mounts the widget each time it opens.
+const captcha = useTurnstile();
+const captchaEl = ref<HTMLElement | null>(null);
+watch(captchaEl, (el) => void captcha.mount(el, locale.value));
 const alertSaving = ref(false);
 const alertError = ref<string | null>(null);
 const alertNotice = ref<string | null>(null);
@@ -604,9 +617,15 @@ async function submitAlert() {
   alertSaving.value = true;
   alertError.value = null;
   try {
-    const alert = await subscribeStockAlert(product.value.id, alertEmail.value.trim() || null);
+    const alert = await subscribeStockAlert(
+      product.value.id,
+      alertEmail.value.trim() || null,
+      captcha.headers(),
+    );
+    captcha.reset(); // a Turnstile token is single-use
     alertDialog.value = false;
     alertNotice.value = t('product.alert_ok', { email: alert.email });
+    if (!authStore.isAuthenticated) void cartStore.attachGuestEmail(alert.email);
   } catch (err) {
     alertError.value = extractApiMessage(err) ?? t('product.alert_failed');
   } finally {
@@ -812,11 +831,50 @@ const hiddenSpecCount = computed(
 
 const mainImage = computed(() => selectedImage.value ?? gallery.value[0] ?? null);
 
-const publicSiteUrl = import.meta.env.VITE_PUBLIC_SITE_URL?.replace(/\/$/, '') ?? '';
-
 const canonicalHref = computed(() => {
-  if (!publicSiteUrl || !product.value) return '';
-  return `${publicSiteUrl}${route.path}`;
+  if (!product.value) return '';
+  return absoluteUrl(route.path) ?? '';
+});
+
+/** schema.org availability of the shown product (R8 / U6). */
+const schemaAvailability = computed(() => {
+  const a = availability.value;
+  if (!a.orderable) return 'https://schema.org/OutOfStock';
+  if (a.preorder) return 'https://schema.org/PreOrder';
+  return 'https://schema.org/InStock';
+});
+
+/** JSON-LD Product + Offer of the page: price in the reference currency. */
+const productJsonLd = computed<Record<string, unknown> | null>(() => {
+  const p = product.value;
+  if (!p || !canonicalHref.value) return null;
+  const data: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: p.name,
+    url: canonicalHref.value,
+    image: gallery.value.slice(0, 5),
+    description: plainDescription.value || undefined,
+    sku: p.vendor_part_number ?? p.supplier_sku ?? undefined,
+    gtin13: p.ean ?? undefined,
+    brand: p.manufacturer ? { '@type': 'Brand', name: p.manufacturer } : undefined,
+    category: categoryLabel.value ?? undefined,
+    itemCondition:
+      p.condition === 'refurbished'
+        ? 'https://schema.org/RefurbishedCondition'
+        : 'https://schema.org/NewCondition',
+  };
+  if (!isQuote.value) {
+    data['offers'] = {
+      '@type': 'Offer',
+      url: canonicalHref.value,
+      price: priceValue.value.toFixed(0),
+      priceCurrency: currencyStore.reference,
+      availability: schemaAvailability.value,
+      itemCondition: data['itemCondition'],
+    };
+  }
+  return data;
 });
 
 useMeta(() => {
@@ -845,6 +903,10 @@ useMeta(() => {
   };
 
   const link: Record<string, { rel: string; href: string }> = {};
+  const script: Record<string, Record<string, string>> = {};
+  if (mainImage.value) {
+    meta['ogImage'] = { property: 'og:image', content: mainImage.value };
+  }
   if (canonicalHref.value) {
     meta['ogUrl'] = {
       property: 'og:url',
@@ -855,11 +917,29 @@ useMeta(() => {
       href: canonicalHref.value,
     };
   }
+  // R8 / U6 : structured data for the engines (rich results, breadcrumb).
+  if (productJsonLd.value) script['ldProduct'] = jsonLd(productJsonLd.value);
+  if (product.value) {
+    const crumbs = [
+      { name: t('layout.home'), path: '/' },
+      { name: t('layout.catalogue'), path: '/catalogue' },
+    ];
+    if (categoryLabel.value && product.value.category_id) {
+      crumbs.push({
+        name: categoryLabel.value,
+        path: `/catalogue?cat=${product.value.category_id}`,
+      });
+    }
+    crumbs.push({ name: product.value.name, path: route.path });
+    const breadcrumb = breadcrumbList(crumbs);
+    if (breadcrumb) script['ldBreadcrumb'] = jsonLd(breadcrumb);
+  }
 
   return {
     title,
     meta,
     link,
+    script,
   };
 });
 

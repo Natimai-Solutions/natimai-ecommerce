@@ -29,14 +29,18 @@
                 stack-label
                 :label="$t('auth.email')"
                 autocomplete="email"
+                data-testid="register-email"
                 :rules="[(v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || $t('auth.email_invalid')]"
               />
+              <div v-if="captcha.enabled.value" ref="captchaEl" class="q-mt-md" />
               <q-btn
                 type="submit"
                 color="primary"
                 :label="$t('auth.get_code')"
                 class="full-width q-mt-md"
                 :loading="loading"
+                :disable="!captcha.ready.value"
+                data-testid="register-send-code"
               />
             </q-form>
 
@@ -80,6 +84,7 @@
                 outlined
                 stack-label
                 :label="$t('auth.code_label')"
+                data-testid="register-code"
                 mask="######"
                 inputmode="numeric"
                 autofocus
@@ -91,6 +96,7 @@
                 :label="$t('auth.validate_code')"
                 class="full-width q-mt-md"
                 :loading="loading"
+                data-testid="register-verify-code"
               />
             </q-form>
             <q-btn
@@ -114,6 +120,7 @@
                 stack-label
                 :label="$t('auth.full_name')"
                 autocomplete="name"
+                data-testid="register-name"
                 class="q-mb-sm"
               />
               <q-input
@@ -124,6 +131,7 @@
                 :label="$t('auth.password')"
                 autocomplete="new-password"
                 class="q-mb-sm"
+                data-testid="register-password"
                 :rules="[(v) => (v && v.length >= 8) || $t('auth.min_8')]"
               >
                 <template #append>
@@ -140,6 +148,7 @@
                 outlined
                 stack-label
                 :label="$t('auth.password_confirm')"
+                data-testid="register-password-confirm"
                 autocomplete="new-password"
                 :rules="[(v) => v === password || $t('auth.password_mismatch')]"
               />
@@ -147,6 +156,7 @@
                 type="submit"
                 color="primary"
                 :label="$t('auth.create_my_account')"
+                data-testid="register-submit"
                 class="full-width q-mt-md"
                 :loading="loading"
               />
@@ -172,9 +182,13 @@
 
 <script setup lang="ts">
 import AppNotice from '@app/ui/AppNotice.vue';
-import { ref } from 'vue';
+import { onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
+import { usePageMeta } from '@/composables/usePageMeta';
+import { useTurnstile } from '@/composables/useTurnstile';
 import { useAuthStore } from '@/stores/auth';
+import { useCartStore } from '@/stores/cart';
 
 const authStore = useAuthStore();
 const route = useRoute();
@@ -191,6 +205,14 @@ const signupToken = ref('');
 const loading = ref(false);
 const error = ref<string | null>(null);
 
+// Captcha of the sign-up code request (R8 / U5), when the shop has one.
+const captcha = useTurnstile();
+const captchaEl = ref<HTMLElement | null>(null);
+const { t, locale } = useI18n({ useScope: 'global' });
+usePageMeta(() => ({ title: t('auth.register_title'), noindex: true }));
+onMounted(() => void captcha.mount(captchaEl.value, locale.value));
+watch(captchaEl, (el) => void captcha.mount(el, locale.value));
+
 const apiUrl = import.meta.env.VITE_API_URL as string | undefined;
 const oauthEnabled = Boolean(apiUrl) && import.meta.env.VITE_OAUTH_ENABLED === 'true';
 
@@ -203,7 +225,8 @@ async function onSendOtp() {
   loading.value = true;
   error.value = null;
   try {
-    const res = await authStore.sendSignupOtp(email.value.trim().toLowerCase());
+    const res = await authStore.sendSignupOtp(email.value.trim().toLowerCase(), captcha.headers());
+    captcha.reset(); // a Turnstile token is single-use
     if (res.ok) {
       step.value = 2;
     } else {
@@ -240,6 +263,7 @@ async function onComplete() {
       fullName.value.trim() || null,
     );
     if (res.ok) {
+      await useCartStore().mergeAfterLogin();
       await router.replace(redirectTarget());
     } else {
       error.value = res.error ?? null;

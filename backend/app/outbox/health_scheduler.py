@@ -21,6 +21,8 @@ from datetime import datetime, timezone
 from typing import Any, TypedDict
 
 from app.core.alerting import send_alert
+from app.core.logging_config import configure_logging
+from app.core.sentry import init_sentry
 from app.outbox.health import health_checker
 
 # Configuration depuis les variables d'environnement
@@ -28,14 +30,9 @@ HEALTH_CHECK_INTERVAL = int(os.getenv("HEALTH_CHECK_INTERVAL", "300"))  # 5 minu
 RECOVERY_ENABLED = os.getenv("RECOVERY_ENABLED", "true").lower() == "true"
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
-# Configuration du logging
-logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-    ],
-)
+# One logging configuration for every process (R8 / U3).
+configure_logging(service="outbox-health", level=LOG_LEVEL)
+init_sentry("outbox-health")
 logger = logging.getLogger(__name__)
 
 

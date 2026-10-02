@@ -10,6 +10,9 @@
         <AppNotice v-if="passwordChanged && !authStore.loginError" tone="success" class="q-mb-md">
           {{ $t('auth.password_changed') }}
         </AppNotice>
+        <AppNotice v-if="accountDeleted && !authStore.loginError" tone="success" class="q-mb-md">
+          {{ $t('auth.account_deleted') }}
+        </AppNotice>
         <AppNotice v-if="authStore.loginError" tone="error" class="q-mb-md">
           {{ authStore.loginError }}
         </AppNotice>
@@ -109,10 +112,13 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { usePageMeta } from '@/composables/usePageMeta';
 import AppNotice from '@app/ui/AppNotice.vue';
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { useCartStore } from '@/stores/cart';
 
 const authStore = useAuthStore();
 const route = useRoute();
@@ -123,6 +129,7 @@ const password = ref('');
 const showPassword = ref(false);
 // Arrivée depuis « Profil et sécurité » : toutes les sessions ont été fermées.
 const passwordChanged = computed(() => route.query.motif === 'mot-de-passe-change');
+const accountDeleted = computed(() => route.query.motif === 'compte-supprime');
 
 // OAuth buttons are gated behind an explicit flag: they only work once the
 // backend has GOOGLE/MICROSOFT client credentials AND
@@ -139,6 +146,7 @@ function redirectTarget(): string {
 async function onSubmit() {
   const ok = await authStore.login(email.value.trim().toLowerCase(), password.value);
   if (ok) {
+    await useCartStore().mergeAfterLogin();
     await router.replace(redirectTarget());
   }
 }
@@ -149,4 +157,7 @@ function oauthLogin(provider: 'google' | 'microsoft') {
   sessionStorage.setItem('oauth.redirect', redirectTarget());
   window.location.href = `${apiUrl}/api/v1/auth/${provider}/login`;
 }
+
+const { t: tMeta } = useI18n();
+usePageMeta(() => ({ title: tMeta('auth.login_title'), noindex: true }));
 </script>

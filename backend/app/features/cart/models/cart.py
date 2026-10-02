@@ -13,12 +13,32 @@ from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
 class CartBase(Base):
-    """Represents cart base."""
+    """Represents cart base.
 
-    user_id: uuid.UUID = Field(
+    A cart belongs to an account (``user_id``) or, since R8 / U9, to a visitor
+    identified by the random ``guest_token`` the browser keeps; a guest cart
+    is merged into the account's at sign-in. ``guest_email`` is the address a
+    visitor typed in a form (stock alert, quote): it makes the abandoned-cart
+    reminder possible for them too.
+    """
+
+    user_id: uuid.UUID | None = Field(
+        default=None,
         foreign_key="users.id",
         index=True,
-        description="ID of the user owning the cart",
+        description="ID of the user owning the cart; None for a visitor's cart",
+    )
+    guest_token: str | None = Field(
+        default=None,
+        max_length=128,
+        unique=True,
+        index=True,
+        description="Random token of a visitor's cart (R8 / U9); None for an account",
+    )
+    guest_email: str | None = Field(
+        default=None,
+        max_length=255,
+        description="E-mail a visitor typed in a form, for the reminder (R8 / U9)",
     )
     currency: str = Field(
         default_factory=reference_currency,
@@ -215,7 +235,7 @@ class CartDetailPublic(SQLModel):
     """Represents cart detail public."""
 
     id: uuid.UUID
-    user_id: uuid.UUID
+    user_id: uuid.UUID | None = None
     currency: str
     total_amount: Decimal
     is_checked_out: bool

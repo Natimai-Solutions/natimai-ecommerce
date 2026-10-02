@@ -10,6 +10,15 @@ un numéro séquentiel est attribué (M5) et les instructions de virement
 s'affichent. Cela couvre toute la chaîne serveur — tarification, réservation de
 stock, création de commande, numérotation — sans passerelle dans la boucle.
 
+`auth.spec.ts` (R8 / U10) couvre les parcours de compte : inscription avec
+le code envoyé par e-mail, connexion (mauvais puis bon mot de passe), mot de
+passe oublié et lien de réinitialisation. La pile n'a pas de boîte mail : le
+code est lu dans Redis (`otp:<email>`) et le lien dans le journal de l'API
+(affiché en environnement `local` seulement), via `docker compose`
+(`support/stack.ts`, variables `E2E_COMPOSE_FILE`, `E2E_COMPOSE_CWD`). Sans
+Docker accessible depuis le lanceur, ce test est ignoré, pas en échec. Il crée
+un compte neuf à chaque exécution et ne touche jamais au client seedé.
+
 **Admin** (`tests/admin/*.spec.ts`, `E2E_ADMIN_URL`), avec le superutilisateur
 créé par `initial_data` (`FIRST_SUPERUSER`) :
 

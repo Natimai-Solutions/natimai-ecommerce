@@ -182,6 +182,7 @@ const allNav: NavSection[] = [
         icon: 'ph:check-square-offset',
         to: '/payment-validations',
       },
+      { label: 'layout.nav.payments', icon: 'ph:money', to: '/payments' },
       { label: 'layout.nav.quote_requests', icon: 'ph:note-pencil', to: '/quote-requests' },
       { label: 'layout.nav.invoices', icon: 'ph:file-text', to: '/invoices' },
       { label: 'layout.nav.credit_notes', icon: 'ph:receipt-x', to: '/credit-notes' },

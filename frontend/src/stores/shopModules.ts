@@ -16,6 +16,8 @@ export interface ShopPublicConfig {
   timezone?: string;
   /** Display currency proposed to a visitor who chose none. */
   default_display_currency?: string;
+  /** Cloudflare Turnstile site key of the public forms; null = no captcha. */
+  captcha_site_key?: string | null;
 }
 
 /**

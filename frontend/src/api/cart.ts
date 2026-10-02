@@ -105,6 +105,51 @@ export async function clearMyCart(): Promise<CartDetailPublic> {
   return data;
 }
 
+// --- Visitor's server cart (R8 / U9) --------------------------------------- //
+
+/** Header carrying the visitor's cart token (`GuestCartToken` on the API). */
+export const CART_TOKEN_HEADER = 'X-Cart-Token';
+
+function guestHeaders(token: string): Record<string, string> {
+  return { [CART_TOKEN_HEADER]: token };
+}
+
+export async function getGuestCart(token: string): Promise<CartDetailPublic> {
+  const { data } = await api.get<CartDetailPublic>('/cart/guest', { headers: guestHeaders(token) });
+  return data;
+}
+
+/** Mirror the visitor's browser cart into their server cart (whole content). */
+export async function replaceGuestCartItems(
+  token: string,
+  payload: CartReplaceRequest,
+): Promise<CartDetailPublic> {
+  const { data } = await api.put<CartDetailPublic>('/cart/guest/items', payload, {
+    headers: guestHeaders(token),
+  });
+  return data;
+}
+
+export async function clearGuestCart(token: string): Promise<CartDetailPublic> {
+  const { data } = await api.delete<CartDetailPublic>('/cart/guest/items', {
+    headers: guestHeaders(token),
+  });
+  return data;
+}
+
+/** Keep on the visitor's cart the e-mail they typed (stock alert, quote). */
+export async function attachGuestCartEmail(token: string, email: string): Promise<void> {
+  await api.patch('/cart/guest', { email }, { headers: guestHeaders(token) });
+}
+
+/** Fold the visitor's cart into the account's at sign-in; returns the merged cart. */
+export async function mergeGuestCart(token: string): Promise<CartDetailPublic> {
+  const { data } = await api.post<CartDetailPublic>('/cart/merge', null, {
+    headers: guestHeaders(token),
+  });
+  return data;
+}
+
 /**
  * Turn the authenticated user's backend cart into an order (creates the order +
  * order lines + a pending payment, and empties the backend cart). The storefront
@@ -219,9 +264,13 @@ export async function createQuoteRequest(
   return data;
 }
 
+/** A public form: `headers` carries the captcha token when the shop has one. */
 export async function createGuestQuoteRequest(
   payload: GuestQuoteRequestSubmit,
+  headers: Record<string, string> = {},
 ): Promise<GuestQuoteRequestResponse> {
-  const { data } = await api.post<GuestQuoteRequestResponse>('/cart/guest-quote-request', payload);
+  const { data } = await api.post<GuestQuoteRequestResponse>('/cart/guest-quote-request', payload, {
+    headers,
+  });
   return data;
 }

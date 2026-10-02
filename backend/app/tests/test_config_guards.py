@@ -46,10 +46,23 @@ def test_secret_key_empty_generates_with_warning_in_local() -> None:
 
 
 def test_secret_key_set_passes_everywhere() -> None:
+    key = "a-real-secret-of-thirty-two-chars-at-least"
     for env in ("local", "staging", "production"):
-        fake: Any = SimpleNamespace(SECRET_KEY="a-real-secret", ENVIRONMENT=env)
+        fake: Any = SimpleNamespace(SECRET_KEY=key, ENVIRONMENT=env)
         Settings._check_secret_key(cast(Settings, fake))
-        assert fake.SECRET_KEY == "a-real-secret"
+        assert fake.SECRET_KEY == key
+
+
+def test_short_secret_key_is_refused_outside_local_and_warned_in_local() -> None:
+    """R8 / confort: a short key is cheap to brute-force."""
+    for env in ("staging", "production"):
+        fake: Any = SimpleNamespace(SECRET_KEY="too-short", ENVIRONMENT=env)
+        with pytest.raises(ValueError, match="32"):
+            Settings._check_secret_key(cast(Settings, fake))
+    local: Any = SimpleNamespace(SECRET_KEY="too-short", ENVIRONMENT="local")
+    with pytest.warns(UserWarning, match="32"):
+        Settings._check_secret_key(cast(Settings, local))
+    assert local.SECRET_KEY == "too-short"  # kept: the developer chose it
 
 
 def _fake_settings(environment: str, *, clamav_enabled: bool) -> Any:

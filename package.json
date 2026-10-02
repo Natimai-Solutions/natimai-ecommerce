@@ -4,19 +4,28 @@
   "license": "AGPL-3.0-or-later",
   "packageManager": "pnpm@10.0.0",
   "scripts": {
-    "gen:types": "openapi-typescript http://localhost:8000/api/v1/openapi.json -o shared/api-types/src/schema.ts",
+    "gen:types": "./scripts/gen-api-types.sh",
     "dev:front": "pnpm --filter frontend dev",
     "dev:admin": "pnpm --filter admin dev",
     "build:front": "pnpm --filter frontend build",
     "build:admin": "pnpm --filter admin build",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "check:types": "./scripts/gen-api-types.sh --check"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.11",
     "openapi-typescript": "^7.13.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11"
+  },
+  "pnpm": {
+    "overrides": {
+      "undici@<8.10.2": ">=8.10.2",
+      "qs@<6.16.0": ">=6.16.0",
+      "esbuild@>=0.27.3 <0.28.1": ">=0.28.1",
+      "js-yaml@<4.3.2": "~4.3.2"
+    }
   }
 }

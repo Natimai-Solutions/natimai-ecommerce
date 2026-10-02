@@ -9,8 +9,11 @@ et un échec d'envoi les perdait définitivement — alors que l'endpoint répon
 from __future__ import annotations
 
 from decimal import Decimal
+from types import SimpleNamespace
+from typing import cast
 
 import pytest
+from fastapi import Request
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -22,6 +25,13 @@ from app.features.cart.models.quote_request import (
     QuoteRequest,
     QuoteRequestStatus,
 )
+
+
+def _request() -> Request:
+    """Un stub de requête : la route n'en lit que l'IP et l'en-tête captcha."""
+    return cast(
+        Request, SimpleNamespace(headers={}, client=SimpleNamespace(host="10.0.0.1"))
+    )
 
 
 def _payload() -> GuestQuoteRequestSubmit:
@@ -54,7 +64,9 @@ async def test_a_guest_request_is_persisted(
 
     monkeypatch.setattr(cart_routes, "_send_quote_support_email", _delivered)
 
-    response = await cart_routes.create_guest_quote_request(_payload(), db_session)
+    response = await cart_routes.create_guest_quote_request(
+        _payload(), _request(), db_session
+    )
 
     assert response.email_delivered is True
 
@@ -106,7 +118,9 @@ async def test_a_failed_email_leaves_the_request_recoverable(
 
     monkeypatch.setattr(cart_routes, "_send_quote_support_email", _failed)
 
-    response = await cart_routes.create_guest_quote_request(_payload(), db_session)
+    response = await cart_routes.create_guest_quote_request(
+        _payload(), _request(), db_session
+    )
 
     assert response.email_delivered is False
 

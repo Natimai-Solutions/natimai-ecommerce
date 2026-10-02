@@ -159,6 +159,39 @@ jobs:
             backend/coverage.json
           if-no-files-found: ignore
 
+  api-types:
+    name: Types de l'API — dérive de shared/api-types
+    runs-on: ubuntu-latest
+    # Le schéma TypeScript commité est regénéré depuis l'application (sans
+    # serveur ni base) et comparé : une route ou un schéma modifié côté
+    # backend sans `pnpm gen:types` fait échouer la CI au lieu de laisser les
+    # fronts typer une API qui n'existe plus (R8 / U2).
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: latest
+      - name: Install backend dependencies
+        working-directory: backend
+        env:
+          UV_PYTHON: "3.14"
+          UV_PYTHON_PREFERENCE: only-system
+        run: uv sync --locked
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Comparer schema.ts à l'API
+        env:
+          UV_PYTHON: "3.14"
+          UV_PYTHON_PREFERENCE: only-system
+        run: pnpm check:types
+
   frontend:
     name: Frontend — lint, typecheck & shared tests
     runs-on: ubuntu-latest

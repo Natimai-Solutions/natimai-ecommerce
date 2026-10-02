@@ -28,7 +28,7 @@ Create the root `.env` from the template in section 6 before the first start.
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `SECRET_KEY` | JWT signing key — random and unique | `openssl rand -hex 32` |
+| `SECRET_KEY` | JWT signing key — random and unique, **32 characters at least** (the app refuses a shorter one outside `local`) | `openssl rand -hex 32` |
 | `POSTGRES_SERVER` | PostgreSQL host (compose sets `postgres`) | `postgres` |
 | `POSTGRES_USER` | PostgreSQL user | `postgres` |
 | `POSTGRES_PASSWORD` | PostgreSQL password (≥ 16 chars, not `changethis`) | — |
@@ -71,7 +71,11 @@ random fallback still applies, with a warning.
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | Access token TTL — do **not** increase |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `30` | Refresh token TTL |
 | `SENTRY_DSN` | — | Error monitoring DSN. Ignored when `ENVIRONMENT=local`. The Sentry `environment` tag is set from `ENVIRONMENT`, so staging and production stay separable in the same project. |
-| `SENTRY_TRACES_SAMPLE_RATE` | `1.0` | Share of transactions traced. `1.0` means **every** request is sent — fine to start, expensive once traffic grows. Lower it (e.g. `0.1`) once you know your volume. |
+| `SENTRY_TRACES_SAMPLE_RATE` | `0.1` | Share of transactions traced (10 %). The API, the ARQ worker, the outbox poller and the health checker all report to Sentry (tag `component`). |
+| `APP_RELEASE` | — | Version label on Sentry events (the deploy sets the commit sha). |
+| `LOG_FORMAT` | `json` outside `local`, `text` in `local` | One JSON object per log line (`time`, `level`, `logger`, `message`, `service`, extras) for every process, or readable text. |
+| `LOG_LEVEL` | `INFO` | Root log level of every process. |
+| `METRICS_TOKEN` | — | Bearer token required by `GET /metrics` (Prometheus format: request counts and latency by route, ARQ queue depth, outbox age and counts). Empty outside `local` = the route does not exist. |
 | `ALERT_WEBHOOK_URL` | — | Ops alert webhook (Slack-style `{"text": …}`; Mattermost-compatible, Discord via `/slack` suffix). Fired on outbox degraded/recovered state changes and when an ARQ outbox job is abandoned after 8 tries (~15 min of backoff). Empty = log only. **Recommended in production** |
 
 > **Authentication model (cookie).** The **refresh token** is delivered as an
@@ -299,7 +303,7 @@ takes precedence silently — check the badge before editing a `.env`.
 | Factures | `invoice_legal_footer` ← `INVOICE_LEGAL_FOOTER` |
 | Paiement | `payment_provider_{payzen,paypal,stripe}_enabled`, `payment_instructions_manual_{cash,check,transfer}` |
 | Notifications | `notifications_email_enabled` ← `PAYMENT_NOTIFICATIONS_EMAIL_ENABLED`, `notifications_slack_enabled` ← `PAYMENT_NOTIFICATIONS_SLACK_ENABLED`, `notifications_slack_webhook_url` ← `PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL` (secret) |
-| Commandes et stock | `stock_reservation_ttl_hours`, `cart_abandonment_reminder_delay_hours`, `cart_abandonment_max_age_days`, `checkout_supplier_availability_check`, `checkout_supplier_check_timeout_seconds` (same names in upper case) |
+| Commandes et stock | `stock_reservation_ttl_hours`, `dashboard_low_stock_threshold` (R8 / U7, dashboard « Stocks bas »), `cart_abandonment_reminder_delay_hours`, `cart_abandonment_max_age_days`, `checkout_supplier_availability_check`, `checkout_supplier_check_timeout_seconds` (same names in upper case) |
 | Fournisseurs | `supplier_delisting_grace_hours`, `supplier_file_import_inline_max_rows`, `supplier_file_import_max_rows` |
 | Icecat | `icecat_use_open`, `icecat_language`, `icecat_enrichment_interval_hours` ← `ICECAT_ENRICHMENT_CRON_INTERVAL_HOURS`, `icecat_batch_enrich_limit`, `icecat_enrichment_retry_cooldown_days` |
 | Logistique | `customs_free_countries`, `social_webhook_url` (secret) |
@@ -375,7 +379,7 @@ truth. All three are safe to leave at their defaults.
 **Confidentiality.** Purchase cost, supplier price, margin and customs rates of
 products (and the cost snapshots of order lines) are only serialized for a
 superuser's request; the public storefront API never returns them.
-| `CART_ABANDONMENT_REMINDER_DELAY_HOURS` | `24` | A logged-in customer's cart untouched for this long, never ordered, gets one reminder e-mail (hourly sweep, `cart.abandoned` outbox event). Customers can opt out of commercial e-mails in their preferences. `0` disables the sweep. |
+| `CART_ABANDONMENT_REMINDER_DELAY_HOURS` | `24` | A cart untouched for this long, never ordered, gets one reminder e-mail (hourly sweep, `cart.abandoned` outbox event): a customer's, or a visitor's server cart once they typed an e-mail in a form (stock alert, quote — R8 / U9; the storefront keeps the visitor's cart on the server under a random `X-Cart-Token` and merges it into the account at sign-in, the larger quantity winning per product). Customers can opt out of commercial e-mails in their preferences. `0` disables the sweep. |
 | `CART_ABANDONMENT_MAX_AGE_DAYS` | `14` | Carts older than this are never reminded. |
 | `SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS` | `2000` | A CSV / Excel catalog up to this many rows is imported inside the request. A larger file is stored (`FILE_STORAGE_BACKEND`), a sync log is opened and an ARQ job imports it; the admin screen polls the log. Simulations of a large file resolve only this many rows. |
 | `SUPPLIER_FILE_IMPORT_MAX_ROWS` | `250000` | Hard cap on a catalog file (worker memory). The upload itself is capped at 20 MB. |
@@ -439,6 +443,26 @@ superuser's request; the public storefront API never returns them.
 | `CLIENT_IP_HEADER` | *(empty)* | **Set automatically to `X-Forwarded-For` by `docker-compose.proxy.yml`** (Caddy in front; for Cloudflare see `CADDY_TRUSTED_PROXIES`, §9). Set it yourself only for another proxy setup. Name of the trusted header carrying the real client IP: `CF-Connecting-IP` (Cloudflare) or `X-Forwarded-For` (Caddy/nginx/traefik — the **last**, proxy-appended entry of the chain is used; earlier entries are client-forgeable). Used by the login rate limiter — left empty, all requests share the proxy's IP and the per-IP throttle (10 login attempts/min) becomes a **global** throttle for every customer. Leave empty **only** when the API is directly exposed (a forged header would otherwise bypass the throttle). |
 | `LOGIN_RATE_LIMIT_ATTEMPTS` | `10` | Login attempts per IP per window (Redis-backed, fail-open) |
 | `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | `60` | Throttle window |
+
+**Other per-IP limits (R8 / U5)** — fixed in code, same Redis fixed window
+(fail-open): sign-up code `POST /signup/send-otp` 5 / 10 min, stock alert
+`POST /stock-alerts` 10 / min, quote request `POST /cart/quote-request`
+10 / 10 min, guest quote `POST /cart/guest-quote-request` 5 / 10 min,
+`POST /cart/checkout` 10 / min. Over the limit the API answers `429` with
+`<scope>.rate_limited`. They rely on `CLIENT_IP_HEADER` as the login limiter
+does.
+
+**Captcha (Cloudflare Turnstile, R8 / U5)** — optional, configured in the
+back-office (*Paramètres → Sécurité*): `captcha_turnstile_site_key` (public,
+sent to the storefront by `GET /system/config`) and `captcha_turnstile_secret`.
+With both set, the sign-up code request, a visitor's stock alert and the guest
+quote must carry a Turnstile token (`X-Captcha-Token` header; the storefront
+widget adds it); the API verifies it at
+`https://challenges.cloudflare.com/turnstile/v0/siteverify` (`captcha.required`
+/ `captcha.failed`, 400) and fails open if Cloudflare does not answer. Create
+the widget at <https://dash.cloudflare.com/?to=/:account/turnstile> with the
+shop's bare domain; the storefront CSP already allows
+`challenges.cloudflare.com`. Leave both keys empty for no captcha.
 | `LOGIN_LOCKOUT_MAX_FAILURES` | `5` | Consecutive wrong passwords before the account locks |
 | `LOGIN_LOCKOUT_MINUTES` | `15` | Account lock duration |
 
@@ -506,6 +530,30 @@ for catalogue prices only. The display currencies offered are the active
 exchange rates (**Taux de change**). PayZen's payment page follows the order
 language.
 
+
+### 3.12 Customer data rights in self-service (R8 / U8)
+
+No configuration. From « Mon compte → Profil et sécurité » a customer can:
+
+- **download their data** — `GET /users/me/export` returns a JSON file
+  (profile, preferences, addresses, orders and lines, payments, quote
+  requests, stock alerts, favourites, reviews, group requests, notifications,
+  sign-in providers; never credentials or secrets), 5 exports an hour per
+  account;
+- **delete their account** — `POST /users/me/delete` with the e-mail typed
+  back and the password (not required for an account that only signs in with
+  Google / Microsoft). Addresses, favourites, preferences, notifications,
+  open carts, sign-in links and reviews are deleted; quote requests and stock
+  alerts are scrubbed; the user row becomes an anonymous, disabled shell
+  (`deleted-<id>@anonymised.invalid`) so that orders, invoices and payments
+  keep their reference for the legal retention period. Every session is
+  closed and an `account.deleted` entry is written to the audit log. An
+  order still in progress (neither delivered, cancelled nor refunded) blocks
+  the deletion (`409 account.delete.open_orders`); an administrator account
+  is removed from the back-office instead.
+
+The privacy page (`/confidentialite`) points to these two actions.
+
 ## 4. Frontend (Vite, build‑time)
 
 > **Docker build**: both frontend images accept a `VITE_API_URL` build arg
@@ -519,8 +567,10 @@ language.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `VITE_API_URL` | yes | Backend base URL **without** `/api/v1` (the client appends it), e.g. `https://api.example.com` |
-| `VITE_PUBLIC_SITE_URL` | no | Public storefront URL (SEO/canonical links) |
+| `VITE_PUBLIC_SITE_URL` | recommended | Public storefront origin (`https://example.com`): canonical links, Open Graph URLs, JSON-LD and the `sitemap.xml` URLs (R8 / U6). Set the GitHub environment variable of the same name for `deploy.yml`. Without it the SSR server derives the sitemap origin from the request host, and pages carry no canonical link. |
 | `VITE_OAUTH_ENABLED` | no | `true` shows the Google/Microsoft buttons on the login page. Leave unset/`false` until backend OAuth is configured (section 7) |
+
+Both fronts also take, at build time, `VITE_SENTRY_DSN` (browser-side Sentry, empty = off), `VITE_SENTRY_ENVIRONMENT` and `VITE_APP_RELEASE` (set by `deploy.yml` from the GitHub environment variable `VITE_SENTRY_DSN`, the target environment and the commit). 10 % of page loads are traced.
 
 ### Admin (`admin-frontend/`)
 
@@ -672,9 +722,12 @@ there; both run the same migrations and the same compose files.
    production files, then waits for `/api/v1/healthz/ready` (fails after
    5 minutes, printing the API logs).
 
-One deployment at a time per environment. **Rollback**: run it again on the
-previous commit (its images are rebuilt from cache if needed). Migrations do
-not go down by themselves — see below.
+One deployment at a time per environment. After a successful run the workflow
+tags the commit `deployed-<environment>-<UTC stamp>` and moves the floating
+tag `deployed-<environment>` onto it (R8 / U11): `git tag -l 'deployed-production-*'`
+is the deployment history. **Rollback**: run the workflow again with the
+previous stamped tag as *ref* (its images are still on GHCR, rebuilt from
+cache otherwise). Migrations do not go down by themselves — see below.
 
 **GitHub setup** — Settings → Environments → `staging` / `production`
 (add *Required reviewers* on `production` to approve each run):
@@ -789,6 +842,24 @@ routing.
 > setting makes `ADMIN_ALLOWED_IPS` match the visitor rather than Cloudflare.
 > Entries recorded before the fix keep the proxy address.
 
+### Content-Security-Policy (R8 / U4)
+
+Caddy sets a CSP on the storefront and on the admin (the API sets its own,
+`default-src 'none'`). Four optional variables in the root `.env`:
+
+| Variable | Default | Role |
+|----------|---------|------|
+| `CSP_HEADER` | `Content-Security-Policy` | Set to `Content-Security-Policy-Report-Only` to observe violations in the browser console (and in `CSP_REPORT`) without blocking anything — do this on staging for a full card payment before enforcing. |
+| `CSP_PAYMENT_SOURCES` | PayZen / Lyra (OSB) origins | Origins of the payment scripts, frames and calls loaded **in** the page (the PayZen SmartForm). PayPal redirects away: nothing to allow. Set it to your PSP's hosts if they differ (`PAYZEN_STATIC_URL`, the secure host of the form). |
+| `CSP_EXTRA_SOURCES` | — | Extra `connect-src` / `img-src` origins: the Sentry ingest host (`https://o123.ingest.sentry.io`), a public S3 bucket of product images… |
+| `CSP_REPORT` | — | A whole report directive, e.g. `report-uri https://o123.ingest.sentry.io/api/…/security/?sentry_key=…`. |
+
+The storefront policy keeps `'unsafe-inline'` on scripts and styles: Quasar's
+server rendering inlines the Pinia state in a `<script>` and Vue sets inline
+styles; a nonce cannot be injected from the proxy. The admin (a plain SPA with
+no third-party script) runs with `script-src 'self'`. Images may come from any
+`https:` origin (supplier catalogues).
+
 ### Prerequisites
 
 1. **DNS** — A/AAAA records for the bare domain, `www`, `api` and `admin` pointing
@@ -856,6 +927,12 @@ curl -I https://admin.example.com
 
 After the first deploy (migrations + `initial_data` + workers up), verify:
 
+**SEO (R8 / U6)** — served by the storefront's SSR server:
+```bash
+curl -s https://example.com/robots.txt      # Disallow on private paths + Sitemap line
+curl -s https://example.com/sitemap.xml | head   # static pages, then one <url> per product
+```
+
 **Health**
 ```bash
 curl -s $API/api/v1/healthz/liveness   # {"status":"alive","timestamp":...}
@@ -883,6 +960,23 @@ docker compose exec postgres psql -U postgres -d fastapi_ecommerce \
 **Supplier sync** — trigger one catalogue sync and confirm products are created (`is_supplier_managed=true`), an enrichment job is queued, enriched products flip to `is_enriched=true` and appear on the public `GET /api/v1/products`.
 
 **FX staleness** — there is no automatic FX cron yet; check that no active rate's `valid_from` is older than ~30 days, and refresh via `PUT /api/v1/admin/currency-rates/{code}` if needed.
+
+## 10bis. External supervision (R8 / U3)
+
+The stack reports on itself (Sentry, `/metrics`, the outbox health checker's
+webhook), which says nothing when the whole server is down. Point an external
+monitor (Uptime Kuma self-hosted, Better Stack, UptimeRobot…) at:
+
+| Probe | URL | Expect |
+|-------|-----|--------|
+| API readiness | `https://api.<domain>/api/v1/healthz/ready` | `200` with `"status": "ready"` (`503` when the database or Redis is down) |
+| Storefront (SSR) | `https://<domain>/` | `200`, body contains the shop name |
+| Admin | `https://admin.<domain>/` | `200` |
+| Metrics (optional) | `https://api.<domain>/metrics` with `Authorization: Bearer <METRICS_TOKEN>` | `200`; alert when `outbox_oldest_pending_seconds` grows past a few minutes or `arq_queue_depth` keeps climbing |
+
+Check every minute from two regions, alert after two consecutive failures, and
+send the alert to the same channel as `ALERT_WEBHOOK_URL`. The TLS certificate
+expiry is worth a probe too (Caddy renews it; the probe tells you if it stopped).
 
 ## 11. Operations runbook
 

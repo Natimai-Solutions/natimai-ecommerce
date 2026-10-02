@@ -183,6 +183,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageMeta } from '@/composables/usePageMeta';
 import { useI18n } from 'vue-i18n';
 import AppNotice from '@app/ui/AppNotice.vue';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -274,6 +275,9 @@ async function addRelatedToCart(item: RelatedProduct) {
 onMounted(async () => {
   await loadCart();
 });
+
+// R8 / U6 : a cart is private — never indexed.
+usePageMeta(() => ({ title: t('cart.title'), noindex: true }));
 </script>
 
 <style scoped lang="scss">

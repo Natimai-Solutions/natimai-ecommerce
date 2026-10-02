@@ -1,8 +1,9 @@
+import logging
+import time
 import uuid
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
-import sentry_sdk
 from fastapi import FastAPI, Request, Response
 from fastapi.routing import APIRoute
 from starlette.middleware.cors import CORSMiddleware
@@ -11,7 +12,10 @@ from app.api import api_router
 from app.core import security
 from app.core.config import settings
 from app.core.errors import register_error_handlers
+from app.core.logging_config import configure_logging
+from app.core.metrics import http_metrics
 from app.core.rate_limit import get_client_ip
+from app.core.sentry import init_sentry
 from app.features.system import audit
 from app.outbox.loader import load_handlers
 
@@ -21,33 +25,25 @@ def custom_generate_unique_id(route: APIRoute) -> str:
     return f"{route.tags[0]}-{route.name}"
 
 
-if settings.SENTRY_DSN and settings.ENVIRONMENT != "local":
-    sentry_sdk.init(
-        dsn=str(settings.SENTRY_DSN),
-        # `enable_tracing` est déprécié depuis sentry-sdk 2.x ; il valait
-        # traces_sample_rate=1.0, valeur reprise telle quelle par défaut.
-        traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
-        # Sans ça staging et production se mélangent dans la même vue.
-        environment=settings.ENVIRONMENT,
-    )
+configure_logging(service="api")
+init_sentry("api")
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
-    # Startup
-    """Execute lifespan."""
-    print("Loading outbox handlers...")
+    """Load the outbox handlers at start-up; log the shutdown."""
     load_handlers()
-
-    # Vérifier que les handlers sont bien enregistrés
     from app.outbox.registry import outbox_registry
 
-    print(f"Handlers enregistrés: {list(outbox_registry.handlers.keys())}")
+    logger.info(
+        "Outbox handlers registered",
+        extra={"handlers": sorted(outbox_registry.handlers.keys())},
+    )
 
     yield
 
-    # Shutdown
-    print("Shutting down...")
+    logger.info("Shutting down")
 
 
 app = FastAPI(
@@ -101,11 +97,25 @@ async def security_headers_middleware(
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    # A JSON API renders nothing: a page served from it (an error page, an
+    # uploaded file echoed back) can load no script and be framed nowhere
+    # (R8 / U4). The interactive docs (local / staging) load Swagger from a
+    # CDN and keep their own policy.
+    if not request.url.path.startswith(_DOCS_PATHS):
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; "
+            "form-action 'none'",
+        )
     if settings.ENVIRONMENT != "local":
         response.headers.setdefault(
             "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
         )
     return response
+
+
+#: Paths whose HTML loads Swagger / ReDoc from a CDN: no API CSP on them.
+_DOCS_PATHS = ("/docs", "/redoc", f"{settings.API_V1_STR}/openapi.json")
 
 
 @app.middleware("http")
@@ -173,3 +183,40 @@ if settings.all_cors_origins:
     )
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+
+@app.middleware("http")
+async def http_metrics_middleware(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    """Count and time every request for ``GET /metrics`` (R8 / U3).
+
+    The route *template* is the label (``/api/v1/product/{product_id}``), never
+    the raw path: a path per product would be as many series as products.
+    Unmatched paths (404 scans) are grouped under ``unmatched``.
+    """
+    started = time.perf_counter()
+    status = 500
+    try:
+        response = await call_next(request)
+        status = response.status_code
+        return response
+    finally:
+        template = getattr(request.scope.get("route"), "path", None)
+        if (
+            template
+            and not template.startswith(settings.API_V1_STR)
+            and template != "/metrics"
+        ):
+            template = f"{settings.API_V1_STR}{template}"
+        http_metrics.observe(
+            request.method.upper(),
+            template or "unmatched",
+            status,
+            time.perf_counter() - started,
+        )
+
+
+from app.api.routes import metrics as _metrics_routes  # noqa: E402
+
+app.include_router(_metrics_routes.router)

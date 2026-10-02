@@ -3,22 +3,32 @@
 The storefront « Mon compte → Profil » tab relies on these. The e-mail is
 shown but not editable here: changing it must prove ownership of the new
 address first (a verification flow that does not exist yet).
+
+R8 / U8 adds the customer's data rights in self-service: a JSON export of
+everything the shop holds (``GET /users/me/export``) and the erasure of the
+account (``POST /users/me/delete``), see ``features/user/services/privacy``.
 """
 
 from __future__ import annotations
 
 import datetime
+import json
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel, Field, field_validator
+from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep
+from app.core.auth_cookies import clear_refresh_cookie
 from app.core.config import settings
 from app.core.errors import AppError
-from app.core.rate_limit import hit_rate_limit
+from app.core.rate_limit import get_client_ip, hit_rate_limit
 from app.core.security import get_password_hash, verify_password
+from app.features.system import audit
 from app.features.user.crud.refresh_token import crud_user_refresh_token
+from app.features.user.models.oauth_link import UserOAuthLink
+from app.features.user.services.privacy import erase_account, export_account
 
 router = APIRouter(prefix="/users/me", tags=["user"])
 
@@ -53,6 +63,15 @@ class MyPasswordChange(BaseModel):
 
     current_password: str = Field(min_length=1, max_length=128)
     new_password: str = Field(min_length=8, max_length=128)
+
+
+class MyAccountDeletion(BaseModel):
+    """Erase my account: the e-mail typed back, and the password when the
+    account has one (an account opened with Google / Microsoft only may
+    leave it empty)."""
+
+    confirmation: str = Field(min_length=1, max_length=255)
+    password: str | None = Field(default=None, max_length=128)
 
 
 def _profile_of(user: CurrentUser) -> MyProfilePublic:
@@ -132,3 +151,101 @@ async def change_my_password(
         session=session, user_id=current_user.id, reason="password_change"
     )
     await session.commit()
+
+
+@router.get(
+    "/export",
+    summary="Export my data (JSON)",
+    response_class=Response,
+    responses={200: {"content": {"application/json": {}}}},
+)
+async def export_my_data(session: SessionDep, current_user: CurrentUser) -> Response:
+    """Download everything the shop holds about me, as a JSON file (R8 / U8).
+
+    Five exports an hour per account: the file is cheap to build but it is
+    the whole history, and a leaked session must not drain it in a loop.
+    """
+    if await hit_rate_limit(
+        f"account-export:user:{current_user.id}", limit=5, window_seconds=3600
+    ):
+        raise AppError(
+            code="account.export.rate_limited",
+            status_code=429,
+            message="Trop d'exports : réessayez dans une heure.",
+        )
+    payload = await export_account(session, current_user)
+    stamp = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d")
+    return Response(
+        content=json.dumps(payload, ensure_ascii=False, indent=2),
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="mes-donnees-{stamp}.json"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@router.post("/delete", status_code=204, summary="Erase my account")
+async def delete_my_account(
+    payload: MyAccountDeletion,
+    request: Request,
+    response: Response,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> None:
+    """Erase my personal data and close the account (R8 / U8).
+
+    The e-mail typed back guards against a stray click; the password proves
+    the person at the keyboard is the account holder (not required for an
+    account that only ever signed in through Google / Microsoft). Orders,
+    invoices and payments stay for the legal retention period, detached from
+    any name, e-mail or phone; an order still in progress blocks the erasure.
+    """
+    if await hit_rate_limit(
+        f"account-delete:user:{current_user.id}",
+        limit=settings.LOGIN_RATE_LIMIT_ATTEMPTS,
+        window_seconds=settings.LOGIN_RATE_LIMIT_WINDOW_SECONDS,
+    ):
+        raise AppError(
+            code="account.delete.rate_limited",
+            status_code=429,
+            message="Trop de tentatives. Réessayez dans quelques minutes.",
+        )
+    if payload.confirmation.strip().lower() != current_user.email.lower():
+        raise AppError(
+            code="account.delete.confirmation_mismatch",
+            status_code=400,
+            message="Saisissez l'adresse e-mail du compte pour confirmer.",
+            details={"field": "confirmation"},
+        )
+    has_provider = (
+        await session.exec(
+            select(UserOAuthLink.id).where(
+                col(UserOAuthLink.user_id) == current_user.id
+            )
+        )
+    ).first() is not None
+    if payload.password or not has_provider:
+        if not payload.password or not verify_password(
+            payload.password, current_user.hashed_password or ""
+        ):
+            raise AppError(
+                code="user.password.invalid_current",
+                status_code=400,
+                message="Le mot de passe actuel est incorrect.",
+                details={"field": "password"},
+            )
+    user_id = current_user.id
+    await erase_account(session, current_user)
+    clear_refresh_cookie(response)
+    await audit.record(
+        event="account.deleted",
+        actor_id=user_id,
+        method="POST",
+        path=str(request.url.path),
+        status_code=204,
+        ip=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        details={"reason": "customer_request"},
+        session=session,
+    )

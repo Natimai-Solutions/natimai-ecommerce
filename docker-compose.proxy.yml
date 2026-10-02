@@ -29,6 +29,13 @@ services:
       # Proxies amont dont on croit l'en-tête d'adresse (plages Cloudflare si
       # le domaine passe par Cloudflare). Jamais vide : défaut = aucun.
       - "CADDY_TRUSTED_PROXIES=${CADDY_TRUSTED_PROXIES:-127.0.0.1/32}"
+      # Content-Security-Policy des fronts (Caddyfile, R8 / U4) : en-tête
+      # appliqué ou en observation, origines des prestataires de paiement,
+      # origines supplémentaires (Sentry, bucket d'images), rapport.
+      - "CSP_HEADER=${CSP_HEADER:-Content-Security-Policy}"
+      - "CSP_PAYMENT_SOURCES=${CSP_PAYMENT_SOURCES:-https://static.osb.pf https://secure.osb.pf https://*.lyra.com https://*.payzen.eu}"
+      - "CSP_EXTRA_SOURCES=${CSP_EXTRA_SOURCES:-}"
+      - "CSP_REPORT=${CSP_REPORT:-}"
     volumes:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data # certificats Let's Encrypt — À PERSISTER (évite le rate-limit ACME)

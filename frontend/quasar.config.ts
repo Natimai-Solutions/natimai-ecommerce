@@ -13,7 +13,7 @@ export default defineConfig((ctx) => {
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: ['design', 'i18n', 'auth'],
+    boot: ['design', 'i18n', 'auth', 'sentry'],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css
     css: ['app.scss'],
@@ -175,6 +175,7 @@ export default defineConfig((ctx) => {
       // (gets superseded if process.env.PORT is specified at runtime)
 
       middlewares: [
+        'seo', // robots.txt and sitemap.xml (R8 / U6)
         'render', // keep this as last one
       ],
 

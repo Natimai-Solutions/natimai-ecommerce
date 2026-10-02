@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from fastapi import Request
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.routes.stock_alerts import (
@@ -27,6 +28,13 @@ from app.features.product.services.stock_alert import (
     product_orderable,
 )
 from app.features.user.models.user import User
+
+
+def _request() -> Request:
+    """Un stub de requête : la route n'en lit que l'IP et l'en-tête captcha."""
+    return cast(
+        Request, SimpleNamespace(headers={}, client=SimpleNamespace(host="10.0.0.1"))
+    )
 
 
 def test_orderability_mirrors_the_storefront_rule() -> None:
@@ -77,26 +85,30 @@ async def test_alerts_are_sent_once_when_the_product_is_back(
     # once per e-mail (the account's when signed in, a typed one otherwise).
     with pytest.raises(AppError) as refused:
         await subscribe_stock_alert(
-            StockAlertSubscribe(product_id=available_id), db_session, buyer_view
+            StockAlertSubscribe(product_id=available_id),
+            _request(),
+            db_session,
+            buyer_view,
         )
     assert refused.value.code == "stock_alert.orderable"
     first = await subscribe_stock_alert(
-        StockAlertSubscribe(product_id=product_id), db_session, buyer_view
+        StockAlertSubscribe(product_id=product_id), _request(), db_session, buyer_view
     )
     again = await subscribe_stock_alert(
-        StockAlertSubscribe(product_id=product_id), db_session, buyer_view
+        StockAlertSubscribe(product_id=product_id), _request(), db_session, buyer_view
     )
     assert first.id == again.id and first.email == buyer_email
     assert first.product_name == "Clavier"
     guest = await subscribe_stock_alert(
         StockAlertSubscribe(product_id=product_id, email="Visiteur@Example.PF"),
+        _request(),
         db_session,
         None,
     )
     assert guest.user_id is None and guest.email == "visiteur@example.pf"
     with pytest.raises(AppError) as no_email:
         await subscribe_stock_alert(
-            StockAlertSubscribe(product_id=product_id), db_session, None
+            StockAlertSubscribe(product_id=product_id), _request(), db_session, None
         )
     assert no_email.value.code == "stock_alert.email_required"
 
@@ -123,7 +135,7 @@ async def test_alerts_are_sent_once_when_the_product_is_back(
     db_session.add(gone)
     await db_session.commit()
     pending = await subscribe_stock_alert(
-        StockAlertSubscribe(product_id=product_id), db_session, buyer_view
+        StockAlertSubscribe(product_id=product_id), _request(), db_session, buyer_view
     )
     await cancel_my_stock_alert(pending.id, db_session, buyer_view)
     assert {a.status for a in await list_my_stock_alerts(db_session, buyer_view)} == {

@@ -108,6 +108,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageMeta } from '@/composables/usePageMeta';
 import { useI18n } from 'vue-i18n';
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
@@ -247,4 +248,6 @@ function applyStatus(status: PaymentStatusResponse): boolean {
   }
   return true;
 }
+
+usePageMeta(() => ({ title: t('payment_return.checking'), noindex: true }));
 </script>

@@ -446,8 +446,11 @@ async def oauth_callback(
 ) -> RedirectResponse:
     """Handle the OAuth provider callback.
 
-    Exchanges the authorization code, resolves the user, issues JWT tokens,
-    and redirects the browser to the frontend with the tokens in query params.
+    Exchanges the authorization code, resolves the user, issues the JWT pair
+    and redirects the browser to the frontend: the refresh token travels as an
+    HttpOnly cookie set on this response, never in the URL; the page then
+    obtains its in-memory access token from ``/login/refresh-token``. A
+    failure redirects with ``?error=<code>``.
     """
     _check_provider(provider)
 

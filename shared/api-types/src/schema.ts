@@ -805,6 +805,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Payments
+         * @description Every payment, newest first, with its status, method, customer and order (A19).
+         *
+         *     ``q`` searches the order number, the provider reference and the customer's
+         *     name or e-mail; ``status`` and ``provider_code`` filter exactly; the dates
+         *     bound the creation day (inclusive). The validation screen keeps its own
+         *     narrower list (``/pending-validation``): this one is the ledger.
+         */
+        get: operations["admin-payment-list_payments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payments/pending-validation": {
         parameters: {
             query?: never;
@@ -3704,6 +3729,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product/sitemap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sitemap Products
+         * @description Id, name and last change of every product the storefront shows.
+         *
+         *     Read by the storefront's SSR server to build ``/sitemap.xml`` (R8 / U6):
+         *     the same visibility rules as the catalogue search, no price nor stock,
+         *     capped at the 50 000 URLs a sitemap file may hold.
+         */
+        get: operations["product-sitemap_products"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/product/featured": {
         parameters: {
             query?: never;
@@ -3967,6 +4016,88 @@ export interface paths {
         get: operations["cart-get_my_cart"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/guest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Guest Cart
+         * @description The visitor's server cart; empty (and not created) when there is none.
+         */
+        get: operations["cart-get_guest_cart"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Attach Guest Cart Email
+         * @description Keep on the visitor's cart the e-mail they typed in a form (R8 / U9).
+         *
+         *     The storefront calls it after a stock alert or a quote request from a
+         *     visitor: it is what lets the « panier oublié » reminder reach them.
+         */
+        patch: operations["cart-attach_guest_cart_email"];
+        trace?: never;
+    };
+    "/api/v1/cart/guest/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace Guest Cart Items
+         * @description Mirror the visitor's browser cart into their server cart (R8 / U9).
+         *
+         *     Same contract as ``PUT /cart/items`` for an account: whole content, one
+         *     transaction, products validated and priced at the reference price. The
+         *     server copy is what the abandoned-cart reminder and the merge at sign-in
+         *     read; the browser stays the source of truth until checkout.
+         */
+        put: operations["cart-replace_guest_cart_items"];
+        post?: never;
+        /**
+         * Clear Guest Cart
+         * @description Empty the visitor's server cart (nothing is created when there is none).
+         */
+        delete: operations["cart-clear_guest_cart"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge Guest Cart
+         * @description Fold the visitor's cart into the account's at sign-in (R8 / U9).
+         *
+         *     Lines of both carts are kept; a product present in both takes the larger
+         *     quantity (never the sum: the browser mirrors the same cart as a guest and
+         *     as a customer, summing would double it). A product no longer sellable is
+         *     dropped silently — the sign-in must not fail on a stale line. The guest
+         *     cart is then retired; the storefront forgets its token.
+         */
+        post: operations["cart-merge_guest_cart"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5846,6 +5977,55 @@ export interface paths {
          *     sets one.
          */
         post: operations["user-change_my_password"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export my data (JSON)
+         * @description Download everything the shop holds about me, as a JSON file (R8 / U8).
+         *
+         *     Five exports an hour per account: the file is cheap to build but it is
+         *     the whole history, and a leaked session must not drain it in a loop.
+         */
+        get: operations["user-export_my_data"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Erase my account
+         * @description Erase my personal data and close the account (R8 / U8).
+         *
+         *     The e-mail typed back guards against a stray click; the password proves
+         *     the person at the keyboard is the account holder (not required for an
+         *     account that only ever signed in through Google / Microsoft). Orders,
+         *     invoices and payments stay for the legal retention period, detached from
+         *     any name, e-mail or phone; an order still in progress blocks the erasure.
+         */
+        post: operations["user-delete_my_account"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8390,6 +8570,7 @@ export interface components {
         AdminDashboard: {
             todo: components["schemas"]["DashboardTodo"];
             activity: components["schemas"]["DashboardActivity"];
+            stock: components["schemas"]["DashboardStock"];
             next_departure?: components["schemas"]["DashboardDeparture"] | null;
         };
         /**
@@ -9942,11 +10123,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /**
-             * User Id
-             * Format: uuid
-             */
-            user_id: string;
+            /** User Id */
+            user_id?: string | null;
             /** Currency */
             currency: string;
             /** Total Amount */
@@ -11157,6 +11335,11 @@ export interface components {
              */
             orders_7d: number;
             /**
+             * Orders 30D
+             * @default 0
+             */
+            orders_30d: number;
+            /**
              * Revenue 7D
              * @default 0
              */
@@ -11166,6 +11349,20 @@ export interface components {
              * @default 0
              */
             revenue_30d: string;
+            /** Average Basket 30D */
+            average_basket_30d?: string | null;
+            /**
+             * Carts 30D
+             * @default 0
+             */
+            carts_30d: number;
+            /**
+             * Carts Ordered 30D
+             * @default 0
+             */
+            carts_ordered_30d: number;
+            /** Conversion 30D Pct */
+            conversion_30d_pct?: string | null;
         };
         /**
          * DashboardDeparture
@@ -11190,6 +11387,27 @@ export interface components {
              * @default 0
              */
             orders_count: number;
+        };
+        /**
+         * DashboardStock
+         * @description Stock watch of the storefront products sold from stock (R8 / U7).
+         */
+        DashboardStock: {
+            /**
+             * Low Stock Threshold
+             * @default 2
+             */
+            low_stock_threshold: number;
+            /**
+             * Low Stock
+             * @default 0
+             */
+            low_stock: number;
+            /**
+             * Out Of Stock
+             * @default 0
+             */
+            out_of_stock: number;
         };
         /**
          * DashboardTodo
@@ -12814,6 +13032,17 @@ export interface components {
             count: number;
         };
         /**
+         * GuestCartEmail
+         * @description The e-mail a visitor typed in a form, kept on their cart for the reminder.
+         */
+        GuestCartEmail: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+        };
+        /**
          * GuestQuoteRequestItem
          * @description Represents a guest quote request line item.
          */
@@ -13693,6 +13922,18 @@ export interface components {
         ModuleWrite: {
             /** Enabled */
             enabled: boolean;
+        };
+        /**
+         * MyAccountDeletion
+         * @description Erase my account: the e-mail typed back, and the password when the
+         *     account has one (an account opened with Google / Microsoft only may
+         *     leave it empty).
+         */
+        MyAccountDeletion: {
+            /** Confirmation */
+            confirmation: string;
+            /** Password */
+            password?: string | null;
         };
         /**
          * MyOrderDetail
@@ -15610,6 +15851,71 @@ export interface components {
              * @description ID of the user making the payment
              */
             user_id: string;
+        };
+        /**
+         * PaymentListItem
+         * @description One row of the general payments list (A19).
+         */
+        PaymentListItem: {
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Provider Code */
+            provider_code: string;
+            /** Provider Reference */
+            provider_reference?: string | null;
+            /** Amount */
+            amount: number;
+            /** Currency */
+            currency: string;
+            /** Status */
+            status?: string | null;
+            /** Method Name */
+            method_name?: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** User Name */
+            user_name?: string | null;
+            /** User Email */
+            user_email?: string | null;
+            /** Order Id */
+            order_id?: string | null;
+            /** Order Number */
+            order_number?: string | null;
+            /**
+             * Is Document
+             * @default false
+             */
+            is_document: boolean;
+            /**
+             * Received Amount
+             * @default 0
+             */
+            received_amount: number;
+        };
+        /**
+         * PaymentListResponse
+         * @description A page of payments, the total and the filter values in use.
+         */
+        PaymentListResponse: {
+            /** Data */
+            data?: components["schemas"]["PaymentListItem"][];
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /** Statuses */
+            statuses?: string[];
+            /** Provider Codes */
+            provider_codes?: string[];
         };
         /**
          * PaymentMethodCreate
@@ -20261,6 +20567,8 @@ export interface components {
              * @default XPF
              */
             default_display_currency: string;
+            /** Captcha Site Key */
+            captcha_site_key?: string | null;
         };
         /**
          * Shortage
@@ -20294,6 +20602,29 @@ export interface components {
         SignupTokenResponse: {
             /** Signup Token */
             signup_token: string;
+        };
+        /**
+         * SitemapEntry
+         * @description One storefront product for ``sitemap.xml`` (R8 / U6).
+         */
+        SitemapEntry: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Modify At */
+            modify_at?: string | null;
+        };
+        /**
+         * SitemapResponse
+         * @description The products the storefront may list in its sitemap.
+         */
+        SitemapResponse: {
+            /** Items */
+            items?: components["schemas"]["SitemapEntry"][];
         };
         /**
          * SkuSummaryRow
@@ -23952,6 +24283,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminDashboard"];
+                };
+            };
+        };
+    };
+    "admin-payment-list_payments": {
+        parameters: {
+            query?: {
+                q?: string | null;
+                status?: string | null;
+                provider_code?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -29089,6 +29457,26 @@ export interface operations {
             };
         };
     };
+    "product-sitemap_products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SitemapResponse"];
+                };
+            };
+        };
+    };
     "product-get_featured_products": {
         parameters: {
             query?: {
@@ -29691,6 +30079,172 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CartDetailPublic"];
+                };
+            };
+        };
+    };
+    "cart-get_guest_cart": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Token of the visitor's cart, generated by the storefront */
+                "X-Cart-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CartDetailPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "cart-attach_guest_cart_email": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Token of the visitor's cart, generated by the storefront */
+                "X-Cart-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuestCartEmail"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "cart-replace_guest_cart_items": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Token of the visitor's cart, generated by the storefront */
+                "X-Cart-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CartReplaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CartDetailPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "cart-clear_guest_cart": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Token of the visitor's cart, generated by the storefront */
+                "X-Cart-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CartDetailPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "cart-merge_guest_cart": {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Token of the visitor's cart, generated by the storefront */
+                "X-Cart-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CartDetailPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -33984,6 +34538,57 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["MyPasswordChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "user-export_my_data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    "user-delete_my_account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MyAccountDeletion"];
             };
         };
         responses: {

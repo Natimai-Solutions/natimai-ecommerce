@@ -8,8 +8,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from tenacity import after_log, before_log, retry, stop_after_attempt, wait_fixed
 
 from app.core.db import engine
+from app.core.logging_config import configure_logging
 
-logging.basicConfig(level=logging.INFO)
+configure_logging(service="pre-start")
 logger = logging.getLogger(__name__)
 
 max_tries = 60 * 5  # 5 minutes

@@ -28,6 +28,7 @@ from pydantic import BaseModel
 
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.core import runtime_settings as rs
+from app.core.captcha import captcha_site_key
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.i18n import get_default_locale, get_offered_locales
@@ -74,6 +75,8 @@ class ShopConfigPublic(BaseModel):
     timezone: str = "Pacific/Tahiti"
     #: Display currency proposed to a visitor who chose none.
     default_display_currency: str = "XPF"
+    #: Cloudflare Turnstile site key of the public forms; None = no captcha.
+    captcha_site_key: str | None = None
 
 
 class RuntimeSettingPublic(BaseModel):
@@ -171,6 +174,7 @@ async def get_shop_config(session: SessionDep) -> ShopConfigPublic:
             await rs.get("default_display_currency", session)
             or settings.REFERENCE_CURRENCY
         ),
+        captcha_site_key=(await captcha_site_key(session)) or None,
     )
 
 

@@ -12,15 +12,18 @@ export interface StockAlert {
   created_at: string | null;
 }
 
-/** Works signed out too: then the e-mail is required. */
+/** Works signed out too: then the e-mail is required, and the captcha
+ * headers when the shop has one (`useTurnstile().headers()`). */
 export async function subscribeStockAlert(
   productId: string,
   email?: string | null,
+  headers: Record<string, string> = {},
 ): Promise<StockAlert> {
-  const { data } = await api.post<StockAlert>('/stock-alerts', {
-    product_id: productId,
-    email: email || null,
-  });
+  const { data } = await api.post<StockAlert>(
+    '/stock-alerts',
+    { product_id: productId, email: email || null },
+    { headers },
+  );
   return data;
 }
 

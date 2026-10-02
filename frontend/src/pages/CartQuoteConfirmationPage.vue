@@ -32,6 +32,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { usePageMeta } from '@/composables/usePageMeta';
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 
@@ -47,4 +49,7 @@ const customerEmail = computed(() => {
   const normalized = value.trim().toLowerCase();
   return /^(?:[^\s@]+)@(?:[^\s@]+)\.[^\s@]+$/.test(normalized) ? normalized : '';
 });
+
+const { t } = useI18n();
+usePageMeta(() => ({ title: t('quote_sent.title'), noindex: true }));
 </script>

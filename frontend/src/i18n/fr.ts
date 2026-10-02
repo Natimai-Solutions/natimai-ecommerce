@@ -21,6 +21,7 @@ const fr = {
     currency: "Devise d'affichage",
   },
   layout: {
+    home: 'Accueil',
     menu: 'Menu',
     main_nav: 'Navigation principale',
     catalogue: 'Catalogue',
@@ -424,6 +425,7 @@ const fr = {
     no_account: 'Pas encore de compte ?',
     or: 'ou',
     password: 'Mot de passe',
+    account_deleted: 'Votre compte a été supprimé. Merci de votre confiance.',
     password_changed: 'Mot de passe modifié. Reconnectez-vous avec le nouveau.',
     password_confirm: 'Confirmer le mot de passe',
     password_mismatch: 'Les mots de passe ne correspondent pas',
@@ -670,6 +672,23 @@ const fr = {
   profile: {
     change: 'Changer le mot de passe',
     change_failed: 'Le mot de passe n’a pas pu être changé.',
+    data_download: 'Télécharger mes données (JSON)',
+    data_download_failed: "Le téléchargement n'a pas abouti. Réessayez dans un instant.",
+    data_hint:
+      'Vos droits d’accès et d’effacement, sans nous écrire : un fichier avec tout ce que nous conservons, ou la suppression du compte.',
+    data_title: 'Mes données',
+    delete_button: 'Supprimer mon compte',
+    delete_confirm: 'Supprimer définitivement',
+    delete_confirm_label: 'Saisissez votre adresse ({email}) pour confirmer',
+    delete_failed: 'La suppression n’a pas abouti.',
+    delete_hint:
+      'La suppression efface vos données personnelles ; les commandes et factures sont conservées anonymisées pendant la durée légale. Une commande en cours doit d’abord être livrée ou annulée.',
+    delete_password: 'Mot de passe',
+    delete_password_hint:
+      'Laissez vide si vous vous connectez uniquement avec Google ou Microsoft.',
+    delete_text:
+      'Cette action est définitive : adresses, favoris, préférences et accès sont supprimés, et vous serez déconnecté de tous vos appareils.',
+    delete_title: 'Supprimer mon compte ?',
     confirm: 'Confirmer le nouveau mot de passe',
     current: 'Mot de passe actuel',
     email: 'Adresse e-mail',
