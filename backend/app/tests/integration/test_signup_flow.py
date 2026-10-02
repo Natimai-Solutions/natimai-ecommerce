@@ -1,9 +1,11 @@
 """Integration tests for the email-OTP signup completion (real DB)."""
 
 import uuid
+from types import SimpleNamespace
+from typing import cast
 
 import pytest
-from fastapi import Response
+from fastapi import Request, Response
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.routes.signup import (
@@ -17,6 +19,13 @@ from app.features.user.crud.user import crud_user
 from app.features.user.models.user import User
 from app.features.user.services.otp_service import create_otp, verify_otp
 from app.tests.utils.fake_redis import fake_redis
+
+
+def _request() -> Request:
+    """Un stub de requête : la route n'en lit que l'IP et l'en-tête captcha."""
+    return cast(
+        Request, SimpleNamespace(headers={}, client=SimpleNamespace(host="10.0.0.1"))
+    )
 
 
 @pytest.mark.asyncio
@@ -63,6 +72,9 @@ async def test_send_otp_refuses_existing_email(db_session: AsyncSession) -> None
 
     with pytest.raises(AppError) as exc:
         await send_otp(
-            body=SendOtpRequest(email=email), session=db_session, redis=fake_redis()
+            body=SendOtpRequest(email=email),
+            request=_request(),
+            session=db_session,
+            redis=fake_redis(),
         )
     assert exc.value.code == "signup.email_exists"

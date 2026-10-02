@@ -232,6 +232,8 @@ export const useCartStore = defineStore('cart', () => {
     customer_phone?: string | null;
     shipping_address?: string | null;
     notes?: string | null;
+    /** Captcha headers of the form (`useTurnstile().headers()`). */
+    headers?: Record<string, string>;
   }): Promise<GuestQuoteRequestResponse | null> {
     quoteSubmitting.value = true;
     error.value = null;
@@ -250,22 +252,26 @@ export const useCartStore = defineStore('cart', () => {
         return null;
       }
 
-      const response = await createGuestQuoteRequest({
-        customer_email: customerEmail,
-        customer_name: payload.customer_name ?? null,
-        customer_phone: payload.customer_phone ?? null,
-        shipping_address: payload.shipping_address ?? null,
-        notes: payload.notes ?? null,
-        currency: cart.value.currency,
-        items: detailedItems.value.map((entry) => ({
-          product_id: entry.item.product_id,
-          product_name: entry.product?.name ?? `Produit ${entry.item.product_id.slice(0, 8)}`,
-          product_image_url: entry.product?.image_url ?? entry.product?.supplier_image_url ?? null,
-          quantity: entry.item.quantity,
-          unit_price: entry.item.unit_price,
-          line_total: entry.item.line_total,
-        })),
-      });
+      const response = await createGuestQuoteRequest(
+        {
+          customer_email: customerEmail,
+          customer_name: payload.customer_name ?? null,
+          customer_phone: payload.customer_phone ?? null,
+          shipping_address: payload.shipping_address ?? null,
+          notes: payload.notes ?? null,
+          currency: cart.value.currency,
+          items: detailedItems.value.map((entry) => ({
+            product_id: entry.item.product_id,
+            product_name: entry.product?.name ?? `Produit ${entry.item.product_id.slice(0, 8)}`,
+            product_image_url:
+              entry.product?.image_url ?? entry.product?.supplier_image_url ?? null,
+            quantity: entry.item.quantity,
+            unit_price: entry.item.unit_price,
+            line_total: entry.item.line_total,
+          })),
+        },
+        payload.headers ?? {},
+      );
 
       quoteMessage.value = response.message;
       quoteEmailDelivered.value = response.email_delivered;

@@ -65,9 +65,12 @@ export const useAuthStore = defineStore('auth', () => {
     error?: string;
   }
 
-  async function sendSignupOtp(email: string): Promise<StepResult> {
+  async function sendSignupOtp(
+    email: string,
+    headers: Record<string, string> = {},
+  ): Promise<StepResult> {
     try {
-      await api.post('/signup/send-otp', { email });
+      await api.post('/signup/send-otp', { email }, { headers });
       return { ok: true };
     } catch (err) {
       return { ok: false, error: extractErrorMessage(err) ?? "Impossible d'envoyer le code." };

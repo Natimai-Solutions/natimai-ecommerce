@@ -421,6 +421,11 @@
                     $t('product.invalid_email'),
                 ]"
               />
+              <div
+                v-if="captcha.enabled.value && !authStore.isAuthenticated"
+                ref="captchaEl"
+                class="q-mt-md"
+              />
               <AppNotice v-if="alertError" tone="error" dense class="q-mt-sm">
                 {{ alertError }}
               </AppNotice>
@@ -433,6 +438,7 @@
                 color="primary"
                 :label="$t('product.notify_me')"
                 :loading="alertSaving"
+                :disable="!authStore.isAuthenticated && !captcha.ready.value"
               />
             </q-card-actions>
           </q-form>
@@ -478,6 +484,7 @@ import { useI18n } from 'vue-i18n';
 import { formatDate } from '@app/utils';
 import { useDepartureLabels } from '@/composables/useDepartureLabels';
 import { useTranslate } from '@/composables/useTranslate';
+import { useTurnstile } from '@/composables/useTurnstile';
 import { useShopModulesStore } from '@/stores/shopModules';
 import { getProductRouteByIdAndName, slugifyProductName } from '@/utils/productRoute';
 
@@ -588,6 +595,11 @@ async function toggleWishlist() {
 }
 const alertDialog = ref(false);
 const alertEmail = ref('');
+// A visitor's alert goes through the captcha when the shop has one (R8 / U5);
+// the dialog mounts the widget each time it opens.
+const captcha = useTurnstile();
+const captchaEl = ref<HTMLElement | null>(null);
+watch(captchaEl, (el) => void captcha.mount(el, locale.value));
 const alertSaving = ref(false);
 const alertError = ref<string | null>(null);
 const alertNotice = ref<string | null>(null);
@@ -604,7 +616,12 @@ async function submitAlert() {
   alertSaving.value = true;
   alertError.value = null;
   try {
-    const alert = await subscribeStockAlert(product.value.id, alertEmail.value.trim() || null);
+    const alert = await subscribeStockAlert(
+      product.value.id,
+      alertEmail.value.trim() || null,
+      captcha.headers(),
+    );
+    captcha.reset(); // a Turnstile token is single-use
     alertDialog.value = false;
     alertNotice.value = t('product.alert_ok', { email: alert.email });
   } catch (err) {

@@ -8,17 +8,19 @@ from enum import Enum
 from time import perf_counter
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm.attributes import set_committed_value
 from sqlmodel import col, or_, select
 
 from app.api.deps import CurrentUser, SessionDep, module_required
 from app.core import runtime_settings
+from app.core.captcha import require_captcha
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.i18n import request_locale
 from app.core.observability import log_structured_event, observe_checkout_result
+from app.core.rate_limit import rate_limited
 from app.features.cart.crud.cart import crud_cart, crud_cart_item
 from app.features.cart.crud.quote_request import crud_quote_request
 from app.features.cart.models.cart import (
@@ -1800,7 +1802,11 @@ async def _send_quote_support_email(
 
 @router.post(
     "/quote-request",
-    dependencies=[Depends(module_required("quotes"))],
+    dependencies=[
+        Depends(module_required("quotes")),
+        # R8 / U5: a quote is an e-mail to the shop; 10 per address and 10 min.
+        Depends(rate_limited("quote_request", limit=10, window_seconds=600)),
+    ],
     response_model=QuoteRequestResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -2073,12 +2079,17 @@ async def accept_my_quote(
 
 @router.post(
     "/guest-quote-request",
-    dependencies=[Depends(module_required("quotes"))],
+    dependencies=[
+        Depends(module_required("quotes")),
+        # R8 / U5: a public form — 5 requests per address and 10 minutes.
+        Depends(rate_limited("guest_quote", limit=5, window_seconds=600)),
+    ],
     response_model=GuestQuoteRequestResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_guest_quote_request(
     payload: GuestQuoteRequestSubmit,
+    request: Request,
     session: SessionDep,
 ) -> GuestQuoteRequestResponse:
     """Enregistrer puis transmettre une demande de devis d'un visiteur.
@@ -2087,6 +2098,7 @@ async def create_guest_quote_request(
     sous forme d'email, et un échec d'envoi la perdait définitivement alors que
     l'endpoint répondait 201. Le back-office (A11) est désormais le filet.
     """
+    await require_captcha(request, session)
     support_email = str(
         await runtime_settings.get("email_support", session) or ""
     ).strip()
@@ -2749,6 +2761,9 @@ async def get_last_leg_options(
     "/checkout",
     response_model=CheckoutResponse,
     status_code=status.HTTP_201_CREATED,
+    # R8 / U5: a checkout reserves stock and may open a payment; 10 per
+    # address and minute is far above a customer, far below a script.
+    dependencies=[Depends(rate_limited("checkout", limit=10, window_seconds=60))],
 )
 async def checkout_my_cart(
     session: SessionDep,

@@ -443,6 +443,26 @@ superuser's request; the public storefront API never returns them.
 | `CLIENT_IP_HEADER` | *(empty)* | **Set automatically to `X-Forwarded-For` by `docker-compose.proxy.yml`** (Caddy in front; for Cloudflare see `CADDY_TRUSTED_PROXIES`, §9). Set it yourself only for another proxy setup. Name of the trusted header carrying the real client IP: `CF-Connecting-IP` (Cloudflare) or `X-Forwarded-For` (Caddy/nginx/traefik — the **last**, proxy-appended entry of the chain is used; earlier entries are client-forgeable). Used by the login rate limiter — left empty, all requests share the proxy's IP and the per-IP throttle (10 login attempts/min) becomes a **global** throttle for every customer. Leave empty **only** when the API is directly exposed (a forged header would otherwise bypass the throttle). |
 | `LOGIN_RATE_LIMIT_ATTEMPTS` | `10` | Login attempts per IP per window (Redis-backed, fail-open) |
 | `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | `60` | Throttle window |
+
+**Other per-IP limits (R8 / U5)** — fixed in code, same Redis fixed window
+(fail-open): sign-up code `POST /signup/send-otp` 5 / 10 min, stock alert
+`POST /stock-alerts` 10 / min, quote request `POST /cart/quote-request`
+10 / 10 min, guest quote `POST /cart/guest-quote-request` 5 / 10 min,
+`POST /cart/checkout` 10 / min. Over the limit the API answers `429` with
+`<scope>.rate_limited`. They rely on `CLIENT_IP_HEADER` as the login limiter
+does.
+
+**Captcha (Cloudflare Turnstile, R8 / U5)** — optional, configured in the
+back-office (*Paramètres → Sécurité*): `captcha_turnstile_site_key` (public,
+sent to the storefront by `GET /system/config`) and `captcha_turnstile_secret`.
+With both set, the sign-up code request, a visitor's stock alert and the guest
+quote must carry a Turnstile token (`X-Captcha-Token` header; the storefront
+widget adds it); the API verifies it at
+`https://challenges.cloudflare.com/turnstile/v0/siteverify` (`captcha.required`
+/ `captcha.failed`, 400) and fails open if Cloudflare does not answer. Create
+the widget at <https://dash.cloudflare.com/?to=/:account/turnstile> with the
+shop's bare domain; the storefront CSP already allows
+`challenges.cloudflare.com`. Leave both keys empty for no captcha.
 | `LOGIN_LOCKOUT_MAX_FAILURES` | `5` | Consecutive wrong passwords before the account locks |
 | `LOGIN_LOCKOUT_MINUTES` | `15` | Account lock duration |
 

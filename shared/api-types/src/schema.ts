@@ -20261,6 +20261,8 @@ export interface components {
              * @default XPF
              */
             default_display_currency: string;
+            /** Captcha Site Key */
+            captcha_site_key?: string | null;
         };
         /**
          * Shortage

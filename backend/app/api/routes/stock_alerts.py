@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, CurrentUserOptional, SessionDep
+from app.core.captcha import require_captcha
 from app.core.errors import AppError
+from app.core.rate_limit import rate_limited
 from app.features.product.models.product import Product
 from app.features.product.models.stock_alert import (
     StockAlert,
@@ -21,11 +23,22 @@ from app.features.product.services.stock_alert import subscribe
 router = APIRouter(prefix="/stock-alerts", tags=["stock-alerts"])
 
 
-@router.post("", response_model=StockAlertPublic, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=StockAlertPublic,
+    status_code=status.HTTP_201_CREATED,
+    # A public form (R8 / U5): 10 subscriptions a minute per address.
+    dependencies=[Depends(rate_limited("stock_alert", limit=10, window_seconds=60))],
+)
 async def subscribe_stock_alert(
-    body: StockAlertSubscribe, session: SessionDep, current_user: CurrentUserOptional
+    body: StockAlertSubscribe,
+    request: Request,
+    session: SessionDep,
+    current_user: CurrentUserOptional,
 ) -> StockAlertPublic:
     """Ask to be told when the product is orderable again (idempotent)."""
+    if current_user is None:
+        await require_captcha(request, session)
     product = await session.get(Product, body.product_id)
     if product is None or not product.is_active or not product.is_admin_active:
         raise AppError(

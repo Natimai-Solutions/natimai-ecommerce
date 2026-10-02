@@ -10,15 +10,17 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 
 from app.api.deps import RedisDep, SessionDep
 from app.api.routes.login import _build_token_bundle
 from app.core import runtime_settings
 from app.core.auth_cookies import set_refresh_cookie
+from app.core.captcha import require_captcha
 from app.core.config import settings
 from app.core.errors import AppError
+from app.core.rate_limit import rate_limited
 from app.core.security import get_password_hash
 from app.features.notification.email_renderer import render_email
 from app.features.notification.providers import (
@@ -105,11 +107,18 @@ async def _send_otp_email(email: str, code: str) -> None:
         logger.info("[DEV] signup OTP for %s = %s", email, code)
 
 
-@router.post("/send-otp", response_model=OkMessage)
+@router.post(
+    "/send-otp",
+    response_model=OkMessage,
+    # A public form (R8 / U5): 5 codes per address and 10 minutes — each one
+    # is an e-mail sent on the shop's behalf.
+    dependencies=[Depends(rate_limited("signup", limit=5, window_seconds=600))],
+)
 async def send_otp(
-    body: SendOtpRequest, session: SessionDep, redis: RedisDep
+    body: SendOtpRequest, request: Request, session: SessionDep, redis: RedisDep
 ) -> OkMessage:
     """Email a verification code (refuses if the address already has an account)."""
+    await require_captcha(request, session)
     existing = await crud_user.get_by_email(session, email=str(body.email))
     if existing is not None:
         raise AppError(

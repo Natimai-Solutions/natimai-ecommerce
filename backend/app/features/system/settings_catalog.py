@@ -580,6 +580,31 @@ register(
 
 register(
     SettingSpec(
+        "captcha_turnstile_site_key",
+        "str",
+        "security",
+        "Turnstile — clé de site",
+        "Clé publique du widget Cloudflare Turnstile affiché sur les formulaires "
+        "publics de la vitrine (inscription, alerte de stock d'un visiteur, "
+        "devis sans compte). Vide = pas de captcha.",
+        default="",
+        public=True,
+        max_length=100,
+        order=1,
+    ),
+    SettingSpec(
+        "captcha_turnstile_secret",
+        "str",
+        "security",
+        "Turnstile — clé secrète",
+        "Clé secrète vérifiée auprès de Cloudflare à chaque envoi d'un formulaire "
+        "public. Vide = aucune vérification (les limites de fréquence restent).",
+        default="",
+        secret=True,
+        max_length=100,
+        order=2,
+    ),
+    SettingSpec(
         "enable_group_permissions",
         "bool",
         "security",

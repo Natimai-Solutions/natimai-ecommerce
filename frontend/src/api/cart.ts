@@ -219,9 +219,13 @@ export async function createQuoteRequest(
   return data;
 }
 
+/** A public form: `headers` carries the captcha token when the shop has one. */
 export async function createGuestQuoteRequest(
   payload: GuestQuoteRequestSubmit,
+  headers: Record<string, string> = {},
 ): Promise<GuestQuoteRequestResponse> {
-  const { data } = await api.post<GuestQuoteRequestResponse>('/cart/guest-quote-request', payload);
+  const { data } = await api.post<GuestQuoteRequestResponse>('/cart/guest-quote-request', payload, {
+    headers,
+  });
   return data;
 }

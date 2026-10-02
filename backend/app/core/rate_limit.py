@@ -11,11 +11,13 @@ warning is logged — an outage must not lock every customer out of login.
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 
 import redis.asyncio as redis
 from fastapi import Request
 
 from app.core.config import settings
+from app.core.errors import AppError
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +53,29 @@ async def hit_rate_limit(key: str, *, limit: int, window_seconds: int) -> bool:
     except Exception:  # noqa: BLE001 — any Redis failure must fail open
         logger.warning("rate limiter unavailable, allowing request", exc_info=True)
         return False
+
+
+def rate_limited(
+    scope: str, *, limit: int, window_seconds: int
+) -> Callable[[Request], Awaitable[None]]:
+    """FastAPI dependency: at most ``limit`` calls per client IP and window
+    on the routes that carry it (R8 / U5). Over the limit → ``AppError``
+    ``<scope>.rate_limited`` (429, ``Retry-After``-free, fail-open on Redis).
+    """
+
+    async def dependency(request: Request) -> None:
+        ip = get_client_ip(request)
+        if await hit_rate_limit(
+            f"{scope}:{ip}", limit=limit, window_seconds=window_seconds
+        ):
+            raise AppError(
+                code=f"{scope}.rate_limited",
+                status_code=429,
+                message="Trop de tentatives : réessayez dans quelques minutes.",
+                details={"scope": scope, "window_seconds": window_seconds},
+            )
+
+    return dependency
 
 
 def get_client_ip(request: Request) -> str:
