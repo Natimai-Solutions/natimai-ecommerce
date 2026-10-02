@@ -722,9 +722,12 @@ there; both run the same migrations and the same compose files.
    production files, then waits for `/api/v1/healthz/ready` (fails after
    5 minutes, printing the API logs).
 
-One deployment at a time per environment. **Rollback**: run it again on the
-previous commit (its images are rebuilt from cache if needed). Migrations do
-not go down by themselves — see below.
+One deployment at a time per environment. After a successful run the workflow
+tags the commit `deployed-<environment>-<UTC stamp>` and moves the floating
+tag `deployed-<environment>` onto it (R8 / U11): `git tag -l 'deployed-production-*'`
+is the deployment history. **Rollback**: run the workflow again with the
+previous stamped tag as *ref* (its images are still on GHCR, rebuilt from
+cache otherwise). Migrations do not go down by themselves — see below.
 
 **GitHub setup** — Settings → Environments → `staging` / `production`
 (add *Required reviewers* on `production` to approve each run):

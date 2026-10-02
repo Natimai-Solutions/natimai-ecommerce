@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
+from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
-from sqlmodel import col, select
+from sqlmodel import col, func, or_, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.errors import AppError
@@ -21,10 +22,12 @@ from app.features.payment.models.payment import Payment
 from app.features.payment.models.payment_attachment import (
     PaymentAttachmentPublic,
 )
+from app.features.payment.models.payment_method import PaymentMethod
 from app.features.payment.models.payment_receipt import (
     PaymentReceipt,
     PaymentReceiptPublic,
 )
+from app.features.payment.models.payment_status import PaymentStatus
 from app.features.payment.models.payment_validation import (
     PaymentValidation,
     PaymentValidationPublic,
@@ -151,6 +154,166 @@ async def _get_payment_or_404(session: SessionDep, payment_id: uuid.UUID) -> Pay
             message=f"Payment {payment_id} not found",
             details={"payment_id": str(payment_id)},
         ) from e
+
+
+class PaymentListItem(BaseModel):
+    """One row of the general payments list (A19)."""
+
+    payment_id: uuid.UUID
+    created_at: datetime | None = None
+    provider_code: str
+    provider_reference: str | None = None
+    amount: float
+    currency: str
+    status: str | None = None
+    method_name: str | None = None
+    user_id: uuid.UUID
+    user_name: str | None = None
+    user_email: str | None = None
+    order_id: uuid.UUID | None = None
+    order_number: str | None = None
+    is_document: bool = False
+    received_amount: float = 0
+
+
+class PaymentListResponse(BaseModel):
+    """A page of payments, the total and the filter values in use."""
+
+    data: list[PaymentListItem] = Field(default_factory=list)
+    count: int = 0
+    statuses: list[str] = Field(default_factory=list)
+    provider_codes: list[str] = Field(default_factory=list)
+
+
+@router.get("", response_model=PaymentListResponse)
+async def list_payments(
+    session: SessionDep,
+    _admin: CurrentSuperUser,
+    q: str | None = Query(default=None, max_length=100),
+    status: str | None = Query(default=None, max_length=50),
+    provider_code: str | None = Query(default=None, max_length=50),
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> PaymentListResponse:
+    """Every payment, newest first, with its status, method, customer and order (A19).
+
+    ``q`` searches the order number, the provider reference and the customer's
+    name or e-mail; ``status`` and ``provider_code`` filter exactly; the dates
+    bound the creation day (inclusive). The validation screen keeps its own
+    narrower list (``/pending-validation``): this one is the ledger.
+    """
+    joins = (
+        select(Payment, PaymentStatus.name, User, Order.order_number)
+        .outerjoin(
+            PaymentStatus, col(PaymentStatus.id) == col(Payment.payment_status_id)
+        )
+        .outerjoin(User, col(User.id) == col(Payment.user_id))
+        .outerjoin(Order, col(Order.id) == col(Payment.order_id))
+    )
+    conditions: list[Any] = [col(Payment.is_active).is_(True)]
+    if status:
+        conditions.append(col(PaymentStatus.name) == status)
+    if provider_code:
+        conditions.append(col(Payment.provider_code) == provider_code)
+    if date_from:
+        conditions.append(
+            col(Payment.created_at)
+            >= datetime.combine(date_from, time.min, tzinfo=timezone.utc)
+        )
+    if date_to:
+        conditions.append(
+            col(Payment.created_at)
+            < datetime.combine(
+                date_to + timedelta(days=1), time.min, tzinfo=timezone.utc
+            )
+        )
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        conditions.append(
+            or_(
+                col(Order.order_number).ilike(like),
+                col(Payment.provider_reference).ilike(like),
+                col(User.email).ilike(like),
+                col(User.full_name).ilike(like),
+            )
+        )
+    count_statement = (
+        select(func.count())
+        .select_from(Payment)
+        .outerjoin(
+            PaymentStatus, col(PaymentStatus.id) == col(Payment.payment_status_id)
+        )
+        .outerjoin(User, col(User.id) == col(Payment.user_id))
+        .outerjoin(Order, col(Order.id) == col(Payment.order_id))
+        .where(*conditions)
+    )
+    count = int((await session.exec(count_statement)).one())
+    rows = (
+        await session.exec(
+            joins.where(*conditions)
+            .order_by(col(Payment.created_at).desc().nulls_last(), col(Payment.id))
+            .offset(skip)
+            .limit(limit)
+        )
+    ).all()
+    received = await received_by_payment(session, [row[0].id for row in rows])
+    method_ids = {row[0].payment_method_id for row in rows if row[0].payment_method_id}
+    method_names: dict[uuid.UUID, str | None] = {}
+    if method_ids:
+        method_names = dict(
+            (
+                await session.exec(
+                    select(PaymentMethod.id, PaymentMethod.name).where(
+                        col(PaymentMethod.id).in_(method_ids)
+                    )
+                )
+            ).all()
+        )
+    items = [
+        PaymentListItem(
+            payment_id=payment.id,
+            created_at=payment.created_at,
+            provider_code=payment.provider_code,
+            provider_reference=payment.provider_reference,
+            amount=float(payment.amount),
+            currency=payment.currency,
+            status=status_name,
+            method_name=(
+                method_names.get(payment.payment_method_id)
+                if payment.payment_method_id
+                else None
+            ),
+            user_id=payment.user_id,
+            user_name=user.full_name if user else None,
+            user_email=user.email if user else None,
+            order_id=payment.order_id,
+            order_number=order_number,
+            is_document=payment.provider_code in DOCUMENT_PROVIDER_CODES,
+            received_amount=float(received.get(payment.id, 0)),
+        )
+        for payment, status_name, user, order_number in rows
+    ]
+    statuses = list(
+        (
+            await session.exec(
+                select(PaymentStatus.name).order_by(col(PaymentStatus.name))
+            )
+        ).all()
+    )
+    provider_codes = list(
+        (
+            await session.exec(
+                select(Payment.provider_code)
+                .distinct()
+                .order_by(col(Payment.provider_code))
+            )
+        ).all()
+    )
+    return PaymentListResponse(
+        data=items, count=count, statuses=statuses, provider_codes=provider_codes
+    )
 
 
 @router.get("/pending-validation", response_model=list[PaymentPendingValidationItem])

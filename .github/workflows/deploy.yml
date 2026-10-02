@@ -157,7 +157,8 @@ jobs:
       name: ${{ inputs.environment }}
       url: ${{ vars.VITE_API_URL }}
     permissions:
-      contents: read
+      # write : les tags « deployed-<env>… » posés après la mise en service.
+      contents: write
       packages: read
     steps:
       - name: Préparer SSH
@@ -207,3 +208,26 @@ jobs:
       - name: Nettoyer
         if: always()
         run: rm -f ~/.ssh/deploy_key
+
+      # Trace de ce qui tourne (R8 / U11) : un tag horodaté par mise en
+      # service et un tag mobile « deployed-<env> » sur le commit en
+      # production. Revenir en arrière = relancer ce workflow avec le tag
+      # horodaté précédent (Actions → Deploy → ref) ; les images de ce commit
+      # sont encore sur GHCR.
+      - name: Poser les tags de déploiement
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+          TARGET_ENV: ${{ inputs.environment }}
+        run: |
+          stamp="$(date -u +%Y%m%d-%H%M%S)"
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/deployed-$TARGET_ENV-$stamp" -f sha="$SHA" >/dev/null
+          if gh api "repos/$GITHUB_REPOSITORY/git/refs/tags/deployed-$TARGET_ENV" >/dev/null 2>&1; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/deployed-$TARGET_ENV" \
+              -f sha="$SHA" -F force=true >/dev/null
+          else
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref="refs/tags/deployed-$TARGET_ENV" -f sha="$SHA" >/dev/null
+          fi
+          echo "Tags : deployed-$TARGET_ENV-$stamp, deployed-$TARGET_ENV → $SHA"

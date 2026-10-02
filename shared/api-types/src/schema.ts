@@ -805,6 +805,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Payments
+         * @description Every payment, newest first, with its status, method, customer and order (A19).
+         *
+         *     ``q`` searches the order number, the provider reference and the customer's
+         *     name or e-mail; ``status`` and ``provider_code`` filter exactly; the dates
+         *     bound the creation day (inclusive). The validation screen keeps its own
+         *     narrower list (``/pending-validation``): this one is the ledger.
+         */
+        get: operations["admin-payment-list_payments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payments/pending-validation": {
         parameters: {
             query?: never;
@@ -15828,6 +15853,71 @@ export interface components {
             user_id: string;
         };
         /**
+         * PaymentListItem
+         * @description One row of the general payments list (A19).
+         */
+        PaymentListItem: {
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /** Created At */
+            created_at?: string | null;
+            /** Provider Code */
+            provider_code: string;
+            /** Provider Reference */
+            provider_reference?: string | null;
+            /** Amount */
+            amount: number;
+            /** Currency */
+            currency: string;
+            /** Status */
+            status?: string | null;
+            /** Method Name */
+            method_name?: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** User Name */
+            user_name?: string | null;
+            /** User Email */
+            user_email?: string | null;
+            /** Order Id */
+            order_id?: string | null;
+            /** Order Number */
+            order_number?: string | null;
+            /**
+             * Is Document
+             * @default false
+             */
+            is_document: boolean;
+            /**
+             * Received Amount
+             * @default 0
+             */
+            received_amount: number;
+        };
+        /**
+         * PaymentListResponse
+         * @description A page of payments, the total and the filter values in use.
+         */
+        PaymentListResponse: {
+            /** Data */
+            data?: components["schemas"]["PaymentListItem"][];
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /** Statuses */
+            statuses?: string[];
+            /** Provider Codes */
+            provider_codes?: string[];
+        };
+        /**
          * PaymentMethodCreate
          * @description Represents payment method create.
          */
@@ -24193,6 +24283,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminDashboard"];
+                };
+            };
+        };
+    };
+    "admin-payment-list_payments": {
+        parameters: {
+            query?: {
+                q?: string | null;
+                status?: string | null;
+                provider_code?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
