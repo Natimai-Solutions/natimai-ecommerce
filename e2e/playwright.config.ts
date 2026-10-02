@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
 
-import { ADMIN_URL, STOREFRONT_URL } from './support/env'
+import { ADMIN_URL, LOCALE, STOREFRONT_URL } from './support/env'
 
 /**
  * End-to-end configuration (Q4).
@@ -25,6 +25,8 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   use: {
     baseURL: STOREFRONT_URL,
+    // navigator.language and Accept-Language: the apps answer in French.
+    locale: LOCALE,
     // SSR hydration means the first interaction can lag; keep traces and
     // screenshots of failures so a CI red is diagnosable without a rerun.
     trace: 'retain-on-failure',

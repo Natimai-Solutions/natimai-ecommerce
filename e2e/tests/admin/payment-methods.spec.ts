@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { loginAdmin } from '../../support/admin'
-import { STOREFRONT_URL } from '../../support/env'
+import { LOCALE, STOREFRONT_URL } from '../../support/env'
 import { placeManualOrder } from '../../support/storefront'
 
 /**
@@ -30,7 +30,7 @@ test('an admin adds a second bank transfer with its own IBAN', async ({ page, br
   const row = page.locator('tr', { hasText: name })
   await expect(row).toContainText('Virement bancaire · instructions propres')
 
-  const shopContext = await browser.newContext({ baseURL: STOREFRONT_URL })
+  const shopContext = await browser.newContext({ baseURL: STOREFRONT_URL, locale: LOCALE })
   const shop = await shopContext.newPage()
   try {
     await placeManualOrder(shop, 'manual_transfer', name)
