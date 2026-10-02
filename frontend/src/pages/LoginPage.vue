@@ -109,6 +109,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { usePageMeta } from '@/composables/usePageMeta';
 import AppNotice from '@app/ui/AppNotice.vue';
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -149,4 +151,7 @@ function oauthLogin(provider: 'google' | 'microsoft') {
   sessionStorage.setItem('oauth.redirect', redirectTarget());
   window.location.href = `${apiUrl}/api/v1/auth/${provider}/login`;
 }
+
+const { t: tMeta } = useI18n();
+usePageMeta(() => ({ title: tMeta('auth.login_title'), noindex: true }));
 </script>

@@ -195,6 +195,8 @@ services:
         # URL publique de l'API vue par le NAVIGATEUR (figée au build Vite).
         # Prod : VITE_API_URL=https://api.<DOMAIN> dans le .env racine.
         - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+        # URL publique de la vitrine (canonical, JSON-LD, sitemap — R8 / U6).
+        - VITE_PUBLIC_SITE_URL=${VITE_PUBLIC_SITE_URL:-}
         - VITE_SENTRY_DSN=${VITE_SENTRY_DSN:-}
         - VITE_SENTRY_ENVIRONMENT=${ENVIRONMENT:-local}
     ports:

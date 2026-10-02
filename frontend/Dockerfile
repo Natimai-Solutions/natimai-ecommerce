@@ -30,6 +30,9 @@ RUN pnpm install --frozen-lockfile --filter "frontend..." --filter "frontend-ssr
 # otherwise the image ships with localhost:8000 and is unusable in production.
 ARG VITE_API_URL=http://localhost:8000
 ENV VITE_API_URL=$VITE_API_URL
+# URL publique de la vitrine : liens canoniques, JSON-LD, sitemap (R8 / U6).
+ARG VITE_PUBLIC_SITE_URL=
+ENV VITE_PUBLIC_SITE_URL=$VITE_PUBLIC_SITE_URL
 # Sentry du navigateur (R8 / U3) ; vide = désactivé.
 ARG VITE_SENTRY_DSN=
 ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN

@@ -543,7 +543,7 @@ language.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `VITE_API_URL` | yes | Backend base URL **without** `/api/v1` (the client appends it), e.g. `https://api.example.com` |
-| `VITE_PUBLIC_SITE_URL` | no | Public storefront URL (SEO/canonical links) |
+| `VITE_PUBLIC_SITE_URL` | recommended | Public storefront origin (`https://example.com`): canonical links, Open Graph URLs, JSON-LD and the `sitemap.xml` URLs (R8 / U6). Set the GitHub environment variable of the same name for `deploy.yml`. Without it the SSR server derives the sitemap origin from the request host, and pages carry no canonical link. |
 | `VITE_OAUTH_ENABLED` | no | `true` shows the Google/Microsoft buttons on the login page. Leave unset/`false` until backend OAuth is configured (section 7) |
 
 Both fronts also take, at build time, `VITE_SENTRY_DSN` (browser-side Sentry, empty = off), `VITE_SENTRY_ENVIRONMENT` and `VITE_APP_RELEASE` (set by `deploy.yml` from the GitHub environment variable `VITE_SENTRY_DSN`, the target environment and the commit). 10 % of page loads are traced.
@@ -899,6 +899,12 @@ curl -I https://admin.example.com
 ## 10. Post‑deployment checks
 
 After the first deploy (migrations + `initial_data` + workers up), verify:
+
+**SEO (R8 / U6)** — served by the storefront's SSR server:
+```bash
+curl -s https://example.com/robots.txt      # Disallow on private paths + Sitemap line
+curl -s https://example.com/sitemap.xml | head   # static pages, then one <url> per product
+```
 
 **Health**
 ```bash

@@ -3704,6 +3704,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product/sitemap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sitemap Products
+         * @description Id, name and last change of every product the storefront shows.
+         *
+         *     Read by the storefront's SSR server to build ``/sitemap.xml`` (R8 / U6):
+         *     the same visibility rules as the catalogue search, no price nor stock,
+         *     capped at the 50 000 URLs a sitemap file may hold.
+         */
+        get: operations["product-sitemap_products"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/product/featured": {
         parameters: {
             query?: never;
@@ -20298,6 +20322,29 @@ export interface components {
             signup_token: string;
         };
         /**
+         * SitemapEntry
+         * @description One storefront product for ``sitemap.xml`` (R8 / U6).
+         */
+        SitemapEntry: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Modify At */
+            modify_at?: string | null;
+        };
+        /**
+         * SitemapResponse
+         * @description The products the storefront may list in its sitemap.
+         */
+        SitemapResponse: {
+            /** Items */
+            items?: components["schemas"]["SitemapEntry"][];
+        };
+        /**
          * SkuSummaryRow
          * @description One supplier SKU aggregated over the filtered orders (= purchase order line).
          */
@@ -29087,6 +29134,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "product-sitemap_products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SitemapResponse"];
                 };
             };
         };

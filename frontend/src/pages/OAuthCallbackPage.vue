@@ -22,6 +22,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageMeta } from '@/composables/usePageMeta';
 import { useI18n } from 'vue-i18n';
 import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -68,4 +69,6 @@ onMounted(async () => {
   sessionStorage.removeItem('oauth.redirect');
   await router.replace(target.startsWith('/') ? target : '/');
 });
+
+usePageMeta(() => ({ title: t('oauth.in_progress'), noindex: true }));
 </script>

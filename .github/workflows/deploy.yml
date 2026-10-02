@@ -7,6 +7,7 @@
 #
 # Configuration, dans Settings → Environments → staging / production :
 #   variables  VITE_API_URL   https://api.<domaine> (figée dans les frontends)
+#              VITE_PUBLIC_SITE_URL https://<domaine> (canonical, sitemap — R8 / U6)
 #              VITE_SENTRY_DSN DSN Sentry des navigateurs (facultatif, R8 / U3)
 #              APP_DIR        dossier du dépôt sur le serveur
 #                             (défaut /home/deploy/natimai-ecommerce)
@@ -137,6 +138,7 @@ jobs:
           pull: true
           build-args: |
             VITE_API_URL=${{ vars.VITE_API_URL }}
+            VITE_PUBLIC_SITE_URL=${{ vars.VITE_PUBLIC_SITE_URL }}
             VITE_SENTRY_DSN=${{ vars.VITE_SENTRY_DSN }}
             VITE_SENTRY_ENVIRONMENT=${{ inputs.environment }}
             VITE_APP_RELEASE=${{ needs.resolve.outputs.sha }}

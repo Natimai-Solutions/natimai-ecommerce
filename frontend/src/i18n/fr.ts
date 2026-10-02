@@ -21,6 +21,7 @@ const fr = {
     currency: "Devise d'affichage",
   },
   layout: {
+    home: 'Accueil',
     menu: 'Menu',
     main_nav: 'Navigation principale',
     catalogue: 'Catalogue',

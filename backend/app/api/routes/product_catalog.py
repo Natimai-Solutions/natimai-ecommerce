@@ -1,3 +1,4 @@
+import datetime
 import uuid
 from decimal import Decimal
 
@@ -534,6 +535,44 @@ async def track_product_view(
     if product is not None and product.is_active and product.is_admin_active:
         await record_product_view(session, product_id=product_id)
     return Response(status_code=204)
+
+
+class SitemapEntry(SQLModel):
+    """One storefront product for ``sitemap.xml`` (R8 / U6)."""
+
+    id: uuid.UUID
+    name: str
+    modify_at: datetime.datetime | None = None
+
+
+class SitemapResponse(SQLModel):
+    """The products the storefront may list in its sitemap."""
+
+    items: list[SitemapEntry] = Field(default_factory=list)
+
+
+@router.get("/sitemap", response_model=SitemapResponse)
+async def sitemap_products(session: SessionDep) -> SitemapResponse:
+    """Id, name and last change of every product the storefront shows.
+
+    Read by the storefront's SSR server to build ``/sitemap.xml`` (R8 / U6):
+    the same visibility rules as the catalogue search, no price nor stock,
+    capped at the 50 000 URLs a sitemap file may hold.
+    """
+    rows = (
+        await session.exec(
+            select(Product.id, Product.name, Product.modify_at)
+            .where(*crud_product.storefront_conditions())
+            .order_by(col(Product.modify_at).desc().nulls_last(), col(Product.id))
+            .limit(50_000)
+        )
+    ).all()
+    return SitemapResponse(
+        items=[
+            SitemapEntry(id=pid, name=name, modify_at=modify_at)
+            for pid, name, modify_at in rows
+        ]
+    )
 
 
 @router.get("/featured", response_model=ProductsPublic)

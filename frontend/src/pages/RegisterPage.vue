@@ -177,6 +177,7 @@ import AppNotice from '@app/ui/AppNotice.vue';
 import { onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
+import { usePageMeta } from '@/composables/usePageMeta';
 import { useTurnstile } from '@/composables/useTurnstile';
 import { useAuthStore } from '@/stores/auth';
 
@@ -198,7 +199,8 @@ const error = ref<string | null>(null);
 // Captcha of the sign-up code request (R8 / U5), when the shop has one.
 const captcha = useTurnstile();
 const captchaEl = ref<HTMLElement | null>(null);
-const { locale } = useI18n({ useScope: 'global' });
+const { t, locale } = useI18n({ useScope: 'global' });
+usePageMeta(() => ({ title: t('auth.register_title'), noindex: true }));
 onMounted(() => void captcha.mount(captchaEl.value, locale.value));
 watch(captchaEl, (el) => void captcha.mount(el, locale.value));
 

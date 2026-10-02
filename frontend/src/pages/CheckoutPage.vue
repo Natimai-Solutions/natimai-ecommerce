@@ -424,6 +424,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useMeta } from 'quasar';
+import { NOINDEX } from '@/utils/seo';
 import { useI18n } from 'vue-i18n';
 import { useDepartureLabels } from '@/composables/useDepartureLabels';
 import { useRoute } from 'vue-router';
@@ -462,7 +463,7 @@ const { nextDelivery } = useDepartureLabels();
 const currencyStore = useCurrencyStore();
 const route = useRoute();
 
-useMeta(() => ({ title: t('checkout.meta_title') }));
+useMeta(() => ({ title: t('checkout.meta_title'), meta: NOINDEX }));
 // Ordering an issued quote (`?quote=<id>`): its prices and delivery fee apply.
 const quoteRequestId = computed(() => {
   const raw = route.query.quote;

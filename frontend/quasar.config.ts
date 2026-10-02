@@ -175,6 +175,7 @@ export default defineConfig((ctx) => {
       // (gets superseded if process.env.PORT is specified at runtime)
 
       middlewares: [
+        'seo', // robots.txt and sitemap.xml (R8 / U6)
         'render', // keep this as last one
       ],
 

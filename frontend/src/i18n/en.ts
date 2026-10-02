@@ -23,6 +23,7 @@ const en: MessageSchema = {
     currency: 'Display currency',
   },
   layout: {
+    home: 'Home',
     menu: 'Menu',
     main_nav: 'Main navigation',
     catalogue: 'Catalogue',

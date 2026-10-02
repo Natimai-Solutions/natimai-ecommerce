@@ -45,3 +45,11 @@
   padding: 0 24px;
 }
 </style>
+
+<script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+import { usePageMeta } from '@/composables/usePageMeta';
+
+const { t } = useI18n();
+usePageMeta(() => ({ title: t('not_found.title'), noindex: true }));
+</script>

@@ -350,6 +350,7 @@ import { useI18n } from 'vue-i18n';
 import { useDepartureLabels } from '@/composables/useDepartureLabels';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useMeta } from 'quasar';
+import { NOINDEX } from '@/utils/seo';
 import { useRoute, useRouter } from 'vue-router';
 import { formatDate, formatDateTime, orderRef } from '@app/utils';
 
@@ -408,7 +409,7 @@ const invoiceError = ref<string | null>(null);
 const downloadingInvoice = ref(false);
 
 const reference = computed(() => orderRef(order.value?.order_number, orderId.value));
-useMeta(() => ({ title: t('tracking.meta_title', { ref: reference.value }) }));
+useMeta(() => ({ title: t('tracking.meta_title', { ref: reference.value }), meta: NOINDEX }));
 
 const paymentMethod = computed(() =>
   order.value && 'payment_method_name' in order.value ? order.value.payment_method_name : null,

@@ -93,6 +93,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageMeta } from '@/composables/usePageMeta';
 import { useI18n } from 'vue-i18n';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -212,6 +213,8 @@ onMounted(async () => {
     loading.value = false;
   }
 });
+
+usePageMeta(() => ({ title: t('balance.title'), noindex: true }));
 </script>
 
 <style scoped lang="scss">

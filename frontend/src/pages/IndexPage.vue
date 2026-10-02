@@ -169,6 +169,7 @@ import { useI18n } from 'vue-i18n';
 import { useShopModulesStore } from '@/stores/shopModules';
 import { computed, onMounted, onServerPrefetch, ref, watch } from 'vue';
 import { useMeta } from 'quasar';
+import { jsonLd, publicSiteUrl } from '@/utils/seo';
 import type { components } from '@app/api-types';
 
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -187,15 +188,51 @@ const cartStore = useCartStore();
 const uiStore = useUiStore();
 const cartError = ref<string | null>(null);
 
-useMeta(() => ({
-  title: t('home.meta_title', { shop: shopModules.config.shop_name || 'Natimai' }),
-  meta: {
-    description: {
-      name: 'description',
-      content: t('home.meta_description'),
-    },
-  },
-}));
+useMeta(() => {
+  const shopName = shopModules.config.shop_name || 'Natimai';
+  const title = t('home.meta_title', { shop: shopName });
+  const description = t('home.meta_description');
+  const siteUrl = publicSiteUrl();
+  const meta: Record<string, { name?: string; property?: string; content: string }> = {
+    description: { name: 'description', content: description },
+    ogTitle: { property: 'og:title', content: title },
+    ogDescription: { property: 'og:description', content: description },
+    ogType: { property: 'og:type', content: 'website' },
+    ogSiteName: { property: 'og:site_name', content: shopName },
+  };
+  const link: Record<string, { rel: string; href: string }> = {};
+  const script: Record<string, Record<string, string>> = {};
+  if (siteUrl) {
+    meta['ogUrl'] = { property: 'og:url', content: `${siteUrl}/` };
+    link['canonical'] = { rel: 'canonical', href: `${siteUrl}/` };
+    if (heroImage.value?.src) {
+      meta['ogImage'] = { property: 'og:image', content: heroImage.value.src };
+    }
+    // R8 / U6 : who the site is, and its search box, for the engines.
+    script['ldWebsite'] = jsonLd({
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: shopName,
+      url: `${siteUrl}/`,
+      inLanguage: locale.value,
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: {
+          '@type': 'EntryPoint',
+          urlTemplate: `${siteUrl}/catalogue?q={search_term_string}`,
+        },
+        'query-input': 'required name=search_term_string',
+      },
+    });
+    script['ldOrganization'] = jsonLd({
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: shopName,
+      url: `${siteUrl}/`,
+    });
+  }
+  return { title, meta, link, script };
+});
 
 // Tant que rien n'est arrivé, des squelettes gardent la place des produits.
 const FALLBACK_LEAD = computed(() => t('home.lead'));

@@ -48,6 +48,7 @@
 import { useI18n } from 'vue-i18n';
 import { computed, onMounted, ref, type Component } from 'vue';
 import { useMeta } from 'quasar';
+import { NOINDEX } from '@/utils/seo';
 import { useRoute, useRouter } from 'vue-router';
 
 import AccountAddresses from '@/components/account/AccountAddresses.vue';
@@ -148,7 +149,10 @@ const current = computed<AccountSection>(() => {
 
 const firstName = computed(() => (profile.value?.full_name ?? '').trim().split(/\s+/)[0] ?? '');
 
-useMeta(() => ({ title: t('account.meta', { section: t(current.value.labelKey) }) }));
+useMeta(() => ({
+  title: t('account.meta', { section: t(current.value.labelKey) }),
+  meta: NOINDEX,
+}));
 
 function onProfileUpdated(updated: MyProfile) {
   profile.value = updated;

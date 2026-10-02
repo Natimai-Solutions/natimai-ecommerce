@@ -335,6 +335,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onServerPrefetch, ref, watch } from 'vue';
 import { useMeta } from 'quasar';
+import { absoluteUrl, breadcrumbList, jsonLd } from '@/utils/seo';
 import { useI18n } from 'vue-i18n';
 import { intlLocale } from '@app/utils';
 import { useShopModulesStore } from '@/stores/shopModules';
@@ -362,15 +363,33 @@ const shopModules = useShopModulesStore();
 const route = useRoute();
 const router = useRouter();
 
-useMeta(() => ({
-  title: t('catalogue.meta_title', { shop: shopModules.config.shop_name || 'Natimai' }),
-  meta: {
-    description: {
-      name: 'description',
-      content: t('catalogue.meta_description'),
-    },
-  },
-}));
+useMeta(() => {
+  const title = t('catalogue.meta_title', { shop: shopModules.config.shop_name || 'Natimai' });
+  const description = t('catalogue.meta_description');
+  const meta: Record<string, { name?: string; property?: string; content: string }> = {
+    description: { name: 'description', content: description },
+    ogTitle: { property: 'og:title', content: title },
+    ogDescription: { property: 'og:description', content: description },
+    ogType: { property: 'og:type', content: 'website' },
+  };
+  const link: Record<string, { rel: string; href: string }> = {};
+  const script: Record<string, Record<string, string>> = {};
+  // Filters and pages are facets of one catalogue: a single canonical URL.
+  const canonical = absoluteUrl('/catalogue');
+  if (canonical) {
+    meta['ogUrl'] = { property: 'og:url', content: canonical };
+    link['canonical'] = { rel: 'canonical', href: canonical };
+  }
+  const crumbs = [
+    { name: t('layout.home'), path: '/' },
+    { name: t('layout.catalogue'), path: '/catalogue' },
+  ];
+  const category = categoryOptions.value.find((c) => c.value === selectedCategory.value);
+  if (category) crumbs.push({ name: category.label, path: `/catalogue?cat=${category.value}` });
+  const breadcrumb = breadcrumbList(crumbs);
+  if (breadcrumb) script['ldBreadcrumb'] = jsonLd(breadcrumb);
+  return { title, meta, link, script };
+});
 
 const searchQuery = ref<string>('');
 const selectedManufacturer = ref<string | null>(null);

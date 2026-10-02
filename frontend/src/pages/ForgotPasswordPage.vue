@@ -59,6 +59,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageMeta } from '@/composables/usePageMeta';
 import { useI18n } from 'vue-i18n';
 import { apiErrorMessage } from '@/utils/errors';
 import AppNotice from '@app/ui/AppNotice.vue';
@@ -83,4 +84,6 @@ async function onSubmit() {
     submitting.value = false;
   }
 }
+
+usePageMeta(() => ({ title: t('auth.forgot_title'), noindex: true }));
 </script>
