@@ -7,10 +7,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.db import engine
+from app.core.logging_config import configure_logging
 from app.features.initial_data import initial_data as api_initial_data
 from app.features.user.models.user import User, UserCreate
 
-logging.basicConfig(level=logging.INFO)
+configure_logging(service="seed")
 logger = logging.getLogger(__name__)
 
 

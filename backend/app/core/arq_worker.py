@@ -1,12 +1,13 @@
 import logging
 import socket
-import sys
 from typing import Any
 
 from arq.connections import RedisSettings, create_pool
 from arq.worker import func
 
 from app.core.config import settings
+from app.core.logging_config import configure_logging
+from app.core.sentry import init_sentry
 from app.features.system.audit import get_audit_cron_jobs, purge_audit_log_task
 from app.outbox.consumer import OUTBOX_HANDLER_MAX_TRIES, execute_outbox_handler
 from app.tasks.cart_tasks import (
@@ -58,13 +59,10 @@ class SuppressAlreadyRunningFilter(logging.Filter):
         return "already running elsewhere" not in record.getMessage()
 
 
-# Configure logging for the worker
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)s:%(name)s:%(message)s",
-    stream=sys.stdout,
-    force=True,  # Override any existing configuration
-)
+# One logging configuration for every process (R8 / U3), Sentry included:
+# a handler crashing here was invisible as long as only the API reported.
+configure_logging(service="worker")
+init_sentry("worker")
 
 # Add filter to suppress noisy "already running elsewhere" messages
 # These are normal when using custom job IDs and indicate deduplication is working

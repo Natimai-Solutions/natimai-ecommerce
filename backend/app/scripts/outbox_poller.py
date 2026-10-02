@@ -46,6 +46,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.db import engine
+from app.core.logging_config import configure_logging
+from app.core.sentry import init_sentry
 from app.outbox.loader import load_handlers
 from app.outbox.poller import OutboxPoller, poll_outbox_once
 
@@ -94,12 +96,10 @@ def _log_handlers() -> list[logging.Handler]:
 # fichier ne s'appliquaient, le fichier étant créé vide puis jamais écrit.
 # Ce processus est un service autonome : il a le droit de configurer son propre
 # logging (il n'initialise pas Sentry, aucun handler tiers n'est écrasé).
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=_log_handlers(),
-    force=True,
-)
+# One logging configuration for every process (R8 / U3): stdout in the shared
+# format (JSON outside local), plus the optional rotating file.
+configure_logging(service="outbox-poller", extra_handlers=_log_handlers()[1:])
+init_sentry("outbox-poller")
 logger = logging.getLogger(__name__)
 
 

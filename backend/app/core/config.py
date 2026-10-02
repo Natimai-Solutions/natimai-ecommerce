@@ -118,11 +118,19 @@ class Settings(BaseSettings):
 
     PROJECT_NAME: str = "FastAPI Ecommerce"
     SENTRY_DSN: HttpUrl | None = None
-    # Proportion de transactions tracées. 1.0 reproduit l'ancien
-    # `enable_tracing=True` (100 %) : c'est beaucoup de volume — et donc de
-    # quota — dès que le trafic monte. À baisser (0.1 par exemple) une fois
-    # la volumétrie de production connue.
-    SENTRY_TRACES_SAMPLE_RATE: float = 1.0
+    # Proportion de transactions tracées : 10 % par défaut (R8 / U3) — assez
+    # pour voir les lenteurs, sans envoyer chaque requête (quota).
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.1
+    # Version déployée, étiquetée sur les événements Sentry (ex. le sha du
+    # commit, posé par l'image). Vide = non renseignée.
+    APP_RELEASE: str = ""
+    # Journaux : « json » (une ligne JSON par entrée, pour Docker et une
+    # plateforme de logs) ou « text ». None → json hors local, text en local.
+    LOG_FORMAT: Literal["json", "text"] | None = None
+    LOG_LEVEL: str = "INFO"
+    # Jeton (bearer) exigé par GET /metrics hors local ; vide = route absente
+    # hors local.
+    METRICS_TOKEN: str = ""
     # Webhook d'alerte opérationnelle (format Slack `{"text": …}`) — utilisé par
     # le health-checker outbox et par l'abandon définitif d'un job ARQ.
     # Vide = pas d'alerte (log uniquement).

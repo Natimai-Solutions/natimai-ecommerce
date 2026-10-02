@@ -204,17 +204,14 @@ async def run_health_check() -> dict[str, Any]:
     # Check for issues
     health_status = await health_checker.check_orphaned_jobs()
 
-    print(f"Health Status: {health_status['status']}")
-    print(f"Redis Jobs: {health_status['stats']['redis_jobs']}")
-    print(f"Recent Events: {health_status['stats']['recent_events']}")
-    print(f"Orphaned Jobs: {health_status['stats']['orphaned_jobs']}")
-    print(f"Missing Jobs: {health_status['stats']['missing_jobs']}")
+    logger.info(
+        "Outbox health: %s", health_status["status"], extra=dict(health_status["stats"])
+    )
 
     # Recover if needed
     if health_status["stats"]["missing_jobs"] > 0:
-        print("\nRecovering missing jobs...")
         recovery_result = await health_checker.recover_missing_jobs()
-        print(f"Recovered: {recovery_result['recovered']} events")
+        logger.info("Recovered %s outbox events", recovery_result["recovered"])
 
     return health_status
 

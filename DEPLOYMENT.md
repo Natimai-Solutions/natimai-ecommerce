@@ -71,7 +71,11 @@ random fallback still applies, with a warning.
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | Access token TTL — do **not** increase |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `30` | Refresh token TTL |
 | `SENTRY_DSN` | — | Error monitoring DSN. Ignored when `ENVIRONMENT=local`. The Sentry `environment` tag is set from `ENVIRONMENT`, so staging and production stay separable in the same project. |
-| `SENTRY_TRACES_SAMPLE_RATE` | `1.0` | Share of transactions traced. `1.0` means **every** request is sent — fine to start, expensive once traffic grows. Lower it (e.g. `0.1`) once you know your volume. |
+| `SENTRY_TRACES_SAMPLE_RATE` | `0.1` | Share of transactions traced (10 %). The API, the ARQ worker, the outbox poller and the health checker all report to Sentry (tag `component`). |
+| `APP_RELEASE` | — | Version label on Sentry events (the deploy sets the commit sha). |
+| `LOG_FORMAT` | `json` outside `local`, `text` in `local` | One JSON object per log line (`time`, `level`, `logger`, `message`, `service`, extras) for every process, or readable text. |
+| `LOG_LEVEL` | `INFO` | Root log level of every process. |
+| `METRICS_TOKEN` | — | Bearer token required by `GET /metrics` (Prometheus format: request counts and latency by route, ARQ queue depth, outbox age and counts). Empty outside `local` = the route does not exist. |
 | `ALERT_WEBHOOK_URL` | — | Ops alert webhook (Slack-style `{"text": …}`; Mattermost-compatible, Discord via `/slack` suffix). Fired on outbox degraded/recovered state changes and when an ARQ outbox job is abandoned after 8 tries (~15 min of backoff). Empty = log only. **Recommended in production** |
 
 > **Authentication model (cookie).** The **refresh token** is delivered as an
@@ -522,6 +526,8 @@ language.
 | `VITE_PUBLIC_SITE_URL` | no | Public storefront URL (SEO/canonical links) |
 | `VITE_OAUTH_ENABLED` | no | `true` shows the Google/Microsoft buttons on the login page. Leave unset/`false` until backend OAuth is configured (section 7) |
 
+Both fronts also take, at build time, `VITE_SENTRY_DSN` (browser-side Sentry, empty = off), `VITE_SENTRY_ENVIRONMENT` and `VITE_APP_RELEASE` (set by `deploy.yml` from the GitHub environment variable `VITE_SENTRY_DSN`, the target environment and the commit). 10 % of page loads are traced.
+
 ### Admin (`admin-frontend/`)
 
 | Variable | Required | Description |
@@ -883,6 +889,23 @@ docker compose exec postgres psql -U postgres -d fastapi_ecommerce \
 **Supplier sync** — trigger one catalogue sync and confirm products are created (`is_supplier_managed=true`), an enrichment job is queued, enriched products flip to `is_enriched=true` and appear on the public `GET /api/v1/products`.
 
 **FX staleness** — there is no automatic FX cron yet; check that no active rate's `valid_from` is older than ~30 days, and refresh via `PUT /api/v1/admin/currency-rates/{code}` if needed.
+
+## 10bis. External supervision (R8 / U3)
+
+The stack reports on itself (Sentry, `/metrics`, the outbox health checker's
+webhook), which says nothing when the whole server is down. Point an external
+monitor (Uptime Kuma self-hosted, Better Stack, UptimeRobot…) at:
+
+| Probe | URL | Expect |
+|-------|-----|--------|
+| API readiness | `https://api.<domain>/api/v1/healthz/ready` | `200` with `"status": "ready"` (`503` when the database or Redis is down) |
+| Storefront (SSR) | `https://<domain>/` | `200`, body contains the shop name |
+| Admin | `https://admin.<domain>/` | `200` |
+| Metrics (optional) | `https://api.<domain>/metrics` with `Authorization: Bearer <METRICS_TOKEN>` | `200`; alert when `outbox_oldest_pending_seconds` grows past a few minutes or `arq_queue_depth` keeps climbing |
+
+Check every minute from two regions, alert after two consecutive failures, and
+send the alert to the same channel as `ALERT_WEBHOOK_URL`. The TLS certificate
+expiry is worth a probe too (Caddy renews it; the probe tells you if it stopped).
 
 ## 11. Operations runbook
 

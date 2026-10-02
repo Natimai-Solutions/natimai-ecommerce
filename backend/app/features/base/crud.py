@@ -18,7 +18,6 @@ from app.core.datetimes import as_utc
 from app.features.user.models.user import User
 from app.outbox.registry import outbox_registry
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 ModelType = TypeVar("ModelType", bound=SQLModel)
