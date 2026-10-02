@@ -15,6 +15,7 @@ import {
   type AppLocale,
 } from '@/i18n/locale';
 import { useAuthStore } from '@/stores/auth';
+import { useProductsStore } from '@/stores/products';
 import { useShopModulesStore } from '@/stores/shopModules';
 
 /**
@@ -43,6 +44,8 @@ export function useLocale() {
     configureFormatting({ locale: code });
     apiLocale.value = code;
     if (typeof document !== 'undefined') document.documentElement.lang = code;
+    // Category names come from the API in the request's language (R9 / T3).
+    void useProductsStore().loadCategories({ force: true });
   }
 
   async function setLocale(value: string, options: { persist?: boolean } = {}): Promise<void> {

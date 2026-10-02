@@ -2,10 +2,14 @@
 
 import uuid
 from decimal import Decimal
+from typing import Any
 
 from pydantic import computed_field
+from sqlalchemy import Column
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
+from app.core.content_i18n import CATEGORY_FIELDS, translation_status
 from app.features.base.models import Base, BaseCreate, BasePublic, BaseUpdate
 
 
@@ -38,6 +42,14 @@ class CategoryBase(Base):
         default=None,
         max_length=500,
         description="URL of the category image",
+    )
+    translations: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+        description=(
+            "Translated display_name / description per language (R9 / T3): "
+            '{"en": {"display_name": "…", "_source": "<digest>"}}'
+        ),
     )
     default_tax_rate_id: uuid.UUID | None = Field(
         default=None,
@@ -113,6 +125,16 @@ class CategoryPublic(CategoryBase, BasePublic):
     def title(self) -> str:
         """What the storefront shows: the admin's display_name, else name."""
         return self.display_name or self.name
+
+    @computed_field
+    @property
+    def translation_status(self) -> dict[str, str]:
+        """Per offered language: ``ok`` / ``stale`` / ``missing`` (R9 / T3)."""
+        return translation_status(
+            self.translations,
+            {f: getattr(self, f, None) for f in CATEGORY_FIELDS},
+            CATEGORY_FIELDS,
+        )
 
 
 class CategoriesPublic(SQLModel):

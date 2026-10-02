@@ -657,6 +657,10 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
             # GIN FTS path — expression matches ix_products_search_fts exactly.
             # Uses `||` (IMMUTABLE) instead of concat_ws (STABLE) so the same
             # expression can also be used in the index definition.
+            # The English translation is indexed too (R9 / T3) — the only
+            # other shipped language; the index expression names it as well.
+            translations = col(Product.translations)
+            english = translations.op("->")(literal("en"))
             search_text = (
                 func.coalesce(col(Product.name), "")
                 .op("||")(" ")
@@ -665,6 +669,10 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
                 .op("||")(func.coalesce(col(Product.manufacturer), ""))
                 .op("||")(" ")
                 .op("||")(func.coalesce(col(Product.vendor_part_number), ""))
+                .op("||")(" ")
+                .op("||")(func.coalesce(english.op("->>")(literal("name")), ""))
+                .op("||")(" ")
+                .op("||")(func.coalesce(english.op("->>")(literal("description")), ""))
             )
             search_doc = func.to_tsvector("simple", search_text)
             # Every word is matched as a prefix (« 242 » finds 242S9, « EliteD »

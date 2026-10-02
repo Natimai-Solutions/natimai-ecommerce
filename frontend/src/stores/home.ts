@@ -56,5 +56,11 @@ export const useHomeStore = defineStore('home', () => {
     loading.value = false;
   }
 
-  return { featured, popular, categories, hero, banners, loaded, loading, load };
+  /** Fetch again (the visitor switched language: texts follow it, R9 / T3). */
+  async function reload(): Promise<void> {
+    loaded.value = false;
+    await load();
+  }
+
+  return { featured, popular, categories, hero, banners, loaded, loading, load, reload };
 });

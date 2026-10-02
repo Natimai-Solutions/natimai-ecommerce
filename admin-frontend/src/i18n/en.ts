@@ -1149,7 +1149,7 @@ const en: MessageSchema = {
     heading: 'Heading',
     image: 'Image',
     insert_image: 'Insert an image from the media library',
-    intro: '“comment-ca-marche” explains how grouped departures work (link in the header and footer). A published “cgv”, “mentions-legales” or “confidentialite” page replaces the default text; “From a template” pre-fills it with that text, seller identity already filled in; delete it to go back to the default. A draft page is not visible on the site. For the English version of a page, create “<slug>-en” (e.g. cgv-en).',
+    intro: '“comment-ca-marche” explains how grouped departures work (link in the header and footer). A published “cgv”, “mentions-legales” or “confidentialite” page replaces the default text; “From a template” pre-fills it with that text, seller identity already filled in; delete it to go back to the default. A draft page is not visible on the site. The English version is typed in the page’s “English” tab.',
     new: 'New page',
     new_title: 'New page',
     no_template: 'No template available.',
@@ -2010,6 +2010,16 @@ const en: MessageSchema = {
     title: 'Variants',
     value: 'Value',
     weight: 'Weight (kg)',
+  },
+  translations: {
+    mark_reviewed: 'Mark as reviewed',
+    missing_hint: 'Not translated yet: the default-language text is shown.',
+    ok_hint: 'Translation up to date.',
+    source_hint: 'Reference text (the shop\'s default language).',
+    st_missing: 'to translate',
+    st_ok: 'translated',
+    st_stale: 'to review',
+    stale_hint: 'The reference text changed since this translation: review it.',
   },
 };
 

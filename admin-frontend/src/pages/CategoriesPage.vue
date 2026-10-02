@@ -123,8 +123,16 @@
         <q-form @submit.prevent="submitEdit">
           <q-card-section class="q-gutter-sm">
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
+            <ContentLanguageTabs
+              v-model="content.lang.value"
+              :source="content.source.value"
+              :locales="content.locales.value"
+              :status-of="content.statusOf"
+              :reviewed="content.reviewed.value"
+              @review="content.markReviewed"
+            />
             <q-input
-              v-model="editForm.display_name"
+              v-model="texts.display_name"
               :label="$t('categories.shop_title')"
               :hint="$t('categories.title_hint', { name: editing?.name ?? '' })"
               outlined
@@ -132,7 +140,7 @@
               clearable
             />
             <q-input
-              v-model="editForm.description"
+              v-model="texts.description"
               :label="$t('categories.description')"
               type="textarea"
               autogrow
@@ -299,6 +307,12 @@ import type { QTableColumn } from 'quasar';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import MediaPicker from '@/components/MediaPicker.vue';
+import ContentLanguageTabs from '@/components/ContentLanguageTabs.vue';
+import {
+  cloneTranslations,
+  useContentTranslations,
+  type Translations,
+} from '@/composables/useContentTranslations';
 import PageHeader from '@/components/PageHeader.vue';
 import {
   createAdminCategory,
@@ -424,18 +438,26 @@ const editing = ref<AdminCategory | null>(null);
 const saving = ref(false);
 const dialogError = ref<string | null>(null);
 const editForm = reactive<{
-  display_name: string | null;
+  display_name: string;
   description: string;
   image_url: string;
   default_margin_rate_pct: string;
   default_tax_rate_id: string | null;
+  translations: Translations;
 }>({
   display_name: '',
   description: '',
   image_url: '',
   default_margin_rate_pct: '',
   default_tax_rate_id: null,
+  translations: {},
 });
+const content = useContentTranslations({
+  form: editForm,
+  fields: ['display_name', 'description'],
+  status: () => editing.value?.translation_status,
+});
+const texts = content.texts;
 
 // Taux de TVA en vigueur, pour le taux par défaut d'une catégorie.
 const taxRates = ref<TaxRate[]>([]);
@@ -468,6 +490,8 @@ function openEdit(category: AdminCategory) {
   editForm.image_url = category.image_url ?? '';
   editForm.default_margin_rate_pct = category.default_margin_rate_pct ?? '';
   editForm.default_tax_rate_id = category.default_tax_rate_id ?? null;
+  editForm.translations = cloneTranslations(category.translations);
+  content.reset();
   editDialog.value = true;
 }
 
@@ -479,6 +503,7 @@ async function submitEdit() {
     await updateAdminCategory(editing.value.id, {
       display_name: (editForm.display_name ?? '').trim() || null,
       description: editForm.description.trim() || null,
+      translations: editForm.translations,
       image_url: editForm.image_url.trim() || null,
       default_margin_rate_pct: String(editForm.default_margin_rate_pct ?? '').trim() || null,
     });

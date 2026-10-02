@@ -117,6 +117,14 @@
                   : $t('pages.template_hint')
               }}
             </AppNotice>
+            <ContentLanguageTabs
+              v-model="content.lang.value"
+              :source="content.source.value"
+              :locales="content.locales.value"
+              :status-of="content.statusOf"
+              :reviewed="content.reviewed.value"
+              @review="content.markReviewed"
+            />
             <div class="row q-col-gutter-sm">
               <q-input
                 v-model="form.slug"
@@ -131,12 +139,16 @@
                 ]"
               />
               <q-input
-                v-model="form.title"
+                v-model="texts.title"
                 class="col-12 col-sm-6"
                 :label="$t('pages.page_title')"
                 outlined
                 dense
-                :rules="[(v: string) => !!v.trim() || $t('pages.title_rule')]"
+                :rules="
+                  content.isSource.value
+                    ? [(v: string) => !!v.trim() || $t('pages.title_rule')]
+                    : []
+                "
               />
               <q-toggle
                 v-model="form.is_published"
@@ -144,7 +156,7 @@
                 :label="$t('pages.published')"
               />
             </div>
-            <RichTextEditor v-model="form.body_html" min-height="50vh" />
+            <RichTextEditor v-model="texts.body_html" min-height="50vh" />
           </q-card-section>
           <q-card-actions align="right" class="app-dialog__actions">
             <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
@@ -172,6 +184,12 @@ import StatusTag from '@app/ui/StatusTag.vue';
 import { formatDateTime } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
+import ContentLanguageTabs from '@/components/ContentLanguageTabs.vue';
+import {
+  cloneTranslations,
+  useContentTranslations,
+  type Translations,
+} from '@/composables/useContentTranslations';
 import {
   deletePage,
   getPageTemplate,
@@ -234,7 +252,9 @@ async function openFromTemplate(tpl: ContentPageTemplateSummary) {
       title: existing?.title ?? rendered.title,
       body_html: rendered.body_html,
       is_published: existing?.is_published ?? false,
+      translations: cloneTranslations(existing?.translations),
     });
+    content.reset();
     fromTemplate.value = true;
     dialogError.value = null;
     dialog.value = true;
@@ -250,12 +270,31 @@ const dialog = ref(false);
 const editing = ref(false);
 const saving = ref(false);
 const dialogError = ref<string | null>(null);
-const form = reactive({ slug: '', title: '', body_html: '', is_published: false });
+const form = reactive<{
+  slug: string;
+  title: string;
+  body_html: string;
+  is_published: boolean;
+  translations: Translations;
+}>({ slug: '', title: '', body_html: '', is_published: false, translations: {} });
+const content = useContentTranslations({
+  form,
+  fields: ['title', 'body_html'],
+  status: () => pages.value.find((p) => p.slug === form.slug)?.translation_status,
+});
+const texts = content.texts;
 
 function openCreate() {
   editing.value = false;
   fromTemplate.value = false;
-  Object.assign(form, { slug: '', title: '', body_html: '', is_published: false });
+  Object.assign(form, {
+    slug: '',
+    title: '',
+    body_html: '',
+    is_published: false,
+    translations: {},
+  });
+  content.reset();
   dialogError.value = null;
   dialog.value = true;
 }
@@ -268,7 +307,9 @@ function openEdit(p: ContentPage) {
     title: p.title,
     body_html: p.body_html,
     is_published: p.is_published,
+    translations: cloneTranslations(p.translations),
   });
+  content.reset();
   dialogError.value = null;
   dialog.value = true;
 }
@@ -281,6 +322,7 @@ async function submit() {
       title: form.title.trim(),
       body_html: form.body_html,
       is_published: form.is_published,
+      translations: form.translations,
     });
     dialog.value = false;
     notice.value = t('pages.saved');

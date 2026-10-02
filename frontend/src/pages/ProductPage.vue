@@ -452,7 +452,7 @@ const productsStore = useProductsStore();
 const SPEC_GROUPS_SHOWN = 3;
 
 const departureStore = useDepartureStore();
-const { t } = useI18n();
+const { t, locale } = useI18n({ useScope: 'global' });
 const tr = useTranslate();
 const shopModules = useShopModulesStore();
 const { nextCutoff, nextDelivery } = useDepartureLabels();
@@ -926,6 +926,9 @@ async function loadOffers(productId: string): Promise<void> {
     offers.value = null;
   }
 }
+
+// The texts follow the visitor's language (R9 / T3).
+watch(locale, () => void loadProduct());
 
 onServerPrefetch(loadProduct);
 

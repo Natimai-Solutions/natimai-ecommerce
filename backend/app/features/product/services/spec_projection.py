@@ -64,6 +64,7 @@ async def _load_defs_from_db(session: AsyncSession) -> list[dict[str, Any]] | No
                 "categories": list(r.categories or []),
                 "aliases": list(r.aliases or []),
                 "highlight_rank": r.highlight_rank,
+                "translations": dict(r.translations or {}),
             }
             for r in rows
         ]
@@ -289,4 +290,21 @@ async def get_effective_spec_definitions(
         defs = _RAW_DEFS
     if category_keyword:
         defs = [d for d in defs if _spec_applies_to_category(d, category_keyword)]
-    return defs
+    return [_localized_def(d) for d in defs]
+
+
+def _localized_def(definition: dict[str, Any]) -> dict[str, Any]:
+    """The definition with its label in the request's language (R9 / T3).
+
+    Facets and key-spec tiles are storefront reads; the back-office edits the
+    definitions through their own admin routes, which never come here.
+    """
+    from app.core.content_i18n import SPEC_DEFINITION_FIELDS, translated_values
+    from app.core.i18n import request_locale
+
+    texts = translated_values(
+        definition.get("translations"), SPEC_DEFINITION_FIELDS, request_locale()
+    )
+    if not texts:
+        return definition
+    return {**definition, **texts}

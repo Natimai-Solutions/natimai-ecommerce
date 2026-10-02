@@ -26,6 +26,7 @@ from sqlalchemy import case, func, or_
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.content_i18n import PRODUCT_FIELDS, localize_all
 from app.features.inventory.models.inventory import Inventory
 from app.features.product.models.product import Product, ProductPublic
 
@@ -159,6 +160,10 @@ async def publish_with_availability(
     from app.features.product.services.variants import children_availability
 
     publics = [ProductPublic.model_validate(product) for product in products]
+    if customer is not STAFF:
+        # Storefront read: texts in the request's language (R9 / T3). The
+        # back-office (STAFF) keeps the source language it edits.
+        localize_all(publics, PRODUCT_FIELDS)
     if customer is not STAFF and publics:
         pricing = await pricing_for_user(
             session, customer, (public.id for public in publics)

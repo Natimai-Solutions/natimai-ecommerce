@@ -2555,6 +2555,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/currency-rates/display-default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Default Display Currency
+         * @description The currency proposed to a visitor who chose none: the reference
+         *     currency, or a currency with an active rate that is offered (R9 / T2).
+         */
+        put: operations["admin-currency-rates-set_default_display_currency"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/currency-rates/{code}": {
         parameters: {
             query?: never;
@@ -2580,6 +2601,30 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/currency-rates/{code}/display": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set Currency Display
+         * @description Offer the currency to the visitor, or hide it (R9 / T2).
+         *
+         *     Hiding never touches the rates: the supplier price conversions go on. When
+         *     the hidden currency was the default display currency, the default falls
+         *     back to the reference currency.
+         */
+        patch: operations["admin-currency-rates-set_currency_display"];
         trace?: never;
     };
     "/api/v1/admin/tax-rates": {
@@ -4064,11 +4109,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get Multiple Categorys
-         * @description Read multi.
-         */
-        get: operations["category-get_multiple_Categorys"];
+        /** Get Multiple Categorys */
+        get: operations["category-get_multiple_categorys"];
         put?: never;
         /**
          * Create Category
@@ -4088,11 +4130,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get One Category
-         * @description Execute read.
-         */
-        get: operations["category-get_one_Category"];
+        /** Get One Category */
+        get: operations["category-get_one_category"];
         /**
          * Update Category
          * @description Execute update.
@@ -5969,7 +6008,9 @@ export interface paths {
         };
         /**
          * Get Public Page
-         * @description A published page (no auth). The storefront sanitises the HTML.
+         * @description A published page (no auth), in the request's language when translated
+         *     (R9 / T3), else in the shop's default language (``lang`` says which). The
+         *     storefront sanitises the HTML.
          */
         get: operations["content-pages-get_public_page"];
         put?: never;
@@ -5992,6 +6033,46 @@ export interface paths {
          * @description Every page, published or not.
          */
         get: operations["content-pages-list_pages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/pages/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Page Templates
+         * @description The built-in legal pages a page can be started from (R9 / T1).
+         */
+        get: operations["content-pages-list_page_templates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/pages/templates/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Page Template
+         * @description The template text with the seller identity substituted, ready to edit.
+         */
+        get: operations["content-pages-get_page_template"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8128,6 +8209,16 @@ export interface components {
              * @default 0
              */
             product_count: number;
+            /** Translations */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /** Translation Status */
+            translation_status?: {
+                [key: string]: string;
+            };
         };
         /**
          * AdminCategoryUpdate
@@ -8145,6 +8236,12 @@ export interface components {
             is_active?: boolean | null;
             /** Default Margin Rate Pct */
             default_margin_rate_pct?: number | string | null;
+            /** Translations */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            } | null;
         };
         /**
          * AdminConsolidationItem
@@ -8305,6 +8402,8 @@ export interface components {
             discount_amount: number;
             /** Total Amount */
             total_amount: number;
+            /** Currency */
+            currency?: string | null;
             /** Shipping Address */
             shipping_address?: string | null;
             /** Delivery Type */
@@ -9868,6 +9967,15 @@ export interface components {
              */
             image_url?: string | null;
             /**
+             * Translations
+             * @description Translated display_name / description per language (R9 / T3): {"en": {"display_name": "…", "_source": "<digest>"}}
+             */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /**
              * Default Tax Rate Id
              * @description Default tax rate applied to products in this category
              */
@@ -9969,6 +10077,15 @@ export interface components {
              */
             image_url?: string | null;
             /**
+             * Translations
+             * @description Translated display_name / description per language (R9 / T3): {"en": {"display_name": "…", "_source": "<digest>"}}
+             */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /**
              * Default Tax Rate Id
              * @description Default tax rate applied to products in this category
              */
@@ -9995,6 +10112,13 @@ export interface components {
              * @description What the storefront shows: the admin's display_name, else name.
              */
             readonly title: string;
+            /**
+             * Translation Status
+             * @description Per offered language: ``ok`` / ``stale`` / ``missing`` (R9 / T3).
+             */
+            readonly translation_status: {
+                [key: string]: string;
+            };
         };
         /**
          * CategoryPublicationRow
@@ -10076,6 +10200,15 @@ export interface components {
              * @description URL of the category image
              */
             image_url?: string | null;
+            /**
+             * Translations
+             * @description Translated display_name / description per language (R9 / T3): {"en": {"display_name": "…", "_source": "<digest>"}}
+             */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
             /** Default Tax Rate Id */
             default_tax_rate_id?: string | null;
             /** Default Customs Rate Pct */
@@ -10578,10 +10711,26 @@ export interface components {
              */
             is_published: boolean;
             /**
+             * Translations
+             * @description Translated title / body_html per language (R9 / T3): {"en": {"title": "…", "body_html": "…", "_source": "<digest>"}}
+             */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /**
              * Id
              * Format: uuid
              */
             id: string;
+            /**
+             * Translation Status
+             * @description Per offered language: ``ok`` / ``stale`` / ``missing`` (R9 / T3).
+             */
+            readonly translation_status: {
+                [key: string]: string;
+            };
         };
         /**
          * ContentPageSummary
@@ -10594,6 +10743,38 @@ export interface components {
             title: string;
             /** Body Html */
             body_html: string;
+            /**
+             * Lang
+             * @default fr
+             */
+            lang: string;
+        };
+        /**
+         * ContentPageTemplate
+         * @description The template text, seller identity substituted, ready for the editor.
+         */
+        ContentPageTemplate: {
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+            /** Body Html */
+            body_html: string;
+        };
+        /**
+         * ContentPageTemplateSummary
+         * @description A built-in legal page the admin can start a page from (R9 / T1).
+         */
+        ContentPageTemplateSummary: {
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+            /**
+             * Page Exists
+             * @default false
+             */
+            page_exists: boolean;
         };
         /**
          * ContentPageWrite
@@ -10612,6 +10793,12 @@ export interface components {
              * @default false
              */
             is_published: boolean;
+            /** Translations */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
         };
         /**
          * CounterPaymentCreate
@@ -10675,6 +10862,34 @@ export interface components {
             order_number?: string | null;
             /** Invoice Number */
             invoice_number?: string | null;
+        };
+        /**
+         * CurrencyDisplayDefaultRequest
+         * @description Body of ``PUT /admin/currency-rates/display-default``.
+         */
+        CurrencyDisplayDefaultRequest: {
+            /** Currency Code */
+            currency_code: string;
+        };
+        /**
+         * CurrencyDisplayRequest
+         * @description Body of ``PATCH /admin/currency-rates/{code}/display``.
+         */
+        CurrencyDisplayRequest: {
+            /** Offered */
+            offered: boolean;
+        };
+        /**
+         * CurrencyDisplaySettings
+         * @description Which currencies the storefront offers for display (R9 / T2).
+         */
+        CurrencyDisplaySettings: {
+            /** Reference Currency */
+            reference_currency: string;
+            /** Default Display Currency */
+            default_display_currency: string;
+            /** Hidden Display Currencies */
+            hidden_display_currencies?: string[];
         };
         /**
          * CurrencyRatePublic
@@ -10763,6 +10978,18 @@ export interface components {
          * @description Represents currency rates public.
          */
         CurrencyRatesPublic: {
+            /**
+             * Reference Currency
+             * @default
+             */
+            reference_currency: string;
+            /**
+             * Default Display Currency
+             * @default
+             */
+            default_display_currency: string;
+            /** Hidden Display Currencies */
+            hidden_display_currencies?: string[];
             /** Data */
             data?: components["schemas"]["CurrencyRatePublic"][];
             /**
@@ -11485,6 +11712,11 @@ export interface components {
         DisplayRate: {
             /** Currency Code */
             currency_code: string;
+            /**
+             * Decimals
+             * @default 2
+             */
+            decimals: number;
             /** Rate To Reference */
             rate_to_reference: number;
         };
@@ -11495,6 +11727,11 @@ export interface components {
         DisplayRatesResponse: {
             /** Reference Currency */
             reference_currency: string;
+            /**
+             * Reference Decimals
+             * @default 2
+             */
+            reference_decimals: number;
             /** Rates */
             rates: components["schemas"]["DisplayRate"][];
         };
@@ -12507,11 +12744,8 @@ export interface components {
             shipping_address?: string | null;
             /** Notes */
             notes?: string | null;
-            /**
-             * Currency
-             * @default XPF
-             */
-            currency: string;
+            /** Currency */
+            currency?: string;
             /** Items */
             items?: components["schemas"]["GuestQuoteRequestItem"][];
         };
@@ -12583,6 +12817,19 @@ export interface components {
             /** Ends At */
             ends_at?: string | null;
             image?: components["schemas"]["HomepageImage"] | null;
+            /** Translations */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /**
+             * Translation Status
+             * @description Per offered language: ``ok`` / ``stale`` / ``missing`` (R9 / T3).
+             */
+            readonly translation_status: {
+                [key: string]: string;
+            };
         };
         /**
          * HomepageBlockWrite
@@ -12622,6 +12869,12 @@ export interface components {
             starts_at?: string | null;
             /** Ends At */
             ends_at?: string | null;
+            /** Translations */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
         };
         /**
          * HomepageImage
@@ -13453,6 +13706,11 @@ export interface components {
              */
             cgv_version?: string | null;
             /**
+             * Locale
+             * @description Langue de la commande (fr, en…)
+             */
+            locale?: string | null;
+            /**
              * Payment Plan
              * @description full | deposit
              * @default full
@@ -13670,6 +13928,11 @@ export interface components {
              * @description Version des CGV acceptée au checkout
              */
             cgv_version?: string | null;
+            /**
+             * Locale
+             * @description Langue de la commande (fr, en…)
+             */
+            locale?: string | null;
             /**
              * Payment Plan
              * @description full | deposit
@@ -14161,6 +14424,11 @@ export interface components {
              */
             cgv_version?: string | null;
             /**
+             * Locale
+             * @description Langue de la commande (fr, en…)
+             */
+            locale?: string | null;
+            /**
              * Payment Plan
              * @description full | deposit
              * @default full
@@ -14606,6 +14874,11 @@ export interface components {
              * @description Version des CGV acceptée au checkout
              */
             cgv_version?: string | null;
+            /**
+             * Locale
+             * @description Langue de la commande (fr, en…)
+             */
+            locale?: string | null;
             /**
              * Payment Plan
              * @description full | deposit
@@ -15206,9 +15479,8 @@ export interface components {
             /**
              * Currency
              * @description Currency of the payment (XPF, EUR, etc.)
-             * @default XPF
              */
-            currency: string;
+            currency?: string;
             /**
              * Provider Code
              * @description Payment provider identifier (payzen, stripe, manual_check, etc.)
@@ -15559,9 +15831,8 @@ export interface components {
             /**
              * Currency
              * @description Currency of the payment (XPF, EUR, etc.)
-             * @default XPF
              */
-            currency: string;
+            currency?: string;
             /**
              * Provider Code
              * @description Payment provider identifier (payzen, stripe, manual_check, etc.)
@@ -15839,9 +16110,8 @@ export interface components {
             /**
              * Currency
              * @description Currency code (XPF, EUR, etc.)
-             * @default XPF
              */
-            currency: string;
+            currency?: string;
             /**
              * Order Id
              * @description Order ID to associate with payment (optional)
@@ -16591,6 +16861,15 @@ export interface components {
              */
             long_description?: string | null;
             /**
+             * Translations
+             * @description Translated name / description / long_description per language (R9 / T3): {"en": {"name": "…", "_source": "<digest>"}}
+             */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /**
              * Base Price
              * @description Sale price. In pricing_mode 'fixed' it is the tax-inclusive price set by the admin; in the computed modes it is overwritten at read time by the pricing service (0 = not priced yet).
              * @default 0.00
@@ -16645,9 +16924,8 @@ export interface components {
             /**
              * Cost Currency
              * @description Currency of the product cost amount
-             * @default XPF
              */
-            cost_currency: string;
+            cost_currency?: string;
             /**
              * Customs Rate Pct
              * @description Customs rate percentage applied before margin. None → inherit Category.default_customs_rate_pct; unresolved rate makes the product non-publishable.
@@ -17065,6 +17343,15 @@ export interface components {
              */
             long_description?: string | null;
             /**
+             * Translations
+             * @description Translated name / description / long_description per language (R9 / T3): {"en": {"name": "…", "_source": "<digest>"}}
+             */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /**
              * Base Price
              * @description Sale price. In pricing_mode 'fixed' it is the tax-inclusive price set by the admin; in the computed modes it is overwritten at read time by the pricing service (0 = not priced yet).
              * @default 0.00
@@ -17119,9 +17406,8 @@ export interface components {
             /**
              * Cost Currency
              * @description Currency of the product cost amount
-             * @default XPF
              */
-            cost_currency: string;
+            cost_currency?: string;
             /**
              * Customs Rate Pct
              * @description Customs rate percentage applied before margin. None → inherit Category.default_customs_rate_pct; unresolved rate makes the product non-publishable.
@@ -17359,6 +17645,13 @@ export interface components {
             promotion_name?: string | null;
             /** Promotion Ends At */
             promotion_ends_at?: string | null;
+            /**
+             * Translation Status
+             * @description Per offered language: ``ok`` / ``stale`` / ``missing`` (R9 / T3).
+             */
+            readonly translation_status: {
+                [key: string]: string;
+            };
         };
         /**
          * ProductPublishRequest
@@ -17513,6 +17806,15 @@ export interface components {
              * @description Long description of the product
              */
             long_description?: string | null;
+            /**
+             * Translations
+             * @description Translated name / description / long_description per language (R9 / T3): {"en": {"name": "…", "_source": "<digest>"}}
+             */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
             /** Base Price */
             base_price?: number | string | null;
             pricing_mode?: components["schemas"]["PricingMode"] | null;
@@ -18145,11 +18447,8 @@ export interface components {
              * @description Refunded amount, expressed in the payment currency
              */
             amount: string;
-            /**
-             * Currency
-             * @default XPF
-             */
-            currency: string;
+            /** Currency */
+            currency?: string;
             /** Reason */
             reason?: string | null;
             /**
@@ -19738,6 +20037,29 @@ export interface components {
             modules: {
                 [key: string]: boolean;
             };
+            /**
+             * Default Locale
+             * @default fr
+             */
+            default_locale: string;
+            /**
+             * Available Locales
+             * @default [
+             *       "fr",
+             *       "en"
+             *     ]
+             */
+            available_locales: string[];
+            /**
+             * Timezone
+             * @default Pacific/Tahiti
+             */
+            timezone: string;
+            /**
+             * Default Display Currency
+             * @default XPF
+             */
+            default_display_currency: string;
         };
         /**
          * Shortage
@@ -19845,6 +20167,15 @@ export interface components {
              * @description Position among the key-spec tiles of the product page (1 = first); None = not highlighted. The page shows the first four the product has.
              */
             highlight_rank?: number | null;
+            /**
+             * Translations
+             * @description Translated label per language (R9 / T3): {"en": {"label_fr": "Memory"}}
+             */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
         };
         /** SpecDefinitionPublic */
         SpecDefinitionPublic: {
@@ -19889,6 +20220,15 @@ export interface components {
              */
             highlight_rank?: number | null;
             /**
+             * Translations
+             * @description Translated label per language (R9 / T3): {"en": {"label_fr": "Memory"}}
+             */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /**
              * Id
              * Format: uuid
              */
@@ -19903,6 +20243,13 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /**
+             * Translation Status
+             * @description Per offered language: ``ok`` / ``stale`` / ``missing`` (R9 / T3).
+             */
+            readonly translation_status: {
+                [key: string]: string;
+            };
         };
         /** SpecDefinitionUpdate */
         SpecDefinitionUpdate: {
@@ -19920,6 +20267,12 @@ export interface components {
             is_active?: boolean | null;
             /** Highlight Rank */
             highlight_rank?: number | null;
+            /** Translations */
+            translations?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            } | null;
         };
         /** SpecDefinitionsPublic */
         SpecDefinitionsPublic: {
@@ -20476,11 +20829,8 @@ export interface components {
              * @description Signé : positif pour un octroi, négatif pour une utilisation
              */
             amount: string;
-            /**
-             * Currency
-             * @default XPF
-             */
-            currency: string;
+            /** Currency */
+            currency?: string;
             /**
              * Kind
              * @description grant | use | revoke
@@ -20679,11 +21029,8 @@ export interface components {
             ordered_at: string;
             /** Total Amount */
             total_amount: number | string;
-            /**
-             * Currency
-             * @default XPF
-             */
-            currency: string;
+            /** Currency */
+            currency?: string;
             /** Notes */
             notes?: string | null;
         };
@@ -26402,6 +26749,39 @@ export interface operations {
             };
         };
     };
+    "admin-currency-rates-set_default_display_currency": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CurrencyDisplayDefaultRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurrencyDisplaySettings"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-currency-rates-get_active_currency_rate": {
         parameters: {
             query?: never;
@@ -26455,6 +26835,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CurrencyRatePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-currency-rates-set_currency_display": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CurrencyDisplayRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurrencyDisplaySettings"];
                 };
             };
             /** @description Validation Error */
@@ -29246,12 +29661,11 @@ export interface operations {
             };
         };
     };
-    "category-get_multiple_Categorys": {
+    "category-get_multiple_categorys": {
         parameters: {
             query?: {
                 skip?: number;
                 limit?: number;
-                filter?: string | null;
                 order_by?: string | null;
                 include_archived?: boolean;
             };
@@ -29314,7 +29728,7 @@ export interface operations {
             };
         };
     };
-    "category-get_one_Category": {
+    "category-get_one_category": {
         parameters: {
             query?: never;
             header?: never;
@@ -33603,6 +34017,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ContentPagePublic"][];
+                };
+            };
+        };
+    };
+    "content-pages-list_page_templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentPageTemplateSummary"][];
+                };
+            };
+        };
+    };
+    "content-pages-get_page_template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentPageTemplate"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

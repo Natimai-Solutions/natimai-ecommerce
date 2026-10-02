@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import uuid
 from decimal import Decimal
+from typing import Any
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
@@ -27,6 +28,12 @@ from sqlalchemy import update as sa_update
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.core.content_i18n import (
+    CATEGORY_FIELDS,
+    InvalidTranslations,
+    clean_translations,
+    translation_status,
+)
 from app.core.errors import AppError
 from app.features.discount.models import Discount
 from app.features.integrations.services.category_mapping import retarget_after_merge
@@ -61,6 +68,9 @@ class AdminCategoryItem(BaseModel):
     merged_into_id: uuid.UUID | None
     merged_into_name: str | None = None
     product_count: int = 0
+    #: Translated display_name / description per language (R9 / T3).
+    translations: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    translation_status: dict[str, str] = Field(default_factory=dict)
 
 
 class AdminCategoriesPublic(BaseModel):
@@ -81,6 +91,8 @@ class AdminCategoryUpdate(BaseModel):
     #: Marge par défaut des articles de la catégorie (None = celle du groupe
     #: tarifaire du client). Un article peut la surcharger.
     default_margin_rate_pct: Decimal | None = Field(default=None, ge=0)
+    #: Traductions du titre vitrine et de la description (R9 / T3).
+    translations: dict[str, dict[str, Any]] | None = None
 
 
 class MergeBody(BaseModel):
@@ -115,6 +127,12 @@ def _to_item(
         merged_into_id=category.merged_into_id,
         merged_into_name=merged_into_name,
         product_count=product_count,
+        translations=dict(category.translations or {}),
+        translation_status=translation_status(
+            category.translations,
+            {f: getattr(category, f, None) for f in CATEGORY_FIELDS},
+            CATEGORY_FIELDS,
+        ),
     )
 
 
@@ -248,6 +266,23 @@ async def update_category(
         fields["display_name"] = (
             cleaned if cleaned and cleaned != category.name else None
         )
+
+    if "translations" in fields:
+        source = {f: fields.get(f, getattr(category, f, None)) for f in CATEGORY_FIELDS}
+        try:
+            fields["translations"] = clean_translations(
+                fields["translations"],
+                previous=category.translations,
+                source_values=source,
+                fields=CATEGORY_FIELDS,
+            )
+        except InvalidTranslations as exc:
+            raise AppError(
+                code="category.translations.invalid",
+                status_code=400,
+                message=f"Traductions invalides : {exc}",
+                details={"field": "translations"},
+            ) from exc
 
     for name, value in fields.items():
         setattr(category, name, value)

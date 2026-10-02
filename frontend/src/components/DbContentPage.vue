@@ -33,9 +33,9 @@
  * the `fallback` slot (the hard-coded legal text, for instance). Fetched
  * during SSR so the page arrives complete.
  *
- * In another language than French, the page `<slug>-<locale>` (e.g.
- * `cgv-en`) is served when the back-office published it; otherwise the French
- * text shows with a notice that it is the reference version (R7).
+ * The API serves the page in the visitor's language when the back-office
+ * translated it (R9 / T3); otherwise the default-language text shows with a
+ * notice that it is the reference version (R7).
  */
 import DOMPurify from 'isomorphic-dompurify';
 import { computed, onMounted, onServerPrefetch, ref, watch } from 'vue';
@@ -48,9 +48,10 @@ const props = defineProps<{ slug: string; fallbackTitle?: string }>();
 const { locale } = useI18n({ useScope: 'global' });
 const page = ref<ContentPage | null>(null);
 const loading = ref(true);
-/** Shown in French although the interface is in another language. */
-const translated = ref(false);
-const frenchOnly = computed(() => locale.value !== 'fr' && !translated.value);
+/** Served in the shop's default language although the interface is in another one. */
+const frenchOnly = computed(
+  () => page.value !== null && (page.value.lang ?? 'fr') !== locale.value,
+);
 
 async function fetchPage(slug: string): Promise<ContentPage | null> {
   try {
@@ -63,11 +64,8 @@ async function fetchPage(slug: string): Promise<ContentPage | null> {
 async function load(): Promise<void> {
   loading.value = true;
   try {
-    const localized =
-      locale.value !== 'fr' ? await fetchPage(`${props.slug}-${locale.value}`) : null;
-    translated.value = localized !== null;
     // Not published: the fallback slot shows.
-    page.value = localized ?? (await fetchPage(props.slug));
+    page.value = await fetchPage(props.slug);
   } finally {
     loading.value = false;
   }

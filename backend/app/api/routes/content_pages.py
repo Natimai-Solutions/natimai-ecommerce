@@ -6,7 +6,14 @@ from fastapi import APIRouter
 from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.core.content_i18n import (
+    CONTENT_PAGE_FIELDS,
+    InvalidTranslations,
+    clean_translations,
+    translated_values,
+)
 from app.core.errors import AppError
+from app.core.i18n import default_locale, request_locale
 from app.features.content.crud import crud_content_page, is_valid_slug
 from app.features.content.legal_templates import (
     LEGAL_TEMPLATES,
@@ -27,6 +34,14 @@ from app.features.content.models import (
 router = APIRouter(tags=["content-pages"])
 
 
+def _bad_translations(exc: InvalidTranslations) -> AppError:
+    return AppError(
+        code="content.translations.invalid",
+        status_code=400,
+        message=f"Traductions invalides : {exc}",
+    )
+
+
 def _not_found(slug: str) -> AppError:
     return AppError(
         code="content_page.not_found",
@@ -38,11 +53,20 @@ def _not_found(slug: str) -> AppError:
 
 @router.get("/pages/{slug}", response_model=ContentPageSummary)
 async def get_public_page(slug: str, session: SessionDep) -> ContentPageSummary:
-    """A published page (no auth). The storefront sanitises the HTML."""
+    """A published page (no auth), in the request's language when translated
+    (R9 / T3), else in the shop's default language (``lang`` says which). The
+    storefront sanitises the HTML."""
     page = await crud_content_page.get_by_slug(session, slug, published_only=True)
     if page is None:
         raise _not_found(slug)
-    return ContentPageSummary.model_validate(page)
+    lang = request_locale()
+    texts = translated_values(page.translations, CONTENT_PAGE_FIELDS, lang)
+    return ContentPageSummary(
+        slug=page.slug,
+        title=texts.get("title") or page.title,
+        body_html=texts.get("body_html") or page.body_html,
+        lang=lang if texts else default_locale(),
+    )
 
 
 @router.get("/admin/pages", response_model=list[ContentPagePublic])
@@ -110,15 +134,23 @@ async def upsert_page(
             details={"slug": slug},
         )
     existing = await crud_content_page.get_by_slug(session, slug)
+    data = body.model_dump()
+    try:
+        data["translations"] = clean_translations(
+            body.translations,
+            previous=existing.translations if existing is not None else None,
+            source_values=data,
+            fields=CONTENT_PAGE_FIELDS,
+        )
+    except InvalidTranslations as exc:
+        raise _bad_translations(exc)
     if existing is None:
         page = await crud_content_page.create(
-            session,
-            data=ContentPageCreate(slug=slug, **body.model_dump()),
-            user=admin,
+            session, data=ContentPageCreate(slug=slug, **data), user=admin
         )
     else:
         page = await crud_content_page.update(
-            session, id=existing.id, data=body.model_dump(), user=admin, record=existing
+            session, id=existing.id, data=data, user=admin, record=existing
         )
     return ContentPagePublic.model_validate(page)
 

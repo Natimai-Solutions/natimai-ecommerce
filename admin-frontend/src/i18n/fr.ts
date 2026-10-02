@@ -1147,7 +1147,7 @@ const fr = {
     heading: 'Titre',
     image: 'Image',
     insert_image: 'Insérer une image de la médiathèque',
-    intro: '« comment-ca-marche » explique le principe des départs groupés (lien dans le bandeau et le pied de page). Une page « cgv », « mentions-legales » ou « confidentialite » publiée remplace le texte par défaut ; « Depuis un modèle » la pré-remplit avec ce texte, identité du vendeur déjà renseignée ; supprimez-la pour revenir au texte par défaut. Une page en brouillon n\'est pas visible sur le site. Pour la version anglaise d\'une page, créez « <slug>-en » (ex. cgv-en).',
+    intro: '« comment-ca-marche » explique le principe des départs groupés (lien dans le bandeau et le pied de page). Une page « cgv », « mentions-legales » ou « confidentialite » publiée remplace le texte par défaut ; « Depuis un modèle » la pré-remplit avec ce texte, identité du vendeur déjà renseignée ; supprimez-la pour revenir au texte par défaut. Une page en brouillon n\'est pas visible sur le site. La version anglaise se saisit dans l\'onglet « English » de la page.',
     new: 'Nouvelle page',
     new_title: 'Nouvelle page',
     no_template: 'Aucun modèle disponible.',
@@ -2008,6 +2008,16 @@ const fr = {
     title: 'Variantes',
     value: 'Valeur',
     weight: 'Poids (kg)',
+  },
+  translations: {
+    mark_reviewed: 'Marquer comme relue',
+    missing_hint: 'Pas encore traduit : le texte de la langue par défaut s\'affiche.',
+    ok_hint: 'Traduction à jour.',
+    source_hint: 'Texte de référence (langue par défaut de la boutique).',
+    st_missing: 'à traduire',
+    st_ok: 'traduit',
+    st_stale: 'à relire',
+    stale_hint: 'Le texte de référence a changé depuis cette traduction : à relire.',
   },
 };
 

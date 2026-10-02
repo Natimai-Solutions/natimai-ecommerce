@@ -8,12 +8,16 @@ export interface ContentPage {
   body_html: string;
   is_published: boolean;
   modify_at: string | null;
+  /** Translated title / body_html per language (R9 / T3). */
+  translations: Record<string, Record<string, unknown>>;
+  translation_status: Record<string, string>;
 }
 
 export interface ContentPageWrite {
   title: string;
   body_html: string;
   is_published: boolean;
+  translations?: Record<string, Record<string, unknown>>;
 }
 
 export async function listPages(): Promise<ContentPage[]> {

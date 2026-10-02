@@ -25,6 +25,11 @@ from sqlmodel import col, select
 
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.config import settings
+from app.core.content_i18n import (
+    PRODUCT_FIELDS,
+    InvalidTranslations,
+    clean_translations,
+)
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.integrations.models.supplier import Supplier
@@ -142,6 +147,26 @@ async def admin_publish_products(
     )
 
 
+def _product_translations(
+    data: dict[str, Any], *, previous: dict[str, Any] | None, source: dict[str, Any]
+) -> dict[str, Any]:
+    """Validated, stamped translations of the texts (R9 / T3)."""
+    try:
+        return clean_translations(
+            data.get("translations"),
+            previous=previous,
+            source_values=source,
+            fields=PRODUCT_FIELDS,
+        )
+    except InvalidTranslations as exc:
+        raise AppError(
+            code="product.translations.invalid",
+            status_code=400,
+            message=f"Traductions invalides : {exc}",
+            details={"field": "translations"},
+        ) from exc
+
+
 @router.post("", response_model=ProductPublic)
 async def admin_create_product(
     session: SessionDep,
@@ -152,6 +177,8 @@ async def admin_create_product(
     data = payload.model_dump(exclude_unset=True)
     supplier = await _resolve_supplier(session, data.get("supplier_name"))
     _apply_supplier_defaults(data, supplier)
+    if "translations" in data:
+        data["translations"] = _product_translations(data, previous=None, source=data)
     create_data = ProductCreate.model_validate({**data, "is_supplier_managed": False})
     product = await crud_product.create(
         session=session, data=create_data, user=current_user
@@ -520,6 +547,11 @@ async def admin_update_product(
         ) from exc
 
     changed = payload.model_dump(exclude_unset=True)
+    if "translations" in changed:
+        source = {f: changed.get(f, getattr(product, f, None)) for f in PRODUCT_FIELDS}
+        changed["translations"] = _product_translations(
+            changed, previous=product.translations, source=source
+        )
     if "supplier_name" in changed and changed["supplier_name"] != product.supplier_name:
         supplier = await _resolve_supplier(session, changed["supplier_name"])
         # Re-linking a manual product to another supplier moves its origin

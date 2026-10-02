@@ -162,17 +162,29 @@
               ]"
               inline
             />
+            <ContentLanguageTabs
+              v-model="content.lang.value"
+              :source="content.source.value"
+              :locales="content.locales.value"
+              :status-of="content.statusOf"
+              :reviewed="content.reviewed.value"
+              @review="content.markReviewed"
+            />
             <q-input
-              v-model="form.title"
+              v-model="texts.title"
               :label="$t('homepage.block_title')"
               outlined
               dense
               maxlength="200"
-              :rules="[(v: string) => !!v.trim() || $t('homepage.title_rule')]"
+              :rules="
+                content.isSource.value
+                  ? [(v: string) => !!v.trim() || $t('homepage.title_rule')]
+                  : []
+              "
               data-testid="homepage-title"
             />
             <q-input
-              v-model="form.subtitle"
+              v-model="texts.subtitle"
               :label="$t('homepage.text')"
               type="textarea"
               autogrow
@@ -182,7 +194,7 @@
             />
             <div class="row q-col-gutter-sm">
               <q-input
-                v-model="form.cta_label"
+                v-model="texts.cta_label"
                 class="col-12 col-sm-4"
                 :label="$t('homepage.cta')"
                 :hint="$t('homepage.cta_hint')"
@@ -235,7 +247,7 @@
               maxlength="500"
             />
             <q-input
-              v-model="form.alt"
+              v-model="texts.alt"
               :label="$t('homepage.alt')"
               :hint="$t('homepage.alt_hint')"
               outlined
@@ -303,6 +315,12 @@ import type { StatusTone } from '@app/ui/statusTone';
 import { formatDateTime } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import MediaPicker from '@/components/MediaPicker.vue';
+import ContentLanguageTabs from '@/components/ContentLanguageTabs.vue';
+import {
+  cloneTranslations,
+  useContentTranslations,
+  type Translations,
+} from '@/composables/useContentTranslations';
 import { extractApiError } from '@/api/errors';
 import {
   createHomepageBlock,
@@ -397,9 +415,17 @@ interface BlockForm {
   is_published: boolean;
   starts_at: string | null;
   ends_at: string | null;
+  /** Translated texts per language (R9 / T3). */
+  translations: Translations;
 }
 
 const form = reactive<BlockForm>(emptyForm('banner'));
+const content = useContentTranslations({
+  form,
+  fields: ['title', 'subtitle', 'cta_label', 'alt'],
+  status: () => blocks.value.find((b) => b.id === editingId.value)?.translation_status,
+});
+const texts = content.texts;
 
 function emptyForm(kind: Kind): BlockForm {
   return {
@@ -415,6 +441,7 @@ function emptyForm(kind: Kind): BlockForm {
     is_published: false,
     starts_at: null,
     ends_at: null,
+    translations: {},
   };
 }
 
@@ -445,6 +472,7 @@ function openCreate(kind: Kind = 'banner') {
   form.position = sameKind.length ? Math.max(...sameKind.map((b) => b.position ?? 0)) + 1 : 0;
   pickedPreview.value = null;
   dialogError.value = null;
+  content.reset();
   dialog.value = true;
 }
 
@@ -463,7 +491,9 @@ function openEdit(block: HomepageBlock) {
     is_published: block.is_published ?? false,
     starts_at: toLocalInput(block.starts_at),
     ends_at: toLocalInput(block.ends_at),
+    translations: cloneTranslations(block.translations),
   });
+  content.reset();
   pickedPreview.value = null;
   dialogError.value = null;
   dialog.value = true;
@@ -496,6 +526,7 @@ function payloadFromForm(): HomepageBlockWrite {
     is_published: form.is_published,
     starts_at: fromLocalInput(form.starts_at),
     ends_at: fromLocalInput(form.ends_at),
+    translations: form.translations,
   };
 }
 

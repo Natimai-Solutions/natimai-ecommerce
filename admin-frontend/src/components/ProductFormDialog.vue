@@ -40,23 +40,32 @@
             />
           </div>
 
+          <ContentLanguageTabs
+            v-model="content.lang.value"
+            :source="content.source.value"
+            :locales="content.locales.value"
+            :status-of="content.statusOf"
+            :reviewed="content.reviewed.value"
+            @review="content.markReviewed"
+          />
           <q-input
-            v-model="form.name"
+            v-model="texts.name"
             :label="$t('product_form.name')"
             outlined
             dense
             bottom-slots
-            :rules="req"
+            :rules="content.isSource.value ? req : []"
+            data-testid="product-name"
           />
           <q-input
-            v-model="form.description"
+            v-model="texts.description"
             :label="$t('product_form.short')"
             outlined
             dense
             bottom-slots
           />
           <RichTextEditor
-            v-model="form.long_description"
+            v-model="texts.long_description"
             :label="$t('product_form.long')"
             media-kind="product"
           />
@@ -509,6 +518,12 @@ import { adjustInventory } from '@/api/inventory';
 import MarginPreviewPanel from '@/components/MarginPreviewPanel.vue';
 import MediaPicker from '@/components/MediaPicker.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
+import ContentLanguageTabs from '@/components/ContentLanguageTabs.vue';
+import {
+  cloneTranslations,
+  useContentTranslations,
+  type Translations,
+} from '@/composables/useContentTranslations';
 import { intlLocale } from '@app/utils';
 import { getGroupPrices, setGroupPrices, type MarginPreviewRequest } from '@/api/margin';
 import ProductVariantsPanel from '@/components/ProductVariantsPanel.vue';
@@ -539,6 +554,8 @@ interface FormState {
   name: string;
   description: string;
   long_description: string;
+  /** Translated texts per language (R9 / T3); the fields above are the source. */
+  translations: Translations;
   supplier_name: string | null;
   supplier_sku: string;
   manufacturer: string;
@@ -589,6 +606,7 @@ function emptyForm(): FormState {
     name: '',
     description: '',
     long_description: '',
+    translations: {},
     supplier_name: null,
     supplier_sku: '',
     manufacturer: '',
@@ -622,6 +640,12 @@ function emptyForm(): FormState {
 }
 
 const form = reactive<FormState>(emptyForm());
+const content = useContentTranslations({
+  form,
+  fields: ['name', 'description', 'long_description'],
+  status: () => props.product?.translation_status,
+});
+const texts = content.texts;
 let original: FormState = emptyForm();
 
 const saving = ref(false);
@@ -910,6 +934,7 @@ function loadFromProduct(p: ProductPublic | null) {
     base.name = str(rec.name);
     base.description = str(rec.description);
     base.long_description = str(rec.long_description);
+    base.translations = cloneTranslations(rec.translations);
     base.supplier_name = (rec.supplier_name as string | null) ?? null;
     base.supplier_sku = str(rec.supplier_sku);
     base.manufacturer = str(rec.manufacturer);
@@ -947,6 +972,7 @@ function loadFromProduct(p: ProductPublic | null) {
   }
   Object.assign(form, base);
   original = { ...base };
+  content.reset();
 }
 
 /** Build the payload: full for create, only changed fields for edit. */
