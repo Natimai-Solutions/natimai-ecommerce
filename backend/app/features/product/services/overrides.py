@@ -28,6 +28,8 @@ LOCK_EXEMPT_FIELDS = frozenset(
         "overridden_fields",
         # Admin publication decision: neither the sync nor Icecat write it.
         "published_without_enrichment",
+        # Back-office only (R9 / T3): no supplier feed ever writes it.
+        "translations",
     }
 )
 

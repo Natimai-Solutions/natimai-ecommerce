@@ -6,6 +6,8 @@ export interface ContentPage {
   title: string;
   /** Written in the back-office editor; sanitise before rendering. */
   body_html: string;
+  /** Language of the texts served (the request's when translated, else the default). */
+  lang: string;
 }
 
 export async function getPage(slug: string): Promise<ContentPage> {

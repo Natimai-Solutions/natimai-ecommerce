@@ -162,17 +162,37 @@
         </button>
       </aside>
     </div>
+
+    <section
+      v-if="related.length > 0"
+      class="cart__related"
+      aria-labelledby="cart-related-title"
+      data-testid="cart-related"
+    >
+      <h2 id="cart-related-title" class="cart__related-title">{{ $t('cart.complete_setup') }}</h2>
+      <div class="product-grid">
+        <ProductCard
+          v-for="item in related"
+          :key="item.id"
+          :product="item"
+          @add-to-cart="addRelatedToCart"
+        />
+      </div>
+    </section>
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import AppNotice from '@app/ui/AppNotice.vue';
-import { onMounted } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useCartStore } from '@/stores/cart';
 import { useCurrencyStore } from '@/stores/currency';
 import ProductImage from '@/components/ProductImage.vue';
+import ProductCard from '@/components/ProductCard.vue';
+import { getRelatedToProducts } from '@/api/products';
+import type { components } from '@app/api-types';
 import { getProductRoute } from '@/utils/productRoute';
 
 const { t } = useI18n();
@@ -223,6 +243,32 @@ function clearCart() {
 
 function goToCheckout() {
   void router.push({ name: 'checkout' });
+}
+
+// « Complétez votre équipement » (R9 / T7): accessories of what is in the cart.
+type RelatedProduct = components['schemas']['ProductPublic'];
+const related = ref<RelatedProduct[]>([]);
+const cartProductIds = computed(() => cartStore.items.map((item) => item.product_id).sort());
+async function loadRelated(ids: string[]) {
+  if (ids.length === 0) {
+    related.value = [];
+    return;
+  }
+  try {
+    related.value = (await getRelatedToProducts(ids)).accessories;
+  } catch {
+    related.value = [];
+  }
+}
+watch(
+  () => cartProductIds.value.join(','),
+  () => {
+    if (import.meta.env.QUASAR_CLIENT) void loadRelated(cartProductIds.value);
+  },
+  { immediate: true },
+);
+async function addRelatedToCart(item: RelatedProduct) {
+  await cartStore.addItem(item.id, 1, item);
 }
 
 onMounted(async () => {
@@ -468,5 +514,15 @@ onMounted(async () => {
     min-height: 48px;
     padding: 0 24px;
   }
+}
+
+.cart__related {
+  margin-top: 48px;
+}
+
+.cart__related-title {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 600;
 }
 </style>

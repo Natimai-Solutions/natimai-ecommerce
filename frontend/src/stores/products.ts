@@ -75,8 +75,8 @@ export const useProductsStore = defineStore('products', () => {
     await search();
   }
 
-  async function loadCategories() {
-    if (categories.value.length > 0) return;
+  async function loadCategories(options: { force?: boolean } = {}) {
+    if (categories.value.length > 0 && !options.force) return;
     try {
       const resp = await getCategories();
       // Merged (A12) or switched-off categories stay in base for the supplier

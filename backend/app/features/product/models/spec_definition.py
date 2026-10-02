@@ -2,8 +2,13 @@
 
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
+from pydantic import computed_field
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import JSON, Column, Field, SQLModel
+
+from app.core.content_i18n import SPEC_DEFINITION_FIELDS, translation_status
 
 
 class SpecDefinitionBase(SQLModel):
@@ -34,6 +39,13 @@ class SpecDefinitionBase(SQLModel):
             "None = not highlighted. The page shows the first four the product has."
         ),
     )
+    translations: dict[str, dict[str, Any]] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+        description=(
+            'Translated label per language (R9 / T3): {"en": {"label_fr": "Memory"}}'
+        ),
+    )
 
 
 class SpecDefinitionCreate(SpecDefinitionBase):
@@ -48,6 +60,7 @@ class SpecDefinitionUpdate(SQLModel):
     aliases: list[str] | None = None
     is_active: bool | None = None
     highlight_rank: int | None = Field(default=None, ge=1)
+    translations: dict[str, dict[str, Any]] | None = None
 
 
 class SpecDefinition(SpecDefinitionBase, table=True):
@@ -64,6 +77,16 @@ class SpecDefinitionPublic(SpecDefinitionBase):
     id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def translation_status(self) -> dict[str, str]:
+        """Per offered language: ``ok`` / ``stale`` / ``missing`` (R9 / T3)."""
+        return translation_status(
+            self.translations,
+            {f: getattr(self, f, None) for f in SPEC_DEFINITION_FIELDS},
+            SPEC_DEFINITION_FIELDS,
+        )
 
 
 class SpecDefinitionsPublic(SQLModel):

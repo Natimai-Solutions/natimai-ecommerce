@@ -19,12 +19,17 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlmodel import col, select
 
-from app.api.deps import CurrentSuperUser, SessionDep
+from app.api.deps import CurrentSuperUser, SessionDep, module_required
 from app.core.config import settings
+from app.core.content_i18n import (
+    PRODUCT_FIELDS,
+    InvalidTranslations,
+    clean_translations,
+)
 from app.core.errors import AppError
 from app.features.base.crud import RecordNotFoundError
 from app.features.integrations.models.supplier import Supplier
@@ -47,13 +52,27 @@ from app.features.product.models.product import (
     ProductUpdate,
 )
 from app.features.product.models.product_group_price import ProductGroupPrice
+from app.features.product.models.product_link import (
+    ProductLink,
+    ProductLinkPublic,
+    ProductLinkWrite,
+)
 from app.features.product.services.group_pricing import apply_discount
+from app.features.product.services.manual_specs import (
+    SpecFormResponse,
+    SpecValueWrite,
+    apply_manual_specs,
+    spec_form_rows,
+)
 from app.features.product.services.overrides import merge_locks, release_lock
 from app.features.product.services.pricing import CurrencyRateMissing, PricingContext
+from app.features.product.services.related import replace_product_links
 from app.features.product.services.variants import (
+    apply_price_extras,
     list_variants,
     option_axes,
     refresh_parent_from_variants,
+    supplemented_price,
     variant_display_name,
 )
 from app.services.suppliers import load_supplier
@@ -142,6 +161,144 @@ async def admin_publish_products(
     )
 
 
+def _product_translations(
+    data: dict[str, Any], *, previous: dict[str, Any] | None, source: dict[str, Any]
+) -> dict[str, Any]:
+    """Validated, stamped translations of the texts (R9 / T3)."""
+    try:
+        return clean_translations(
+            data.get("translations"),
+            previous=previous,
+            source_values=source,
+            fields=PRODUCT_FIELDS,
+        )
+    except InvalidTranslations as exc:
+        raise AppError(
+            code="product.translations.invalid",
+            status_code=400,
+            message=f"Traductions invalides : {exc}",
+            details={"field": "translations"},
+        ) from exc
+
+
+@router.get(
+    "/specs-form",
+    response_model=SpecFormResponse,
+    dependencies=[Depends(module_required("specs"))],
+)
+async def admin_product_specs_form(
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+    product_id: uuid.UUID | None = None,
+    category_id: uuid.UUID | None = None,
+) -> SpecFormResponse:
+    """The characteristics the product form offers to type (R9 / T4): one row
+    per spec definition of the product's (or the chosen) category, with the
+    current value and its source."""
+    product = await _read_product(session, product_id) if product_id else None
+    return await spec_form_rows(session, product=product, category_id=category_id)
+
+
+@router.put(
+    "/{product_id}/specs",
+    response_model=SpecFormResponse,
+    dependencies=[Depends(module_required("specs"))],
+)
+async def admin_set_product_specs(
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+    product_id: uuid.UUID,
+    payload: list[SpecValueWrite],
+) -> SpecFormResponse:
+    """Write the typed characteristics as ``manual`` rows of ``product_specs``
+    (the Icecat projection never rewrites them); a blank value removes the row."""
+    product = await _read_product(session, product_id)
+    try:
+        await apply_manual_specs(session, product, payload)
+    except KeyError as exc:
+        raise AppError(
+            code="product.spec.unknown",
+            status_code=400,
+            message=f"Caractéristique inconnue : {exc.args[0]}",
+            details={"key": exc.args[0]},
+        ) from exc
+    except ValueError as exc:
+        raise AppError(
+            code="product.spec.invalid",
+            status_code=400,
+            message=str(exc),
+            details={"field": "specs"},
+        ) from exc
+    await session.commit()
+    await session.refresh(product)
+    return await spec_form_rows(session, product=product, category_id=None)
+
+
+@router.get("/{product_id}/links", response_model=list[ProductLinkPublic])
+async def admin_list_product_links(
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+    product_id: uuid.UUID,
+) -> list[ProductLinkPublic]:
+    """Manual accessories and alternatives of a product (R9 / T7), in order."""
+    product = await _read_product(session, product_id)
+    return await _links_public(session, product)
+
+
+@router.put("/{product_id}/links", response_model=list[ProductLinkPublic])
+async def admin_set_product_links(
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+    product_id: uuid.UUID,
+    payload: list[ProductLinkWrite],
+) -> list[ProductLinkPublic]:
+    """Replace the manual links of a product (R9 / T7)."""
+    product = await _read_product(session, product_id)
+    try:
+        await replace_product_links(session, product, payload)
+    except ValueError as exc:
+        raise AppError(
+            code="product.links.invalid",
+            status_code=400,
+            message=str(exc),
+            details={"field": "links"},
+        ) from exc
+    await session.commit()
+    await session.refresh(product)
+    return await _links_public(session, product)
+
+
+async def _links_public(
+    session: SessionDep, product: Product
+) -> list[ProductLinkPublic]:
+    rows = (
+        await session.exec(
+            select(ProductLink, Product)
+            .join(Product, col(Product.id) == col(ProductLink.linked_product_id))
+            .where(ProductLink.product_id == product.id)
+            .order_by(
+                col(ProductLink.position).asc(),
+                col(ProductLink.kind).asc(),
+                col(ProductLink.created_at).asc(),
+            )
+        )
+    ).all()
+    return [
+        ProductLinkPublic(
+            id=link.id,
+            linked_product_id=link.linked_product_id,
+            kind=link.kind,
+            position=link.position,
+            name=target.name,
+            vendor_part_number=target.vendor_part_number,
+            supplier_sku=target.supplier_sku,
+            image_url=target.image_url,
+            is_active=bool(target.is_active and target.is_admin_active),
+        )
+        for link, target in rows
+    ]
+
+
 @router.post("", response_model=ProductPublic)
 async def admin_create_product(
     session: SessionDep,
@@ -152,6 +309,8 @@ async def admin_create_product(
     data = payload.model_dump(exclude_unset=True)
     supplier = await _resolve_supplier(session, data.get("supplier_name"))
     _apply_supplier_defaults(data, supplier)
+    if "translations" in data:
+        data["translations"] = _product_translations(data, previous=None, source=data)
     create_data = ProductCreate.model_validate({**data, "is_supplier_managed": False})
     product = await crud_product.create(
         session=session, data=create_data, user=current_user
@@ -520,6 +679,11 @@ async def admin_update_product(
         ) from exc
 
     changed = payload.model_dump(exclude_unset=True)
+    if "translations" in changed:
+        source = {f: changed.get(f, getattr(product, f, None)) for f in PRODUCT_FIELDS}
+        changed["translations"] = _product_translations(
+            changed, previous=product.translations, source=source
+        )
     if "supplier_name" in changed and changed["supplier_name"] != product.supplier_name:
         supplier = await _resolve_supplier(session, changed["supplier_name"])
         # Re-linking a manual product to another supplier moves its origin
@@ -527,6 +691,16 @@ async def admin_update_product(
         if not product.is_supplier_managed:
             _apply_supplier_defaults(changed, supplier)
     merged = merge_locks(product.overridden_fields, changed)
+
+    if product.parent_product_id is not None and (
+        "price_extra" in changed or "base_price" in changed
+    ):
+        # A variant with a supplement (R9 / T6) has a derived price.
+        extra = changed.get("price_extra", product.price_extra)
+        if extra is not None:
+            parent = await session.get(Product, product.parent_product_id)
+            if parent is not None:
+                changed["base_price"] = supplemented_price(parent, extra)
 
     update_data: dict[str, Any] = {**changed, "overridden_fields": merged}
     updated = await crud_product.update(
@@ -536,6 +710,11 @@ async def admin_update_product(
         user=current_user,
         record=product,
     )
+    if updated.has_variants and "base_price" in changed:
+        # The parent's price moved: the supplements follow (R9 / T6).
+        await apply_price_extras(session, updated)
+        await session.commit()
+        await session.refresh(updated)
     await _refresh_parent_of(session, updated)
     return ProductPublic.model_validate(updated)
 
@@ -691,6 +870,8 @@ class VariantCreateRequest(BaseModel):
     vendor_part_number: str | None = Field(default=None, max_length=100)
     ean: str | None = Field(default=None, max_length=32)
     base_price: Decimal | None = Field(default=None, ge=0)
+    #: Supplement over the parent's price (R9 / T6): the price is then derived.
+    price_extra: Decimal | None = None
     cost_amount: Decimal | None = Field(default=None, ge=0)
     supplier_quantity: Decimal | None = Field(default=None, ge=0)
     image_url: str | None = None
@@ -803,10 +984,13 @@ async def admin_create_variant(
             "vendor_part_number": payload.vendor_part_number,
             "ean": payload.ean,
             "base_price": (
-                payload.base_price
+                supplemented_price(parent, payload.price_extra)
+                if payload.price_extra is not None
+                else payload.base_price
                 if payload.base_price is not None
                 else parent.base_price
             ),
+            "price_extra": payload.price_extra,
             "cost_amount": (
                 payload.cost_amount
                 if payload.cost_amount is not None

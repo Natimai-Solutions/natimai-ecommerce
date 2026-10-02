@@ -269,6 +269,8 @@ def _coerce_env(spec: SettingSpec, value: Any) -> Any:
     if spec.kind == "bool":
         return bool(value)
     if spec.kind == "list":
+        if isinstance(value, str):
+            return [part.strip() for part in value.split(",") if part.strip()]
         return [str(item) for item in value]
     return str(value)
 

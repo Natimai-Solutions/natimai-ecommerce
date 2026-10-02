@@ -44,6 +44,7 @@ from app.features.product.models.price_group import PriceGroup
 from app.features.product.models.price_history import ProductPriceEntry
 from app.features.product.models.product import Product
 from app.features.product.models.product_group_price import ProductGroupPrice
+from app.features.product.models.product_link import CategoryLink, ProductLink
 from app.features.product.models.product_view import ProductViewDaily
 from app.features.product.models.spec_definition import SpecDefinition
 from app.features.product.models.stock_alert import StockAlert
@@ -73,6 +74,8 @@ from app.features.user.models.user_preference import UserPreference
 from app.features.user.models.wishlist import Wishlist, WishlistItem
 
 __all__ = [
+    "CategoryLink",
+    "ProductLink",
     "AdminAuditEntry",
     "Address",
     "AnalyticsProduct",

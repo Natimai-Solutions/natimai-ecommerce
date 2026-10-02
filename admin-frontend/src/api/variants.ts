@@ -8,6 +8,8 @@ export interface VariantCreate {
   vendor_part_number?: string | null;
   ean?: string | null;
   base_price?: string | null;
+  /** Supplement over the parent's price (R9 / T6): the price is then derived. */
+  price_extra?: string | null;
   cost_amount?: string | null;
   supplier_quantity?: string | null;
   image_url?: string | null;

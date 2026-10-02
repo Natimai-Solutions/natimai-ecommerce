@@ -1,6 +1,7 @@
 # mypy: disable-error-code="arg-type,assignment,operator"
 
 import logging
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -62,6 +63,23 @@ def margin_values(context: PricingContext, product: Product) -> dict[str, Any]:
 def stamp_margin(context: PricingContext, product: Product) -> None:
     for name, value in margin_values(context, product).items():
         setattr(product, name, value)
+
+
+_TSQUERY_TOKEN_RE = re.compile(r"[^\W_]+", re.UNICODE)
+
+
+def prefix_tsquery(query_text: str) -> str:
+    """``to_tsquery`` text matching every word of ``query_text`` as a prefix.
+
+    ``"hp elited 242"`` → ``"hp:* & elited:* & 242:*"``. Words are split on
+    anything that is not a letter or a digit, so a reference such as
+    ``i5-8500`` searches ``i5`` and ``8500`` — both lexemes the ``simple``
+    parser also emits for the indexed text — and no character reaches the
+    tsquery parser unescaped. Empty when the query holds no letter or digit
+    (the caller then applies no text filter).
+    """
+    tokens = [t.lower() for t in _TSQUERY_TOKEN_RE.findall(query_text)]
+    return " & ".join(f"'{token}':*" for token in tokens)
 
 
 class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
@@ -633,12 +651,16 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
         """
         conditions: list[Any] = list(self.storefront_conditions())
 
-        query_text = (q or "").strip()
+        query_text = prefix_tsquery(q or "")
         rank_expr: Any = null()
         if query_text:
             # GIN FTS path — expression matches ix_products_search_fts exactly.
             # Uses `||` (IMMUTABLE) instead of concat_ws (STABLE) so the same
             # expression can also be used in the index definition.
+            # The English translation is indexed too (R9 / T3) — the only
+            # other shipped language; the index expression names it as well.
+            translations = col(Product.translations)
+            english = translations.op("->")(literal("en"))
             search_text = (
                 func.coalesce(col(Product.name), "")
                 .op("||")(" ")
@@ -647,9 +669,16 @@ class ProductCrud(CrudBase[Product, ProductCreate, ProductUpdate]):
                 .op("||")(func.coalesce(col(Product.manufacturer), ""))
                 .op("||")(" ")
                 .op("||")(func.coalesce(col(Product.vendor_part_number), ""))
+                .op("||")(" ")
+                .op("||")(func.coalesce(english.op("->>")(literal("name")), ""))
+                .op("||")(" ")
+                .op("||")(func.coalesce(english.op("->>")(literal("description")), ""))
             )
             search_doc = func.to_tsvector("simple", search_text)
-            ts_q = func.plainto_tsquery("simple", query_text)
+            # Every word is matched as a prefix (« 242 » finds 242S9, « EliteD »
+            # EliteDesk): plainto_tsquery only matched whole lexemes, which read
+            # like an exact-match search on references and model names.
+            ts_q = func.to_tsquery("simple", query_text)
             conditions.append(search_doc.op("@@")(ts_q))
             rank_expr = func.ts_rank(search_doc, ts_q)
 

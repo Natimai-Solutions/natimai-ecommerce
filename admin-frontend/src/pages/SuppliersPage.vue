@@ -1006,6 +1006,7 @@ import CategoryPairsTable from '@/components/CategoryPairsTable.vue';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import { listPlaces, type Place } from '@/api/logistics';
 import { extractApiError } from '@/api/errors';
+import { useConfirm } from '@/composables/useConfirm';
 import {
   fieldsFromSchema,
   fromFormValue,
@@ -1014,6 +1015,7 @@ import {
 } from '@/utils/settingsSchema';
 
 const { t } = useI18n();
+const { ask } = useConfirm();
 
 const shopConfig = useShopConfigStore();
 const rows = ref<Supplier[]>([]);
@@ -1557,6 +1559,7 @@ async function onSaveCredentials() {
 
 async function onClearCredentials() {
   if (!editing.value) return;
+  if (!(await ask({ title: t('suppliers.clear_q'), okLabel: t('suppliers.clear') }))) return;
   credentialsBusy.value = true;
   dialogError.value = null;
   try {

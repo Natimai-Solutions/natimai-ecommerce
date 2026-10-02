@@ -46,6 +46,11 @@ export interface AdminCategory {
   merged_into_id: string | null;
   merged_into_name: string | null;
   product_count: number;
+  /** Translated display_name / description per language (R9 / T3). */
+  translations: Record<string, Record<string, unknown>>;
+  translation_status: Record<string, string>;
+  /** Categories suggested from this one's products (R9 / T7), in order. */
+  suggested_category_ids: string[];
 }
 
 export interface AdminCategoryUpdate {
@@ -54,6 +59,8 @@ export interface AdminCategoryUpdate {
   image_url?: string | null;
   is_active?: boolean;
   default_margin_rate_pct?: string | null;
+  translations?: Record<string, Record<string, unknown>>;
+  suggested_category_ids?: string[];
 }
 
 export interface MergeResult {

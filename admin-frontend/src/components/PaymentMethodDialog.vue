@@ -1,5 +1,9 @@
 <template>
-  <q-dialog :model-value="modelValue" @update:model-value="emit('update:modelValue', $event)">
+  <q-dialog
+    :model-value="modelValue"
+    :persistent="guard.persistent.value"
+    @update:model-value="guard.onToggle"
+  >
     <q-card class="app-dialog app-dialog--wide" data-testid="method-dialog">
       <q-card-section class="app-dialog__head">
         <h2 class="app-dialog__title">
@@ -139,7 +143,7 @@
             </q-tooltip>
           </q-btn>
           <q-space />
-          <q-btn flat no-caps :label="$t('common.cancel')" v-close-popup />
+          <q-btn flat no-caps :label="$t('common.cancel')" @click="guard.requestClose()" />
           <q-btn
             type="submit"
             color="primary"
@@ -170,6 +174,7 @@ import {
   type PaymentMethodType,
   type PaymentMethodWrite,
 } from '@/api/eligibility';
+import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
 
 const { t } = useI18n();
 
@@ -202,6 +207,13 @@ const form = reactive({
   depositAllowed: true,
   instructions: '',
 });
+// Unsaved edits are not lost on Escape, backdrop or navigation (R9 / T5).
+const snapshot = useFormSnapshot(() => form);
+const guard = useDialogGuard({
+  isOpen: () => props.modelValue,
+  close: () => emit('update:modelValue', false),
+  isDirty: snapshot.isDirty,
+});
 const saving = ref(false);
 const deleting = ref(false);
 const error = ref<string | null>(null);
@@ -231,6 +243,7 @@ watch(
       depositAllowed: m?.deposit_allowed ?? true,
       instructions: m?.instructions ?? '',
     });
+    snapshot.take();
     error.value = null;
   },
 );

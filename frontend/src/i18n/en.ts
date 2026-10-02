@@ -171,6 +171,8 @@ const en: MessageSchema = {
     unknown_error: 'Unknown error',
     choose_variant: 'Choose a variant.',
     add_failed: 'This item could not be added to the cart.',
+    complete_setup: 'Complete your setup',
+    alternatives: 'Alternatives',
   },
   checkout: {
     back_to_cart: 'Cart',
@@ -274,6 +276,7 @@ const en: MessageSchema = {
     continue: 'Continue shopping',
     clear: 'Empty the cart',
     product_n: 'Product {id}',
+    complete_setup: 'Complete your setup',
   },
   stores: {
     login_failed: 'Sign-in failed',

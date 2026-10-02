@@ -277,3 +277,36 @@ async def test_condition_filter_separates_new_from_refurbished(
     )
     assert "HP 250 (refurb)" not in _names(new_only)
     assert new_only["count"] == everything["count"] - 1
+
+
+def test_prefix_tsquery_matches_every_word_as_a_prefix() -> None:
+    from app.features.product.crud.product import prefix_tsquery
+
+    assert prefix_tsquery("242") == "'242':*"
+    assert prefix_tsquery("HP  EliteD") == "'hp':* & 'elited':*"
+    # Punctuation never reaches the tsquery parser; hyphenated references
+    # search each part (both are lexemes of the indexed text).
+    assert prefix_tsquery("i5-8500 (G2) & co!") == "'i5':* & '8500':* & 'g2':* & 'co':*"
+    assert prefix_tsquery("  ?! ") == ""
+
+
+@pytest.mark.asyncio
+async def test_search_matches_the_beginning_of_a_word(db_session: AsyncSession) -> None:
+    """« 242 » finds 242S9 and « EliteD » EliteDesk: the storefront search is
+    a prefix search, not a whole-word one (recette du 02/10/2026)."""
+    await _seed(db_session)
+
+    assert _names(await crud_product.search_products(db_session, q="25")) == {
+        "HP 250 (B)",
+        "HP 255",
+    }
+    assert _names(await crud_product.search_products(db_session, q="vost")) == {
+        "Dell Vostro"
+    }
+    assert _names(await crud_product.search_products(db_session, q="hp 25")) == {
+        "HP 250 (B)",
+        "HP 255",
+    }
+    assert _names(await crud_product.search_products(db_session, q="zzz")) == set()
+    # Only punctuation: no text filter rather than an SQL error.
+    assert (await crud_product.search_products(db_session, q="?!"))["count"] >= 3

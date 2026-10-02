@@ -105,6 +105,7 @@ import StatusTag from '@app/ui/StatusTag.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import { extractApiError } from '@/api/errors';
 import { listPriceGroups, updatePriceGroup, type PriceGroup } from '@/api/eligibility';
+import { useUnsavedGuard } from '@/composables/useUnsavedGuard';
 
 const { t } = useI18n();
 
@@ -137,6 +138,9 @@ function changed(g: PriceGroup): boolean {
     num(e.discount_pct) !== num(g.discount_pct) || num(e.margin_rate_pct) !== num(g.margin_rate_pct)
   );
 }
+
+// A rate typed and not saved is lost on navigation: ask first (R9 / T5).
+useUnsavedGuard(() => groups.value.some((g) => changed(g)));
 
 async function load() {
   loading.value = true;

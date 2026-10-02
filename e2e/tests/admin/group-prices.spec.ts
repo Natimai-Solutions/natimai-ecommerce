@@ -48,7 +48,8 @@ test('the admin sets a group discount and a group price on an article', async ({
     await expect(dialog.getByTestId('group-price-input-Public / Etablissements')).toHaveValue(
       '9900',
     )
-    await dialog.getByRole('button', { name: 'Annuler' }).click()
+    // Not by name: the HTML editor's undo button is also labelled « Annuler ».
+    await dialog.getByTestId('product-cancel').click()
   } finally {
     await openAdmin(page, '/price-groups')
     await page.getByTestId('price-group-discount-PROFESSIONNEL').fill('0')

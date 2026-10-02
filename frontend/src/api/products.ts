@@ -157,3 +157,31 @@ export async function getProductKeySpecs(productId: string): Promise<ProductKeyS
   const { data } = await api.get<ProductKeySpecsResponse>(`/product/${productId}/key-specs`);
   return data;
 }
+
+/** « Complétez votre équipement » (R9 / T7): accessories and alternatives of a product. */
+export interface RelatedProductsResponse {
+  accessories: ProductPublic[];
+  alternatives: ProductPublic[];
+}
+
+export async function getRelatedProducts(
+  productId: string,
+  limit = 8,
+): Promise<RelatedProductsResponse> {
+  const { data } = await api.get<RelatedProductsResponse>(`/product/${productId}/related`, {
+    params: { limit },
+  });
+  return data;
+}
+
+/** Accessories for the products of the cart (the cart itself excluded). */
+export async function getRelatedToProducts(
+  productIds: string[],
+  limit = 8,
+): Promise<RelatedProductsResponse> {
+  const { data } = await api.post<RelatedProductsResponse>('/product/related-to', {
+    product_ids: productIds,
+    limit,
+  });
+  return data;
+}

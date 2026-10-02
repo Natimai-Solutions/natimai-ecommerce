@@ -74,6 +74,9 @@
             {{ product.manufacturer }}
           </router-link>
           <h1 class="product__title">{{ product.name }}</h1>
+          <p v-if="shortDescription" class="product__lead" data-testid="product-lead">
+            {{ shortDescription }}
+          </p>
           <div v-if="product.vendor_part_number || product.ean" class="product__ids font-mono">
             <span v-if="product.vendor_part_number">{{
               $t('product.ref', { ref: product.vendor_part_number })
@@ -182,6 +185,12 @@
                   @click="selectOption(axis, value)"
                 >
                   {{ value }}
+                  <span
+                    v-if="optionExtra(axis, value)"
+                    class="variants__extra font-mono"
+                    data-testid="variant-extra"
+                    >{{ optionExtra(axis, value) }}</span
+                  >
                 </button>
               </div>
             </div>
@@ -321,6 +330,39 @@
         />
       </section>
 
+      <section
+        v-if="related.accessories.length > 0"
+        class="product__related"
+        aria-labelledby="related-title"
+        data-testid="product-related"
+      >
+        <h2 id="related-title" class="product__h2">{{ $t('product.complete_setup') }}</h2>
+        <div class="product-grid">
+          <ProductCard
+            v-for="item in related.accessories"
+            :key="item.id"
+            :product="item"
+            @add-to-cart="addRelatedToCart"
+          />
+        </div>
+      </section>
+      <section
+        v-if="related.alternatives.length > 0"
+        class="product__related"
+        aria-labelledby="alternatives-title"
+        data-testid="product-alternatives"
+      >
+        <h2 id="alternatives-title" class="product__h2">{{ $t('product.alternatives') }}</h2>
+        <div class="product-grid">
+          <ProductCard
+            v-for="item in related.alternatives"
+            :key="item.id"
+            :product="item"
+            @add-to-cart="addRelatedToCart"
+          />
+        </div>
+      </section>
+
       <!-- Barre d'achat mobile, toujours à portée de pouce -->
       <div class="lt-md product__mobile-bar">
         <div class="product__mobile-price">
@@ -424,6 +466,9 @@ import ProductOffers from '@/components/ProductOffers.vue';
 import { useAuthStore } from '@/stores/auth';
 import { addToMyWishlist, getMyWishlist, removeFromMyWishlist } from '@/api/wishlist';
 import { useCartStore } from '@/stores/cart';
+import { useUiStore } from '@/stores/ui';
+import ProductCard from '@/components/ProductCard.vue';
+import { getRelatedProducts, type RelatedProductsResponse } from '@/api/products';
 import { useProductsStore } from '@/stores/products';
 import { useCurrencyStore } from '@/stores/currency';
 import { useDepartureStore } from '@/stores/departure';
@@ -442,6 +487,7 @@ type Spec = { name: string; value: string; unit: string };
 const route = useRoute();
 const router = useRouter();
 const cartStore = useCartStore();
+const uiStore = useUiStore();
 const currencyStore = useCurrencyStore();
 const productsStore = useProductsStore();
 
@@ -449,7 +495,7 @@ const productsStore = useProductsStore();
 const SPEC_GROUPS_SHOWN = 3;
 
 const departureStore = useDepartureStore();
-const { t } = useI18n();
+const { t, locale } = useI18n({ useScope: 'global' });
 const tr = useTranslate();
 const shopModules = useShopModulesStore();
 const { nextCutoff, nextDelivery } = useDepartureLabels();
@@ -596,6 +642,25 @@ function isValueAvailable(axis: string, value: string): boolean {
   });
 }
 
+/**
+ * « + 10 000 F » next to an option whose variant carries a supplement over the
+ * parent's price (R9 / T6). The variant considered is the one this value would
+ * select given the other axes already chosen.
+ */
+function optionExtra(axis: string, value: string): string | null {
+  const list = variants.value?.variants ?? [];
+  const candidate = list.find((v) => {
+    if (v.variant_options?.[axis] !== value) return false;
+    for (const [other, chosen] of Object.entries(selectedOptions.value)) {
+      if (other !== axis && chosen && v.variant_options?.[other] !== chosen) return false;
+    }
+    return true;
+  });
+  const extra = candidate?.price_extra == null ? null : Number(candidate.price_extra);
+  if (extra === null || !Number.isFinite(extra) || extra <= 0) return null;
+  return `+ ${currencyStore.format(extra)}`;
+}
+
 function selectOption(axis: string, value: string) {
   selectedOptions.value = { ...selectedOptions.value, [axis]: value };
   justAdded.value = false;
@@ -655,17 +720,35 @@ const categoryLabel = computed(() => {
   return cat ? (cat.title ?? cat.name) : null;
 });
 
+/** HTML → one line of text. */
+function plainText(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * The short description (admin: « Description courte ») is the lead under the
+ * title and the meta description; the long one is the « Description » section.
+ * Without a long description the short one is shown there instead, not twice.
+ */
+const shortDescription = computed(() => {
+  const raw = product.value?.description ?? '';
+  if (!raw || !product.value?.long_description) return '';
+  return plainText(DOMPurify.sanitize(raw));
+});
+
 const safeDescription = computed(() => {
   const raw = product.value?.long_description ?? product.value?.description ?? '';
   return raw ? DOMPurify.sanitize(raw) : '';
 });
 
-const plainDescription = computed(() =>
-  safeDescription.value
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim(),
-);
+/** Meta description: the short description, else the long one cut to a sentence. */
+const plainDescription = computed(() => {
+  const lead = shortDescription.value || plainText(safeDescription.value);
+  return lead.length > 160 ? `${lead.slice(0, 157).trimEnd()}…` : lead;
+});
 
 const features = computed(() =>
   (product.value?.features ?? []).map((f) => String(f).trim()).filter(Boolean),
@@ -906,6 +989,34 @@ async function loadOffers(productId: string): Promise<void> {
   }
 }
 
+// The texts follow the visitor's language (R9 / T3).
+watch(locale, () => void loadProduct());
+
+// « Complétez votre équipement » (R9 / T7): loaded after the product, client side.
+const related = ref<RelatedProductsResponse>({ accessories: [], alternatives: [] });
+async function loadRelated() {
+  related.value = { accessories: [], alternatives: [] };
+  const id = product.value?.id;
+  if (!id) return;
+  try {
+    related.value = await getRelatedProducts(id);
+  } catch {
+    // a suggestion block that fails to load is simply not shown
+  }
+}
+async function addRelatedToCart(item: ProductPublic) {
+  cartError.value = null;
+  const ok = await cartStore.addItem(item.id, 1, item);
+  if (ok) uiStore.openCartDrawer(item.id);
+  else cartError.value = cartStore.error ?? t('product.add_failed');
+}
+watch(
+  () => product.value?.id,
+  () => {
+    if (import.meta.env.QUASAR_CLIENT) void loadRelated();
+  },
+);
+
 onServerPrefetch(loadProduct);
 
 // La barre d'achat mobile est fixe : le corps de page lui réserve sa hauteur
@@ -939,6 +1050,10 @@ watch(
 .product {
   padding-top: 20px;
   padding-bottom: 96px;
+}
+
+.product__related {
+  margin-top: 48px;
 }
 
 .product__crumbs {
@@ -1063,6 +1178,13 @@ watch(
   @media (max-width: 767px) {
     font-size: 22px;
   }
+}
+
+.product__lead {
+  margin: 12px 0 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--n-ink-2);
 }
 
 .product__ids {
@@ -1205,6 +1327,12 @@ watch(
   font-size: 13px;
   font-weight: 500;
   color: var(--n-ink-2);
+}
+
+.variants__extra {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--n-ink-3);
 }
 
 .variants__options {

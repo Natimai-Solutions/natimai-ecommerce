@@ -3,6 +3,9 @@ from decimal import Decimal
 
 from sqlmodel import Field, SQLModel
 
+SPEC_SOURCE_ICECAT = "icecat"
+SPEC_SOURCE_MANUAL = "manual"
+
 
 class ProductSpec(SQLModel, table=True):
     """Normalized filterable spec extracted from Icecat technical_specifications.
@@ -40,6 +43,16 @@ class ProductSpec(SQLModel, table=True):
         default=None,
         max_length=32,
         description="Unit for numeric values (ex: GB, inch)",
+    )
+    source: str = Field(
+        default=SPEC_SOURCE_ICECAT,
+        max_length=16,
+        index=True,
+        description=(
+            "icecat: projected from the Icecat payload (rewritten at each "
+            "enrichment); manual: typed in the product form (R9 / T4), never "
+            "rewritten by the projection"
+        ),
     )
 
 

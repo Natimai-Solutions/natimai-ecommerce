@@ -11,6 +11,9 @@ export interface SpecDefinition {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  /** Translated label per language (R9 / T3): `{ en: { label_fr: 'Memory' } }`. */
+  translations: Record<string, Record<string, unknown>>;
+  translation_status: Record<string, string>;
 }
 
 export interface SpecDefinitionCreate {
@@ -21,6 +24,7 @@ export interface SpecDefinitionCreate {
   categories: string[];
   aliases: string[];
   is_active?: boolean;
+  translations?: Record<string, Record<string, unknown>>;
 }
 
 export type SpecDefinitionUpdate = Partial<Omit<SpecDefinitionCreate, 'key'>>;
