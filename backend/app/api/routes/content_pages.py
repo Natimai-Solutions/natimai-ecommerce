@@ -8,12 +8,19 @@ from sqlmodel import col, select
 from app.api.deps import CurrentSuperUser, SessionDep
 from app.core.errors import AppError
 from app.features.content.crud import crud_content_page, is_valid_slug
+from app.features.content.legal_templates import (
+    LEGAL_TEMPLATES,
+    get_template,
+    render_legal_template_from_db,
+)
 from app.features.content.models import (
     SLUG_MAX_LENGTH,
     ContentPage,
     ContentPageCreate,
     ContentPagePublic,
     ContentPageSummary,
+    ContentPageTemplate,
+    ContentPageTemplateSummary,
     ContentPageWrite,
 )
 
@@ -51,6 +58,43 @@ async def list_pages(
         )
     ).all()
     return [ContentPagePublic.model_validate(p) for p in rows]
+
+
+@router.get("/admin/pages/templates", response_model=list[ContentPageTemplateSummary])
+async def list_page_templates(
+    session: SessionDep, _admin: CurrentSuperUser
+) -> list[ContentPageTemplateSummary]:
+    """The built-in legal pages a page can be started from (R9 / T1)."""
+    existing = set(
+        (
+            await session.exec(
+                select(ContentPage.slug).where(col(ContentPage.is_active).is_(True))
+            )
+        ).all()
+    )
+    return [
+        ContentPageTemplateSummary(
+            slug=t.slug, title=t.title, page_exists=t.slug in existing
+        )
+        for t in LEGAL_TEMPLATES
+    ]
+
+
+@router.get("/admin/pages/templates/{slug}", response_model=ContentPageTemplate)
+async def get_page_template(
+    slug: str, session: SessionDep, _admin: CurrentSuperUser
+) -> ContentPageTemplate:
+    """The template text with the seller identity substituted, ready to edit."""
+    template = get_template(slug)
+    if template is None:
+        raise AppError(
+            code="content_page.template.not_found",
+            status_code=404,
+            message="Aucun modèle pour cette page",
+            details={"slug": slug},
+        )
+    body_html = await render_legal_template_from_db(session, slug)
+    return ContentPageTemplate(slug=slug, title=template.title, body_html=body_html)
 
 
 @router.put("/admin/pages/{slug}", response_model=ContentPagePublic)

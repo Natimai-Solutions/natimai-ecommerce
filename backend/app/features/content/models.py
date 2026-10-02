@@ -75,6 +75,23 @@ class ContentPageSummary(SQLModel):
     body_html: str
 
 
+class ContentPageTemplateSummary(SQLModel):
+    """A built-in legal page the admin can start a page from (R9 / T1)."""
+
+    slug: str
+    title: str
+    #: A page with this slug already exists (the template would replace its text).
+    page_exists: bool = False
+
+
+class ContentPageTemplate(SQLModel):
+    """The template text, seller identity substituted, ready for the editor."""
+
+    slug: str
+    title: str
+    body_html: str
+
+
 # --------------------------------------------------------------------------
 # Homepage blocks (R2): the hero and the banners of the storefront homepage.
 # --------------------------------------------------------------------------

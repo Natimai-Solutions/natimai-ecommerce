@@ -103,3 +103,42 @@ async def test_how_it_works_is_seeded_once_and_never_overwritten(
     await db_session.commit()
     again = await crud_content_page.get_by_slug(db_session, "comment-ca-marche")
     assert again is not None and again.body_html == "<p>Texte du propriétaire</p>"
+
+
+@pytest.mark.asyncio
+async def test_legal_templates_are_listed_and_rendered_with_identity(
+    db_session: AsyncSession,
+) -> None:
+    """R9 / T1: a legal page can be started from the built-in template, seller
+    identity already substituted; what is still empty is a visible marker."""
+    from app.api.routes.content_pages import get_page_template, list_page_templates
+    from app.features.system.models.system_setting import SystemSetting
+
+    admin = await _admin(db_session)
+
+    templates = await list_page_templates(db_session, admin)
+    assert [t.slug for t in templates] == ["cgv", "mentions-legales", "confidentialite"]
+    assert not any(t.page_exists for t in templates)
+
+    db_session.add(SystemSetting(key="legal_trading_name", value="Natimai & Co"))
+    await db_session.flush()
+
+    rendered = await get_page_template("mentions-legales", db_session, admin)
+    assert rendered.title == "Mentions légales"
+    assert "<strong>Natimai &amp; Co</strong>" in rendered.body_html
+    assert "[À COMPLÉTER : n° TAHITI]" in rendered.body_html
+    assert "{{" not in rendered.body_html
+
+    with pytest.raises(AppError) as missing:
+        await get_page_template("comment-ca-marche", db_session, admin)
+    assert missing.value.code == "content_page.template.not_found"
+
+    await upsert_page(
+        "cgv", ContentPageWrite(title="CGV", body_html="<p>x</p>"), db_session, admin
+    )
+    templates = await list_page_templates(db_session, admin)
+    assert {t.slug: t.page_exists for t in templates} == {
+        "cgv": True,
+        "mentions-legales": False,
+        "confidentialite": False,
+    }

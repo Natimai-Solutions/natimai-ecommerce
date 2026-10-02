@@ -10,6 +10,36 @@
           :loading="loading"
           @click="load"
         />
+        <q-btn-dropdown
+          outline
+          no-caps
+          color="primary"
+          icon="ph:file-text"
+          :label="$t('pages.from_template')"
+          :loading="templateLoading"
+          data-testid="pages-from-template"
+        >
+          <q-list>
+            <q-item
+              v-for="tpl in templates"
+              :key="tpl.slug"
+              clickable
+              v-close-popup
+              @click="openFromTemplate(tpl)"
+            >
+              <q-item-section>
+                <q-item-label>{{ tpl.title }}</q-item-label>
+                <q-item-label caption>
+                  <span class="font-mono">{{ tpl.slug }}</span>
+                  <template v-if="tpl.page_exists"> · {{ $t('pages.template_exists') }}</template>
+                </q-item-label>
+              </q-item-section>
+            </q-item>
+            <q-item v-if="templates.length === 0">
+              <q-item-section class="text-subtle">{{ $t('pages.no_template') }}</q-item-section>
+            </q-item>
+          </q-list>
+        </q-btn-dropdown>
         <q-btn
           color="primary"
           unelevated
@@ -80,6 +110,13 @@
         <q-form @submit.prevent="submit">
           <q-card-section class="q-gutter-sm">
             <AppNotice v-if="dialogError" tone="error" dense>{{ dialogError }}</AppNotice>
+            <AppNotice v-if="fromTemplate" tone="info" dense data-testid="pages-template-notice">
+              {{
+                editing
+                  ? $t('pages.template_replaces', { slug: form.slug })
+                  : $t('pages.template_hint')
+              }}
+            </AppNotice>
             <div class="row q-col-gutter-sm">
               <q-input
                 v-model="form.slug"
@@ -88,7 +125,7 @@
                 :hint="$t('pages.slug_hint')"
                 outlined
                 dense
-                :readonly="editing"
+                :readonly="editing || fromTemplate"
                 :rules="[
                   (v: string) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v) || $t('pages.slug_rule'),
                 ]"
@@ -135,7 +172,15 @@ import StatusTag from '@app/ui/StatusTag.vue';
 import { formatDateTime } from '@app/utils';
 import PageHeader from '@/components/PageHeader.vue';
 import RichTextEditor from '@/components/RichTextEditor.vue';
-import { deletePage, listPages, savePage, type ContentPage } from '@/api/pages';
+import {
+  deletePage,
+  getPageTemplate,
+  listPages,
+  listPageTemplates,
+  savePage,
+  type ContentPage,
+  type ContentPageTemplateSummary,
+} from '@/api/pages';
 import { extractApiError } from '@/api/errors';
 
 const { t } = useI18n();
@@ -163,11 +208,40 @@ async function load() {
   loading.value = true;
   error.value = null;
   try {
-    pages.value = await listPages();
+    [pages.value, templates.value] = await Promise.all([listPages(), listPageTemplates()]);
   } catch (err) {
     error.value = extractApiError(err) ?? t('common.load_failed');
   } finally {
     loading.value = false;
+  }
+}
+
+// --- Built-in legal templates (R9 / T1) ---
+const templates = ref<ContentPageTemplateSummary[]>([]);
+const templateLoading = ref(false);
+/** The dialog was opened from a template (slug fixed, text pre-filled). */
+const fromTemplate = ref(false);
+
+async function openFromTemplate(tpl: ContentPageTemplateSummary) {
+  templateLoading.value = true;
+  error.value = null;
+  try {
+    const rendered = await getPageTemplate(tpl.slug);
+    const existing = pages.value.find((p) => p.slug === tpl.slug);
+    editing.value = existing !== undefined;
+    Object.assign(form, {
+      slug: tpl.slug,
+      title: existing?.title ?? rendered.title,
+      body_html: rendered.body_html,
+      is_published: existing?.is_published ?? false,
+    });
+    fromTemplate.value = true;
+    dialogError.value = null;
+    dialog.value = true;
+  } catch (err) {
+    error.value = extractApiError(err) ?? t('common.load_failed');
+  } finally {
+    templateLoading.value = false;
   }
 }
 
@@ -180,6 +254,7 @@ const form = reactive({ slug: '', title: '', body_html: '', is_published: false 
 
 function openCreate() {
   editing.value = false;
+  fromTemplate.value = false;
   Object.assign(form, { slug: '', title: '', body_html: '', is_published: false });
   dialogError.value = null;
   dialog.value = true;
@@ -187,6 +262,7 @@ function openCreate() {
 
 function openEdit(p: ContentPage) {
   editing.value = true;
+  fromTemplate.value = false;
   Object.assign(form, {
     slug: p.slug,
     title: p.title,
