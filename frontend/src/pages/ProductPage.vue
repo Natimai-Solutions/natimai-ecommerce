@@ -74,6 +74,9 @@
             {{ product.manufacturer }}
           </router-link>
           <h1 class="product__title">{{ product.name }}</h1>
+          <p v-if="shortDescription" class="product__lead" data-testid="product-lead">
+            {{ shortDescription }}
+          </p>
           <div v-if="product.vendor_part_number || product.ean" class="product__ids font-mono">
             <span v-if="product.vendor_part_number">{{
               $t('product.ref', { ref: product.vendor_part_number })
@@ -655,17 +658,35 @@ const categoryLabel = computed(() => {
   return cat ? (cat.title ?? cat.name) : null;
 });
 
+/** HTML → one line of text. */
+function plainText(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * The short description (admin: « Description courte ») is the lead under the
+ * title and the meta description; the long one is the « Description » section.
+ * Without a long description the short one is shown there instead, not twice.
+ */
+const shortDescription = computed(() => {
+  const raw = product.value?.description ?? '';
+  if (!raw || !product.value?.long_description) return '';
+  return plainText(DOMPurify.sanitize(raw));
+});
+
 const safeDescription = computed(() => {
   const raw = product.value?.long_description ?? product.value?.description ?? '';
   return raw ? DOMPurify.sanitize(raw) : '';
 });
 
-const plainDescription = computed(() =>
-  safeDescription.value
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim(),
-);
+/** Meta description: the short description, else the long one cut to a sentence. */
+const plainDescription = computed(() => {
+  const lead = shortDescription.value || plainText(safeDescription.value);
+  return lead.length > 160 ? `${lead.slice(0, 157).trimEnd()}…` : lead;
+});
 
 const features = computed(() =>
   (product.value?.features ?? []).map((f) => String(f).trim()).filter(Boolean),
@@ -1063,6 +1084,13 @@ watch(
   @media (max-width: 767px) {
     font-size: 22px;
   }
+}
+
+.product__lead {
+  margin: 12px 0 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--n-ink-2);
 }
 
 .product__ids {

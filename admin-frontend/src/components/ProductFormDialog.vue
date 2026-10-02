@@ -461,6 +461,7 @@
             no-caps
             :label="$t('common.cancel')"
             :disable="saving"
+            data-testid="product-cancel"
             @click="emit('update:modelValue', false)"
           />
           <q-btn
