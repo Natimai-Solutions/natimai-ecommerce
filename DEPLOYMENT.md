@@ -795,6 +795,24 @@ routing.
 > setting makes `ADMIN_ALLOWED_IPS` match the visitor rather than Cloudflare.
 > Entries recorded before the fix keep the proxy address.
 
+### Content-Security-Policy (R8 / U4)
+
+Caddy sets a CSP on the storefront and on the admin (the API sets its own,
+`default-src 'none'`). Four optional variables in the root `.env`:
+
+| Variable | Default | Role |
+|----------|---------|------|
+| `CSP_HEADER` | `Content-Security-Policy` | Set to `Content-Security-Policy-Report-Only` to observe violations in the browser console (and in `CSP_REPORT`) without blocking anything — do this on staging for a full card payment before enforcing. |
+| `CSP_PAYMENT_SOURCES` | PayZen / Lyra (OSB) origins | Origins of the payment scripts, frames and calls loaded **in** the page (the PayZen SmartForm). PayPal redirects away: nothing to allow. Set it to your PSP's hosts if they differ (`PAYZEN_STATIC_URL`, the secure host of the form). |
+| `CSP_EXTRA_SOURCES` | — | Extra `connect-src` / `img-src` origins: the Sentry ingest host (`https://o123.ingest.sentry.io`), a public S3 bucket of product images… |
+| `CSP_REPORT` | — | A whole report directive, e.g. `report-uri https://o123.ingest.sentry.io/api/…/security/?sentry_key=…`. |
+
+The storefront policy keeps `'unsafe-inline'` on scripts and styles: Quasar's
+server rendering inlines the Pinia state in a `<script>` and Vue sets inline
+styles; a nonce cannot be injected from the proxy. The admin (a plain SPA with
+no third-party script) runs with `script-src 'self'`. Images may come from any
+`https:` origin (supplier catalogues).
+
 ### Prerequisites
 
 1. **DNS** — A/AAAA records for the bare domain, `www`, `api` and `admin` pointing

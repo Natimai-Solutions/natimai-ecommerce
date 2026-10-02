@@ -97,11 +97,25 @@ async def security_headers_middleware(
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    # A JSON API renders nothing: a page served from it (an error page, an
+    # uploaded file echoed back) can load no script and be framed nowhere
+    # (R8 / U4). The interactive docs (local / staging) load Swagger from a
+    # CDN and keep their own policy.
+    if not request.url.path.startswith(_DOCS_PATHS):
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; "
+            "form-action 'none'",
+        )
     if settings.ENVIRONMENT != "local":
         response.headers.setdefault(
             "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
         )
     return response
+
+
+#: Paths whose HTML loads Swagger / ReDoc from a CDN: no API CSP on them.
+_DOCS_PATHS = ("/docs", "/redoc", f"{settings.API_V1_STR}/openapi.json")
 
 
 @app.middleware("http")
