@@ -336,6 +336,19 @@ register(
         extra={"unit": "h"},
     ),
     SettingSpec(
+        "dashboard_low_stock_threshold",
+        "int",
+        "orders",
+        "Seuil de stock bas (tableau de bord)",
+        "Un produit vendu sur stock dont il reste au plus ce nombre d'unités "
+        "vendables compte dans « Stocks bas » sur le tableau de bord.",
+        default=2,
+        minimum=ZERO,
+        maximum=_d(10_000),
+        order=15,
+        extra={"unit": "unités"},
+    ),
+    SettingSpec(
         "cart_abandonment_reminder_delay_hours",
         "int",
         "orders",

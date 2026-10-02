@@ -62,10 +62,18 @@
           <h2 id="activity-title" class="app-section__title">{{ $t('dashboard.activity') }}</h2>
         </div>
         <div v-if="data" class="kpi-grid">
-          <div v-for="kpi in kpis" :key="kpi.label" class="kpi">
+          <component
+            :is="kpi.to ? 'router-link' : 'div'"
+            v-for="kpi in kpis"
+            :key="kpi.label"
+            :to="kpi.to"
+            class="kpi"
+            :class="{ 'kpi--link': kpi.to }"
+          >
             <span class="kpi__label">{{ kpi.label }}</span>
             <span class="kpi__value font-mono">{{ kpi.value }}</span>
-          </div>
+            <span v-if="kpi.hint" class="kpi__hint">{{ kpi.hint }}</span>
+          </component>
         </div>
         <q-skeleton v-else-if="loading" type="rect" height="120px" />
       </section>
@@ -224,15 +232,47 @@ const todoItems = computed(() => {
 
 const pendingTotal = computed(() => todoItems.value.reduce((sum, item) => sum + item.count, 0));
 
-const kpis = computed(() => {
+interface Kpi {
+  label: string;
+  value: string;
+  hint?: string;
+  to?: string;
+}
+
+const kpis = computed<Kpi[]>(() => {
   const activity = data.value?.activity;
-  if (!activity) return [];
+  const stock = data.value?.stock;
+  if (!activity || !stock) return [];
   const money = (value: string) => formatMoney(value, activity.currency);
+  const percent = new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 1 });
   return [
     { label: t('dashboard.k_today'), value: String(activity.orders_today) },
     { label: t('dashboard.k_7d'), value: String(activity.orders_7d) },
     { label: t('dashboard.k_rev7'), value: money(activity.revenue_7d) },
     { label: t('dashboard.k_rev30'), value: money(activity.revenue_30d) },
+    // R8 / U7 : the month's figures a shop compares month to month.
+    { label: t('dashboard.k_30d'), value: String(activity.orders_30d) },
+    {
+      label: t('dashboard.k_basket'),
+      value: activity.average_basket_30d != null ? money(activity.average_basket_30d) : '—',
+    },
+    {
+      label: t('dashboard.k_conversion'),
+      value:
+        activity.conversion_30d_pct != null
+          ? `${percent.format(Number(activity.conversion_30d_pct))} %`
+          : '—',
+      hint: t('dashboard.k_conversion_hint', {
+        ordered: activity.carts_ordered_30d,
+        carts: activity.carts_30d,
+      }),
+    },
+    {
+      label: t('dashboard.k_low_stock', { n: stock.low_stock_threshold }),
+      value: String(stock.low_stock),
+      hint: t('dashboard.k_out_of_stock', { n: stock.out_of_stock }),
+      to: '/inventory',
+    },
   ];
 });
 
@@ -284,6 +324,18 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.kpi--link:hover,
+.kpi--link:focus-visible {
+  background: var(--n-tile-hover);
+}
+
+.kpi__hint {
+  font-size: 12px;
+  color: var(--n-ink-3);
   border: 1px solid var(--n-line);
   border-radius: 8px;
   background: var(--n-surface);

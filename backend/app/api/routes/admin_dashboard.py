@@ -28,6 +28,12 @@ reminders use); the 7- and 30-day windows are rolling. Revenue is the sum of
 the order totals converted to the reference currency; a currency without an
 active rate is left out (and logged) rather than summed as if it were XPF.
 
+R8 / U7 adds the 30-day figures a shop owner compares month to month: the
+number of sales, the average basket (converted revenue over the orders that
+could be converted), the cart-to-order conversion (carts active in the window
+that were checked out) and the stock watch (storefront products in ``stock``
+mode with no sellable unit, or at most ``dashboard_low_stock_threshold``).
+
 Only COUNT / SUM queries: the cost does not grow with the number of rows.
 """
 
@@ -46,8 +52,10 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import CurrentSuperUser, SessionDep
+from app.core import runtime_settings
 from app.core.config import settings
 from app.core.datetimes import utcnow
+from app.features.cart.models.cart import Cart
 from app.features.cart.models.quote_request import CLOSED_QUOTE_STATUSES, QuoteRequest
 from app.features.departure.crud import crud_grouped_departure
 from app.features.departure.models import GroupedDeparture
@@ -57,6 +65,9 @@ from app.features.integrations.models.supplier_order import (
     SupplierOrder,
     SupplierOrderStatus,
 )
+from app.features.inventory.services.availability import (
+    available_quantity_expression,
+)
 from app.features.order.models.order import Order
 from app.features.order.models.order_status import OrderStatus
 from app.features.order.services.status import ORDERS_TO_PROCESS_STATUSES
@@ -64,7 +75,8 @@ from app.features.payment.models.payment import Payment
 from app.features.payment.services.pending_validation import (
     pending_validation_conditions,
 )
-from app.features.product.models.product import Product
+from app.features.product.crud.product import crud_product
+from app.features.product.models.product import AvailabilityMode, Product
 from app.features.product.services.pricing import (
     CurrencyRateMissing,
     convert_to_reference_currency,
@@ -104,8 +116,26 @@ class DashboardActivity(BaseModel):
     currency: str
     orders_today: int = 0
     orders_7d: int = 0
+    orders_30d: int = 0
     revenue_7d: Decimal = Decimal("0")
     revenue_30d: Decimal = Decimal("0")
+    #: Converted revenue over the converted orders of the window; None without a sale.
+    average_basket_30d: Decimal | None = None
+    #: Carts active (created or touched) over the last 30 days…
+    carts_30d: int = 0
+    #: …and how many of them were ordered.
+    carts_ordered_30d: int = 0
+    #: ``carts_ordered_30d / carts_30d`` in percent (one decimal); None without a cart.
+    conversion_30d_pct: Decimal | None = None
+
+
+class DashboardStock(BaseModel):
+    """Stock watch of the storefront products sold from stock (R8 / U7)."""
+
+    #: ``dashboard_low_stock_threshold``: at most this many sellable units.
+    low_stock_threshold: int = 2
+    low_stock: int = 0
+    out_of_stock: int = 0
 
 
 class DashboardDeparture(BaseModel):
@@ -124,6 +154,7 @@ class AdminDashboard(BaseModel):
 
     todo: DashboardTodo
     activity: DashboardActivity
+    stock: DashboardStock
     next_departure: DashboardDeparture | None = None
 
 
@@ -201,7 +232,9 @@ async def _activity(session: AsyncSession, now: datetime) -> DashboardActivity:
     rows = (await session.exec(statement)).all()
 
     activity = DashboardActivity(currency=reference)
+    converted_orders = 0
     for currency, bucket, count, amount in rows:
+        activity.orders_30d += int(count)
         if bucket in ("today", "7d"):
             activity.orders_7d += int(count)
         if bucket == "today":
@@ -217,10 +250,64 @@ async def _activity(session: AsyncSession, now: datetime) -> DashboardActivity:
                 reference,
             )
             continue
+        converted_orders += int(count)
         activity.revenue_30d += converted
         if bucket in ("today", "7d"):
             activity.revenue_7d += converted
+    if converted_orders:
+        activity.average_basket_30d = (
+            activity.revenue_30d / converted_orders
+        ).quantize(Decimal("1"))
+
+    # Carts active in the window, and the share that became an order.
+    active_at = func.coalesce(col(Cart.last_activity_at), col(Cart.created_at))
+    carts_row = (
+        await session.exec(
+            select(
+                func.count(),
+                func.coalesce(
+                    func.sum(case((col(Cart.is_checked_out).is_(True), 1), else_=0)),
+                    0,
+                ),
+            ).where(col(Cart.is_active).is_(True), active_at >= since_30d)
+        )
+    ).one()
+    activity.carts_30d = int(carts_row[0])
+    activity.carts_ordered_30d = int(carts_row[1])
+    if activity.carts_30d:
+        activity.conversion_30d_pct = (
+            Decimal(activity.carts_ordered_30d) * 100 / activity.carts_30d
+        ).quantize(Decimal("0.1"))
     return activity
+
+
+async def _stock(session: AsyncSession) -> DashboardStock:
+    """Storefront products sold from stock with no, or few, sellable units."""
+    threshold = int(
+        await runtime_settings.get("dashboard_low_stock_threshold", session)
+    )
+    sellable = available_quantity_expression()
+    row = (
+        await session.exec(
+            select(
+                func.coalesce(func.sum(case((sellable <= 0, 1), else_=0)), 0),
+                func.coalesce(
+                    func.sum(
+                        case(((sellable > 0) & (sellable <= threshold), 1), else_=0)
+                    ),
+                    0,
+                ),
+            ).where(
+                *crud_product.storefront_conditions(),
+                col(Product.availability_mode) == AvailabilityMode.STOCK.value,
+            )
+        )
+    ).one()
+    return DashboardStock(
+        low_stock_threshold=threshold,
+        out_of_stock=int(row[0]),
+        low_stock=int(row[1]),
+    )
 
 
 async def _next_departure(session: AsyncSession) -> DashboardDeparture | None:
@@ -262,6 +349,7 @@ async def build_dashboard(
     return AdminDashboard(
         todo=await _todo(session),
         activity=await _activity(session, moment),
+        stock=await _stock(session),
         next_departure=await _next_departure(session),
     )
 

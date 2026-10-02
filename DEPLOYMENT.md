@@ -303,7 +303,7 @@ takes precedence silently — check the badge before editing a `.env`.
 | Factures | `invoice_legal_footer` ← `INVOICE_LEGAL_FOOTER` |
 | Paiement | `payment_provider_{payzen,paypal,stripe}_enabled`, `payment_instructions_manual_{cash,check,transfer}` |
 | Notifications | `notifications_email_enabled` ← `PAYMENT_NOTIFICATIONS_EMAIL_ENABLED`, `notifications_slack_enabled` ← `PAYMENT_NOTIFICATIONS_SLACK_ENABLED`, `notifications_slack_webhook_url` ← `PAYMENT_NOTIFICATIONS_SLACK_WEBHOOK_URL` (secret) |
-| Commandes et stock | `stock_reservation_ttl_hours`, `cart_abandonment_reminder_delay_hours`, `cart_abandonment_max_age_days`, `checkout_supplier_availability_check`, `checkout_supplier_check_timeout_seconds` (same names in upper case) |
+| Commandes et stock | `stock_reservation_ttl_hours`, `dashboard_low_stock_threshold` (R8 / U7, dashboard « Stocks bas »), `cart_abandonment_reminder_delay_hours`, `cart_abandonment_max_age_days`, `checkout_supplier_availability_check`, `checkout_supplier_check_timeout_seconds` (same names in upper case) |
 | Fournisseurs | `supplier_delisting_grace_hours`, `supplier_file_import_inline_max_rows`, `supplier_file_import_max_rows` |
 | Icecat | `icecat_use_open`, `icecat_language`, `icecat_enrichment_interval_hours` ← `ICECAT_ENRICHMENT_CRON_INTERVAL_HOURS`, `icecat_batch_enrich_limit`, `icecat_enrichment_retry_cooldown_days` |
 | Logistique | `customs_free_countries`, `social_webhook_url` (secret) |

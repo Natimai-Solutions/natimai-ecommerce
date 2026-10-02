@@ -8414,6 +8414,7 @@ export interface components {
         AdminDashboard: {
             todo: components["schemas"]["DashboardTodo"];
             activity: components["schemas"]["DashboardActivity"];
+            stock: components["schemas"]["DashboardStock"];
             next_departure?: components["schemas"]["DashboardDeparture"] | null;
         };
         /**
@@ -11181,6 +11182,11 @@ export interface components {
              */
             orders_7d: number;
             /**
+             * Orders 30D
+             * @default 0
+             */
+            orders_30d: number;
+            /**
              * Revenue 7D
              * @default 0
              */
@@ -11190,6 +11196,20 @@ export interface components {
              * @default 0
              */
             revenue_30d: string;
+            /** Average Basket 30D */
+            average_basket_30d?: string | null;
+            /**
+             * Carts 30D
+             * @default 0
+             */
+            carts_30d: number;
+            /**
+             * Carts Ordered 30D
+             * @default 0
+             */
+            carts_ordered_30d: number;
+            /** Conversion 30D Pct */
+            conversion_30d_pct?: string | null;
         };
         /**
          * DashboardDeparture
@@ -11214,6 +11234,27 @@ export interface components {
              * @default 0
              */
             orders_count: number;
+        };
+        /**
+         * DashboardStock
+         * @description Stock watch of the storefront products sold from stock (R8 / U7).
+         */
+        DashboardStock: {
+            /**
+             * Low Stock Threshold
+             * @default 2
+             */
+            low_stock_threshold: number;
+            /**
+             * Low Stock
+             * @default 0
+             */
+            low_stock: number;
+            /**
+             * Out Of Stock
+             * @default 0
+             */
+            out_of_stock: number;
         };
         /**
          * DashboardTodo

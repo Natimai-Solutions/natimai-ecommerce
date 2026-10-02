@@ -17,6 +17,7 @@ from app.api.routes.admin_dashboard import build_dashboard, get_admin_dashboard
 from app.api.routes.admin_payments import list_pending_validation
 from app.api.routes.admin_quote_requests import list_quote_requests
 from app.core.config import settings
+from app.features.cart.models.cart import Cart
 from app.features.cart.models.quote_request import QuoteRequest
 from app.features.departure.models import GroupedDeparture
 from app.features.integrations.models.supplier_order import (
@@ -32,7 +33,11 @@ from app.features.product.models.currency_rate import (
     CurrencyRateSource,
 )
 from app.features.product.models.price_group import PriceGroup
-from app.features.product.models.product import Product
+from app.features.product.models.product import (
+    AvailabilityMode,
+    PricingMode,
+    Product,
+)
 from app.features.user.models.group_upgrade_request import (
     GroupUpgradeRequest,
     UpgradeRequestStatus,
@@ -103,6 +108,15 @@ async def test_empty_dashboard(db_session: AsyncSession) -> None:
     assert result.activity.orders_7d == 0
     assert result.activity.revenue_7d == Decimal(0)
     assert result.activity.revenue_30d == Decimal(0)
+    assert result.activity.orders_30d == 0
+    assert result.activity.average_basket_30d is None
+    assert result.activity.carts_30d == 0
+    assert result.activity.conversion_30d_pct is None
+    assert result.stock.model_dump() == {
+        "low_stock_threshold": 2,
+        "low_stock": 0,
+        "out_of_stock": 0,
+    }
     assert result.next_departure is None
 
 
@@ -278,6 +292,82 @@ async def test_activity_counts_sales_in_local_day_and_windows(
     assert activity.orders_7d == 4  # today ×2, yesterday evening, JPY
     assert activity.revenue_7d == Decimal("1700")
     assert activity.revenue_30d == Decimal("1700") + Decimal("1193.32")
+
+
+@pytest.mark.asyncio
+async def test_month_kpis_conversion_and_stock_watch(db_session: AsyncSession) -> None:
+    """R8 / U7: average basket, cart conversion and the stock watch."""
+    buyer = await _user(db_session)
+    status = await _statuses(db_session, "Paid", "Pending")
+    db_session.add_all(
+        [
+            _order(buyer, status["Paid"], total="1000", created_at=NOW),
+            _order(
+                buyer, status["Paid"], total="500", created_at=NOW - timedelta(days=20)
+            ),
+            # Not a sale, and a sale out of the window.
+            _order(buyer, status["Pending"], total="9000", created_at=NOW),
+            _order(
+                buyer, status["Paid"], total="9000", created_at=NOW - timedelta(days=40)
+            ),
+        ]
+    )
+
+    def cart(*, days_ago: int, checked_out: bool = False) -> Cart:
+        stamp = NOW - timedelta(days=days_ago)
+        return Cart(
+            user_id=buyer.id,
+            currency=settings.REFERENCE_CURRENCY,
+            is_checked_out=checked_out,
+            created_at=stamp,
+            last_activity_at=stamp,
+        )
+
+    db_session.add_all(
+        [
+            cart(days_ago=1, checked_out=True),
+            cart(days_ago=5),
+            cart(days_ago=29),
+            cart(days_ago=45),  # too old
+        ]
+    )
+
+    def product(name: str, **overrides: Any) -> Product:
+        values: dict[str, Any] = {
+            "name": name,
+            "pricing_mode": PricingMode.FIXED,
+            "base_price": Decimal("100"),
+            "supplier_quantity": Decimal("0"),
+        }
+        values.update(overrides)
+        return Product(**values)
+
+    db_session.add_all(
+        [
+            # No supplier, no warehouse row: nothing sellable.
+            product("Rupture"),
+            # Supplier stock at the threshold (2) → low.
+            product("Bas", supplier_name="tahiti", supplier_quantity=Decimal("2")),
+            product("Plein", supplier_name="tahiti", supplier_quantity=Decimal("10")),
+            # Pre-order: stock is not what is sold → not watched.
+            product("Sur commande", availability_mode=AvailabilityMode.ON_DEMAND),
+            # Not on the storefront.
+            product("Brouillon", is_draft=True),
+            product("Caché", is_admin_active=False),
+        ]
+    )
+    await db_session.commit()
+
+    result = await build_dashboard(db_session, now=NOW)
+
+    assert result.activity.orders_30d == 2
+    assert result.activity.average_basket_30d == Decimal("750")
+    assert result.activity.carts_30d == 3
+    assert result.activity.carts_ordered_30d == 1
+    assert result.activity.conversion_30d_pct == Decimal("33.3")
+    assert result.stock.low_stock_threshold == 2
+    assert result.stock.out_of_stock == 1
+    assert result.stock.low_stock == 1
 
 
 @pytest.mark.asyncio
