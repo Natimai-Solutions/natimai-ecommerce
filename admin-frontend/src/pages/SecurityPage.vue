@@ -146,18 +146,66 @@
           </q-form>
         </template>
       </section>
+
+      <section class="app-section" data-testid="password-section">
+        <div class="app-section__head">
+          <h2 class="app-section__title">{{ $t('security.pw_title') }}</h2>
+        </div>
+        <p class="admin-hint">{{ $t('security.pw_hint') }}</p>
+        <q-form class="q-gutter-sm" style="max-width: 420px" @submit.prevent="onChangePassword">
+          <q-input
+            v-model="pw.current"
+            type="password"
+            :label="$t('security.pw_current')"
+            outlined
+            dense
+            autocomplete="current-password"
+          />
+          <q-input
+            v-model="pw.next"
+            type="password"
+            :label="$t('security.pw_new')"
+            :rules="[(v: string) => !v || v.length >= 8 || $t('security.pw_rule')]"
+            outlined
+            dense
+            autocomplete="new-password"
+          />
+          <q-input
+            v-model="pw.confirm"
+            type="password"
+            :label="$t('security.pw_confirm')"
+            :rules="[(v: string) => !v || v === pw.next || $t('security.pw_mismatch')]"
+            outlined
+            dense
+            autocomplete="new-password"
+          />
+          <q-btn
+            type="submit"
+            unelevated
+            no-caps
+            color="primary"
+            icon="ph:key"
+            :label="$t('security.pw_submit')"
+            :disable="!pw.current || pw.next.length < 8 || pw.next !== pw.confirm"
+            :loading="busy"
+          />
+        </q-form>
+      </section>
     </template>
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import AppNotice from '@app/ui/AppNotice.vue';
 import StatusTag from '@app/ui/StatusTag.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import { extractApiError } from '@/api/errors';
+import { useAuthStore } from '@/stores/auth';
 import {
+  changeMyPassword,
   confirmTwoFactor,
   disableTwoFactor,
   getTwoFactorStatus,
@@ -178,6 +226,26 @@ const loading = ref(false);
 const busy = ref(false);
 const error = ref<string | null>(null);
 const notice = ref<string | null>(null);
+
+const router = useRouter();
+const auth = useAuthStore();
+const pw = reactive({ current: '', next: '', confirm: '' });
+
+/** Le serveur ferme toutes les sessions : on se reconnecte avec le nouveau. */
+async function onChangePassword() {
+  busy.value = true;
+  error.value = null;
+  notice.value = null;
+  try {
+    await changeMyPassword(pw.current, pw.next);
+    await auth.logout();
+    await router.replace({ path: '/login', query: { password_changed: '1' } });
+  } catch (err) {
+    error.value = extractApiError(err) ?? t('security.pw_failed');
+  } finally {
+    busy.value = false;
+  }
+}
 
 const groupedSecret = computed(() => (setup.value?.secret.match(/.{1,4}/g) ?? []).join(' '));
 

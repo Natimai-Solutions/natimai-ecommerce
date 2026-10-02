@@ -376,6 +376,10 @@ async function submitCreate() {
     createDialog.value = false;
     notice.value = t('categories.created', { title: created.title });
     await load();
+    // Enchaîner sur la fiche complète (image, description, marge, TVA) :
+    // la création ne demande que le nom, qui ne change plus ensuite.
+    const row = rows.value.find((r) => r.id === created.id);
+    if (row) openEdit(row);
   } catch (err) {
     createError.value = extractApiError(err) ?? t('categories.create_failed');
   } finally {

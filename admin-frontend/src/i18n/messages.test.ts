@@ -17,6 +17,22 @@ describe('admin messages', () => {
     expect(leaves(en as Tree).sort()).toEqual(leaves(fr as Tree).sort());
   });
 
+  it('holds no HTML entity (shown as is outside v-html)', () => {
+    const entity = /&(amp|lt|gt|quot|nbsp|#\d+);/;
+    const offenders = [fr, en].flatMap((tree) =>
+      leaves(tree as Tree).filter((key) => {
+        const text = key
+          .split('.')
+          .reduce<Tree | string | undefined>(
+            (node, part) => (typeof node === 'object' ? node[part] : undefined),
+            tree as Tree,
+          );
+        return typeof text === 'string' && entity.test(text);
+      }),
+    );
+    expect(offenders).toEqual([]);
+  });
+
   it.each(['fr', 'en'] as const)('compiles every %s message', (locale) => {
     const errors: string[] = [];
     const i18n = createI18n({

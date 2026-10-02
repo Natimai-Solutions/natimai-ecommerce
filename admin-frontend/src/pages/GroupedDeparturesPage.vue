@@ -353,10 +353,11 @@
           <template #body-cell-actions="props">
             <q-td :props="props" align="right">
               <q-btn
-                flat
-                round
+                color="primary"
+                unelevated
                 dense
-                icon="ph:floppy-disk"
+                no-caps
+                :label="$t('common.save')"
                 :loading="savingReceipt === props.row.product_id"
                 @click="saveReceipt(props.row)"
               >

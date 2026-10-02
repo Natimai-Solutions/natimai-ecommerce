@@ -44,6 +44,17 @@ export async function disableTwoFactor(code: string, password: string): Promise<
   return data;
 }
 
+/** Change le mot de passe ; toutes les sessions sont fermées ensuite. */
+export async function changeMyPassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  await api.post('/users/me/password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+  });
+}
+
 // --- Journal d'audit -------------------------------------------------------
 
 export interface AuditEntry {

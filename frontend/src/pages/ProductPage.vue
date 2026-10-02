@@ -152,11 +152,13 @@
             </span>
           </div>
 
-          <div class="product__condition" data-testid="product-condition">
-            <span class="product__condition-label">{{ $t('product.condition') }}</span>
-            <span>{{ conditionLabel(product, tr) }}</span>
-          </div>
-          <dl v-if="refurbDetails.length" class="product__refurb">
+          <!-- État et détails du reconditionné dans une seule grille : mêmes
+               colonnes, et le grade (déjà dans « État ») n'est pas répété. -->
+          <dl class="product__refurb">
+            <div class="spec-group__row">
+              <dt>{{ $t('product.condition') }}</dt>
+              <dd data-testid="product-condition">{{ conditionLabel(product, tr) }}</dd>
+            </div>
             <div v-for="d in refurbDetails" :key="d.label" class="spec-group__row">
               <dt>{{ d.label }}</dt>
               <dd>{{ d.value }}</dd>
@@ -576,7 +578,11 @@ function extractApiMessage(err: unknown): string | null {
   }
   return null;
 }
-const refurbDetails = computed(() => (product.value ? refurbishedDetails(product.value, tr) : []));
+const refurbDetails = computed(() =>
+  product.value
+    ? refurbishedDetails(product.value, tr).filter((d) => d.label !== tr('condition.grade'))
+    : [],
+);
 
 /** Whether a value is still reachable given the other axes already chosen. */
 function isValueAvailable(axis: string, value: string): boolean {
@@ -1147,19 +1153,8 @@ watch(
   }
 }
 
-.product__condition {
-  margin-top: 16px;
-  display: flex;
-  gap: 12px;
-  font-size: 14px;
-}
-
-.product__condition-label {
-  color: var(--n-ink-3);
-}
-
 .product__refurb {
-  margin: 12px 0 0;
+  margin: 16px 0 0;
   display: flex;
   flex-direction: column;
   gap: 8px;

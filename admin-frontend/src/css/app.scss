@@ -345,3 +345,31 @@ body {
 .q-dialog__inner--minimized > .app-dialog--xl {
   max-width: calc(100vw - 32px);
 }
+
+/*
+ * Une ligne en colonnes (`q-col-gutter-*`) posée dans une pile espacée
+ * (`q-gutter-*`) recevait les deux marges : celle de la pile (+8 px) écrasée
+ * par la compensation de la grille (−8 px), d'où un décalage de 16 px vers la
+ * gauche (et vers le haut) par rapport aux champs seuls. La marge de la ligne
+ * vaut ici l'écart de la pile moins celui de la grille.
+ */
+.q-gutter-sm > .q-col-gutter-sm {
+  margin-left: 0;
+  margin-top: 0;
+}
+
+.q-gutter-sm > .q-col-gutter-xs {
+  margin-left: 4px;
+  margin-top: 4px;
+}
+
+.q-gutter-sm > .q-gutter-md {
+  margin-left: -8px;
+  margin-top: -8px;
+}
+
+/* `.admin-subtitle` remet sa marge gauche à 0 : dans une pile, il sortait de
+   l'alignement des champs (« Image », « Publication » des blocs d'accueil). */
+.q-gutter-sm > .admin-subtitle {
+  margin-left: 8px;
+}

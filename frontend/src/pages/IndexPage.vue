@@ -479,6 +479,12 @@ a.banner:hover {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 20px;
 
+  // Peu de catégories : sans plafond, une tuile seule prenait toute la
+  // largeur (image 4/3 géante). Au-delà de 4 tuiles par ligne, sans effet.
+  > li {
+    max-width: 280px;
+  }
+
   // Mobile : une rangée qui défile, plutôt qu'une grille à tuile orpheline.
   @media (max-width: 599px) {
     grid-auto-flow: column;
@@ -492,6 +498,7 @@ a.banner:hover {
     scrollbar-width: none;
 
     > li {
+      max-width: none;
       scroll-snap-align: start;
     }
   }
