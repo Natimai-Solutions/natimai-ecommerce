@@ -206,8 +206,10 @@ import {
 } from '@/api/pages';
 import { extractApiError } from '@/api/errors';
 import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
+import { useConfirm } from '@/composables/useConfirm';
 
 const { t } = useI18n();
+const { confirmDelete } = useConfirm();
 
 const pages = ref<ContentPage[]>([]);
 const loading = ref(false);
@@ -351,6 +353,7 @@ async function submit() {
 }
 
 async function remove(p: ContentPage) {
+  if (!(await confirmDelete(p.title, t('pages.delete_warning')))) return;
   error.value = null;
   try {
     await deletePage(p.slug);

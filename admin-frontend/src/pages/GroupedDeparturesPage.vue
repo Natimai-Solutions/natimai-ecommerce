@@ -915,11 +915,13 @@ import {
   type SkuSummaryRow,
 } from '@/api/orders';
 import { extractApiError } from '@/api/errors';
+import { useConfirm } from '@/composables/useConfirm';
 import { listSystemSettings, updateSystemSetting } from '@/api/systemSettings';
 import { useShopConfigStore } from '@/stores/shopConfig';
 import { setOrderStatus } from '@/api/orders';
 
 const { t } = useI18n();
+const { confirmDelete } = useConfirm();
 const departureStatusLabel = (status: string) => t(`departure_status.${status}`);
 
 const departures = ref<Departure[]>([]);
@@ -1376,6 +1378,7 @@ async function submitPo() {
 
 async function removePo(index: number) {
   if (!selected.value) return;
+  if (!(await confirmDelete(t('departures.po_n', { n: index + 1 })))) return;
   error.value = null;
   try {
     await removeSupplierOrder(selected.value.id, index);
@@ -1515,6 +1518,7 @@ async function publishNow(r: Reminder) {
 }
 
 async function removeReminder(r: Reminder) {
+  if (!(await confirmDelete(t('departures.delete_text')))) return;
   error.value = null;
   try {
     await deleteReminder(r.id);
@@ -1544,6 +1548,7 @@ async function advance(d: Departure) {
 }
 
 async function remove(d: Departure) {
+  if (!(await confirmDelete(d.name))) return;
   error.value = null;
   try {
     await deleteDeparture(d.id);

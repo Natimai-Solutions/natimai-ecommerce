@@ -321,6 +321,7 @@ import PageHeader from '@/components/PageHeader.vue';
 import MediaPicker from '@/components/MediaPicker.vue';
 import ContentLanguageTabs from '@/components/ContentLanguageTabs.vue';
 import { useDialogGuard, useFormSnapshot } from '@/composables/useUnsavedGuard';
+import { useConfirm } from '@/composables/useConfirm';
 import {
   cloneTranslations,
   useContentTranslations,
@@ -338,6 +339,7 @@ import {
 import type { MediaAsset } from '@/api/media';
 
 const { t } = useI18n();
+const { confirmDelete } = useConfirm();
 
 type Kind = 'hero' | 'banner';
 
@@ -594,6 +596,7 @@ async function move(list: HomepageBlock[], index: number, delta: number) {
 }
 
 async function remove(block: HomepageBlock) {
+  if (!(await confirmDelete(block.title))) return;
   error.value = null;
   try {
     await deleteHomepageBlock(block.id);

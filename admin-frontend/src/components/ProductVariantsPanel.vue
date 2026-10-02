@@ -242,10 +242,12 @@ import StatusTag from '@app/ui/StatusTag.vue';
 import { createVariant, deactivateVariant, listVariants, updateVariant } from '@/api/variants';
 import { adjustInventory } from '@/api/inventory';
 import { extractApiError } from '@/api/errors';
+import { useConfirm } from '@/composables/useConfirm';
 import type { ProductPublic } from '@/stores/products';
 import { useShopConfigStore } from '@/stores/shopConfig';
 
 const { t } = useI18n();
+const { confirmDelete } = useConfirm();
 
 const props = defineProps<{
   productId: string;
@@ -436,6 +438,7 @@ async function submit() {
 }
 
 async function onDeactivate(variant: ProductPublic) {
+  if (!(await confirmDelete(variant.name, t('variants.remove')))) return;
   busyId.value = variant.id;
   error.value = null;
   try {

@@ -121,6 +121,7 @@ import { computed, ref, watch } from 'vue';
 
 import AppNotice from '@app/ui/AppNotice.vue';
 import { extractApiError } from '@/api/errors';
+import { useConfirm } from '@/composables/useConfirm';
 import {
   deleteMedia,
   listMedia,
@@ -131,6 +132,7 @@ import {
 } from '@/api/media';
 
 const { t } = useI18n();
+const { confirmDelete } = useConfirm();
 
 /**
  * Médiathèque partagée : accueil, produits, catégories, pages. Ouvre la liste
@@ -203,6 +205,7 @@ async function upload() {
 }
 
 async function remove(asset: MediaAsset) {
+  if (!(await confirmDelete(asset.alt || asset.original_filename || t('media.this_image')))) return;
   deleting.value = true;
   error.value = null;
   try {

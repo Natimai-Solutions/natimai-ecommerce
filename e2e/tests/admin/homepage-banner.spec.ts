@@ -33,6 +33,8 @@ test('a banner published from the admin shows on the storefront until deleted', 
 
     await test.step('deleting it removes it from the storefront', async () => {
       await block.getByTestId('homepage-delete').click()
+      // Every deletion asks first (admin charter): confirm in the dialog.
+      await page.getByRole('dialog').getByRole('button', { name: 'Supprimer' }).click()
       await expect(block).toHaveCount(0)
       await shop.reload()
       await expect(shop.getByText(title)).toHaveCount(0)
