@@ -285,6 +285,7 @@ Hors périmètre, documenté comme feuille de route : contenu multilingue en bas
 **Livraison R8 (dans l'ordre de la liste « forte valeur », depuis le 02/10/2026)**
 
 - ✅ **U1 — Scans de sécurité en CI** (02/10/2026) : workflow `security.yml` (PR, push `main`, hebdomadaire) — gitleaks sur tout l'historique (`.gitleaks.toml` : jeux de test, `.env.example`, verrous en liste blanche), `pip-audit` sur le verrou de production exporté par `uv`, `pnpm audit --prod` bloquant dès « moderate » (outillage dev indicatif), CodeQL Python + JavaScript conditionné à la variable de dépôt `CODEQL_ENABLED` (Code Security requis sur un dépôt privé), build des trois images avec la recette du déploiement puis Trivy (CRITICAL / HIGH corrigées en amont bloquantes, sans correctif indicatives). Vulnérabilités corrigées au passage par `pnpm.overrides` : `undici` (via jsdom / isomorphic-dompurify), `qs` (express du serveur SSR), `esbuild`, `js-yaml` ; audit vide à la livraison.
+- ✅ **U2 — Dérive de `shared/api-types`** (02/10/2026) : `scripts/gen-api-types.sh` produit l'OpenAPI depuis l'application (sans serveur ni base) et regénère `schema.ts` (`pnpm gen:types`) ; `pnpm check:types` compare au fichier commité et le job CI `api-types` échoue en cas d'écart.
 
 ### R9 — Retours de recette du 02/10/2026 (priorité 9) — ✅ livré le 02/10/2026 (T1 à T8)
 
