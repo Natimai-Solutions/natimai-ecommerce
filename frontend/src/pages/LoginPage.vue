@@ -118,6 +118,7 @@ import AppNotice from '@app/ui/AppNotice.vue';
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { useCartStore } from '@/stores/cart';
 
 const authStore = useAuthStore();
 const route = useRoute();
@@ -145,6 +146,7 @@ function redirectTarget(): string {
 async function onSubmit() {
   const ok = await authStore.login(email.value.trim().toLowerCase(), password.value);
   if (ok) {
+    await useCartStore().mergeAfterLogin();
     await router.replace(redirectTarget());
   }
 }

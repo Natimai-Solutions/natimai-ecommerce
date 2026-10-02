@@ -2,6 +2,8 @@
 // absente de en.ts fait échouer la vérification de types.
 const fr = {
   abandoned: {
+    guest: 'Visiteur (sans compte)',
+    guest_no_email: 'Adresse inconnue : pas de relance possible',
     col_activity: 'Dernière activité',
     col_customer: 'Client',
     col_items: 'Articles',

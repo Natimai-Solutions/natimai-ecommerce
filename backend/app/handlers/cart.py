@@ -31,11 +31,16 @@ async def on_cart_abandoned(session: AsyncSession, payload: dict[str, Any]) -> N
     """
     raw_cart_id = payload.get("cart_id")
     raw_user_id = payload.get("user_id")
+    guest_email = str(payload.get("email") or "").strip() or None
     try:
         cart_id = uuid.UUID(str(raw_cart_id))
-        user_id = uuid.UUID(str(raw_user_id))
+        # A visitor's cart (R8 / U9) has no user: the typed e-mail is the recipient.
+        user_id = uuid.UUID(str(raw_user_id)) if raw_user_id else None
     except (TypeError, ValueError):
         logger.warning("cart reminder: malformed payload %r, skipping", payload)
+        return
+    if user_id is None and not guest_email:
+        logger.warning("cart reminder: cart %s has no recipient, skipping", cart_id)
         return
 
     cart = await session.get(Cart, cart_id)
@@ -68,7 +73,8 @@ async def on_cart_abandoned(session: AsyncSession, payload: dict[str, Any]) -> N
     )
     delivered = await _send_order_email(
         session,
-        user_id_raw=str(user_id),
+        user_id_raw=str(user_id) if user_id else None,
+        recipient=guest_email if user_id is None else None,
         subject=email.subject,
         text=email.text,
         html=email.html,

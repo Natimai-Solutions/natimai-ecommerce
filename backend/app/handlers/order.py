@@ -178,8 +178,12 @@ async def _send_order_email(
     html: str,
     event_type: str,
     payload: dict[str, Any],
+    recipient: str | None = None,
 ) -> bool:
     """Resolve user email and dispatch the notification if enabled.
+
+    ``recipient`` names the address directly when there is no account behind
+    the message (a visitor's cart reminder, R8 / U9).
 
     Returns whether the message actually reached the provider, so a caller
     that must not lose the notification (the invoice) can fail and be retried.
@@ -187,20 +191,23 @@ async def _send_order_email(
     if not await runtime_settings.get("notifications_email_enabled", session):
         return False
 
-    if not user_id_raw:
-        logger.warning("order email: missing user_id in payload, skipping")
-        return False
+    user_uuid: uuid.UUID | str = recipient or ""
+    if recipient is None:
+        if not user_id_raw:
+            logger.warning("order email: missing user_id in payload, skipping")
+            return False
 
-    try:
-        user_uuid = uuid.UUID(str(user_id_raw))
-    except (TypeError, ValueError):
-        logger.warning("order email: invalid user_id %r, skipping", user_id_raw)
-        return False
+        try:
+            user_uuid = uuid.UUID(str(user_id_raw))
+        except (TypeError, ValueError):
+            logger.warning("order email: invalid user_id %r, skipping", user_id_raw)
+            return False
 
-    user = await session.get(User, user_uuid)
-    if user is None or not user.email:
-        logger.warning("order email: user %s not found or has no email", user_uuid)
-        return False
+        user = await session.get(User, user_uuid)
+        if user is None or not user.email:
+            logger.warning("order email: user %s not found or has no email", user_uuid)
+            return False
+        recipient = user.email
 
     try:
         provider = get_notification_provider(
@@ -218,7 +225,7 @@ async def _send_order_email(
     result = await provider.send(
         NotificationMessage(
             channel="email",
-            recipient=user.email,
+            recipient=recipient,
             subject=subject,
             text=text,
             html=html,

@@ -48,6 +48,41 @@ class CartCrud(CrudBase[Cart, CartCreate, CartUpdate]):
         exec_result = await session.exec(statement)
         return exec_result.first()
 
+    async def get_active_guest_cart(
+        self, session: AsyncSession, *, guest_token: str
+    ) -> Cart | None:
+        """The open cart of a visitor, by the token their browser keeps (R8 / U9)."""
+        statement = select(self.model).where(
+            self.model.guest_token == guest_token,
+            col(self.model.user_id).is_(None),
+            col(self.model.is_checked_out).is_(False),
+            col(self.model.is_active).is_(True),
+            col(self.model.is_admin_active).is_(True),
+        )
+        return (await session.exec(statement)).first()
+
+    async def get_or_create_guest_cart(
+        self, session: AsyncSession, *, guest_token: str
+    ) -> Cart:
+        """Get or create the visitor's cart (R8 / U9)."""
+        cart = await self.get_active_guest_cart(session, guest_token=guest_token)
+        if cart is not None:
+            return cart
+        now = datetime.now(timezone.utc)
+        cart = self.model(
+            user_id=None,
+            guest_token=guest_token,
+            currency=settings.REFERENCE_CURRENCY,
+            total_amount=Decimal("0.00"),
+            is_checked_out=False,
+            created_at=now,
+            last_activity_at=now,
+        )
+        session.add(cart)
+        await session.commit()
+        await session.refresh(cart)
+        return cart
+
     async def get_or_create_active_cart(
         self,
         session: AsyncSession,

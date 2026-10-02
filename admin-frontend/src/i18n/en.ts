@@ -4,6 +4,8 @@ import type { MessageSchema } from './fr';
 
 const en: MessageSchema = {
   abandoned: {
+    guest: 'Visitor (no account)',
+    guest_no_email: 'Unknown address: no reminder possible',
     col_activity: 'Last activity',
     col_customer: 'Customer',
     col_items: 'Items',

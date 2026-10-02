@@ -27,6 +27,7 @@ import { useI18n } from 'vue-i18n';
 import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { useCartStore } from '@/stores/cart';
 
 const { t } = useI18n();
 
@@ -65,6 +66,7 @@ onMounted(async () => {
     return;
   }
 
+  await useCartStore().mergeAfterLogin();
   const target = sessionStorage.getItem('oauth.redirect') ?? '/';
   sessionStorage.removeItem('oauth.redirect');
   await router.replace(target.startsWith('/') ? target : '/');

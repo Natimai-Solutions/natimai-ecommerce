@@ -1,5 +1,6 @@
 import { defineBoot } from '#q-app';
 import { useAuthStore } from '@/stores/auth';
+import { useCartStore } from '@/stores/cart';
 
 /**
  * Restore the session from the HttpOnly refresh cookie before the app mounts,
@@ -10,6 +11,8 @@ import { useAuthStore } from '@/stores/auth';
  */
 export default defineBoot(async () => {
   if (import.meta.env.QUASAR_CLIENT) {
-    await useAuthStore().tryRestore();
+    const restored = await useAuthStore().tryRestore();
+    // A guest cart left from a signed-out visit joins the account's (R8 / U9).
+    if (restored) void useCartStore().mergeAfterLogin();
   }
 });

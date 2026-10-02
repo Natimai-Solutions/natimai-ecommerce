@@ -180,6 +180,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { usePageMeta } from '@/composables/usePageMeta';
 import { useTurnstile } from '@/composables/useTurnstile';
 import { useAuthStore } from '@/stores/auth';
+import { useCartStore } from '@/stores/cart';
 
 const authStore = useAuthStore();
 const route = useRoute();
@@ -254,6 +255,7 @@ async function onComplete() {
       fullName.value.trim() || null,
     );
     if (res.ok) {
+      await useCartStore().mergeAfterLogin();
       await router.replace(redirectTarget());
     } else {
       error.value = res.error ?? null;

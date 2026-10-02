@@ -19,7 +19,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import exists, func
-from sqlmodel import col, select
+from sqlmodel import col, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.features.cart.models.cart import Cart, CartItem
@@ -69,6 +69,8 @@ def abandoned_carts_statement(
         select(Cart)
         .where(
             *open_cart_conditions(),
+            # A visitor's cart can only be reminded once they typed an e-mail.
+            or_(col(Cart.user_id).is_not(None), col(Cart.guest_email).is_not(None)),
             col(Cart.abandonment_reminded_at).is_(None),
             col(Cart.last_activity_at).is_not(None),
             col(Cart.last_activity_at) <= newest,
@@ -104,8 +106,16 @@ async def cart_lines_payload(
     return lines
 
 
-async def marketing_emails_allowed(session: AsyncSession, user_id: uuid.UUID) -> bool:
-    """The customer's opt-out; no preference row means the default (allowed)."""
+async def marketing_emails_allowed(
+    session: AsyncSession, user_id: uuid.UUID | None
+) -> bool:
+    """The customer's opt-out; no preference row means the default (allowed).
+
+    A visitor (no account) has no preference row: the e-mail they typed in a
+    form is the only consent there is, and the reminder honours it.
+    """
+    if user_id is None:
+        return True
     preference = await get_preference_for_user(session, user_id=user_id)
     return preference is None or bool(preference.marketing_email_enabled)
 
@@ -147,6 +157,7 @@ async def remind_abandoned_carts(
             cart,
             cart.id,
             cart.user_id,
+            cart.guest_email,
             cart.currency,
             cart.total_amount,
             cart.last_activity_at,
@@ -155,7 +166,15 @@ async def remind_abandoned_carts(
     ]
     reminded = 0
     skipped = 0
-    for cart, cart_id, user_id, currency, total_amount, last_activity in snapshots:
+    for (
+        cart,
+        cart_id,
+        user_id,
+        guest_email,
+        currency,
+        total_amount,
+        last_activity,
+    ) in snapshots:
         cart.abandonment_reminded_at = _utc(current)
         session.add(cart)
         if not await marketing_emails_allowed(session, user_id):
@@ -168,7 +187,9 @@ async def remind_abandoned_carts(
             event_type=EVENT_CART_ABANDONED,
             payload={
                 "cart_id": str(cart_id),
-                "user_id": str(user_id),
+                "user_id": str(user_id) if user_id else None,
+                # A visitor's cart: the address they typed (R8 / U9).
+                "email": None if user_id else guest_email,
                 "currency": currency,
                 "total_amount": str(total_amount),
                 "items": lines,
@@ -198,7 +219,7 @@ async def open_carts_overview(
     """
     page_rows = await session.exec(
         select(Cart, User)
-        .join(User, col(User.id) == col(Cart.user_id))
+        .outerjoin(User, col(User.id) == col(Cart.user_id))
         .where(*open_cart_conditions())
         .order_by(col(Cart.last_activity_at).desc().nulls_last())
         .offset(skip)
@@ -210,9 +231,11 @@ async def open_carts_overview(
         page.append(
             {
                 "cart_id": str(cart.id),
-                "user_id": str(user.id),
-                "user_email": user.email,
-                "user_name": user.full_name,
+                "user_id": str(user.id) if user else None,
+                # A visitor's cart (R8 / U9): the e-mail they typed, if any.
+                "guest": user is None,
+                "user_email": user.email if user else cart.guest_email,
+                "user_name": user.full_name if user else None,
                 "currency": cart.currency,
                 "total_amount": str(cart.total_amount),
                 "items_count": sum(line["quantity"] for line in lines),

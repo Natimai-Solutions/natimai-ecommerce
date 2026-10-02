@@ -2,9 +2,14 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import type { components } from '@app/api-types';
 import {
+  attachGuestCartEmail,
+  clearGuestCart,
   clearMyCart,
   createGuestQuoteRequest,
+  mergeGuestCart,
+  replaceGuestCartItems,
   replaceMyCartItems,
+  type CartDetailPublic,
   type GuestQuoteRequestResponse,
 } from '@/api/cart';
 import { useAuthStore } from '@/stores/auth';
@@ -34,6 +39,8 @@ type CartItemWithProduct = {
 };
 
 const STORAGE_KEY = 'frontend.cart.v1';
+/** The visitor's server-cart token (R8 / U9); removed once merged at sign-in. */
+const TOKEN_KEY = 'frontend.cart.token.v1';
 /** Debounce of the server mirror: one PUT per burst of clicks, not per click. */
 const MIRROR_DELAY_MS = 1500;
 
@@ -51,7 +58,9 @@ export const useCartStore = defineStore('cart', () => {
   const items = computed(() => cart.value.items);
 
   /**
-   * Mirror the local cart into the account's server cart when logged in.
+   * Mirror the local cart into its server cart: the account's when logged
+   * in, the visitor's (identified by a random token the browser keeps, R8 /
+   * U9) otherwise.
    *
    * The cart lives in the browser; the server only saw it at checkout, so a
    * customer who added items and left was invisible to the abandoned-cart
@@ -69,21 +78,75 @@ export const useCartStore = defineStore('cart', () => {
   }
   async function mirrorToServer() {
     const auth = useAuthStore();
-    if (!auth.isAuthenticated) return;
+    const payload = {
+      items: cart.value.items.map((item) => ({
+        product_id: item.product_id,
+        quantity: item.quantity,
+      })),
+    };
     try {
-      if (cart.value.items.length === 0) {
-        await clearMyCart();
+      if (auth.isAuthenticated) {
+        if (payload.items.length === 0) await clearMyCart();
+        else await replaceMyCartItems(payload);
         return;
       }
-      await replaceMyCartItems({
-        items: cart.value.items.map((item) => ({
-          product_id: item.product_id,
-          quantity: item.quantity,
-        })),
-      });
+      // A visitor: no token and nothing to send means no server cart at all.
+      const token = guestToken(payload.items.length > 0);
+      if (!token) return;
+      if (payload.items.length === 0) await clearGuestCart(token);
+      else await replaceGuestCartItems(token, payload);
     } catch {
       // ignored on purpose: the local cart is the source of truth until checkout
     }
+  }
+
+  /**
+   * At sign-in (R8 / U9): fold the visitor's server cart into the account's
+   * and adopt the result — the account's lines from another device join the
+   * ones added here. Silent on failure: the local cart then simply mirrors
+   * itself as before.
+   */
+  async function mergeAfterLogin(): Promise<void> {
+    const token = guestToken(false);
+    if (!token) return;
+    try {
+      const merged = await mergeGuestCart(token);
+      adoptServerCart(merged);
+      forgetGuestToken();
+    } catch {
+      scheduleServerMirror();
+    }
+  }
+
+  /** The e-mail a visitor typed (stock alert, quote): kept on their server cart. */
+  async function attachGuestEmail(email: string): Promise<void> {
+    const auth = useAuthStore();
+    if (auth.isAuthenticated || cart.value.items.length === 0) return;
+    const token = guestToken(true);
+    if (!token) return;
+    try {
+      await attachGuestCartEmail(token, email.trim().toLowerCase());
+    } catch {
+      // best effort: a reminder is a nicety, not a promise
+    }
+  }
+
+  function adoptServerCart(detail: CartDetailPublic) {
+    cart.value = {
+      currency: detail.currency || cart.value.currency,
+      total_amount: '0.00',
+      is_checked_out: false,
+      items: (detail.items ?? []).map((item) => ({
+        id: item.product_id,
+        product_id: item.product_id,
+        quantity: item.quantity,
+        unit_price: toMoneyString(parseMoney(item.unit_price)),
+        line_total: toMoneyString(parseMoney(item.unit_price) * item.quantity),
+      })),
+    };
+    recomputeTotals();
+    persistCart(cart.value);
+    void hydrateProducts(cart.value.items);
   }
 
   const totalItems = computed(() => items.value.reduce((sum, item) => sum + item.quantity, 0));
@@ -276,6 +339,7 @@ export const useCartStore = defineStore('cart', () => {
       quoteMessage.value = response.message;
       quoteEmailDelivered.value = response.email_delivered;
       requiresAuth.value = false;
+      void attachGuestEmail(customerEmail);
       return response;
     } catch (err) {
       handleError(err, "Impossible d'envoyer la demande de devis");
@@ -360,6 +424,8 @@ export const useCartStore = defineStore('cart', () => {
     cart,
     loading,
     mutating,
+    mergeAfterLogin,
+    attachGuestEmail,
     quoteSubmitting,
     error,
     requiresAuth,
@@ -380,6 +446,30 @@ export const useCartStore = defineStore('cart', () => {
     clearMessages,
   };
 });
+
+/** The visitor's cart token; created on demand when `create` is true. */
+function guestToken(create: boolean): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const existing = localStorage.getItem(TOKEN_KEY);
+    if (existing) return existing;
+    if (!create) return null;
+    const token = `g-${crypto.randomUUID().replace(/-/g, '')}-${Date.now().toString(36)}`;
+    localStorage.setItem(TOKEN_KEY, token);
+    return token;
+  } catch {
+    return null;
+  }
+}
+
+function forgetGuestToken(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // storage unavailable: nothing kept, nothing to forget
+  }
+}
 
 function emptyCart(currency = 'XPF'): LocalCart {
   return {

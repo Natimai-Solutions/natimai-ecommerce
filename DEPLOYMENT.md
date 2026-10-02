@@ -379,7 +379,7 @@ truth. All three are safe to leave at their defaults.
 **Confidentiality.** Purchase cost, supplier price, margin and customs rates of
 products (and the cost snapshots of order lines) are only serialized for a
 superuser's request; the public storefront API never returns them.
-| `CART_ABANDONMENT_REMINDER_DELAY_HOURS` | `24` | A logged-in customer's cart untouched for this long, never ordered, gets one reminder e-mail (hourly sweep, `cart.abandoned` outbox event). Customers can opt out of commercial e-mails in their preferences. `0` disables the sweep. |
+| `CART_ABANDONMENT_REMINDER_DELAY_HOURS` | `24` | A cart untouched for this long, never ordered, gets one reminder e-mail (hourly sweep, `cart.abandoned` outbox event): a customer's, or a visitor's server cart once they typed an e-mail in a form (stock alert, quote — R8 / U9; the storefront keeps the visitor's cart on the server under a random `X-Cart-Token` and merges it into the account at sign-in, the larger quantity winning per product). Customers can opt out of commercial e-mails in their preferences. `0` disables the sweep. |
 | `CART_ABANDONMENT_MAX_AGE_DAYS` | `14` | Carts older than this are never reminded. |
 | `SUPPLIER_FILE_IMPORT_INLINE_MAX_ROWS` | `2000` | A CSV / Excel catalog up to this many rows is imported inside the request. A larger file is stored (`FILE_STORAGE_BACKEND`), a sync log is opened and an ARQ job imports it; the admin screen polls the log. Simulations of a large file resolve only this many rows. |
 | `SUPPLIER_FILE_IMPORT_MAX_ROWS` | `250000` | Hard cap on a catalog file (worker memory). The upload itself is capped at 20 MB. |

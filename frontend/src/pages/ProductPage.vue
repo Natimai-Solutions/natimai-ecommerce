@@ -625,6 +625,7 @@ async function submitAlert() {
     captcha.reset(); // a Turnstile token is single-use
     alertDialog.value = false;
     alertNotice.value = t('product.alert_ok', { email: alert.email });
+    if (!authStore.isAuthenticated) void cartStore.attachGuestEmail(alert.email);
   } catch (err) {
     alertError.value = extractApiMessage(err) ?? t('product.alert_failed');
   } finally {
