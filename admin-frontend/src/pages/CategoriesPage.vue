@@ -151,6 +151,20 @@
               outlined
               dense
             />
+            <q-select
+              v-model="editForm.suggested_category_ids"
+              :options="suggestionOptions"
+              :label="$t('categories.suggested')"
+              :hint="$t('categories.suggested_hint')"
+              emit-value
+              map-options
+              multiple
+              use-chips
+              outlined
+              dense
+              clearable
+              data-testid="category-suggested"
+            />
             <q-input
               v-model="editForm.image_url"
               :label="$t('categories.tile')"
@@ -449,6 +463,7 @@ const editForm = reactive<{
   default_margin_rate_pct: string;
   default_tax_rate_id: string | null;
   translations: Translations;
+  suggested_category_ids: string[];
 }>({
   display_name: '',
   description: '',
@@ -456,7 +471,15 @@ const editForm = reactive<{
   default_margin_rate_pct: '',
   default_tax_rate_id: null,
   translations: {},
+  suggested_category_ids: [],
 });
+
+/** Categories a product of the edited one may suggest (R9 / T7): the live ones, itself excluded. */
+const suggestionOptions = computed(() =>
+  rows.value
+    .filter((c) => c.is_active && !c.merged_into_id && c.id !== editing.value?.id)
+    .map((c) => ({ value: c.id, label: c.title })),
+);
 const content = useContentTranslations({
   form: editForm,
   fields: ['display_name', 'description'],
@@ -503,6 +526,7 @@ function openEdit(category: AdminCategory) {
   editForm.default_margin_rate_pct = category.default_margin_rate_pct ?? '';
   editForm.default_tax_rate_id = category.default_tax_rate_id ?? null;
   editForm.translations = cloneTranslations(category.translations);
+  editForm.suggested_category_ids = [...(category.suggested_category_ids ?? [])];
   content.reset();
   snapshot.take();
   editDialog.value = true;
@@ -517,6 +541,7 @@ async function submitEdit() {
       display_name: (editForm.display_name ?? '').trim() || null,
       description: editForm.description.trim() || null,
       translations: editForm.translations,
+      suggested_category_ids: editForm.suggested_category_ids,
       image_url: editForm.image_url.trim() || null,
       default_margin_rate_pct: String(editForm.default_margin_rate_pct ?? '').trim() || null,
     });

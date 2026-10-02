@@ -412,6 +412,86 @@
               </div>
             </div>
 
+            <div v-if="isEdit" data-testid="product-links">
+              <h3 class="admin-subtitle">{{ $t('product_form.links') }}</h3>
+              <p class="admin-hint">{{ $t('product_form.links_hint') }}</p>
+              <div
+                v-for="(link, index) in links"
+                :key="link.linked_product_id"
+                class="product-form__link"
+              >
+                <q-btn-toggle
+                  v-model="link.kind"
+                  :options="[
+                    { value: 'accessory', label: $t('product_form.link_accessory') },
+                    { value: 'alternative', label: $t('product_form.link_alternative') },
+                  ]"
+                  no-caps
+                  dense
+                  unelevated
+                  toggle-color="primary"
+                  class="product-form__link-kind"
+                />
+                <span class="product-form__link-name" :class="{ 'text-subtle': !link.is_active }">
+                  {{ link.name }}
+                  <span v-if="link.vendor_part_number" class="font-mono text-subtle">
+                    {{ link.vendor_part_number }}
+                  </span>
+                </span>
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="ph:arrow-up"
+                  :disable="index === 0"
+                  :aria-label="$t('product_form.link_up')"
+                  @click="moveLink(index, -1)"
+                />
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="ph:arrow-down"
+                  :disable="index === links.length - 1"
+                  :aria-label="$t('product_form.link_down')"
+                  @click="moveLink(index, 1)"
+                />
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="ph:x"
+                  color="negative"
+                  :aria-label="$t('product_form.link_remove')"
+                  @click="links.splice(index, 1)"
+                />
+              </div>
+              <q-select
+                :model-value="null"
+                :options="linkCandidates"
+                option-value="id"
+                option-label="name"
+                :label="$t('product_form.link_add')"
+                :hint="$t('product_form.link_add_hint')"
+                use-input
+                input-debounce="300"
+                outlined
+                dense
+                hide-selected
+                data-testid="product-link-search"
+                @filter="filterLinkCandidates"
+                @update:model-value="addLink"
+              >
+                <template #no-option>
+                  <q-item>
+                    <q-item-section class="text-subtle">
+                      {{ $t('product_form.link_no_match') }}
+                    </q-item-section>
+                  </q-item>
+                </template>
+              </q-select>
+            </div>
+
             <div v-if="specsOn" data-testid="product-specs">
               <h3 class="admin-subtitle">{{ $t('product_form.specs') }}</h3>
               <p class="admin-hint">{{ $t('product_form.specs_hint') }}</p>
@@ -585,6 +665,13 @@ import {
 import { intlLocale } from '@app/utils';
 import { getGroupPrices, setGroupPrices, type MarginPreviewRequest } from '@/api/margin';
 import { getSpecForm, setProductSpecs, type SpecFormRow } from '@/api/productSpecs';
+import {
+  listProductLinks,
+  searchProductsForLink,
+  setProductLinks,
+  type LinkCandidate,
+  type ProductLink,
+} from '@/api/productLinks';
 import { useDialogGuard } from '@/composables/useUnsavedGuard';
 import ProductVariantsPanel from '@/components/ProductVariantsPanel.vue';
 import { useProductsStore, type ProductPublic } from '@/stores/products';
@@ -848,6 +935,7 @@ function hasUnsavedChanges(): boolean {
   if (keys.some((key) => JSON.stringify(form[key]) !== JSON.stringify(original[key]))) return true;
   if (specRows.value.some((row) => (specValues[row.key] ?? '') !== (specOriginal[row.key] ?? '')))
     return true;
+  if (isEdit.value && linksKey(links.value) !== linksOriginal) return true;
   return (
     groupPrices.value !== null &&
     JSON.stringify(groupPrices.value) !== JSON.stringify(storedGroupPrices)
@@ -860,6 +948,77 @@ const guard = useDialogGuard({
   close: () => emit('update:modelValue', false),
   isDirty: hasUnsavedChanges,
 });
+
+// Articles liés (R9 / T7) : accessoires et alternatives, dans l'ordre.
+const links = ref<ProductLink[]>([]);
+let linksOriginal = '';
+const linkCandidates = ref<LinkCandidate[]>([]);
+
+function linksKey(rows: ProductLink[]): string {
+  return JSON.stringify(rows.map((l) => [l.linked_product_id, l.kind]));
+}
+
+async function loadLinks(productId: string | null) {
+  links.value = [];
+  linksOriginal = linksKey([]);
+  if (!productId) return;
+  try {
+    links.value = await listProductLinks(productId);
+  } catch {
+    links.value = [];
+  }
+  linksOriginal = linksKey(links.value);
+}
+
+function moveLink(index: number, delta: number) {
+  const target = index + delta;
+  const row = links.value[index];
+  const other = links.value[target];
+  if (!row || !other) return;
+  links.value.splice(index, 1, other);
+  links.value.splice(target, 1, row);
+}
+
+function filterLinkCandidates(needle: string, update: (fn: () => void) => void) {
+  const term = needle.trim();
+  if (term.length < 2) {
+    update(() => (linkCandidates.value = []));
+    return;
+  }
+  void searchProductsForLink(term)
+    .then((rows) => {
+      const taken = new Set([props.product?.id, ...links.value.map((l) => l.linked_product_id)]);
+      update(() => (linkCandidates.value = rows.filter((r) => !taken.has(r.id))));
+    })
+    .catch(() => update(() => (linkCandidates.value = [])));
+}
+
+function addLink(candidate: LinkCandidate | null) {
+  if (!candidate) return;
+  links.value.push({
+    id: candidate.id,
+    linked_product_id: candidate.id,
+    kind: 'accessory',
+    position: links.value.length,
+    name: candidate.name,
+    vendor_part_number: candidate.vendor_part_number ?? null,
+    supplier_sku: null,
+    image_url: null,
+    is_active: true,
+  });
+}
+
+async function saveLinks(productId: string) {
+  if (!isEdit.value || linksKey(links.value) === linksOriginal) return;
+  await setProductLinks(
+    productId,
+    links.value.map((l, index) => ({
+      linked_product_id: l.linked_product_id,
+      kind: l.kind === 'alternative' ? 'alternative' : 'accessory',
+      position: index,
+    })),
+  );
+}
 
 async function saveSpecs(productId: string) {
   if (!specsOn.value) return;
@@ -1157,6 +1316,7 @@ async function onSubmit() {
     await saveLocalStock(productId);
     await saveGroupPrices(productId);
     await saveSpecs(productId);
+    await saveLinks(productId);
     emit('saved');
     emit('update:modelValue', false);
   } catch (err: unknown) {
@@ -1232,6 +1392,7 @@ watch(
       loadFromProduct(props.product);
       for (const key of Object.keys(specValues)) delete specValues[key];
       void loadSpecs(props.product?.id ?? null, props.product?.category_id ?? null);
+      void loadLinks(props.product?.id ?? null);
       void loadGroupPrices(props.product);
     }
   },
@@ -1295,5 +1456,26 @@ onMounted(() => {
 
 .product-form__spec-source {
   flex: none;
+}
+
+.product-form__link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.product-form__link-kind {
+  flex: none;
+  border: 1px solid var(--n-border);
+  border-radius: 8px;
+}
+
+.product-form__link-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

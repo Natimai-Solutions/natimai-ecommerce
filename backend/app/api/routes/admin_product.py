@@ -52,6 +52,11 @@ from app.features.product.models.product import (
     ProductUpdate,
 )
 from app.features.product.models.product_group_price import ProductGroupPrice
+from app.features.product.models.product_link import (
+    ProductLink,
+    ProductLinkPublic,
+    ProductLinkWrite,
+)
 from app.features.product.services.group_pricing import apply_discount
 from app.features.product.services.manual_specs import (
     SpecFormResponse,
@@ -61,6 +66,7 @@ from app.features.product.services.manual_specs import (
 )
 from app.features.product.services.overrides import merge_locks, release_lock
 from app.features.product.services.pricing import CurrencyRateMissing, PricingContext
+from app.features.product.services.related import replace_product_links
 from app.features.product.services.variants import (
     apply_price_extras,
     list_variants,
@@ -226,6 +232,71 @@ async def admin_set_product_specs(
     await session.commit()
     await session.refresh(product)
     return await spec_form_rows(session, product=product, category_id=None)
+
+
+@router.get("/{product_id}/links", response_model=list[ProductLinkPublic])
+async def admin_list_product_links(
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+    product_id: uuid.UUID,
+) -> list[ProductLinkPublic]:
+    """Manual accessories and alternatives of a product (R9 / T7), in order."""
+    product = await _read_product(session, product_id)
+    return await _links_public(session, product)
+
+
+@router.put("/{product_id}/links", response_model=list[ProductLinkPublic])
+async def admin_set_product_links(
+    session: SessionDep,
+    _current_user: CurrentSuperUser,
+    product_id: uuid.UUID,
+    payload: list[ProductLinkWrite],
+) -> list[ProductLinkPublic]:
+    """Replace the manual links of a product (R9 / T7)."""
+    product = await _read_product(session, product_id)
+    try:
+        await replace_product_links(session, product, payload)
+    except ValueError as exc:
+        raise AppError(
+            code="product.links.invalid",
+            status_code=400,
+            message=str(exc),
+            details={"field": "links"},
+        ) from exc
+    await session.commit()
+    await session.refresh(product)
+    return await _links_public(session, product)
+
+
+async def _links_public(
+    session: SessionDep, product: Product
+) -> list[ProductLinkPublic]:
+    rows = (
+        await session.exec(
+            select(ProductLink, Product)
+            .join(Product, col(Product.id) == col(ProductLink.linked_product_id))
+            .where(ProductLink.product_id == product.id)
+            .order_by(
+                col(ProductLink.position).asc(),
+                col(ProductLink.kind).asc(),
+                col(ProductLink.created_at).asc(),
+            )
+        )
+    ).all()
+    return [
+        ProductLinkPublic(
+            id=link.id,
+            linked_product_id=link.linked_product_id,
+            kind=link.kind,
+            position=link.position,
+            name=target.name,
+            vendor_part_number=target.vendor_part_number,
+            supplier_sku=target.supplier_sku,
+            image_url=target.image_url,
+            is_active=bool(target.is_active and target.is_admin_active),
+        )
+        for link, target in rows
+    ]
 
 
 @router.post("", response_model=ProductPublic)

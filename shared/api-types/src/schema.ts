@@ -2297,6 +2297,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/products/{product_id}/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin List Product Links
+         * @description Manual accessories and alternatives of a product (R9 / T7), in order.
+         */
+        get: operations["admin-product-admin_list_product_links"];
+        /**
+         * Admin Set Product Links
+         * @description Replace the manual links of a product (R9 / T7).
+         */
+        put: operations["admin-product-admin_set_product_links"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/products": {
         parameters: {
             query?: never;
@@ -3547,6 +3571,47 @@ export interface paths {
         get: operations["product-get_product_key_specs"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product/{product_id}/related": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Related Products
+         * @description Accessories (manual links, then the suggested categories' best sellers)
+         *     and alternatives of a product; only sellable products.
+         */
+        get: operations["product-get_related_products"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product/related-to": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get Related To Products
+         * @description Accessories for a set of products (the cart), the set itself excluded.
+         */
+        post: operations["product-get_related_to_products"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8262,6 +8327,8 @@ export interface components {
             translation_status?: {
                 [key: string]: string;
             };
+            /** Suggested Category Ids */
+            suggested_category_ids?: string[];
         };
         /**
          * AdminCategoryUpdate
@@ -8285,6 +8352,8 @@ export interface components {
                     [key: string]: unknown;
                 };
             } | null;
+            /** Suggested Category Ids */
+            suggested_category_ids?: string[] | null;
         };
         /**
          * AdminConsolidationItem
@@ -17262,6 +17331,60 @@ export interface components {
             specs?: components["schemas"]["ProductKeySpec"][];
         };
         /**
+         * ProductLinkPublic
+         * @description A link as the back-office lists it: the target's identity for the row.
+         */
+        ProductLinkPublic: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Linked Product Id
+             * Format: uuid
+             */
+            linked_product_id: string;
+            /** Kind */
+            kind: string;
+            /** Position */
+            position: number;
+            /** Name */
+            name: string;
+            /** Vendor Part Number */
+            vendor_part_number?: string | null;
+            /** Supplier Sku */
+            supplier_sku?: string | null;
+            /** Image Url */
+            image_url?: string | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+        };
+        /**
+         * ProductLinkWrite
+         * @description One line of the « Articles liés » section of the product form.
+         */
+        ProductLinkWrite: {
+            /**
+             * Linked Product Id
+             * Format: uuid
+             */
+            linked_product_id: string;
+            /**
+             * Kind
+             * @default accessory
+             */
+            kind: string;
+            /**
+             * Position
+             * @default 0
+             */
+            position: number;
+        };
+        /**
          * ProductOfferPublic
          * @description One supplier's offer for a physical item (product page « autres offres »).
          */
@@ -18527,6 +18650,29 @@ export interface components {
              * Format: uuid
              */
             id: string;
+        };
+        /**
+         * RelatedProductsResponse
+         * @description « Complétez votre équipement » (R9 / T7): accessories and alternatives.
+         */
+        RelatedProductsResponse: {
+            /** Accessories */
+            accessories?: components["schemas"]["ProductPublic"][];
+            /** Alternatives */
+            alternatives?: components["schemas"]["ProductPublic"][];
+        };
+        /**
+         * RelatedToRequest
+         * @description The cart: suggestions for several products at once.
+         */
+        RelatedToRequest: {
+            /** Product Ids */
+            product_ids: string[];
+            /**
+             * Limit
+             * @default 8
+             */
+            limit: number;
         };
         /**
          * RequestBalanceResponse
@@ -26396,6 +26542,72 @@ export interface operations {
             };
         };
     };
+    "admin-product-admin_list_product_links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductLinkPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "admin-product-admin_set_product_links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductLinkWrite"][];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductLinkPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "admin-product-admin_create_product": {
         parameters: {
             query?: never;
@@ -28673,6 +28885,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductKeySpecsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "product-get_related_products": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelatedProductsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "product-get_related_to_products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RelatedToRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelatedProductsResponse"];
                 };
             };
             /** @description Validation Error */

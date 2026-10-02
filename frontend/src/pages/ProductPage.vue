@@ -330,6 +330,39 @@
         />
       </section>
 
+      <section
+        v-if="related.accessories.length > 0"
+        class="product__related"
+        aria-labelledby="related-title"
+        data-testid="product-related"
+      >
+        <h2 id="related-title" class="product__h2">{{ $t('product.complete_setup') }}</h2>
+        <div class="product-grid">
+          <ProductCard
+            v-for="item in related.accessories"
+            :key="item.id"
+            :product="item"
+            @add-to-cart="addRelatedToCart"
+          />
+        </div>
+      </section>
+      <section
+        v-if="related.alternatives.length > 0"
+        class="product__related"
+        aria-labelledby="alternatives-title"
+        data-testid="product-alternatives"
+      >
+        <h2 id="alternatives-title" class="product__h2">{{ $t('product.alternatives') }}</h2>
+        <div class="product-grid">
+          <ProductCard
+            v-for="item in related.alternatives"
+            :key="item.id"
+            :product="item"
+            @add-to-cart="addRelatedToCart"
+          />
+        </div>
+      </section>
+
       <!-- Barre d'achat mobile, toujours à portée de pouce -->
       <div class="lt-md product__mobile-bar">
         <div class="product__mobile-price">
@@ -433,6 +466,9 @@ import ProductOffers from '@/components/ProductOffers.vue';
 import { useAuthStore } from '@/stores/auth';
 import { addToMyWishlist, getMyWishlist, removeFromMyWishlist } from '@/api/wishlist';
 import { useCartStore } from '@/stores/cart';
+import { useUiStore } from '@/stores/ui';
+import ProductCard from '@/components/ProductCard.vue';
+import { getRelatedProducts, type RelatedProductsResponse } from '@/api/products';
 import { useProductsStore } from '@/stores/products';
 import { useCurrencyStore } from '@/stores/currency';
 import { useDepartureStore } from '@/stores/departure';
@@ -451,6 +487,7 @@ type Spec = { name: string; value: string; unit: string };
 const route = useRoute();
 const router = useRouter();
 const cartStore = useCartStore();
+const uiStore = useUiStore();
 const currencyStore = useCurrencyStore();
 const productsStore = useProductsStore();
 
@@ -955,6 +992,31 @@ async function loadOffers(productId: string): Promise<void> {
 // The texts follow the visitor's language (R9 / T3).
 watch(locale, () => void loadProduct());
 
+// « Complétez votre équipement » (R9 / T7): loaded after the product, client side.
+const related = ref<RelatedProductsResponse>({ accessories: [], alternatives: [] });
+async function loadRelated() {
+  related.value = { accessories: [], alternatives: [] };
+  const id = product.value?.id;
+  if (!id) return;
+  try {
+    related.value = await getRelatedProducts(id);
+  } catch {
+    // a suggestion block that fails to load is simply not shown
+  }
+}
+async function addRelatedToCart(item: ProductPublic) {
+  cartError.value = null;
+  const ok = await cartStore.addItem(item.id, 1, item);
+  if (ok) uiStore.openCartDrawer(item.id);
+  else cartError.value = cartStore.error ?? t('product.add_failed');
+}
+watch(
+  () => product.value?.id,
+  () => {
+    if (import.meta.env.QUASAR_CLIENT) void loadRelated();
+  },
+);
+
 onServerPrefetch(loadProduct);
 
 // La barre d'achat mobile est fixe : le corps de page lui réserve sa hauteur
@@ -988,6 +1050,10 @@ watch(
 .product {
   padding-top: 20px;
   padding-bottom: 96px;
+}
+
+.product__related {
+  margin-top: 48px;
 }
 
 .product__crumbs {
