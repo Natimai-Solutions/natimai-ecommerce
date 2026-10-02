@@ -28,7 +28,7 @@ Create the root `.env` from the template in section 6 before the first start.
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `SECRET_KEY` | JWT signing key — random and unique | `openssl rand -hex 32` |
+| `SECRET_KEY` | JWT signing key — random and unique, **32 characters at least** (the app refuses a shorter one outside `local`) | `openssl rand -hex 32` |
 | `POSTGRES_SERVER` | PostgreSQL host (compose sets `postgres`) | `postgres` |
 | `POSTGRES_USER` | PostgreSQL user | `postgres` |
 | `POSTGRES_PASSWORD` | PostgreSQL password (≥ 16 chars, not `changethis`) | — |

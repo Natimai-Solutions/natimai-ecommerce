@@ -48,6 +48,10 @@ def secret_is_set(value: str | None) -> bool:
     return bool(text) and not text.startswith(("changeme", "changethis"))
 
 
+#: Shortest SECRET_KEY accepted outside local (what `openssl rand -hex 32` gives).
+MIN_SECRET_KEY_LENGTH = 32
+
+
 class Settings(BaseSettings):
     """Represents settings."""
 
@@ -103,6 +107,17 @@ class Settings(BaseSettings):
                 "This will invalidate tokens on restart!",
                 stacklevel=1,
             )
+            return
+        # A short key signs JWTs that are cheap to brute-force (R8 / confort):
+        # 32 characters is what `openssl rand -base64 32` / `-hex 32` give.
+        if len(self.SECRET_KEY) < MIN_SECRET_KEY_LENGTH:
+            message = (
+                f"SECRET_KEY is only {len(self.SECRET_KEY)} characters long: use at "
+                f"least {MIN_SECRET_KEY_LENGTH} (`openssl rand -hex 32`)."
+            )
+            if self.ENVIRONMENT != "local":
+                raise ValueError(message)
+            warnings.warn(message, stacklevel=1)
 
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
@@ -428,8 +443,11 @@ class Settings(BaseSettings):
     # Example: https://api.example.com
     OAUTH_REDIRECT_BASE_URL: str = ""
 
-    # Frontend URL where the user is redirected after a successful/failed OAuth login.
-    # Tokens are appended as query params: ?access_token=...&refresh_token=...
+    # Frontend URL where the user is redirected after a successful/failed OAuth
+    # login. No token travels in the URL: the refresh token is set as an
+    # HttpOnly cookie during the redirect and the page exchanges it for an
+    # in-memory access token (``/login/refresh-token``); a failure is reported
+    # as ``?error=<code>``.
     FRONTEND_OAUTH_REDIRECT_URL: str = ""
 
     # ClamAV antivirus. When disabled the NoOpScanner marks every uploaded

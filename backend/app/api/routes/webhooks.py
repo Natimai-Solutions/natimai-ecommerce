@@ -10,6 +10,7 @@ silently accepting unauthenticated webhooks.
 
 from __future__ import annotations
 
+import hmac
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -91,7 +92,8 @@ async def ingram_order_status_webhook(
         )
 
     token = _extract_bearer_token(request)
-    if token != secret:
+    # Constant-time: a plain `!=` leaks how many leading bytes matched.
+    if not token or not hmac.compare_digest(token, secret):
         logger.warning("Ingram webhook: invalid or missing Bearer token")
         return JSONResponse(
             status_code=401,

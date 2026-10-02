@@ -1,0 +1,38 @@
+# Garde-fous avant chaque commit (R8 / confort) : les mêmes outils que la CI,
+# sur les fichiers modifiés. Installation : `uvx pre-commit install`.
+# Les hooks tournent avec les outils du dépôt (uv, pnpm) : rien à télécharger.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check (backend)
+        entry: 'bash -c ''cd backend && uv run ruff check --fix "$@"'' --'
+        language: system
+        types: [python]
+        files: ^backend/
+      - id: ruff-format
+        name: ruff format (backend)
+        entry: 'bash -c ''cd backend && uv run ruff format "$@"'' --'
+        language: system
+        types: [python]
+        files: ^backend/
+      - id: prettier
+        name: prettier (fronts, shared, e2e)
+        entry: admin-frontend/node_modules/.bin/prettier --write
+        language: system
+        files: ^(frontend|admin-frontend|shared|e2e)/.*\.(ts|vue|js|json|scss|css|md)$
+      - id: eslint-frontend
+        name: eslint (vitrine)
+        entry: 'bash -c ''cd frontend && node_modules/.bin/eslint -c ./eslint.config.js --fix "${@#frontend/}"'' --'
+        language: system
+        files: ^frontend/src/.*\.(ts|vue)$
+      - id: eslint-admin
+        name: eslint (admin)
+        entry: 'bash -c ''cd admin-frontend && node_modules/.bin/eslint -c ./eslint.config.js --fix "${@#admin-frontend/}"'' --'
+        language: system
+        files: ^admin-frontend/src.*\.(ts|vue)$
+      - id: gitleaks
+        name: gitleaks (secrets)
+        entry: "bash -c 'command -v gitleaks >/dev/null && gitleaks protect --staged --config .gitleaks.toml || echo gitleaks-absent-verification-sautee-la-CI-la-fait'"
+        language: system
+        pass_filenames: false
