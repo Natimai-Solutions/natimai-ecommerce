@@ -197,6 +197,7 @@ const allNav: NavSection[] = [
       { label: 'layout.nav.specs', icon: 'ph:sliders-horizontal', to: '/spec-definitions' },
       { label: 'layout.nav.promotions', icon: 'ph:seal-percent', to: '/promotions' },
       { label: 'layout.nav.discounts', icon: 'ph:tag', to: '/discounts' },
+      { label: 'layout.nav.gift_cards', icon: 'ph:gift', to: '/gift-cards' },
     ],
   },
   {

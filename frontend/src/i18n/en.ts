@@ -560,6 +560,11 @@ const en: MessageSchema = {
     detail: 'Details',
     docs_unavailable: 'Your invoices and credit notes are temporarily unavailable.',
     download_failed: 'Downloading the document failed.',
+    gift_card: 'Gift card or voucher',
+    gift_card_done: '{amount} added to your store credit.',
+    gift_card_failed: 'This code could not be credited.',
+    gift_card_placeholder: 'XXXX-XXXX-XXXX-XXXX',
+    gift_card_redeem: 'Redeem',
     hide_history: 'Hide history',
     invoice: 'Invoice {n}',
     kind: {

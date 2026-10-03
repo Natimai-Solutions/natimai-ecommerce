@@ -63,6 +63,10 @@ CATEGORIES: dict[str, tuple[str, str]] = {
         "Langues et devises proposées au visiteur de la vitrine.",
     ),
     "security": ("Sécurité", "Permissions et conservation du journal d'audit."),
+    "loyalty": (
+        "Cartes cadeaux et fidélité",
+        "Validité des cartes cadeaux et bons d'achat, points de fidélité.",
+    ),
 }
 
 ZERO = Decimal("0")
@@ -351,6 +355,25 @@ register(
         maximum=_d(30),
         order=22,
         extra={"unit": "j"},
+    ),
+)
+
+# --------------------------------------------------------------------------
+# Cartes cadeaux et fidélité (R8 / confort — commerce)
+
+register(
+    SettingSpec(
+        "gift_card_validity_months",
+        "int",
+        "loyalty",
+        "Validité d'une carte cadeau (mois)",
+        "Durée pendant laquelle un code acheté en boutique ou émis sans date "
+        "depuis l'admin peut être crédité sur un compte. 0 = sans limite.",
+        default=12,
+        minimum=ZERO,
+        maximum=_d(120),
+        order=1,
+        extra={"unit": "mois"},
     ),
 )
 

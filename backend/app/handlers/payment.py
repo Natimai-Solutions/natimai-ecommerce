@@ -36,6 +36,7 @@ from app.features.payment.services.deposit import (
     KIND_FULL,
     ORDER_STATUS_DEPOSIT_PAID,
 )
+from app.features.payment.services.gift_cards import issue_for_order
 from app.features.payment.services.notifications import (
     send_payment_event_notifications,
 )
@@ -493,6 +494,30 @@ async def on_payment_captured_issue_invoice(
         correlation_id=order_id,
     )
     await session.commit()
+
+
+@outbox_handler("payment.captured")
+async def on_payment_captured_issue_gift_cards(
+    session: AsyncSession, payload: dict[str, Any]
+) -> None:
+    """Issue the gift cards an order contains once it is paid (R8 / confort).
+
+    Same guards as the invoice: never on a partial or mismatched capture, and
+    not on a deposit (the cards go out with the balance, when the order is
+    fully settled). ``issue_for_order`` is idempotent, so a retry never
+    doubles a customer's cards.
+    """
+    order_id = _parse_order_id(payload)
+    if order_id is None:
+        return
+    mismatch = await _captured_amount_mismatch(session, payload=payload)
+    if mismatch == PARTIAL or isinstance(mismatch, dict):
+        return
+    payment, _order = await _load_payment_and_order(session, payload)
+    if _payment_kind(payment) == KIND_DEPOSIT:
+        return
+    if await issue_for_order(session, order_id=order_id):
+        await session.commit()
 
 
 @outbox_handler("payment.refunded")

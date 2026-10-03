@@ -269,6 +269,28 @@
                 bottom-slots
                 data-testid="product-base-price"
               />
+              <q-toggle
+                :model-value="form.gift_card_amount !== ''"
+                :label="$t('product_form.gift_card')"
+                dense
+                data-testid="product-gift-card"
+                @update:model-value="
+                  (on: boolean) => (form.gift_card_amount = on ? form.base_price || '1' : '')
+                "
+              />
+              <q-input
+                v-if="form.gift_card_amount !== ''"
+                v-model="form.gift_card_amount"
+                :label="$t('product_form.gift_card_amount', { currency: shopConfig.currency })"
+                :hint="$t('product_form.gift_card_hint')"
+                type="number"
+                step="1"
+                min="1"
+                outlined
+                dense
+                bottom-slots
+                data-testid="product-gift-card-amount"
+              />
               <div class="row" style="gap: 8px">
                 <q-input
                   v-model="form.cost_amount"
@@ -725,6 +747,8 @@ interface FormState {
   cost_currency: string;
   customs_rate_pct: string;
   base_price: string;
+  /** Set: each unit sold issues a gift card of this amount (R8 / confort). */
+  gift_card_amount: string;
   category_id: string | null;
   tax_rate_id: string | null;
   supplier_place_id: string | null;
@@ -746,7 +770,7 @@ const MONEY_FIELDS = ['cost_amount', 'base_price'] as const;
  * money fields would freeze a duty-free price on every product the admin ever
  * opens — the very bug the category default was introduced to fix.
  */
-const NULLABLE_RATE_FIELDS = ['customs_rate_pct', 'margin_rate_pct'] as const;
+const NULLABLE_RATE_FIELDS = ['customs_rate_pct', 'margin_rate_pct', 'gift_card_amount'] as const;
 /** Decimal string, blank → '0.00' (the column is non-nullable). */
 const QUANTITY_FIELDS = ['supplier_quantity'] as const;
 
@@ -775,6 +799,7 @@ function emptyForm(): FormState {
     cost_currency: shopConfig.currency,
     customs_rate_pct: '',
     base_price: '0.00',
+    gift_card_amount: '',
     category_id: null,
     tax_rate_id: null,
     supplier_place_id: null,
@@ -1120,6 +1145,7 @@ const FIELD_LABELS: Record<string, string> = labels({
   cost_currency: 'product_form.f_cost_currency',
   customs_rate_pct: 'product_form.f_customs_rate_pct',
   base_price: 'product_form.f_base_price',
+  gift_card_amount: 'product_form.f_gift_card_amount',
   category_id: 'product_form.f_category_id',
   tax_rate_id: 'product_form.f_tax_rate_id',
   supplier_place_id: 'product_form.f_supplier_place_id',
@@ -1256,6 +1282,7 @@ function loadFromProduct(p: ProductPublic | null) {
     base.os_licence = str(rec.os_licence);
     base.warranty_months = str(rec.warranty_months);
     base.margin_rate_pct = str(rec.margin_rate_pct);
+    base.gift_card_amount = str(rec.gift_card_amount);
     base.cost_amount = str(rec.cost_amount) || '0.00';
     base.cost_currency = str(rec.cost_currency) || shopConfig.currency;
     base.customs_rate_pct = str(rec.customs_rate_pct);

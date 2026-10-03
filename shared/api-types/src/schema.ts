@@ -6599,6 +6599,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/gift-cards/redeem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Redeem Gift Card
+         * @description Credit the card's amount to the customer's store credit.
+         */
+        post: operations["gift-cards-redeem_gift_card"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/gift-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Gift Cards
+         * @description Every card, newest first; filters on text, kind and computed state.
+         */
+        get: operations["gift-cards-list_gift_cards"];
+        put?: never;
+        /**
+         * Issue Gift Cards
+         * @description Issue ``count`` gift cards, or one nominative voucher.
+         */
+        post: operations["gift-cards-issue_gift_cards"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/gift-cards/{card_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Gift Card
+         * @description Cancel a card that was not redeemed (lost, issued by mistake).
+         */
+        post: operations["gift-cards-cancel_gift_card"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/gift-cards/{card_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Gift Card
+         * @description Undo a cancellation.
+         */
+        post: operations["gift-cards-restore_gift_card"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stock-alerts": {
         parameters: {
             query?: never;
@@ -12365,6 +12449,119 @@ export interface components {
             email: string;
         };
         /**
+         * GiftCardIssue
+         * @description Admin payload: issue ``count`` cards or one nominative voucher.
+         */
+        GiftCardIssue: {
+            /**
+             * Kind
+             * @default gift_card
+             */
+            kind: string;
+            /** Amount */
+            amount: number | string;
+            /**
+             * Count
+             * @default 1
+             */
+            count: number;
+            /** Recipient Email */
+            recipient_email?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Expires At */
+            expires_at?: string | null;
+        };
+        /**
+         * GiftCardPublic
+         * @description Admin view of a card: the full code is shown to the admin only.
+         */
+        GiftCardPublic: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Id */
+            created_by_id?: string | null;
+            /** Modify At */
+            modify_at?: string | null;
+            /** Modify By Id */
+            modify_by_id?: string | null;
+            /**
+             * Is Admin Active
+             * @default true
+             */
+            is_admin_active: boolean;
+            /**
+             * Kind
+             * @description gift_card | voucher
+             */
+            kind: string;
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency?: string;
+            /**
+             * Recipient Email
+             * @description Voucher: the only account allowed to redeem. Gift card bought in the shop: the buyer, for information.
+             */
+            recipient_email?: string | null;
+            /**
+             * Note
+             * @description Admin note (occasion, reason)
+             */
+            note?: string | null;
+            /**
+             * Expires At
+             * @description None: never
+             */
+            expires_at?: string | null;
+            /**
+             * Order Id
+             * @description Order the card was bought in (None when issued by the admin)
+             */
+            order_id?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Code */
+            code: string;
+            /** Redeemed At */
+            redeemed_at?: string | null;
+            /** Redeemed By Id */
+            redeemed_by_id?: string | null;
+            /** Redeemed By Email */
+            redeemed_by_email?: string | null;
+            /**
+             * State
+             * @description active | redeemed | expired | cancelled (computed)
+             */
+            state: string;
+        };
+        /**
+         * GiftCardRedeem
+         * @description Customer payload: the code as typed (case and dashes do not matter).
+         */
+        GiftCardRedeem: {
+            /** Code */
+            code: string;
+        };
+        /**
+         * GiftCardsPublic
+         * @description A page of cards.
+         */
+        GiftCardsPublic: {
+            /** Data */
+            data: components["schemas"]["GiftCardPublic"][];
+            /** Count */
+            count: number;
+        };
+        /**
          * GroupCreate
          * @description Schema for creating a new group
          */
@@ -17407,6 +17604,11 @@ export interface components {
              */
             price_extra?: number | string | null;
             /**
+             * Gift Card Amount
+             * @description Set: buying one unit of this product issues a gift card of this amount (reference currency) to the buyer once the order is paid (R8 / confort). The product is sold like any other (price, tax, availability « on_demand » since nothing ships).
+             */
+            gift_card_amount?: number | string | null;
+            /**
              * Supplier Sku
              * @description Supplier/vendor SKU identifier
              */
@@ -17947,6 +18149,11 @@ export interface components {
              * @description Variant only (R9 / T6): supplement over the parent's fixed price (« i7 : + 10 000 »). When set, base_price = parent.base_price + price_extra, recomputed whenever the parent price changes; the storefront shows « + 10 000 » in the selector. None: the variant has a price of its own.
              */
             price_extra?: string | null;
+            /**
+             * Gift Card Amount
+             * @description Set: buying one unit of this product issues a gift card of this amount (reference currency) to the buyer once the order is paid (R8 / confort). The product is sold like any other (price, tax, availability « on_demand » since nothing ships).
+             */
+            gift_card_amount?: string | null;
             /** Supplier Sku */
             supplier_sku?: string | null;
             /** Vendor Part Number */
@@ -18362,6 +18569,8 @@ export interface components {
             has_variants?: boolean | null;
             /** Price Extra */
             price_extra?: number | string | null;
+            /** Gift Card Amount */
+            gift_card_amount?: number | string | null;
             /** Supplier Sku */
             supplier_sku?: string | null;
             /** Vendor Part Number */
@@ -35620,6 +35829,169 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StoreCreditBalance"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "gift-cards-redeem_gift_card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GiftCardRedeem"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoreCreditBalance"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "gift-cards-list_gift_cards": {
+        parameters: {
+            query?: {
+                q?: string | null;
+                kind?: string | null;
+                state?: string | null;
+                skip?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftCardsPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "gift-cards-issue_gift_cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GiftCardIssue"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftCardPublic"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "gift-cards-cancel_gift_card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftCardPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "gift-cards-restore_gift_card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiftCardPublic"];
                 };
             };
             /** @description Validation Error */

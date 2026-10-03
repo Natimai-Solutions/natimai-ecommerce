@@ -35,6 +35,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'currency-rates', component: () => import('@/pages/CurrencyRatesPage.vue') },
       { path: 'promotions', component: () => import('@/pages/PromotionsPage.vue') },
       { path: 'discounts', component: () => import('@/pages/DiscountsPage.vue') },
+      { path: 'gift-cards', component: () => import('@/pages/GiftCardsPage.vue') },
       { path: 'spec-definitions', component: () => import('@/pages/SpecDefinitionsPage.vue') },
       { path: 'supplier-orders', component: () => import('@/pages/SupplierOrdersPage.vue') },
       { path: 'suppliers', component: () => import('@/pages/SuppliersPage.vue') },

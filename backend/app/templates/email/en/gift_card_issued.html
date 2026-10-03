@@ -1,0 +1,21 @@
+{% extends "_layout.html" %}
+{% block title %}{% if cards | length > 1 %}Your gift cards{% else %}Your gift card{% endif %}{% endblock %}
+{% block header_color %}#7a1a5e{% endblock %}
+{% block extra_style %}.badge { background: #f6e6f1; color: #7a1a5e; } .code { font-family: Consolas, Menlo, monospace; font-size: 18px; letter-spacing: 1px; }{% endblock %}
+{% block heading %}{% if cards | length > 1 %}Your gift cards{% else %}Your gift card{% endif %}{% endblock %}
+{% block content %}
+      <p>Hello {{ full_name }},</p>
+      <span class="badge">Order {{ order_ref or (order_id | short_ref) }}</span>
+      <p>Thank you for your order. {% if cards | length > 1 %}Here are your gift cards{% else %}Here is your gift card{% endif %}:</p>
+      <div class="summary">
+        <table>
+          {% for card in cards %}
+          <tr><td><span class="code">{{ card.code }}</span>{% if card.expires_at %}<br><small>valid until {{ date(card.expires_at) }}</small>{% endif %}</td><td>{{ card.amount }} {{ card.currency }}</td></tr>
+          {% endfor %}
+        </table>
+      </div>
+      <p>To give it, simply pass the code on. Its recipient enters it in their account, “My orders” section, and the amount is credited to their account: they use it at payment, in one or several orders.<br>
+        <a href="{{ account_url }}">{{ account_url }}</a></p>
+      <p>Keep this message: the code will not be sent again.</p>
+      <p>Thank you for your trust,<br><strong>The {{ shop_name }} team</strong></p>
+{% endblock %}

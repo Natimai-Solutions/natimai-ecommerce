@@ -566,6 +566,11 @@ const fr = {
     detail: 'Détail',
     docs_unavailable: 'Vos factures et avoirs sont momentanément indisponibles.',
     download_failed: 'Le téléchargement du document a échoué.',
+    gift_card: 'Carte cadeau ou bon d’achat',
+    gift_card_done: '{amount} crédités sur votre avoir.',
+    gift_card_failed: 'Ce code n’a pas pu être crédité.',
+    gift_card_placeholder: 'XXXX-XXXX-XXXX-XXXX',
+    gift_card_redeem: 'Créditer',
     hide_history: "Masquer l'historique",
     invoice: 'Facture {n}',
     kind: {

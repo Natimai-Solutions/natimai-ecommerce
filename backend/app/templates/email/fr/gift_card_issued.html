@@ -1,0 +1,21 @@
+{% extends "_layout.html" %}
+{% block title %}{% if cards | length > 1 %}Vos cartes cadeaux{% else %}Votre carte cadeau{% endif %}{% endblock %}
+{% block header_color %}#7a1a5e{% endblock %}
+{% block extra_style %}.badge { background: #f6e6f1; color: #7a1a5e; } .code { font-family: Consolas, Menlo, monospace; font-size: 18px; letter-spacing: 1px; }{% endblock %}
+{% block heading %}{% if cards | length > 1 %}Vos cartes cadeaux{% else %}Votre carte cadeau{% endif %}{% endblock %}
+{% block content %}
+      <p>Bonjour {{ full_name }},</p>
+      <span class="badge">Commande {{ order_ref or (order_id | short_ref) }}</span>
+      <p>Merci pour votre commande. {% if cards | length > 1 %}Voici vos cartes cadeaux{% else %}Voici votre carte cadeau{% endif %} :</p>
+      <div class="summary">
+        <table>
+          {% for card in cards %}
+          <tr><td><span class="code">{{ card.code }}</span>{% if card.expires_at %}<br><small>valable jusqu'au {{ date(card.expires_at) }}</small>{% endif %}</td><td>{{ card.amount }} {{ card.currency }}</td></tr>
+          {% endfor %}
+        </table>
+      </div>
+      <p>Pour l'offrir, transmettez simplement le code. Son bénéficiaire le saisit dans son espace client, rubrique « Mes commandes », et le montant est crédité sur son compte : il l'utilise au moment du paiement, en une ou plusieurs fois.<br>
+        <a href="{{ account_url }}">{{ account_url }}</a></p>
+      <p>Conservez ce message : le code ne sera pas renvoyé.</p>
+      <p>Merci pour votre confiance,<br><strong>L'équipe {{ shop_name }}</strong></p>
+{% endblock %}

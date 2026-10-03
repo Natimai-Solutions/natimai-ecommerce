@@ -248,6 +248,17 @@ class ProductBase(Base):
             "has a price of its own."
         ),
     )
+    gift_card_amount: Decimal | None = Field(
+        default=None,
+        decimal_places=2,
+        max_digits=12,
+        description=(
+            "Set: buying one unit of this product issues a gift card of this "
+            "amount (reference currency) to the buyer once the order is paid "
+            "(R8 / confort). The product is sold like any other (price, tax, "
+            "availability « on_demand » since nothing ships)."
+        ),
+    )
 
     # Generic supplier/vendor integration fields
     supplier_sku: str | None = Field(
@@ -529,6 +540,7 @@ class ProductUpdate(ProductBase, BaseUpdate):
     parent_product_id: uuid.UUID | None = None
     variant_options: dict[str, str] | None = None
     price_extra: Decimal | None = None
+    gift_card_amount: Decimal | None = None
     category_id: uuid.UUID | None = None
     supplier_quantity: Decimal | None = None
     supplier_price: Decimal | None = None

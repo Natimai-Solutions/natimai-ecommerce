@@ -47,6 +47,7 @@ from app.api.routes.category import router as category_router
 from app.api.routes.content_pages import router as content_pages_router
 from app.api.routes.currency import router as currency_router
 from app.api.routes.discount import router as discount_router
+from app.api.routes.gift_cards import router as gift_cards_router
 from app.api.routes.group import router as group_router
 from app.api.routes.group_security import router as group_security_router
 from app.api.routes.group_upgrade import router as group_upgrade_router
@@ -167,6 +168,7 @@ api_router.include_router(homepage_router)
 api_router.include_router(branding_router)
 api_router.include_router(grouped_departures_router)
 api_router.include_router(store_credit_router)
+api_router.include_router(gift_cards_router)
 api_router.include_router(stock_alerts_router)
 api_router.include_router(utils_router, prefix="/utils")
 api_router.include_router(webhooks_router)

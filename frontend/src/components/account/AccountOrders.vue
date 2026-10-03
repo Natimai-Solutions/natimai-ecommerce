@@ -1,14 +1,40 @@
 <template>
   <div>
-    <section v-if="storeCredit && hasCredit" class="app-section" data-testid="account-store-credit">
+    <section v-if="storeCredit" class="app-section" data-testid="account-store-credit">
       <div class="app-panel credit">
-        <div class="credit__main">
+        <div v-if="hasCredit" class="credit__main">
           <span class="credit__label">{{ $t('orders.credit') }}</span>
           <span class="credit__amount font-mono">{{ money(storeCredit.balance) }}</span>
           <span class="credit__hint">
             {{ $t('orders.credit_hint') }}
           </span>
         </div>
+        <form class="credit__redeem" data-testid="account-gift-card" @submit.prevent="redeem">
+          <label class="credit__label" for="gift-card-code">{{ $t('orders.gift_card') }}</label>
+          <div class="credit__redeem-row">
+            <input
+              id="gift-card-code"
+              v-model="giftCode"
+              class="credit__input font-mono"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              :placeholder="$t('orders.gift_card_placeholder')"
+              :disabled="redeeming"
+            />
+            <q-btn
+              type="submit"
+              unelevated
+              no-caps
+              color="primary"
+              :label="$t('orders.gift_card_redeem')"
+              :loading="redeeming"
+              :disable="giftCode.trim().length < 4"
+            />
+          </div>
+          <span v-if="redeemError" class="credit__error" role="alert">{{ redeemError }}</span>
+          <span v-else-if="redeemed" class="credit__hint" role="status">{{ redeemed }}</span>
+        </form>
         <button
           v-if="storeCredit.entries.length"
           type="button"
@@ -163,6 +189,7 @@ import StatusTag from '@app/ui/StatusTag.vue';
 import { downloadCreditNotePdf, listMyCreditNotes, type CreditNote } from '@/api/creditNotes';
 import { downloadInvoicePdf, listMyInvoices, type Invoice } from '@/api/invoices';
 import { listMyOrders, type Order } from '@/api/orders';
+import { redeemGiftCard } from '@/api/giftCards';
 import { getMyStoreCredit, type StoreCreditBalance } from '@/api/storeCredit';
 import { useCurrencyStore } from '@/stores/currency';
 import { apiErrorMessage } from '@/utils/errors';
@@ -193,6 +220,31 @@ const hasCredit = computed(
     !!storeCredit.value &&
     (Number(storeCredit.value.balance) > 0 || storeCredit.value.entries.length > 0),
 );
+
+// Gift card / voucher code → store credit (R8 / confort).
+const giftCode = ref('');
+const redeeming = ref(false);
+const redeemError = ref<string | null>(null);
+const redeemed = ref<string | null>(null);
+
+async function redeem() {
+  const code = giftCode.value.trim();
+  if (code.length < 4 || redeeming.value) return;
+  redeeming.value = true;
+  redeemError.value = null;
+  redeemed.value = null;
+  try {
+    const before = Number(storeCredit.value?.balance ?? 0);
+    storeCredit.value = await redeemGiftCard(code);
+    const added = Number(storeCredit.value.balance) - before;
+    redeemed.value = t('orders.gift_card_done', { amount: money(String(added)) });
+    giftCode.value = '';
+  } catch (err) {
+    redeemError.value = apiErrorMessage(err) ?? t('orders.gift_card_failed');
+  } finally {
+    redeeming.value = false;
+  }
+}
 
 function creditKindLabel(kind: string): string {
   return ['grant', 'use', 'revoke'].includes(kind) ? t(`orders.kind.${kind}`) : kind;
@@ -324,6 +376,35 @@ onMounted(() => {
 
 .credit__history {
   margin-top: 12px;
+}
+
+.credit__redeem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 280px;
+}
+
+.credit__redeem-row {
+  display: flex;
+  gap: 8px;
+}
+
+.credit__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--n-line);
+  border-radius: 6px;
+  background: var(--n-bg);
+  color: inherit;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.credit__error {
+  font-size: 13px;
+  color: var(--n-danger, #b3261e);
 }
 
 .credit__plus {
